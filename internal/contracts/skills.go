@@ -1,5 +1,70 @@
 package contracts
 
+// ResolvedSkill is the allocation-local projection of an immutable Run Skill
+// snapshot. It deliberately carries no UserScope source authority or package
+// bytes: Runtime can read only this exact RunScope artifact through the
+// allocation-bound private Artifact API.
+type ResolvedSkill struct {
+	Name          string      `json:"name"`
+	Artifact      ArtifactRef `json:"artifact"`
+	PackageDigest string      `json:"packageDigest"`
+}
+
+func (s ResolvedSkill) Validate() error {
+	logical := ArtifactRef{Namespace: AgentSkillNamespace, Name: s.Name}
+	if err := logical.ValidateAgentSkillRef(); err != nil {
+		return err
+	}
+	if err := validateExactRunSkillRef(s.Artifact, s.Name, "artifact"); err != nil {
+		return err
+	}
+	return validateDigest("resolved Skill packageDigest", s.PackageDigest)
+}
+
+// ValidateResolvedSkills enforces the exact, canonical projection selected for
+// one AgentTemplate. A non-nil empty slice is mandatory even when the template
+// has no Skills so private-wire upgrades fail closed.
+func ValidateResolvedSkills(template ResolvedAgentTemplate, skills []ResolvedSkill) error {
+	if skills == nil {
+		return invalidf("resolvedSkills is required")
+	}
+	if len(skills) > MaxAgentTemplateSkills {
+		return invalidf("resolvedSkills exceeds %d entries", MaxAgentTemplateSkills)
+	}
+	if len(skills) != len(template.Skills) {
+		return invalidf("resolvedSkills must exactly match AgentTemplate skills")
+	}
+	previous := ""
+	for index, skill := range skills {
+		if err := skill.Validate(); err != nil {
+			return err
+		}
+		if skill.Name <= previous {
+			return invalidf("resolvedSkills must be sorted and unique")
+		}
+		if template.Skills[index].Name != skill.Name {
+			return invalidf("resolvedSkills must exactly match AgentTemplate skills")
+		}
+		previous = skill.Name
+	}
+	return nil
+}
+
+func CloneResolvedSkills(source []ResolvedSkill) []ResolvedSkill {
+	if source == nil {
+		return nil
+	}
+	result := make([]ResolvedSkill, len(source))
+	for index, skill := range source {
+		result[index] = skill
+		if skill.Artifact.Revision != nil {
+			revision := *skill.Artifact.Revision
+			result[index].Artifact.Revision = &revision
+		}
+	}
+	return result
+}
+
 // RunSkillSnapshot is immutable Run provenance. Source is nil only for the
 // durable missing marker selected during Run creation. Artifact remains nil
 // until the exact package has been validated and forked into RunScope.

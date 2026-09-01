@@ -450,6 +450,7 @@ func (r *InMemoryRegistry) reserveAll(
 		reservation := Reservation{
 			Grant: grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
 			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
+			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
@@ -1053,6 +1054,13 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.AgentTemplate.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid AgentTemplate for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
+		resolvedSkills := binding.ResolvedSkills
+		if resolvedSkills == nil && len(binding.AgentTemplate.Skills) == 0 {
+			resolvedSkills = []contracts.ResolvedSkill{}
+		}
+		if err := contracts.ValidateResolvedSkills(binding.AgentTemplate, resolvedSkills); err != nil {
+			return "", nil, fmt.Errorf("%w: invalid resolved Skills for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
+		}
 		if err := binding.ExecutionConfig.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid execution config for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
@@ -1071,6 +1079,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		bindings[index] = BindingRequirement{
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
 			AgentTemplate:    cloneAgentTemplate(binding.AgentTemplate),
+			ResolvedSkills:   contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:  cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			RuntimeSelection: cloneRuntimeSelection(binding.RuntimeSelection),
 		}
@@ -1371,6 +1380,7 @@ func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.Heartb
 func cloneReservation(source Reservation) Reservation {
 	result := source
 	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
+	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	if source.ResolvedRuntimeConfig != nil {
 		resolved := source.ResolvedRuntimeConfig.Clone()
@@ -1434,6 +1444,14 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 	for index, selection := range source.Toolsets {
 		result.Toolsets[index] = selection
 		result.Toolsets[index].Tools = append([]string(nil), selection.Tools...)
+	}
+	result.Skills = make([]contracts.ArtifactRef, len(source.Skills))
+	for index, skill := range source.Skills {
+		result.Skills[index] = skill
+		if skill.Revision != nil {
+			revision := *skill.Revision
+			result.Skills[index].Revision = &revision
+		}
 	}
 	return result
 }

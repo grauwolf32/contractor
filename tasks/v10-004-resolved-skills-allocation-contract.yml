@@ -82,5 +82,5 @@ acceptance_criteria:
 tests:
   - {name: schema, command: "make verify-wire-contracts", covers: [A1, A2]}
   - {name: go, command: "go test -race ./internal/contracts/... ./internal/controlplane/...", covers: [A1, A2, A3, A4]}
-  - {name: python, command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation_contract.py", covers: [A1, A2]}
+  - {name: python, command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_allocation.py", covers: [A1, A2]}
   - {name: cross-language, command: "make test-wire-cross-language", covers: [A1, A2, A4]}

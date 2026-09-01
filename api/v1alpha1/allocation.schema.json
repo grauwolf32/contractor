@@ -139,10 +139,39 @@
         "runtime": {"$ref": "#/$defs/runtimeReport"}
       }
     },
+    "resolvedSkill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "artifact", "packageDigest"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "artifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["namespace", "name", "revision"],
+          "properties": {
+            "namespace": {"const": "skills"},
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "revision": {"$ref": "common.schema.json#/$defs/opaqueId"}
+          }
+        },
+        "packageDigest": {"$ref": "common.schema.json#/$defs/digest"}
+      }
+    },
     "allocationSpec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "leaseExpiresAt", "agentTemplate", "modelPolicy", "runtimeSettings"],
+      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "leaseExpiresAt", "agentTemplate", "resolvedSkills", "modelPolicy", "runtimeSettings"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
         "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
@@ -152,6 +181,12 @@
         "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
         "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},
         "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},
+        "resolvedSkills": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/resolvedSkill"}
+        },
         "modelPolicy": {"$ref": "common.schema.json#/$defs/resolvedModelPolicy"},
         "runtimeSettings": {
           "type": "object",

@@ -120,6 +120,17 @@ with media type `application/vnd.contractor.agent-skill+zip` and the current
 revision precondition. Future Runs use that new binding; existing Runs keep
 their pinned revision.
 
+`resolvedSkills` is a mandatory private allocation field. Even an
+AgentTemplate without skills is sent as `"resolvedSkills": []`; a non-empty
+value contains only exact RunScope `skills/<name>` revisions and package
+digests. It never contains the owner's source ref, package bytes or catalog
+authority. This private-wire change is deliberately fail-closed: mixed Server
+and Runtime Agent versions are unsupported. Before deploying a version that
+adds or changes the allocation shape, stop new Run admission, let active
+allocations finish (or cancel them), confirm every Runtime slot is released,
+then replace the Server and all Runtime Agents together. Do not attempt a
+rolling upgrade with live allocations.
+
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
 creates a temporary deployment CA, uses an isolated PostgreSQL schema, and

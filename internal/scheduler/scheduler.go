@@ -1313,6 +1313,10 @@ func (s *Scheduler) liveOrNewReservations(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) ([]controlplane.Reservation, bool, error) {
+	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot)
+	if err != nil {
+		return nil, false, err
+	}
 	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil {
 		return nil, false, err
@@ -1332,7 +1336,7 @@ func (s *Scheduler) liveOrNewReservations(
 		if lost {
 			reservations, reserveErr := s.reserveAll(ctx, controlplane.ReservationRequest{
 				RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-				Bindings: bindingRequirements(workflow.stage), RuntimeConfig: &run.RuntimeConfig,
+				Bindings: requirements, RuntimeConfig: &run.RuntimeConfig,
 			})
 			if reserveErr != nil {
 				return nil, false, errControlPlaneAllocationLost
@@ -1342,7 +1346,7 @@ func (s *Scheduler) liveOrNewReservations(
 	}
 	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		Bindings: bindingRequirements(workflow.stage), RuntimeConfig: &run.RuntimeConfig,
+		Bindings: requirements, RuntimeConfig: &run.RuntimeConfig,
 	})
 	if err != nil {
 		return nil, false, err
@@ -2198,6 +2202,10 @@ func (s *Scheduler) existingLiveReservations(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) []controlplane.Reservation {
+	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot)
+	if err != nil {
+		return nil
+	}
 	recorded, err := s.store.ListStageAllocations(ctx, execution.StageExecutionID)
 	if err != nil || len(recorded) == 0 {
 		return nil
@@ -2209,7 +2217,7 @@ func (s *Scheduler) existingLiveReservations(
 	}
 	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		Bindings: bindingRequirements(workflow.stage), RuntimeConfig: &run.RuntimeConfig,
+		Bindings: requirements, RuntimeConfig: &run.RuntimeConfig,
 	})
 	if err != nil || verifyReservations(run, workflow, execution, recorded, reservations) != nil {
 		return nil

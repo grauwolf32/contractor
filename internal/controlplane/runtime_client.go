@@ -81,12 +81,17 @@ func (c *RuntimeControlClient) Prepare(
 	reservation Reservation,
 	settings contracts.WorkerExecutionSettingsV2,
 ) (contracts.WorkerHandle, error) {
+	resolvedSkills := reservation.ResolvedSkills
+	if resolvedSkills == nil && len(reservation.AgentTemplate.Skills) == 0 {
+		resolvedSkills = []contracts.ResolvedSkill{}
+	}
 	spec := contracts.AllocationSpecV2{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 		LeaseExpiresAt: wireTime(reservation.LeaseExpiresAt), AgentTemplate: cloneAgentTemplate(reservation.AgentTemplate),
-		ModelPolicy: cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
+		ResolvedSkills: contracts.CloneResolvedSkills(resolvedSkills),
+		ModelPolicy:    cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
 	}
 	request := contracts.PrepareAllocationRequestV2{APIVersion: contracts.APIVersion, Spec: spec}

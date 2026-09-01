@@ -105,7 +105,8 @@ func TestPrivateV2AllocationSpecComposesValidatedSettingsAndProvenance(t *testin
 		APIVersion: active.APIVersion, AllocationID: active.AllocationID, RunID: active.RunID,
 		StageExecutionID: active.StageExecutionID, LogicalAgentName: active.LogicalAgentName,
 		Namespace: active.Namespace, LeaseExpiresAt: active.LeaseExpiresAt,
-		AgentTemplate: active.AgentTemplate, ModelPolicy: active.ModelPolicy,
+		AgentTemplate: active.AgentTemplate, ResolvedSkills: active.ResolvedSkills,
+		ModelPolicy:     active.ModelPolicy,
 		RuntimeSettings: settings, ResolvedRuntimeConfigProvenance: provenance,
 	}
 	canonical, err := MarshalPrivateV2Canonical(value)
@@ -114,6 +115,9 @@ func TestPrivateV2AllocationSpecComposesValidatedSettingsAndProvenance(t *testin
 	}
 	if _, err := DecodePrivateV2Strict[AllocationSpecV2](canonical); err != nil {
 		t.Fatalf("round-trip AllocationSpecV2: %v", err)
+	}
+	if !bytes.Contains(canonical, []byte(`"resolvedSkills":[]`)) {
+		t.Fatalf("private allocation omitted mandatory empty resolvedSkills: %s", canonical)
 	}
 	formatted := fmt.Sprintf("%v %+v %#v", value.RuntimeSettings, value.RuntimeSettings, value.RuntimeSettings)
 	for _, secret := range []string{"gateway-secret", "telemetry-secret", "proxy-bearer-secret"} {

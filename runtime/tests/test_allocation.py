@@ -404,6 +404,7 @@ def make_spec(
         namespace="builder",
         leaseExpiresAt=NOW + timedelta(seconds=60),
         agentTemplate=template,
+        resolvedSkills=[],
         modelPolicy=policy.model_copy(deep=True),
         runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",

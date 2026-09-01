@@ -1,23 +1,23 @@
 {
   "apiVersion": "contractor/v1alpha1",
-  "allocationId": "019c-allocation-1",
-  "runId": "019c-run-1",
-  "stageExecutionId": "019c-stage-1",
-  "logicalAgentName": "builder",
-  "namespace": "builder",
+  "allocationId": "019c-allocation-skills-invalid",
+  "runId": "019c-run-skills-invalid",
+  "stageExecutionId": "019c-stage-skills-invalid",
+  "logicalAgentName": "reviewer",
+  "namespace": "reviewer",
   "leaseExpiresAt": "2026-08-29T10:01:00Z",
   "agentTemplate": {
     "ref": {
-      "templateId": "artifact_builder",
+      "templateId": "artifact_reviewer",
       "version": "1",
       "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     },
-    "description": "Builds the requested artifact",
+    "description": "Reviews the requested artifact",
     "runtime": {"runtimeId": "adk", "version": "1"},
     "instructions": {
-      "ref": "instructions/artifact-builder.md",
+      "ref": "instructions/artifact-reviewer.md",
       "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "text": "Read the declared input and write the requested result."
+      "text": "Review the declared input using the selected skill."
     },
     "modelPolicy": {
       "ref": {
@@ -29,18 +29,19 @@
       "maxOutputTokens": 4096,
       "maxModelCalls": 8,
       "maxToolCalls": 16,
-      "maxTotalTokens": 32768,
-      "temperature": 0.1
+      "maxTotalTokens": 32768
     },
-    "toolsets": [
-      {
-        "ref": {"toolsetId": "run-artifacts", "version": "1"},
-        "tools": ["read_artifact", "write_artifact"]
-      }
-    ],
+    "toolsets": [],
+    "skills": [{"namespace": "skills", "name": "review"}],
     "sandboxProfile": {"sandboxProfileId": "local-workdir", "version": "1"}
   },
-  "resolvedSkills": [],
+  "resolvedSkills": [
+    {
+      "name": "review",
+      "artifact": {"namespace": "skills", "name": "review"},
+      "packageDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    }
+  ],
   "modelPolicy": {
     "ref": {
       "policyId": "worker",
@@ -51,8 +52,7 @@
     "maxOutputTokens": 4096,
     "maxModelCalls": 8,
     "maxToolCalls": 16,
-    "maxTotalTokens": 32768,
-    "temperature": 0.1
+    "maxTotalTokens": 32768
   },
   "runtimeSettings": {
     "llmGatewayUrl": "http://127.0.0.1:4000/v1",

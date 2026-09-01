@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -39,6 +41,30 @@ func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 	}
 	if got := []string{firstTemplate.Skills[0].Name, firstTemplate.Skills[1].Name}; got[0] != "alpha2" || got[1] != "beta" {
 		t.Fatalf("normalized Skill order = %v", got)
+	}
+}
+
+func TestAgentTemplateSkillDigestMatchesSharedPythonFixture(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := os.ReadFile(filepath.Join("..", "..", "api", "testdata", "v1alpha1", "valid", "allocation-spec-skills.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var allocation contracts.AllocationSpec
+	if err := json.Unmarshal(encoded, &allocation); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := agentTemplateDigest(
+		Selector{ID: allocation.AgentTemplate.Ref.TemplateID, Version: allocation.AgentTemplate.Ref.Version},
+		allocation.AgentTemplate,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const expected = "sha256:f088d3a6c4b2ecd9e430da5f503db36d023cdb8791efec29468f91d7120293d6"
+	if digest != expected {
+		t.Fatalf("shared non-empty Skill AgentTemplate digest = %s, want %s", digest, expected)
 	}
 }
 

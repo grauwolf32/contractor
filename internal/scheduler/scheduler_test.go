@@ -141,6 +141,68 @@ func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing
 	}
 }
 
+func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T) {
+	t.Parallel()
+
+	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.Workflow("artifact-copy@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := workflow.Stages[workflow.EntryStage]
+	builder := stage.Agents["builder"]
+	builder.Template.Skills = []contracts.ArtifactRef{{Namespace: "skills", Name: "review"}}
+	stage.Agents["builder"] = builder
+	reviewer := builder
+	reviewer.Namespace = "reviewer"
+	reviewer.Template.Skills = []contracts.ArtifactRef{
+		{Namespace: "skills", Name: "analysis2"},
+		{Namespace: "skills", Name: "review"},
+	}
+	stage.Agents["reviewer"] = reviewer
+	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
+	analysisRevision, reviewRevision := "run-analysis2-1", "run-review-1"
+	runSkills := []contracts.RunSkillSnapshot{
+		{
+			Name: "analysis2", Source: exactSkillRef("analysis2", "owner-analysis2-1"),
+			SourceDigest: "sha256:" + strings.Repeat("a", 64), Artifact: exactSkillRef("analysis2", analysisRevision),
+			PackageDigest: "sha256:" + strings.Repeat("a", 64), SourceSize: 1, ExpandedBytes: 1,
+		},
+		{
+			Name: "review", Source: exactSkillRef("review", "owner-review-1"),
+			SourceDigest: "sha256:" + strings.Repeat("b", 64), Artifact: exactSkillRef("review", reviewRevision),
+			PackageDigest: "sha256:" + strings.Repeat("b", 64), SourceSize: 1, ExpandedBytes: 1,
+		},
+	}
+
+	requirements, err := bindingRequirements(stage, runSkills)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requirements) != 2 || len(requirements[0].ResolvedSkills) != 1 ||
+		requirements[0].ResolvedSkills[0].Name != "review" ||
+		len(requirements[1].ResolvedSkills) != 2 ||
+		requirements[1].ResolvedSkills[0].Name != "analysis2" {
+		t.Fatalf("unexpected resolved Skill subsets: %+v", requirements)
+	}
+	if requirements[0].ResolvedSkills[0].Artifact.Revision == nil ||
+		*requirements[0].ResolvedSkills[0].Artifact.Revision != reviewRevision {
+		t.Fatalf("builder did not receive exact review pin: %+v", requirements[0])
+	}
+
+	_, err = bindingRequirements(stage, runSkills[1:])
+	if err == nil || !strings.Contains(err.Error(), "analysis2") {
+		t.Fatalf("missing immutable Run Skill was not rejected: %v", err)
+	}
+}
+
+func exactSkillRef(name, revision string) *contracts.ArtifactRef {
+	return &contracts.ArtifactRef{Namespace: contracts.AgentSkillNamespace, Name: name, Revision: &revision}
+}
+
 func TestSchedulerExecutesSingleStageAndFencesBeforeFinalizing(t *testing.T) {
 	harness := newSchedulerHarness(t)
 
@@ -2045,7 +2107,8 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
-		AgentTemplate: binding.AgentTemplate, ExecutionConfig: binding.ExecutionConfig,
+		AgentTemplate: binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
+		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 	}
 	if binding.RuntimeSelection != nil && request.RuntimeConfig != nil {
@@ -2067,7 +2130,8 @@ func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Rese
 		RunID: "run-1", StageExecutionID: stageExecutionID,
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: binding.Namespace, AgentTemplate: binding.Template,
-			ExecutionConfig: bindingRequirements(a.workflow.Stages[a.workflow.EntryStage])[0].ExecutionConfig,
+			ResolvedSkills:  []contracts.ResolvedSkill{},
+			ExecutionConfig: allocationExecutionConfig(a.workflow.Stages[a.workflow.EntryStage], "builder"),
 		}},
 	})
 }

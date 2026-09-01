@@ -36,7 +36,11 @@ from contractor_runtime.contracts import (
     decode_private_v2,
     encode_private_v2,
 )
-from contractor_runtime.digests import GatewayDigestMismatch, verify_gateway_config_digest
+from contractor_runtime.digests import (
+    GatewayDigestMismatch,
+    _agent_template_digest,
+    verify_gateway_config_digest,
+)
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
 PRIVATE_V2_FIXTURES = Path(__file__).parents[2] / "testdata" / "contracts" / "private-v2"
@@ -71,6 +75,7 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "heartbeat-response.json": HeartbeatResponse,
     "llm-gateway-config.json": ResolvedLLMGatewayConfig,
     "allocation-spec.json": AllocationSpec,
+    "allocation-spec-skills.json": AllocationSpec,
     "allocation-final-response.json": AllocationFinalResponse,
     "finalize-allocation.json": FinalizeAllocationRequest,
     "abort-allocation.json": AbortAllocationRequest,
@@ -89,6 +94,7 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "heartbeat-response-unknown-action.json": HeartbeatResponse,
     "llm-gateway-config-secret-field.json": ResolvedLLMGatewayConfig,
     "allocation-spec-bad-api-version.json": AllocationSpec,
+    "allocation-spec-resolved-skill-versionless.json": AllocationSpec,
     "stage-content-request-unknown-field.json": StageContentRequest,
     "stage-content-result-unversioned-artifact.json": StageContentResult,
     "stage-content-result-success-with-error.json": StageContentResult,
@@ -102,6 +108,7 @@ FIXTURE_SCHEMAS = {
     "heartbeat-response": "agent-heartbeat.schema.json",
     "llm-gateway-config": "llm-gateway-config.schema.json",
     "allocation-spec": "allocation.schema.json",
+    "allocation-spec-skills": "allocation.schema.json",
     "allocation-final-response": "allocation.schema.json",
     "finalize-allocation": "allocation.schema.json",
     "abort-allocation": "allocation.schema.json",
@@ -117,6 +124,7 @@ FIXTURE_SCHEMAS = {
     "heartbeat-response-unknown-action": "agent-heartbeat.schema.json",
     "llm-gateway-config-secret-field": "llm-gateway-config.schema.json",
     "allocation-spec-bad-api-version": "allocation.schema.json",
+    "allocation-spec-resolved-skill-versionless": "allocation.schema.json",
     "stage-content-request-unknown-field": "stage-content.schema.json",
     "stage-content-result-unversioned-artifact": "stage-content.schema.json",
     "stage-content-result-success-with-error": "stage-content.schema.json",
@@ -298,6 +306,16 @@ def test_agent_template_skill_refs_are_strict_and_empty_wire_is_compatible() -> 
             ResolvedAgentTemplate.model_validate({**raw, "skills": skills})
 
 
+def test_nonempty_agent_template_skill_digest_matches_go() -> None:
+    allocation = AllocationSpec.model_validate_json(
+        (FIXTURES / "valid" / "allocation-spec-skills.json").read_text()
+    )
+    assert (
+        _agent_template_digest(allocation.agent_template)
+        == "sha256:f088d3a6c4b2ecd9e430da5f503db36d023cdb8791efec29468f91d7120293d6"
+    )
+
+
 def test_agent_template_skills_reserve_native_names_and_require_tool_budget() -> None:
     allocation = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     raw = allocation["agentTemplate"]
@@ -315,6 +333,26 @@ def test_agent_template_skills_reserve_native_names_and_require_tool_budget() ->
     del unbudgeted["modelPolicy"]["maxToolCalls"]
     with pytest.raises(ValidationError, match="incompatible with adk@1 Worker"):
         ResolvedAgentTemplate.model_validate(unbudgeted)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda value: value.pop("resolvedSkills"),
+        lambda value: value["resolvedSkills"].append(value["resolvedSkills"][1].copy()),
+        lambda value: value["resolvedSkills"].__setitem__(1, value["resolvedSkills"][0].copy()),
+        lambda value: value["resolvedSkills"].reverse(),
+        lambda value: value["resolvedSkills"][0]["artifact"].pop("revision"),
+        lambda value: value["resolvedSkills"][0]["artifact"].__setitem__("namespace", "other"),
+        lambda value: value["resolvedSkills"][0]["artifact"].__setitem__("name", "review"),
+        lambda value: value["resolvedSkills"][0].__setitem__("packageDigest", "sha256:ABC"),
+    ],
+)
+def test_allocation_resolved_skills_rejects_every_manifest_mismatch(mutation: Any) -> None:
+    value = json.loads((FIXTURES / "valid" / "allocation-spec-skills.json").read_text())
+    mutation(value)
+    with pytest.raises(ValidationError):
+        AllocationSpec.model_validate(value)
 
 
 def test_all_golden_files_have_an_assigned_model() -> None:

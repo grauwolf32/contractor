@@ -304,6 +304,54 @@ func TestReservationRetryReturnsSameAllocationsAndGrantLifecycleIsExact(t *testi
 	}
 }
 
+func TestReservationFingerprintPinsExactResolvedSkillsManifest(t *testing.T) {
+	t.Parallel()
+
+	registry := newTestRegistry(t, newTestClock())
+	registerReady(t, registry, "agent-skill")
+	template := testTemplate(t)
+	template.Skills = []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "review"}}
+	revision := "run-review-1"
+	binding := testBinding(t, "builder", "builder", template)
+	binding.ResolvedSkills = []contracts.ResolvedSkill{{
+		Name: "review",
+		Artifact: contracts.ArtifactRef{
+			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &revision,
+		},
+		PackageDigest: "sha256:" + strings.Repeat("a", 64),
+	}}
+	request := ReservationRequest{
+		RunID: "run-skill", StageExecutionID: "stage-skill",
+		Bindings: []BindingRequirement{binding},
+	}
+	first, err := registry.ReserveAll(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := registry.ReserveAll(request)
+	if err != nil || replayed[0].Grant.AllocationID != first[0].Grant.AllocationID {
+		t.Fatalf("exact Skill manifest did not replay: (%+v, %v)", replayed, err)
+	}
+
+	changed := request
+	changed.Bindings = append([]BindingRequirement(nil), request.Bindings...)
+	changed.Bindings[0].ResolvedSkills = contracts.CloneResolvedSkills(binding.ResolvedSkills)
+	changed.Bindings[0].ResolvedSkills[0].PackageDigest = "sha256:" + strings.Repeat("b", 64)
+	if _, err := registry.ReserveAll(changed); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("substituted Skill digest replay error = %v", err)
+	}
+	newRevision := "run-review-2"
+	changed.Bindings[0].ResolvedSkills[0].PackageDigest = binding.ResolvedSkills[0].PackageDigest
+	changed.Bindings[0].ResolvedSkills[0].Artifact.Revision = &newRevision
+	if _, err := registry.ReserveAll(changed); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("substituted Skill revision replay error = %v", err)
+	}
+	if first[0].ResolvedSkills[0].Artifact.Revision == nil ||
+		*first[0].ResolvedSkills[0].Artifact.Revision != revision {
+		t.Fatalf("returned reservation aliases caller manifest: %+v", first[0].ResolvedSkills)
+	}
+}
+
 func TestWriteFenceWaitsForAuthorizedArtifactMutation(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	registerReady(t, registry, "agent-write-gate")

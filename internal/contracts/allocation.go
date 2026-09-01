@@ -145,6 +145,7 @@ type AllocationSpec struct {
 	Namespace        string                `json:"namespace"`
 	LeaseExpiresAt   time.Time             `json:"leaseExpiresAt"`
 	AgentTemplate    ResolvedAgentTemplate `json:"agentTemplate"`
+	ResolvedSkills   []ResolvedSkill       `json:"resolvedSkills"`
 	ModelPolicy      ResolvedModelPolicy   `json:"modelPolicy"`
 	RuntimeSettings  RuntimeSettings       `json:"runtimeSettings"`
 }
@@ -169,6 +170,9 @@ func (s AllocationSpec) Validate() error {
 		return invalidf("leaseExpiresAt must not be zero")
 	}
 	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
+		return err
+	}
+	if err := ValidateResolvedSkills(s.AgentTemplate, s.ResolvedSkills); err != nil {
 		return err
 	}
 	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {

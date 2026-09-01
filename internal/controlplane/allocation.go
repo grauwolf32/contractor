@@ -20,6 +20,7 @@ type BindingRequirement struct {
 	LogicalAgentName string
 	Namespace        string
 	AgentTemplate    contracts.ResolvedAgentTemplate
+	ResolvedSkills   []contracts.ResolvedSkill
 	ExecutionConfig  AllocationExecutionConfig
 	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
 	// Candidate Agent labels are deliberately resolved later by placement.
@@ -93,6 +94,7 @@ type Reservation struct {
 	ControlURL                string
 	A2AURL                    string
 	AgentTemplate             contracts.ResolvedAgentTemplate
+	ResolvedSkills            []contracts.ResolvedSkill
 	ExecutionConfig           AllocationExecutionConfig
 	RuntimeAgentLabelRevision uint64
 	ResolvedRuntimeConfig     *runtimeconfig.ResolvedRuntimeConfig

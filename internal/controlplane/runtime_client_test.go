@@ -103,6 +103,7 @@ func runtimePrincipalFromCertificate(t *testing.T, path string) string {
 
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	template := testTemplate(t)
+	template.Skills = []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "review"}}
 	effectivePolicy := template.ModelPolicy
 	effectivePolicy.Ref = contracts.ModelPolicyRef{
 		PolicyID: "worker-strong", Version: "2", Digest: "sha256:" + strings.Repeat("d", 64),
@@ -140,6 +141,14 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}))
 	defer server.Close()
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
+	skillRevision := "run-review-1"
+	reservation.ResolvedSkills = []contracts.ResolvedSkill{{
+		Name: "review",
+		Artifact: contracts.ArtifactRef{
+			Namespace: contracts.AgentSkillNamespace, Name: "review", Revision: &skillRevision,
+		},
+		PackageDigest: "sha256:" + strings.Repeat("e", 64),
+	}}
 	client, err := NewRuntimeControlClient(server.Client())
 	if err != nil {
 		t.Fatal(err)
@@ -161,6 +170,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
 		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
+		len(received.Spec.ResolvedSkills) != 1 ||
+		received.Spec.ResolvedSkills[0].Artifact.Revision == nil ||
+		*received.Spec.ResolvedSkills[0].Artifact.Revision != skillRevision ||
 		received.Spec.ModelPolicy.Ref != effectivePolicy.Ref ||
 		received.Spec.ModelPolicy.Model != effectivePolicy.Model ||
 		received.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != settings.LLMGatewayToken.Reveal() {

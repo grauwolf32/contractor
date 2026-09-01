@@ -179,7 +179,25 @@ func stageSnapshot(stage workflowconfig.ResolvedStage) (json.RawMessage, error) 
 	return encoded, nil
 }
 
-func bindingRequirements(stage workflowconfig.ResolvedStage) []controlplane.BindingRequirement {
+func bindingRequirements(
+	stage workflowconfig.ResolvedStage,
+	snapshot []contracts.RunSkillSnapshot,
+) ([]controlplane.BindingRequirement, error) {
+	resolvedByName := make(map[string]contracts.ResolvedSkill, len(snapshot))
+	for _, skill := range snapshot {
+		if err := skill.Validate(); err != nil || !skill.Initialized() {
+			return nil, fmt.Errorf("Run Skill snapshot is not initialized")
+		}
+		if _, duplicate := resolvedByName[skill.Name]; duplicate {
+			return nil, fmt.Errorf("Run Skill snapshot contains duplicate names")
+		}
+		artifact := *skill.Artifact
+		revision := *artifact.Revision
+		artifact.Revision = &revision
+		resolvedByName[skill.Name] = contracts.ResolvedSkill{
+			Name: skill.Name, Artifact: artifact, PackageDigest: skill.PackageDigest,
+		}
+	}
 	names := make([]string, 0, len(stage.Agents))
 	for name := range stage.Agents {
 		names = append(names, name)
@@ -189,15 +207,27 @@ func bindingRequirements(stage workflowconfig.ResolvedStage) []controlplane.Bind
 	for _, name := range names {
 		binding := stage.Agents[name]
 		selection := stage.ExecutionConfig.Agents[name]
+		resolvedSkills := make([]contracts.ResolvedSkill, 0, len(binding.Template.Skills))
+		for _, logical := range binding.Template.Skills {
+			resolved, ok := resolvedByName[logical.Name]
+			if !ok {
+				return nil, fmt.Errorf("Run Skill %q is unavailable for Agent %q", logical.Name, name)
+			}
+			resolvedSkills = append(resolvedSkills, resolved)
+		}
+		if err := contracts.ValidateResolvedSkills(binding.Template, resolvedSkills); err != nil {
+			return nil, fmt.Errorf("resolve Skills for Agent %q: %w", name, err)
+		}
 		result = append(result, controlplane.BindingRequirement{
 			LogicalAgentName: name,
 			Namespace:        binding.Namespace,
 			AgentTemplate:    binding.Template,
+			ResolvedSkills:   resolvedSkills,
 			ExecutionConfig:  allocationExecutionConfig(stage, name),
 			RuntimeSelection: &selection,
 		})
 	}
-	return result
+	return result, nil
 }
 
 func allocationExecutionConfig(

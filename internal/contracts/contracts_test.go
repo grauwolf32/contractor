@@ -20,6 +20,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"heartbeat-response.json":           roundTrip[HeartbeatResponse],
 		"llm-gateway-config.json":           roundTrip[ResolvedLLMGatewayConfig],
 		"allocation-spec.json":              roundTrip[AllocationSpec],
+		"allocation-spec-skills.json":       roundTrip[AllocationSpec],
 		"allocation-final-response.json":    roundTrip[AllocationFinalResponse],
 		"finalize-allocation.json":          roundTrip[FinalizeAllocationRequest],
 		"abort-allocation.json":             roundTrip[AbortAllocationRequest],
@@ -55,6 +56,7 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 		"heartbeat-response-unknown-action.json":             reject[HeartbeatResponse],
 		"llm-gateway-config-secret-field.json":               reject[ResolvedLLMGatewayConfig],
 		"allocation-spec-bad-api-version.json":               reject[AllocationSpec],
+		"allocation-spec-resolved-skill-versionless.json":    reject[AllocationSpec],
 		"stage-content-request-unknown-field.json":           reject[StageContentRequest],
 		"stage-content-result-unversioned-artifact.json":     reject[StageContentResult],
 		"stage-content-result-success-with-error.json":       reject[StageContentResult],
@@ -67,6 +69,60 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 			t.Parallel()
 			if err := decode(readFixture(t, "invalid", filename)); err == nil {
 				t.Fatal("invalid fixture was accepted")
+			}
+		})
+	}
+}
+
+func TestAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
+	t.Parallel()
+
+	var baseline map[string]any
+	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec-skills.json"), &baseline); err != nil {
+		t.Fatal(err)
+	}
+	tests := map[string]func(map[string]any){
+		"missing": func(candidate map[string]any) { delete(candidate, "resolvedSkills") },
+		"extra": func(candidate map[string]any) {
+			skills := candidate["resolvedSkills"].([]any)
+			candidate["resolvedSkills"] = append(skills, skills[1])
+		},
+		"duplicate": func(candidate map[string]any) {
+			skills := candidate["resolvedSkills"].([]any)
+			skills[1] = skills[0]
+		},
+		"unsorted": func(candidate map[string]any) {
+			skills := candidate["resolvedSkills"].([]any)
+			skills[0], skills[1] = skills[1], skills[0]
+		},
+		"versionless": func(candidate map[string]any) {
+			skill := candidate["resolvedSkills"].([]any)[0].(map[string]any)
+			delete(skill["artifact"].(map[string]any), "revision")
+		},
+		"wrong namespace": func(candidate map[string]any) {
+			skill := candidate["resolvedSkills"].([]any)[0].(map[string]any)
+			skill["artifact"].(map[string]any)["namespace"] = "other"
+		},
+		"name mismatch": func(candidate map[string]any) {
+			skill := candidate["resolvedSkills"].([]any)[0].(map[string]any)
+			skill["artifact"].(map[string]any)["name"] = "review"
+		},
+		"malformed digest": func(candidate map[string]any) {
+			skill := candidate["resolvedSkills"].([]any)[0].(map[string]any)
+			skill["packageDigest"] = "sha256:ABC"
+		},
+	}
+	for name, mutate := range tests {
+		name, mutate := name, mutate
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			encoded, _ := json.Marshal(baseline)
+			var candidate map[string]any
+			_ = json.Unmarshal(encoded, &candidate)
+			mutate(candidate)
+			encoded, _ = json.Marshal(candidate)
+			if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+				t.Fatal("invalid resolvedSkills manifest was accepted")
 			}
 		})
 	}

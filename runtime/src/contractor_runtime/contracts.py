@@ -430,6 +430,22 @@ class ResolvedAgentTemplate(WireModel):
         return self
 
 
+class ResolvedSkill(WireModel):
+    name: str
+    artifact: ArtifactRef
+    package_digest: str
+
+    @model_validator(mode="after")
+    def validate_skill(self) -> Self:
+        if SKILL_NAME_PATTERN.fullmatch(self.name) is None or len(self.name) > 64:
+            raise ValueError("resolved Skill name is invalid")
+        if self.artifact.namespace != "skills" or self.artifact.name != self.name:
+            raise ValueError("resolved Skill artifact must identify skills/<name>")
+        self.artifact.require_exact()
+        _require_digest("resolved Skill packageDigest", self.package_digest)
+        return self
+
+
 class RuntimeSettings(WireModel):
     llm_gateway_url: str
     llm_gateway_token: SecretStr
@@ -454,6 +470,7 @@ class AllocationSpec(VersionedWireModel):
     namespace: str
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
+    resolved_skills: list[ResolvedSkill] = Field(max_length=32)
     model_policy: ResolvedModelPolicy
     runtime_settings: RuntimeSettings
 
@@ -470,9 +487,17 @@ class AllocationSpec(VersionedWireModel):
         if "/" in self.namespace:
             raise ValueError("namespace must not contain slash")
         _require_aware_datetime("leaseExpiresAt", self.lease_expires_at)
+        names = [skill.name for skill in self.resolved_skills]
+        if names != sorted(set(names)):
+            raise ValueError("resolvedSkills must be sorted and unique")
+        if names != [skill.name for skill in self.agent_template.skills]:
+            raise ValueError("resolvedSkills must exactly match AgentTemplate skills")
         _require_worker_policy(
             self.model_policy,
-            has_tools=any(selection.tools for selection in self.agent_template.toolsets),
+            has_tools=bool(
+                self.agent_template.skills
+                or any(selection.tools for selection in self.agent_template.toolsets)
+            ),
         )
         return self
 

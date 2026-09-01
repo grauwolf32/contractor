@@ -76,6 +76,7 @@ def allocation_spec(
         namespace="builder",
         leaseExpiresAt=datetime.now(UTC) + timedelta(minutes=5),
         agentTemplate=template,
+        resolvedSkills=[],
         modelPolicy=policy.model_copy(deep=True),
         runtimeSettings=RuntimeSettingsV2(
             llmGatewayUrl="https://llm.example/v1",

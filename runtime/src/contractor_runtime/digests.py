@@ -124,6 +124,10 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
             },
         },
     }
+    if template.skills:
+        manifest["spec"]["skills"] = [
+            {"namespace": skill.namespace, "name": skill.name} for skill in template.skills
+        ]
     return _digest_jcs(manifest)
 
 
