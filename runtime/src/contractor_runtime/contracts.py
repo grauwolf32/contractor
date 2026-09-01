@@ -611,6 +611,7 @@ class RuntimeReport(WireModel):
     complete: bool
     duration_ms: int | None = Field(default=None, ge=0)
     stop_reason: str | None = None
+    adapters: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2] = Field(default_factory=dict)
 
     @field_validator("stop_reason")
     @classmethod

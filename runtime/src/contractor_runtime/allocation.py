@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
 from collections.abc import Callable, Mapping, MutableMapping
@@ -11,6 +12,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from contractor_runtime.adapters import (
+    AdapterHandles,
+    AdapterPreparationError,
+    AllocationAdapterHost,
+)
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -24,6 +30,7 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     RuntimeReport,
     RuntimeSettings,
+    RuntimeSettingsV2,
     TerminationError,
     WorkerHandle,
 )
@@ -75,6 +82,7 @@ class AllocationSnapshot:
     tool_names: tuple[str, ...]
     has_runtime_settings: bool
     has_worker: bool
+    runtime_adapter_refs: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -88,6 +96,7 @@ class _AllocationContext:
     started_at: datetime
     workspace: AllocationWorkspace
     sandbox: SandboxFactory
+    adapter_host: AllocationAdapterHost = field(repr=False)
     tools: dict[str, ToolInstance]
     worker_state: WorkerState | None
     runtime_settings: RuntimeSettings | None = field(repr=False)
@@ -124,6 +133,7 @@ class AllocationService:
         self._lock = asyncio.Lock()
         self._context: _AllocationContext | None = None
         self._released_allocation_id: str | None = None
+        self._fingerprint_key = os.urandom(32)
 
     async def snapshot(self) -> AllocationSnapshot | None:
         async with self._lock:
@@ -139,6 +149,7 @@ class AllocationService:
                 tool_names=tuple(sorted(context.tools)),
                 has_runtime_settings=context.runtime_settings is not None,
                 has_worker=context.worker is not None,
+                runtime_adapter_refs=context.adapter_host.refs,
             )
 
     async def active_a2a_application(self, allocation_id: str) -> Any | None:
@@ -158,7 +169,7 @@ class AllocationService:
 
     async def prepare(self, spec: AllocationSpec) -> PrepareAllocationResponse:
         async with self._lock:
-            fingerprint = _spec_fingerprint(spec)
+            fingerprint = _spec_fingerprint(spec, self._fingerprint_key)
             if self._context is not None:
                 context = self._context
                 if (
@@ -177,14 +188,33 @@ class AllocationService:
 
             sandbox = self._sandbox_factory(spec)
             runtime_factory = self._runtime_factory(spec)
+            adapter_host: AllocationAdapterHost | None = None
             workspace: AllocationWorkspace | None = None
             tools: dict[str, ToolInstance] = {}
             worker_state: WorkerState | None = None
             worker: WorkerRuntime | None = None
             try:
+                adapter_deadline = min(
+                    spec.lease_expires_at,
+                    self._now() + timedelta(seconds=spec.runtime_settings.request_timeout_seconds),
+                )
+                if isinstance(spec, AllocationSpecV2):
+                    adapter_host = await AllocationAdapterHost.create(
+                        spec,
+                        self._factories.runtime_adapters,
+                        deadline=adapter_deadline,
+                        now=self._now,
+                    )
+                else:
+                    adapter_host = AllocationAdapterHost.empty()
                 workspace = await sandbox.prepare()
                 worker_state = WorkerState()
-                tools = await self._create_tools(spec, workspace, worker_state)
+                tools = await self._create_tools(
+                    spec,
+                    workspace,
+                    worker_state,
+                    adapter_host.handles,
+                )
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
                         allocation_id=spec.allocation_id,
@@ -199,6 +229,7 @@ class AllocationService:
                         state=worker_state,
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
+                        adapter_handles=adapter_host.handles,
                     )
                 )
                 handle = WorkerHandle(
@@ -223,6 +254,7 @@ class AllocationService:
                     started_at=self._now(),
                     workspace=workspace,
                     sandbox=sandbox,
+                    adapter_host=adapter_host,
                     tools=tools,
                     worker_state=worker_state,
                     runtime_settings=spec.runtime_settings,
@@ -233,14 +265,53 @@ class AllocationService:
                 self._context = context
                 self._released_allocation_id = None
                 return response
+            except AdapterPreparationError as error:
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                )
+                if not error.cleanup_confirmed:
+                    await self._state.fence_allocation(spec.allocation_id)
+                    self._force_exit(70)
+                raise AllocationError(
+                    "runtime_adapter_prepare_failed",
+                    "allocation Runtime adapter preparation failed",
+                    retryable=error.retryable,
+                    status_code=503,
+                ) from None
             except AllocationError:
-                await self._rollback_prepare(spec, sandbox, workspace, tools, worker)
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                )
                 raise
             except asyncio.CancelledError:
-                await self._rollback_prepare(spec, sandbox, workspace, tools, worker)
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                )
                 raise
             except Exception as error:
-                await self._rollback_prepare(spec, sandbox, workspace, tools, worker)
+                await self._rollback_prepare(
+                    spec,
+                    sandbox,
+                    workspace,
+                    tools,
+                    worker,
+                    adapter_host,
+                )
                 raise AllocationError(
                     "allocation_preparation_failed",
                     f"allocation resource preparation failed ({type(error).__name__})",
@@ -280,25 +351,7 @@ class AllocationService:
                 raise _conflict("Worker must be stopped before release")
             if context.release_prepared:
                 return
-            try:
-                await _close_tools(context.tools)
-                await context.sandbox.cleanup(context.workspace)
-            except asyncio.CancelledError:
-                raise
-            except Exception as error:
-                await self._state.fence_allocation(context.allocation_id)
-                raise AllocationError(
-                    "allocation_cleanup_failed",
-                    f"allocation cleanup failed ({type(error).__name__})",
-                    retryable=True,
-                    status_code=503,
-                ) from None
-
-            context.tools.clear()
-            context.worker_state = None
-            context.runtime_settings = None
-            context.prepare_response = None
-            context.release_prepared = True
+            await self._prepare_release_cleanup(context)
             await self._state.fence_allocation(context.allocation_id)
 
     async def confirm_release(self, allocation_id: str | None) -> None:
@@ -321,26 +374,39 @@ class AllocationService:
             if context.worker is not None:
                 raise _conflict("active Worker must be drained before release")
             if not context.release_prepared:
-                try:
-                    await _close_tools(context.tools)
-                    await context.sandbox.cleanup(context.workspace)
-                except Exception as error:
-                    await self._state.fence_allocation(context.allocation_id)
-                    raise AllocationError(
-                        "allocation_cleanup_failed",
-                        f"allocation cleanup failed ({type(error).__name__})",
-                        retryable=True,
-                        status_code=503,
-                    ) from None
-                context.tools.clear()
-                context.worker_state = None
-                context.runtime_settings = None
-                context.prepare_response = None
-                context.release_prepared = True
+                await self._prepare_release_cleanup(context)
             await self._state.confirm_release(context.allocation_id)
             self._released_allocation_id = context.allocation_id
             context.terminal_response = None
             self._context = None
+
+    async def _prepare_release_cleanup(self, context: _AllocationContext) -> None:
+        timeout_seconds = (
+            context.runtime_settings.request_timeout_seconds
+            if context.runtime_settings is not None
+            else 5
+        )
+        deadline = self._now() + timedelta(seconds=timeout_seconds)
+        try:
+            await _close_tools(context.tools)
+            await context.sandbox.cleanup(context.workspace)
+            await context.adapter_host.rollback(deadline=deadline, now=self._now)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            await self._state.fence_allocation(context.allocation_id)
+            raise AllocationError(
+                "allocation_cleanup_failed",
+                f"allocation cleanup failed ({type(error).__name__})",
+                retryable=True,
+                status_code=503,
+            ) from None
+
+        context.tools.clear()
+        context.worker_state = None
+        context.runtime_settings = None
+        context.prepare_response = None
+        context.release_prepared = True
 
     async def expire_control_lease(self, shutdown_grace_seconds: float) -> None:
         async with self._lock:
@@ -442,7 +508,11 @@ class AllocationService:
                 configured.add(spec.runtime_settings.telemetry.adapter)
             if spec.runtime_settings.http_proxy is not None:
                 configured.add(spec.runtime_settings.http_proxy.adapter)
-            if required != configured or not capabilities.supports_runtime_adapters(required):
+            if (
+                required != configured
+                or not capabilities.supports_runtime_adapters(required)
+                or not required <= set(self._factories.runtime_adapters)
+            ):
                 raise AllocationError(
                     "unsupported_runtime_adapter",
                     "allocation Runtime adapter settings do not match frozen capabilities",
@@ -480,6 +550,7 @@ class AllocationService:
         spec: AllocationSpec,
         workspace: AllocationWorkspace,
         worker_state: WorkerState,
+        adapter_handles: AdapterHandles,
     ) -> dict[str, ToolInstance]:
         result: dict[str, ToolInstance] = {}
         for selection in spec.agent_template.toolsets:
@@ -507,6 +578,7 @@ class AllocationService:
                 runtime_settings=spec.runtime_settings,
                 workspace=workspace,
                 state=worker_state,
+                adapter_handles=adapter_handles,
             )
             if set(created) != set(selection.tools):
                 raise AllocationError(
@@ -602,6 +674,7 @@ class AllocationService:
                 ) from None
 
             context.worker = None
+            await self._stop_adapters_or_exit(context, deadline)
             response = AllocationFinalResponse(
                 apiVersion=API_VERSION,
                 report=_build_report(context, self._now(), reason),
@@ -620,6 +693,8 @@ class AllocationService:
         if timeout_seconds <= 0:
             raise ValueError("Worker shutdown grace must be positive")
         if context.worker is None:
+            deadline = self._now() + timedelta(seconds=timeout_seconds)
+            await self._stop_adapters_or_exit(context, deadline)
             await self._state.fence_allocation(context.allocation_id)
             return
 
@@ -656,6 +731,7 @@ class AllocationService:
             ) from None
 
         context.worker = None
+        await self._stop_adapters_or_exit(context, deadline)
         context.termination_kind = "lease"
         context.termination_id = None
         context.terminal_response = AllocationFinalResponse(
@@ -664,6 +740,27 @@ class AllocationService:
         )
         await self._state.fence_allocation(context.allocation_id)
 
+    async def _stop_adapters_or_exit(
+        self,
+        context: _AllocationContext,
+        deadline: datetime,
+    ) -> None:
+        try:
+            await context.adapter_host.terminate(deadline=deadline, now=self._now)
+        except asyncio.CancelledError:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise
+        except Exception:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise AllocationError(
+                "runtime_adapter_close_unconfirmed",
+                "allocation Runtime adapter close could not be guaranteed",
+                retryable=False,
+                status_code=503,
+            ) from None
+
     async def _rollback_prepare(
         self,
         spec: AllocationSpec,
@@ -671,6 +768,7 @@ class AllocationService:
         workspace: AllocationWorkspace | None,
         tools: Mapping[str, ToolInstance],
         worker: WorkerRuntime | None,
+        adapter_host: AllocationAdapterHost | None,
     ) -> None:
         failed = False
         if worker is not None:
@@ -694,6 +792,14 @@ class AllocationService:
                 await sandbox.cleanup(workspace)
             except Exception:
                 failed = True
+        if adapter_host is not None:
+            try:
+                await adapter_host.rollback(
+                    deadline=self._now() + timedelta(seconds=1),
+                    now=self._now,
+                )
+            except Exception:
+                failed = True
         if failed:
             await self._state.fence_allocation(spec.allocation_id)
             self._force_exit(70)
@@ -709,9 +815,15 @@ class AllocationService:
         settings: RuntimeSettings,
         workspace: AllocationWorkspace,
     ) -> None:
-        encoded = json.dumps(handle.model_dump(mode="json", by_alias=True), ensure_ascii=False)
-        token = settings.llm_gateway_token.get_secret_value()
-        if (token and token in encoded) or str(workspace.path) in encoded:
+        wire = handle.model_dump(mode="json", by_alias=True)
+        encoded = json.dumps(wire, ensure_ascii=False)
+        handle_strings = _nested_strings(wire)
+        private_values = _runtime_setting_values(settings)
+        leaked = any(
+            value in handle_strings or (len(value.encode("utf-8")) >= 16 and value in encoded)
+            for value in private_values
+        )
+        if leaked or str(workspace.path) in encoded:
             raise AllocationError(
                 "unsafe_worker_handle",
                 "Worker runtime exposed private allocation data in its Agent Card",
@@ -744,6 +856,7 @@ def _build_report(
             complete=True,
             durationMs=duration_ms,
             stopReason=stop_reason,
+            adapters=context.adapter_host.report_metrics(),
         ),
     )
 
@@ -761,9 +874,47 @@ def _consume_background_task(task: asyncio.Task[Any]) -> None:
     task.exception()
 
 
-def _spec_fingerprint(spec: AllocationSpec) -> str:
+def _spec_fingerprint(spec: AllocationSpec, key: bytes) -> str:
     encoded = spec.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return hmac.new(key, encoded, hashlib.sha256).hexdigest()
+
+
+def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
+    values = [settings.llm_gateway_url, settings.artifact_api_url]
+    token = settings.llm_gateway_token
+    if token is not None:
+        values.append(token.get_secret_value())
+    if isinstance(settings, RuntimeSettingsV2):
+        if settings.telemetry is not None:
+            values.append(settings.telemetry.endpoint)
+            values.extend(
+                secret.get_secret_value() for secret in settings.telemetry.headers.values()
+            )
+        if settings.http_proxy is not None:
+            proxy = settings.http_proxy
+            values.append(proxy.proxy_url)
+            if proxy.basic_auth is not None:
+                values.extend(
+                    (
+                        proxy.basic_auth.username.get_secret_value(),
+                        proxy.basic_auth.password.get_secret_value(),
+                    )
+                )
+            if proxy.bearer_token is not None:
+                values.append(proxy.bearer_token.get_secret_value())
+            if proxy.ca_bundle_pem is not None:
+                values.append(proxy.ca_bundle_pem)
+    return tuple(value for value in values if value)
+
+
+def _nested_strings(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, Mapping):
+        return {item for nested in value.values() for item in _nested_strings(nested)}
+    if isinstance(value, (list, tuple)):
+        return {item for nested in value for item in _nested_strings(nested)}
+    return set()
 
 
 def _conflict(message: str) -> AllocationError:

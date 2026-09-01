@@ -20,7 +20,8 @@
     "runtime": {
       "complete": true,
       "durationMs": 1000,
-      "stopReason": "finalized"
+      "stopReason": "finalized",
+      "adapters": {}
     }
   }
 }

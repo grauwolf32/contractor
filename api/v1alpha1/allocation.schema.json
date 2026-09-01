@@ -92,11 +92,38 @@
     "runtimeReport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["complete"],
+      "required": ["complete", "adapters"],
       "properties": {
         "complete": {"type": "boolean"},
         "durationMs": {"type": "integer", "minimum": 0},
-        "stopReason": {"type": "string", "minLength": 1}
+        "stopReason": {"type": "string", "minLength": 1},
+        "adapters": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {"enum": ["http-proxy@1", "otlp-http@1"]},
+          "additionalProperties": {"$ref": "#/$defs/runtimeAdapterMetrics"}
+        }
+      }
+    },
+    "runtimeAdapterMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operations", "failedOperations"],
+      "properties": {
+        "operations": {"type": "integer", "minimum": 0},
+        "failedOperations": {"type": "integer", "minimum": 0},
+        "flushAttempted": {"type": "boolean"},
+        "flushSucceeded": {"type": "boolean"},
+        "lastErrorCode": {
+          "enum": [
+            "close_failed",
+            "delivery_failed",
+            "flush_failed",
+            "flush_timeout",
+            "queue_overflow",
+            "request_failed"
+          ]
+        }
       }
     },
     "allocationFinalReport": {

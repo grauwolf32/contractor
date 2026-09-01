@@ -5,8 +5,8 @@ milestone: label-driven-runtime-configuration
 priority: P0
 status: planned
 implementation_commit: null
-depends_on: [V8-003]
-languages: [python]
+depends_on: [V8-007]
+languages: [go, python]
 
 goal: >-
   Give the single-slot Python Runtime one explicit owner for typed telemetry and
@@ -48,6 +48,9 @@ deliverables:
   - {path: runtime/src/contractor_runtime/allocation.py, description: Adapter-aware prepare/termination/release lifecycle.}
   - {path: runtime/src/contractor_runtime/factories.py, description: Explicit Worker/tool adapter handle contexts.}
   - {path: runtime/tests/test_adapter_host.py, description: Exhaustive lifecycle and failure regressions.}
+  - {path: internal/contracts/telemetry.go, description: Strict Go decoding and validation for adapter metrics in active Runtime reports.}
+  - {path: internal/controlplane/runtime_client.go, description: Pinned-provenance filtering that keeps optional adapter telemetry from blocking terminal reports.}
+  - {path: api/v1alpha1/allocation.schema.json, description: Active allocation final-report adapter metrics schema.}
 
 requirements:
   - id: R1

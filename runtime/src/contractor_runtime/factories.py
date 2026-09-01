@@ -8,6 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from contractor_runtime.adapters import (
+    AdapterHandles,
+    RuntimeAdapterFactory,
+)
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ResolvedAgentTemplate, ResolvedModelPolicy, RuntimeSettings
@@ -49,6 +54,10 @@ class WorkerBuildContext:
     state: Any
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
+    adapter_handles: AdapterHandles = field(
+        default=EMPTY_ADAPTER_HANDLES,
+        repr=False,
+    )
 
 
 class WorkerRuntimeFactory(Protocol):
@@ -75,6 +84,7 @@ class ToolsetFactory(Protocol):
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
         state: Any,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
     ) -> Mapping[str, ToolInstance]: ...
 
 
@@ -86,14 +96,6 @@ class SandboxFactory(Protocol):
     async def prepare(self) -> AllocationWorkspace: ...
 
     async def cleanup(self, workspace: AllocationWorkspace) -> None: ...
-
-
-class RuntimeAdapterFactory(Protocol):
-    """Startup descriptor for one allocation-scoped infrastructure adapter."""
-
-    ref: str
-
-    async def probe(self) -> bool: ...
 
 
 @dataclass(frozen=True, slots=True)

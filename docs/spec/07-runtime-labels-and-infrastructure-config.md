@@ -663,7 +663,8 @@ outer authority; label resolution introduces no unbounded wait.
 ## Allocation-scoped Runtime behavior
 
 Runtime Agent constructs an `AllocationAdapterHost` before constructing the
-Worker. It owns only adapters present in the resolved settings and injects
+sandbox, any Toolset or the Worker. It owns only adapters present in the
+resolved settings and injects
 explicit clients/handles into the model client and selected Toolset factories.
 Label names and complete RuntimeConfig documents are not supplied to the model.
 

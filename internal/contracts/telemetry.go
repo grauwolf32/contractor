@@ -1,8 +1,10 @@
 package contracts
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -68,9 +70,82 @@ type ExecutionReport struct {
 }
 
 type RuntimeReport struct {
-	Complete   bool    `json:"complete"`
-	DurationMS *int64  `json:"durationMs,omitempty"`
-	StopReason *string `json:"stopReason,omitempty"`
+	Complete   bool                                          `json:"complete"`
+	DurationMS *int64                                        `json:"durationMs,omitempty"`
+	StopReason *string                                       `json:"stopReason,omitempty"`
+	Adapters   map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
+}
+
+func (r RuntimeReport) MarshalJSON() ([]byte, error) {
+	type wireRuntimeReport RuntimeReport
+	copy := wireRuntimeReport(r)
+	if copy.Adapters == nil {
+		copy.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{}
+	}
+	return json.Marshal(copy)
+}
+
+func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
+	type wireRuntimeReport struct {
+		Complete   bool                       `json:"complete"`
+		DurationMS *int64                     `json:"durationMs,omitempty"`
+		StopReason *string                    `json:"stopReason,omitempty"`
+		Adapters   map[string]json.RawMessage `json:"adapters"`
+	}
+	var wire wireRuntimeReport
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return err
+	}
+	if err := requireTelemetryJSONEOF(decoder); err != nil {
+		return err
+	}
+	*r = RuntimeReport{
+		Complete: wire.Complete, DurationMS: wire.DurationMS, StopReason: wire.StopReason,
+		Adapters: map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{},
+	}
+	if wire.Adapters == nil {
+		r.Complete = false
+		return nil
+	}
+	for rawRef, rawMetrics := range wire.Adapters {
+		ref := RuntimeAdapterRef(rawRef)
+		metrics, err := decodeRuntimeAdapterMetrics(rawMetrics)
+		if err != nil || ref.Validate() != nil {
+			r.Complete = false
+			continue
+		}
+		r.Adapters[ref] = metrics
+	}
+	return nil
+}
+
+func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetricsV2, error) {
+	var metrics RuntimeAdapterMetricsV2
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&metrics); err != nil {
+		return RuntimeAdapterMetricsV2{}, err
+	}
+	if err := requireTelemetryJSONEOF(decoder); err != nil {
+		return RuntimeAdapterMetricsV2{}, err
+	}
+	if err := metrics.Validate(); err != nil {
+		return RuntimeAdapterMetricsV2{}, err
+	}
+	return metrics, nil
+}
+
+func requireTelemetryJSONEOF(decoder *json.Decoder) error {
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("unexpected trailing JSON value")
+		}
+		return err
+	}
+	return nil
 }
 
 type StageMetrics struct {
@@ -228,6 +303,9 @@ func (m StageMetrics) Validate() error {
 		if report.DurationMS != nil && *report.DurationMS < 0 {
 			return invalidf("runtime duration must be non-negative")
 		}
+		if err := report.validateAdapters(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -251,12 +329,30 @@ func (r AllocationFinalReport) Validate() error {
 	if r.Runtime.StopReason != nil && strings.TrimSpace(*r.Runtime.StopReason) == "" {
 		return invalidf("runtime stopReason must not be empty")
 	}
+	if err := r.Runtime.validateAdapters(); err != nil {
+		return err
+	}
 	encoded, err := json.Marshal(r)
 	if err != nil {
 		return invalidf("allocation final report cannot be encoded")
 	}
 	if len(encoded) > 1024*1024 {
 		return invalidf("allocation final report exceeds 1 MiB")
+	}
+	return nil
+}
+
+func (r RuntimeReport) validateAdapters() error {
+	if len(r.Adapters) > 64 {
+		return invalidf("runtime adapter metrics exceed 64 entries")
+	}
+	for ref, metrics := range r.Adapters {
+		if err := ref.Validate(); err != nil {
+			return err
+		}
+		if err := metrics.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }

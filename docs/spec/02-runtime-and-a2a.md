@@ -374,31 +374,33 @@ For one allocation the Runtime Agent:
    startup runtime, Toolset/tool, SandboxProfile and RuntimeAdapter capability
    snapshot, including the effective digest-bearing ModelPolicy and exact
    `resolvedSkills` manifest;
-2. asks that profile to prepare the allocation-local workspace;
-3. when filesystem tools were selected, creates a fresh allocation-local
+2. constructs the selected allocation-scoped infrastructure adapters and
+   validates their typed handle set before creating any sandbox, Toolset or
+   Worker resource;
+3. asks the selected SandboxProfile to prepare the allocation-local workspace;
+4. when filesystem tools were selected, creates a fresh allocation-local
    WorkspaceSession from the already-probed Runtime startup configuration;
    this requires no AllocationSpec field and reveals no physical mount to
    Control Plane;
-4. constructs the selected allocation-scoped infrastructure adapters, binds
-   the private Artifact client and fetches/validates the exact RunScope Agent
-   Skill packages selected under [09](09-agent-skills.md);
-5. prepares allocation-local State and selected tools, then creates one
+5. binds the private Artifact client and fetches/validates the exact RunScope
+   Agent Skill packages selected under [09](09-agent-skills.md);
+6. prepares allocation-local State and selected tools, then creates one
    in-process Worker runtime from the complete AgentTemplate, resolved native
    ADK SkillToolset and effective ModelPolicy selected by the Run's
    ResolvedExecutionConfig;
-6. configures its own A2A Server and Agent Card for that allocation;
-7. binds model access to the allocation context;
-8. reports ready and handles the Worker's A2A Tasks itself;
-9. on finalization or abort, rejects new Tasks, requests cancellation of any
+7. configures its own A2A Server and Agent Card for that allocation;
+8. binds model access to the allocation context;
+9. reports ready and handles the Worker's A2A Tasks itself;
+10. on finalization or abort, rejects new Tasks, requests cancellation of any
    active Task, bounded-flushes/destroys allocation adapters, serializes the
    accumulated execution report and destroys the Worker runtime instance;
-10. after the terminal Stage outcome is committed, an idempotent private
+11. after the terminal Stage outcome is committed, an idempotent private
    release removes allocation State, tools, the WorkspaceSession and every
    non-host memory/overlay change, loaded Skill objects, extracted
    allocation-local skill files, RuntimeSettings, access tokens and the profile
    workspace, but retains the allocation identity and cached report in
    `fenced` state; configured project roots are never cleanup targets;
-11. after Control Plane has removed its authority, a subsequent heartbeat
+12. after Control Plane has removed its authority, a subsequent heartbeat
    `release` action confirms that edge; only then does Runtime Agent clear the
    retained identity/report, become `idle` and free the slot.
 

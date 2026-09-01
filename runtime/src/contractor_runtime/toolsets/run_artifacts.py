@@ -8,6 +8,8 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol
 
+from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.workspace import AllocationWorkspace
@@ -51,7 +53,9 @@ class RunArtifactsToolsetFactory:
         runtime_settings: RuntimeSettings,
         workspace: AllocationWorkspace,
         state: Any,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
     ) -> Mapping[str, Any]:
+        del adapter_handles
         unknown = sorted(set(selected) - self.exported_tools)
         if unknown:
             raise ValueError(f"unknown selected tools: {', '.join(unknown)}")

@@ -96,7 +96,7 @@ func (c *RuntimeControlClient) Prepare(
 	var response contracts.PrepareAllocationResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
-		reservation.Grant.RuntimeAgentID, "prepare", request, &response,
+		reservation.Grant.RuntimeAgentID, "prepare", request, &response, true,
 	); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
@@ -123,9 +123,13 @@ func (c *RuntimeControlClient) Finalize(
 	var response contracts.AllocationFinalResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
-		reservation.Grant.RuntimeAgentID, "finalize", request, &response,
+		reservation.Grant.RuntimeAgentID, "finalize", request, &response, false,
 	); err != nil {
 		return contracts.AllocationFinalReport{}, err
+	}
+	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
+	if err := response.Validate(); err != nil {
+		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
 		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent final report identifies another allocation")
@@ -150,9 +154,13 @@ func (c *RuntimeControlClient) Abort(
 	var response contracts.AllocationFinalResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
-		reservation.Grant.RuntimeAgentID, "abort", request, &response,
+		reservation.Grant.RuntimeAgentID, "abort", request, &response, false,
 	); err != nil {
 		return contracts.AllocationFinalReport{}, err
+	}
+	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
+	if err := response.Validate(); err != nil {
+		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
 		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent abort report identifies another allocation")
@@ -202,6 +210,7 @@ func (c *RuntimeControlClient) postJSON(
 	operation string,
 	request any,
 	response contracts.Validatable,
+	validateResponse bool,
 ) error {
 	target, err := c.endpoint(baseURL, allocationID, operation)
 	if err != nil {
@@ -235,10 +244,36 @@ func (c *RuntimeControlClient) postJSON(
 	if err := ensureRuntimeJSONEOF(decoder); err != nil {
 		return err
 	}
-	if err := response.Validate(); err != nil {
-		return errors.New("Runtime Agent returned a lifecycle response that violates the contract")
+	if validateResponse {
+		if err := response.Validate(); err != nil {
+			return errors.New("Runtime Agent returned a lifecycle response that violates the contract")
+		}
 	}
 	return nil
+}
+
+func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation Reservation) {
+	expected := map[contracts.RuntimeAdapterRef]struct{}{}
+	if reservation.ResolvedRuntimeConfig != nil {
+		for _, ref := range reservation.ResolvedRuntimeConfig.RequiredRuntimeAdapters {
+			expected[ref] = struct{}{}
+		}
+	}
+	if report.Adapters == nil {
+		report.Adapters = map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetricsV2{}
+	}
+	for ref, metrics := range report.Adapters {
+		_, selected := expected[ref]
+		if !selected || metrics.Validate() != nil {
+			delete(report.Adapters, ref)
+			report.Complete = false
+		}
+	}
+	for ref := range expected {
+		if _, reported := report.Adapters[ref]; !reported {
+			report.Complete = false
+		}
+	}
 }
 
 func (c *RuntimeControlClient) do(
@@ -312,8 +347,10 @@ func validateWorkerHandleV2(
 	if err != nil {
 		return errors.New("Runtime Agent returned an unencodable WorkerHandle")
 	}
+	handleStrings := workerHandleStringValues(handle)
 	for _, secret := range runtimeSettingSecrets(settings) {
-		if secret != "" && bytes.Contains(encoded, []byte(secret)) {
+		_, exact := handleStrings[secret]
+		if secret != "" && (exact || (len([]byte(secret)) >= 16 && bytes.Contains(encoded, []byte(secret)))) {
 			return errors.New("Runtime Agent exposed RuntimeSettings secret in WorkerHandle")
 		}
 	}
@@ -323,6 +360,31 @@ func validateWorkerHandleV2(
 		return err
 	}
 	return nil
+}
+
+func workerHandleStringValues(handle contracts.WorkerHandle) map[string]struct{} {
+	result := map[string]struct{}{
+		handle.AllocationID: {}, handle.AgentTemplateRef.TemplateID: {},
+		handle.AgentTemplateRef.Version: {}, handle.AgentTemplateRef.Digest: {},
+		handle.WorkerRuntimeRef.RuntimeID: {}, handle.WorkerRuntimeRef.Version: {},
+	}
+	collectStringValues(result, handle.AgentCard)
+	return result
+}
+
+func collectStringValues(result map[string]struct{}, value any) {
+	switch typed := value.(type) {
+	case string:
+		result[typed] = struct{}{}
+	case []any:
+		for _, item := range typed {
+			collectStringValues(result, item)
+		}
+	case map[string]any:
+		for _, item := range typed {
+			collectStringValues(result, item)
+		}
+	}
 }
 
 func runtimeSettingSecrets(settings contracts.RuntimeSettingsV2) []string {

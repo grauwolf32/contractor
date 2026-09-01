@@ -108,6 +108,64 @@ func TestRuntimeSettingsAllowsExplicitUnauthenticatedGateway(t *testing.T) {
 	}
 }
 
+func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
+	t.Parallel()
+
+	value, err := DecodeStrict[AllocationFinalResponse](
+		readFixture(t, "valid", "allocation-final-response.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{
+		RuntimeAdapterOTLPHTTP: {Operations: 2, FailedOperations: 1},
+	}
+	if err := value.Validate(); err != nil {
+		t.Fatalf("valid adapter metrics were rejected: %v", err)
+	}
+	value.Report.Runtime.Adapters[RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetricsV2{
+		Operations: 1, FailedOperations: 2,
+	}
+	if err := value.Validate(); err == nil {
+		t.Fatal("adapter metrics with failures above operations were accepted")
+	}
+	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{
+		"unknown@1": {Operations: 1},
+	}
+	if err := value.Validate(); err == nil {
+		t.Fatal("unknown Runtime adapter metric key was accepted")
+	}
+}
+
+func TestMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t *testing.T) {
+	t.Parallel()
+
+	var wire map[string]any
+	if err := json.Unmarshal(readFixture(t, "valid", "allocation-final-response.json"), &wire); err != nil {
+		t.Fatal(err)
+	}
+	runtime := wire["report"].(map[string]any)["runtime"].(map[string]any)
+	runtime["adapters"] = map[string]any{
+		"otlp-http@1": map[string]any{
+			"operations": 1, "failedOperations": 2,
+		},
+		"unknown@1": map[string]any{
+			"operations": -1, "failedOperations": 0, "secretField": "must-not-reflect",
+		},
+	}
+	encoded, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := DecodeStrict[AllocationFinalResponse](encoded)
+	if err != nil {
+		t.Fatalf("semantic final report was blocked by optional adapter metrics: %v", err)
+	}
+	if value.Report.Runtime.Complete || len(value.Report.Runtime.Adapters) != 0 {
+		t.Fatalf("malformed metrics were retained: %+v", value.Report.Runtime)
+	}
+}
+
 func TestDecodeStrictRejectsTrailingJSON(t *testing.T) {
 	t.Parallel()
 

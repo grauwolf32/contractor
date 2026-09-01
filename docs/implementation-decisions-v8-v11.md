@@ -361,3 +361,43 @@ tests that make the choice observable.
   do not retain the principal configuration row forever. Principal-row locking
   serializes deletion with candidate placement before either inserts or removes
   that live durable reference.
+
+### D019 — Adapter close authority is stronger than telemetry delivery
+
+- Applies to: V8-010.
+- Decision: `AllocationAdapterHost` is constructed before sandbox preparation
+  and owns four explicit allocation channels (`model_http`, `tool_http`,
+  `tool_subprocess`, `instrumentation`). Typed settings determine exactly which
+  channels a factory must return. No adapter or setting is installed in a
+  process global. Worker and Toolset factory contexts receive the merged
+  handles; model-visible objects receive neither adapters nor settings.
+- Teardown boundary: telemetry flush gets at most half of the remaining outer
+  lifecycle deadline, reserving the rest for credential-erasing close. A flush
+  timeout/failure is recorded only in saturating allowlisted metrics. A close
+  timeout/failure instead fences the slot and requests process exit, because an
+  in-process coroutine that ignored cancellation could otherwise keep a client
+  or credential reachable after an incorrect return to `idle`.
+- Wire compatibility: Python's active `RuntimeReport` and Go's strict response
+  DTO both carry the typed adapter map. Go serializes a nil internal map as an
+  empty object so old synthesized reports remain valid. Missing or malformed
+  adapter maps in already durable pre-V8 history are retained as an incomplete
+  runtime report rather than rejecting the semantic final report. Control Plane
+  then keeps only valid metrics whose refs occur in the reservation's pinned
+  provenance; unexpected, malformed or missing metrics set `complete=false`
+  and cannot block terminalization/release.
+  The separate canonical `RuntimeReportV2` fixture remains the private-v2
+  parity contract. This small Go change is necessary even though V8-010 was
+  originally marked Python-only: otherwise `DisallowUnknownFields` would
+  reject the Runtime's first adapter report.
+- Secret handling: allocation replay fingerprints use a per-process keyed HMAC
+  rather than a reusable raw SHA-256 of secret-bearing JSON. Agent Card checks
+  compare every private settings leaf (and scan distinctive values when
+  embedded), while repr/snapshot expose only adapter refs/channel names and
+  safe codes. Preparation failures distinguish an explicitly classified
+  transient factory error; an unclassified implementation error is
+  non-retryable.
+- Alternatives rejected: letting flush consume the complete deadline could
+  make an instant close appear unconfirmed; treating close like best-effort
+  telemetry would violate secret erasure; constructing adapters after sandbox
+  would leave avoidable local resources on configuration failure; and adding a
+  second final-report envelope would fork the already active lifecycle route.

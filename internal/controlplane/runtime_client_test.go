@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 func TestRuntimeControlClientRejectsDifferentCAValidPrincipalBeforeRequest(t *testing.T) {
@@ -170,7 +171,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	template := testTemplate(t)
 	settings := testRuntimeSettings()
-	lease := time.Now().Add(time.Minute).UTC()
+	lease := wireTime(time.Now().Add(time.Minute).UTC())
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		response := contracts.PrepareAllocationResponse{
 			APIVersion: contracts.APIVersion,
@@ -195,6 +196,37 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	})
 	if err == nil || bytes.Contains([]byte(err.Error()), []byte(settings.LLMGatewayToken.Reveal())) {
 		t.Fatalf("secret-bearing WorkerHandle error = %v", err)
+	}
+}
+
+func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *testing.T) {
+	t.Parallel()
+
+	template := testTemplate(t)
+	lease := wireTime(time.Now().Add(time.Minute).UTC())
+	reservation := testReservation(
+		"allocation_1", "builder", "https://runtime.example", "https://runtime.example",
+		template, lease,
+	)
+	settings := testRuntimeSettings()
+	settings.HTTPProxy = &contracts.HTTPProxySettingsV2{
+		Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
+		BasicAuth: &contracts.HTTPProxyBasicAuthV2{
+			Username: contracts.NewSecretString("worker"),
+			Password: contracts.NewSecretString("short"),
+		},
+		Targets: []contracts.HTTPProxyTarget{contracts.ProxyTargetLLMGateway},
+	}
+	handle := contracts.WorkerHandle{
+		AllocationID: "allocation_1", AgentTemplateRef: template.Ref,
+		WorkerRuntimeRef: template.Runtime, LeaseExpiresAt: lease,
+		AgentCard: testAgentCard(
+			"builder", "allocation_1",
+			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
+		),
+	}
+	if err := validateWorkerHandleV2(handle, reservation, settings); err != nil {
+		t.Fatalf("low-entropy credential collided with a JSON key: %v", err)
 	}
 }
 
@@ -482,6 +514,34 @@ func testExecutionReport(allocationID string) contracts.AllocationFinalReport {
 			ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
 		},
 		Runtime: contracts.RuntimeReport{Complete: true},
+	}
+}
+
+func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) {
+	t.Parallel()
+
+	reservation := Reservation{ResolvedRuntimeConfig: &runtimeconfig.ResolvedRuntimeConfig{
+		RequiredRuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
+	}}
+	report := contracts.RuntimeReport{
+		Complete: true,
+		Adapters: map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetricsV2{
+			contracts.RuntimeAdapterOTLPHTTP:  {Operations: 2},
+			contracts.RuntimeAdapterHTTPProxy: {Operations: 1},
+		},
+	}
+	sanitizeRuntimeAdapterMetrics(&report, reservation)
+	if report.Complete {
+		t.Fatal("unexpected adapter attribution did not mark telemetry incomplete")
+	}
+	if len(report.Adapters) != 1 || report.Adapters[contracts.RuntimeAdapterOTLPHTTP].Operations != 2 {
+		t.Fatalf("trusted adapter metrics were not retained: %+v", report.Adapters)
+	}
+
+	report = contracts.RuntimeReport{Complete: true}
+	sanitizeRuntimeAdapterMetrics(&report, reservation)
+	if report.Complete || len(report.Adapters) != 0 {
+		t.Fatalf("missing expected adapter metrics remained complete: %+v", report)
 	}
 }
 
