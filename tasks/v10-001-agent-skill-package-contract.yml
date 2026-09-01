@@ -3,8 +3,8 @@ id: V10-001
 title: Define deterministic Agent Skill package validation
 milestone: agent-skills-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 7fe40a3bdca73f295b5db38a1a34a1b704bd7ac7
 depends_on: [V8-013]
 languages: [go, python]
 
