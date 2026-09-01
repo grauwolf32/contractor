@@ -1,10 +1,10 @@
 schema_version: "1.0"
 id: V11-011
-title: Add source-workspace workflow fixtures and process E2E
+title: Add source-workspace workflow fixtures and allocation-boundary E2E
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 5566a95e1b1cec8d5e3de9928698f55fb5563d0b
 depends_on: [V11-007, V11-008, V11-010]
 languages: [go, python, yaml]
 
@@ -24,8 +24,8 @@ scope:
   in:
     - Add filesystem-capable AgentTemplates/instructions and workspace Workflow YAML variants for source analysis.
     - Run strict config publication and snapshot tests for fixtures.
-    - Start real mTLS Server plus local-storage and memory-storage Runtime processes.
-    - Use deterministic scripted Worker/model behavior to read/edit/diff/export without external LLM quality dependency.
+    - Exercise local-storage and memory-storage Runtime providers through the real AllocationService and ADK Worker lifecycle.
+    - Use deterministic scripted Worker/model behavior to read/edit/diff/export without external LLM quality dependency; existing mTLS process suites own transport and Scheduler process coverage.
     - Prove exact revision pinning, Router isolation, terminal ordering, release cleanup and two-slot reuse.
     - Document startup flags, limits and migration from source-analysis@1.
   out:
@@ -43,5 +43,5 @@ acceptance_criteria:
 
 tests:
   - {name: config, command: "go test ./internal/config", covers: [A1, A3]}
-  - {name: process-e2e, command: "cd runtime && uv run pytest tests/test_workspace_process_e2e.py", covers: [A1, A2, A3]}
+  - {name: allocation-e2e, command: "cd runtime && uv run pytest tests/test_workspace_process_e2e.py", covers: [A1, A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
