@@ -180,6 +180,34 @@ func TestMemoryToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestHTTPToolsetDescriptorUsesOptionalTypedClient(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["http-tools@1"]
+	if !ok {
+		t.Fatal("http-tools@1 descriptor is missing")
+	}
+	want := []string{
+		"http_history", "http_read_body", "http_request", "http_session_clear",
+		"http_session_get", "http_session_set",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("http-tools@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	channels := descriptor.InfrastructureChannels["http_request"]
+	if len(channels) != 1 || channels[0] != RuntimeHTTPClient {
+		t.Fatalf("http_request channels = %v, want RuntimeHTTPClient", channels)
+	}
+	selected := contracts.ResolvedAgentTemplate{Toolsets: []contracts.ToolsetSelection{{
+		Ref:   contracts.ToolsetRef{ToolsetID: "http-tools", Version: "1"},
+		Tools: []string{"http_request"},
+	}}}
+	adapters, err := RequiredRuntimeAdaptersForTemplate(selected)
+	if err != nil || len(adapters) != 0 {
+		t.Fatalf("HTTP direct/optional-proxy requirements = (%v, %v), want no hard adapter", adapters, err)
+	}
+}
+
 func TestCaidoToolsetDescriptorRequiresTypedClientForEveryTool(t *testing.T) {
 	t.Parallel()
 	descriptor, ok := MVPDescriptors().Toolsets["caido@1"]

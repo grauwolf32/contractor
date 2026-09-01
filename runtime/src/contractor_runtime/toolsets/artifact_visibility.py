@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from contractor_runtime.contracts import ArtifactRef
 
 MEMORY_ARTIFACT_PREFIX = "memory."
+HTTP_BODY_ARTIFACT_PREFIX = "http.body."
 PURPOSE_RESERVED_NAMESPACES = frozenset({"inputs", "outputs", "skills"})
 
 
@@ -32,7 +33,16 @@ def is_reserved_memory_binding(namespace: object, name: object) -> bool:
 def is_model_hidden_binding(namespace: object, name: object) -> bool:
     """Return whether generic model tools must not disclose this binding."""
 
-    return namespace == "skills" or is_reserved_memory_binding(namespace, name)
+    return (
+        namespace == "skills"
+        or is_reserved_memory_binding(namespace, name)
+        or (
+            isinstance(namespace, str)
+            and namespace not in PURPOSE_RESERVED_NAMESPACES
+            and isinstance(name, str)
+            and name.startswith(HTTP_BODY_ARTIFACT_PREFIX)
+        )
+    )
 
 
 def require_model_visible_binding(namespace: object, name: object) -> None:

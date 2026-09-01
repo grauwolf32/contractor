@@ -112,6 +112,15 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 - `follow_redirects`, with at most 10 redirects and scheme validation at each
   hop.
 
+The initial callable shape intentionally remains compatible with the migrated
+Skills: `http_request(url, method, headers, query, body, body_type, timeout,
+follow_redirects)`. `http_session_set(cookies, headers, auth,
+replace_cookies, replace_headers)` applies sparse updates; `auth` is exactly one
+of `{"kind":"none"}`, `{"kind":"bearer","token":"..."}` or
+`{"kind":"basic","username":"...","password":"..."}`. The redacted
+session view contains only `auth_kind`, non-sensitive default-header values,
+redaction markers for sensitive headers, cookie names/count and history count.
+
 Hop-by-hop headers, `Host`, `Content-Length`, proxy authentication and CR/LF
 header injection are rejected. The Artifact API and Runtime private origins are
 always denied. Other egress is intentionally the deployment's responsibility:
@@ -138,6 +147,16 @@ artifact in the allocation's logical namespace using media type
 arbitrary bytes use base64. Internal names are collision-resistant and the
 exact returned ref is retained in allocation memory. `http_read_body` accepts
 only a request ID created by that allocation, never an arbitrary ArtifactRef.
+The JSON envelope itself must also fit the Artifact plane's 16 MiB payload
+limit, so base64 expansion can make the effective binary-body limit smaller.
+Bindings use the reserved `http.body.` prefix: generic model-visible Artifact
+tools neither list nor read/write them. This is a Toolset authority boundary,
+not a new Artifact API or storage class.
+
+`http_read_body(request_id, offset, length)` returns at most 8192 text
+characters or binary bytes. Offsets are characters for UTF-8 text and bytes
+for binary bodies. `http_history(limit)` returns at most 128 summaries in
+request-ID order and omits previews and body content.
 
 Session cookies/default headers/auth live only in allocation memory. They are
 available to sequential A2A tasks on the same allocation and are erased on

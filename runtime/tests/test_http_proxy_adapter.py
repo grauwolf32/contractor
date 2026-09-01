@@ -243,6 +243,25 @@ def test_bearer_subprocess_fails_closed_and_registry_rejects_channel_mismatch() 
     assert handles.for_tool_channels(frozenset()).enabled_channels == ()
 
 
+def test_proxy_handle_preserves_target_http_errors_as_responses() -> None:
+    async def scenario() -> None:
+        async with fake_proxy(lambda _request: (503, b"target unavailable")) as proxy:
+            adapter = HTTPProxyAdapter(
+                adapter_context(),
+                proxy_settings(proxy.url, targets=["tool-http"]),
+            )
+            handle = adapter.handles.tool_http
+            assert isinstance(handle, ProxyHTTPClient)
+            response = await handle.request("GET", "http://public.example/failure")
+            assert response.status_code == 503
+            assert response.text == "target unavailable"
+            assert adapter.metrics.operations == 1
+            assert adapter.metrics.failed_operations == 0
+            await adapter.close()
+
+    asyncio.run(scenario())
+
+
 async def assert_safe_proxy_failure(proxy_url: str, backend_url: str) -> None:
     adapter = HTTPProxyAdapter(
         adapter_context(private_bypass_hosts=("control.example",)),

@@ -73,6 +73,15 @@ func MVPDescriptors() Descriptors {
 			"filesystem@1": {
 				Tools: []string{"glob", "grep", "ls", "read_file"},
 			},
+			"http-tools@1": {
+				Tools: []string{
+					"http_history", "http_read_body", "http_request", "http_session_clear",
+					"http_session_get", "http_session_set",
+				},
+				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
+					"http_request": {RuntimeHTTPClient},
+				},
+			},
 			"memory-tools@1": {
 				Tools: []string{
 					"append_memory", "list_memories", "list_memory_tags",

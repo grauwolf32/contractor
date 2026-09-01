@@ -82,7 +82,11 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise ProxyRequestError from None
-        if response.status_code >= 400:
+        # A target 4xx/5xx is application data for model-facing HTTP tools.
+        # 407 is the only response status that unambiguously belongs to the
+        # configured forward-proxy hop; tunnel/routing failures surface as
+        # transport exceptions above.
+        if response.status_code == 407:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             await response.aclose()
             raise ProxyRequestError from None
@@ -125,7 +129,7 @@ class ProxyHTTPClient:
             raise ProxyRequestError
         try:
             response = await self.async_client.request(method, url, **kwargs)
-            if response.status_code >= 400:
+            if response.status_code == 407:
                 await response.aclose()
                 raise ProxyRequestError
             return response
@@ -135,6 +139,34 @@ class ProxyHTTPClient:
             raise
         except Exception:
             raise ProxyRequestError from None
+
+    async def stream_request(self, method: str, url: str, **kwargs: object) -> httpx.Response:
+        """Send one routed request without buffering its response body."""
+
+        parsed = urlsplit(url)
+        if parsed.hostname in self._forbidden_hosts or parsed.netloc in self._forbidden_hosts:
+            if self._metrics is not None:
+                self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise ProxyRequestError
+        try:
+            client = self.async_client
+            request = client.build_request(method, url, **kwargs)
+            response = await client.send(request, stream=True, follow_redirects=False)
+            if response.status_code == 407:
+                await response.aclose()
+                raise ProxyRequestError
+            return response
+        except asyncio.CancelledError:
+            raise
+        except ProxyRequestError:
+            raise
+        except Exception:
+            raise ProxyRequestError from None
+
+    def clear_cookies(self) -> None:
+        """Erase allocation-session cookies retained by httpx."""
+
+        self.async_client.cookies.clear()
 
     def detach(self) -> None:
         self._client = None

@@ -22,7 +22,6 @@ func TestRepositoryLiveSkillCompatibilityBoundary(t *testing.T) {
 
 	descriptors := MVPDescriptors()
 	futureOperations := map[string]bool{
-		"http_request": true, "http_session_set": true,
 		"get_vulnerability": true, "submit_verdict": true,
 		"run_python": true, "execute_bash": true,
 	}

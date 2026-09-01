@@ -13,6 +13,8 @@ toolsets:
     caido_workflow_run: [caido-graphql-client]
   edit-files@1: {}
   filesystem@1: {}
+  http-tools@1:
+    http_request: [runtime-http-client]
   likec4@1:
     validate_likec4: [runtime-subprocess-launcher]
   memory-tools@1: {}

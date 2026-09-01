@@ -30,6 +30,7 @@ from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.caido import CaidoToolsetFactory
 from contractor_runtime.toolsets.edit_files import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem import FilesystemToolsetFactory
+from contractor_runtime.toolsets.http_tools import HTTPToolsetFactory
 from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
@@ -167,6 +168,7 @@ def built_in_factories(
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
+    http_toolset = HTTPToolsetFactory(artifact_client_factory)
     caido_toolset = CaidoToolsetFactory()
     edit_files_toolset = EditFilesToolsetFactory()
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
@@ -196,6 +198,7 @@ def built_in_factories(
             caido_toolset.ref: caido_toolset,
             edit_files_toolset.ref: edit_files_toolset,
             filesystem_toolset.ref: filesystem_toolset,
+            http_toolset.ref: http_toolset,
             likec4_toolset.ref: likec4_toolset,
             memory_toolset.ref: memory_toolset,
             openapi_toolset.ref: openapi_toolset,

@@ -167,11 +167,21 @@ def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs
                 "application/json",
                 base64.b64encode(b"hidden").decode(),
             )
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["read_artifact"]("analysis", "http.body.hidden", "revision-http")
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_artifact"](
+                "analysis",
+                "http.body.hidden",
+                "application/json",
+                base64.b64encode(b"hidden").decode(),
+            )
         assert (client.read_calls, client.write_calls) == calls_before
         observed = {
             (ref.namespace, ref.name) for tool in tools.values() for ref in tool.known_exact_refs
         }
         assert ("analysis", "memory.hidden") not in observed
+        assert ("analysis", "http.body.hidden") not in observed
         assert ("skills", "likec4") not in observed
         assert ("inputs", "memory.allowed_input") in observed
 
@@ -241,6 +251,7 @@ class FakeArtifactClient:
             ArtifactRef(namespace="inputs", name="memory.allowed_input", revision="revision-input"),
             ArtifactRef(namespace="analysis", name="report", revision="revision-report"),
             ArtifactRef(namespace="analysis", name="memory.hidden", revision="revision-hidden"),
+            ArtifactRef(namespace="analysis", name="http.body.hidden", revision="revision-http"),
             ArtifactRef(namespace="skills", name="likec4", revision="revision-skill"),
         )
 
@@ -255,6 +266,7 @@ class FakeArtifactClient:
             return [
                 ArtifactRef(namespace="analysis", name="report"),
                 ArtifactRef(namespace="analysis", name="memory.hidden"),
+                ArtifactRef(namespace="analysis", name="http.body.hidden"),
             ]
         raise AssertionError(f"unexpected namespace {namespace!r}")
 
