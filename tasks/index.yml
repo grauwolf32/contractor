@@ -256,12 +256,12 @@ v8_v12_spec_review:
     - All indexed task YAML parses and the dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
     - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 480 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make verify passes with 482 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V12-006
-  next_task: V12-007
+  completed_through: V12-007
+  next_task: V12-008
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -287,7 +287,12 @@ current_checkpoint:
     an exact explicit AgentTemplate, added HTTP/Caido templates and an opt-in
     security-analysis Workflow, and locked their compatibility plus a
     secret-free label configuration example in the repository release gate.
-    V12-007 real-process coverage is next.
+    V12-007 added a deterministic allocation-boundary gate plus a PostgreSQL,
+    mTLS and two-process heterogeneous Runtime E2E. It proves HTTP proxy/body
+    artifacts, Caido read/mutation pinning across an Agent-label rebind,
+    non-blocking release recovery, slot reuse and retained-surface redaction;
+    the gate also found and fixed cleanup through a terminally detached HTTP
+    adapter. V12-008 adversarial hardening is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
