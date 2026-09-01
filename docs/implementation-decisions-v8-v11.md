@@ -603,3 +603,28 @@ tests that make the choice observable.
   constrain a future version that adds deletion or a larger quota.
 - Observable tests: shared Go/Python fixtures accept `2^53-1`, reject `2^53`,
   and prove byte-identical canonical output for the values used by `v1`.
+
+### D027 — Worker MemoryTools reconciles only transport-uncertain mutations
+
+- Applies to: V9-002 and later MemoryTools hardening.
+- Decision: all six selected Worker operations share one allocation-local
+  serialized Memory session and the allocation-bound Artifact client. A direct
+  Artifact CAS conflict immediately becomes retryable `memory_changed`. Only a
+  transport failure with an unknown commit outcome authorizes one replay of the
+  byte-identical canonical payload with the identical create/update
+  precondition. If that replay also fails, an exact current payload means the
+  original mutation completed; a different current payload is
+  `memory_changed`.
+- Error boundary: allocation/grant/write-fence rejection becomes the bounded
+  non-retryable `memory_forbidden`; transport, malformed stored state and other
+  Artifact failures become retryable `memory_unavailable`. Low-level
+  `artifact_*` codes and messages never enter the model-facing Memory contract.
+- Provenance boundary: Memory tool instances intentionally expose no
+  `known_exact_refs` projection. `run-artifacts@1` filters the reserved
+  `memory.` prefix from list results and its accumulated exact refs, and rejects
+  generic read/write before making an Artifact call.
+- Reason: retrying an ordinary conflict could overwrite a real concurrent
+  semantic change, while recomputing append after response loss could duplicate
+  its fragment. A single exact replay plus equality reconciliation preserves
+  at-most-once logical mutation without a Memory-specific replay table or
+  exposing revisions to the model.

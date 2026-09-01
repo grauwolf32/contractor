@@ -83,6 +83,25 @@ func TestTextArtifactToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestMemoryToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["memory-tools@1"]
+	if !ok {
+		t.Fatal("memory-tools@1 descriptor is missing")
+	}
+	want := []string{
+		"append_memory", "list_memories", "list_memory_tags",
+		"read_memory", "search_memory", "write_memory",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("memory-tools@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if len(descriptor.InfrastructureChannels) != 0 {
+		t.Fatalf("memory-tools@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
+	}
+}
+
 func TestSourceAnalysisToolsetDescriptor(t *testing.T) {
 	t.Parallel()
 

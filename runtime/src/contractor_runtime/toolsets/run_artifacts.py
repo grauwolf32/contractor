@@ -16,6 +16,15 @@ from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_BASE64_PAYLOAD_LENGTH = ((MAX_ARTIFACT_BYTES + 2) // 3) * 4
+MODEL_HIDDEN_ARTIFACT_PREFIXES = ("memory.",)
+
+
+class ModelArtifactAccessError(ValueError):
+    code = "artifact_access_denied"
+    retryable = False
+
+    def __init__(self) -> None:
+        super().__init__("artifact is reserved for a purpose-specific Toolset")
 
 
 class ToolMetrics(Protocol):
@@ -93,7 +102,7 @@ class _BaseTool:
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         value = getattr(self._client, "known_exact_refs", ())
-        return tuple(value)
+        return tuple(ref for ref in value if not _model_hidden(ref.name))
 
     async def close(self) -> None:
         self._secrets = ()
@@ -128,7 +137,11 @@ class ListArtifactsTool(_BaseTool):
         arguments = {"namespace": namespace}
         try:
             refs = await self._client.list_artifacts(namespace)
-            result = [ref.model_dump(by_alias=True, exclude_none=True) for ref in refs]
+            result = [
+                ref.model_dump(by_alias=True, exclude_none=True)
+                for ref in refs
+                if not _model_hidden(ref.name)
+            ]
             self._success(arguments, {"count": len(result)}, started_ns)
             return result
         except Exception as error:
@@ -149,6 +162,7 @@ class ReadArtifactTool(_BaseTool):
         started_ns = time.perf_counter_ns()
         arguments = {"namespace": namespace, "name": name, "revision": revision}
         try:
+            _reject_model_hidden(name)
             value = await self._client.read_artifact(
                 ArtifactRef(namespace=namespace, name=name, revision=revision)
             )
@@ -194,6 +208,7 @@ class WriteArtifactTool(_BaseTool):
             "expected_revision": expected_revision,
         }
         try:
+            _reject_model_hidden(name)
             if len(data_base64) > MAX_BASE64_PAYLOAD_LENGTH:
                 raise ValueError("base64 artifact payload exceeds the 16 MiB limit")
             try:
@@ -225,6 +240,15 @@ class WriteArtifactTool(_BaseTool):
 def gateway_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
     token = settings.llm_gateway_token
     return () if token is None else (token.get_secret_value(),)
+
+
+def _model_hidden(name: object) -> bool:
+    return isinstance(name, str) and name.startswith(MODEL_HIDDEN_ARTIFACT_PREFIXES)
+
+
+def _reject_model_hidden(name: object) -> None:
+    if _model_hidden(name):
+        raise ModelArtifactAccessError
 
 
 def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:

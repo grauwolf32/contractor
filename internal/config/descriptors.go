@@ -43,6 +43,12 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"memory-tools@1": {
+				Tools: []string{
+					"append_memory", "list_memories", "list_memory_tags",
+					"read_memory", "search_memory", "write_memory",
+				},
+			},
 			"likec4@1": {
 				Tools: []string{
 					"append_likec4", "load_likec4", "read_likec4", "replace_likec4",

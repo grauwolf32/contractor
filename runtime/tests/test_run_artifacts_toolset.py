@@ -126,6 +126,38 @@ def test_tool_error_metrics_are_bounded_typed_and_secret_free() -> None:
     asyncio.run(scenario())
 
 
+def test_memory_artifacts_are_hidden_from_generic_list_read_write_and_known_refs() -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        factory = RunArtifactsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await create_tools(
+            factory, state, ["list_artifacts", "read_artifact", "write_artifact"]
+        )
+
+        assert await tools["list_artifacts"]("inputs") == [
+            {"namespace": "inputs", "name": "source"}
+        ]
+        calls_before = (client.read_calls, client.write_calls)
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["read_artifact"]("inputs", "memory.hidden", "revision-hidden")
+        with pytest.raises(ValueError, match="purpose-specific"):
+            await tools["write_artifact"](
+                "inputs",
+                "memory.hidden",
+                "application/json",
+                base64.b64encode(b"hidden").decode(),
+            )
+        assert (client.read_calls, client.write_calls) == calls_before
+        assert all(
+            not ref.name.startswith("memory.")
+            for tool in tools.values()
+            for ref in tool.known_exact_refs
+        )
+
+    asyncio.run(scenario())
+
+
 async def create_tools(
     factory: RunArtifactsToolsetFactory,
     state: WorkerState,
@@ -154,12 +186,25 @@ class FakeArtifactClient:
     def __init__(self, *, write_error: Exception | None = None) -> None:
         self.write_error = write_error
         self.write_expected_revision: str | None = None
+        self.read_calls = 0
+        self.write_calls = 0
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return (
+            ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
+            ArtifactRef(namespace="inputs", name="memory.hidden", revision="revision-hidden"),
+        )
 
     async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
         assert namespace == "inputs"
-        return [ArtifactRef(namespace="inputs", name="source")]
+        return [
+            ArtifactRef(namespace="inputs", name="source"),
+            ArtifactRef(namespace="inputs", name="memory.hidden"),
+        ]
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+        self.read_calls += 1
         assert ref == ArtifactRef(namespace="inputs", name="source")
         return ArtifactValue(
             artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
@@ -177,6 +222,7 @@ class FakeArtifactClient:
         media_type: str,
         expected_revision: str | None,
     ) -> ArtifactWriteResult:
+        self.write_calls += 1
         if self.write_error is not None:
             raise self.write_error
         self.write_expected_revision = expected_revision
