@@ -4,7 +4,7 @@ title: Keep Contractor transport and result selection outside the Worker model
 milestone: worker-model-boundary
 priority: P0
 status: complete
-implementation_commit: null
+implementation_commit: bdcaca77cc7bf148464c98b94086375f7c670e24
 depends_on: [V5-001, V12-008]
 languages: [go, python, yaml, typescript]
 
