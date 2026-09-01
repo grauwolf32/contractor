@@ -64,9 +64,17 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         raise RuntimeError("reserved output write unexpectedly succeeded")
     return {
         "createdRevision": created.artifact.revision,
+        "createdBindingAt": created.binding_created_at.isoformat(),
+        "createdRevisionAt": created.revision_created_at.isoformat(),
         "updatedRevision": updated.artifact.revision,
+        "updatedBindingAt": updated.binding_created_at.isoformat(),
+        "updatedRevisionAt": updated.revision_created_at.isoformat(),
         "currentRevision": current.artifact.revision,
+        "currentBindingAt": current.binding_created_at.isoformat(),
+        "currentRevisionAt": current.revision_created_at.isoformat(),
         "exactRevision": exact.artifact.revision,
+        "exactBindingAt": exact.binding_created_at.isoformat(),
+        "exactRevisionAt": exact.revision_created_at.isoformat(),
         "payload": current.data.decode(),
         "listed": [ref.model_dump(by_alias=True, exclude_none=True) for ref in listed],
         "outputError": output_error,

@@ -20,9 +20,10 @@ context:
     = resolved Agent Namespace, name = memory.n), media type
     application/vnd.contractor.memory-note+json. Stored fields are exactly
     schemaVersion=contractor.memory-note/v1, name, content, description, sorted
-    unique tags and uint64 ordinal. Timestamps are Artifact metadata rather than
-    payload bytes: created_at is binding_created_at and updated_at is the
-    current revision_created_at from the Server database clock.
+    unique tags and uint64 ordinal restricted to the RFC 8785 exact-integer
+    range 0..2^53-1. Timestamps are Artifact metadata rather than payload bytes:
+    created_at is binding_created_at and updated_at is the current
+    revision_created_at from the Server database clock.
   validation: >-
     Name is lowercase snake_case ASCII and at most 128 bytes; content is
     non-empty UTF-8; description is at most 512 UTF-8 bytes; zero to three

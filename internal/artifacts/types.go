@@ -48,14 +48,18 @@ type Payload struct {
 }
 
 type ReadResult struct {
-	Ref     ArtifactRef
-	Payload Payload
+	Ref               ArtifactRef
+	Payload           Payload
+	BindingCreatedAt  time.Time
+	RevisionCreatedAt time.Time
 }
 
 type WriteResult struct {
-	Ref       ArtifactRef
-	MediaType string
-	Size      int64
+	Ref               ArtifactRef
+	MediaType         string
+	Size              int64
+	BindingCreatedAt  time.Time
+	RevisionCreatedAt time.Time
 }
 
 type ForkResult struct {

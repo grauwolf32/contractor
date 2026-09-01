@@ -137,10 +137,15 @@ return the full note. ArtifactRef, Artifact revision, physical blob identity,
 and scope IDs are never model-visible.
 
 `ordinal` is a monotonically increasing unsigned 64-bit creation order within
-one Memory Namespace; its first note receives `0`. Replacing or appending a
-note preserves `ordinal` and `created_at` and advances `updated_at` using the
-Server clock. Revision is storage concurrency state and has no ordering or
-semantic meaning for the model.
+one Memory Namespace; its first note receives `0`. Its canonical JSON value is
+also restricted to the exactly interoperable integer range
+`0..9007199254740991` (`2^53-1`): RFC 8785 uses ECMAScript number semantics, so
+larger integers could otherwise be rounded differently across languages. The
+`v1` quota and absence of deletion keep all normally assigned values in
+`0..127`; the wider bound is a corruption/interoperability guard. Replacing or
+appending a note preserves `ordinal` and `created_at` and advances `updated_at`
+using the Server clock. Revision is storage concurrency state and has no
+ordering or semantic meaning for the model.
 
 `list_memories` and `search_memory` sort previews by
 `updated_at DESC, ordinal DESC`. This deliberately puts recently changed notes

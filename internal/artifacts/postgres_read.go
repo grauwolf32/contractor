@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -18,7 +19,8 @@ func (r *PostgresRepository) Read(ctx context.Context, scope Scope, ref Artifact
 		return ReadResult{}, err
 	}
 	query := `
-SELECT revision.revision, version.media_type, blob.payload, blob.sha256, blob.size_bytes
+SELECT revision.revision, version.media_type, blob.payload, blob.sha256, blob.size_bytes,
+       binding.created_at, revision.created_at
 FROM artifact_bindings AS binding
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
@@ -33,8 +35,14 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
 	arguments := []any{scope.kind, scope.id, ref.Namespace, ref.Name}
 	if ref.Revision != nil {
 		query = `
-SELECT revision.revision, version.media_type, blob.payload, blob.sha256, blob.size_bytes
+SELECT revision.revision, version.media_type, blob.payload, blob.sha256, blob.size_bytes,
+       binding.created_at, revision.created_at
 FROM artifact_binding_revisions AS revision
+JOIN artifact_bindings AS binding
+  ON binding.scope_kind = revision.scope_kind
+ AND binding.scope_id = revision.scope_id
+ AND binding.namespace = revision.namespace
+ AND binding.name = revision.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE revision.scope_kind = $1 AND revision.scope_id = $2
@@ -47,8 +55,11 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
 	var data []byte
 	var storedDigest []byte
 	var size int64
+	var bindingCreatedAt time.Time
+	var revisionCreatedAt time.Time
 	err := r.db.QueryRow(ctx, query, arguments...).Scan(
 		&revision, &mediaType, &data, &storedDigest, &size,
+		&bindingCreatedAt, &revisionCreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ReadResult{}, ErrArtifactNotFound
@@ -62,8 +73,10 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
 	}
 	exact := revision
 	return ReadResult{
-		Ref:     ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &exact},
-		Payload: Payload{MediaType: mediaType, Data: data},
+		Ref:               ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &exact},
+		Payload:           Payload{MediaType: mediaType, Data: data},
+		BindingCreatedAt:  bindingCreatedAt,
+		RevisionCreatedAt: revisionCreatedAt,
 	}, nil
 }
 

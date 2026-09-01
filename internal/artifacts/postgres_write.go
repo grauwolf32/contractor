@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"time"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
@@ -62,6 +63,8 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 	var storedRevision string
 	var mediaType string
 	var size int64
+	var bindingCreatedAt time.Time
+	var revisionCreatedAt time.Time
 	err = r.db.QueryRow(ctx, `
 WITH scope_ready AS (
     SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2
@@ -70,7 +73,7 @@ WITH scope_ready AS (
     SET current_revision = $5, updated_at = clock_timestamp()
     WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4
       AND $6::text IS NOT NULL AND current_revision = $6 AND NOT frozen
-    RETURNING 1
+    RETURNING created_at
 ), created_binding AS (
     INSERT INTO artifact_bindings (
         scope_kind, scope_id, namespace, name, current_revision
@@ -78,11 +81,11 @@ WITH scope_ready AS (
     SELECT $1, $2, $3, $4, $5 FROM scope_ready
     WHERE $6::text IS NULL
     ON CONFLICT DO NOTHING
-    RETURNING 1
+    RETURNING created_at
 ), claimed_binding AS (
-    SELECT 1 FROM updated_binding
+    SELECT created_at FROM updated_binding
     UNION ALL
-    SELECT 1 FROM created_binding
+    SELECT created_at FROM created_binding
 ), inserted_blob AS (
     INSERT INTO artifact_blobs (sha256, payload, size_bytes)
     SELECT $8, $9, $10 FROM claimed_binding
@@ -102,12 +105,14 @@ WITH scope_ready AS (
         scope_kind, scope_id, namespace, name, revision, version_id
     )
     SELECT $1, $2, $3, $4, $5, version_id FROM inserted_version
-    RETURNING revision
+    RETURNING revision, created_at
 )
-SELECT revision, $11::text, $10::bigint FROM inserted_revision`,
+SELECT inserted_revision.revision, $11::text, $10::bigint,
+       claimed_binding.created_at, inserted_revision.created_at
+FROM inserted_revision, claimed_binding`,
 		scope.kind, scope.id, target.Namespace, target.Name, revision, expectedRevision,
 		versionID, digest[:], payload.Data, len(payload.Data), payload.MediaType,
-	).Scan(&storedRevision, &mediaType, &size)
+	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
 	}
@@ -122,8 +127,11 @@ SELECT revision, $11::text, $10::bigint FROM inserted_revision`,
 	}
 	exact := storedRevision
 	return WriteResult{
-		Ref:       ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &exact},
-		MediaType: mediaType, Size: size,
+		Ref:               ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &exact},
+		MediaType:         mediaType,
+		Size:              size,
+		BindingCreatedAt:  bindingCreatedAt,
+		RevisionCreatedAt: revisionCreatedAt,
 	}, nil
 }
 

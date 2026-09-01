@@ -1,0 +1,176 @@
+{
+  "schemaVersion": "contractor.memory-codec-fixtures/v1",
+  "valid": [
+    {
+      "id": "normalized_tags",
+      "input": {
+        "schemaVersion": "contractor.memory-note/v1",
+        "name": "repo_overview",
+        "content": "The API is assembled in internal/httpapi.",
+        "description": "Entry points found while mapping the repository.",
+        "tags": ["repository", "architecture", "architecture"],
+        "ordinal": 0
+      },
+      "canonical": "{\"content\":\"The API is assembled in internal/httpapi.\",\"description\":\"Entry points found while mapping the repository.\",\"name\":\"repo_overview\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[\"architecture\",\"repository\"]}"
+    },
+    {
+      "id": "unicode",
+      "input": {
+        "schemaVersion": "contractor.memory-note/v1",
+        "name": "unicode_note",
+        "content": "Привет, 世界 — café",
+        "description": "UTF-8 ✓",
+        "tags": ["i18n"],
+        "ordinal": 127
+      },
+      "canonical": "{\"content\":\"Привет, 世界 — café\",\"description\":\"UTF-8 ✓\",\"name\":\"unicode_note\",\"ordinal\":127,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[\"i18n\"]}"
+    },
+    {
+      "id": "maximum_exact_ordinal",
+      "input": {
+        "schemaVersion": "contractor.memory-note/v1",
+        "name": "max_ordinal",
+        "content": "x",
+        "description": "",
+        "tags": [],
+        "ordinal": 9007199254740991
+      },
+      "canonical": "{\"content\":\"x\",\"description\":\"\",\"name\":\"max_ordinal\",\"ordinal\":9007199254740991,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}"
+    }
+  ],
+  "generatedValid": [
+    {
+      "id": "maximum_payload",
+      "input": {
+        "schemaVersion": "contractor.memory-note/v1",
+        "name": "max_payload",
+        "contentRepeat": {"value": "x", "count": 32650},
+        "description": "",
+        "tags": [],
+        "ordinal": 1
+      },
+      "canonicalBytes": 32768,
+      "canonicalSha256": "ef8064a66e30a9985fdcb8de38da77b78b8e3382edf183224939b5986fa20781"
+    },
+    {
+      "id": "exact_utf8_and_ascii_field_bounds",
+      "input": {
+        "schemaVersion": "contractor.memory-note/v1",
+        "nameRepeat": {"value": "a", "count": 128},
+        "content": "x",
+        "descriptionRepeat": {"value": "é", "count": 256},
+        "tagRepeats": [{"value": "a", "count": 64}],
+        "ordinal": 2
+      },
+      "canonicalBytes": 814,
+      "canonicalSha256": "206ca61c2e1708c6f0b8d31ac44718e06567fdf8239359973380f6d540cbb01d"
+    }
+  ],
+  "invalidInput": [
+    {"id": "uppercase_name", "mutation": "uppercase_name", "reason": "name"},
+    {"id": "long_name", "mutation": "long_name", "reason": "name"},
+    {"id": "invalid_name_utf8", "mutation": "invalid_name_utf8", "reason": "name"},
+    {"id": "empty_content", "mutation": "empty_content", "reason": "content"},
+    {"id": "invalid_content_utf8", "mutation": "invalid_content_utf8", "reason": "content"},
+    {"id": "long_description_utf8", "mutation": "long_description_utf8", "reason": "description"},
+    {"id": "invalid_description_utf8", "mutation": "invalid_description_utf8", "reason": "description"},
+    {"id": "too_many_unique_tags", "mutation": "too_many_unique_tags", "reason": "tags"},
+    {"id": "invalid_tag", "mutation": "invalid_tag", "reason": "tags"},
+    {"id": "long_tag", "mutation": "long_tag", "reason": "tags"},
+    {"id": "ordinal_above_exact_range", "mutation": "ordinal_above_exact_range", "reason": "ordinal"},
+    {"id": "payload_above_limit", "mutation": "payload_above_limit", "reason": "payload_too_large"},
+    {"id": "wrong_schema", "mutation": "wrong_schema", "reason": "schema"}
+  ],
+  "invalidStored": [
+    {
+      "id": "binding_mismatch",
+      "bindingName": "memory.other_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "binding_mismatch"
+    },
+    {
+      "id": "noncanonical_whitespace",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}\n",
+      "reason": "noncanonical"
+    },
+    {
+      "id": "duplicate_root_key",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "malformed"
+    },
+    {
+      "id": "wrong_stored_schema",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v0\",\"tags\":[]}",
+      "reason": "schema"
+    },
+    {
+      "id": "unknown_field",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"extra\":false,\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "schema"
+    },
+    {
+      "id": "missing_field",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "schema"
+    },
+    {
+      "id": "unsorted_stored_tags",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[\"z\",\"a\"]}",
+      "reason": "tags"
+    },
+    {
+      "id": "null_tags",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":null}",
+      "reason": "malformed"
+    },
+    {
+      "id": "null_content",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":null,\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "malformed"
+    },
+    {
+      "id": "non_object_root",
+      "bindingName": "memory.stored_note",
+      "payload": "[]",
+      "reason": "malformed"
+    },
+    {
+      "id": "escaped_surrogate_content",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"\\ud83d\\ude00\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "noncanonical"
+    },
+    {
+      "id": "negative_ordinal",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":-1,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "ordinal"
+    },
+    {
+      "id": "negative_zero_ordinal",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":-0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "ordinal"
+    },
+    {
+      "id": "stored_ordinal_above_exact_range",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":9007199254740992,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "ordinal"
+    },
+    {
+      "id": "fractional_ordinal",
+      "bindingName": "memory.stored_note",
+      "payload": "{\"content\":\"x\",\"description\":\"\",\"name\":\"stored_note\",\"ordinal\":0.0,\"schemaVersion\":\"contractor.memory-note/v1\",\"tags\":[]}",
+      "reason": "malformed"
+    }
+  ]
+}

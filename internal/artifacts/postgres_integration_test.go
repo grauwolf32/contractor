@@ -38,6 +38,10 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("write UserScope source: %v", err)
 	}
+	if userWrite.BindingCreatedAt.IsZero() || userWrite.RevisionCreatedAt.IsZero() ||
+		userWrite.RevisionCreatedAt.Before(userWrite.BindingCreatedAt) {
+		t.Fatalf("UserScope write timestamps = (%s, %s)", userWrite.BindingCreatedAt, userWrite.RevisionCreatedAt)
+	}
 	fork, err := service.ForkInput(
 		ctx, "user-1", ArtifactRef{Namespace: "projects", Name: "source"}, "run-fork", "source",
 	)
@@ -49,6 +53,9 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 		t.Fatalf("fork result = %+v", fork)
 	}
 
+	// PostgreSQL timestamps have microsecond precision; make the revision clock
+	// distinction deterministic rather than relying on query latency.
+	time.Sleep(2 * time.Millisecond)
 	runUpdate, err := run.Write(
 		ctx,
 		ArtifactRef{Namespace: "inputs", Name: "source"},
@@ -71,6 +78,17 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 	runHistorical, err := run.Read(ctx, fork.TargetRef)
 	if err != nil || !bytes.Equal(runHistorical.Payload.Data, []byte("user original")) {
 		t.Fatalf("historical RunScope read = (%+v, %v)", runHistorical, err)
+	}
+	if !runCurrent.BindingCreatedAt.Equal(runHistorical.BindingCreatedAt) ||
+		!runUpdate.BindingCreatedAt.Equal(runCurrent.BindingCreatedAt) ||
+		!runUpdate.RevisionCreatedAt.Equal(runCurrent.RevisionCreatedAt) ||
+		!runCurrent.RevisionCreatedAt.After(runHistorical.RevisionCreatedAt) {
+		t.Fatalf(
+			"RunScope timestamp projection: write=(%s,%s) current=(%s,%s) historical=(%s,%s)",
+			runUpdate.BindingCreatedAt, runUpdate.RevisionCreatedAt,
+			runCurrent.BindingCreatedAt, runCurrent.RevisionCreatedAt,
+			runHistorical.BindingCreatedAt, runHistorical.RevisionCreatedAt,
+		)
 	}
 
 	stale := *fork.TargetRef.Revision

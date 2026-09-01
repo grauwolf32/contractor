@@ -586,3 +586,20 @@ tests that make the choice observable.
   PostgreSQL and runs the full deterministic increment; `make release-verify`
   is the CI aggregate. External LM Studio, Langfuse, Caido, cloud services and
   internet access remain outside the gate.
+
+### D026 — Memory ordinal is a uint64 inside the exact JSON integer range
+
+- Applies to: V9-001 and later MemoryTools tasks.
+- Decision: keep `ordinal` as an unsigned 64-bit domain value, but reject a
+  stored or encoded value above `2^53-1`. The ordinary `v1` allocator can only
+  produce `0..127`, because a Namespace has at most 128 notes and no delete.
+- Reason: RFC 8785 canonicalizes JSON numbers with ECMAScript/IEEE-754
+  semantics. Go's JCS implementation does not accept `uint64` directly and
+  Python's implementation rounds larger integers; accepting the full uint64
+  wire range would silently change an ordinal during canonicalization.
+- Alternatives rejected: a JSON string would contradict the agreed note
+  schema, while allowing rounded values would break cross-language identity.
+  Reducing the domain type itself to a small integer would unnecessarily
+  constrain a future version that adds deletion or a larger quota.
+- Observable tests: shared Go/Python fixtures accept `2^53-1`, reject `2^53`,
+  and prove byte-identical canonical output for the values used by `v1`.

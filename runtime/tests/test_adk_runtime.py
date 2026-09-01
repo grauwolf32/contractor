@@ -893,7 +893,13 @@ class FakeArtifactClient:
         self.calls.append("read_artifact")
         exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision="read-r1")
         self._remember(exact)
-        return ArtifactValue(artifact=exact, media_type="text/plain", data=b"source")
+        return ArtifactValue(
+            artifact=exact,
+            media_type="text/plain",
+            data=b"source",
+            binding_created_at=datetime.now(UTC),
+            revision_created_at=datetime.now(UTC),
+        )
 
     async def write_artifact(
         self,

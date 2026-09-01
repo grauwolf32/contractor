@@ -4,6 +4,7 @@ import asyncio
 import json
 import subprocess
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -657,7 +658,13 @@ class MemoryArtifactClient:
             revision=stored.revision,
         )
         self._remember(exact)
-        return ArtifactValue(artifact=exact, media_type=stored.media_type, data=stored.data)
+        return ArtifactValue(
+            artifact=exact,
+            media_type=stored.media_type,
+            data=stored.data,
+            binding_created_at=datetime.now(UTC),
+            revision_created_at=datetime.now(UTC),
+        )
 
     async def write_artifact(
         self,

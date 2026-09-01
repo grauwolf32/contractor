@@ -116,6 +116,12 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 	updated, _ := result["updatedRevision"].(string)
 	if created == "" || updated == "" || created == updated ||
 		result["currentRevision"] != created || result["exactRevision"] != created ||
+		result["createdBindingAt"] != result["updatedBindingAt"] ||
+		result["createdBindingAt"] != result["currentBindingAt"] ||
+		result["createdBindingAt"] != result["exactBindingAt"] ||
+		result["createdRevisionAt"] != result["currentRevisionAt"] ||
+		result["createdRevisionAt"] != result["exactRevisionAt"] ||
+		result["createdRevisionAt"] == result["updatedRevisionAt"] ||
 		result["payload"] != "first payload" || result["outputError"] != "artifact_access_denied" {
 		t.Fatalf("unexpected cross-language lifecycle: %+v", result)
 	}

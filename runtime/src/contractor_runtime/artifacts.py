@@ -9,10 +9,11 @@ import ssl
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Protocol
 from urllib.parse import quote, urlsplit
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 from contractor_runtime.contracts import (
     ArtifactListResult,
@@ -31,6 +32,12 @@ MEDIA_TYPE_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$"
 )
 RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
+BINDING_CREATED_AT_HEADER = "x-contractor-binding-created-at"
+REVISION_CREATED_AT_HEADER = "x-contractor-revision-created-at"
+RFC3339_UTC_PATTERN = re.compile(
+    r"^(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?:\.(?P<fraction>[0-9]{1,9}))?Z$"
+)
 
 
 class ArtifactClientError(Exception):
@@ -76,6 +83,15 @@ class ArtifactValue:
     artifact: ArtifactRef
     media_type: str
     data: bytes = field(repr=False)
+    binding_created_at: datetime
+    revision_created_at: datetime
+
+
+class ArtifactWriteValue(ArtifactWriteResult):
+    """Trusted response metadata plus the unchanged public wire projection."""
+
+    binding_created_at: datetime = Field(exclude=True)
+    revision_created_at: datetime = Field(exclude=True)
 
 
 class ArtifactClient:
@@ -128,6 +144,7 @@ class ArtifactClient:
         self._raise_for_status(response)
         media_type = _response_media_type(response.headers)
         revision = _strong_etag(response.headers)
+        binding_created_at, revision_created_at = _artifact_timestamps(response.headers)
         exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision=revision)
         try:
             ArtifactReadResult(
@@ -141,7 +158,13 @@ class ArtifactClient:
                 "Artifact API returned invalid artifact metadata"
             ) from error
         self._remember(exact)
-        return ArtifactValue(artifact=exact, media_type=media_type, data=response.body)
+        return ArtifactValue(
+            artifact=exact,
+            media_type=media_type,
+            data=response.body,
+            binding_created_at=binding_created_at,
+            revision_created_at=revision_created_at,
+        )
 
     async def write_artifact(
         self,
@@ -150,7 +173,7 @@ class ArtifactClient:
         data: bytes,
         media_type: str,
         expected_revision: str | None,
-    ) -> ArtifactWriteResult:
+    ) -> ArtifactWriteValue:
         _validate_ref(target)
         if target.revision is not None:
             raise ValueError("artifact write target must be versionless")
@@ -186,6 +209,7 @@ class ArtifactClient:
                 "Artifact API returned an invalid write response"
             ) from error
         revision = _strong_etag(response.headers)
+        binding_created_at, revision_created_at = _artifact_timestamps(response.headers)
         if (
             result.artifact.namespace != target.namespace
             or result.artifact.name != target.name
@@ -195,7 +219,14 @@ class ArtifactClient:
         ):
             raise ArtifactTransportError("Artifact API write response does not match the request")
         self._remember(result.artifact)
-        return result
+        return ArtifactWriteValue(
+            apiVersion="contractor/v1alpha1",
+            artifact=result.artifact,
+            mediaType=result.media_type,
+            size=result.size,
+            binding_created_at=binding_created_at,
+            revision_created_at=revision_created_at,
+        )
 
     def _remember(self, ref: ArtifactRef) -> None:
         revision = ref.require_exact().revision
@@ -388,6 +419,35 @@ def _strong_etag(headers: Mapping[str, str]) -> str:
     if not isinstance(revision, str) or not revision:
         raise ArtifactTransportError("Artifact API response has an invalid revision ETag")
     return revision
+
+
+def _artifact_timestamps(headers: Mapping[str, str]) -> tuple[datetime, datetime]:
+    return (
+        _artifact_timestamp(headers, BINDING_CREATED_AT_HEADER),
+        _artifact_timestamp(headers, REVISION_CREATED_AT_HEADER),
+    )
+
+
+def _artifact_timestamp(headers: Mapping[str, str], name: str) -> datetime:
+    value = headers.get(name, "")
+    match = RFC3339_UTC_PATTERN.fullmatch(value)
+    if match is None:
+        raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
+    fraction = match.group("fraction") or ""
+    # PostgreSQL stores microseconds. Accept the full RFC3339Nano syntax so a
+    # future repository may emit nine digits; datetime intentionally projects
+    # it at Python's microsecond precision.
+    normalized_fraction = (fraction + "000000")[:6]
+    suffix = f".{normalized_fraction}" if fraction else ""
+    try:
+        parsed = datetime.fromisoformat(f"{match.group('date')}{suffix}+00:00")
+    except ValueError as error:
+        raise ArtifactTransportError(
+            "Artifact API response has invalid timestamp metadata"
+        ) from error
+    if parsed.tzinfo != UTC:
+        raise ArtifactTransportError("Artifact API response has invalid timestamp metadata")
+    return parsed
 
 
 def _encode_headers(headers: Mapping[str, str]) -> bytes:

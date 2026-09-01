@@ -5,6 +5,7 @@ import io
 import stat
 import zipfile
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -316,4 +317,10 @@ class ReadOnlyArtifactClient:
         self.read_calls += 1
         stored = self.history[(exact.namespace, exact.name, exact.revision)]
         self._known[(exact.namespace, exact.name, exact.revision)] = exact
-        return ArtifactValue(artifact=exact, media_type=stored.media_type, data=stored.data)
+        return ArtifactValue(
+            artifact=exact,
+            media_type=stored.media_type,
+            data=stored.data,
+            binding_created_at=datetime.now(UTC),
+            revision_created_at=datetime.now(UTC),
+        )

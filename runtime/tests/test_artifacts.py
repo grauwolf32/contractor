@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import pytest
 
@@ -15,6 +16,13 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import ArtifactRef
+
+CREATED_AT = "2026-09-01T10:11:12.123456Z"
+UPDATED_AT = "2026-09-01T10:11:13.987654Z"
+TIMESTAMP_HEADERS = {
+    "x-contractor-binding-created-at": CREATED_AT,
+    "x-contractor-revision-created-at": UPDATED_AT,
+}
 
 
 def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
@@ -37,6 +45,7 @@ def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
                         "content-type": "text/plain",
                         "content-length": "7",
                         "etag": '"revision-read"',
+                        **TIMESTAMP_HEADERS,
                     },
                     b"payload",
                 ),
@@ -63,6 +72,8 @@ def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
         value = await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
         assert value.artifact.revision == "revision-read"
         assert value.data == b"payload"
+        assert value.binding_created_at == datetime(2026, 9, 1, 10, 11, 12, 123456, UTC)
+        assert value.revision_created_at == datetime(2026, 9, 1, 10, 11, 13, 987654, UTC)
         assert b"payload" not in repr(value).encode()
         written = await client.write_artifact(
             ArtifactRef(namespace="inputs", name="new"),
@@ -71,6 +82,15 @@ def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
             expected_revision=None,
         )
         assert written.artifact.revision == "revision-write"
+        assert written.api_version == "contractor/v1alpha1"
+        assert written.binding_created_at == value.binding_created_at
+        assert written.revision_created_at == value.revision_created_at
+        assert set(written.model_dump(by_alias=True)) == {
+            "apiVersion",
+            "artifact",
+            "mediaType",
+            "size",
+        }
 
         assert [request.path for request in transport.requests] == [
             "/allocations/allocation-1/artifacts",
@@ -89,7 +109,11 @@ def test_exact_read_and_cas_update_use_unambiguous_revision_channels() -> None:
             [
                 ArtifactHTTPResponse(
                     200,
-                    {"content-type": "application/json", "etag": '"revision-old"'},
+                    {
+                        "content-type": "application/json",
+                        "etag": '"revision-old"',
+                        **TIMESTAMP_HEADERS,
+                    },
                     b"{}",
                 ),
                 json_response(
@@ -215,6 +239,41 @@ def test_client_rejects_versioned_write_and_mismatched_or_oversized_responses() 
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    ("value", "valid"),
+    [
+        ("2026-09-01T10:11:12Z", True),
+        ("2026-09-01T10:11:12.123456789Z", True),
+        ("2026-09-01T10:11:12+00:00", False),
+        ("2026-09-01T10:11:12.1234567890Z", False),
+        ("2026-02-30T10:11:12Z", False),
+        ("", False),
+    ],
+)
+def test_artifact_timestamp_headers_are_strict_utc_rfc3339(value: str, valid: bool) -> None:
+    async def scenario() -> None:
+        headers = {
+            "content-type": "text/plain",
+            "etag": '"revision-read"',
+            "x-contractor-binding-created-at": value,
+            "x-contractor-revision-created-at": value,
+        }
+        client = ArtifactClient(
+            "allocation-1", FakeTransport([ArtifactHTTPResponse(200, headers, b"x")])
+        )
+        if not valid:
+            with pytest.raises(ArtifactTransportError, match="timestamp metadata"):
+                await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
+            return
+        result = await client.read_artifact(ArtifactRef(namespace="inputs", name="source"))
+        assert result.binding_created_at.tzinfo is UTC
+        assert result.binding_created_at == result.revision_created_at
+        if "." in value:
+            assert result.binding_created_at.microsecond == 123456
+
+    asyncio.run(scenario())
+
+
 @dataclass(frozen=True, slots=True)
 class RecordedRequest:
     method: str
@@ -250,6 +309,7 @@ def json_response(
 ) -> ArtifactHTTPResponse:
     body = json.dumps(value, separators=(",", ":")).encode()
     headers = {"content-type": "application/json", "content-length": str(len(body))}
+    headers.update(TIMESTAMP_HEADERS)
     if etag is not None:
         headers["etag"] = etag
     return ArtifactHTTPResponse(status, headers, body)

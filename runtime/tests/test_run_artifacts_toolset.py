@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -164,6 +165,8 @@ class FakeArtifactClient:
             artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
             media_type="text/plain",
             data=b"payload",
+            binding_created_at=datetime.now(UTC),
+            revision_created_at=datetime.now(UTC),
         )
 
     async def write_artifact(

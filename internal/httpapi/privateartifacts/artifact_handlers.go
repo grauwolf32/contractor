@@ -3,10 +3,16 @@ package privateartifacts
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+)
+
+const (
+	bindingCreatedAtHeader  = "X-Contractor-Binding-Created-At"
+	revisionCreatedAtHeader = "X-Contractor-Revision-Created-At"
 )
 
 func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
@@ -67,6 +73,7 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", result.Payload.MediaType)
 	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
@@ -132,8 +139,14 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusCreated
 	}
 	w.Header().Set("ETag", quotedETag(result.Ref.Revision))
+	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
 	writeJSON(w, status, contracts.ArtifactWriteResult{
 		APIVersion: contracts.APIVersion, Artifact: result.Ref,
 		MediaType: result.MediaType, Size: result.Size,
 	})
+}
+
+func setArtifactTimestampHeaders(header http.Header, bindingCreatedAt, revisionCreatedAt time.Time) {
+	header.Set(bindingCreatedAtHeader, bindingCreatedAt.UTC().Format(time.RFC3339Nano))
+	header.Set(revisionCreatedAtHeader, revisionCreatedAt.UTC().Format(time.RFC3339Nano))
 }

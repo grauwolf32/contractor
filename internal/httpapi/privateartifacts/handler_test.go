@@ -50,6 +50,7 @@ func TestPrivateArtifactReadDerivesRunScopeOnlyFromAllocation(t *testing.T) {
 	if response.Code != http.StatusOK || response.Body.String() != "run A" || response.Header().Get("ETag") != `"revision-a"` {
 		t.Fatalf("RunScope read = %d %q headers=%v", response.Code, response.Body.String(), response.Header())
 	}
+	assertArtifactTimestampHeaders(t, response.Header(), artifactTestEpoch, artifactTestEpoch)
 }
 
 func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
@@ -64,6 +65,18 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	var result contracts.ArtifactWriteResult
 	if err := json.Unmarshal(created.Body.Bytes(), &result); err != nil || result.Artifact.Revision == nil {
 		t.Fatalf("decode exact write result = (%+v, %v)", result, err)
+	}
+	assertArtifactTimestampHeaders(
+		t, created.Header(), artifactTestEpoch.Add(time.Second), artifactTestEpoch.Add(time.Second),
+	)
+	var responseBody map[string]any
+	if err := json.Unmarshal(created.Body.Bytes(), &responseBody); err != nil || len(responseBody) != 4 {
+		t.Fatalf("write JSON body changed with timestamp metadata: %s", created.Body.String())
+	}
+	for _, field := range []string{"apiVersion", "artifact", "mediaType", "size"} {
+		if _, present := responseBody[field]; !present {
+			t.Fatalf("write JSON body is missing %q: %s", field, created.Body.String())
+		}
 	}
 
 	stale := trustedRequest(
@@ -350,10 +363,14 @@ func (f *fakeRegistry) WithWriteGrant(
 }
 
 type storedArtifact struct {
-	revision  string
-	mediaType string
-	data      []byte
+	revision          string
+	mediaType         string
+	data              []byte
+	bindingCreatedAt  time.Time
+	revisionCreatedAt time.Time
 }
+
+var artifactTestEpoch = time.Date(2026, 9, 1, 10, 11, 12, 123456000, time.UTC)
 
 type memoryRepository struct {
 	mu             sync.Mutex
@@ -373,7 +390,10 @@ func newMemoryRepository() *memoryRepository {
 func (m *memoryRepository) seed(runID, namespace, name, revision string, data []byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	value := storedArtifact{revision: revision, mediaType: "text/plain", data: append([]byte(nil), data...)}
+	value := storedArtifact{
+		revision: revision, mediaType: "text/plain", data: append([]byte(nil), data...),
+		bindingCreatedAt: artifactTestEpoch, revisionCreatedAt: artifactTestEpoch,
+	}
 	m.bindings[artifactKey("run", runID, namespace, name)] = value
 	m.history[historyKey("run", runID, namespace, name, revision)] = value
 }
@@ -406,14 +426,23 @@ func (m *memoryRepository) Write(
 	}
 	m.next++
 	revision := fmt.Sprintf("revision-%d", m.next)
+	revisionCreatedAt := artifactTestEpoch.Add(time.Duration(m.next) * time.Second)
+	bindingCreatedAt := revisionCreatedAt
+	if exists {
+		bindingCreatedAt = current.bindingCreatedAt
+	}
 	stored := storedArtifact{
 		revision: revision, mediaType: payload.MediaType, data: append([]byte(nil), payload.Data...),
+		bindingCreatedAt: bindingCreatedAt, revisionCreatedAt: revisionCreatedAt,
 	}
 	m.bindings[key] = stored
 	m.history[historyKey(string(scope.Kind()), scope.ID(), target.Namespace, target.Name, revision)] = stored
 	return artifacts.WriteResult{
-		Ref:       artifacts.ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &revision},
-		MediaType: payload.MediaType, Size: int64(len(payload.Data)),
+		Ref:               artifacts.ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &revision},
+		MediaType:         payload.MediaType,
+		Size:              int64(len(payload.Data)),
+		BindingCreatedAt:  bindingCreatedAt,
+		RevisionCreatedAt: revisionCreatedAt,
 	}, nil
 }
 
@@ -434,9 +463,21 @@ func (m *memoryRepository) Read(
 	}
 	revision := value.revision
 	return artifacts.ReadResult{
-		Ref:     artifacts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &revision},
-		Payload: artifacts.Payload{MediaType: value.mediaType, Data: append([]byte(nil), value.data...)},
+		Ref:               artifacts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &revision},
+		Payload:           artifacts.Payload{MediaType: value.mediaType, Data: append([]byte(nil), value.data...)},
+		BindingCreatedAt:  value.bindingCreatedAt,
+		RevisionCreatedAt: value.revisionCreatedAt,
 	}, nil
+}
+
+func assertArtifactTimestampHeaders(t *testing.T, header http.Header, binding, revision time.Time) {
+	t.Helper()
+	if got := header.Get(bindingCreatedAtHeader); got != binding.Format(time.RFC3339Nano) {
+		t.Fatalf("binding-created-at header = %q, want %q", got, binding.Format(time.RFC3339Nano))
+	}
+	if got := header.Get(revisionCreatedAtHeader); got != revision.Format(time.RFC3339Nano) {
+		t.Fatalf("revision-created-at header = %q, want %q", got, revision.Format(time.RFC3339Nano))
+	}
 }
 
 func (m *memoryRepository) List(
