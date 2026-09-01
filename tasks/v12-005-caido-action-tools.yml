@@ -3,8 +3,8 @@ id: V12-005
 title: Port bounded Caido mutation and execution tools
 milestone: http-caido-tools-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 48ec3bd3324f2d63b78f3d01346b484c906f395e
 depends_on: [V12-004]
 languages: [go, python]
 
