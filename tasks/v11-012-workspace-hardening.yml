@@ -3,8 +3,8 @@ id: V11-012
 title: Harden workspace confinement concurrency and legacy parity
 milestone: run-workspaces-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: c4c7678005d56a9b882806aad8c2452787ee9ff9
 depends_on: [V11-011]
 languages: [go, python]
 
