@@ -3,8 +3,8 @@ id: V9-007
 title: Gate Memory redaction isolation and release readiness
 milestone: shared-memory-tools
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 9eb4aab2b1f3b4bab0755d5152191a87e8582b49
 depends_on: [V9-006]
 languages: [go, python, yaml]
 
@@ -16,10 +16,11 @@ goal: >-
 context:
   leak_boundary: >-
     Content, description and tags are intentional model conversation data and
-    canonical Artifact blob bytes, but never diagnostic state. Scans therefore
-    include PostgreSQL reports/sessions/events and every non-payload Artifact
-    column, HTTP errors, bounded process logs and OTLP; artifact_blobs.payload
-    is the explicit intended exception.
+    canonical Artifact blob bytes, but Memory adapters never automatically
+    retain them as diagnostic state. Scans therefore include PostgreSQL
+    reports/sessions/events and every non-payload Artifact column, HTTP errors,
+    bounded process logs and OTLP; artifact_blobs.payload is the explicit
+    intended exception.
   release_boundary: >-
     The gate composes the V9 process MVP, semantic contract and fault matrix.
     It remains deterministic and uses a local scripted OpenAI-compatible fake,

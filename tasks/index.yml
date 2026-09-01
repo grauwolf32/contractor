@@ -238,18 +238,18 @@ v8_v11_spec_review:
     - All indexed task YAML parsed and the 112-task dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
     - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 275 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make verify passes with 283 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V9-006
-  next_task: V9-007
+  completed_through: V9-007
+  next_task: V10-001
   summary: >-
-    Shared Memory now proves exact Worker PUT and Planner PostgreSQL commit-
-    ambiguity reconciliation for create, replace and append, same-binding CAS
-    interference, both Worker-grant and Planner-durable terminal race orders,
-    durable-allocation fencing and bounded two-slot reuse. Next, close the
-    retained-surface, authorization, inventory and release-readiness gate.
+    V9 Shared Memory is release-gated end to end. Exact Worker PUT and Planner
+    PostgreSQL reconciliation, terminal fencing, Run/owner isolation, complete
+    non-payload retained-surface scans, decoded OTLP redaction, Artifact-only
+    schema inventory and bounded two-slot reuse all pass in release-verify.
+    V11 implementation remains intentionally paused for user synchronization.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -394,7 +394,7 @@ memory_tools_planning_review:
 
 memory_tools_implementation_review:
   reviewed_on: "2026-09-01"
-  verdict: mvp_ready_with_release_hardening_scheduled
+  verdict: complete
   completed_implementation_commits:
     V9-001: 9e4a1469d6cad91f3eda53f0c6684ff6fd59d290
     V9-002: 8e8fad0e9a651d34553d80fc4e6da29a1e40fdf2
@@ -402,6 +402,7 @@ memory_tools_implementation_review:
     V9-004: e11f45b6661732ab9a30a7b11f126f7700ae23e8
     V9-005: a8fe196a0c295efd7c7975e9333b4d9a29421f37
     V9-006: 1de32aa7e72af50551ac82f5154cbc364ce01b5d
+    V9-007: 9eb4aab2b1f3b4bab0755d5152191a87e8582b49
   confirmed:
     - >-
       Go and Python canonical codecs agree on exact bytes, UTF-8/size bounds,
@@ -440,10 +441,17 @@ memory_tools_implementation_review:
       mutation boundary. Deterministic tests prove both terminal winners,
       same-binding interference, durable-allocation fencing, bounded release
       recovery and a clean two-slot claim by an unrelated Run.
-  release_blockers_assigned:
     - >-
-      V9-007 owns complete retained-surface canary scans, schema/route
-      minimality, authorization isolation and the composed release gate.
+      The final audit fixed three boundary defects: all purpose Namespaces are
+      rejected as Agent Namespaces, Worker exceptions cannot expand the closed
+      Memory error vocabulary, and a failed reconciliation read is no longer
+      misreported as an observed semantic conflict.
+    - >-
+      V9-007 scans exact, JSON-escaped and URL-encoded canaries across every
+      PostgreSQL column except the documented Artifact blob payload, HTTP
+      failures, Server/Runtime logs and decoded Planner/Worker OTLP. The strict
+      matrix owns all 11 invariants and 15 fault boundaries and rejects absent,
+      renamed or duplicate test owners.
   planning_correction: >-
     The former monolithic V9-005 was split into independently testable
     semantic/model-boundary (V9-005), fault/concurrency (V9-006) and
@@ -456,7 +464,8 @@ memory_tools_implementation_review:
     - PostgreSQL Planner Memory finalizing/aborting tests pass five repeated runs.
     - make test-shared-memory-e2e passes against PostgreSQL with two real Python Runtime Agent processes.
     - make test-shared-memory-faults passes under the Go race detector against PostgreSQL.
-    - make verify passes with 275 Python tests, 1 skipped and 108 UI tests.
+    - make test-shared-memory-hardening passes with PostgreSQL, the Go race detector and two real Python Runtime Agent processes.
+    - make verify passes with 283 Python tests, 1 skipped and 108 UI tests.
     - release-verify passes with the Runtime configuration, browser-stack and shared-Memory process gates composed.
     - All 112 indexed task YAML files parse and their dependency graph is acyclic.
 
