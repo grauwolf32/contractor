@@ -256,12 +256,12 @@ v8_v12_spec_review:
     - All indexed task YAML parses and the dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
     - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 353 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make verify passes with 480 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V12-005
-  next_task: V12-006
+  completed_through: V12-006
+  next_task: V12-007
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -283,7 +283,11 @@ current_checkpoint:
     static Caido discovery/read operations, bounded normalized results and
     atomic exact raw-exchange artifacts. V12-005 added bounded scope creation,
     tagged Replay, byte-exact Automate and convert/active Workflow actions with
-    no ambiguous mutation retries. V12-006 Caido Skill/config migration is next.
+    no ambiguous mutation retries. V12-006 connected the revised Caido Skill to
+    an exact explicit AgentTemplate, added HTTP/Caido templates and an opt-in
+    security-analysis Workflow, and locked their compatibility plus a
+    secret-free label configuration example in the repository release gate.
+    V12-007 real-process coverage is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
