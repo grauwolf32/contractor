@@ -21,6 +21,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -178,7 +179,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		Parameters: map[string]string{},
+		Parameters:    map[string]string{},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +265,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: "run-foreign", OwnerID: "user-2", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
-		Parameters: map[string]string{},
+		Parameters:    map[string]string{},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

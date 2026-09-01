@@ -9,8 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -19,6 +21,7 @@ var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,2
 // Repository is the durable boundary used by the public API and Scheduler.
 // PostgresStore implements it for both a pool and an explicit pgx transaction.
 type Repository interface {
+	PinRuntimeLabels(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
@@ -75,11 +78,14 @@ func (s *PostgresStore) ListNonTerminalRunIDsByCredential(
 SELECT run_id
 FROM workflow_runs
 WHERE state IN ('initializing', 'running', 'cancelling')
-  AND jsonb_path_exists(
-      workflow_snapshot,
-      '$.**.credentialId ? (@ == $credential)',
-      jsonb_build_object('credential', to_jsonb($1::text)),
-      true
+  AND (
+      jsonb_path_exists(
+          workflow_snapshot,
+          '$.**.credentialId ? (@ == $credential)',
+          jsonb_build_object('credential', to_jsonb($1::text)),
+          true
+      )
+      OR (runtime_config_snapshot->'llmCredentialIds') ? $1
   )
 ORDER BY created_at, run_id
 LIMIT $2`, credentialID, limit)
@@ -116,6 +122,36 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+func (s *PostgresStore) PinRuntimeLabels(
+	ctx context.Context, labels []string, llmCredentials config.CredentialLookup,
+) (runtimeconfig.RunSnapshot, error) {
+	return runtimeconfig.PinRunSnapshot(
+		ctx, s.db, labels, runtimeCredentialValidator{s.db}, llmCredentials,
+	)
+}
+
+type runtimeCredentialValidator struct{ db persistencepostgres.DBTX }
+
+func (v runtimeCredentialValidator) ValidateRuntimeCredential(
+	ctx context.Context, credentialID string, allowedKinds ...string,
+) error {
+	var kind string
+	err := v.db.QueryRow(ctx, `
+SELECT c.credential_kind
+FROM runtime_credentials AS c
+LEFT JOIN runtime_credential_tombstones AS t USING (credential_id)
+WHERE c.credential_id = $1 AND t.credential_id IS NULL`, credentialID).Scan(&kind)
+	if err != nil {
+		return err
+	}
+	for _, allowed := range allowedKinds {
+		if kind == allowed {
+			return nil
+		}
+	}
+	return fmt.Errorf("Runtime credential kind is incompatible")
+}
+
 func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (WorkflowRun, error) {
 	if err := validateCreateRun(params); err != nil {
 		return WorkflowRun{}, err
@@ -128,16 +164,23 @@ func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode parameters: %w", err)
 	}
+	encodedRuntimeConfig, err := json.Marshal(params.RuntimeConfig)
+	if err != nil {
+		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode RuntimeConfig snapshot: %w", err)
+	}
+	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
 
 	row := s.db.QueryRow(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
+    runtime_labels, runtime_config_snapshot,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, 'initializing', 'created', '')
 RETURNING `+workflowRunColumns,
 		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
+		runtimeLabels, encodedRuntimeConfig,
 	)
 	result, err := scanWorkflowRun(row)
 	if err != nil {
@@ -174,18 +217,24 @@ func (s *PostgresStore) CreateRunIdempotent(
 	if err != nil {
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode parameters: %w", err)
 	}
+	encodedRuntimeConfig, err := json.Marshal(params.RuntimeConfig)
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode RuntimeConfig snapshot: %w", err)
+	}
+	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
 	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
+    runtime_labels, runtime_config_snapshot,
     request_idempotency_key, request_digest,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10, $11, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
 RETURNING `+workflowRunColumns,
 		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		params.IdempotencyKey, params.RequestDigest,
+		runtimeLabels, encodedRuntimeConfig, params.IdempotencyKey, params.RequestDigest,
 	))
 	if err == nil {
 		return result, true, nil
@@ -528,6 +577,9 @@ func validateCreateRun(params CreateRunParams) error {
 		if strings.TrimSpace(name) == "" {
 			return invalidf("parameter name is required")
 		}
+	}
+	if err := params.RuntimeConfig.Validate(); err != nil {
+		return invalidf("RuntimeConfig snapshot is invalid: %v", err)
 	}
 	return nil
 }

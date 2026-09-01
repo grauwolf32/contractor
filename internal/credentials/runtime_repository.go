@@ -275,7 +275,41 @@ LIMIT $2`, credentialID, limit)
 	if rows.Err() != nil {
 		return RuntimeCredentialUsage{}, errors.New("iterate active Runtime credential bindings")
 	}
+	runRows, err := r.db.Query(ctx, `
+SELECT run_id
+FROM workflow_runs
+WHERE state IN ('initializing', 'running', 'cancelling')
+  AND (runtime_config_snapshot->'runtimeCredentialIds') ? $1
+ORDER BY created_at, run_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential Run snapshots")
+	}
+	defer runRows.Close()
+	for runRows.Next() {
+		var runID string
+		if err := runRows.Scan(&runID); err != nil {
+			return RuntimeCredentialUsage{}, errors.New("read Runtime credential Run snapshot")
+		}
+		usage.RunIDs = append(usage.RunIDs, runID)
+	}
+	if runRows.Err() != nil {
+		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Run snapshots")
+	}
 	return usage, nil
+}
+
+// ValidateRuntimeCredential lets transaction-bound consumers validate an
+// exact active credential without acquiring the process lifecycle barrier a
+// second time. The caller must already hold the shared reference side.
+func (r *RuntimeCredentialRepository) ValidateRuntimeCredential(
+	ctx context.Context, credentialID string, allowedKinds ...string,
+) error {
+	record, err := r.GetActiveRecord(ctx, credentialID)
+	if err != nil {
+		return err
+	}
+	return validateAllowedRuntimeKinds(record.Metadata.Kind, allowedKinds)
 }
 
 const runtimeCredentialRecordSelect = `

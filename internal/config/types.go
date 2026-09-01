@@ -70,7 +70,7 @@ type ResolvedAgentBinding struct {
 // field. Values are safe provenance strings, never secret material.
 type ExecutionConfigOrigins struct {
 	ModelPolicy string `json:"modelPolicy"`
-	LLMGateway  string `json:"llmGateway"`
+	LLMGateway  string `json:"llmGateway,omitempty"`
 	Credential  string `json:"credential,omitempty"`
 }
 
@@ -78,10 +78,10 @@ type ExecutionConfigOrigins struct {
 // selection. Credential is a non-secret identity; token bytes never enter a
 // Workflow or Run snapshot.
 type ResolvedConsumerExecutionConfig struct {
-	ModelPolicy contracts.ResolvedModelPolicy      `json:"modelPolicy"`
-	LLMGateway  contracts.ResolvedLLMGatewayConfig `json:"llmGateway"`
-	Credential  *contracts.LLMCredentialRef        `json:"credential,omitempty"`
-	Origins     ExecutionConfigOrigins             `json:"origins"`
+	ModelPolicy contracts.ResolvedModelPolicy       `json:"modelPolicy"`
+	LLMGateway  *contracts.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential  *contracts.LLMCredentialRef         `json:"credential,omitempty"`
+	Origins     ExecutionConfigOrigins              `json:"origins"`
 }
 
 type ResolvedStageExecutionConfig struct {

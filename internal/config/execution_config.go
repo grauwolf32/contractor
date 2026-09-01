@@ -222,7 +222,8 @@ func applyResolvedExecutionSelectionOverride(
 		if err := override.LLMGateway.Validate(); err != nil {
 			return fmt.Errorf("llmGateway is invalid: %w", err)
 		}
-		selection.LLMGateway = cloneLLMGatewayConfig(*override.LLMGateway)
+		gateway := cloneLLMGatewayConfig(*override.LLMGateway)
+		selection.LLMGateway = &gateway
 		selection.Origins.LLMGateway = origin
 	}
 	if override.Credential != nil {
@@ -362,7 +363,8 @@ func (l *loader) applySelection(
 		if !ok {
 			return fmt.Errorf("llmGateway selects unknown LLMGatewayConfig %q", selector)
 		}
-		selection.LLMGateway = cloneLLMGatewayConfig(gateway)
+		resolved := cloneLLMGatewayConfig(gateway)
+		selection.LLMGateway = &resolved
 		selection.Origins.LLMGateway = origin
 	}
 	if patch.credential.present {
@@ -532,12 +534,23 @@ func validateConsumerExecutionConfig(
 	if err != nil {
 		return err
 	}
-	if err := selection.LLMGateway.Validate(); err != nil {
-		return err
+	if selection.LLMGateway == nil {
+		if planner {
+			return fmt.Errorf("Planner llmGateway is required")
+		}
+		if strings.TrimSpace(selection.Origins.LLMGateway) != "" {
+			return fmt.Errorf("absent Worker llmGateway must not have an origin")
+		}
+	} else {
+		if err := selection.LLMGateway.Validate(); err != nil {
+			return err
+		}
+		if strings.TrimSpace(selection.Origins.LLMGateway) == "" {
+			return fmt.Errorf("llmGateway origin is required")
+		}
 	}
-	if strings.TrimSpace(selection.Origins.ModelPolicy) == "" ||
-		strings.TrimSpace(selection.Origins.LLMGateway) == "" {
-		return fmt.Errorf("modelPolicy and llmGateway origins are required")
+	if strings.TrimSpace(selection.Origins.ModelPolicy) == "" {
+		return fmt.Errorf("modelPolicy origin is required")
 	}
 	if selection.Credential != nil {
 		if err := selection.Credential.Validate(); err != nil {
@@ -605,7 +618,8 @@ func validateStageExecutionConfigCredentials(
 		if err != nil {
 			return fmt.Errorf("Stage %q %s %s credential is unavailable", stageName, variant, consumer)
 		}
-		if metadata.Ref != *selection.Credential || metadata.LLMGateway != selection.LLMGateway.Ref {
+		if metadata.Ref != *selection.Credential ||
+			selection.LLMGateway != nil && metadata.LLMGateway != selection.LLMGateway.Ref {
 			return fmt.Errorf(
 				"Stage %q %s %s credential is bound to another LLMGatewayConfig",
 				stageName, variant, consumer,

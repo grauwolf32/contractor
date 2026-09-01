@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -322,6 +324,56 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	}
 	if _, err := service.Delete(ctx, "default-debug", "operator"); err != nil {
 		t.Fatalf("delete after restoring default binding: %v", err)
+	}
+
+	createCredential("run-debug")
+	runRef := publishConfig("run-debug", "run-debug")
+	runBinding, err := bindings.Create(ctx, "run-debug", runRef, "operator", now.Add(4*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.WithCredentialReferences(ctx, func() error {
+		tx, txErr := pool.Begin(ctx)
+		if txErr != nil {
+			return txErr
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		store := runstore.NewPostgresStore(tx)
+		pinned, pinErr := store.PinRuntimeLabels(ctx, []string{"run-debug"}, nil)
+		if pinErr != nil {
+			return pinErr
+		}
+		if _, createErr := store.CreateRun(ctx, runstore.CreateRunParams{
+			RunID: "run-runtime-credential", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+			WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+			Parameters: map[string]string{}, RuntimeConfig: pinned,
+		}); createErr != nil {
+			return createErr
+		}
+		return tx.Commit(ctx)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := bindings.Delete(ctx, runBinding.Label, runBinding.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Delete(ctx, "run-debug", "operator"); !errors.Is(err, ErrRuntimeCredentialInUse) {
+		t.Fatalf("delete credential pinned only by Run error = %v", err)
+	} else {
+		var inUse *RuntimeCredentialInUseError
+		if !errors.As(err, &inUse) || len(inUse.Usage.RunIDs) != 1 || inUse.Usage.RunIDs[0] != "run-runtime-credential" {
+			t.Fatalf("Run credential usage = %+v", inUse)
+		}
+	}
+	store := runstore.NewPostgresStore(pool)
+	if _, err := store.TransitionRun(
+		ctx, "run-runtime-credential", runstore.RunInitializing, runstore.RunFailed,
+		runstore.Reason{Code: "test_complete"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Delete(ctx, "run-debug", "operator"); err != nil {
+		t.Fatalf("delete Runtime credential after Run terminal: %v", err)
 	}
 
 	createCredential("race-debug")

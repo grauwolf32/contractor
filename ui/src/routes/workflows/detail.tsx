@@ -37,7 +37,9 @@ function ConsumerConfigView({
         Model {config.modelPolicy.policyId}@{config.modelPolicy.version}
       </span>
       <span>
-        Gateway {config.llmGateway.gatewayId}@{config.llmGateway.version}
+        {config.llmGateway === undefined
+          ? "Gateway resolved during Runtime placement"
+          : `Gateway ${config.llmGateway.gatewayId}@${config.llmGateway.version}`}
       </span>
       <span>Credential {config.credential?.credentialId ?? "none"}</span>
     </li>

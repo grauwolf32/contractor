@@ -204,7 +204,9 @@ func allocationExecutionConfig(
 	selection := stage.ExecutionConfig.Agents[logicalAgentName]
 	result := controlplane.AllocationExecutionConfig{
 		ModelPolicy: selection.ModelPolicy.Ref,
-		LLMGateway:  selection.LLMGateway.Ref,
+	}
+	if selection.LLMGateway != nil {
+		result.LLMGateway = selection.LLMGateway.Ref
 	}
 	if selection.Credential != nil {
 		credential := *selection.Credential

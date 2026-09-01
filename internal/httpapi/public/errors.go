@@ -11,11 +11,18 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var credentialInUse *credentials.CredentialInUseError
 	switch {
+	case errors.Is(err, runtimeconfig.ErrNotFound):
+		h.writeError(w, http.StatusBadRequest, "runtime_label_unknown", "a selected Runtime label is unavailable", false)
+	case errors.Is(err, runtimeconfig.ErrConflict):
+		h.writeError(w, http.StatusConflict, "runtime_config_conflict", "selected Runtime labels conflict", false)
+	case errors.Is(err, runtimeconfig.ErrInvalid):
+		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime label configuration is invalid", false)
 	case errors.As(err, &credentialInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "credential_in_use", Message: "credential is pinned by a non-terminal Run",

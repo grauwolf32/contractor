@@ -696,6 +696,20 @@ export interface components {
             version: components["schemas"]["ConfigVersion"];
             digest: components["schemas"]["Digest"];
         };
+        RuntimeConfigRef: {
+            name: components["schemas"]["ConfigId"];
+            version: components["schemas"]["ConfigVersion"];
+            digest: components["schemas"]["Digest"];
+        };
+        PinnedRuntimeConfig: {
+            label: components["schemas"]["ConfigId"];
+            bindingRevision: string;
+            config: components["schemas"]["RuntimeConfigRef"];
+        };
+        RunRuntimeConfiguration: {
+            default: components["schemas"]["PinnedRuntimeConfig"];
+            labels: components["schemas"]["PinnedRuntimeConfig"][];
+        };
         AgentTemplateRef: {
             templateId: components["schemas"]["ConfigId"];
             version: components["schemas"]["ConfigVersion"];
@@ -711,11 +725,11 @@ export interface components {
         };
         ConsumerExecutionConfig: {
             modelPolicy: components["schemas"]["ModelPolicyRef"];
-            llmGateway: components["schemas"]["LLMGatewayConfigRef"];
+            llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["CredentialRef"];
             origins?: {
                 modelPolicy: string;
-                llmGateway: string;
+                llmGateway?: string;
                 credential?: string;
             };
         };
@@ -776,6 +790,8 @@ export interface components {
             runId: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
+            labels: components["schemas"]["ConfigId"][];
+            runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
             cancellation?: components["schemas"]["Cancellation"];
             parameters?: {
                 [key: string]: string;
@@ -817,6 +833,8 @@ export interface components {
         CreateRunResponse: {
             runId: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];
+            labels: components["schemas"]["ConfigId"][];
+            runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
         };
         CancelRunRequest: {
             reason?: string | null;
@@ -846,6 +864,7 @@ export interface components {
         };
         CreateRunRequest: {
             workflow: components["schemas"]["Selector"];
+            labels?: components["schemas"]["ConfigId"][];
             parameters?: {
                 [key: string]: string;
             } | null;
@@ -1745,7 +1764,20 @@ export interface operations {
                     /**
                      * @example {
                      *       "runId": "run_example",
-                     *       "state": "running"
+                     *       "state": "running",
+                     *       "labels": [],
+                     *       "runtimeConfiguration": {
+                     *         "default": {
+                     *           "label": "default",
+                     *           "bindingRevision": "1",
+                     *           "config": {
+                     *             "name": "contractor-empty",
+                     *             "version": "1",
+                     *             "digest": "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f"
+                     *           }
+                     *         },
+                     *         "labels": []
+                     *       }
                      *     }
                      */
                     "application/json": components["schemas"]["CreateRunResponse"];

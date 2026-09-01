@@ -69,13 +69,17 @@ function ConsumerConfigView({
           {compactDigest(config.modelPolicy.digest)}
         </small>
       </span>
-      <span>
-        LLMGatewayConfig {config.llmGateway.gatewayId}@
-        {config.llmGateway.version} ·{" "}
-        <small title={config.llmGateway.digest}>
-          {compactDigest(config.llmGateway.digest)}
-        </small>
-      </span>
+      {config.llmGateway === undefined ? (
+        <span>LLMGatewayConfig resolved during Runtime placement</span>
+      ) : (
+        <span>
+          LLMGatewayConfig {config.llmGateway.gatewayId}@
+          {config.llmGateway.version} ·{" "}
+          <small title={config.llmGateway.digest}>
+            {compactDigest(config.llmGateway.digest)}
+          </small>
+        </span>
+      )}
       <span>Credential {config.credential?.credentialId ?? "none"}</span>
       <span className="config-origins">
         Origins: model {config.origins?.modelPolicy ?? "not reported"}; Gateway{" "}

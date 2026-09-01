@@ -15,6 +15,7 @@ import (
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -440,6 +441,7 @@ func createArtifactRun(
 		RunID: runID, OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
 	})
 	if err != nil {
 		t.Fatalf("create WorkflowRun: %v", err)

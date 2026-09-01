@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -532,7 +533,8 @@ func pinnedRunParams(runID, credentialID string) runstore.CreateRunParams {
 			`{"stages":{"build":{"executionConfig":{"agents":{"worker":{"credential":{"credentialId":%q}}}}}}}`,
 			credentialID,
 		)),
-		Parameters: map[string]string{},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		Parameters:    map[string]string{},
 	}
 }
 

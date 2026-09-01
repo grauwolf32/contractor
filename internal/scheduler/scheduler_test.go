@@ -46,7 +46,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	}
 	plannerConfig := workflowconfig.ResolvedConsumerExecutionConfig{
 		ModelPolicy: plannerPolicy,
-		LLMGateway:  gateway,
+		LLMGateway:  &gateway,
 		Origins: workflowconfig.ExecutionConfigOrigins{
 			ModelPolicy: "test",
 			LLMGateway:  "test",
@@ -191,7 +191,7 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	harness.scheduler.options.Credentials = provider
 	stage := harness.workflow.Stages[harness.workflow.EntryStage]
 	stage.ExecutionConfig.Planner = &workflowconfig.ResolvedConsumerExecutionConfig{
-		ModelPolicy: plannerPolicy, LLMGateway: plannerGateway, Credential: &plannerCredential,
+		ModelPolicy: plannerPolicy, LLMGateway: &plannerGateway, Credential: &plannerCredential,
 		Origins: workflowconfig.ExecutionConfigOrigins{ModelPolicy: "test", LLMGateway: "test", Credential: "test"},
 	}
 	workerSelection := stage.ExecutionConfig.Agents["builder"]

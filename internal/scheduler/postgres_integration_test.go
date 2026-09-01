@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -647,6 +648,7 @@ func createSchedulerRun(
 		RunID: "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "copy exactly"},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

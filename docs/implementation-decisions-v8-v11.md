@@ -190,3 +190,41 @@ tests that make the choice observable.
 - Observable tests: `make test-runtime-wire-v2` covers the v1 registration
   rejection and v2 emission/response parsing; V8-007's placement tests must
   cover the AllocationSpecV2 cut-over before its completion commit.
+
+### D014 — A Run pins a compact exact reference snapshot
+
+- Applies to: V8-005 through V8-007.
+- Decision: `workflow_runs` owns an immutable normalized JSON snapshot containing
+  the mandatory default pin, sorted explicit label pins, binding revisions,
+  exact RuntimeConfig refs/digests and sorted non-secret credential IDs. Exact
+  RuntimeConfig bodies remain in the already immutable version table and are
+  loaded by ref; physical version deletion remains deferred. Public Run JSON
+  projects only labels, binding revisions and config refs, never credential IDs.
+- Transaction boundary: `RunWriter.PinRuntimeLabels` locks default plus explicit
+  bindings lexically and validates their immutable bodies under the same
+  PostgreSQL transaction that inserts the Run and forks inputs. The existing
+  shared credential lifecycle reader surrounds workflow resolution, pinning and
+  commit, so both managed LLM and Runtime credential deletion serialize without
+  acquiring a recursive read lock.
+- Optional route representation: `ResolvedConsumerExecutionConfig.llmGateway`
+  is now an actual optional pointer. Only a Worker may retain absence after Run
+  initialization; Planner Gateway/ModelPolicy completeness is unchanged.
+  Candidate resolution in V8-007 must complete every Worker route before
+  reservation/prepare.
+- Conservative deletion fence: a non-terminal Run fences every credential ID
+  named by one of its pinned exact RuntimeConfigs, even when a higher layer may
+  later clear that lower value. This prefers deterministic replay over early
+  deletion; the fence disappears when the Run becomes terminal.
+- Upgrade behavior: Runs created before migration 000018 had no label input.
+  Migration therefore records an empty explicit set and pins the default
+  binding current at migration time. It does not fabricate historical labels.
+  Canonical request hashing omits only the empty label set, preserving the old
+  digest for exact response-loss replay; every non-empty set is included in
+  sorted form.
+- Alternatives rejected: copying full RuntimeConfig documents into every Run
+  duplicates immutable bodies and endpoints; retaining only mutable label names
+  breaks replay; a normalized child table plus a duplicate read projection adds
+  two authorities before immutable-version garbage collection exists.
+- Observable tests: real PostgreSQL tests hold a pin transaction open while a
+  rebind blocks, prove old/new Runs observe whole old/new refs, verify both
+  credential deletion queries, and reject mutation of the committed snapshot.

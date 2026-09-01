@@ -15,6 +15,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const builtInRunRuntimeSnapshot = `{"default":{"label":"default","explicit":false,"bindingRevision":1,"config":{"name":"contractor-empty","version":"1","digest":"sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f"}},"labels":[],"llmCredentialIds":[],"runtimeCredentialIds":[]}`
+
 func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -104,24 +106,39 @@ WHERE kind = 'model-policies' AND name = 'worker' AND version = '2'`)
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
+    runtime_labels, runtime_config_snapshot,
     state, state_reason_code
-) VALUES ('invalid-state', 'user', 'workflow', '1', 'v1', '{}', '{}', 'bogus', 'test')`)
+) VALUES ('invalid-state', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'bogus', 'test')`, builtInRunRuntimeSnapshot)
 	assertSQLState(t, err, "23514")
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
+    runtime_labels, runtime_config_snapshot,
     state, state_reason_code
-) VALUES ('run-terminal-shape', 'user', 'workflow', '1', 'v1', '{}', '{}', 'succeeded', 'test')`)
+) VALUES ('run-terminal-shape', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'succeeded', 'test')`, builtInRunRuntimeSnapshot)
 	assertSQLState(t, err, "23514")
 
 	_, err = first.Exec(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
+    runtime_labels, runtime_config_snapshot,
     state, state_reason_code
-) VALUES ('run-for-stage', 'user', 'workflow', '1', 'v1', '{}', '{}', 'initializing', 'test')`)
+) VALUES (
+    'run-invalid-runtime-snapshot', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}',
+    jsonb_set($1::jsonb, '{llmCredentialIds}', '[null]'::jsonb), 'initializing', 'test'
+)`, builtInRunRuntimeSnapshot)
+	assertSQLState(t, err, "23514")
+
+	_, err = first.Exec(ctx, `
+INSERT INTO workflow_runs (
+    run_id, owner_id, workflow_name, workflow_version,
+    workflow_schema_version, workflow_snapshot, parameters,
+    runtime_labels, runtime_config_snapshot,
+    state, state_reason_code
+) VALUES ('run-for-stage', 'user', 'workflow', '1', 'v1', '{}', '{}', '{}', $1::jsonb, 'initializing', 'test')`, builtInRunRuntimeSnapshot)
 	if err != nil {
 		t.Fatalf("insert valid parent Run: %v", err)
 	}

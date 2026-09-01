@@ -119,6 +119,41 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 	}
 }
 
+func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *testing.T) {
+	root := copyConfigTree(t)
+	workflowPath := filepath.Join(root, "workflows/artifact_copy.yaml")
+	replaceFile(t, workflowPath, `  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+
+`, "")
+	snapshot, err := Load(root, MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow, err := snapshot.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", ExecutionConfigPatch{}, metadataLookup{},
+	)
+	if err != nil {
+		t.Fatalf("resolve label-routed Worker: %v", err)
+	}
+	selection := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"]
+	if selection.LLMGateway != nil || selection.ModelPolicy.Ref.PolicyID != "worker" ||
+		selection.Origins.ModelPolicy != originAgentTemplate || selection.Origins.LLMGateway != "" {
+		t.Fatalf("partially routed Worker selection = %+v", selection)
+	}
+
+	planner := selection
+	planner.ModelPolicy, err = snapshot.ModelPolicy("planner@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateConsumerExecutionConfig(planner, true, false); err == nil ||
+		!strings.Contains(err.Error(), "Planner llmGateway is required") {
+		t.Fatalf("incomplete Planner validation error = %v", err)
+	}
+}
+
 func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing.T) {
 	root := copyConfigTree(t)
 	writeFile(t, filepath.Join(root, "llm-gateways/secondary.yaml"), []byte(secondaryGatewayYAML))

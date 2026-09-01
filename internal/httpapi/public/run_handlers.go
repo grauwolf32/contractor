@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -110,6 +111,12 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	normalizedLabels, err := runtimeconfig.NormalizeRunLabels([]string(request.Labels))
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	request.Labels = runLabels(normalizedLabels)
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -130,7 +137,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
-		writeJSON(w, http.StatusAccepted, createRunResponse{RunID: storedRun.RunID, State: storedRun.State})
+		writeJSON(w, http.StatusAccepted, createRunReadModel(storedRun))
 		return
 	}
 	runID, err := h.dependencies.NewID("run_")
@@ -156,6 +163,12 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("encode resolved Workflow: %w", err)
 		}
 		return h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
+			runtimeConfig, pinErr := runs.PinRuntimeLabels(
+				r.Context(), []string(request.Labels), h.dependencies.Credentials,
+			)
+			if pinErr != nil {
+				return pinErr
+			}
 			var createErr error
 			storedRun, created, createErr = runs.CreateRunIdempotent(
 				r.Context(), runstore.CreateRunIdempotentParams{
@@ -165,6 +178,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 						WorkflowSchemaVersion: contracts.APIVersion,
 						WorkflowSnapshot:      workflowSnapshot,
 						Parameters:            cloneParameters(request.Parameters),
+						RuntimeConfig:         runtimeConfig,
 					},
 					IdempotencyKey: idempotencyKey,
 					RequestDigest:  requestDigest,
@@ -206,7 +220,15 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 	if !created {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	writeJSON(w, http.StatusAccepted, createRunResponse{RunID: storedRun.RunID, State: storedRun.State})
+	writeJSON(w, http.StatusAccepted, createRunReadModel(storedRun))
+}
+
+func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
+	return createRunResponse{
+		RunID: run.RunID, State: run.State,
+		Labels:               append([]string{}, run.RuntimeLabels...),
+		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
+	}
 }
 
 func requireIdempotencyKey(r *http.Request) (string, error) {
@@ -225,6 +247,10 @@ func requireIdempotencyKey(r *http.Request) (string, error) {
 }
 
 func createRunRequestDigest(request createRunRequest) (string, error) {
+	labels, err := runtimeconfig.NormalizeRunLabels([]string(request.Labels))
+	if err != nil {
+		return "", err
+	}
 	parameters := request.Parameters
 	if parameters == nil {
 		parameters = map[string]string{}
@@ -233,10 +259,16 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 	if artifactRefs == nil {
 		artifactRefs = map[string]contracts.ArtifactRef{}
 	}
-	encoded, err := json.Marshal(map[string]any{
+	canonical := map[string]any{
 		"workflow": request.Workflow, "parameters": parameters, "artifacts": artifactRefs,
 		"executionConfig": request.ExecutionConfig.CanonicalValue(),
-	})
+	}
+	// Preserve the pre-label digest for the empty set so response-loss replay of
+	// Runs created before migration 000018 remains exact after upgrade.
+	if len(labels) != 0 {
+		canonical["labels"] = labels
+	}
+	encoded, err := json.Marshal(canonical)
 	if err != nil {
 		return "", err
 	}
@@ -468,7 +500,9 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State: run.State, Cancellation: run.Cancellation, Parameters: run.Parameters,
+		State: run.State, Labels: append([]string{}, run.RuntimeLabels...),
+		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
+		Cancellation:         run.Cancellation, Parameters: run.Parameters,
 		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,
 		EventCursor: &eventCursorResponse{
 			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
@@ -477,6 +511,22 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:              run.CreatedAt, UpdatedAt: run.UpdatedAt,
 		StartedAt: run.StartedAt, FinishedAt: run.FinishedAt,
 	})
+}
+
+func runtimeConfigReadModel(snapshot runtimeconfig.RunSnapshot) runRuntimeConfigResponse {
+	project := func(pin runtimeconfig.PinnedLabel) pinnedRuntimeConfigResponse {
+		return pinnedRuntimeConfigResponse{
+			Label: pin.Label, BindingRevision: strconv.FormatUint(pin.BindingRevision, 10), Config: pin.Config,
+		}
+	}
+	result := runRuntimeConfigResponse{
+		Default: project(snapshot.Default),
+		Labels:  make([]pinnedRuntimeConfigResponse, len(snapshot.Labels)),
+	}
+	for index := range snapshot.Labels {
+		result.Labels[index] = project(snapshot.Labels[index])
+	}
+	return result
 }
 
 func terminalStageState(state runstore.StageExecutionState) bool {
@@ -541,8 +591,11 @@ func consumerExecutionConfigRefs(
 ) consumerExecutionConfigRefsResponse {
 	result := consumerExecutionConfigRefsResponse{
 		ModelPolicy: selection.ModelPolicy.Ref,
-		LLMGateway:  selection.LLMGateway.Ref,
 		Origins:     selection.Origins,
+	}
+	if selection.LLMGateway != nil {
+		gateway := selection.LLMGateway.Ref
+		result.LLMGateway = &gateway
 	}
 	if selection.Credential != nil {
 		credential := *selection.Credential

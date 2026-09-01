@@ -17,6 +17,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/adk/model"
@@ -307,6 +308,7 @@ func createPlannerStage(
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{"mode": "strict"},
+		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
 	})
 	if err != nil {
 		t.Fatal(err)

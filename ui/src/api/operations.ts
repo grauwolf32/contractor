@@ -228,6 +228,10 @@ function safeCapabilityRefs(values: string[], required: boolean): string[] {
 function safeAllocation(value: AllocationObservation): AllocationObservation {
   const reason = safeReason(value.reason);
   const origins = value.executionConfig.origins;
+  const llmGateway = value.executionConfig.llmGateway;
+  if (llmGateway === undefined) {
+    throw new TypeError("active Allocation has no resolved LLM Gateway");
+  }
   return {
     allocationId: value.allocationId,
     runId: value.runId,
@@ -246,9 +250,9 @@ function safeAllocation(value: AllocationObservation): AllocationObservation {
         digest: value.executionConfig.modelPolicy.digest,
       },
       llmGateway: {
-        gatewayId: value.executionConfig.llmGateway.gatewayId,
-        version: value.executionConfig.llmGateway.version,
-        digest: value.executionConfig.llmGateway.digest,
+        gatewayId: llmGateway.gatewayId,
+        version: llmGateway.version,
+        digest: llmGateway.digest,
       },
       ...(value.executionConfig.credential === undefined
         ? {}
@@ -262,7 +266,9 @@ function safeAllocation(value: AllocationObservation): AllocationObservation {
         : {
             origins: {
               modelPolicy: origins.modelPolicy,
-              llmGateway: origins.llmGateway,
+              ...(origins.llmGateway === undefined
+                ? {}
+                : { llmGateway: origins.llmGateway }),
               ...(origins.credential === undefined
                 ? {}
                 : { credential: origins.credential }),

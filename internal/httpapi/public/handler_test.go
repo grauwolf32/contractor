@@ -22,6 +22,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -450,6 +451,7 @@ func TestArtifactUploadIsBoundedBeforeRepository(t *testing.T) {
 func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	requests := []string{
+		`{"workflow":"artifact-copy@1","labels":null,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","parameters":{"objective":42},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{},"extra":true}`,
 		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{}}`,
@@ -542,6 +544,94 @@ func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
 	fixture.handler.ServeHTTP(conflictResponse, conflict)
 	if conflictResponse.Code != http.StatusConflict {
 		t.Fatalf("idempotency key reuse = %d %s", conflictResponse.Code, conflictResponse.Body.String())
+	}
+}
+
+func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	pinCalls := 0
+	fixture.runs.pinRuntimeLabels = func(
+		_ context.Context, labels []string, _ config.CredentialLookup,
+	) (runtimeconfig.RunSnapshot, error) {
+		pinCalls++
+		if strings.Join(labels, ",") != "debug,trace" {
+			t.Fatalf("canonical labels = %v", labels)
+		}
+		result := runtimeconfig.BuiltInRunSnapshot()
+		result.Labels = []runtimeconfig.PinnedLabel{
+			{Label: "debug", Explicit: true, BindingRevision: 7, Config: result.Default.Config},
+			{Label: "trace", Explicit: true, BindingRevision: 9, Config: result.Default.Config},
+		}
+		return result, nil
+	}
+	requestBody := func(labels string) []byte {
+		return []byte(`{"workflow":"artifact-copy@1","labels":` + labels +
+			`,"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	}
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody(`["trace","debug"]`)))
+	first.Header.Set(idempotencyKeyHeader, "label-replay")
+	firstResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(firstResponse, first)
+	if firstResponse.Code != http.StatusAccepted || pinCalls != 1 {
+		t.Fatalf("first labeled Run = %d calls=%d body=%s", firstResponse.Code, pinCalls, firstResponse.Body.String())
+	}
+	var created createRunResponse
+	if err := json.Unmarshal(firstResponse.Body.Bytes(), &created); err != nil ||
+		strings.Join(created.Labels, ",") != "debug,trace" ||
+		created.RuntimeConfiguration.Labels[0].BindingRevision != "7" {
+		t.Fatalf("labeled Run response = (%+v, %v)", created, err)
+	}
+
+	// Simulate removal of both mutable bindings after the original commit.
+	fixture.runs.pinRuntimeLabels = func(
+		context.Context, []string, config.CredentialLookup,
+	) (runtimeconfig.RunSnapshot, error) {
+		pinCalls++
+		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound
+	}
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody(`["debug","trace"]`)))
+	retry.Header.Set(idempotencyKeyHeader, "label-replay")
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted ||
+		retryResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		retryResponse.Body.String() != firstResponse.Body.String() || pinCalls != 1 {
+		t.Fatalf("binding-independent replay = %d calls=%d headers=%v body=%s",
+			retryResponse.Code, pinCalls, retryResponse.Header(), retryResponse.Body.String())
+	}
+}
+
+func TestCreateRunRejectsMalformedAndUnknownLabels(t *testing.T) {
+	for _, test := range []struct {
+		name, labels, code string
+	}{
+		{name: "duplicate", labels: `["debug","debug"]`, code: "runtime_config_invalid"},
+		{name: "reserved", labels: `["default"]`, code: "runtime_config_invalid"},
+		{name: "unknown", labels: `["missing"]`, code: "runtime_label_unknown"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newHandlerFixture(t)
+			body := []byte(`{"workflow":"artifact-copy@1","labels":` + test.labels +
+				`,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+			request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+			request.Header.Set(idempotencyKeyHeader, "invalid-label-"+test.name)
+			response := httptest.NewRecorder()
+			fixture.handler.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("label rejection = %d %s", response.Code, response.Body.String())
+			}
+			assertErrorCode(t, response, test.code)
+			if test.name != "unknown" && fixture.unit.calls != 0 {
+				t.Fatalf("malformed label entered transaction %d times", fixture.unit.calls)
+			}
+		})
 	}
 }
 
@@ -706,6 +796,18 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 			"empty executionConfig digest = %q, omitted = %q, error = %v",
 			withEmptyExecutionConfig, omitted, err,
 		)
+	}
+	ordered, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", Labels: runLabels{"debug", "trace"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reversed, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", Labels: runLabels{"trace", "debug"},
+	})
+	if err != nil || reversed != ordered || reversed == omitted {
+		t.Fatalf("label request digests = ordered:%q reversed:%q omitted:%q error:%v", ordered, reversed, omitted, err)
 	}
 }
 

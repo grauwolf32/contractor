@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -208,6 +209,7 @@ func createTelemetryRun(t *testing.T, ctx context.Context, store *runstore.Postg
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{},
+		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
 	})
 	if err != nil {
 		t.Fatal(err)

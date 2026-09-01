@@ -10,6 +10,7 @@ import (
 const workflowRunColumns = `
 run_id, owner_id, workflow_name, workflow_version,
 workflow_schema_version, workflow_snapshot, parameters,
+runtime_labels, runtime_config_snapshot,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
@@ -23,6 +24,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	var result WorkflowRun
 	var snapshot []byte
 	var parameters []byte
+	var runtimeConfig []byte
 	var state string
 	var cancellation []byte
 	var claimID *string
@@ -31,6 +33,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	if err := row.Scan(
 		&result.RunID, &result.OwnerID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
+		&result.RuntimeLabels, &runtimeConfig,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt,
@@ -53,6 +56,16 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	if err := json.Unmarshal(parameters, &result.Parameters); err != nil {
 		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun parameters: %w", err)
 	}
+	if err := json.Unmarshal(runtimeConfig, &result.RuntimeConfig); err != nil {
+		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun RuntimeConfig snapshot: %w", err)
+	}
+	if err := result.RuntimeConfig.Validate(); err != nil {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig snapshot: %w", err)
+	}
+	if labels := result.RuntimeConfig.ExplicitLabels(); !equalRunLabels(labels, result.RuntimeLabels) {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig labels: projection mismatch")
+	}
+	result.RuntimeLabels = append([]string{}, result.RuntimeLabels...)
 	if claimID != nil {
 		if claimedAt == nil || claimExpiresAt == nil {
 			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun claim: incomplete persisted claim")
@@ -62,6 +75,18 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		}
 	}
 	return result, nil
+}
+
+func equalRunLabels(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func prefixedWorkflowRunColumns(alias string) string {

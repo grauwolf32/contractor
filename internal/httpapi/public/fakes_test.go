@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 type fakeOperationsReader struct {
@@ -458,6 +460,19 @@ type fakeRunStore struct {
 	idempotencyClaims map[string]fakeIdempotencyClaim
 	eventCursors      map[string]runstore.WorkflowRunEventCursor
 	runEvents         map[string][]runstore.WorkflowRunEvent
+	pinRuntimeLabels  func(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
+}
+
+func (f *fakeRunStore) PinRuntimeLabels(
+	ctx context.Context, labels []string, credentials config.CredentialLookup,
+) (runtimeconfig.RunSnapshot, error) {
+	if f.pinRuntimeLabels != nil {
+		return f.pinRuntimeLabels(ctx, labels, credentials)
+	}
+	if len(labels) != 0 {
+		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound
+	}
+	return runtimeconfig.BuiltInRunSnapshot(), nil
 }
 
 type fakePlannerPlanReader struct {
@@ -528,7 +543,9 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		RunID: params.RunID, OwnerID: params.OwnerID,
 		WorkflowName: params.WorkflowName, WorkflowVersion: params.WorkflowVersion,
 		WorkflowSchemaVersion: params.WorkflowSchemaVersion, WorkflowSnapshot: params.WorkflowSnapshot,
-		Parameters: params.Parameters, State: runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Parameters:    params.Parameters,
+		RuntimeLabels: params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
+		State: runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	f.runs[params.RunID] = run
 	return run, nil

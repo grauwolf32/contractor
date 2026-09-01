@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 type WorkflowRunState string
@@ -52,6 +53,8 @@ type WorkflowRun struct {
 	WorkflowSchemaVersion     string
 	WorkflowSnapshot          json.RawMessage
 	Parameters                map[string]string
+	RuntimeLabels             []string
+	RuntimeConfig             runtimeconfig.RunSnapshot
 	State                     WorkflowRunState
 	StateReason               Reason
 	CancellationSchemaVersion *string
@@ -110,6 +113,7 @@ type CreateRunParams struct {
 	WorkflowSchemaVersion string
 	WorkflowSnapshot      json.RawMessage
 	Parameters            map[string]string
+	RuntimeConfig         runtimeconfig.RunSnapshot
 }
 
 type CreateRunIdempotentParams struct {

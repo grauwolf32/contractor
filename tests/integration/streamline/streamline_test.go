@@ -22,6 +22,7 @@ import (
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -342,7 +343,8 @@ func createStage(t *testing.T, ctx context.Context, store *runstore.PostgresStor
 	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: "run-streamline", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{"name":"workflow"}`),
-		Parameters: map[string]string{"mode": "strict-secret-value"},
+		Parameters:    map[string]string{"mode": "strict-secret-value"},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
 	}); err != nil {
 		t.Fatal(err)
 	}

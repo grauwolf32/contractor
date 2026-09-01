@@ -96,11 +96,17 @@ export function AllocationListRoute() {
                   <div>
                     <dt>LLM Gateway</dt>
                     <dd>
-                      <ConfigurationRefLink
-                        value={exactConfigurationRef(
-                          allocation.executionConfig.llmGateway,
-                        )}
-                      />
+                      {allocation.executionConfig.llmGateway === undefined ? (
+                        <span className="muted-copy">
+                          Awaiting route resolution
+                        </span>
+                      ) : (
+                        <ConfigurationRefLink
+                          value={exactConfigurationRef(
+                            allocation.executionConfig.llmGateway,
+                          )}
+                        />
+                      )}
                     </dd>
                   </div>
                   <div>

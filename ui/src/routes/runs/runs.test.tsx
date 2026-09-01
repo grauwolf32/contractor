@@ -82,6 +82,20 @@ function runFixture(overrides: RunOverrides = {}): RunStatus {
     runId: "run-router",
     workflow: "router-analysis@1",
     state: "running",
+    labels: [],
+    runtimeConfiguration: {
+      default: {
+        label: "default",
+        bindingRevision: "1",
+        config: {
+          name: "contractor-empty",
+          version: "1",
+          digest:
+            "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f",
+        },
+      },
+      labels: [],
+    },
     parameters: { objective: "Review the project architecture" },
     inputs: {
       source: {

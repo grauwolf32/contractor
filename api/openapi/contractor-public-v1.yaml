@@ -163,7 +163,19 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CreateRunResponse'}
-              example: {runId: run_example, state: running}
+              example:
+                runId: run_example
+                state: running
+                labels: []
+                runtimeConfiguration:
+                  default:
+                    label: default
+                    bindingRevision: "1"
+                    config:
+                      name: contractor-empty
+                      version: "1"
+                      digest: sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f
+                  labels: []
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -1345,6 +1357,32 @@ components:
         gatewayId: {$ref: '#/components/schemas/ConfigId'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
+    RuntimeConfigRef:
+      type: object
+      additionalProperties: false
+      required: [name, version, digest]
+      properties:
+        name: {$ref: '#/components/schemas/ConfigId'}
+        version: {$ref: '#/components/schemas/ConfigVersion'}
+        digest: {$ref: '#/components/schemas/Digest'}
+    PinnedRuntimeConfig:
+      type: object
+      additionalProperties: false
+      required: [label, bindingRevision, config]
+      properties:
+        label: {$ref: '#/components/schemas/ConfigId'}
+        bindingRevision: {type: string, pattern: '^[1-9][0-9]*$', maxLength: 20}
+        config: {$ref: '#/components/schemas/RuntimeConfigRef'}
+    RunRuntimeConfiguration:
+      type: object
+      additionalProperties: false
+      required: [default, labels]
+      properties:
+        default: {$ref: '#/components/schemas/PinnedRuntimeConfig'}
+        labels:
+          type: array
+          maxItems: 32
+          items: {$ref: '#/components/schemas/PinnedRuntimeConfig'}
     AgentTemplateRef:
       type: object
       additionalProperties: false
@@ -1370,7 +1408,7 @@ components:
     ConsumerExecutionConfig:
       type: object
       additionalProperties: false
-      required: [modelPolicy, llmGateway]
+      required: [modelPolicy]
       properties:
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
@@ -1378,7 +1416,7 @@ components:
         origins:
           type: object
           additionalProperties: false
-          required: [modelPolicy, llmGateway]
+          required: [modelPolicy]
           properties:
             modelPolicy: {type: string, minLength: 1, maxLength: 256}
             llmGateway: {type: string, minLength: 1, maxLength: 256}
@@ -1449,11 +1487,17 @@ components:
     RunStatus:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, attempts, transitions, outputs]
+      required: [runId, workflow, state, labels, runtimeConfiguration, attempts, transitions, outputs]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
+        labels:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ConfigId'}
+        runtimeConfiguration: {$ref: '#/components/schemas/RunRuntimeConfiguration'}
         cancellation: {$ref: '#/components/schemas/Cancellation'}
         parameters:
           type: object
@@ -1494,10 +1538,16 @@ components:
     CreateRunResponse:
       type: object
       additionalProperties: false
-      required: [runId, state]
+      required: [runId, state, labels, runtimeConfiguration]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
+        labels:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ConfigId'}
+        runtimeConfiguration: {$ref: '#/components/schemas/RunRuntimeConfiguration'}
     CancelRunRequest:
       type: object
       additionalProperties: false
@@ -1545,6 +1595,11 @@ components:
       required: [workflow]
       properties:
         workflow: {$ref: '#/components/schemas/Selector'}
+        labels:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/ConfigId'}
         parameters:
           type: [object, 'null']
           additionalProperties: {type: string}

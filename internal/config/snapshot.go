@@ -287,7 +287,10 @@ func cloneStageExecutionConfig(source ResolvedStageExecutionConfig) ResolvedStag
 func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) ResolvedConsumerExecutionConfig {
 	result := source
 	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
-	result.LLMGateway = cloneLLMGatewayConfig(source.LLMGateway)
+	if source.LLMGateway != nil {
+		gateway := cloneLLMGatewayConfig(*source.LLMGateway)
+		result.LLMGateway = &gateway
+	}
 	if source.Credential != nil {
 		credential := *source.Credential
 		result.Credential = &credential

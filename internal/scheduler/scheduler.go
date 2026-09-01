@@ -781,6 +781,9 @@ func (s *Scheduler) workerExecutionSettings(
 ) (map[string]contracts.WorkerExecutionSettings, error) {
 	result := make(map[string]contracts.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
 	for logicalName, selection := range stage.ExecutionConfig.Agents {
+		if selection.LLMGateway == nil {
+			return nil, fmt.Errorf("Worker %q has no complete LLM Gateway route", logicalName)
+		}
 		token, err := s.resolveCredential(ctx, selection)
 		if err != nil {
 			return nil, err
@@ -803,13 +806,16 @@ func (s *Scheduler) plannerModelAccess(
 		return nil, nil
 	}
 	selection := *stage.ExecutionConfig.Planner
+	if selection.LLMGateway == nil {
+		return nil, fmt.Errorf("Planner has no complete LLM Gateway route")
+	}
 	token, err := s.resolveCredential(ctx, selection)
 	if err != nil {
 		return nil, err
 	}
 	result := &planner.ModelAccess{
 		ModelPolicy: cloneModelPolicy(selection.ModelPolicy),
-		LLMGateway:  selection.LLMGateway,
+		LLMGateway:  *selection.LLMGateway,
 		Token:       token,
 	}
 	if selection.Credential != nil {
@@ -825,6 +831,9 @@ func (s *Scheduler) resolveCredential(
 ) (contracts.SecretString, error) {
 	if selection.Credential == nil {
 		return contracts.NewSecretString(""), nil
+	}
+	if selection.LLMGateway == nil {
+		return contracts.SecretString{}, fmt.Errorf("selected LLM credential has no Gateway")
 	}
 	if s.options.Credentials == nil {
 		return contracts.SecretString{}, fmt.Errorf("selected LLM credential is unavailable")

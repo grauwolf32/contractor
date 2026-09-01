@@ -15,6 +15,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -464,6 +465,7 @@ func TestWorkflowRunEventNotificationIsVisibleOnlyAfterCommit(t *testing.T) {
 		WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
 		Parameters:            map[string]string{},
+		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
 	})
 	if err != nil {
 		_ = tx.Rollback(ctx)
@@ -568,6 +570,146 @@ WHERE run_id = $1`, first.RunID)
 	}
 }
 
+func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	credentials := pinTestRuntimeCredentials{}
+	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool, RuntimeCredentials: credentials,
+		Now: func() time.Time { return time.Date(2026, 9, 1, 4, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(name, block string) runtimeconfig.Ref {
+		t.Helper()
+		document := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"` +
+			name + `","version":"1"},"spec":` + block + `}`)
+		result, publishErr := publisher.Publish(ctx, document, "publish-"+name, "operator")
+		if publishErr != nil {
+			t.Fatal(publishErr)
+		}
+		return result.Version.Ref
+	}
+	defaultA := publish("default-a", `{"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/a"}}}`)
+	defaultB := publish("default-b", `{"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/b"}}}`)
+	debugA := publish("debug-a", `{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/debug-a"}}}`)
+	debugB := publish("debug-b", `{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/debug-b"}}}`)
+	bindings := runtimeconfig.NewRepository(pool)
+	if _, err := bindings.Rebind(ctx, runtimeconfig.DefaultLabel, 1, defaultA, "operator", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bindings.CreateBinding(ctx, "debug", debugA, "operator", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	txStore := NewPostgresStore(tx)
+	pinned, err := txStore.PinRuntimeLabels(ctx, []string{"debug"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pinned.Default.BindingRevision != 2 || pinned.Default.Config != defaultA ||
+		len(pinned.Labels) != 1 || pinned.Labels[0].BindingRevision != 1 || pinned.Labels[0].Config != debugA {
+		t.Fatalf("old pinned bindings = %+v", pinned)
+	}
+
+	rebindDone := make(chan error, 1)
+	go func() {
+		_, rebindErr := bindings.Rebind(
+			ctx, "debug", 1, debugB, "operator", time.Now().Add(time.Minute),
+		)
+		rebindDone <- rebindErr
+	}()
+	select {
+	case err := <-rebindDone:
+		t.Fatalf("binding rebind bypassed Run pin lock: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := txStore.CreateRun(ctx, CreateRunParams{
+		RunID: "run-runtime-label-old", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion,
+		WorkflowSnapshot:      json.RawMessage(`{"name":"workflow"}`),
+		Parameters:            map[string]string{}, RuntimeConfig: pinned,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-rebindDone; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bindings.Rebind(ctx, runtimeconfig.DefaultLabel, 2, defaultB, "operator", time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := NewPostgresStore(pool).GetRun(ctx, "run-runtime-label-old")
+	if err != nil || stored.RuntimeConfig.Default.Config != defaultA || stored.RuntimeConfig.Labels[0].Config != debugA {
+		t.Fatalf("stored immutable RuntimeConfig snapshot = (%+v, %v)", stored.RuntimeConfig, err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE workflow_runs
+SET runtime_config_snapshot = jsonb_set(runtime_config_snapshot, '{default,bindingRevision}', '99')
+WHERE run_id = 'run-runtime-label-old'`); persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("RuntimeConfig snapshot rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	newTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newPinned, err := NewPostgresStore(newTx).PinRuntimeLabels(ctx, []string{"debug"}, nil)
+	_ = newTx.Rollback(ctx)
+	if err != nil || newPinned.Default.Config != defaultB || newPinned.Labels[0].Config != debugB ||
+		newPinned.Default.BindingRevision != 3 || newPinned.Labels[0].BindingRevision != 2 {
+		t.Fatalf("new pinned bindings = (%+v, %v)", newPinned, err)
+	}
+}
+
+func TestPostgresNonTerminalCredentialUsageIncludesRuntimeConfigSnapshot(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	snapshot := runtimeconfig.BuiltInRunSnapshot()
+	snapshot.LLMCredentialIDs = []string{"runtime-route"}
+	if _, err := store.CreateRun(ctx, CreateRunParams{
+		RunID: "run-runtime-route", OwnerID: "user", WorkflowName: "workflow", WorkflowVersion: "1",
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),
+		Parameters: map[string]string{}, RuntimeConfig: snapshot,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := store.ListNonTerminalRunIDsByCredential(ctx, "runtime-route", 10)
+	if err != nil || len(runs) != 1 || runs[0] != "run-runtime-route" {
+		t.Fatalf("RuntimeConfig LLM credential usage = (%v, %v)", runs, err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, "run-runtime-route", RunInitializing, RunFailed, Reason{Code: "test_complete"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	runs, err = store.ListNonTerminalRunIDsByCredential(ctx, "runtime-route", 10)
+	if err != nil || len(runs) != 0 {
+		t.Fatalf("terminal RuntimeConfig LLM credential usage = (%v, %v)", runs, err)
+	}
+}
+
+type pinTestRuntimeCredentials struct{}
+
+func (pinTestRuntimeCredentials) ValidateRuntimeCredential(context.Context, string, ...string) error {
+	return nil
+}
+
+func (pinTestRuntimeCredentials) WithCredentialReferences(_ context.Context, fn func() error) error {
+	return fn()
+}
+
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {
 	t.Helper()
 	run, err := store.CreateRun(ctx, testRunParams(runID))
@@ -583,6 +725,7 @@ func testRunParams(runID string) CreateRunParams {
 		WorkflowSchemaVersion: "contractor/v1alpha1",
 		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
 		Parameters:            map[string]string{"mode": "strict"},
+		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
 	}
 }
 

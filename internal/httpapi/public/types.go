@@ -20,6 +20,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -39,6 +40,9 @@ type PlannerPlanReader interface {
 }
 
 type RunWriter interface {
+	PinRuntimeLabels(
+		context.Context, []string, config.CredentialLookup,
+	) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, runstore.CreateRunParams) (runstore.WorkflowRun, error)
 	CreateRunIdempotent(
 		context.Context,
@@ -135,14 +139,31 @@ var errInvalidRequest = errors.New("invalid public API request")
 
 type createRunRequest struct {
 	Workflow        string                           `json:"workflow"`
+	Labels          runLabels                        `json:"labels,omitempty"`
 	Parameters      map[string]string                `json:"parameters"`
 	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
 	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
 }
 
+type runLabels []string
+
+func (l *runLabels) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return errors.New("labels must be an array")
+	}
+	var value []string
+	if err := json.Unmarshal(data, &value); err != nil || value == nil {
+		return errors.New("labels must be an array")
+	}
+	*l = value
+	return nil
+}
+
 type createRunResponse struct {
-	RunID string                    `json:"runId"`
-	State runstore.WorkflowRunState `json:"state"`
+	RunID                string                    `json:"runId"`
+	State                runstore.WorkflowRunState `json:"state"`
+	Labels               []string                  `json:"labels"`
+	RuntimeConfiguration runRuntimeConfigResponse  `json:"runtimeConfiguration"`
 }
 
 type cancelRunRequest struct {
@@ -175,6 +196,8 @@ type runStatusResponse struct {
 	RunID                  string                            `json:"runId"`
 	Workflow               string                            `json:"workflow"`
 	State                  runstore.WorkflowRunState         `json:"state"`
+	Labels                 []string                          `json:"labels"`
+	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`
 	Cancellation           *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
 	Parameters             map[string]string                 `json:"parameters,omitempty"`
 	Inputs                 map[string]contracts.ArtifactRef  `json:"inputs,omitempty"`
@@ -187,6 +210,17 @@ type runStatusResponse struct {
 	UpdatedAt              time.Time                         `json:"updatedAt,omitempty"`
 	StartedAt              *time.Time                        `json:"startedAt,omitempty"`
 	FinishedAt             *time.Time                        `json:"finishedAt,omitempty"`
+}
+
+type pinnedRuntimeConfigResponse struct {
+	Label           string            `json:"label"`
+	BindingRevision string            `json:"bindingRevision"`
+	Config          runtimeconfig.Ref `json:"config"`
+}
+
+type runRuntimeConfigResponse struct {
+	Default pinnedRuntimeConfigResponse   `json:"default"`
+	Labels  []pinnedRuntimeConfigResponse `json:"labels"`
 }
 
 type stageAttemptResponse struct {
@@ -236,10 +270,10 @@ type stageExecutionConfigResponse struct {
 }
 
 type consumerExecutionConfigRefsResponse struct {
-	ModelPolicy contracts.ModelPolicyRef      `json:"modelPolicy"`
-	LLMGateway  contracts.LLMGatewayConfigRef `json:"llmGateway"`
-	Credential  *contracts.LLMCredentialRef   `json:"credential,omitempty"`
-	Origins     config.ExecutionConfigOrigins `json:"origins"`
+	ModelPolicy contracts.ModelPolicyRef       `json:"modelPolicy"`
+	LLMGateway  *contracts.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Credential  *contracts.LLMCredentialRef    `json:"credential,omitempty"`
+	Origins     config.ExecutionConfigOrigins  `json:"origins"`
 }
 
 type workflowPageResponse struct {
