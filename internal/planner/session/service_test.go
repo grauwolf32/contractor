@@ -88,6 +88,9 @@ func TestServiceCreatesOneInvocationAndRecoversCompletion(t *testing.T) {
 
 func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 	const secret = "sk-provider-error-and-tool-argument"
+	const memoryContent = "memory-content-retention-canary"
+	const memoryDescription = "memory-description-retention-canary"
+	const memoryTag = "memory-tag-retention-canary"
 	store := &memoryStore{execution: runstore.StageExecution{
 		StageExecutionID: "stage-1", State: runstore.StagePreparing,
 	}}
@@ -111,7 +114,8 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	adk, err := service.NewADKSession(t.Context(), started.Identity, ADKOptions{
-		AppName: "contractor_streamline", UserID: "stage-1", AllowedTools: []string{"finish"},
+		AppName: "contractor_streamline", UserID: "stage-1",
+		AllowedTools: []string{"finish", "write_memory", "read_memory"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +132,14 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 		Content: &genai.Content{Role: genai.RoleModel, Parts: []*genai.Part{
 			genai.NewPartFromText("provider payload " + secret),
 			genai.NewPartFromFunctionCall("finish", map[string]any{"summary": secret}),
+			genai.NewPartFromFunctionCall("write_memory", map[string]any{
+				"name": "safe_note", "content": memoryContent,
+				"description": memoryDescription, "tags": []any{memoryTag},
+			}),
+			genai.NewPartFromFunctionResponse("read_memory", map[string]any{
+				"name": "safe_note", "content": memoryContent,
+				"description": memoryDescription, "tags": []any{memoryTag},
+			}),
 			genai.NewPartFromFunctionCall(secret, map[string]any{"token": secret}),
 		}},
 		UsageMetadata: &genai.GenerateContentResponseUsageMetadata{
@@ -142,9 +154,15 @@ func TestADKSessionPersistsOnlyBoundedRedactedEventFacts(t *testing.T) {
 	}
 	persisted := string(store.events[2].Event)
 	runPersisted := string(store.events[2].RunEvent.Data)
-	if strings.Contains(persisted, secret) || strings.Contains(runPersisted, secret) ||
-		strings.Contains(string(store.session.State), secret) || strings.Contains(persisted, "summary") ||
-		!strings.Contains(persisted, `"functionCalls":["finish","unknown"]`) {
+	for _, canary := range []string{secret, memoryContent, memoryDescription, memoryTag} {
+		if strings.Contains(persisted, canary) || strings.Contains(runPersisted, canary) ||
+			strings.Contains(string(store.session.State), canary) {
+			t.Fatalf("ADK facts retained %q: event=%s run=%s", canary, persisted, runPersisted)
+		}
+	}
+	if strings.Contains(persisted, "summary") ||
+		!strings.Contains(persisted, `"functionCalls":["finish","write_memory","unknown"]`) ||
+		!strings.Contains(persisted, `"functionResults":["read_memory"]`) {
 		t.Fatalf("unsafe or incomplete ADK facts: event=%s run=%s", persisted, runPersisted)
 	}
 	state, err := decodeState(store.session.State)

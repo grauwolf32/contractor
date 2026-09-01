@@ -40,6 +40,12 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	invocation := testInvocation()
+	binding := invocation.Stage.Agents["builder"]
+	binding.Template.Toolsets = []contracts.ToolsetSelection{{
+		Ref:   contracts.ToolsetRef{ToolsetID: "memory-tools", Version: "1"},
+		Tools: []string{"read_memory", "write_memory"},
+	}}
+	invocation.Stage.Agents["builder"] = binding
 	telemetryAdapter, telemetryPayload := passthroughTestTelemetry(t, invocation)
 	invocation.Instrumentation = telemetryAdapter.Instrumentation()
 

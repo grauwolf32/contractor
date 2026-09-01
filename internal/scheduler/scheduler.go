@@ -1593,15 +1593,19 @@ func (s *Scheduler) beginTermination(
 	termination.Phase = phase
 	termination.OccurredAt = s.options.Clock.Now()
 	transitionContext, cancelTransition := context.WithTimeout(ctx, s.options.OperationTimeout)
-	err = s.store.EnterAborting(transitionContext, runstore.EnterAbortingParams{
-		StageExecutionID:         execution.StageExecutionID,
-		ExpectedState:            execution.State,
-		TerminationSchemaVersion: contracts.APIVersion,
-		Termination:              termination,
-		AbortID:                  abortID,
-		Deadline:                 deadline,
-		Reason:                   runstore.Reason{Code: "stage_" + string(termination.Outcome)},
-	})
+	err = s.persistence.EnterAbortingWithTermination(
+		transitionContext,
+		run.RunID,
+		runstore.EnterAbortingParams{
+			StageExecutionID:         execution.StageExecutionID,
+			ExpectedState:            execution.State,
+			TerminationSchemaVersion: contracts.APIVersion,
+			Termination:              termination,
+			AbortID:                  abortID,
+			Deadline:                 deadline,
+			Reason:                   runstore.Reason{Code: "stage_" + string(termination.Outcome)},
+		},
+	)
 	cancelTransition()
 	if err != nil {
 		return err

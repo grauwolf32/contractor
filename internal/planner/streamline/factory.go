@@ -9,6 +9,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"google.golang.org/adk/model"
@@ -49,6 +50,7 @@ type Factory struct {
 	adkSessions  ADKSessionFactory
 	invoker      planner.WorkerInvoker
 	inspector    planner.ArtifactInspector
+	memoryStore  plannermemory.Store
 	model        model.LLM
 	modelFactory InvocationModelFactory
 	limits       Limits
@@ -64,7 +66,21 @@ func NewFactory(
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, llm, nil, limits)
+	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, nil, llm, nil, limits)
+}
+
+func NewFactoryWithMemory(
+	sessions planner.PlanSessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
+	llm model.LLM,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(
+		streamlineProfile, sessions, adkSessions, invoker, inspector, memoryStore, llm, nil, limits,
+	)
 }
 
 func NewConfiguredFactory(
@@ -76,7 +92,21 @@ func NewConfiguredFactory(
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, nil, modelFactory, limits,
+		streamlineProfile, sessions, adkSessions, invoker, inspector, nil, nil, modelFactory, limits,
+	)
+}
+
+func NewConfiguredFactoryWithMemory(
+	sessions planner.PlanSessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
+	modelFactory InvocationModelFactory,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(
+		streamlineProfile, sessions, adkSessions, invoker, inspector, memoryStore, nil, modelFactory, limits,
 	)
 }
 
@@ -91,7 +121,21 @@ func NewRouterDelegate(
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(routerProfile, sessions, adkSessions, invoker, inspector, llm, nil, limits)
+	return newFactory(routerProfile, sessions, adkSessions, invoker, inspector, nil, llm, nil, limits)
+}
+
+func NewRouterDelegateWithMemory(
+	sessions planner.PlanSessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
+	llm model.LLM,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(
+		routerProfile, sessions, adkSessions, invoker, inspector, memoryStore, llm, nil, limits,
+	)
 }
 
 func NewConfiguredRouterDelegate(
@@ -103,7 +147,21 @@ func NewConfiguredRouterDelegate(
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, nil, modelFactory, limits,
+		routerProfile, sessions, adkSessions, invoker, inspector, nil, nil, modelFactory, limits,
+	)
+}
+
+func NewConfiguredRouterDelegateWithMemory(
+	sessions planner.PlanSessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
+	modelFactory InvocationModelFactory,
+	limits Limits,
+) (*Factory, error) {
+	return newFactory(
+		routerProfile, sessions, adkSessions, invoker, inspector, memoryStore, nil, modelFactory, limits,
 	)
 }
 
@@ -113,6 +171,7 @@ func newFactory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
 	llm model.LLM,
 	modelFactory InvocationModelFactory,
 	limits Limits,
@@ -127,7 +186,8 @@ func newFactory(
 	}
 	return &Factory{
 		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker,
-		inspector: inspector, model: llm, modelFactory: modelFactory, limits: normalized,
+		inspector: inspector, memoryStore: memoryStore,
+		model: llm, modelFactory: modelFactory, limits: normalized,
 	}, nil
 }
 
@@ -146,6 +206,43 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Planner plan: %w", err)
 	}
+	workers := make([]workerBinding, 0, len(bindings))
+	namespaces := make(map[string]*plannermemory.Namespace)
+	for _, logicalName := range bindings {
+		binding := invocation.Stage.Agents[logicalName]
+		memoryOperations, err := selectedMemoryOperations(binding.Template)
+		if err != nil {
+			return nil, fmt.Errorf("derive MemoryTools for logical Worker %q: %w", logicalName, err)
+		}
+		var memoryNamespace *plannermemory.Namespace
+		if len(memoryOperations) > 0 {
+			if f.memoryStore == nil {
+				return nil, fmt.Errorf("%s requires the Planner Memory store", f.profile.ref)
+			}
+			memoryNamespace = namespaces[binding.Namespace]
+			if memoryNamespace == nil {
+				memoryNamespace, err = plannermemory.NewNamespace(f.memoryStore, plannermemory.Binding{
+					RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
+					Namespace: binding.Namespace,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("bind Planner Memory Namespace for logical Worker %q: %w", logicalName, err)
+				}
+				namespaces[binding.Namespace] = memoryNamespace
+			}
+		}
+		workers = append(workers, workerBinding{
+			logicalName: logicalName,
+			description: binding.Template.Description,
+			handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
+			namespace:   binding.Namespace,
+			memoryTools: memoryOperations,
+			memory:      memoryNamespace,
+		})
+	}
+	// Resolve the complete immutable model-visible surface before constructing
+	// a provider client. An invalid or unavailable Memory binding must fail
+	// Planner construction without even local model-factory side effects.
 	selectedModel := f.model
 	selectedLimits := f.limits
 	if f.modelFactory != nil {
@@ -163,15 +260,6 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		if err != nil {
 			return nil, err
 		}
-	}
-	workers := make([]workerBinding, 0, len(bindings))
-	for _, logicalName := range bindings {
-		binding := invocation.Stage.Agents[logicalName]
-		workers = append(workers, workerBinding{
-			logicalName: logicalName,
-			description: binding.Template.Description,
-			handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
-		})
 	}
 	return &streamlinePlanner{
 		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan,
@@ -212,6 +300,29 @@ type workerBinding struct {
 	logicalName string
 	description string
 	handle      contracts.WorkerHandle
+	namespace   string
+	memoryTools map[string]struct{}
+	memory      *plannermemory.Namespace
+}
+
+func selectedMemoryOperations(template contracts.ResolvedAgentTemplate) (map[string]struct{}, error) {
+	result := map[string]struct{}{}
+	for _, selection := range template.Toolsets {
+		selector := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+		if selector != plannermemory.ToolsetRef {
+			continue
+		}
+		for _, operation := range selection.Tools {
+			if !plannermemory.IsOperation(operation) {
+				return nil, fmt.Errorf("unknown %s operation %q", plannermemory.ToolsetRef, operation)
+			}
+			if _, duplicate := result[operation]; duplicate {
+				return nil, fmt.Errorf("duplicate %s operation %q", plannermemory.ToolsetRef, operation)
+			}
+			result[operation] = struct{}{}
+		}
+	}
+	return result, nil
 }
 
 func validateInvocation(profile plannerProfile, invocation planner.Invocation) ([]string, error) {

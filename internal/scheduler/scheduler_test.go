@@ -1672,6 +1672,22 @@ func (p *memoryAtomicPersistence) EnterFinalizingWithResult(
 	return runstore.ErrConflict
 }
 
+func (p *memoryAtomicPersistence) EnterAbortingWithTermination(
+	ctx context.Context,
+	_ string,
+	params runstore.EnterAbortingParams,
+) error {
+	if p.store.run.State != runstore.RunRunning && p.store.run.State != runstore.RunCancelling {
+		return runstore.ErrConflict
+	}
+	for _, reservation := range p.allocator.cached {
+		if !p.allocator.fenced[reservation.Grant.AllocationID] {
+			return errors.New("termination persisted before write fence")
+		}
+	}
+	return p.store.EnterAborting(ctx, params)
+}
+
 func (p *memoryAtomicPersistence) CommitResultProgression(
 	_ context.Context, value ResultProgression,
 ) error {

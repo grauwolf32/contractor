@@ -58,7 +58,6 @@ type Store interface {
 	RecordPlannerExecutionReport(context.Context, runstore.RecordPlannerExecutionReportParams) error
 	RebuildStageMetrics(context.Context, string, string) error
 	CleanupExpiredTelemetry(context.Context, time.Time, int) (int64, error)
-	EnterAborting(context.Context, runstore.EnterAbortingParams) error
 }
 
 type ContextPin struct {
@@ -106,6 +105,11 @@ type AtomicPersistence interface {
 		[]ContextPin,
 	) (runstore.StageExecution, error)
 	EnterFinalizingWithResult(context.Context, runstore.EnterFinalizingParams) error
+	EnterAbortingWithTermination(
+		context.Context,
+		string,
+		runstore.EnterAbortingParams,
+	) error
 	CommitResultProgression(context.Context, ResultProgression) error
 	AcceptResultDuringCancellation(
 		context.Context,

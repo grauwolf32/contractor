@@ -36,8 +36,11 @@ assigns to the logical Worker.
   validated `worker_name` argument;
 - a Worker is already bound to its own view and never receives `worker_name`,
   `run_id` or Namespace as a model argument;
-- different logical Workers in one Router Stage do not share one undifferenced
-  notebook;
+- logical Workers whose bindings use different Agent Namespaces do not share
+  one undifferentiated notebook. If a Workflow deliberately assigns the same
+  Namespace to two logical bindings, `worker_name` still enforces each
+  binding's selected operation subset, while both names intentionally resolve
+  to the same notebook;
 - a later Stage that deliberately reuses the same Agent Namespace in the same
   Run sees its current notes;
 - retries and Scheduler escalation create new StageExecutions but retain notes
@@ -52,10 +55,14 @@ but expires under the owning Run's Artifact retention. There is no automatic
 UserScope or cross-Run memory in `v1`.
 
 Memory is a mutable coordination view and is not part of the immutable
-StageContext snapshot unless a Workflow separately declares and pins an
-ordinary artifact. Notes are never automatically Stage results or Workflow
-outputs. If a note must become a product result, a selected domain or generic
-artifact tool must explicitly create a separate result artifact.
+StageContext snapshot. A Workflow cannot name the underlying reserved binding
+directly in a StageContext declaration: that would expose the exact revision
+and turn the notebook into implicit prompt state. Notes are never automatically
+Stage results or Workflow outputs. If note data must become pinned context or a
+product result, a selected domain or generic artifact tool first creates a
+separate non-`memory.*` ordinary artifact. Workflow resolution plus Planner,
+Worker and Scheduler candidate validation reject a direct reserved Memory ref
+even when the model happens to know an exact revision.
 
 ## Artifact representation
 
@@ -74,13 +81,19 @@ ArtifactRef(namespace="source_analysis", name="memory.repo_overview")
 ```
 
 The `memory.` artifact-name prefix is reserved at the model-visible Toolset
-layer in every non-reserved RunScope Namespace. `run-artifacts@1` rejects direct
-reads/writes of such names and filters them from `list_artifacts`, including
-when one AgentTemplate selects both Toolsets. The lower-level allocation-bound
-Artifact API remains domain-neutral and permits the trusted MemoryTools wrapper
-to use those bindings; authenticated Run owners and operator diagnostics may
-also inspect the underlying artifacts. This keeps revisions out of model
-context without adding another network service or Artifact authorization mode.
+layer in every non-reserved RunScope Namespace. `run-artifacts@1` and every
+other model-visible artifact-backed Toolset reject a source or target that
+resolves to such a binding and filter it from any accumulated exact-ref
+projection. This includes bounded text, source-analysis, OpenAPI and LikeC4
+tools; selecting a domain tool must not become an alternate route around
+MemoryTools. The lower-level allocation-bound Artifact API remains
+domain-neutral and permits the trusted MemoryTools wrapper to use those
+bindings; authenticated Run owners and operator diagnostics may also inspect
+the underlying artifacts. This keeps revisions out of model context without
+adding another network service or Artifact authorization mode. An ordinary
+artifact named `memory.*` in a purpose-reserved `inputs`, `outputs` or `skills`
+Namespace remains governed by that Namespace's own contract and is not a
+Memory note.
 
 MemoryTools encodes the note body as RFC 8785 canonical JSON. The stored fields
 are:
@@ -148,8 +161,9 @@ using the Server clock. Revision is storage concurrency state and has no
 ordering or semantic meaning for the model.
 
 `list_memories` and `search_memory` sort previews by
-`updated_at DESC, ordinal DESC`. This deliberately puts recently changed notes
-first while retaining deterministic creation order as the tie-breaker.
+`updated_at DESC, ordinal DESC, name ASC`. This deliberately puts recently
+changed notes first while retaining deterministic creation order and a total
+order even for equal Server timestamps.
 `list_memory_tags` returns unique tags in lexical order.
 
 ## `memory-tools@1`
@@ -175,7 +189,9 @@ Their semantics are:
   creation metadata;
 - `append_memory` requires an existing note and appends one newline followed by
   the supplied content while preserving description, tags and creation
-  metadata;
+  metadata. The fragment itself is checked only for non-empty valid UTF-8; the
+  32-KiB bound is applied to the resulting note, so validation does not depend
+  on an unrelated placeholder note name;
 - `search_memory` accepts one to three unique valid tags and returns previews
   for notes containing **any** supplied tag; it performs no body, fuzzy or
   embedding search;
@@ -186,6 +202,12 @@ The list is intentionally unpaginated because one Memory Namespace has at most
 returns `memory_namespace_full`. Existing notes remain readable, replaceable
 and appendable at the limit. MemoryTools never evicts an older note to make
 room.
+
+The wrapper owns ordinals. Under the no-delete serialized `v1` contract, the
+current Namespace therefore contains each ordinal in `0..count-1` exactly
+once. A duplicate, gap or otherwise impossible current ordinal set is corrupt
+stored state and returns `memory_unavailable`; it is never repaired from model
+input.
 
 `v1` has no delete/forget operation, automatic compaction, `link_memories`,
 inbox category, semantic retrieval or bulk import. Agent Skills are the
@@ -259,10 +281,14 @@ allocation-bound private Artifact API and client. Both implementations share
 canonical fixtures for validation, payload encoding and logical results.
 
 The Planner view is also bound to the active `StageExecution`, not merely to
-`run_id`. A Planner mutation checks the same durable Stage write-fence state in
-the Artifact transaction that advances the binding. Entering `finalizing` or
-`aborting` atomically revokes both Planner and Worker Memory mutation authority:
-an in-flight write either linearizes completely before that fence or fails as
+`run_id`. A Planner mutation locks and checks the durable Run and Stage rows in
+the same Artifact transaction that advances the binding. Worker mutations keep
+using the private Artifact API's allocation-grant write lock. Scheduler forms
+one ordered terminal barrier from those existing mechanisms: it first fences
+every allocation and waits for any grant-locked mutation to finish, then enters
+the durable `finalizing` or `aborting` transition; a Planner transaction in turn
+serializes directly with that transition. An in-flight mutation therefore
+either linearizes completely before its corresponding barrier or fails as
 `memory_forbidden`; it can never commit afterward. Planner reads after its
 invocation is cancelled are rejected by its bound tool context.
 
@@ -304,9 +330,9 @@ Old immutable note revisions remain ordinary Run artifacts under ArtifactStore
 retention but do not count as active notes.
 
 Worker mutations travel through the existing private Artifact PUT, so Agent
-mTLS, allocation-to-Run binding, CAS and the atomic durable write fence are
-reused unchanged. Runtime supplies the already fixed Agent Namespace; the model
-supplies only logical MemoryTools arguments. Planner calls are synchronous
+mTLS, allocation-to-Run binding, CAS and the grant-locked Artifact write fence
+are reused unchanged. Runtime supplies the already fixed Agent Namespace; the
+model supplies only logical MemoryTools arguments. Planner calls are synchronous
 inside the active Stage invocation and use the Stage-bound trusted view above;
 Planner produces no candidate until its current tool call has returned.
 Finalization/abort performs no tool work, and retry or escalation cannot revive
@@ -327,6 +353,14 @@ The model-facing stable error codes are:
 | `memory_unavailable` | Bounded infrastructure failure | yes |
 
 Messages are bounded and do not include note content or internal revisions.
+Malformed model arguments, including extra fields or a value of the wrong JSON
+type, are reduced by both Planner and Worker MemoryTools adapters to
+`memory_invalid` before an Artifact side effect. An absent, unknown or
+operation-ineligible Router `worker_name` is instead `memory_forbidden` and
+takes precedence over unrelated malformed note fields. Framework JSON-Schema
+validation must not become a second unbounded model-facing error vocabulary.
+Adapters normalize every internal failure to the exact code/retryability table
+above; an arbitrary exception attribute cannot add another Memory code.
 
 Memory content, description and tags never enter ExecutionReport detail,
 Planner durable facts, logs, WebSocket events or external telemetry. Safe tool
@@ -346,8 +380,8 @@ never placed in model context or a public Planner event.
    Router selects a Worker view through a schema-constrained logical name.
 4. `memory-tools@1` and every operation are explicitly selected. Planner
    mirroring never widens a Worker's allowlist.
-5. Generic model-visible Artifact tools cannot list, read or mutate the
-   reserved `memory.` bindings.
+5. No model-visible Artifact-backed Toolset can list, read or mutate reserved
+   `memory.` bindings or retain their exact refs.
 6. Artifact revision is internal concurrency state and never model-visible.
 7. Under the serialized `v1` execution contract, creation count, ordinal
    assignment and the 128-note limit are deterministic; notes are never evicted
@@ -355,9 +389,11 @@ never placed in model context or a public Planner event.
    atomic ArtifactStore primitive first.
 8. Mutation uses hidden Artifact CAS and canonical-payload reconciliation;
    response loss cannot duplicate an append and needs no separate replay store.
-9. Worker and Planner mutations linearize against the same durable Stage write
-   fence; a Planner memory call also completes before Planner can return a
-   candidate and enter finalizing.
+9. Worker mutations linearize against the allocation grant fence; Planner
+   mutations linearize against the durable Stage transition. Scheduler orders
+   every allocation fence before that transition, so both participate in one
+   terminal barrier. A Planner memory call also completes before Planner can
+   return a candidate and enter finalizing.
 10. Note bodies and descriptive metadata never enter durable or external
     telemetry.
 11. Memory is Run-scoped and observed only through explicit tools; there is no

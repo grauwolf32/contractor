@@ -75,8 +75,8 @@ func (p *streamlinePlanner) buildTools(
 	state *executionState,
 	identity planner.SessionIdentity,
 ) ([]tool.Tool, map[string]struct{}, error) {
-	result := make([]tool.Tool, 0, 4)
-	allowed := make(map[string]struct{}, 4)
+	result := make([]tool.Tool, 0, 4+len(p.workers)*2)
+	allowed := make(map[string]struct{}, 4+len(p.workers)*2)
 	addSubtask, err := functiontool.New(functiontool.Config{
 		Name:        addSubtaskToolName,
 		Description: "Append one bounded immutable subtask to the ordered Stage plan. Objective and instructions are stored once; later Worker dispatches identify this exact work only by subtask_id.",
@@ -132,6 +132,11 @@ func (p *streamlinePlanner) buildTools(
 	}
 	result = append(result, executeCurrentSubtask)
 	allowed[executeCurrentSubtaskToolName] = struct{}{}
+	memoryTools, err := p.buildMemoryTools(state, allowed)
+	if err != nil {
+		return nil, nil, err
+	}
+	result = append(result, memoryTools...)
 	finish, err := functiontool.New(functiontool.Config{
 		Name:        finishToolName,
 		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",

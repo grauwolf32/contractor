@@ -12,6 +12,7 @@ import (
 
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -371,7 +372,7 @@ func (p *streamlinePlanner) systemInstruction() string {
 	for _, binding := range p.workers {
 		mappings = append(mappings, fmt.Sprintf("- %s: call %s", binding.logicalName, executeCurrentSubtaskToolName))
 	}
-	return strings.Join([]string{
+	sections := []string{
 		"You are the root Planner for exactly one immutable Contractor Stage.",
 		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed Workers, and result contract.",
 		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
@@ -382,9 +383,12 @@ func (p *streamlinePlanner) systemInstruction() string {
 		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
 		"Fixed Worker mapping:",
 		strings.Join(mappings, "\n"),
-		"Stage-specific operating guidance:",
-		p.request.Instructions,
-	}, "\n\n")
+	}
+	if guidance := p.memoryInstruction(); guidance != "" {
+		sections = append(sections, guidance)
+	}
+	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)
+	return strings.Join(sections, "\n\n")
 }
 
 func (p *streamlinePlanner) routerSystemInstruction() string {
@@ -392,7 +396,7 @@ func (p *streamlinePlanner) routerSystemInstruction() string {
 	for _, binding := range p.workers {
 		agents = append(agents, fmt.Sprintf("- %s: %s", binding.logicalName, binding.description))
 	}
-	return strings.Join([]string{
+	sections := []string{
 		"You are the Router Planner for exactly one immutable Contractor Stage.",
 		"The JSON user message contains the Stage objective, string parameters, exact input artifact references, fixed logical Workers, and result contract.",
 		"The Stage objective is the immutable global task. Create bounded ordered work with add_subtask; objective and instructions are stored once and cannot be changed during dispatch. Use list_subtasks when you need the authoritative current ID and statuses.",
@@ -401,11 +405,44 @@ func (p *streamlinePlanner) routerSystemInstruction() string {
 		"The Stage is not complete when you emit prose. You must call finish with a succeeded or failed candidate.",
 		"A succeeded finish requires at least one succeeded subtask and no pending work. A failed finish is allowed whenever no Worker dispatch is active.",
 		"finish reports only the semantic outcome; Workflow Scheduler validates the candidate and alone chooses every Workflow transition, including retry or configured escalation.",
-		"Stage-specific operating guidance:",
-		p.request.Instructions,
 		"Available agents:",
 		strings.Join(agents, "\n"),
-	}, "\n\n")
+	}
+	if guidance := p.memoryInstruction(); guidance != "" {
+		sections = append(sections, guidance)
+	}
+	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)
+	return strings.Join(sections, "\n\n")
+}
+
+func (p *streamlinePlanner) memoryInstruction() string {
+	bindings := make([]string, 0, len(p.workers))
+	for _, worker := range p.workers {
+		selected := make([]string, 0, len(worker.memoryTools))
+		for _, operation := range plannermemory.OperationNames() {
+			if _, ok := worker.memoryTools[operation]; ok {
+				selected = append(selected, operation)
+			}
+		}
+		if len(selected) > 0 {
+			bindings = append(bindings, fmt.Sprintf("- %s: %s", worker.logicalName, strings.Join(selected, ", ")))
+		}
+	}
+	if len(bindings) == 0 {
+		return ""
+	}
+	if !p.profile.routesWorkers {
+		return strings.Join([]string{
+			"Selected Memory tools operate on the shared Run-scoped notebook of the sole logical Worker. Call only the declared operations; their storage identity and revisions are hidden.",
+			"Memory notes are coordination state only. They never become Stage result artifacts automatically and do not change the global objective, subtask state, or finish contract.",
+		}, "\n")
+	}
+	return strings.Join([]string{
+		"Selected Memory tools operate on Run-scoped notebooks of logical Workers. Every declared Memory function requires worker_name; its schema permits exactly the Workers that selected that operation. Storage identities and revisions are hidden.",
+		"Memory notes are coordination state only. They never become Stage result artifacts automatically and do not change the global objective, routing plan, subtask state, or finish contract.",
+		"Memory operations by logical Worker:",
+		strings.Join(bindings, "\n"),
+	}, "\n")
 }
 
 func (p *streamlinePlanner) recoverCompletion(

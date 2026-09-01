@@ -104,6 +104,45 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 	})
 }
 
+// EnterAbortingWithTermination takes lifecycle locks in the same Run-then-Stage
+// order as every other Scheduler commit point. The Stage lifecycle trigger
+// allocates a WorkflowRun event sequence and therefore also touches the Run;
+// calling runstore.EnterAborting directly on a pool would otherwise acquire
+// Stage-then-Run and could deadlock with a Planner Memory transaction.
+func (p *PostgresPersistence) EnterAbortingWithTermination(
+	ctx context.Context,
+	runID string,
+	params runstore.EnterAbortingParams,
+) error {
+	return persistencepostgres.InTx(ctx, p.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunForAborting(ctx, tx, runID); err != nil {
+			return err
+		}
+		if err := lockStageForRun(ctx, tx, params.StageExecutionID, runID); err != nil {
+			return err
+		}
+		return runstore.NewPostgresStore(tx).EnterAborting(ctx, params)
+	})
+}
+
+func lockRunForAborting(ctx context.Context, tx pgx.Tx, runID string) error {
+	var actual runstore.WorkflowRunState
+	err := tx.QueryRow(ctx, `SELECT state FROM workflow_runs WHERE run_id = $1 FOR UPDATE`, runID).Scan(&actual)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("lock WorkflowRun %q: %w", runID, runstore.ErrNotFound)
+	}
+	if err != nil {
+		return fmt.Errorf("lock WorkflowRun %q: %w", runID, err)
+	}
+	if actual != runstore.RunRunning && actual != runstore.RunCancelling {
+		return &runstore.StateConflictError{
+			Resource: "WorkflowRun", ID: runID,
+			Expected: string(runstore.RunRunning) + " or " + string(runstore.RunCancelling),
+		}
+	}
+	return nil
+}
+
 func (p *PostgresPersistence) CommitResultProgression(
 	ctx context.Context,
 	value ResultProgression,

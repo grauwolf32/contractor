@@ -38,8 +38,11 @@ scope:
     - Reject unknown/stale worker_name and impossible operations before Artifact side effects; do not synthesize a function whose allowed Worker enum is empty.
     - Keep Planner execution dispatch, add_subtask/list_subtasks/finish surfaces unchanged and detect any final model-visible name collision at construction.
     - Count Planner memory calls through ordinary function-call accounting and one finite maxModelCalls turn each; retain only content-free diagnostics.
-    - Reduce durable Planner facts/WebSocket events to operation, logical Worker, note name, byte sizes and stable outcome; strip content, description, tags and hidden revisions.
-    - Bind the trusted Planner Artifact view to the active StageExecution and check its durable write fence atomically in the same transaction as a memory binding mutation; finalizing/aborting wins or the complete write wins, never a late commit.
+    - Make successful Planner calls expose the same logical full-note, preview-list and tag-list results as Worker calls, with no Planner-only storage envelope.
+    - Reduce durable Planner facts/WebSocket events to at most operation, logical Worker, note name, byte sizes and stable outcome; strip content, description, tags and hidden revisions.
+    - Bind the trusted Planner Artifact view to the active StageExecution and lock/check its durable lifecycle state in the same transaction as a memory binding mutation; finalizing/aborting wins or the complete write wins, never a late commit.
+    - Make every Scheduler terminal transition that can race Planner Memory lock WorkflowRun then StageExecution; do not call a Stage-first RunStore abort transition whose event trigger also locks the Run.
+    - Convert malformed argument shapes to memory_invalid and absent/unknown/operation-ineligible Router worker_name to memory_forbidden before Artifact side effects instead of exposing framework JSON-Schema errors.
     - Cancel the bound tool context with Planner invocation and ensure a call completes before candidate/finalizing transition.
   out:
     - Mirroring run-artifacts@1 or any other domain Toolset, Passthrough model tools, concurrent tool execution, new Workflow YAML or dynamic Worker expansion.
@@ -49,6 +52,7 @@ deliverables:
   - {path: internal/planner/streamline, description: Exact single-Worker MemoryTools derivation.}
   - {path: internal/planner/router, description: Per-operation logical worker_name schemas and routing.}
   - {path: internal/planner/session, description: Memory-call redaction and bounded fact projection.}
+  - {path: internal/scheduler, description: Run-then-Stage atomic finalizing/aborting transition boundary shared with Planner Memory locking.}
 
 requirements:
   - id: R1
@@ -76,12 +80,17 @@ acceptance_criteria:
     when: The next side reads memory.
     then: Both observe the same current logical note and no Artifact revision appears in either model transcript.
   - id: A4
-    given: A stale/unknown Worker, hidden CAS conflict, budget exhaustion or concurrent finalizing/aborting transition.
+    given: A stale/unknown Worker or concurrent finalizing/aborting transition.
     when: Planner invokes MemoryTools.
-    then: The mutation commits wholly before the fence or fails memory_forbidden with no late write, and durable facts contain no note body/description/tags.
+    then: The call fails memory_forbidden before an unauthorized side effect, or the mutation commits wholly before the durable transition with no late write.
+  - id: A5
+    given: A malformed argument shape, hidden CAS conflict, exhausted Planner model budget and unique note content/description/tag canaries.
+    when: Planner processes the calls and persists its ordinary report and ADK facts.
+    then: The outcomes are respectively memory_invalid, memory_changed and the existing bounded Planner budget failure, while durable facts and diagnostics retain none of the canaries or hidden revisions.
 
 tests:
-  - {name: planner-memory, command: "go test ./internal/memory/... ./internal/planner/...", covers: [A1, A2, A3, A4]}
-  - {name: sessions, command: "go test ./internal/planner/session/... ./internal/runstore/...", covers: [A4]}
-  - {name: races, command: "go test -race ./internal/memory/... ./internal/planner/...", covers: [A3, A4]}
-  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+  - {name: planner-memory, command: "go test ./internal/memory/... ./internal/planner/...", covers: [A1, A2, A3, A4, A5]}
+  - {name: sessions, command: "go test ./internal/planner/session/... ./internal/runstore/...", covers: [A4, A5]}
+  - {name: postgres-lifecycle, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -count=5 ./internal/memory/... -run '^TestPostgresPlannerMemory'", covers: [A4]}
+  - {name: races, command: "go test -race ./internal/memory/... ./internal/planner/... ./internal/scheduler/...", covers: [A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A5]}

@@ -24,6 +24,7 @@ import (
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/persistence/configaudit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -321,6 +322,10 @@ func RunCLI(
 	if err != nil {
 		return err
 	}
+	plannerMemoryStore, err := plannermemory.NewPostgresStore(pool)
+	if err != nil {
+		return fmt.Errorf("configure Planner Memory store: %w", err)
+	}
 	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool), plannersession.Options{})
 	if err != nil {
 		return fmt.Errorf("configure Planner sessions: %w", err)
@@ -341,14 +346,16 @@ func RunCLI(
 	}
 	streamlineLimits := streamline.DefaultLimits()
 	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
-	streamlineFactory, err := streamline.NewConfiguredFactory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModelFactory, streamlineLimits,
+	streamlineFactory, err := streamline.NewConfiguredFactoryWithMemory(
+		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
+		plannerMemoryStore, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Streamline Planner: %w", err)
 	}
-	routerFactory, err := plannerrouter.NewConfiguredFactory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector, plannerModelFactory, streamlineLimits,
+	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
+		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
+		plannerMemoryStore, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Router Planner: %w", err)

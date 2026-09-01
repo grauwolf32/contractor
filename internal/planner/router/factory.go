@@ -4,6 +4,7 @@
 package router
 
 import (
+	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"google.golang.org/adk/model"
@@ -38,6 +39,24 @@ func NewFactory(
 	return &Factory{delegate: delegate}, nil
 }
 
+func NewFactoryWithMemory(
+	sessions planner.PlanSessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
+	llm model.LLM,
+	limits Limits,
+) (*Factory, error) {
+	delegate, err := streamline.NewRouterDelegateWithMemory(
+		sessions, adkSessions, invoker, inspector, memoryStore, llm, limits,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Factory{delegate: delegate}, nil
+}
+
 func NewConfiguredFactory(
 	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
@@ -48,6 +67,24 @@ func NewConfiguredFactory(
 ) (*Factory, error) {
 	delegate, err := streamline.NewConfiguredRouterDelegate(
 		sessions, adkSessions, invoker, inspector, modelFactory, limits,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Factory{delegate: delegate}, nil
+}
+
+func NewConfiguredFactoryWithMemory(
+	sessions planner.PlanSessionService,
+	adkSessions ADKSessionFactory,
+	invoker planner.WorkerInvoker,
+	inspector planner.ArtifactInspector,
+	memoryStore plannermemory.Store,
+	modelFactory InvocationModelFactory,
+	limits Limits,
+) (*Factory, error) {
+	delegate, err := streamline.NewConfiguredRouterDelegateWithMemory(
+		sessions, adkSessions, invoker, inspector, memoryStore, modelFactory, limits,
 	)
 	if err != nil {
 		return nil, err

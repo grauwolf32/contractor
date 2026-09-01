@@ -75,16 +75,20 @@ reason is appended here.
 - Reason: capability discovery must not alter user data, and a successful
   create/delete test could not prove future availability anyway.
 
-### D006 — Planner Memory mutations use the Stage write fence
+### D006 — Planner and Worker Memory share one ordered terminal barrier
 
-- Applies to: V9-003 and V9-005.
+- Applies to: V9-003 and V9-006.
 - Decision: the Server-side Planner MemoryTools view is bound to the active
-  StageExecution. Its CAS write and the durable finalizing/aborting fence are
-  checked in one Artifact transaction, exactly like Worker authority at the
-  private API boundary.
+  StageExecution. Its CAS write locks and checks WorkflowRun then
+  StageExecution in the same Artifact transaction. Worker writes remain under
+  the separate allocation-grant gate. Scheduler first fences every grant and
+  waits for any grant-held write, then enters finalizing/aborting in the same
+  Run-then-Stage database lock order used by Planner Memory.
 - Reason: a Run-scoped direct ArtifactStore view without a Stage fence could
   commit a late note after cancellation even though Worker writes were already
-  revoked.
+  revoked. Pretending the in-memory grant gate and durable Stage lock are one
+  physical fence would also hide the ordering needed to avoid late commits and
+  database deadlocks.
 
 ### D007 — No hidden project affinity in V11
 
@@ -628,3 +632,24 @@ tests that make the choice observable.
   its fragment. A single exact replay plus equality reconciliation preserves
   at-most-once logical mutation without a Memory-specific replay table or
   exposing revisions to the model.
+
+### D028 — Planner Memory uses a closed ADK adapter and global lifecycle lock order
+
+- Applies to: V9-003 and later MemoryTools tasks.
+- Decision: Streamline and Router install custom structural ADK tools for the
+  selected Memory operations. They advertise the exact JSON Schema but reduce
+  malformed raw arguments themselves to the closed `memory_invalid` or
+  `memory_forbidden` vocabulary before storage access. Successful values keep
+  the same Worker logical projections; durable Planner facts retain only safe
+  names, counts, byte sizes and outcomes. Logical Worker bindings that resolve
+  to one Agent Namespace reuse one serialized Namespace object while retaining
+  their distinct operation allowlists. Passthrough receives no Planner tools.
+- Lifecycle decision: every Scheduler transition that can race an active
+  Planner Memory call takes PostgreSQL locks in WorkflowRun-then-StageExecution
+  order. In particular, abort entry is an atomic Scheduler persistence
+  operation rather than a direct Stage-first RunStore update, because the
+  Stage event trigger also updates the WorkflowRun sequence.
+- Reason: ADK's generic function wrapper can surface framework validation text
+  before the handler runs, and a Stage-first abort update deadlocks with the
+  Planner's required Run-first authority check. Both details are adapter and
+  persistence mechanics, not additions to the public Memory contract.

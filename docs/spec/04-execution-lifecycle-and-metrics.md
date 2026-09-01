@@ -660,7 +660,9 @@ WorkflowRun recovery uses durable Scheduler state, not live ADK sessions:
     inside RuntimeSettings under [07], holds it in memory and erases it during
     release.
 11. Allocations are released only after StageExecution is terminal.
-12. Worker MemoryTools mutations use the ordinary Artifact write fence;
-    Planner memory calls finish synchronously before candidate transition.
+12. Worker MemoryTools mutations use the allocation-grant write fence. Planner
+    mutations lock the active Run and Stage in the Artifact transaction.
+    Scheduler fences all grants before the durable finalizing/aborting
+    transition, and Planner calls finish synchronously before a candidate.
     Neither side's memory content enters durable session facts or execution
     telemetry.
