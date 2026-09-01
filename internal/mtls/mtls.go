@@ -3,17 +3,24 @@
 package mtls
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
 const ControlPlaneURIPrefix = "urn:contractor:control-plane:"
 
-var ErrControlPlaneRole = errors.New("peer certificate is not a Contractor Control Plane certificate")
+var (
+	ErrControlPlaneRole     = errors.New("peer certificate is not a Contractor Control Plane certificate")
+	ErrRuntimeAgentIdentity = errors.New("peer certificate does not match the Runtime Agent principal")
+	runtimeAgentIDPattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
+)
 
 type Files struct {
 	Certificate string
@@ -107,6 +114,57 @@ func VerifyControlPlanePeer(state tls.ConnectionState) error {
 		}
 	}
 	return fmt.Errorf("%w: required URI SAN is absent", ErrControlPlaneRole)
+}
+
+// RuntimeAgentID derives the stable, non-secret Runtime Agent principal from
+// the exact DER SubjectPublicKeyInfo carried by the authenticated leaf. A
+// renewed certificate that reuses the key therefore retains its identity.
+func RuntimeAgentID(certificate *x509.Certificate) (string, error) {
+	if certificate == nil || len(certificate.RawSubjectPublicKeyInfo) == 0 {
+		return "", fmt.Errorf("%w: peer leaf has no SubjectPublicKeyInfo", ErrRuntimeAgentIdentity)
+	}
+	sum := sha256.Sum256(certificate.RawSubjectPublicKeyInfo)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// RuntimeAgentIDFromConnection derives a principal only from a normally
+// verified TLS connection. Callers must not use an unverified peer chain as
+// authentication input.
+func RuntimeAgentIDFromConnection(state *tls.ConnectionState) (string, error) {
+	if state == nil || len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
+		return "", fmt.Errorf("%w: peer has no verified certificate chain", ErrRuntimeAgentIdentity)
+	}
+	if len(state.VerifiedChains[0]) == 0 {
+		return "", fmt.Errorf("%w: verified chain has no leaf", ErrRuntimeAgentIdentity)
+	}
+	return RuntimeAgentID(state.VerifiedChains[0][0])
+}
+
+// BindRuntimeAgentPrincipal clones a normal endpoint-verifying client config
+// and adds an SPKI equality check. VerifyConnection executes after Go's chain,
+// EKU and DNS/IP SAN verification but before net/http writes request bytes.
+func BindRuntimeAgentPrincipal(base *tls.Config, expectedRuntimeAgentID string) (*tls.Config, error) {
+	if base == nil || !runtimeAgentIDPattern.MatchString(expectedRuntimeAgentID) {
+		return nil, fmt.Errorf("%w: expected principal is invalid", ErrRuntimeAgentIdentity)
+	}
+	result := base.Clone()
+	previous := result.VerifyConnection
+	result.VerifyConnection = func(state tls.ConnectionState) error {
+		if previous != nil {
+			if err := previous(state); err != nil {
+				return err
+			}
+		}
+		actual, err := RuntimeAgentIDFromConnection(&state)
+		if err != nil {
+			return err
+		}
+		if actual != expectedRuntimeAgentID {
+			return fmt.Errorf("%w: SPKI fingerprint differs", ErrRuntimeAgentIdentity)
+		}
+		return nil
+	}
+	return result, nil
 }
 
 func load(files Files) (tls.Certificate, *x509.CertPool, error) {

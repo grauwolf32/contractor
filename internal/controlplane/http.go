@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,9 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 const maxPrivateJSONBody = 1 << 20
@@ -25,6 +28,11 @@ type privateErrorResponse struct {
 type HTTPOptions struct {
 	NewRequestID func() (string, error)
 	Logger       *slog.Logger
+	Principals   PrincipalRegistrar
+}
+
+type PrincipalRegistrar interface {
+	Register(context.Context, string, []string) (runtimeconfig.RuntimeAgentPrincipal, error)
 }
 
 func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, error) {
@@ -38,7 +46,10 @@ func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, e
 	if len(supplied) == 1 {
 		options = supplied[0]
 	}
-	handler := &privateHTTPHandler{registry: registry}
+	if options.Principals == nil {
+		return nil, errors.New("Runtime Agent principal registrar is required")
+	}
+	handler := &privateHTTPHandler{registry: registry, principals: options.Principals}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /private/v1/agents/register", handler.register)
 	mux.HandleFunc("POST /private/v1/agents/{instanceID}/heartbeat", handler.heartbeat)
@@ -51,15 +62,22 @@ func NewHTTPHandler(registry Registry, supplied ...HTTPOptions) (http.Handler, e
 	}), nil
 }
 
-type privateHTTPHandler struct{ registry Registry }
+type privateHTTPHandler struct {
+	registry   Registry
+	principals PrincipalRegistrar
+}
+
+type runtimeAgentPrincipalContextKey struct{}
 
 func (h *privateHTTPHandler) requireMTLS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.PeerCertificates) == 0 {
+		runtimeAgentID, err := mtls.RuntimeAgentIDFromConnection(r.TLS)
+		if err != nil {
 			writePrivateError(w, http.StatusUnauthorized, "mtls_required", "a verified client certificate is required", false)
 			return
 		}
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), runtimeAgentPrincipalContextKey{}, runtimeAgentID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -68,16 +86,30 @@ func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: query parameters are not supported", ErrInvalidRequest))
 		return
 	}
-	registration, err := decodePrivateJSON[contracts.AgentRegistration](w, r)
+	registration, err := decodePrivateV2JSON[contracts.AgentRegistrationV2](w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	if _, err := h.registry.Register(registration); err != nil {
+	runtimeAgentID, ok := r.Context().Value(runtimeAgentPrincipalContextKey{}).(string)
+	if !ok {
+		h.handleError(w, errors.New("authenticated Runtime Agent principal is unavailable"))
+		return
+	}
+	principal, err := h.principals.Register(r.Context(), runtimeAgentID, registration.InitialLabels)
+	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse())
+	authenticated := AuthenticatedPrincipal{
+		RuntimeAgentID: principal.RuntimeAgentID,
+		Labels:         principal.Labels, LabelRevision: principal.LabelRevision,
+	}
+	if _, err := h.registry.RegisterAuthenticated(authenticated, registration); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse(authenticated))
 }
 
 func (h *privateHTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +126,12 @@ func (h *privateHTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: path and body instance IDs differ", ErrInvalidRequest))
 		return
 	}
-	response, err := h.registry.Heartbeat(heartbeat)
+	runtimeAgentID, ok := r.Context().Value(runtimeAgentPrincipalContextKey{}).(string)
+	if !ok {
+		h.handleError(w, errors.New("authenticated Runtime Agent principal is unavailable"))
+		return
+	}
+	response, err := h.registry.HeartbeatAuthenticated(runtimeAgentID, heartbeat)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -106,6 +143,9 @@ func (h *privateHTTPHandler) handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidRequest), errors.Is(err, contracts.ErrValidation):
 		writePrivateError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private API contract", false)
+	case errors.Is(err, runtimeconfig.ErrInvalid), errors.Is(err, runtimeconfig.ErrNotFound),
+		errors.Is(err, runtimeconfig.ErrConflict), errors.Is(err, runtimeconfig.ErrPrecondition):
+		writePrivateError(w, http.StatusBadRequest, "invalid_runtime_labels", "Runtime Agent labels cannot be registered", false)
 	case errors.Is(err, ErrRegistrationConflict), errors.Is(err, ErrHeartbeatOutOfOrder):
 		writePrivateError(w, http.StatusConflict, "conflict", "request conflicts with current Runtime Agent state", true)
 	default:
@@ -144,6 +184,39 @@ func decodePrivateJSON[T contracts.Validatable](w http.ResponseWriter, r *http.R
 		return zero, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
 	return value, nil
+}
+
+func decodePrivateV2JSON[T contracts.Validatable](w http.ResponseWriter, r *http.Request) (T, error) {
+	var zero T
+	data, err := readPrivateJSON(w, r)
+	if err != nil {
+		return zero, err
+	}
+	value, err := contracts.DecodePrivateV2Strict[T](data)
+	if err != nil {
+		return zero, fmt.Errorf("%w: private protocol v2 input is invalid", ErrInvalidRequest)
+	}
+	return value, nil
+}
+
+func readPrivateJSON(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+	values := r.Header.Values("Content-Type")
+	if len(values) != 1 {
+		return nil, fmt.Errorf("%w: exactly one Content-Type is required", ErrInvalidRequest)
+	}
+	mediaType, parameters, err := mime.ParseMediaType(values[0])
+	if err != nil || mediaType != "application/json" || len(parameters) != 0 {
+		return nil, fmt.Errorf("%w: Content-Type must be application/json without parameters", ErrInvalidRequest)
+	}
+	if r.ContentLength > maxPrivateJSONBody {
+		return nil, fmt.Errorf("%w: request body is too large", ErrInvalidRequest)
+	}
+	body := http.MaxBytesReader(w, r.Body, maxPrivateJSONBody)
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read request body", ErrInvalidRequest)
+	}
+	return data, nil
 }
 
 func writePrivateError(w http.ResponseWriter, status int, code, message string, retryable bool) {

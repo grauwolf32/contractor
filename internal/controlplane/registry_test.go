@@ -3,6 +3,7 @@ package controlplane
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -414,6 +415,87 @@ func TestRegistrationResponseLossRetryIsIdempotent(t *testing.T) {
 	if _, err := registry.Register(changed); !errors.Is(err, ErrRegistrationConflict) {
 		t.Fatalf("changed registration identity error = %v", err)
 	}
+}
+
+func TestAuthenticatedPrincipalOwnsOnlyOneLiveProcessAndEveryHeartbeat(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	principal := AuthenticatedPrincipal{
+		RuntimeAgentID: strings.Repeat("a", 64), Labels: []string{"debug"}, LabelRevision: 3,
+	}
+	first := testRegistrationV2("agent-principal-first")
+	first.InitialLabels = []string{"startup-value"}
+	if _, err := registry.RegisterAuthenticated(principal, first); err != nil {
+		t.Fatal(err)
+	}
+
+	retry := first
+	retry.InitialLabels = []string{}
+	snapshot, err := registry.RegisterAuthenticated(principal, retry)
+	if err != nil || snapshot.Principal.LabelRevision != 3 ||
+		!equalTestStrings(snapshot.Principal.Labels, []string{"debug"}) {
+		t.Fatalf("same-process retry = (%+v, %v)", snapshot, err)
+	}
+	second := testRegistrationV2("agent-principal-second")
+	if _, err := registry.RegisterAuthenticated(principal, second); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("concurrent same-principal registration error = %v", err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(
+		strings.Repeat("b", 64), heartbeat(first.InstanceID, 1, 0),
+	); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("foreign-principal heartbeat error = %v", err)
+	}
+	if _, err := registry.HeartbeatAuthenticated(
+		principal.RuntimeAgentID, heartbeat(first.InstanceID, 1, 0),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	clock.Advance(61 * time.Second)
+	registry.PollAllocationLosses()
+	if _, err := registry.RegisterAuthenticated(principal, second); err != nil {
+		t.Fatalf("post-expiry same-principal registration: %v", err)
+	}
+}
+
+func TestPrincipalDeletionGuardExcludesRegistrationWithoutHoldingDurableWork(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	principal := AuthenticatedPrincipal{
+		RuntimeAgentID: strings.Repeat("c", 64), Labels: []string{}, LabelRevision: 1,
+	}
+	registration := testRegistrationV2("agent-delete-guard")
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.BeginPrincipalDeletion(principal.RuntimeAgentID); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("live principal deletion guard error = %v", err)
+	}
+	clock.Advance(61 * time.Second)
+	registry.PollAllocationLosses()
+	release, err := registry.BeginPrincipalDeletion(principal.RuntimeAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.RegisterAuthenticated(principal, registration); !errors.Is(err, ErrRegistrationConflict) {
+		t.Fatalf("registration during deletion error = %v", err)
+	}
+	release()
+	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
+		t.Fatalf("registration after deletion guard release: %v", err)
+	}
+}
+
+func equalTestStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestLeaseExpiryAfterResponsePartitionIsIrreversible(t *testing.T) {

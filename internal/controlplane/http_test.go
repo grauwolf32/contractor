@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -17,17 +18,22 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	handler, err := NewHTTPHandler(registry, HTTPOptions{
 		NewRequestID: func() (string, error) { return "control-request-fixed", nil },
+		Principals:   testPrincipalRegistrar{},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	registration := testRegistration("agent-http")
+	registration := testRegistrationV2("agent-http")
+	if err := registration.Validate(); err != nil {
+		t.Fatalf("test registration is invalid: %v", err)
+	}
 	body, _ := json.Marshal(registration)
 
 	unauthenticated := httptest.NewRecorder()
@@ -51,9 +57,25 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	if trusted.Code != http.StatusOK {
 		t.Fatalf("registration status = %d, body %s", trusted.Code, trusted.Body.String())
 	}
-	var response contracts.AgentRegistrationResponse
+	var response contracts.AgentRegistrationResponseV2
 	if err := json.Unmarshal(trusted.Body.Bytes(), &response); err != nil || response.HeartbeatIntervalSeconds != 10 || response.ConfirmedLeaseSeconds != 60 {
 		t.Fatalf("registration response = (%+v, %v)", response, err)
+	}
+	wantPrincipal, _ := mtls.RuntimeAgentID(&x509.Certificate{
+		RawSubjectPublicKeyInfo: []byte("test-runtime-key"),
+	})
+	if response.PrivateProtocolVersion != 2 || response.RuntimeAgentID != wantPrincipal ||
+		response.LabelRevision != 1 || response.Labels == nil {
+		t.Fatalf("protocol-v2 principal response = %+v", response)
+	}
+
+	legacyBody, _ := json.Marshal(testRegistration("legacy-agent"))
+	legacy := httptest.NewRecorder()
+	handler.ServeHTTP(
+		legacy, verifiedRequest(http.MethodPost, "/private/v1/agents/register", legacyBody),
+	)
+	if legacy.Code != http.StatusBadRequest {
+		t.Fatalf("v1 registration status = %d, body %s", legacy.Code, legacy.Body.String())
 	}
 
 	invalidBody := append(bytes.TrimSuffix(body, []byte("}")), []byte(`,"unknown":true}`)...)
@@ -66,7 +88,7 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 
 func TestPrivateHeartbeatPathMustMatchBodyAndUnknownAgentReregisters(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	handler, _ := NewHTTPHandler(registry)
+	handler, _ := NewHTTPHandler(registry, HTTPOptions{Principals: testPrincipalRegistrar{}})
 	heartbeatBody, _ := json.Marshal(heartbeat("unknown", 1, 0))
 
 	mismatch := httptest.NewRecorder()
@@ -90,7 +112,7 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 	trusted := generatePKI(t, "trusted")
 	foreign := generatePKI(t, "foreign")
 	registry := newTestRegistry(t, newTestClock())
-	handler, _ := NewHTTPHandler(registry)
+	handler, _ := NewHTTPHandler(registry, HTTPOptions{Principals: testPrincipalRegistrar{}})
 	serverTLS, err := mtls.ControlPlaneServerConfig(trusted.controlPlane)
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +123,7 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 	server.StartTLS()
 	defer server.Close()
 
-	registration := testRegistration("trusted-agent")
+	registration := testRegistrationV2("trusted-agent")
 	body, _ := json.Marshal(registration)
 	trustedClientTLS, err := mtls.ControlPlaneClientConfig(trusted.agent, "127.0.0.1")
 	if err != nil {
@@ -124,7 +146,7 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreignClient := &http.Client{Transport: &http.Transport{TLSClientConfig: foreignClientTLS}, Timeout: 3 * time.Second}
-	foreignRegistration := testRegistration("foreign-agent")
+	foreignRegistration := testRegistrationV2("foreign-agent")
 	foreignBody, _ := json.Marshal(foreignRegistration)
 	if response, err := postJSON(foreignClient, server.URL+"/private/v1/agents/register", foreignBody); err == nil {
 		_ = response.Body.Close()
@@ -137,13 +159,39 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 
 func verifiedRequest(method, target string, body []byte) *http.Request {
 	request := httptest.NewRequest(method, target, bytes.NewReader(body))
-	certificate := &x509.Certificate{}
+	certificate := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("test-runtime-key")}
 	request.TLS = &tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{certificate},
 		VerifiedChains:   [][]*x509.Certificate{{certificate}},
 	}
 	request.Header.Set("Content-Type", "application/json")
 	return request
+}
+
+func testRegistrationV2(instanceID string) contracts.AgentRegistrationV2 {
+	legacy := testRegistration(instanceID)
+	return contracts.AgentRegistrationV2{
+		APIVersion: legacy.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
+		InstanceID: legacy.InstanceID, SoftwareVersion: legacy.SoftwareVersion,
+		StartedAt: legacy.StartedAt, ControlURL: legacy.ControlURL, A2AURL: legacy.A2AURL,
+		InitialLabels: []string{}, SupportedRuntimes: legacy.SupportedRuntimes,
+		SupportedToolsets:        legacy.SupportedToolsets,
+		SupportedSandboxProfiles: legacy.SupportedSandboxProfiles,
+		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		ObservedState:            legacy.ObservedState, AllocationID: legacy.AllocationID,
+	}
+}
+
+type testPrincipalRegistrar struct{}
+
+func (testPrincipalRegistrar) Register(
+	_ context.Context, runtimeAgentID string, labels []string,
+) (runtimeconfig.RuntimeAgentPrincipal, error) {
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	return runtimeconfig.RuntimeAgentPrincipal{
+		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...),
+		LabelRevision: 1, CreatedBy: "test", CreatedAt: now, UpdatedBy: "test", UpdatedAt: now,
+	}, nil
 }
 
 func postJSON(client *http.Client, target string, body []byte) (*http.Response, error) {

@@ -4,6 +4,7 @@ package a2a
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,6 +45,8 @@ type Invoker struct {
 	build        clientBuilder
 	pollInterval time.Duration
 	requireHTTPS bool
+	tlsConfig    *tls.Config
+	timeout      time.Duration
 }
 
 // New accepts an injected HTTP client for tests and local composition. Private
@@ -71,7 +74,13 @@ func NewMTLS(files mtls.Files, timeout time.Duration, options Options) (*Invoker
 		},
 		Timeout: timeout,
 	}
-	return newInvoker(httpClient, options, true)
+	result, err := newInvoker(httpClient, options, true)
+	if err != nil {
+		return nil, err
+	}
+	result.tlsConfig = tlsConfig
+	result.timeout = timeout
+	return result, nil
 }
 
 func newInvoker(
@@ -86,8 +95,14 @@ func newInvoker(
 	if options.PollInterval < 0 {
 		return nil, fmt.Errorf("A2A poll interval must be positive")
 	}
-	client := cloneBoundedHTTPClient(httpClient)
-	builder := func(ctx context.Context, card *sdk.AgentCard) (protocolClient, error) {
+	builder := sdkClientBuilder(cloneBoundedHTTPClient(httpClient))
+	return &Invoker{
+		build: builder, pollInterval: options.PollInterval, requireHTTPS: requireHTTPS,
+	}, nil
+}
+
+func sdkClientBuilder(client *http.Client) clientBuilder {
+	return func(ctx context.Context, card *sdk.AgentCard) (protocolClient, error) {
 		factory := a2aclient.NewFactory(
 			a2aclient.WithDefaultsDisabled(),
 			a2aclient.WithJSONRPCTransport(client),
@@ -98,9 +113,6 @@ func newInvoker(
 		)
 		return factory.CreateFromCard(ctx, card)
 	}
-	return &Invoker{
-		build: builder, pollInterval: options.PollInterval, requireHTTPS: requireHTTPS,
-	}, nil
 }
 
 func (i *Invoker) Invoke(
@@ -123,7 +135,22 @@ func (i *Invoker) Invoke(
 	if err != nil {
 		return contracts.StageContentResult{}, err
 	}
-	client, buildErr := i.build(ctx, card)
+	builder := i.build
+	if i.tlsConfig != nil {
+		bound, bindErr := mtls.BindRuntimeAgentPrincipal(i.tlsConfig, handle.RuntimeAgentID)
+		if bindErr != nil {
+			return contracts.StageContentResult{}, planner.NewError(
+				"invalid_worker_handle", "Worker handle has no valid Runtime Agent principal", false, nil,
+			)
+		}
+		transport := &http.Transport{
+			TLSClientConfig: bound, ForceAttemptHTTP2: false, DisableKeepAlives: true,
+			TLSHandshakeTimeout: i.timeout, ResponseHeaderTimeout: i.timeout,
+		}
+		client := &http.Client{Transport: transport, Timeout: i.timeout}
+		builder = sdkClientBuilder(cloneBoundedHTTPClient(client))
+	}
+	client, buildErr := builder(ctx, card)
 	if buildErr != nil {
 		return contracts.StageContentResult{}, transportError(ctx, buildErr)
 	}

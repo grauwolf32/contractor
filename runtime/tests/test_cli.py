@@ -82,6 +82,10 @@ def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path
             if self.path == "/private/v1/agents/register":
                 response = {
                     "apiVersion": "contractor/v1alpha1",
+                    "privateProtocolVersion": 2,
+                    "runtimeAgentId": "a" * 64,
+                    "labels": [],
+                    "labelRevision": 1,
                     "heartbeatIntervalSeconds": 10,
                     "confirmedLeaseSeconds": 60,
                 }

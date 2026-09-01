@@ -101,11 +101,16 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allocationID := r.PathValue("allocationID")
+	identity, ok := r.Context().Value(authenticatedRuntimeContextKey{}).(authenticatedRuntime)
+	if !ok {
+		h.handleError(w, errArtifactAccessDenied)
+		return
+	}
 	var result artifacts.WriteResult
 	err = h.dependencies.Registry.WithWriteGrant(
 		allocationID,
 		func(grant controlplane.AllocationGrant) error {
-			store, storeErr := h.runStoreForGrant(allocationID, grant, true)
+			store, storeErr := h.runStoreForGrant(allocationID, grant, identity, true)
 			if storeErr != nil {
 				return storeErr
 			}

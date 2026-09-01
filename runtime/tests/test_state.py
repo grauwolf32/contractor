@@ -52,7 +52,7 @@ def test_idle_is_committed_only_after_registration_ack(
     asyncio.run(scenario())
 
 
-def test_v2_startup_inputs_remain_inert_until_protocol_activation() -> None:
+def test_v2_startup_inputs_are_emitted_after_protocol_activation() -> None:
     async def scenario() -> None:
         capabilities = CapabilitySnapshot.create(
             runtimes=["adk@1"],
@@ -74,9 +74,10 @@ def test_v2_startup_inputs_remain_inert_until_protocol_activation() -> None:
             instance_id="runtime-v1-until-v8-004", capabilities=capabilities
         ).registration(settings)
         wire = registration.model_dump(mode="json", by_alias=True)
-        assert "privateProtocolVersion" not in wire
-        assert "initialLabels" not in wire
-        assert "supportedRuntimeAdapters" not in wire
+        assert wire["privateProtocolVersion"] == 2
+        assert wire["initialLabels"] == ["debug"]
+        assert wire["supportedRuntimeAdapters"] == ["otlp-http@1"]
+        assert "runtimeAgentId" not in wire
 
     asyncio.run(scenario())
 

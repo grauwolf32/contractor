@@ -104,6 +104,38 @@ func TestRuntimeCredentialMigrationKeepsOnlyEncryptedReplayState(t *testing.T) {
 	}
 }
 
+func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var principals migration
+	for _, item := range items {
+		if item.name == "000017_runtime_agent_principals.sql" {
+			principals = item
+			break
+		}
+	}
+	if principals.name == "" {
+		t.Fatal("Runtime Agent principal migration is not embedded")
+	}
+	contents := strings.ToLower(string(principals.contents))
+	for _, required := range []string{
+		"runtime_agent_principals", "runtime_agent_id", "label_revision numeric(20, 0)",
+		"contractor_valid_runtime_agent_labels", "contractor_protect_runtime_agent_principal",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Runtime Agent principal migration does not contain %q", required)
+		}
+	}
+	for _, forbidden := range []string{"heartbeat", "lease_expires", "observed_state", "allocation_id", "control_url"} {
+		if strings.Contains(contents, forbidden) {
+			t.Fatalf("Runtime Agent principal migration contains liveness field %q", forbidden)
+		}
+	}
+}
+
 func TestInvalidDatabaseConfigurationIsRedacted(t *testing.T) {
 	t.Parallel()
 

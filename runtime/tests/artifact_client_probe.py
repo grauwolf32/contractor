@@ -20,7 +20,9 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
     )
     client = ArtifactClient(
         args.allocation_id,
-        MTLSArtifactTransport(args.api_url, context, timeout_seconds=3),
+        MTLSArtifactTransport(
+            args.api_url, context, timeout_seconds=3, runtime_instance_id=args.instance_id
+        ),
     )
     if args.mode == "fenced":
         try:
@@ -75,6 +77,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-url", required=True)
     parser.add_argument("--allocation-id", required=True)
+    parser.add_argument("--instance-id", required=True)
     parser.add_argument("--ca", type=Path, required=True)
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)

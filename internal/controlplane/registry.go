@@ -20,9 +20,9 @@ const (
 )
 
 type Registry interface {
-	RegistrationResponse() contracts.AgentRegistrationResponse
-	Register(contracts.AgentRegistration) (AgentSnapshot, error)
-	Heartbeat(contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error)
+	RegistrationResponse(AuthenticatedPrincipal) contracts.AgentRegistrationResponseV2
+	RegisterAuthenticated(AuthenticatedPrincipal, contracts.AgentRegistrationV2) (AgentSnapshot, error)
+	HeartbeatAuthenticated(string, contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error)
 	ReserveAll(ReservationRequest) ([]Reservation, error)
 	GetGrant(string) (AllocationGrant, error)
 	GetReservation(string) (Reservation, error)
@@ -36,6 +36,12 @@ type Registry interface {
 	RecordAllocationReport(string, contracts.AllocationFinalReport) error
 }
 
+type AuthenticatedPrincipal struct {
+	RuntimeAgentID string
+	Labels         []string
+	LabelRevision  uint64
+}
+
 type RegistryOptions struct {
 	HeartbeatInterval time.Duration
 	ConfirmedLease    time.Duration
@@ -46,7 +52,8 @@ type RegistryOptions struct {
 }
 
 type AgentSnapshot struct {
-	Registration              contracts.AgentRegistration
+	Principal                 AuthenticatedPrincipal
+	Registration              contracts.AgentRegistrationV2
 	LastSeenAt                time.Time
 	LastHeartbeatSeq          uint64
 	LastIssuedAckSeq          uint64
@@ -70,6 +77,7 @@ type InMemoryRegistry struct {
 	monotonicNow               func() time.Duration
 	newID                      func(string) (string, error)
 	agentOrderKey              func(contracts.AgentRegistration) string
+	principalDeletions         map[string]struct{}
 	pendingLosses              []AllocationLoss
 	operationsGeneration       string
 	operationsRevision         uint64
@@ -79,7 +87,8 @@ type InMemoryRegistry struct {
 }
 
 type agentEntry struct {
-	registration              contracts.AgentRegistration
+	principal                 AuthenticatedPrincipal
+	registration              contracts.AgentRegistrationV2
 	identity                  string
 	orderKey                  string
 	lastSeenAt                time.Time
@@ -91,6 +100,7 @@ type agentEntry struct {
 	authoritativeAllocationID *string
 	reconciliationRequired    bool
 	confirmedLeaseDeadline    time.Duration
+	principalClaimDeadline    time.Duration
 	leaseExpired              bool
 	allocationLost            bool
 	allocationActivated       bool
@@ -145,52 +155,82 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 		newID: options.NewID, agentOrderKey: options.AgentOrderKey,
 		operationsGeneration: operationsGeneration,
 		operationsWatchers:   make(map[uint64]chan struct{}),
+		principalDeletions:   make(map[string]struct{}),
 	}, nil
 }
 
-func (r *InMemoryRegistry) RegistrationResponse() contracts.AgentRegistrationResponse {
-	return contracts.AgentRegistrationResponse{
+func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal) contracts.AgentRegistrationResponseV2 {
+	return contracts.AgentRegistrationResponseV2{
 		APIVersion:               contracts.APIVersion,
+		PrivateProtocolVersion:   contracts.PrivateProtocolVersionV2,
+		RuntimeAgentID:           principal.RuntimeAgentID,
+		Labels:                   append([]string{}, principal.Labels...),
+		LabelRevision:            principal.LabelRevision,
 		HeartbeatIntervalSeconds: int(r.heartbeatInterval / time.Second),
 		ConfirmedLeaseSeconds:    int(r.confirmedLease / time.Second),
 	}
 }
 
-func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (AgentSnapshot, error) {
+func (r *InMemoryRegistry) RegisterAuthenticated(
+	principal AuthenticatedPrincipal,
+	registration contracts.AgentRegistrationV2,
+) (AgentSnapshot, error) {
 	if err := registration.Validate(); err != nil {
 		return AgentSnapshot{}, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
+	if err := validateAuthenticatedPrincipal(principal); err != nil {
+		return AgentSnapshot{}, err
+	}
 	normalized := normalizeRegistration(registration)
-	identity, err := registrationIdentity(normalized)
+	identity, err := contracts.AgentRegistrationFingerprintV2(normalized)
 	if err != nil {
 		return AgentSnapshot{}, fmt.Errorf("encode registration identity: %w", err)
 	}
-	orderKey := r.agentOrderKey(cloneRegistration(normalized))
+	orderKey := r.agentOrderKey(legacyRegistrationProjection(normalized))
 	now := r.now()
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, deleting := r.principalDeletions[principal.RuntimeAgentID]; deleting {
+		return AgentSnapshot{}, ErrRegistrationConflict
+	}
 	if existing, ok := r.agents[normalized.InstanceID]; ok {
-		if existing.identity != identity {
+		if existing.identity != identity || existing.principal.RuntimeAgentID != principal.RuntimeAgentID {
 			return AgentSnapshot{}, ErrRegistrationConflict
 		}
+		existing.principal = clonePrincipal(principal)
 		existing.registration.ObservedState = normalized.ObservedState
 		existing.registration.AllocationID = cloneString(normalized.AllocationID)
 		existing.lastSeenAt = now
 		if existing.leaseExpired && existing.authoritativeAllocationID == nil {
 			r.resetExpiredLease(existing)
 		}
+		if existing.confirmedLeaseDeadline == 0 {
+			existing.principalClaimDeadline = r.monotonicNow() + r.confirmedLease
+		}
 		r.detectObservedLoss(existing, LossRuntimeMismatch)
 		existing.reconciliationRequired = registrationNeedsReconciliation(existing)
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
 		return snapshotAgent(existing), nil
 	}
+	monotonicNow := r.monotonicNow()
+	for _, existing := range r.agents {
+		if existing.principal.RuntimeAgentID != principal.RuntimeAgentID {
+			continue
+		}
+		r.expireEntry(existing, monotonicNow)
+		if principalInstanceIsLive(existing, monotonicNow) {
+			return AgentSnapshot{}, ErrRegistrationConflict
+		}
+	}
 	if len(r.agents) >= maximumOperationsItems {
 		return AgentSnapshot{}, fmt.Errorf("%w: Runtime Agent observation capacity is exhausted", ErrInvalidRequest)
 	}
 	entry := &agentEntry{
-		registration: normalized, identity: identity, orderKey: orderKey, lastSeenAt: now,
-		issuedAcks: make(map[uint64]struct{}), heartbeatResponses: make(map[uint64]contracts.HeartbeatResponse),
+		principal: clonePrincipal(principal), registration: normalized,
+		identity: identity, orderKey: orderKey, lastSeenAt: now,
+		principalClaimDeadline: monotonicNow + r.confirmedLease,
+		issuedAcks:             make(map[uint64]struct{}), heartbeatResponses: make(map[uint64]contracts.HeartbeatResponse),
 	}
 	for instanceID, existing := range r.agents {
 		if existing.superseded || !sameRuntimeEndpoint(existing.registration, normalized) {
@@ -209,7 +249,10 @@ func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (A
 	return snapshotAgent(entry), nil
 }
 
-func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error) {
+func (r *InMemoryRegistry) HeartbeatAuthenticated(
+	runtimeAgentID string,
+	heartbeat contracts.AgentHeartbeat,
+) (contracts.HeartbeatResponse, error) {
 	if err := heartbeat.Validate(); err != nil {
 		return contracts.HeartbeatResponse{}, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
@@ -221,6 +264,9 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 		return contracts.HeartbeatResponse{
 			APIVersion: contracts.APIVersion, AckSeq: heartbeat.HeartbeatSeq, Action: contracts.ActionReregister,
 		}, nil
+	}
+	if entry.principal.RuntimeAgentID != runtimeAgentID {
+		return contracts.HeartbeatResponse{}, ErrRegistrationConflict
 	}
 	r.expireEntry(entry, r.monotonicNow())
 	if heartbeat.HeartbeatSeq <= entry.lastHeartbeatSeq {
@@ -237,6 +283,7 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 			entry.lastConfirmedAckSeq = heartbeat.EchoedAckSeq
 			entry.confirmedLeaseExpiresAt = now.Add(r.confirmedLease)
 			entry.confirmedLeaseDeadline = r.monotonicNow() + r.confirmedLease
+			entry.principalClaimDeadline = 0
 		}
 	}
 	entry.lastSeenAt = now
@@ -251,6 +298,29 @@ func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contra
 	r.recordHeartbeat(entry, heartbeat.HeartbeatSeq, response)
 	r.recordOperationsChangeLocked(OperationsRuntimeAgent, heartbeat.InstanceID)
 	return cloneHeartbeatResponse(response), nil
+}
+
+// Register and Heartbeat retain a small in-process test/embedding surface for
+// callers that do not terminate TLS. The private HTTP API never uses these
+// methods: production always supplies its certificate-derived principal to
+// RegisterAuthenticated/HeartbeatAuthenticated and serves protocol v2 only.
+func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (AgentSnapshot, error) {
+	v2 := contracts.AgentRegistrationV2{
+		APIVersion:             registration.APIVersion,
+		PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
+		InstanceID:             registration.InstanceID, SoftwareVersion: registration.SoftwareVersion,
+		StartedAt: registration.StartedAt, ControlURL: registration.ControlURL, A2AURL: registration.A2AURL,
+		InitialLabels: []string{}, SupportedRuntimes: registration.SupportedRuntimes,
+		SupportedToolsets:        registration.SupportedToolsets,
+		SupportedSandboxProfiles: registration.SupportedSandboxProfiles,
+		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		ObservedState:            registration.ObservedState, AllocationID: registration.AllocationID,
+	}
+	return r.RegisterAuthenticated(legacyPrincipal(registration.InstanceID), v2)
+}
+
+func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error) {
+	return r.HeartbeatAuthenticated(legacyPrincipal(heartbeat.InstanceID).RuntimeAgentID, heartbeat)
 }
 
 func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation, error) {
@@ -315,8 +385,9 @@ func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation
 		entry := selected[index]
 		allocationID := allocationIDs[index]
 		grant := AllocationGrant{
-			AllocationID: allocationID, RuntimeInstanceID: entry.registration.InstanceID,
-			RunID: request.RunID, StageExecutionID: request.StageExecutionID,
+			AllocationID: allocationID, RuntimeAgentID: entry.principal.RuntimeAgentID,
+			RuntimeInstanceID: entry.registration.InstanceID,
+			RunID:             request.RunID, StageExecutionID: request.StageExecutionID,
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
 			ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
 		}
@@ -703,7 +774,7 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 		entry.confirmedLeaseDeadline > monotonicNow
 }
 
-func isCompatible(registration contracts.AgentRegistration, template contracts.ResolvedAgentTemplate) bool {
+func isCompatible(registration contracts.AgentRegistrationV2, template contracts.ResolvedAgentTemplate) bool {
 	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
 	if !contains(registration.SupportedRuntimes, runtime) {
 		return false
@@ -777,26 +848,13 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	return "sha256:" + hex.EncodeToString(digest[:]), bindings, nil
 }
 
-func normalizeRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
-	result := cloneRegistration(source)
-	sort.Strings(result.SupportedRuntimes)
-	sort.Strings(result.SupportedSandboxProfiles)
-	for index := range result.SupportedToolsets {
-		sort.Strings(result.SupportedToolsets[index].Tools)
-	}
-	sort.Slice(result.SupportedToolsets, func(i, j int) bool { return result.SupportedToolsets[i].Ref < result.SupportedToolsets[j].Ref })
-	return result
-}
-
-func registrationIdentity(source contracts.AgentRegistration) (string, error) {
-	source.ObservedState = ""
-	source.AllocationID = nil
-	encoded, err := json.Marshal(source)
-	return string(encoded), err
+func normalizeRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegistrationV2 {
+	return contracts.NormalizeAgentRegistrationV2(source)
 }
 
 func snapshotAgent(entry *agentEntry) AgentSnapshot {
 	return AgentSnapshot{
+		Principal:    clonePrincipal(entry.principal),
 		Registration: cloneRegistration(entry.registration), LastSeenAt: entry.lastSeenAt,
 		LastHeartbeatSeq: entry.lastHeartbeatSeq, LastIssuedAckSeq: entry.lastIssuedAckSeq,
 		LastConfirmedAckSeq: entry.lastConfirmedAckSeq, ConfirmedLeaseExpiresAt: entry.confirmedLeaseExpiresAt,
@@ -807,8 +865,11 @@ func snapshotAgent(entry *agentEntry) AgentSnapshot {
 }
 
 func (r *InMemoryRegistry) expireEntry(entry *agentEntry, monotonicNow time.Duration) {
-	if entry.leaseExpired || entry.confirmedLeaseDeadline == 0 ||
-		monotonicNow < entry.confirmedLeaseDeadline {
+	deadline := entry.confirmedLeaseDeadline
+	if deadline == 0 {
+		deadline = entry.principalClaimDeadline
+	}
+	if entry.leaseExpired || deadline == 0 || monotonicNow < deadline {
 		return
 	}
 	entry.leaseExpired = true
@@ -826,10 +887,11 @@ func (r *InMemoryRegistry) markAllocationLost(entry *agentEntry, reason Allocati
 		return
 	}
 	loss := AllocationLoss{
-		AllocationID: allocationID, RuntimeInstanceID: entry.registration.InstanceID,
-		RunID:            stored.reservation.Grant.RunID,
-		StageExecutionID: stored.reservation.Grant.StageExecutionID,
-		Reason:           reason,
+		AllocationID: allocationID, RuntimeAgentID: entry.principal.RuntimeAgentID,
+		RuntimeInstanceID: entry.registration.InstanceID,
+		RunID:             stored.reservation.Grant.RunID,
+		StageExecutionID:  stored.reservation.Grant.StageExecutionID,
+		Reason:            reason,
 	}
 	stored.reservation.Grant.WriteFenced = true
 	stored.reservation.Grant.Lost = true
@@ -881,21 +943,109 @@ func (r *InMemoryRegistry) resetExpiredLease(entry *agentEntry) {
 	entry.heartbeatOrder = nil
 }
 
-func sameRuntimeEndpoint(left, right contracts.AgentRegistration) bool {
+func principalInstanceIsLive(entry *agentEntry, monotonicNow time.Duration) bool {
+	if entry.leaseExpired {
+		return false
+	}
+	deadline := entry.confirmedLeaseDeadline
+	if deadline == 0 {
+		deadline = entry.principalClaimDeadline
+	}
+	return deadline > monotonicNow
+}
+
+// BeginPrincipalDeletion establishes an in-memory exclusion point without
+// running SQL under the Registry mutex. The returned release function must be
+// called after the durable transaction finishes, successfully or otherwise.
+func (r *InMemoryRegistry) BeginPrincipalDeletion(runtimeAgentID string) (func(), error) {
+	if err := validateAuthenticatedPrincipal(AuthenticatedPrincipal{
+		RuntimeAgentID: runtimeAgentID, Labels: []string{}, LabelRevision: 1,
+	}); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	if _, exists := r.principalDeletions[runtimeAgentID]; exists {
+		r.mu.Unlock()
+		return nil, ErrRegistrationConflict
+	}
+	monotonicNow := r.monotonicNow()
+	for _, entry := range r.agents {
+		if entry.principal.RuntimeAgentID != runtimeAgentID {
+			continue
+		}
+		r.expireEntry(entry, monotonicNow)
+		if entry.authoritativeAllocationID != nil || principalInstanceIsLive(entry, monotonicNow) {
+			r.mu.Unlock()
+			return nil, ErrRegistrationConflict
+		}
+	}
+	r.principalDeletions[runtimeAgentID] = struct{}{}
+	r.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			r.mu.Lock()
+			delete(r.principalDeletions, runtimeAgentID)
+			r.mu.Unlock()
+		})
+	}, nil
+}
+
+func sameRuntimeEndpoint(left, right contracts.AgentRegistrationV2) bool {
 	return left.ControlURL == right.ControlURL || left.A2AURL == right.A2AURL
 }
 
-func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
+func cloneRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegistrationV2 {
 	result := source
 	result.AllocationID = cloneString(source.AllocationID)
-	result.SupportedRuntimes = append([]string(nil), source.SupportedRuntimes...)
-	result.SupportedSandboxProfiles = append([]string(nil), source.SupportedSandboxProfiles...)
+	result.InitialLabels = append([]string{}, source.InitialLabels...)
+	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
+	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
+	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
 	result.SupportedToolsets = make([]contracts.ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability
 		result.SupportedToolsets[index].Tools = append([]string(nil), capability.Tools...)
 	}
 	return result
+}
+
+func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
+	result := source
+	result.Labels = append([]string{}, source.Labels...)
+	return result
+}
+
+func legacyPrincipal(instanceID string) AuthenticatedPrincipal {
+	sum := sha256.Sum256([]byte("in-process-runtime-principal\x00" + instanceID))
+	return AuthenticatedPrincipal{
+		RuntimeAgentID: hex.EncodeToString(sum[:]), Labels: []string{}, LabelRevision: 1,
+	}
+}
+
+func legacyRegistrationProjection(source contracts.AgentRegistrationV2) contracts.AgentRegistration {
+	return contracts.AgentRegistration{
+		APIVersion: source.APIVersion, InstanceID: source.InstanceID,
+		SoftwareVersion: source.SoftwareVersion, StartedAt: source.StartedAt,
+		ControlURL: source.ControlURL, A2AURL: source.A2AURL,
+		SupportedRuntimes:        append([]string(nil), source.SupportedRuntimes...),
+		SupportedToolsets:        cloneRegistration(source).SupportedToolsets,
+		SupportedSandboxProfiles: append([]string(nil), source.SupportedSandboxProfiles...),
+		ObservedState:            source.ObservedState, AllocationID: cloneString(source.AllocationID),
+	}
+}
+
+func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
+	probe := contracts.AgentRegistrationResponseV2{
+		APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
+		RuntimeAgentID: principal.RuntimeAgentID, Labels: principal.Labels,
+		LabelRevision: principal.LabelRevision, HeartbeatIntervalSeconds: 1, ConfirmedLeaseSeconds: 2,
+	}
+	if err := probe.Validate(); err != nil {
+		return fmt.Errorf("%w: authenticated Runtime Agent principal is invalid", ErrInvalidRequest)
+	}
+	return nil
 }
 
 func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.HeartbeatResponse {

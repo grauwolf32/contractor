@@ -5,6 +5,8 @@ package controlplane
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"os"
@@ -97,6 +99,22 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 	reservation := testReservation(
 		"allocation_integration", "builder", baseURL, baseURL, template, lease,
 	)
+	agentPEM, err := os.ReadFile(agent.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(agentPEM)
+	if block == nil {
+		t.Fatal("Agent certificate is not PEM")
+	}
+	agentCertificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservation.Grant.RuntimeAgentID, err = mtls.RuntimeAgentID(agentCertificate)
+	if err != nil {
+		t.Fatal(err)
+	}
 	settings := contracts.WorkerExecutionSettings{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
 	}

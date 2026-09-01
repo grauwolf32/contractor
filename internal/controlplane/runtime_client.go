@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -44,6 +45,8 @@ func (e *RuntimeAPIError) Error() string {
 
 type RuntimeControlClient struct {
 	client       *http.Client
+	tlsConfig    *tls.Config
+	timeout      time.Duration
 	requireHTTPS bool
 }
 
@@ -55,21 +58,9 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 	if err != nil {
 		return nil, fmt.Errorf("build Runtime Agent TLS client: %w", err)
 	}
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig:       tlsConfig,
-			ForceAttemptHTTP2:     false,
-			MaxIdleConnsPerHost:   2,
-			IdleConnTimeout:       30 * time.Second,
-			TLSHandshakeTimeout:   timeout,
-			ResponseHeaderTimeout: timeout,
-		},
-		Timeout: timeout,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return errors.New("Runtime Agent redirects are not allowed")
-		},
-	}
-	return &RuntimeControlClient{client: client, requireHTTPS: true}, nil
+	return &RuntimeControlClient{
+		tlsConfig: tlsConfig, timeout: timeout, requireHTTPS: true,
+	}, nil
 }
 
 // NewRuntimeControlClient accepts an injected client for focused protocol
@@ -102,12 +93,16 @@ func (c *RuntimeControlClient) Prepare(
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
 	var response contracts.PrepareAllocationResponse
-	if err := c.postJSON(ctx, reservation.ControlURL, reservation.Grant.AllocationID, "prepare", request, &response); err != nil {
+	if err := c.postJSON(
+		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
+		reservation.Grant.RuntimeAgentID, "prepare", request, &response,
+	); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
+	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
 	return response.WorkerHandle, nil
 }
 
@@ -125,7 +120,10 @@ func (c *RuntimeControlClient) Finalize(
 		return contracts.AllocationFinalReport{}, fmt.Errorf("build finalize request: %w", err)
 	}
 	var response contracts.AllocationFinalResponse
-	if err := c.postJSON(ctx, reservation.ControlURL, reservation.Grant.AllocationID, "finalize", request, &response); err != nil {
+	if err := c.postJSON(
+		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
+		reservation.Grant.RuntimeAgentID, "finalize", request, &response,
+	); err != nil {
 		return contracts.AllocationFinalReport{}, err
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
@@ -149,7 +147,10 @@ func (c *RuntimeControlClient) Abort(
 		return contracts.AllocationFinalReport{}, fmt.Errorf("build abort request: %w", err)
 	}
 	var response contracts.AllocationFinalResponse
-	if err := c.postJSON(ctx, reservation.ControlURL, reservation.Grant.AllocationID, "abort", request, &response); err != nil {
+	if err := c.postJSON(
+		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
+		reservation.Grant.RuntimeAgentID, "abort", request, &response,
+	); err != nil {
 		return contracts.AllocationFinalReport{}, err
 	}
 	if response.Report.AllocationID != reservation.Grant.AllocationID {
@@ -173,7 +174,7 @@ func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservat
 	if err != nil {
 		return fmt.Errorf("encode release request: %w", err)
 	}
-	response, err := c.do(ctx, target, body)
+	response, err := c.do(ctx, target, body, reservation.Grant.RuntimeAgentID)
 	if err != nil {
 		return err
 	}
@@ -196,6 +197,7 @@ func (c *RuntimeControlClient) postJSON(
 	ctx context.Context,
 	baseURL string,
 	allocationID string,
+	runtimeAgentID string,
 	operation string,
 	request any,
 	response contracts.Validatable,
@@ -208,7 +210,7 @@ func (c *RuntimeControlClient) postJSON(
 	if err != nil {
 		return fmt.Errorf("encode Runtime Agent request: %w", err)
 	}
-	httpResponse, err := c.do(ctx, target, body)
+	httpResponse, err := c.do(ctx, target, body, runtimeAgentID)
 	if err != nil {
 		return err
 	}
@@ -237,7 +239,9 @@ func (c *RuntimeControlClient) postJSON(
 	return nil
 }
 
-func (c *RuntimeControlClient) do(ctx context.Context, target string, body []byte) (*http.Response, error) {
+func (c *RuntimeControlClient) do(
+	ctx context.Context, target string, body []byte, runtimeAgentID string,
+) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.New("build Runtime Agent request")
@@ -245,7 +249,27 @@ func (c *RuntimeControlClient) do(ctx context.Context, target string, body []byt
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set(requestid.Header, requestid.Ensure(ctx))
-	response, err := c.client.Do(request)
+	client := c.client
+	if c.tlsConfig != nil {
+		bound, bindErr := mtls.BindRuntimeAgentPrincipal(c.tlsConfig, runtimeAgentID)
+		if bindErr != nil {
+			return nil, errors.New("Runtime Agent principal binding is invalid")
+		}
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: bound, ForceAttemptHTTP2: false, DisableKeepAlives: true,
+				TLSHandshakeTimeout: c.timeout, ResponseHeaderTimeout: c.timeout,
+			},
+			Timeout: c.timeout,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return errors.New("Runtime Agent redirects are not allowed")
+			},
+		}
+	}
+	if client == nil {
+		return nil, errors.New("Runtime Agent HTTP client is unavailable")
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("call Runtime Agent: %w", err)
 	}

@@ -57,6 +57,7 @@ async def serve(
                 runtime_settings.artifact_api_url,
                 outgoing_tls,
                 runtime_settings.request_timeout_seconds,
+                runtime_state.instance_id,
             ),
         ),
     )

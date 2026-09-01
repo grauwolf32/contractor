@@ -16,9 +16,11 @@ from urllib.parse import quote, urlsplit
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import (
-    AgentRegistrationResponse,
+    AgentRegistrationResponseV2,
     HeartbeatResponse,
+    PrivateProtocolDecodeError,
     ReconciliationAction,
+    decode_private_v2,
 )
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import verify_control_plane_peer
@@ -32,7 +34,9 @@ MAX_CONTROL_HEADERS = 64
 
 
 class ControlTransport(Protocol):
-    async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]: ...
+    async def post_json(
+        self, path: str, payload: Mapping[str, Any]
+    ) -> Mapping[str, Any] | bytes: ...
 
 
 class ReconciliationHandler(Protocol):
@@ -76,7 +80,7 @@ class MTLSJSONTransport:
         self._context = context
         self._timeout = timeout_seconds
 
-    async def post_json(self, path: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    async def post_json(self, path: str, payload: Mapping[str, Any]) -> bytes:
         if not path.startswith("/") or "?" in path or "#" in path:
             raise ValueError("private control path must be absolute and contain no query")
         body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -129,13 +133,7 @@ class MTLSJSONTransport:
                     writer.transport.abort()
         if not 200 <= status < 300:
             raise ControlHTTPError(status)
-        try:
-            decoded = json.loads(response_body)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ControlClientError("Control Plane returned invalid JSON") from error
-        if not isinstance(decoded, dict):
-            raise ControlClientError("Control Plane response must be a JSON object")
-        return decoded
+        return response_body
 
 
 class ControlClient:
@@ -176,16 +174,16 @@ class ControlClient:
     def timing(self) -> ControlTiming:
         return self._timing
 
-    async def register(self) -> AgentRegistrationResponse:
+    async def register(self) -> AgentRegistrationResponseV2:
         registration = await self._state.registration(self._settings)
         raw = await self._transport.post_json(
             "/private/v1/agents/register",
             registration.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
         try:
-            response = AgentRegistrationResponse.model_validate_json(json.dumps(raw))
-        except ValidationError as error:
-            raise ControlClientError("invalid registration response") from error
+            response = decode_private_v2(AgentRegistrationResponseV2, _response_json(raw))
+        except (PrivateProtocolDecodeError, ValidationError):
+            raise ControlClientError("invalid protocol-v2 registration response") from None
         self._timing = ControlTiming(
             heartbeat_interval_seconds=float(response.heartbeat_interval_seconds),
             confirmed_lease_seconds=float(response.confirmed_lease_seconds),
@@ -224,7 +222,7 @@ class ControlClient:
             request.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
         try:
-            response = HeartbeatResponse.model_validate_json(json.dumps(raw))
+            response = HeartbeatResponse.model_validate_json(_response_json(raw))
         except ValidationError as error:
             raise ControlClientError("invalid heartbeat response") from error
         if response.ack_seq != self._sequence:
@@ -266,6 +264,15 @@ class ControlClient:
         ceiling = min(5.0, self._timing.heartbeat_interval_seconds)
         base = min(ceiling, 0.5 * (2 ** min(failures - 1, 10)))
         return min(ceiling, base * (0.75 + 0.5 * self._jitter()))
+
+
+def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:
+    if isinstance(raw, bytes):
+        return raw
+    try:
+        return json.dumps(raw, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    except (TypeError, ValueError):
+        raise ControlClientError("Control Plane returned invalid JSON") from None
 
 
 async def _read_response_head(reader: asyncio.StreamReader) -> tuple[int, dict[str, str]]:

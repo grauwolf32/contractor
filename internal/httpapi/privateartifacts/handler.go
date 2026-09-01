@@ -3,6 +3,7 @@
 package privateartifacts
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,8 +12,11 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
+
+const RuntimeInstanceHeader = "X-Contractor-Runtime-Instance-ID"
 
 type AllocationRegistry interface {
 	GetGrant(string) (controlplane.AllocationGrant, error)
@@ -27,6 +31,13 @@ type Dependencies struct {
 }
 
 type handler struct{ dependencies Dependencies }
+
+type authenticatedRuntime struct {
+	principalID string
+	instanceID  string
+}
+
+type authenticatedRuntimeContextKey struct{}
 
 func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	if dependencies.Registry == nil || dependencies.Artifacts == nil {
@@ -48,11 +59,19 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 
 func (h *handler) requireMTLS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.PeerCertificates) == 0 {
+		principalID, err := mtls.RuntimeAgentIDFromConnection(r.TLS)
+		if err != nil {
 			h.writeError(w, http.StatusUnauthorized, "mtls_required", "a verified Runtime Agent certificate is required", false)
 			return
 		}
-		next.ServeHTTP(w, r)
+		values := r.Header.Values(RuntimeInstanceHeader)
+		if len(values) != 1 || len(values[0]) > 256 || strings.TrimSpace(values[0]) == "" || values[0] != strings.TrimSpace(values[0]) {
+			h.writeError(w, http.StatusBadRequest, "invalid_runtime_instance", "one bounded Runtime Agent instance header is required", false)
+			return
+		}
+		identity := authenticatedRuntime{principalID: principalID, instanceID: values[0]}
+		ctx := context.WithValue(r.Context(), authenticatedRuntimeContextKey{}, identity)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -65,15 +84,21 @@ func (h *handler) runStore(r *http.Request, write bool) (artifacts.ScopedStore, 
 	if err != nil {
 		return artifacts.ScopedStore{}, err
 	}
-	return h.runStoreForGrant(allocationID, grant, write)
+	identity, ok := r.Context().Value(authenticatedRuntimeContextKey{}).(authenticatedRuntime)
+	if !ok {
+		return artifacts.ScopedStore{}, errArtifactAccessDenied
+	}
+	return h.runStoreForGrant(allocationID, grant, identity, write)
 }
 
 func (h *handler) runStoreForGrant(
 	allocationID string,
 	grant controlplane.AllocationGrant,
+	identity authenticatedRuntime,
 	write bool,
 ) (artifacts.ScopedStore, error) {
-	if grant.AllocationID != allocationID || strings.TrimSpace(grant.RunID) == "" {
+	if grant.AllocationID != allocationID || strings.TrimSpace(grant.RunID) == "" ||
+		grant.RuntimeAgentID != identity.principalID || grant.RuntimeInstanceID != identity.instanceID {
 		return artifacts.ScopedStore{}, controlplane.ErrAllocationNotFound
 	}
 	if grant.ReadPolicy != controlplane.ReadCurrentRun {

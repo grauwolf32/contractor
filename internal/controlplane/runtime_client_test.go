@@ -3,20 +3,102 @@ package controlplane
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
+
+func TestRuntimeControlClientRejectsDifferentCAValidPrincipalBeforeRequest(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "pki")
+	generator := localpki.Generator{}
+	ca, err := generator.InitCA(root, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := localpki.LeafOptions{
+		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	}
+	controlPlane, err := generator.IssueControlPlane(root, localpki.ControlPlaneOptions{LeafOptions: leaf})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedAgent, err := generator.IssueAgent(root, "expected-agent", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongEndpoint, err := generator.IssueAgent(root, "wrong-endpoint", leaf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverTLS, err := mtls.RuntimeAgentServerConfig(mtls.Files{
+		Certificate: wrongEndpoint.Certificate, PrivateKey: wrongEndpoint.PrivateKey, CA: ca.Certificate,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var requests atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	server.TLS = serverTLS
+	server.StartTLS()
+	defer server.Close()
+
+	client, err := NewMTLSRuntimeControlClient(mtls.Files{
+		Certificate: controlPlane.Certificate, PrivateKey: controlPlane.PrivateKey, CA: ca.Certificate,
+	}, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservation := testReservation(
+		"allocation_principal", "builder", server.URL, server.URL,
+		testTemplate(t), time.Now().Add(time.Minute),
+	)
+	reservation.Grant.RuntimeAgentID = runtimePrincipalFromCertificate(t, expectedAgent.Certificate)
+	err = client.Release(context.Background(), reservation)
+	if err == nil || requests.Load() != 0 {
+		t.Fatalf("different-SPKI release = error %v, requests %d", err, requests.Load())
+	}
+}
+
+func runtimePrincipalFromCertificate(t *testing.T, path string) string {
+	t.Helper()
+	encoded, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(encoded)
+	if block == nil {
+		t.Fatal("certificate is not PEM")
+	}
+	certificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal, err := mtls.RuntimeAgentID(certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return principal
+}
 
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	template := testTemplate(t)
@@ -69,7 +151,8 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)
 	}
-	if handle.AllocationID != reservation.Grant.AllocationID || received.Spec.LeaseExpiresAt != lease {
+	if handle.AllocationID != reservation.Grant.AllocationID ||
+		handle.RuntimeAgentID != reservation.Grant.RuntimeAgentID || received.Spec.LeaseExpiresAt != lease {
 		t.Fatalf("handle/request = (%+v, %+v)", handle, received.Spec)
 	}
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
@@ -334,8 +417,9 @@ func testReservation(
 ) Reservation {
 	return Reservation{
 		Grant: AllocationGrant{
-			AllocationID: allocationID, RuntimeInstanceID: "runtime_" + logicalName,
-			RunID: "run_1", StageExecutionID: "stage_1", LogicalAgentName: logicalName,
+			AllocationID: allocationID, RuntimeAgentID: strings.Repeat("a", 64),
+			RuntimeInstanceID: "runtime_" + logicalName,
+			RunID:             "run_1", StageExecutionID: "stage_1", LogicalAgentName: logicalName,
 			Namespace: logicalName, ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
 		},
 		ControlURL: controlURL, A2AURL: a2aURL, AgentTemplate: template, LeaseExpiresAt: lease,

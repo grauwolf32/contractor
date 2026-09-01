@@ -29,6 +29,7 @@ type ReservationRequest struct {
 
 type AllocationGrant struct {
 	AllocationID      string
+	RuntimeAgentID    string
 	RuntimeInstanceID string
 	RunID             string
 	StageExecutionID  string
@@ -53,6 +54,7 @@ const (
 // bounded abort/release reconciliation removes it.
 type AllocationLoss struct {
 	AllocationID      string
+	RuntimeAgentID    string
 	RuntimeInstanceID string
 	RunID             string
 	StageExecutionID  string

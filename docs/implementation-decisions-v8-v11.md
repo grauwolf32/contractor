@@ -163,6 +163,30 @@ tests that make the choice observable.
   principal store exist creates an unsafe half-protocol. Retaining detailed
   secret-bearing validation causes is unnecessary once cross-language reason
   classes are test fixtures.
-- Observable tests: `make test-runtime-wire-v2` proves v1 remains emitted,
-  canonical fixture parity, duplicate rejection, error-class parity, redacted
-  formatting, immutable adapter discovery and detached Operations projection.
+- Observable tests at the V8-003 boundary proved production still emitted v1;
+  the retained fixture tests continue to prove canonical parity, duplicate
+  rejection, error-class parity, redacted formatting, immutable adapter
+  discovery and detached Operations projection. D013 owns the later cut-over.
+
+### D013 — Protocol-v2 activation follows authoritative data ownership
+
+- Applies to: V8-004, V8-007 and V8-010.
+- Decision: V8-004 atomically activates the complete v2 registration request
+  and response on Go and Python because durable principal labels now exist. It
+  does not invent an AllocationSpec provenance document: AllocationSpecV2 is
+  activated by V8-007 only after the candidate-specific transaction can commit
+  every exact binding/config/credential ref before delivery. RuntimeReportV2
+  adapter counters become authoritative with the adapter lifecycle host in
+  V8-010. The private HTTP routes and shared `apiVersion` remain unchanged;
+  there is no v1/v2 registration negotiation or compatibility response.
+- Alternatives rejected: an all-empty “bootstrap provenance” would make audit
+  data false, while accepting optional provenance would turn a required
+  security record into a silent compatibility mode. Activating secret-bearing
+  settings before V8-007 would also send values that have no durable
+  allocation-time linearization point.
+- Compatibility impact: a v1 Runtime registration now fails closed. Existing
+  Allocation lifecycle messages remain at their prior shape only until the
+  already-planned V8-007 synchronized switch.
+- Observable tests: `make test-runtime-wire-v2` covers the v1 registration
+  rejection and v2 emission/response parsing; V8-007's placement tests must
+  cover the AllocationSpecV2 cut-over before its completion commit.

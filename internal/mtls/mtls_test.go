@@ -115,6 +115,51 @@ func TestNormalVerificationRejectsValidityAndEKUErrors(t *testing.T) {
 	}
 }
 
+func TestRuntimeAgentPrincipalUsesSPKIAndBindsEndpoint(t *testing.T) {
+	files := generateFiles(t, "deployment")
+	agentCertificate := parseCertificate(t, files.agent.Certificate)
+	principal, err := RuntimeAgentID(agentCertificate)
+	if err != nil || len(principal) != 64 {
+		t.Fatalf("RuntimeAgentID = (%q, %v)", principal, err)
+	}
+
+	base, err := ControlPlaneEndpointClientConfig(files.controlPlane)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := BindRuntimeAgentPrincipal(base, principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := RuntimeAgentServerConfig(files.agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound.ServerName = "localhost"
+	if clientErr, serverErr := handshake(bound, server); clientErr != nil || serverErr != nil {
+		t.Fatalf("same-SPKI handshake = client %v, server %v", clientErr, serverErr)
+	}
+
+	// Issue another endpoint key under the same deployment CA. Normal trust and
+	// SAN verification therefore succeed; only the principal binding rejects it.
+	generator := localpki.Generator{}
+	issued, err := generator.IssueAgent(files.root, "agent-2", localpki.LeafOptions{
+		DNSNames: []string{"localhost"}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherAgent := Files{Certificate: issued.Certificate, PrivateKey: issued.PrivateKey, CA: files.agent.CA}
+	otherServer, err := RuntimeAgentServerConfig(otherAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientErr, _ := handshake(bound, otherServer)
+	if !errors.Is(clientErr, ErrRuntimeAgentIdentity) {
+		t.Fatalf("different-SPKI handshake error = %v", clientErr)
+	}
+}
+
 type generatedFiles struct {
 	root         string
 	controlPlane Files

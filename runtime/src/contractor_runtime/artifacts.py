@@ -30,6 +30,7 @@ REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 MEDIA_TYPE_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$"
 )
+RUNTIME_INSTANCE_HEADER = "X-Contractor-Runtime-Instance-ID"
 
 
 class ArtifactClientError(Exception):
@@ -239,7 +240,13 @@ class ArtifactClient:
 class MTLSArtifactTransport:
     """Minimal HTTPS/1.1 transport with pre-request Control Plane role check."""
 
-    def __init__(self, base_url: str, context: ssl.SSLContext, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        context: ssl.SSLContext,
+        timeout_seconds: float,
+        runtime_instance_id: str,
+    ) -> None:
         parsed = urlsplit(base_url)
         base_path = parsed.path.rstrip("/")
         if (
@@ -256,11 +263,18 @@ class MTLSArtifactTransport:
             )
         if timeout_seconds <= 0:
             raise ValueError("Artifact API timeout must be positive")
+        if (
+            not runtime_instance_id.strip()
+            or runtime_instance_id != runtime_instance_id.strip()
+            or len(runtime_instance_id) > 256
+        ):
+            raise ValueError("Runtime Agent instance ID is invalid")
         self._host = parsed.hostname
         self._port = parsed.port or 443
         self._base_path = base_path
         self._context = context
         self._timeout = timeout_seconds
+        self._runtime_instance_id = runtime_instance_id
 
     async def request(
         self,
@@ -299,6 +313,7 @@ class MTLSArtifactTransport:
                 "Connection": "close",
                 **headers,
                 "X-Request-ID": f"request_{uuid.uuid4().hex}",
+                RUNTIME_INSTANCE_HEADER: self._runtime_instance_id,
             }
             encoded_headers = _encode_headers(request_headers)
             request = f"{method} {target} HTTP/1.1\r\n".encode("ascii")

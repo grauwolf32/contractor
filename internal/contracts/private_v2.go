@@ -515,10 +515,10 @@ func (r RuntimeReportV2) Validate() error {
 // sets so normalization cannot hide a malformed peer.
 func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV2 {
 	result := source
-	result.InitialLabels = append([]string(nil), source.InitialLabels...)
-	result.SupportedRuntimes = append([]string(nil), source.SupportedRuntimes...)
-	result.SupportedSandboxProfiles = append([]string(nil), source.SupportedSandboxProfiles...)
-	result.SupportedRuntimeAdapters = append([]RuntimeAdapterRef(nil), source.SupportedRuntimeAdapters...)
+	result.InitialLabels = append([]string{}, source.InitialLabels...)
+	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
+	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
+	result.SupportedRuntimeAdapters = append([]RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
 	result.SupportedToolsets = make([]ToolsetCapability, len(source.SupportedToolsets))
 	for index, capability := range source.SupportedToolsets {
 		result.SupportedToolsets[index] = capability

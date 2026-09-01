@@ -33,6 +33,7 @@ import (
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/scheduler"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
@@ -250,6 +251,12 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Control Plane registry: %w", err)
 	}
+	principalService, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
+		Pool: pool, DeletionGuard: registry,
+	})
+	if err != nil {
+		return fmt.Errorf("configure Runtime Agent principals: %w", err)
+	}
 	runtimeClient, err := controlplane.NewMTLSRuntimeControlClient(files, cfg.RuntimeRequestTimeout)
 	if err != nil {
 		return fmt.Errorf("configure Runtime Agent client: %w", err)
@@ -368,7 +375,7 @@ func RunCLI(
 	}
 
 	controlHandler, err := controlplane.NewHTTPHandler(
-		registry, controlplane.HTTPOptions{Logger: logger},
+		registry, controlplane.HTTPOptions{Logger: logger, Principals: principalService},
 	)
 	if err != nil {
 		return fmt.Errorf("configure private Control Plane API: %w", err)

@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/mtls"
 )
 
 func TestPrivateArtifactReadDerivesRunScopeOnlyFromAllocation(t *testing.T) {
@@ -207,6 +208,60 @@ func TestPrivateArtifactListIsVersionlessAndMTLSRequired(t *testing.T) {
 	}
 }
 
+func TestPrivateArtifactGrantBindsPrincipalAndInstanceBeforeBodyRead(t *testing.T) {
+	repository := newMemoryRepository()
+	registry := &fakeRegistry{grant: testGrant("run-a")}
+	handler := newTestHandler(t, registry, repository)
+
+	body := &countingReader{data: []byte("must-not-be-read")}
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/private/v1/allocations/allocation-1/artifacts/builder/report",
+		body,
+	)
+	foreign := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("another-valid-agent-key")}
+	request.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{foreign},
+		VerifiedChains:   [][]*x509.Certificate{{foreign}},
+	}
+	request.Header.Set(RuntimeInstanceHeader, "runtime-1")
+	request.Header.Set("Content-Type", "text/plain")
+	request.Header.Set("If-None-Match", "*")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || body.reads != 0 || repository.writeCalls != 0 {
+		t.Fatalf(
+			"foreign principal response = %d reads=%d writes=%d body=%s",
+			response.Code, body.reads, repository.writeCalls, response.Body.String(),
+		)
+	}
+
+	wrongInstance := trustedRequest(
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil,
+	)
+	wrongInstance.Header.Set(RuntimeInstanceHeader, "runtime-2")
+	wrongResponse := httptest.NewRecorder()
+	handler.ServeHTTP(wrongResponse, wrongInstance)
+	if wrongResponse.Code != http.StatusNotFound {
+		t.Fatalf("wrong instance response = %d %s", wrongResponse.Code, wrongResponse.Body.String())
+	}
+}
+
+type countingReader struct {
+	data  []byte
+	reads int
+}
+
+func (r *countingReader) Read(target []byte) (int, error) {
+	r.reads++
+	if len(r.data) == 0 {
+		return 0, errors.New("unexpected second body read")
+	}
+	n := copy(target, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
 func newTestHandler(t *testing.T, registry *fakeRegistry, repository *memoryRepository) http.Handler {
 	t.Helper()
 	handler, err := NewHandler(Dependencies{
@@ -226,11 +281,12 @@ func trustedRequest(method, target string, body *strings.Reader) *http.Request {
 	} else {
 		request = httptest.NewRequest(method, target, body)
 	}
-	certificate := &x509.Certificate{}
+	certificate := &x509.Certificate{RawSubjectPublicKeyInfo: []byte("artifact-test-key")}
 	request.TLS = &tls.ConnectionState{
 		PeerCertificates: []*x509.Certificate{certificate},
 		VerifiedChains:   [][]*x509.Certificate{{certificate}},
 	}
+	request.Header.Set(RuntimeInstanceHeader, "runtime-1")
 	return request
 }
 
@@ -256,8 +312,12 @@ func putArtifact(
 }
 
 func testGrant(runID string) controlplane.AllocationGrant {
+	principalID, _ := mtls.RuntimeAgentID(&x509.Certificate{
+		RawSubjectPublicKeyInfo: []byte("artifact-test-key"),
+	})
 	return controlplane.AllocationGrant{
-		AllocationID: "allocation-1", RuntimeInstanceID: "runtime-1", RunID: runID,
+		AllocationID: "allocation-1", RuntimeAgentID: principalID,
+		RuntimeInstanceID: "runtime-1", RunID: runID,
 		StageExecutionID: "stage-1", LogicalAgentName: "builder", Namespace: "builder",
 		ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 	}

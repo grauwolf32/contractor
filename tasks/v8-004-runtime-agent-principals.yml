@@ -32,7 +32,7 @@ scope:
   in:
     - Add migration 000017_runtime_agent_principals.sql with labels, label revision, audit metadata and indexes supporting label rebind validation.
     - Derive the principal in the private mTLS middleware and pass it explicitly through registration, heartbeat, report and grant paths.
-    - Atomically switch the Go Server and Python Runtime client from private v1 to the complete v2 DTOs; do not retain a compatibility mode or serve a partial v2 response.
+    - Atomically switch the Go Server and Python Runtime registration request/response from private v1 to the complete v2 registration DTOs; do not retain a wire compatibility mode or serve a partial v2 registration response. AllocationSpecV2 activation remains in V8-007, where exact provenance can first be committed before delivery.
     - Seed/return authoritative labels transactionally; reject a second live instance for the same principal and a principal mismatch on retry/heartbeat.
     - Implement label-set CAS, same-layer worker-setting conflict validation, non-Agent-applicable rejection and safe offline principal deletion rules.
     - During label rebind, validate every assigned principal under binding-then-principal lexical lock order and reject newly conflicting sets atomically.

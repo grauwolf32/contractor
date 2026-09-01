@@ -4,9 +4,12 @@ package privateartifacts
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"net"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -42,7 +45,25 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 	}
 
 	repository := newMemoryRepository()
-	registry := &fakeRegistry{grant: testGrant("run-a")}
+	agentPEM, err := os.ReadFile(agent.Certificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(agentPEM)
+	if block == nil {
+		t.Fatal("Agent certificate is not PEM")
+	}
+	agentCertificate, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principalID, err := mtls.RuntimeAgentID(agentCertificate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant := testGrant("run-a")
+	grant.RuntimeAgentID = principalID
+	registry := &fakeRegistry{grant: grant}
 	handler, err := NewHandler(Dependencies{
 		Registry: registry, Artifacts: artifacts.NewService(repository),
 	})
@@ -68,6 +89,7 @@ func TestCrossLanguagePrivateArtifactLifecycle(t *testing.T) {
 			"tests/artifact_client_probe.py",
 			"--api-url", server.URL + "/private/v1",
 			"--allocation-id", "allocation-1",
+			"--instance-id", "runtime-1",
 			"--ca", ca.Certificate,
 			"--certificate", agent.Certificate,
 			"--private-key", agent.PrivateKey,
