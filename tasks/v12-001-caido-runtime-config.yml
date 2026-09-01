@@ -3,8 +3,8 @@ id: V12-001
 title: Add label-driven Caido Runtime configuration contracts
 milestone: http-caido-tools-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 82ff8ffbcec5393c7b2a94d5e943509033367713
 depends_on: [V11-012]
 languages: [go, python, sql]
 

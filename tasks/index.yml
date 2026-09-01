@@ -260,8 +260,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V11-012
-  next_task: V12-001
+  completed_through: V12-001
+  next_task: V12-002
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -273,7 +273,9 @@ current_checkpoint:
     atomic edit-files@1 mutations, workspace-changes@1 checkpoint tools,
     pre-terminal cumulative overlay export, explicit OpenAPI/LikeC4 workspace
     variants, local/memory allocation-boundary E2E and workspace hardening are
-    complete. V12-001 label-driven Caido RuntimeConfig contracts are next.
+    complete. V12-001 added atomic label-driven Caido RuntimeConfig, encrypted
+    bearer credentials, private settings/provenance and placement inputs.
+    V12-002 allocation-scoped Caido adapter is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
