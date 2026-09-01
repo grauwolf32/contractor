@@ -3,8 +3,8 @@ id: V8-007
 title: Resolve and pin candidate-specific Runtime settings during placement
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: "bd5e3b6a39be6a2c21c6bd61cd1ce99a03786bbb"
 depends_on: [V8-002, V8-004, V8-006]
 languages: [go, sql]
 

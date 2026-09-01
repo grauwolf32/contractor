@@ -240,15 +240,14 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-006
-  next_task: V8-007
+  completed_through: V8-007
+  next_task: V8-008
   summary: >-
-    The pure RuntimeConfig resolver now applies all six precedence layers,
-    deterministic same-layer conflict rules, explicit clears, independent
-    Planner telemetry, adapter requirements and exact Gateway/credential policy
-    checks without I/O or secrets. It returns field origins plus protocol-v2
-    provenance. Next, integrate it with candidate matching, revision locking,
-    durable allocation pinning and just-in-time secret delivery.
+    Candidate placement now computes complete capability-compatible matchings,
+    revalidates principal/config revisions, commits exact secret-free allocation
+    provenance before exposure and delivers protocol-v2 settings with bounded
+    just-in-time secret lifetime. Next, expose RuntimeConfig, binding and Runtime
+    credential management through the public Operations API.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
