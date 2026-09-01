@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-http-caido-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-hardening test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-http-caido-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -107,6 +107,19 @@ test-runtime-configuration-e2e:
 	$(MAKE) test-runtime-configuration-hardening
 	$(MAKE) test-runtime-labels-e2e
 	$(MAKE) test-ui-stack
+
+test-http-caido-matrix:
+	go test -count=1 ./tests/e2e -run '^TestHTTPCaidoHardeningMatrixIsComplete$$'
+
+test-http-caido-runtime:
+	cd runtime && uv run pytest -W error tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py tests/test_http_toolset.py tests/test_http_toolset_lifecycle.py tests/test_http_proxy_adapter.py tests/test_caido_adapter.py tests/test_caido_graphql_fixtures.py tests/test_caido_read_tools.py tests/test_caido_action_tools.py tests/test_adapter_host.py
+
+test-http-caido-architecture:
+	npx --yes likec4@1.56.0 validate docs/spec
+
+test-http-caido-hardening: test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	$(MAKE) test-http-caido-e2e
 
 test-config:
 	go test ./internal/config/...
@@ -251,6 +264,6 @@ build:
 	go build ./cmd/...
 	cd runtime && uv run python -m compileall -q src
 
-verify: lint test build ui-verify test-runtime-configuration-matrix test-shared-memory-matrix
+verify: lint test build ui-verify test-runtime-configuration-matrix test-shared-memory-matrix test-http-caido-matrix
 
-release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening
+release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening

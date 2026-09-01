@@ -316,6 +316,11 @@ class _HTTPSession:
             merged_headers = _merge_headers(self._default_headers, selected_headers)
             merged_headers["X-Request-Id"] = f"r{self._nonce}-h{request_id:06d}"
             tag = merged_headers["X-Request-Id"]
+            # httpx keeps its own cookie jar in addition to the allocation
+            # session jar.  Treat that transport jar as scratch space: stale
+            # cookies left by a cancelled/failed prior call must never affect
+            # the next request.
+            self._clear_transport_cookies()
             response, final_method, final_url, redirects, retries = await self._send_following(
                 method=selected_method,
                 url=selected_url,
@@ -328,6 +333,16 @@ class _HTTPSession:
                 body_bytes = await _read_response_body(response)
                 content_type = _content_type(response.headers)
                 body_kind, preview, envelope = _encode_body(content_type, body_bytes)
+                candidate_cookies = httpx.Cookies()
+                candidate_cookies.update(self._cookies)
+                candidate_cookies.update(response.cookies)
+                if len(candidate_cookies) > MAX_COOKIES:
+                    # httpx has already observed the response on its own
+                    # client jar. Erase both copies before failing so an
+                    # oversized Set-Cookie fan-out cannot dirty later calls.
+                    self._cookies.clear()
+                    self._clear_transport_cookies()
+                    raise HTTPToolError("http_request_failed")
                 artifact: ArtifactRef | None = None
                 if envelope is not None:
                     encoded = json.dumps(
@@ -351,9 +366,7 @@ class _HTTPSession:
                     assert body_kind in {"text", "binary"}
                     self._bodies[request_id] = _StoredBody(artifact=artifact, kind=body_kind)
                 safe_headers, headers_truncated = _response_headers(response.headers)
-                self._cookies.update(response.cookies)
-                if len(self._cookies) > MAX_COOKIES:
-                    raise HTTPToolError("http_request_failed")
+                self._cookies = candidate_cookies
                 record = _RequestRecord(
                     request_id=request_id,
                     tag=tag,
@@ -573,15 +586,29 @@ class _HTTPSession:
         selected_auth = _auth(auth)
         async with self._lock:
             self._require_open()
+            candidate_headers = self._default_headers
             if selected_headers is not None:
-                if replace_headers:
-                    self._default_headers.clear()
-                self._default_headers = _merge_headers(self._default_headers, selected_headers)
+                candidate_headers = _merge_headers(
+                    {} if replace_headers else self._default_headers,
+                    selected_headers,
+                )
+            candidate_cookies = self._cookies
             if selected_cookies is not None:
-                if replace_cookies:
-                    self._cookies.clear()
+                candidate_cookies = httpx.Cookies()
+                if not replace_cookies:
+                    candidate_cookies.update(self._cookies)
                 for name, value in selected_cookies.items():
-                    self._cookies.set(name, value)
+                    candidate_cookies.set(name, value)
+                if len(candidate_cookies) > MAX_COOKIES:
+                    raise HTTPToolError("http_request_invalid")
+            # Commit only after every sparse component has passed validation.
+            # One invalid cookie update must not partially replace headers.
+            if selected_cookies is not None and replace_cookies:
+                self._clear_transport_cookies()
+            if selected_headers is not None:
+                self._default_headers = candidate_headers
+            if selected_cookies is not None:
+                self._cookies = candidate_cookies
             if selected_auth is not None:
                 self._erase_auth()
                 self._auth_kind, self._auth_username, self._auth_secret = selected_auth
@@ -636,6 +663,9 @@ class _HTTPSession:
 
     def _clear_mutable_session(self) -> None:
         self._clear_local_session()
+        self._clear_transport_cookies()
+
+    def _clear_transport_cookies(self) -> None:
         if self._proxy is not None:
             self._proxy.clear_cookies()
         if self._direct_client is not None:
@@ -1028,6 +1058,14 @@ def _merge_headers(defaults: Mapping[str, str], request: Mapping[str, str]) -> d
     for name, value in request.items():
         result[name.lower()] = (name, value)
     if len(result) > MAX_HEADERS:
+        raise HTTPToolError("http_request_invalid")
+    if (
+        sum(
+            len(name.encode("ascii")) + len(value.encode("utf-8"))
+            for name, value in result.values()
+        )
+        > MAX_HEADER_BYTES
+    ):
         raise HTTPToolError("http_request_invalid")
     return {name: value for name, value in result.values()}
 

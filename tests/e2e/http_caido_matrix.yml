@@ -1,0 +1,108 @@
+schema_version: "1.0"
+
+policy:
+  egress_boundary: >-
+    HTTP tools reject Contractor/private literal targets and revalidate every
+    redirect, while DNS resolution and private-network enforcement belong to
+    the deployment or mandatory forward proxy rather than this process.
+  graphql_compatibility: >-
+    Caido access is pinned to reviewed static operation documents and exact
+    response shapes; schema drift fails closed until a code/config revision.
+  retention: >-
+    Raw response bodies live only in reserved Run artifacts and model results;
+    credentials, filters, URLs and arbitrary server errors are absent from
+    durable reports, events, metrics and redacted session projections.
+
+cases:
+  - id: request_injection_preflight
+    category: input_bounds
+    requirements: [A1]
+    faults: [F01]
+    expected: Invalid URLs headers queries and body combinations fail before transport.
+    test: {source: runtime/tests/test_http_caido_security.py, symbol: test_url_header_query_and_body_injection_fail_before_transport}
+  - id: atomic_session_limits
+    category: input_bounds
+    requirements: [A1, A2]
+    faults: [F02]
+    expected: Merged header and cookie limits reject the whole sparse session mutation.
+    test: {source: runtime/tests/test_http_caido_security.py, symbol: test_session_header_and_cookie_limits_apply_to_atomic_merged_state}
+  - id: redirect_egress
+    category: redirect_egress
+    requirements: [A1]
+    faults: [F03]
+    expected: Every redirect is bounded and revalidated while cross-origin auth is stripped.
+    test: {source: runtime/tests/test_http_caido_security.py, symbol: test_redirect_limit_private_hop_and_cross_origin_auth_are_fail_closed}
+  - id: mandatory_proxy
+    category: proxy_egress
+    requirements: [A1]
+    faults: [F04]
+    expected: Proxy failures are bounded and never fall back to a direct transport.
+    test: {source: runtime/tests/test_http_proxy_adapter.py, symbol: test_proxy_failures_are_bounded_and_never_fall_back}
+  - id: streamed_http_response
+    category: response_bounds
+    requirements: [A1]
+    faults: [F05]
+    expected: The exact body limit succeeds and the next byte publishes no partial selection.
+    test: {source: runtime/tests/test_http_caido_security.py, symbol: test_http_response_stream_limit_is_exact_and_never_partially_selects_body}
+  - id: graphql_operation_and_shape
+    category: graphql_bounds
+    requirements: [A1]
+    faults: [F06]
+    expected: Arbitrary operations and oversized or malformed variable/response trees fail closed.
+    test: {source: runtime/tests/test_http_caido_security.py, symbol: test_caido_static_operation_variable_and_response_shape_bounds}
+  - id: serialized_http_state
+    category: concurrency
+    requirements: [A2]
+    faults: [F07]
+    expected: Concurrent requests and body reads retain one exact monotonic mapping.
+    test: {source: runtime/tests/test_http_caido_concurrency.py, symbol: test_http_requests_and_body_reads_are_serialized_and_exact}
+  - id: cancelled_body_commit
+    category: cancellation
+    requirements: [A2]
+    faults: [F08]
+    expected: Cancellation after body commit neither exposes the orphan nor reuses its request ID.
+    test: {source: runtime/tests/test_http_caido_concurrency.py, symbol: test_http_cancellation_after_body_commit_never_reuses_id_or_selects_orphan}
+  - id: cancelled_caido_mutation
+    category: cancellation
+    requirements: [A2]
+    faults: [F09]
+    expected: An ambiguous cancelled Caido mutation consumes its opaque tag and permits clean reuse.
+    test: {source: runtime/tests/test_http_caido_concurrency.py, symbol: test_cancelled_caido_mutation_consumes_opaque_tag_and_slot_remains_usable}
+  - id: unconfirmed_adapter_teardown
+    category: lifecycle
+    requirements: [A2]
+    faults: [F10]
+    expected: Unconfirmed close keeps the allocation fenced and requests process termination.
+    test: {source: runtime/tests/test_adapter_host.py, symbol: test_unconfirmed_adapter_close_fences_slot_and_requests_process_exit}
+  - id: http_retention
+    category: redaction
+    requirements: [A3]
+    faults: [F11]
+    expected: HTTP credentials and raw canaries remain absent outside the intended body artifact/result.
+    test: {source: runtime/tests/test_http_caido_redaction.py, symbol: test_http_secrets_are_absent_from_every_retained_projection}
+  - id: caido_retention
+    category: redaction
+    requirements: [A3]
+    faults: [F12]
+    expected: Caido token endpoint filter and arbitrary server text never enter retained state.
+    test: {source: runtime/tests/test_http_caido_redaction.py, symbol: test_caido_transport_discards_token_filter_endpoint_and_server_error}
+  - id: production_release_recovery
+    category: process
+    requirements: [A2, A3]
+    faults: [F13]
+    expected: PostgreSQL mTLS and two real Runtime processes survive release response loss and reuse both slots.
+    test: {source: tests/e2e/http_caido_test.go, symbol: TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses}
+  - id: repository_compatibility
+    category: compatibility
+    requirements: [A1, A3]
+    faults: []
+    expected: Static tool Skill template and configuration names remain one reviewed closed assignment.
+    test: {source: internal/config/http_caido_repository_test.go, symbol: TestRepositoryHTTPAndCaidoConfigurationIsClosed}
+
+gates:
+  - {id: matrix, command: make test-http-caido-matrix}
+  - {id: runtime, command: make test-http-caido-runtime}
+  - {id: process, command: make test-http-caido-e2e}
+  - {id: architecture, command: make test-http-caido-architecture}
+  - {id: hardening, command: make test-http-caido-hardening}
+  - {id: release, command: make release-verify}

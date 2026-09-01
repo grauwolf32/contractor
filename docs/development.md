@@ -902,6 +902,38 @@ make test-shared-memory-hardening
 make release-verify
 ```
 
+## HTTP/Caido hardening boundary
+
+The generic HTTP Toolset's private-origin checks are not a DNS or network
+sandbox. For untrusted destinations, configure the allocation's mandatory
+`tool-http` proxy route and enforce DNS/address policy at that proxy or in the
+Runtime network namespace. Caido control access is separate: it uses the typed
+`caido-graphql@1` adapter and reviewed static GraphQL documents. Runtime does
+not introspect a Caido installation or negotiate a schema version, so an
+upgrade must pass the checked-in compatibility fixtures before deployment.
+
+The matrix and focused Runtime suite are deterministic and need no external
+Caido, target service or PostgreSQL:
+
+```shell
+make test-http-caido-matrix
+make test-http-caido-runtime
+make test-http-caido-architecture
+```
+
+The complete gate adds PostgreSQL, mTLS, two real Python Runtime processes and
+local fake target/proxy/Caido/Gateway services. It requires only the same test
+database URL as other process gates:
+
+```shell
+export CONTRACTOR_TEST_DATABASE_URL='postgres://postgres:contractor@127.0.0.1:5432/contractor?sslmode=disable'
+make test-http-caido-hardening
+```
+
+No external LM Studio, Caido instance, internet target or cloud credential is
+part of this gate. The fake services inject response loss, schema errors,
+oversized bodies and secret canaries deterministically.
+
 ## OpenAPI from a source archive
 
 `openapi-from-source@1` runs four serial Stages: dependency discovery, project

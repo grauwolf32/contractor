@@ -122,11 +122,31 @@ session view contains only `auth_kind`, non-sensitive default-header values,
 redaction markers for sensitive headers, cookie names/count and history count.
 
 Hop-by-hop headers, `Host`, `Content-Length`, proxy authentication and CR/LF
-header injection are rejected. The Artifact API and Runtime private origins are
-always denied. Other egress is intentionally the deployment's responsibility:
-this Toolset exists to contact model-selected application targets. A resolved
-`tool-http` proxy route is mandatory routing, not a hint; failure never falls
-back to direct network.
+header injection are rejected. Exact configured Contractor infrastructure
+origins (LLM Gateway, Artifact API, telemetry collector, forward proxy and
+Caido control API), `localhost` names and loopback/link-local/unspecified IP
+literals are always denied. Other egress is intentionally the deployment's
+responsibility: this Toolset exists to contact model-selected application
+targets. A resolved `tool-http` proxy route is mandatory routing, not a hint;
+failure never falls back to direct network.
+
+### Egress and DNS boundary
+
+The preceding checks are application-layer defense in depth, not a network
+sandbox. The Runtime does not resolve a hostname before every call, pin its
+addresses, reject RFC1918/ULA results, or prove that two names do not reach the
+same service. Consequently DNS rebinding and a public hostname resolving to a
+private address are outside the Toolset's guarantee. Every redirect is parsed
+and checked again, and allocation auth/cookies are stripped on a cross-origin
+hop, but the same DNS boundary applies to that new hostname.
+
+When a deployment needs a closed target policy, it must assign a mandatory
+`tool-http` route and enforce DNS/address/allowlist policy at that forward
+proxy, and/or restrict the Runtime's network namespace. When no route is
+resolved, the Runtime intentionally has the OS identity's direct egress. Both
+paths use normal TLS certificate and endpoint-name verification; neither
+supports an agent-selected `verify=false`. The proxy endpoint itself is
+Control-Plane configuration and cannot be changed by a tool argument.
 
 Retries are bounded to idempotent methods by default and cover transport
 failure plus `408`, `425`, `429`, `500`, `502`, `503`, `504`. A non-idempotent
@@ -167,7 +187,15 @@ after being set.
 
 History contains at most 128 summaries. IDs are monotonic for the allocation.
 Tool calls serialize session mutation and request ID assignment; network waits
-do not permit a second call to reuse state or an ID.
+do not permit a second call to reuse state or an ID. Sparse header/cookie/auth
+updates are validated as one prospective state before mutation. Once reserved,
+an ID is never reused after validation failure, transport ambiguity,
+cancellation or an Artifact write whose response is lost. A body blob that was
+committed before cancellation but never selected into the session remains an
+unreferenced reserved binding; it cannot be recovered through
+`http_read_body`, and ordinary Artifact tools cannot enumerate its prefix.
+The httpx transport cookie jar is scratch state: allocation-owned cookies are
+the authoritative copy and stale transport cookies are cleared before reuse.
 
 ## Caido Toolset
 
@@ -189,6 +217,26 @@ do not permit a second call to reuse state or an ID.
 Every GraphQL document is a source-code constant selected by the tool method.
 The model supplies variables only. Variable objects are strictly built and
 bounded; unknown sort/strategy/kind/depth values fail before a request.
+
+### Caido compatibility boundary
+
+The first version defines compatibility by GraphQL operation shape, not by a
+claimed Caido semantic-version range. Runtime performs no introspection,
+arbitrary query fallback or startup schema negotiation. A configured Caido
+endpoint is compatible when it accepts the checked-in operation documents,
+field selections, input/enumeration values and exact response identities used
+by the selected tools. Missing or renamed fields, changed nullability, an
+unknown response member or another schema drift becomes a bounded
+`caido_response_invalid`/`caido_request_failed`; arbitrary GraphQL/server text
+is discarded. It does not trigger a less constrained query.
+
+This makes a Caido upgrade an explicit compatibility event. Deterministic
+fixtures for all static operations and the repository compatibility gate must
+pass before the supported deployment is updated. If a future version needs a
+different document, it receives a reviewed adapter/tool revision rather than
+runtime-generated GraphQL. Adapter capability discovery proves only that the
+local implementation can construct the typed client; it deliberately does not
+contact or introspect an infrastructure instance during Agent registration.
 
 Common first limits:
 
@@ -329,6 +377,10 @@ Stable errors include:
 8. Real process tests cover two Runtime Agents where only one advertises Caido,
    label-based placement, response loss/release, and subsequent clean slot
    reuse.
+9. A strict executable hardening matrix owns every input/response bound,
+   proxy/redirect boundary, cancellation/lifecycle fault and retained-secret
+   assertion; `make release-verify` composes that matrix with the real-process
+   gate.
 
 ## Deliberately deferred
 
@@ -349,3 +401,7 @@ Stable errors include:
 4. Generic HTTP response status is data; transport/routing failure is an error.
 5. Caido GraphQL is static-operation-only and bounded at every input/output.
 6. Allocation teardown erases all session credentials and client handles.
+7. Application URL checks do not claim DNS or private-network isolation; a
+   deployment requiring it uses mandatory proxy/network policy.
+8. Reserved HTTP/Caido IDs and tags are monotonic and never reused after an
+   ambiguous or cancelled operation.

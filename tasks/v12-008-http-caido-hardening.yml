@@ -28,6 +28,7 @@ scope:
     - Fault every adapter/tool prepare/finalize/release path and prove slot fencing/cleanup.
     - Scan decoded DB rows, artifacts, events, reports, logs, repr and UI/public payloads for credentials/raw canaries.
     - Document explicit egress and Caido version-compatibility limits.
+    - Add a strict executable matrix mapping every acceptance requirement and injected fault to one named test owner.
   out:
     - New tools, network namespace, token refresh, arbitrary GraphQL or UI.
 
@@ -43,5 +44,7 @@ acceptance_criteria:
 
 tests:
   - {name: hardening, command: "cd runtime && uv run pytest tests/test_http_caido_security.py tests/test_http_caido_concurrency.py tests/test_http_caido_redaction.py", covers: [A1, A2, A3]}
-  - {name: architecture, command: "npx --yes likec4@1.56.0 validate docs/spec/architecture.c4", covers: [A3]}
+  - {name: matrix, command: "make test-http-caido-matrix", covers: [A1, A2, A3]}
+  - {name: focused-release, command: "make test-http-caido-hardening", covers: [A1, A2, A3]}
+  - {name: architecture, command: "npx --yes likec4@1.56.0 validate docs/spec", covers: [A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

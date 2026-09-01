@@ -704,3 +704,32 @@ tests that make the choice observable.
 - Verification: the retained backend matrix is accompanied by adversarial ZIP,
   Unicode/path, replacement, concurrency, cancellation and stale-export tests.
   Tool telemetry is asserted not to retain fixture paths, patterns or contents.
+
+### D032 — HTTP/Caido hardening separates application checks from network policy
+
+- Applies to: V12-008 and later HTTP/Caido Toolset revisions.
+- Egress decision: generic HTTP rejects invalid URLs, Contractor's exact
+  configured infrastructure origins, localhost names and dangerous IP
+  literals, then repeats those checks on every redirect and strips credentials
+  cross-origin. It does not perform DNS pinning or claim RFC1918/ULA isolation.
+  Deployments that require a closed destination set use the already mandatory
+  `tool-http` forward-proxy route and/or a restricted Runtime network
+  namespace; proxy failure never falls back to direct egress.
+- Compatibility decision: Caido compatibility is the reviewed set of static
+  operation documents, variables and strict response shapes, not an inferred
+  product version. Registration probes only the local adapter implementation.
+  There is no remote introspection or generated-query fallback; schema drift
+  returns a bounded error until a new reviewed adapter/tool revision and its
+  fixtures are published.
+- State decision: HTTP session updates preflight the complete prospective
+  header/cookie/auth state before mutation. The allocation session owns the
+  authoritative cookie jar and clears transport scratch cookies before reuse.
+  Request IDs and Caido action tags are consumed monotonically even when a
+  mutation is cancelled or its response is ambiguous. A body committed before
+  cancellation cannot become selected under a later ID.
+- Verification: one strict YAML matrix maps all three V12-008 acceptance
+  requirements and thirteen injected fault classes to named Go/Python owners.
+  Focused tests cover exact byte/count limits, redirects, mandatory proxying,
+  response bombs, GraphQL shapes, concurrency, cancellation and retained
+  canaries; the release gate adds PostgreSQL, mTLS and two real Python Runtime
+  processes with release-response loss and clean slot reuse.
