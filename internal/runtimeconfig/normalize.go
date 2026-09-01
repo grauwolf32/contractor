@@ -69,6 +69,7 @@ type workerSource struct {
 	LLMGateway optional[llmGatewaySource] `json:"llmGateway"`
 	Telemetry  optional[telemetrySource]  `json:"telemetry"`
 	HTTPProxy  optional[httpProxySource]  `json:"httpProxy"`
+	Caido      optional[caidoSource]      `json:"caido"`
 }
 
 type plannerSource struct {
@@ -94,6 +95,14 @@ type httpProxySource struct {
 	Credential  optional[string] `json:"credential"`
 	CABundlePEM optional[string] `json:"caBundlePem"`
 	Targets     []string         `json:"targets"`
+}
+
+type caidoSource struct {
+	Adapter               string           `json:"adapter"`
+	Endpoint              string           `json:"endpoint"`
+	Credential            optional[string] `json:"credential"`
+	CABundlePEM           optional[string] `json:"caBundlePem"`
+	RequestTimeoutSeconds optional[int]    `json:"requestTimeoutSeconds"`
 }
 
 type GatewayResolver interface {
@@ -379,6 +388,15 @@ func materializeWorker(source workerSource, author bool, resolved map[string]con
 		canonical["httpProxy"] = value
 		operations++
 	}
+	if source.Caido.present {
+		patch, value, err := materializeCaido(source.Caido)
+		if err != nil {
+			return WorkerPatch{}, nil, 0, err
+		}
+		result.Caido = patch
+		canonical["caido"] = value
+		operations++
+	}
 	return result, canonical, operations, nil
 }
 
@@ -452,7 +470,7 @@ func materializeHTTPProxy(source optional[httpProxySource]) (AtomicPatch[HTTPPro
 		return AtomicPatch[HTTPProxyConfig]{}, nil, invalid("spec.worker.httpProxy.caBundlePem cannot be null")
 	}
 	if value.CABundlePEM.present {
-		if err := validateCABundle(value.CABundlePEM.value); err != nil {
+		if err := validateCABundle("spec.worker.httpProxy.caBundlePem", value.CABundlePEM.value); err != nil {
 			return AtomicPatch[HTTPProxyConfig]{}, nil, err
 		}
 	}
@@ -476,6 +494,60 @@ func materializeHTTPProxy(source optional[httpProxySource]) (AtomicPatch[HTTPPro
 	}
 	if value.CABundlePEM.present {
 		canonical["caBundlePem"] = value.CABundlePEM.value
+	}
+	return patch, canonical, nil
+}
+
+func materializeCaido(source optional[caidoSource]) (AtomicPatch[CaidoConfig], any, error) {
+	patch := AtomicPatch[CaidoConfig]{Present: true}
+	if source.null {
+		patch.Clear = true
+		return patch, nil, nil
+	}
+	value := source.value
+	if value.Adapter != string(contracts.RuntimeAdapterCaidoGraphQL) {
+		return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.adapter must be caido-graphql@1")
+	}
+	endpoint, err := validateURL("spec.worker.caido.endpoint", value.Endpoint)
+	if err != nil {
+		return AtomicPatch[CaidoConfig]{}, nil, err
+	}
+	if value.Credential.present && value.Credential.null {
+		return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.credential cannot be null")
+	}
+	if value.Credential.present {
+		if err := validateID("spec.worker.caido.credential", value.Credential.value, 128); err != nil {
+			return AtomicPatch[CaidoConfig]{}, nil, err
+		}
+	}
+	if value.CABundlePEM.present && value.CABundlePEM.null {
+		return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.caBundlePem cannot be null")
+	}
+	if value.CABundlePEM.present {
+		if err := validateCABundle("spec.worker.caido.caBundlePem", value.CABundlePEM.value); err != nil {
+			return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.caBundlePem is invalid")
+		}
+	}
+	timeout := 0
+	if value.RequestTimeoutSeconds.present {
+		if value.RequestTimeoutSeconds.null || value.RequestTimeoutSeconds.value < 1 || value.RequestTimeoutSeconds.value > 120 {
+			return AtomicPatch[CaidoConfig]{}, nil, invalid("spec.worker.caido.requestTimeoutSeconds must be from 1 through 120")
+		}
+		timeout = value.RequestTimeoutSeconds.value
+	}
+	patch.Value = CaidoConfig{
+		Adapter: value.Adapter, Endpoint: endpoint, Credential: value.Credential.value,
+		CABundlePEM: value.CABundlePEM.value, RequestTimeoutSeconds: timeout,
+	}
+	canonical := map[string]any{"adapter": value.Adapter, "endpoint": endpoint}
+	if value.Credential.present {
+		canonical["credential"] = value.Credential.value
+	}
+	if value.CABundlePEM.present {
+		canonical["caBundlePem"] = value.CABundlePEM.value
+	}
+	if value.RequestTimeoutSeconds.present {
+		canonical["requestTimeoutSeconds"] = timeout
 	}
 	return patch, canonical, nil
 }
@@ -534,31 +606,31 @@ func validateURL(field, raw string) (string, error) {
 	return parsed.String(), nil
 }
 
-func validateCABundle(raw string) error {
+func validateCABundle(field, raw string) error {
 	if raw == "" || len([]byte(raw)) > maxPEMBytes || !utf8.ValidString(raw) {
-		return invalid("spec.worker.httpProxy.caBundlePem is invalid")
+		return invalid("%s is invalid", field)
 	}
 	rest := []byte(raw)
 	count := 0
 	for len(bytes.TrimSpace(rest)) > 0 {
 		block, remaining := pem.Decode(rest)
 		if block == nil {
-			return invalid("spec.worker.httpProxy.caBundlePem contains non-PEM data")
+			return invalid("%s contains non-PEM data", field)
 		}
 		if strings.Contains(block.Type, "PRIVATE KEY") || block.Type != "CERTIFICATE" {
-			return invalid("spec.worker.httpProxy.caBundlePem must contain certificates only")
+			return invalid("%s must contain certificates only", field)
 		}
 		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
-			return invalid("spec.worker.httpProxy.caBundlePem contains an invalid certificate")
+			return invalid("%s contains an invalid certificate", field)
 		}
 		count++
 		if count > 8 {
-			return invalid("spec.worker.httpProxy.caBundlePem contains too many certificates")
+			return invalid("%s contains too many certificates", field)
 		}
 		rest = remaining
 	}
 	if count == 0 {
-		return invalid("spec.worker.httpProxy.caBundlePem must contain a certificate")
+		return invalid("%s must contain a certificate", field)
 	}
 	return nil
 }

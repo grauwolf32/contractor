@@ -464,6 +464,13 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
 			material, err = credentials.NewHTTPProxyBearerCredential(value.Token)
 		}
+	case credentials.RuntimeCredentialCaidoBearer:
+		var value struct {
+			Token string `json:"token"`
+		}
+		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+			material, err = credentials.NewCaidoBearerCredential(value.Token)
+		}
 	default:
 		err = credentials.ErrRuntimeCredentialInvalid
 	}

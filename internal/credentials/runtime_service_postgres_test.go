@@ -45,6 +45,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 	otlp, _ := NewOTLPHeadersCredential(map[string]string{"Authorization": otlpSecret, "X-Tenant": "tenant-a"})
 	basic, _ := NewHTTPProxyBasicCredential("proxy-user", "basic-secret-never-persist")
 	bearer, _ := NewHTTPProxyBearerCredential("bearer-secret-never-persist")
+	caido, _ := NewCaidoBearerCredential("caido-secret-never-persist")
 	tests := []struct {
 		id       string
 		key      string
@@ -53,6 +54,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		{id: "otel-auth", key: "runtime-create-otel", material: otlp},
 		{id: "proxy-basic", key: "runtime-create-basic", material: basic},
 		{id: "proxy-bearer", key: "runtime-create-bearer", material: bearer},
+		{id: "caido-bearer", key: "runtime-create-caido", material: caido},
 	}
 	for _, test := range tests {
 		request := RuntimeCredentialCreateRequest{
@@ -87,11 +89,13 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 			t.Fatalf("use %s: %v", test.id, err)
 		}
 	}
-	if count, err := repository.CountActive(ctx); err != nil || count != 3 {
+	if count, err := repository.CountActive(ctx); err != nil || count != 4 {
 		t.Fatalf("active Runtime credential count = (%d, %v)", count, err)
 	}
 	listed, err := service.List(ctx, "", 10)
-	if err != nil || len(listed) != 3 || listed[0].CredentialID != "otel-auth" || listed[1].CredentialID != "proxy-basic" || listed[2].CredentialID != "proxy-bearer" {
+	if err != nil || len(listed) != 4 || listed[0].CredentialID != "caido-bearer" ||
+		listed[1].CredentialID != "otel-auth" || listed[2].CredentialID != "proxy-basic" ||
+		listed[3].CredentialID != "proxy-bearer" {
 		t.Fatalf("safe Runtime credential list = (%+v, %v)", listed, err)
 	}
 	if err := repository.VerifyActiveKey(ctx, cipher.KeyID()); err != nil {
@@ -125,6 +129,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		{credentialID: "otel-auth", value: otlpSecret},
 		{credentialID: "proxy-basic", value: "basic-secret-never-persist"},
 		{credentialID: "proxy-bearer", value: "bearer-secret-never-persist"},
+		{credentialID: "caido-bearer", value: "caido-secret-never-persist"},
 	} {
 		var ciphertext, requestMAC []byte
 		if err := pool.QueryRow(ctx, `
@@ -177,7 +182,7 @@ INSERT INTO runtime_credentials (
 	if _, err := repository.GetAnyRecord(ctx, "proxy-bearer"); err != nil {
 		t.Fatalf("ambiguous-delete retention row missing: %v", err)
 	}
-	if stored, err := repository.CountStored(ctx); err != nil || stored != 4 {
+	if stored, err := repository.CountStored(ctx); err != nil || stored != 5 {
 		t.Fatalf("stored Runtime credential count after tombstone = (%d, %v)", stored, err)
 	}
 	if err := repository.VerifyStoredKey(ctx, wrongCipher.KeyID()); !errors.Is(err, ErrKeyUnavailable) {
@@ -195,7 +200,7 @@ INSERT INTO runtime_credentials (
 	}); err != nil || !replay.Replayed {
 		t.Fatalf("original create replay after delete = (%+v, %v)", replay, err)
 	}
-	for _, credentialID := range []string{"otel-auth", "proxy-basic"} {
+	for _, credentialID := range []string{"caido-bearer", "otel-auth", "proxy-basic"} {
 		if result, err := service.Delete(ctx, credentialID, "operator"); err != nil || result.Replayed {
 			t.Fatalf("delete %s = (%+v, %v)", credentialID, result, err)
 		}

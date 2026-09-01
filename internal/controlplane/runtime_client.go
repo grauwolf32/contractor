@@ -414,6 +414,9 @@ func runtimeSettingSecrets(settings contracts.RuntimeSettingsV2) []string {
 			result = append(result, settings.HTTPProxy.BearerToken.Reveal())
 		}
 	}
+	if settings.Caido != nil && settings.Caido.BearerToken != nil {
+		result = append(result, settings.Caido.BearerToken.Reveal())
+	}
 	return result
 }
 

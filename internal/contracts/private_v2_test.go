@@ -57,6 +57,7 @@ func TestPrivateV2InvalidFixturesHaveSafeReasonClasses(t *testing.T) {
 		{"runtime-settings-unknown-adapter.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettingsV2]},
 		{"runtime-settings-two-proxy-auth.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettingsV2]},
 		{"runtime-settings-secret-error.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettingsV2]},
+		{"runtime-settings-caido-secret-error.json", PrivateProtocolErrorInvariant, privateReject[RuntimeSettingsV2]},
 		{"runtime-provenance-secret-field.json", PrivateProtocolErrorSchema, privateReject[ResolvedRuntimeConfigProvenanceV2]},
 		{"workspace-capabilities-unsorted-modes.json", PrivateProtocolErrorInvariant, privateReject[WorkspaceCapabilitiesV2]},
 		{"allocation-workspace-versionless-source.json", PrivateProtocolErrorInvariant, privateReject[AllocationWorkspaceSpecV2]},
@@ -77,6 +78,7 @@ func TestPrivateV2InvalidFixturesHaveSafeReasonClasses(t *testing.T) {
 			for _, canary := range []string{
 				"recognizable-secret-canary", "recognizable-provenance-secret",
 				"proxy-password-canary", "proxy-bearer-canary", "unknown-secret-adapter",
+				"caido-invalid-secret-canary",
 			} {
 				if strings.Contains(formatted, canary) {
 					t.Fatalf("private validation error leaked secret input: %s", formatted)
@@ -124,7 +126,7 @@ func TestPrivateV2AllocationSpecComposesValidatedSettingsAndProvenance(t *testin
 		t.Fatalf("private allocation omitted mandatory empty resolvedSkills: %s", canonical)
 	}
 	formatted := fmt.Sprintf("%v %+v %#v", value.RuntimeSettings, value.RuntimeSettings, value.RuntimeSettings)
-	for _, secret := range []string{"gateway-secret", "telemetry-secret", "proxy-bearer-secret"} {
+	for _, secret := range []string{"gateway-secret", "telemetry-secret", "proxy-bearer-secret", "caido-bearer-secret"} {
 		if strings.Contains(formatted, secret) {
 			t.Fatalf("formatted RuntimeSettingsV2 leaked %q", secret)
 		}
@@ -167,11 +169,11 @@ func TestPrivateV2RegistrationNormalizationFingerprintAndProjection(t *testing.T
 		t.Fatal("adapter capability change did not change the registration fingerprint")
 	}
 	projection := RuntimeAdapterCapabilityProjectionV2(registration)
-	if fmt.Sprint(projection) != "[http-proxy@1 otlp-http@1]" {
+	if fmt.Sprint(projection) != "[caido-graphql@1 http-proxy@1 otlp-http@1]" {
 		t.Fatalf("unexpected Operations projection: %v", projection)
 	}
 	projection[0] = "mutated@1"
-	if registration.SupportedRuntimeAdapters[0] != RuntimeAdapterHTTPProxy {
+	if registration.SupportedRuntimeAdapters[0] != RuntimeAdapterCaidoGraphQL {
 		t.Fatal("Operations projection aliases private registration memory")
 	}
 

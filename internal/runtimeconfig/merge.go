@@ -52,12 +52,14 @@ func MergeSameLayer(entries []LayerEntry) (Spec, error) {
 	})
 	workerTelemetry := collect(ordered, func(s Spec) (any, bool) { return s.Worker.Telemetry, s.Worker.Telemetry.Present })
 	workerProxy := collect(ordered, func(s Spec) (any, bool) { return s.Worker.HTTPProxy, s.Worker.HTTPProxy.Present })
+	workerCaido := collect(ordered, func(s Spec) (any, bool) { return s.Worker.Caido, s.Worker.Caido.Present })
 	plannerTelemetry := collect(ordered, func(s Spec) (any, bool) { return s.Planner.Telemetry, s.Planner.Telemetry.Present })
 
 	mergeField("worker.llmGateway.gateway", &result.Worker.LLMGateway.Gateway, gatewayValues)
 	mergeField("worker.llmGateway.credential", &result.Worker.LLMGateway.Credential, credentialValues)
 	mergeField("worker.telemetry", &result.Worker.Telemetry, workerTelemetry)
 	mergeField("worker.httpProxy", &result.Worker.HTTPProxy, workerProxy)
+	mergeField("worker.caido", &result.Worker.Caido, workerCaido)
 	mergeField("planner.telemetry", &result.Planner.Telemetry, plannerTelemetry)
 	result.Worker.LLMGateway.Present = result.Worker.LLMGateway.Gateway.Present || result.Worker.LLMGateway.Credential.Present
 

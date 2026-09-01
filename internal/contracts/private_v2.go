@@ -23,12 +23,14 @@ import (
 const (
 	PrivateProtocolVersionV2 = 2
 
-	RuntimeAdapterOTLPHTTP  RuntimeAdapterRef = "otlp-http@1"
-	RuntimeAdapterHTTPProxy RuntimeAdapterRef = "http-proxy@1"
+	RuntimeAdapterOTLPHTTP     RuntimeAdapterRef = "otlp-http@1"
+	RuntimeAdapterHTTPProxy    RuntimeAdapterRef = "http-proxy@1"
+	RuntimeAdapterCaidoGraphQL RuntimeAdapterRef = "caido-graphql@1"
 
 	RuntimeCredentialOTLPHeaders RuntimeCredentialKind = "otlp-headers@1"
 	RuntimeCredentialProxyBasic  RuntimeCredentialKind = "http-proxy-basic@1"
 	RuntimeCredentialProxyBearer RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialCaidoBearer RuntimeCredentialKind = "caido-bearer@1"
 )
 
 const (
@@ -81,7 +83,7 @@ type RuntimeAdapterRef string
 
 func (r RuntimeAdapterRef) Validate() error {
 	switch r {
-	case RuntimeAdapterOTLPHTTP, RuntimeAdapterHTTPProxy:
+	case RuntimeAdapterOTLPHTTP, RuntimeAdapterHTTPProxy, RuntimeAdapterCaidoGraphQL:
 		return nil
 	default:
 		return invalidf("unknown RuntimeAdapter ref")
@@ -92,7 +94,8 @@ type RuntimeCredentialKind string
 
 func (k RuntimeCredentialKind) Validate() error {
 	switch k {
-	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer:
+	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer,
+		RuntimeCredentialCaidoBearer:
 		return nil
 	default:
 		return invalidf("unknown Runtime credential kind")
@@ -452,6 +455,38 @@ type HTTPProxySettingsV2 struct {
 	Targets     []HTTPProxyTarget     `json:"targets"`
 }
 
+type CaidoSettingsV2 struct {
+	Adapter               RuntimeAdapterRef `json:"adapter"`
+	Endpoint              string            `json:"endpoint"`
+	BearerToken           *SecretString     `json:"bearerToken,omitempty"`
+	CABundlePEM           *string           `json:"caBundlePem,omitempty"`
+	RequestTimeoutSeconds int               `json:"requestTimeoutSeconds"`
+}
+
+func (s CaidoSettingsV2) Validate() error {
+	if s.Adapter != RuntimeAdapterCaidoGraphQL {
+		return invalidf("Caido adapter must be caido-graphql@1")
+	}
+	if err := validateRuntimeEndpoint("caido.endpoint", s.Endpoint); err != nil {
+		return err
+	}
+	if s.BearerToken != nil {
+		value := s.BearerToken.Reveal()
+		if len(value) < 1 || len(value) > 8192 {
+			return invalidf("Caido bearerToken is outside its size bound")
+		}
+	}
+	if s.CABundlePEM != nil {
+		if err := validateCABundle("Caido", *s.CABundlePEM); err != nil {
+			return err
+		}
+	}
+	if s.RequestTimeoutSeconds < 1 || s.RequestTimeoutSeconds > 120 {
+		return invalidf("Caido requestTimeoutSeconds must be from 1 through 120")
+	}
+	return nil
+}
+
 func (s HTTPProxySettingsV2) Validate() error {
 	if s.Adapter != RuntimeAdapterHTTPProxy {
 		return invalidf("HTTP proxy adapter must be http-proxy@1")
@@ -475,7 +510,7 @@ func (s HTTPProxySettingsV2) Validate() error {
 		}
 	}
 	if s.CABundlePEM != nil {
-		if err := validateCABundle(*s.CABundlePEM); err != nil {
+		if err := validateCABundle("HTTP proxy", *s.CABundlePEM); err != nil {
 			return err
 		}
 	}
@@ -503,6 +538,7 @@ type RuntimeSettingsV2 struct {
 	ArtifactAPIURL        string               `json:"artifactApiUrl"`
 	Telemetry             *TelemetrySettingsV2 `json:"telemetry,omitempty"`
 	HTTPProxy             *HTTPProxySettingsV2 `json:"httpProxy,omitempty"`
+	Caido                 *CaidoSettingsV2     `json:"caido,omitempty"`
 	RequestTimeoutSeconds int                  `json:"requestTimeoutSeconds"`
 }
 
@@ -531,6 +567,11 @@ func (s RuntimeSettingsV2) Validate() error {
 	}
 	if s.HTTPProxy != nil {
 		if err := s.HTTPProxy.Validate(); err != nil {
+			return err
+		}
+	}
+	if s.Caido != nil {
+		if err := s.Caido.Validate(); err != nil {
 			return err
 		}
 	}
@@ -971,28 +1012,28 @@ func validateRuntimeEndpoint(field, value string) error {
 	return nil
 }
 
-func validateCABundle(value string) error {
+func validateCABundle(owner, value string) error {
 	if len(value) == 0 || len([]byte(value)) > 64*1024 || strings.Contains(value, "PRIVATE KEY") {
-		return invalidf("HTTP proxy CA bundle is invalid")
+		return invalidf("%s CA bundle is invalid", owner)
 	}
 	rest := []byte(value)
 	count := 0
 	for len(bytes.TrimSpace(rest)) > 0 {
 		block, remaining := pem.Decode(rest)
 		if block == nil || block.Type != "CERTIFICATE" {
-			return invalidf("HTTP proxy CA bundle is invalid")
+			return invalidf("%s CA bundle is invalid", owner)
 		}
 		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
-			return invalidf("HTTP proxy CA bundle is invalid")
+			return invalidf("%s CA bundle is invalid", owner)
 		}
 		count++
 		if count > 8 {
-			return invalidf("HTTP proxy CA bundle contains too many certificates")
+			return invalidf("%s CA bundle contains too many certificates", owner)
 		}
 		rest = remaining
 	}
 	if count == 0 {
-		return invalidf("HTTP proxy CA bundle must contain a certificate")
+		return invalidf("%s CA bundle must contain a certificate", owner)
 	}
 	return nil
 }

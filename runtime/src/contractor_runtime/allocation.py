@@ -646,6 +646,8 @@ class AllocationService:
                 configured.add(spec.runtime_settings.telemetry.adapter)
             if spec.runtime_settings.http_proxy is not None:
                 configured.add(spec.runtime_settings.http_proxy.adapter)
+            if spec.runtime_settings.caido is not None:
+                configured.add(spec.runtime_settings.caido.adapter)
             if (
                 required != configured
                 or not capabilities.supports_runtime_adapters(required)

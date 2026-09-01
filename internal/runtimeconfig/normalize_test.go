@@ -86,6 +86,49 @@ func TestExplicitNullIsPatchAndOmissionIsNot(t *testing.T) {
 	}
 }
 
+func TestCaidoConfigNormalizesAsOneAtomicWorkerField(t *testing.T) {
+	t.Parallel()
+	document := []byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"caido-lab","version":"1"},
+  "spec":{"worker":{"caido":{
+    "requestTimeoutSeconds":30,"credential":"caido-token",
+    "endpoint":"https://caido.example/prefix","adapter":"caido-graphql@1"
+  }}}
+}`)
+	prepared, err := PreparePublication(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caido := version.Spec.Worker.Caido
+	if !caido.Present || caido.Clear || caido.Value.Adapter != "caido-graphql@1" ||
+		caido.Value.Endpoint != "https://caido.example/prefix" ||
+		caido.Value.Credential != "caido-token" || caido.Value.RequestTimeoutSeconds != 30 {
+		t.Fatalf("normalized Caido config = %+v", caido)
+	}
+	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
+	if err != nil || decoded.Spec.Worker.Caido != caido {
+		t.Fatalf("stored Caido round trip = (%+v, %v)", decoded.Spec.Worker.Caido, err)
+	}
+
+	clear, err := PreparePublication([]byte(`{
+  "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
+  "metadata":{"name":"no-caido","version":"1"},
+  "spec":{"worker":{"caido":null}}
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared, err := clear.Resolve(context.Background(), nil)
+	if err != nil || !cleared.Spec.Worker.Caido.Present || !cleared.Spec.Worker.Caido.Clear {
+		t.Fatalf("Caido clear = (%+v, %v)", cleared.Spec.Worker.Caido, err)
+	}
+}
+
 func TestPlannerTelemetryAdapterPublicationUsesServerCatalog(t *testing.T) {
 	t.Parallel()
 	spec := Spec{Planner: PlannerPatch{Telemetry: AtomicPatch[TelemetryConfig]{
@@ -117,14 +160,20 @@ func TestPreparePublicationRejectsUnsafeOrAmbiguousDocuments(t *testing.T) {
 		return []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"1"},"spec":` + spec + `}`)
 	}
 	tests := map[string][]byte{
-		"empty":             base(`{}`),
-		"unknown":           base(`{"worker":{"telemetry":null,"mystery":1}}`),
-		"duplicate":         base(`{"worker":{"telemetry":null,"telemetry":null}}`),
-		"bad endpoint":      base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
-		"content capture":   base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":true}}}`),
-		"duplicate targets": base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
-		"null gateway":      base(`{"worker":{"llmGateway":{"gateway":null}}}`),
-		"invalid surrogate": base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),
+		"empty":                   base(`{}`),
+		"unknown":                 base(`{"worker":{"telemetry":null,"mystery":1}}`),
+		"duplicate":               base(`{"worker":{"telemetry":null,"telemetry":null}}`),
+		"bad endpoint":            base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
+		"content capture":         base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":true}}}`),
+		"duplicate targets":       base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
+		"null gateway":            base(`{"worker":{"llmGateway":{"gateway":null}}}`),
+		"invalid surrogate":       base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),
+		"Caido wrong adapter":     base(`{"worker":{"caido":{"adapter":"http-proxy@1","endpoint":"https://caido.example"}}}`),
+		"Caido endpoint userinfo": base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://user:secret@caido.example"}}}`),
+		"Caido endpoint query":    base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example?token=secret"}}}`),
+		"Caido null credential":   base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","credential":null}}}`),
+		"Caido zero timeout":      base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":0}}}`),
+		"Caido excessive timeout": base(`{"worker":{"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.example","requestTimeoutSeconds":121}}}`),
 	}
 	for name, document := range tests {
 		document := document

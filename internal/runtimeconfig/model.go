@@ -74,10 +74,19 @@ type HTTPProxyConfig struct {
 	Targets     []string `json:"targets"`
 }
 
+type CaidoConfig struct {
+	Adapter               string `json:"adapter"`
+	Endpoint              string `json:"endpoint"`
+	Credential            string `json:"credential,omitempty"`
+	CABundlePEM           string `json:"caBundlePem,omitempty"`
+	RequestTimeoutSeconds int    `json:"requestTimeoutSeconds,omitempty"`
+}
+
 type WorkerPatch struct {
 	LLMGateway LLMGatewayPatch
 	Telemetry  AtomicPatch[TelemetryConfig]
 	HTTPProxy  AtomicPatch[HTTPProxyConfig]
+	Caido      AtomicPatch[CaidoConfig]
 }
 
 type PlannerPatch struct {
@@ -91,7 +100,7 @@ type Spec struct {
 
 func (s Spec) Empty() bool {
 	return !s.Worker.LLMGateway.Present && !s.Worker.Telemetry.Present &&
-		!s.Worker.HTTPProxy.Present && !s.Planner.Telemetry.Present
+		!s.Worker.HTTPProxy.Present && !s.Worker.Caido.Present && !s.Planner.Telemetry.Present
 }
 
 type Version struct {

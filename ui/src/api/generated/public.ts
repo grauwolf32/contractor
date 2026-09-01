@@ -913,6 +913,15 @@ export interface components {
             caBundlePem?: string;
             targets: ("llm-gateway" | "tool-http" | "tool-subprocess")[];
         };
+        RuntimeCaidoConfig: {
+            /** @constant */
+            adapter: "caido-graphql@1";
+            /** Format: uri */
+            endpoint: string;
+            credential?: components["schemas"]["RuntimeCredentialId"];
+            caBundlePem?: string;
+            requestTimeoutSeconds?: number;
+        };
         RuntimeLLMGatewayPatch: {
             gateway?: components["schemas"]["LLMGatewayConfigRef"] | components["schemas"]["Selector"] | null;
             credential?: components["schemas"]["ConfigId"] | null;
@@ -921,6 +930,7 @@ export interface components {
             llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"] | null;
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
             httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
+            caido?: components["schemas"]["RuntimeCaidoConfig"] | null;
         };
         RuntimePlannerPatch: {
             telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
@@ -968,7 +978,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -992,6 +1002,9 @@ export interface components {
         HTTPProxyBearerMaterial: {
             token: string;
         };
+        CaidoBearerMaterial: {
+            token: string;
+        };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
@@ -1007,6 +1020,11 @@ export interface components {
             /** @constant */
             kind: "http-proxy-bearer@1";
             material: components["schemas"]["HTTPProxyBearerMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "caido-bearer@1";
+            material: components["schemas"]["CaidoBearerMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -1027,6 +1045,7 @@ export interface components {
             llmCredential?: components["schemas"]["RuntimeFieldOrigin"];
             workerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
             httpProxy?: components["schemas"]["RuntimeFieldOrigin"];
+            caido?: components["schemas"]["RuntimeFieldOrigin"];
             plannerTelemetry?: components["schemas"]["RuntimeFieldOrigin"];
         };
         StageRuntimeAllocation: {

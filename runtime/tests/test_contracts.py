@@ -69,6 +69,7 @@ PRIVATE_V2_INVALID_MODELS: dict[str, tuple[type[BaseModel], str]] = {
     "runtime-settings-unknown-adapter.json": (RuntimeSettingsV2, "invariant"),
     "runtime-settings-two-proxy-auth.json": (RuntimeSettingsV2, "invariant"),
     "runtime-settings-secret-error.json": (RuntimeSettingsV2, "invariant"),
+    "runtime-settings-caido-secret-error.json": (RuntimeSettingsV2, "invariant"),
     "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenanceV2, "schema"),
     "workspace-capabilities-unsorted-modes.json": (
         WorkspaceCapabilitiesV2,
@@ -184,6 +185,7 @@ def test_private_v2_invalid_fixture_has_safe_reason(
         "proxy-password-canary",
         "proxy-bearer-canary",
         "unknown-secret-adapter",
+        "caido-invalid-secret-canary",
     ):
         assert canary not in rendered
 
@@ -200,7 +202,12 @@ def test_private_v2_allocation_composes_and_redacts_settings() -> None:
     canonical = encode_private_v2(allocation)
     decode_private_v2(AllocationSpecV2, canonical)
     rendered = f"{allocation.runtime_settings!s} {allocation.runtime_settings!r}"
-    for secret in ("gateway-secret", "telemetry-secret", "proxy-bearer-secret"):
+    for secret in (
+        "gateway-secret",
+        "telemetry-secret",
+        "proxy-bearer-secret",
+        "caido-bearer-secret",
+    ):
         assert secret not in rendered
         assert secret.encode() in canonical
 

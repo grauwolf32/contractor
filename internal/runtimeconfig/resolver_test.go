@@ -94,6 +94,56 @@ func TestResolverRunLabelAdaptersDoNotRequireMatchingAgentLabels(t *testing.T) {
 	}
 }
 
+func TestResolverCaidoAtomicDefaultRunAgentPrecedenceAndClear(t *testing.T) {
+	input := resolverInput()
+	input.Default.Spec.Worker.Caido = caidoPatch("https://default.example", "")
+	input.RunLabels = []PinnedRuntimeConfig{testPin("debug", "3", Spec{Worker: WorkerPatch{
+		Caido: caidoPatch("https://run.example/prefix", "run-caido"),
+	}})}
+	input.AgentLabels = []PinnedRuntimeConfig{testPin("lab", "4", Spec{Worker: WorkerPatch{
+		Caido: caidoPatch("https://agent.example", ""),
+	}})}
+	input.RuntimeCredentials["run-caido"] = contracts.RuntimeCredentialCaidoBearer
+
+	result, err := ResolveRuntimeConfig(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Caido == nil || result.Caido.Endpoint != "https://agent.example" ||
+		result.Caido.Credential != "" || result.Origins.Caido.Layer != LayerAgentLabels ||
+		!reflect.DeepEqual(result.RequiredRuntimeAdapters, []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterCaidoGraphQL}) ||
+		len(result.Provenance.RuntimeCredentialRefs) != 0 {
+		t.Fatalf("Agent Caido precedence = %+v", result)
+	}
+
+	input.AgentLabels = nil
+	result, err = ResolveRuntimeConfig(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Caido == nil || result.Caido.Endpoint != "https://run.example/prefix" ||
+		result.Origins.Caido.Layer != LayerRunLabels ||
+		!reflect.DeepEqual(result.Provenance.RuntimeCredentialRefs, []contracts.RuntimeCredentialRefV2{{
+			CredentialID: "run-caido", Kind: contracts.RuntimeCredentialCaidoBearer,
+		}}) {
+		t.Fatalf("Run Caido precedence = %+v", result)
+	}
+
+	input.AgentLabels = []PinnedRuntimeConfig{testPin("no-caido", "5", Spec{Worker: WorkerPatch{
+		Caido: AtomicPatch[CaidoConfig]{Present: true, Clear: true},
+	}})}
+	result, err = ResolveRuntimeConfig(input)
+	if err != nil || result.Caido != nil || len(result.RequiredRuntimeAdapters) != 0 ||
+		result.Origins.Caido.Layer != LayerAgentLabels {
+		t.Fatalf("Agent Caido clear = (%+v, %v)", result, err)
+	}
+
+	input.AgentLabels = nil
+	input.RuntimeCredentials["run-caido"] = contracts.RuntimeCredentialProxyBearer
+	_, err = ResolveRuntimeConfig(input)
+	assertResolutionError(t, err, ResolutionCredentialKindMismatch, "worker.caido.credential")
+}
+
 func TestResolverSameLayerPermutationConflictAndDeduplication(t *testing.T) {
 	one := testPin("one", "4", Spec{Worker: WorkerPatch{
 		Telemetry: telemetryPatch("https://one.example/traces", ""),
@@ -397,6 +447,13 @@ func proxyPatch(credentialID string) AtomicPatch[HTTPProxyConfig] {
 	return AtomicPatch[HTTPProxyConfig]{Present: true, Value: HTTPProxyConfig{
 		Adapter: string(contracts.RuntimeAdapterHTTPProxy), ProxyURL: "http://127.0.0.1:8080",
 		Credential: credentialID, Targets: []string{"llm-gateway", "tool-http"},
+	}}
+}
+
+func caidoPatch(endpoint, credentialID string) AtomicPatch[CaidoConfig] {
+	return AtomicPatch[CaidoConfig]{Present: true, Value: CaidoConfig{
+		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: endpoint,
+		Credential: credentialID, RequestTimeoutSeconds: 30,
 	}}
 }
 

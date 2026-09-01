@@ -51,6 +51,28 @@ func TestMergeSameLayerReturnsDeterministicSafeConflict(t *testing.T) {
 	}
 }
 
+func TestMergeSameLayerTreatsCaidoAsOneAtomicValue(t *testing.T) {
+	t.Parallel()
+	one := LayerEntry{Label: "one", Ref: testRef("one", "1"), Spec: Spec{Worker: WorkerPatch{
+		Caido: caidoPatch("https://one.example", "one-token"),
+	}}}
+	two := LayerEntry{Label: "two", Ref: testRef("two", "2"), Spec: Spec{Worker: WorkerPatch{
+		Caido: caidoPatch("https://two.example", "two-token"),
+	}}}
+	_, err := MergeSameLayer([]LayerEntry{one, two})
+	var conflict *MergeConflictError
+	if !errors.As(err, &conflict) || conflict.Path != "worker.caido" ||
+		strings.Contains(err.Error(), "https://") || strings.Contains(err.Error(), "token") {
+		t.Fatalf("Caido conflict = %#v (%v)", conflict, err)
+	}
+
+	two.Spec.Worker.Caido = one.Spec.Worker.Caido
+	merged, err := MergeSameLayer([]LayerEntry{two, one})
+	if err != nil || merged.Worker.Caido != one.Spec.Worker.Caido {
+		t.Fatalf("equal Caido merge = (%+v, %v)", merged.Worker.Caido, err)
+	}
+}
+
 func testRef(name, digit string) Ref {
 	return Ref{Name: name, Version: "1", Digest: "sha256:" + strings.Repeat(digit, 64)}
 }

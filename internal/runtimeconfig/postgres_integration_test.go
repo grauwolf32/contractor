@@ -71,7 +71,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	document := []byte(`{
   "apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig",
   "metadata":{"name":"debug","version":"1"},
-  "spec":{"worker":{"llmGateway":{"gateway":"local-litellm@1","credential":"worker-local"}}}
+  "spec":{"worker":{"llmGateway":{"gateway":"local-litellm@1","credential":"worker-local"},"caido":{"adapter":"caido-graphql@1","endpoint":"https://caido.internal/prefix","credential":"caido-lab"}}}
 }`)
 	created, err := publisher.Publish(ctx, document, "publish-debug-1", "operator")
 	if err != nil || created.Replayed || resolverCalls.Load() != 1 {
@@ -79,6 +79,10 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	}
 	if created.Version.Spec.Worker.LLMGateway.Gateway.Value.Digest != "sha256:"+strings.Repeat("a", 64) {
 		t.Fatalf("published Gateway ref = %+v", created.Version.Spec.Worker.LLMGateway.Gateway.Value)
+	}
+	if caido := created.Version.Spec.Worker.Caido; !caido.Present || caido.Clear ||
+		caido.Value.Endpoint != "https://caido.internal/prefix" || caido.Value.Credential != "caido-lab" {
+		t.Fatalf("published Caido config = %+v", caido)
 	}
 	gatewayDigest.Store("sha256:" + strings.Repeat("b", 64))
 	replayed, err := publisher.Publish(ctx, document, "publish-debug-1", "another-operator")

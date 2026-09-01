@@ -427,6 +427,9 @@ func collectSpecCredentialIDs(
 	if field := spec.Worker.HTTPProxy; field.Present && !field.Clear && field.Value.Credential != "" {
 		runtimeIDs[field.Value.Credential] = struct{}{}
 	}
+	if field := spec.Worker.Caido; field.Present && !field.Clear && field.Value.Credential != "" {
+		runtimeIDs[field.Value.Credential] = struct{}{}
+	}
 	if field := spec.Planner.Telemetry; field.Present && !field.Clear && field.Value.Credential != "" {
 		runtimeIDs[field.Value.Credential] = struct{}{}
 	}

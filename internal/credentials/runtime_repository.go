@@ -257,6 +257,7 @@ JOIN runtime_config_versions c
  AND c.digest = b.config_digest
 WHERE c.canonical_document::jsonb #>> '{spec,worker,telemetry,credential}' = $1
    OR c.canonical_document::jsonb #>> '{spec,worker,httpProxy,credential}' = $1
+   OR c.canonical_document::jsonb #>> '{spec,worker,caido,credential}' = $1
    OR c.canonical_document::jsonb #>> '{spec,planner,telemetry,credential}' = $1
 ORDER BY b.label
 LIMIT $2`, credentialID, limit)
@@ -422,7 +423,7 @@ func runtimeCredentialKeyDigest(value string) (string, error) {
 }
 
 func validateAllowedRuntimeKinds(actual RuntimeCredentialKind, allowed []string) error {
-	if len(allowed) == 0 || len(allowed) > 3 {
+	if len(allowed) == 0 || len(allowed) > 4 {
 		return runtimeInvalid("expected Runtime credential kinds are invalid")
 	}
 	seen := make(map[RuntimeCredentialKind]struct{}, len(allowed))

@@ -206,6 +206,7 @@ func collectCredentialIDs(spec Spec, llm, runtime map[string]struct{}) {
 	for _, credentialID := range []string{
 		atomicTelemetryCredential(spec.Worker.Telemetry),
 		atomicProxyCredential(spec.Worker.HTTPProxy),
+		atomicCaidoCredential(spec.Worker.Caido),
 		atomicTelemetryCredential(spec.Planner.Telemetry),
 	} {
 		if credentialID != "" {
@@ -222,6 +223,13 @@ func atomicTelemetryCredential(value AtomicPatch[TelemetryConfig]) string {
 }
 
 func atomicProxyCredential(value AtomicPatch[HTTPProxyConfig]) string {
+	if value.Present && !value.Clear {
+		return value.Value.Credential
+	}
+	return ""
+}
+
+func atomicCaidoCredential(value AtomicPatch[CaidoConfig]) string {
 	if value.Present && !value.Clear {
 		return value.Value.Credential
 	}

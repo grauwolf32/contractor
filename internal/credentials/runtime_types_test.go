@@ -28,7 +28,11 @@ func TestRuntimeCredentialMaterialsAreCanonicalBoundedAndRedacted(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, material := range []*RuntimeCredentialMaterial{&headers, &basic, &bearer} {
+	caido, err := NewCaidoBearerCredential("caido-bearer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, material := range []*RuntimeCredentialMaterial{&headers, &basic, &bearer, &caido} {
 		for _, formatted := range []string{
 			fmt.Sprint(material), fmt.Sprintf("%v", material), fmt.Sprintf("%+v", material), fmt.Sprintf("%#v", material),
 		} {
@@ -100,6 +104,12 @@ func TestRuntimeCredentialConstructorsRejectUnsafeInputs(t *testing.T) {
 	if _, err := NewHTTPProxyBearerCredential(string([]byte{0xff})); !errors.Is(err, ErrRuntimeCredentialInvalid) {
 		t.Fatalf("invalid UTF-8 bearer error = %v", err)
 	}
+	if _, err := NewCaidoBearerCredential(""); !errors.Is(err, ErrRuntimeCredentialInvalid) {
+		t.Fatalf("empty Caido bearer error = %v", err)
+	}
+	if _, err := NewCaidoBearerCredential("line\ntoken"); !errors.Is(err, ErrRuntimeCredentialInvalid) {
+		t.Fatalf("control-byte Caido bearer error = %v", err)
+	}
 	manyValues := make(map[string]string)
 	for index := 0; index < 5; index++ {
 		manyValues[fmt.Sprintf("x-secret-%d", index)] = strings.Repeat("x", MaximumOTLPHeaderValueBytes)
@@ -169,6 +179,35 @@ func TestRuntimeCredentialCipherUsesSeparateAADAndSecretMAC(t *testing.T) {
 		if !strings.Contains(formatted, "REDACTED") || strings.Contains(formatted, fmt.Sprintf("%x", key)) {
 			t.Fatalf("unsafe credential cipher formatting: %q", formatted)
 		}
+	}
+}
+
+func TestCaidoBearerCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *testing.T) {
+	t.Parallel()
+	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x39}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	material, _ := NewCaidoBearerCredential("caido-exact-secret")
+	envelope, err := cipher.SealRuntimeCredential("caido-auth", material)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opened, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialCaidoBearer, envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Destroy()
+	if err := opened.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
+		if kind != RuntimeCredentialCaidoBearer || string(plaintext) != `{"token":"caido-exact-secret"}` {
+			return errors.New("Caido material differs")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
+		t.Fatalf("cross-kind Caido open error = %v", err)
 	}
 }
 

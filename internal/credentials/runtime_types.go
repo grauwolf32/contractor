@@ -28,6 +28,7 @@ const (
 	RuntimeCredentialOTLPHeaders RuntimeCredentialKind = "otlp-headers@1"
 	RuntimeCredentialProxyBasic  RuntimeCredentialKind = "http-proxy-basic@1"
 	RuntimeCredentialProxyBearer RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialCaidoBearer RuntimeCredentialKind = "caido-bearer@1"
 )
 
 var (
@@ -94,6 +95,15 @@ func NewHTTPProxyBearerCredential(token string) (RuntimeCredentialMaterial, erro
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP proxy bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialProxyBearer, struct {
+		Token string `json:"token"`
+	}{Token: token})
+}
+
+func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
+	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Caido bearer credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialCaidoBearer, struct {
 		Token string `json:"token"`
 	}{Token: token})
 }
@@ -241,6 +251,14 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewHTTPProxyBearerCredential(source.Token)
+	case RuntimeCredentialCaidoBearer:
+		var source struct {
+			Token string `json:"token"`
+		}
+		if decodeStrictJSON(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewCaidoBearerCredential(source.Token)
 	default:
 		return RuntimeCredentialMaterial{}, ErrCrypto
 	}
@@ -252,7 +270,8 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 }
 
 func validRuntimeCredentialKind(kind RuntimeCredentialKind) bool {
-	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic || kind == RuntimeCredentialProxyBearer
+	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
+		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer
 }
 
 func validBoundedSecret(value string, maximum int) bool {

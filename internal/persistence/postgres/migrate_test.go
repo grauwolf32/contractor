@@ -104,6 +104,30 @@ func TestRuntimeCredentialMigrationKeepsOnlyEncryptedReplayState(t *testing.T) {
 	}
 }
 
+func TestCaidoRuntimeCredentialMigrationExtendsBothClosedKinds(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var caido migration
+	for _, item := range items {
+		if item.name == "000023_caido_runtime_credentials.sql" {
+			caido = item
+			break
+		}
+	}
+	if caido.name == "" {
+		t.Fatal("Caido Runtime credential migration is not embedded")
+	}
+	contents := string(caido.contents)
+	if strings.Count(contents, "'caido-bearer@1'") != 2 ||
+		!strings.Contains(contents, "runtime_credentials_credential_kind_check") ||
+		!strings.Contains(contents, "runtime_credential_creations_credential_kind_check") {
+		t.Fatalf("Caido Runtime credential migration is incomplete: %s", contents)
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

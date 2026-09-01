@@ -832,9 +832,9 @@ def _validate_media_type(value: str) -> None:
 # DTOs above. V8-004 switches both peers atomically after durable principal
 # state exists; importing these models alone cannot activate v2 behavior.
 PRIVATE_PROTOCOL_VERSION_V2 = 2
-RUNTIME_ADAPTER_REFS = frozenset({"http-proxy@1", "otlp-http@1"})
+RUNTIME_ADAPTER_REFS = frozenset({"caido-graphql@1", "http-proxy@1", "otlp-http@1"})
 RUNTIME_CREDENTIAL_KINDS = frozenset(
-    {"http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"}
+    {"caido-bearer@1", "http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"}
 )
 PROXY_TARGETS = frozenset({"llm-gateway", "tool-http", "tool-subprocess"})
 _RUNTIME_AGENT_ID_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -884,7 +884,12 @@ def _require_runtime_adapter_ref(value: str) -> str:
 
 
 RuntimeAdapterRef = Annotated[str, AfterValidator(_require_runtime_adapter_ref)]
-RuntimeCredentialKind = Literal["http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"]
+RuntimeCredentialKind = Literal[
+    "caido-bearer@1",
+    "http-proxy-basic@1",
+    "http-proxy-bearer@1",
+    "otlp-headers@1",
+]
 HTTPProxyTarget = Literal["llm-gateway", "tool-http", "tool-subprocess"]
 WorkspaceModeV2 = Literal["direct", "overlay"]
 WorkspaceStorageV2 = Literal["local", "memory"]
@@ -1143,8 +1148,35 @@ class HTTPProxySettingsV2(WireModel):
             if not 1 <= len(token.encode("utf-8")) <= 8192:
                 raise ValueError("HTTP proxy bearerToken is outside its size bound")
         if self.ca_bundle_pem is not None:
-            _validate_ca_bundle(self.ca_bundle_pem)
+            _validate_ca_bundle("HTTP proxy", self.ca_bundle_pem)
         _require_sorted_unique("httpProxy.targets", self.targets, maximum=3)
+        return self
+
+    @field_serializer("bearer_token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
+class CaidoSettingsV2(WireModel):
+    adapter: RuntimeAdapterRef
+    endpoint: str
+    bearer_token: SecretStr | None = None
+    ca_bundle_pem: str | None = None
+    request_timeout_seconds: int
+
+    @model_validator(mode="after")
+    def validate_caido(self) -> Self:
+        if self.adapter != "caido-graphql@1":
+            raise ValueError("Caido adapter must be caido-graphql@1")
+        _require_runtime_endpoint("caido.endpoint", self.endpoint)
+        if self.bearer_token is not None:
+            token = self.bearer_token.get_secret_value()
+            if not 1 <= len(token.encode("utf-8")) <= 8192:
+                raise ValueError("Caido bearerToken is outside its size bound")
+        if self.ca_bundle_pem is not None:
+            _validate_ca_bundle("Caido", self.ca_bundle_pem)
+        if not 1 <= self.request_timeout_seconds <= 120:
+            raise ValueError("Caido requestTimeoutSeconds must be from 1 through 120")
         return self
 
     @field_serializer("bearer_token", when_used="json")
@@ -1158,6 +1190,7 @@ class RuntimeSettingsV2(WireModel):
     artifact_api_url: str
     telemetry: TelemetrySettingsV2 | None = None
     http_proxy: HTTPProxySettingsV2 | None = None
+    caido: CaidoSettingsV2 | None = None
     request_timeout_seconds: int = Field(gt=0)
 
     @model_validator(mode="after")
@@ -1329,15 +1362,15 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _validate_ca_bundle(value: str) -> None:
+def _validate_ca_bundle(owner: str, value: str) -> None:
     if not 1 <= len(value.encode("utf-8")) <= 64 * 1024 or "PRIVATE KEY" in value:
-        raise ValueError("HTTP proxy CA bundle is invalid")
+        raise ValueError(f"{owner} CA bundle is invalid")
     certificates = _CERTIFICATE_PATTERN.findall(value)
     remainder = _CERTIFICATE_PATTERN.sub("", value)
     if not 1 <= len(certificates) <= 8 or remainder.strip():
-        raise ValueError("HTTP proxy CA bundle is invalid")
+        raise ValueError(f"{owner} CA bundle is invalid")
     try:
         for certificate in certificates:
             ssl.PEM_cert_to_DER_cert(certificate)
     except ValueError:
-        raise ValueError("HTTP proxy CA bundle is invalid") from None
+        raise ValueError(f"{owner} CA bundle is invalid") from None

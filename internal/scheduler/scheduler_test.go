@@ -452,6 +452,52 @@ func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.
 	}
 }
 
+func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
+	const secret = "caido-private-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []contracts.RuntimeCredentialKind,
+		consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "caido-lab" ||
+			!reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialCaidoBearer}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(contracts.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
+	})
+	resolved, err := fallbackResolvedWorkerConfig(
+		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved.Caido = &runtimeconfig.CaidoConfig{
+		Adapter: string(contracts.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/prefix",
+		Credential: "caido-lab", RequestTimeoutSeconds: 120,
+	}
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.Caido == nil || settings.Caido.BearerToken == nil ||
+		settings.Caido.BearerToken.Reveal() != secret ||
+		settings.Caido.RequestTimeoutSeconds != settings.RequestTimeoutSeconds {
+		t.Fatalf("materialized Caido settings = %+v", settings.Caido)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
+		t.Fatal("formatted Runtime settings exposed Caido bearer")
+	}
+	workerSettings := map[string]contracts.WorkerExecutionSettingsV2{
+		"builder": {RuntimeSettings: settings},
+	}
+	clearWorkerExecutionSettings(workerSettings)
+	if workerSettings["builder"].RuntimeSettings.Caido.BearerToken != nil {
+		t.Fatal("Caido bearer survived Worker execution settings erasure")
+	}
+}
+
 func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.T) {
 	const headerSecret = "planner-header-secret-canary"
 	for _, test := range []struct {

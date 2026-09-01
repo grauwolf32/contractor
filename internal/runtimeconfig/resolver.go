@@ -58,6 +58,7 @@ type ResolvedRuntimeConfigOrigins struct {
 	LLMCredential    *RuntimeFieldOrigin `json:"llmCredential,omitempty"`
 	WorkerTelemetry  *RuntimeFieldOrigin `json:"workerTelemetry,omitempty"`
 	HTTPProxy        *RuntimeFieldOrigin `json:"httpProxy,omitempty"`
+	Caido            *RuntimeFieldOrigin `json:"caido,omitempty"`
 	PlannerTelemetry *RuntimeFieldOrigin `json:"plannerTelemetry,omitempty"`
 }
 
@@ -70,6 +71,7 @@ func (o ResolvedRuntimeConfigOrigins) Validate() error {
 		{path: "worker.llmGateway.credential", origin: o.LLMCredential},
 		{path: "worker.telemetry", origin: o.WorkerTelemetry},
 		{path: "worker.httpProxy", origin: o.HTTPProxy},
+		{path: "worker.caido", origin: o.Caido},
 		{path: "planner.telemetry", origin: o.PlannerTelemetry},
 	}
 	for _, field := range fields {
@@ -157,6 +159,7 @@ type ResolvedRuntimeConfig struct {
 	LLMCredential            *contracts.LLMCredentialRef                 `json:"llmCredential,omitempty"`
 	WorkerTelemetry          *TelemetryConfig                            `json:"workerTelemetry,omitempty"`
 	HTTPProxy                *HTTPProxyConfig                            `json:"httpProxy,omitempty"`
+	Caido                    *CaidoConfig                                `json:"caido,omitempty"`
 	PlannerTelemetry         *TelemetryConfig                            `json:"plannerTelemetry,omitempty"`
 	PlannerRuntimeCredential *contracts.RuntimeCredentialRefV2           `json:"plannerRuntimeCredential,omitempty"`
 	RequiredRuntimeAdapters  []contracts.RuntimeAdapterRef               `json:"requiredRuntimeAdapters"`
@@ -190,12 +193,13 @@ type effectiveRuntimeConfig struct {
 	credential       *contracts.LLMCredentialRef
 	workerTelemetry  *TelemetryConfig
 	httpProxy        *HTTPProxyConfig
+	caido            *CaidoConfig
 	plannerTelemetry *TelemetryConfig
 	origins          ResolvedRuntimeConfigOrigins
 }
 
 type layerOrigins struct {
-	gateway, credential, workerTelemetry, httpProxy, plannerTelemetry *RuntimeFieldOrigin
+	gateway, credential, workerTelemetry, httpProxy, caido, plannerTelemetry *RuntimeFieldOrigin
 }
 
 // ResolveRuntimeConfig applies the normative precedence order without I/O.
@@ -279,6 +283,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		LLMCredential:            cloneCredentialRef(effective.credential),
 		WorkerTelemetry:          cloneTelemetry(effective.workerTelemetry),
 		HTTPProxy:                cloneHTTPProxy(effective.httpProxy),
+		Caido:                    cloneCaido(effective.caido),
 		PlannerTelemetry:         cloneTelemetry(effective.plannerTelemetry),
 		PlannerRuntimeCredential: plannerCredential,
 		RequiredRuntimeAdapters:  append([]contracts.RuntimeAdapterRef{}, adapters...),
@@ -406,6 +411,15 @@ func applyWorkerSpec(target *effectiveRuntimeConfig, patch WorkerPatch, origins 
 		}
 		target.origins.HTTPProxy = cloneOrigin(origins.httpProxy)
 	}
+	if patch.Caido.Present {
+		if patch.Caido.Clear {
+			target.caido = nil
+		} else {
+			value := patch.Caido.Value
+			target.caido = &value
+		}
+		target.origins.Caido = cloneOrigin(origins.caido)
+	}
 }
 
 func applyPlannerSpec(target *effectiveRuntimeConfig, patch PlannerPatch, origins layerOrigins) {
@@ -452,8 +466,8 @@ func validateAdapterSettings(
 	input ResolveRuntimeConfigInput,
 	effective effectiveRuntimeConfig,
 ) ([]contracts.RuntimeCredentialRefV2, *contracts.RuntimeCredentialRefV2, []contracts.RuntimeAdapterRef, error) {
-	workerCredentials := make([]contracts.RuntimeCredentialRefV2, 0, 2)
-	adapters := make([]contracts.RuntimeAdapterRef, 0, 2)
+	workerCredentials := make([]contracts.RuntimeCredentialRefV2, 0, 3)
+	adapters := make([]contracts.RuntimeAdapterRef, 0, 3)
 	if effective.workerTelemetry != nil {
 		if err := validateTelemetryConfig(*effective.workerTelemetry, "worker.telemetry"); err != nil {
 			return nil, nil, nil, err
@@ -480,6 +494,22 @@ func validateAdapterSettings(
 				input.RuntimeCredentials, effective.httpProxy.Credential,
 				"worker.httpProxy.credential",
 				contracts.RuntimeCredentialProxyBasic, contracts.RuntimeCredentialProxyBearer,
+			)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			workerCredentials = append(workerCredentials, ref)
+		}
+	}
+	if effective.caido != nil {
+		if err := validateCaidoConfig(*effective.caido); err != nil {
+			return nil, nil, nil, err
+		}
+		adapters = append(adapters, contracts.RuntimeAdapterCaidoGraphQL)
+		if effective.caido.Credential != "" {
+			ref, err := requireRuntimeCredential(
+				input.RuntimeCredentials, effective.caido.Credential,
+				"worker.caido.credential", contracts.RuntimeCredentialCaidoBearer,
 			)
 			if err != nil {
 				return nil, nil, nil, err
@@ -530,7 +560,7 @@ func validateHTTPProxyConfig(value HTTPProxyConfig) error {
 	if _, err := validateURL("worker.httpProxy.proxyUrl", value.ProxyURL); err != nil {
 		return resolutionError(ResolutionInvalid, "worker.httpProxy", ErrInvalid)
 	}
-	if value.CABundlePEM != "" && validateCABundle(value.CABundlePEM) != nil {
+	if value.CABundlePEM != "" && validateCABundle("worker.httpProxy.caBundlePem", value.CABundlePEM) != nil {
 		return resolutionError(ResolutionInvalid, "worker.httpProxy", ErrInvalid)
 	}
 	if len(value.Targets) == 0 || len(value.Targets) > 3 {
@@ -547,6 +577,20 @@ func validateHTTPProxyConfig(value HTTPProxyConfig) error {
 			return resolutionError(ResolutionInvalid, "worker.httpProxy.targets", ErrInvalid)
 		}
 		previous = target
+	}
+	return nil
+}
+
+func validateCaidoConfig(value CaidoConfig) error {
+	if value.Adapter != string(contracts.RuntimeAdapterCaidoGraphQL) ||
+		value.RequestTimeoutSeconds < 0 || value.RequestTimeoutSeconds > 120 {
+		return resolutionError(ResolutionInvalid, "worker.caido", ErrInvalid)
+	}
+	if _, err := validateURL("worker.caido.endpoint", value.Endpoint); err != nil {
+		return resolutionError(ResolutionInvalid, "worker.caido", ErrInvalid)
+	}
+	if value.CABundlePEM != "" && validateCABundle("worker.caido.caBundlePem", value.CABundlePEM) != nil {
+		return resolutionError(ResolutionInvalid, "worker.caido", ErrInvalid)
 	}
 	return nil
 }
@@ -603,6 +647,9 @@ func originsForPinned(layer RuntimeLayer, entries []PinnedRuntimeConfig) layerOr
 		httpProxy: selectOrigin(func(spec Spec) bool {
 			return spec.Worker.HTTPProxy.Present
 		}),
+		caido: selectOrigin(func(spec Spec) bool {
+			return spec.Worker.Caido.Present
+		}),
 		plannerTelemetry: selectOrigin(func(spec Spec) bool {
 			return spec.Planner.Telemetry.Present
 		}),
@@ -627,7 +674,7 @@ func bindingProvenanceList(values []PinnedRuntimeConfig) []contracts.RuntimeLabe
 }
 
 func workerApplicable(value WorkerPatch) bool {
-	return value.LLMGateway.Present || value.Telemetry.Present || value.HTTPProxy.Present
+	return value.LLMGateway.Present || value.Telemetry.Present || value.HTTPProxy.Present || value.Caido.Present
 }
 
 func containsModelPolicy(values []contracts.ModelPolicyRef, expected contracts.ModelPolicyRef) bool {
@@ -720,6 +767,14 @@ func cloneHTTPProxy(value *HTTPProxyConfig) *HTTPProxyConfig {
 	return &result
 }
 
+func cloneCaido(value *CaidoConfig) *CaidoConfig {
+	if value == nil {
+		return nil
+	}
+	result := *value
+	return &result
+}
+
 func cloneOrigin(value *RuntimeFieldOrigin) *RuntimeFieldOrigin {
 	if value == nil {
 		return nil
@@ -735,6 +790,7 @@ func cloneOrigins(value ResolvedRuntimeConfigOrigins) ResolvedRuntimeConfigOrigi
 		LLMCredential:    cloneOrigin(value.LLMCredential),
 		WorkerTelemetry:  cloneOrigin(value.WorkerTelemetry),
 		HTTPProxy:        cloneOrigin(value.HTTPProxy),
+		Caido:            cloneOrigin(value.Caido),
 		PlannerTelemetry: cloneOrigin(value.PlannerTelemetry),
 	}
 }
@@ -749,6 +805,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result.LLMCredential = cloneCredentialRef(r.LLMCredential)
 	result.WorkerTelemetry = cloneTelemetry(r.WorkerTelemetry)
 	result.HTTPProxy = cloneHTTPProxy(r.HTTPProxy)
+	result.Caido = cloneCaido(r.Caido)
 	result.PlannerTelemetry = cloneTelemetry(r.PlannerTelemetry)
 	if r.PlannerRuntimeCredential != nil {
 		credential := *r.PlannerRuntimeCredential

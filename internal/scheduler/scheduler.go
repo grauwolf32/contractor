@@ -1016,6 +1016,42 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		result.HTTPProxy = proxy
 	}
+	if resolved.Caido != nil {
+		timeout := resolved.Caido.RequestTimeoutSeconds
+		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
+			timeout = result.RequestTimeoutSeconds
+		}
+		if timeout > 120 {
+			timeout = 120
+		}
+		caido := &contracts.CaidoSettingsV2{
+			Adapter: contracts.RuntimeAdapterCaidoGraphQL, Endpoint: resolved.Caido.Endpoint,
+			RequestTimeoutSeconds: timeout,
+		}
+		if resolved.Caido.CABundlePEM != "" {
+			bundle := resolved.Caido.CABundlePEM
+			caido.CABundlePEM = &bundle
+		}
+		if credentialID := resolved.Caido.Credential; credentialID != "" {
+			if err := s.useRuntimeCredential(
+				ctx, credentialID, []contracts.RuntimeCredentialKind{contracts.RuntimeCredentialCaidoBearer},
+				func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+					var material struct {
+						Token string `json:"token"`
+					}
+					if kind != contracts.RuntimeCredentialCaidoBearer || decodeRuntimeCredential(plaintext, &material) != nil {
+						return errors.New("invalid Caido credential material")
+					}
+					token := contracts.NewSecretString(material.Token)
+					caido.BearerToken = &token
+					return nil
+				},
+			); err != nil {
+				return contracts.RuntimeSettingsV2{}, fmt.Errorf("Worker Caido credential is unavailable")
+			}
+		}
+		result.Caido = caido
+	}
 	if err := result.Validate(); err != nil {
 		return contracts.RuntimeSettingsV2{}, fmt.Errorf("materialized Runtime settings are invalid")
 	}
@@ -1249,6 +1285,9 @@ func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionS
 		if value.RuntimeSettings.HTTPProxy != nil {
 			value.RuntimeSettings.HTTPProxy.BasicAuth = nil
 			value.RuntimeSettings.HTTPProxy.BearerToken = nil
+		}
+		if value.RuntimeSettings.Caido != nil {
+			value.RuntimeSettings.Caido.BearerToken = nil
 		}
 		settings[name] = value
 	}

@@ -173,6 +173,26 @@ func TestRuntimeCredentialUnknownFieldsAndOversizeFailWithoutMutationOrEcho(t *t
 	}
 }
 
+func TestCaidoBearerCredentialAPIStoresOnlySafeMetadata(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	secret := "caido-api-secret-canary"
+	request := runtimeMutationRequest(
+		t, http.MethodPost, "/v1/operations/runtime-credentials",
+		`{"credentialId":"caido-lab","kind":"caido-bearer@1","material":{"token":"`+secret+`"}}`,
+		"create-caido-lab", "", "",
+	)
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated || strings.Contains(response.Body.String(), secret) ||
+		!strings.Contains(response.Body.String(), `"kind":"caido-bearer@1"`) {
+		t.Fatalf("Caido credential response = %d: %s", response.Code, response.Body.String())
+	}
+	metadata, err := fixture.runtimeCredentials.Get(t.Context(), "caido-lab")
+	if err != nil || metadata.Kind != credentials.RuntimeCredentialCaidoBearer {
+		t.Fatalf("Caido credential metadata = (%+v, %v)", metadata, err)
+	}
+}
+
 func TestRuntimeOperationsReturnBoundedInUseDetails(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	fixture.runtimeConfigs.deleteErr = &runtimeconfig.LabelInUseError{

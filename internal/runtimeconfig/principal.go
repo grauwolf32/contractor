@@ -403,6 +403,9 @@ func (s *PrincipalService) RequiredRuntimeAdapters(
 		if version.Spec.Worker.HTTPProxy.Present && !version.Spec.Worker.HTTPProxy.Clear {
 			seen["http-proxy@1"] = struct{}{}
 		}
+		if version.Spec.Worker.Caido.Present && !version.Spec.Worker.Caido.Clear {
+			seen["caido-graphql@1"] = struct{}{}
+		}
 	}
 	result := make([]string, 0, len(seen))
 	for adapter := range seen {
@@ -764,7 +767,7 @@ func agentLayerEntries(
 			return nil, err
 		}
 		worker := version.Spec.Worker
-		if !worker.LLMGateway.Present && !worker.Telemetry.Present && !worker.HTTPProxy.Present {
+		if !worker.LLMGateway.Present && !worker.Telemetry.Present && !worker.HTTPProxy.Present && !worker.Caido.Present {
 			return nil, ErrAgentLabelNotApplicable
 		}
 		entries = append(entries, LayerEntry{
