@@ -46,6 +46,13 @@ NOW = datetime(2026, 8, 29, 10, 0, tzinfo=UTC)
 SECRET = "allocation-only-recognizable-secret"
 
 
+def test_worker_build_context_does_not_expose_agent_template() -> None:
+    fields = WorkerBuildContext.__dataclass_fields__
+
+    assert "agent_template" not in fields
+    assert {"description", "instruction", "card_version"} <= fields.keys()
+
+
 def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
     tmp_path: Path,
     runtime_capabilities: CapabilitySnapshot,

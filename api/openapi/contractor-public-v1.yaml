@@ -2380,6 +2380,25 @@ components:
       properties:
         required: {type: boolean}
         mediaTypes: {type: array, minItems: 1, maxItems: 32, uniqueItems: true, items: {$ref: '#/components/schemas/MediaType'}}
+    ArtifactBinding:
+      type: object
+      additionalProperties: false
+      required: [namespace, name]
+      properties:
+        namespace: {$ref: '#/components/schemas/ArtifactName'}
+        name: {$ref: '#/components/schemas/ArtifactName'}
+    StageResultArtifactSlot:
+      type: object
+      additionalProperties: false
+      required: [required, mediaTypes]
+      properties:
+        required: {type: boolean}
+        mediaTypes: {type: array, minItems: 1, maxItems: 32, uniqueItems: true, items: {$ref: '#/components/schemas/MediaType'}}
+        from:
+          allOf: [{$ref: '#/components/schemas/ArtifactBinding'}]
+          description: >-
+            Versionless Run artifact binding selected by trusted Workflow
+            configuration. Omitted only for Runtime-owned workspace exports.
     WorkflowRef:
       type: object
       additionalProperties: false
@@ -2505,7 +2524,7 @@ components:
           additionalProperties: {$ref: '#/components/schemas/WorkflowAgentBinding'}
         executionConfig: {$ref: '#/components/schemas/ResolvedStageExecutionConfig'}
         contextArtifacts: {type: object, additionalProperties: {$ref: '#/components/schemas/WorkflowContextArtifact'}}
-        resultArtifacts: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
+        resultArtifacts: {type: object, additionalProperties: {$ref: '#/components/schemas/StageResultArtifactSlot'}}
         workflowOutputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactName'}}
         on: {$ref: '#/components/schemas/WorkflowTransitions'}
     WorkflowResource:
@@ -2556,7 +2575,10 @@ components:
             contextArtifacts:
               source: {namespace: inputs, name: source, required: true}
             resultArtifacts:
-              result: {required: true, mediaTypes: [text/plain]}
+              result:
+                required: true
+                mediaTypes: [text/plain]
+                from: {namespace: builder, name: copied}
             workflowOutputs: {result: result}
             on:
               succeeded: {kind: succeed}

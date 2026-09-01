@@ -45,6 +45,7 @@ spec:
           draft:
             required: true
             mediaTypes: [text/plain]
+            from: {namespace: builder, name: copied}
       on:
         succeeded:
           next: review
@@ -75,6 +76,7 @@ spec:
           reviewed:
             required: true
             mediaTypes: [text/plain]
+            from: {namespace: builder, name: copied}
       workflowOutputs:
         result: reviewed
       on:

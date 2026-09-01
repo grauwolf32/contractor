@@ -51,6 +51,18 @@ func TestResolveWorkspaceContextAndExportContract(t *testing.T) {
 	if err := validateStageWorkspace(context, result, agents); err != nil {
 		t.Fatalf("valid workspace contract: %v", err)
 	}
+	if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
+		t.Fatalf("valid Runtime-owned result bindings: %v", err)
+	}
+	badBinding := result
+	badBinding.Artifacts = cloneArtifactSlots(result.Artifacts)
+	state := badBinding.Artifacts["workspace_state"]
+	state.From = &ArtifactBinding{Namespace: "worker", Name: "workspace_state"}
+	badBinding.Artifacts["workspace_state"] = state
+	if err := validateStageResultBindings(badBinding, context.Workspace, agents); err == nil ||
+		!strings.Contains(err.Error(), "must be omitted") {
+		t.Fatalf("Runtime-owned result binding error = %v", err)
+	}
 
 	stage := cloneStage(ResolvedStage{Context: context})
 	stage.Context.Workspace.Sources[0].Target = "mutated"

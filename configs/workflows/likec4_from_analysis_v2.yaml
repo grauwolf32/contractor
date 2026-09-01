@@ -70,6 +70,7 @@ spec:
           architecture:
             required: true
             mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
       on:
         succeeded:
           next: likec4_validate
@@ -116,9 +117,11 @@ spec:
           architecture:
             required: true
             mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
           validation_report:
             required: true
             mediaTypes: [text/markdown]
+            from: {namespace: likec4, name: validation-report}
       workflowOutputs:
         architecture: architecture
         validation_report: validation_report

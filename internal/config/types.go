@@ -38,10 +38,21 @@ type ParameterSlot struct {
 	Required bool `json:"required"`
 }
 
+// ArtifactBinding identifies one versionless RunScope binding selected by
+// trusted Workflow configuration.
+type ArtifactBinding struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
 // ArtifactSlot declares one versioned artifact input, output, or Stage result.
+// From is present only on Stage result slots and lets Runtime map trusted tool
+// observations to a result name without asking the Worker model to serialize
+// Contractor transport data.
 type ArtifactSlot struct {
-	Required   bool     `json:"required"`
-	MediaTypes []string `json:"mediaTypes"`
+	Required   bool             `json:"required"`
+	MediaTypes []string         `json:"mediaTypes"`
+	From       *ArtifactBinding `json:"from,omitempty"`
 }
 
 // ContextArtifact identifies a logical RunScope binding to pin for a Stage.
@@ -349,8 +360,14 @@ type parameterSlotSource struct {
 }
 
 type artifactSlotSource struct {
-	Required   *bool    `yaml:"required"`
-	MediaTypes []string `yaml:"mediaTypes"`
+	Required   *bool                  `yaml:"required"`
+	MediaTypes []string               `yaml:"mediaTypes"`
+	From       *artifactBindingSource `yaml:"from,omitempty"`
+}
+
+type artifactBindingSource struct {
+	Namespace string `yaml:"namespace"`
+	Name      string `yaml:"name"`
 }
 
 type stageSource struct {

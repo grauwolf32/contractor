@@ -125,8 +125,8 @@ Rules:
 6. `workspace-changes@1` requires `mode: overlay`. `filesystem@1` and
    `edit-files@1` work in either mode. A workspace without these Toolsets is
    valid; a filesystem Toolset without a workspace is not.
-7. Auto-export result slots are reserved. A model-produced
-   `StageContentResult` cannot provide or replace them.
+7. Auto-export result slots are reserved. They omit ordinary `from` bindings and
+   cannot be provided or replaced by model text or ordinary tool observations.
 
 Multiple sources create one logical root, for example:
 
@@ -414,15 +414,16 @@ choose among multiple matches.
 
 ## Auto export and A2A ordering
 
-For overlay with `export`, Runtime intercepts every graceful, structurally
-valid terminal `StageContentResult` — both semantic `succeeded` and `failed` —
-before it becomes the terminal A2A response:
+For overlay with `export`, Runtime augments every successful normal Worker-model
+completion after its Runtime-owned response has been projected and before it
+becomes terminal over A2A:
 
 1. snapshot `F` under the workspace lock;
 2. encode and locally validate cumulative state `S -> F` and diff `B -> F`;
 3. write state and diff to `AllocationSpec.namespace` through the current
    allocation Artifact API;
-4. inject both exact returned refs into their reserved result slots;
+4. inject both exact returned refs into their reserved result slots after the
+   ordinary observed-ref projection;
 5. validate the final result; only then publish the terminal A2A response;
 6. advance checkpoint to `F` after both writes have succeeded.
 
@@ -433,10 +434,11 @@ harmless because Scheduler never selects it. Temporary Artifact API failures
 produce retryable `workspace_export_failed`; invalid state/quota/fence failures
 are classified by their stable cause.
 
-No export occurs for `INPUT_REQUIRED` (the allocation continues), lost lease,
-forced abort/cancel, crash, malformed result or invocation cancellation. This
-ordering guarantees artifact writes finish before Scheduler observes terminal
-A2A state and enters its write-fenced `finalizing`/`aborting` transition.
+No export occurs for a Runtime-classified failed response, `INPUT_REQUIRED` (the
+allocation continues), lost lease, forced abort/cancel, crash, missing/unsafe final
+summary or invocation cancellation. This ordering guarantees artifact writes finish
+before Scheduler observes terminal A2A state and enters its write-fenced
+`finalizing`/`aborting` transition.
 
 ## Lifecycle and cleanup
 

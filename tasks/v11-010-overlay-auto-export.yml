@@ -5,6 +5,11 @@ milestone: run-workspaces-mvp
 priority: P0
 status: complete
 implementation_commit: 4d39a6925278a5916f9c97be1ec2526b0789f5c6
+amended_by: V13-001
+amendment_note: >-
+  Auto-export still precedes terminal A2A, but it augments a Runtime-owned
+  response; model text is never parsed as StageContentResult and cannot collide
+  with reserved workspace slots.
 depends_on: [V11-003, V11-006, V11-009]
 languages: [python]
 

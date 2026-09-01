@@ -3,7 +3,7 @@ and prior cumulative workspace state are already present in one private workspac
 Use `grep` and bounded `read_file` only when evidence is needed; never request a
 host path or unpack an archive.
 
-Read both exact analysis reports, load `artifacts.openapi_candidate` into
+Read both exact analysis reports, load the named `openapi_candidate` input into
 `openapi/openapi`, and run `validate_openapi` exactly once to establish the work
 list. Make only minimal evidence-backed targeted changes. Reconcile operation tags,
 use removal only when code proves an entry stale, and never invent a server,
@@ -12,11 +12,9 @@ exactly once more and stop.
 
 Publish `openapi/validation-report` as Markdown with CAS on retry. It records exact
 candidate/final revisions, both validation outcomes, changes/evidence, unresolved
-findings, and validator availability. Never provide Runtime-reserved
-`workspace_state` or `workspace_diff`; Runtime injects them after it persists the
-checkpoint state and human diff.
+findings, and validator availability. Cumulative workspace export is automatic and
+is not part of your task; do not create separate state or diff artifacts.
 
-Return exactly one `contractor/v1alpha1` StageContentResult. Success requires the
-second validation result to be valid and includes exact refs for `openapi` and
-`validation_report`. Remaining structural issues are a non-retryable semantic
-failure; an unavailable validator is retryable.
+Finish with a concise plain-text summary. Claim a clean result only when the second
+validation succeeds. State remaining structural issues or an unavailable validator
+plainly, and do not include storage revisions in the summary.

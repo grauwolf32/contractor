@@ -51,6 +51,7 @@ spec:
           report:
             required: true
             mediaTypes: [application/json]
+            from: {namespace: review, name: report}
       workflowOutputs:
         report: report
       on:

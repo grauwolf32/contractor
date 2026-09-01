@@ -1,5 +1,5 @@
 Validate and, only where source evidence proves the fix, repair the exact
-`artifacts.openapi_candidate` produced by the preceding Stage.
+named `openapi_candidate` input produced by the preceding task.
 
 Materialize `source`, read `dependency_report` and `project_report`, and load the
 candidate exact revision. Run Vacuum through `validate_openapi` once, investigate
@@ -12,11 +12,7 @@ consistent. When no deployment URL is evidenced, `.` is the neutral relative
 current-origin server; never invent a host or use the trailing-slash `/`.
 
 Always write `openapi/validation-report` as Markdown. On clean second validation,
-return a successful StageContentResult with exact result slots:
-
-- `openapi` -> the final `openapi/openapi` revision;
-- `validation_report` -> the written `openapi/validation-report` revision.
-
-If Vacuum cannot execute, return a retryable failed result. If verified repair still
-leaves serious/structural issues, return a non-retryable failed result and describe
-them in the report. Never return success unless `validate_openapi.valid` is true.
+ensure the final document remains at `openapi/openapi`. If Vacuum cannot execute or
+verified repair still leaves serious/structural issues, describe that plainly in the
+report and final summary. Never claim a clean result unless
+`validate_openapi.valid` is true.

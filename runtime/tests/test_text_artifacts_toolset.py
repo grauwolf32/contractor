@@ -237,6 +237,7 @@ class MemoryArtifactClient:
         self.bindings: dict[tuple[str, str], StoredArtifact] = {}
         self.history: dict[tuple[str, str, str], StoredArtifact] = {}
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
+        self._observed: list[ArtifactRef] = []
         self._next_revision = 1
         self.read_calls = 0
         self.write_calls = 0
@@ -244,6 +245,13 @@ class MemoryArtifactClient:
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return tuple(self._known.values())
+
+    @property
+    def observation_cursor(self) -> int:
+        return len(self._observed)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return tuple(self._observed[cursor:])
 
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
@@ -305,3 +313,4 @@ class MemoryArtifactClient:
     def _remember(self, ref: ArtifactRef) -> None:
         assert ref.revision is not None
         self._known[(ref.namespace, ref.name, ref.revision)] = ref
+        self._observed.append(ref)

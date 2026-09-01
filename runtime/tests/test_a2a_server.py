@@ -18,7 +18,7 @@ from a2a.types import (
     TaskState,
 )
 from a2a.utils.constants import TransportProtocol
-from fakes.model import json_result, scripted_model
+from fakes.model import scripted_model, text_result
 from fakes.spec import allocation_spec
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Value
@@ -42,7 +42,7 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        model = scripted_model([json_result(success_payload("done"))])
+        model = scripted_model([text_result("done")])
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
@@ -126,7 +126,7 @@ def test_concurrent_a2a_message_receives_worker_busy(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        model = scripted_model([json_result(success_payload("first"))], block=True)
+        model = scripted_model([text_result("first")], block=True)
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
@@ -168,7 +168,7 @@ def test_return_immediately_exposes_working_task_while_worker_continues(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        model = scripted_model([json_result(success_payload("done"))], block=True)
+        model = scripted_model([text_result("done")], block=True)
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
@@ -280,12 +280,3 @@ def text_request(allocation_id: str) -> SendMessageRequest:
             parts=[Part(text="not a StageContentRequest")],
         ),
     )
-
-
-def success_payload(summary: str) -> dict[str, object]:
-    return {
-        "apiVersion": API_VERSION,
-        "outcome": "succeeded",
-        "summary": summary,
-        "artifacts": {},
-    }

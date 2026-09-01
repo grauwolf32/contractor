@@ -127,8 +127,8 @@ durable produces an `interrupted` StageTermination.
 
 The Scheduler-owned escalation action and its independent `failed` or
 `interrupted` branch are defined in [00](00-workflow-and-planner.md). Its
-eligibility does not read a model-produced `retryable` field; that field gates
-ordinary retry only.
+eligibility does not read the `retryable` field of a failed Planner candidate;
+that field gates ordinary retry only.
 
 This separation keeps Planner strategies independent of RunStore and gives
 cancellation, recovery and result acceptance one durable writer.
@@ -307,37 +307,42 @@ RuntimeSettings secrets supplied by Control Plane are held outside ADK Session,
 State, events and model-visible instruction/context. They configure clients
 such as the LLM Gateway adapter and are never a telemetry source.
 
-### Worker result envelope recovery
+### Runtime-owned Worker result projection
 
-The tool-using ADK Worker loop does not apply an output schema to model turns.
-Those turns must remain able to select function tools on OpenAI-compatible
-Gateways. Runtime instead validates the last non-thought model text as a strict
-`StageContentResult` after the tool loop ends.
+The tool-using ADK Worker loop does not apply a Contractor output schema to model
+turns. Those turns remain able to select function tools on OpenAI-compatible
+Gateways, and the last non-thought model text is only a bounded presentation summary.
+There is no tool-free result-finalizer Agent, recovery Session or second LLM call.
 
-If that text is absent or fails the `StageContentResult` schema, Runtime may
-make exactly one recovery call through a separate, tool-free ADK agent and
-Session. The recovery call:
+The A2A request/result DTOs are private Runtime/Control Plane transport. Before ADK
+execution, Runtime renders objective, task instructions, string parameters and named
+exact inputs into semantic task text. Result bindings remain Runtime-private. Runtime
+adds no behavioral prompt: reusable behavior is the resolved AgentTemplate's plain
+instruction text, while per-task behavior is supplied by Planner. It never renders
+`StageContentRequest`, `StageContentResult`, `apiVersion`, allocation or
+StageExecution identity, result-envelope fields, retryability or lifecycle rules.
+The model does not learn the AgentTemplate abstraction, its ref or digest.
 
-- uses `StageContentResult` as its structured output schema;
-- receives only the immutable `StageContentRequest`, a bounded safe failure
-  classification, and the latest exact `ArtifactRef` values observed through
-  trusted Artifact tools;
-- does not receive the rejected candidate, the tool transcript, secrets, or
-  another tool capability; and
-- consumes the same invocation-wide `maxModelCalls` and `maxTotalTokens`
-  budgets as the preceding Worker loop.
+After the tool loop, Runtime constructs the strict response itself:
 
-Runtime subjects the recovered candidate to the ordinary strict schema, size,
-secret and observed-revision checks. A second invalid candidate fails closed;
-there is no further recovery. Oversized, secret-bearing, or unverified-revision
-candidates are not recoverable. A normal valid candidate never incurs the
-additional model call. Structured generation is therefore a bounded envelope
-aid, not a replacement for Runtime validation, and raw rejected candidates are
-not retained in State, reports, logs, or durable storage.
+- a non-empty bounded final text becomes the summary and never controls a transport
+  field even if it happens to contain JSON;
+- each server-declared result slot is paired with its immutable versionless `from`
+  binding from the Worker-task request;
+- Runtime selects only the latest exact ref for that binding actually observed
+  through a trusted allocation-bound tool during the invocation;
+- unknown, model-invented, reserved Memory and Runtime-owned workspace bindings
+  cannot enter the response;
+- Runtime alone classifies missing/oversized/secret-bearing final text, model/tool
+  failures, budget exhaustion and workspace-export failure into bounded safe errors.
 
-This result-envelope recovery happens inside the active Worker invocation. It
-is distinct from allocation drain/finalization, which still performs no
-model/tool calls.
+The resulting strict transport response is validated and size-bounded before A2A
+publication. Planner then applies the immutable Stage result contract independently;
+Scheduler repeats validation before durable acceptance. No model call occurs after
+the final Worker turn, and allocation drain/finalization still performs no model or
+tool calls. Runtime clears the per-client observation journal after every invocation;
+only the latest exact ref per logical binding may remain as bounded allocation-local
+tool state, so repeated Planner subtasks do not accumulate a revision transcript.
 
 ## Execution reports
 

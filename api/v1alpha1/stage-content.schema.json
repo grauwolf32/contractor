@@ -12,7 +12,16 @@
         "objective": {"type": "string", "minLength": 1},
         "instructions": {"type": "string", "minLength": 1},
         "parameters": {"type": "object", "additionalProperties": {"type": "string"}},
-        "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}}
+        "artifacts": {"type": "object", "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}},
+        "resultArtifacts": {
+          "type": "object",
+          "additionalProperties": {
+            "allOf": [
+              {"$ref": "common.schema.json#/$defs/artifactRef"},
+              {"not": {"required": ["revision"]}}
+            ]
+          }
+        }
       }
     },
     {

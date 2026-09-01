@@ -1248,6 +1248,16 @@ export interface components {
             required: boolean;
             mediaTypes: components["schemas"]["MediaType"][];
         };
+        ArtifactBinding: {
+            namespace: components["schemas"]["ArtifactName"];
+            name: components["schemas"]["ArtifactName"];
+        };
+        StageResultArtifactSlot: {
+            required: boolean;
+            mediaTypes: components["schemas"]["MediaType"][];
+            /** @description Versionless Run artifact binding selected by trusted Workflow configuration. Omitted only for Runtime-owned workspace exports. */
+            from?: components["schemas"]["ArtifactBinding"];
+        };
         WorkflowRef: {
             name: components["schemas"]["ConfigId"];
             version: components["schemas"]["ConfigVersion"];
@@ -1332,7 +1342,7 @@ export interface components {
                 [key: string]: components["schemas"]["WorkflowContextArtifact"];
             };
             resultArtifacts: {
-                [key: string]: components["schemas"]["ArtifactSlot"];
+                [key: string]: components["schemas"]["StageResultArtifactSlot"];
             };
             workflowOutputs: {
                 [key: string]: components["schemas"]["ArtifactName"];
@@ -1416,7 +1426,11 @@ export interface components {
          *               "required": true,
          *               "mediaTypes": [
          *                 "text/plain"
-         *               ]
+         *               ],
+         *               "from": {
+         *                 "namespace": "builder",
+         *                 "name": "copied"
+         *               }
          *             }
          *           },
          *           "workflowOutputs": {

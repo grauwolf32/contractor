@@ -5,6 +5,11 @@ milestone: live-model-reliability
 priority: P0
 status: completed
 implementation_commit: 7bda680abb957577a6996d9ea5250e10a356e1e7
+superseded_by: V13-001
+supersession_note: >-
+  Historical implementation record. V13-001 removes the model-facing result
+  envelope and tool-free serializer entirely; Runtime now projects a strict
+  response from plain summary text and invocation-local trusted observations.
 depends_on: [V4-011]
 languages: [python]
 

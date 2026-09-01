@@ -746,6 +746,9 @@ class StageContentRequest(VersionedWireModel):
     instructions: str
     parameters: dict[str, str]
     artifacts: dict[str, ArtifactRef]
+    result_artifacts: dict[str, ArtifactRef] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def validate_content(self) -> Self:
@@ -756,6 +759,10 @@ class StageContentRequest(VersionedWireModel):
         for key, artifact in self.artifacts.items():
             _require_text("artifact context name", key)
             artifact.require_exact()
+        for key, artifact in self.result_artifacts.items():
+            _require_text("result artifact slot", key)
+            if artifact.revision is not None:
+                raise ValueError("result artifact binding must be versionless")
         return self
 
 

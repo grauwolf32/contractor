@@ -13,6 +13,6 @@ sensitive-data classes, protocols, and trust-boundary crossings without limiting
 model to security use cases. Put `relative/path:line` evidence in element and material
 relationship descriptions. Prefer a smaller accurate model to speculative detail.
 
-Before success, compare the model with both reports, record justified omissions, and
-require a clean final validator result. Return result slot `architecture` with the
-latest exact `likec4/architecture` ArtifactRef (`text/vnd.likec4`).
+Before finishing, compare the model with both reports, record justified omissions,
+and require a clean final validator result. Persist the latest model at
+`likec4/architecture` (`text/vnd.likec4`). End with a concise plain-text summary.

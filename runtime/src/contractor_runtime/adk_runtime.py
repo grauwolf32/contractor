@@ -20,7 +20,6 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools import FunctionTool
 from google.genai import types
-from pydantic import ValidationError
 from starlette.types import ASGIApp
 
 from contractor_runtime.a2a_server import (
@@ -92,15 +91,6 @@ class WorkerBudgetExceeded(RuntimeError):
         super().__init__(f"Worker invocation budget exhausted ({dimension})")
 
 
-@dataclass(frozen=True, slots=True)
-class _ResultCandidateIssue:
-    code: str
-    summary: str
-    retryable: bool
-    classification: str | None
-    recoverable: bool
-
-
 @dataclass(slots=True)
 class _InvocationBudget:
     max_model_calls: int
@@ -166,12 +156,16 @@ class WorkerFunctionTool(FunctionTool):
         function: Callable[..., Any],
         budget: Callable[[], _InvocationBudget | None],
         instrumentation: RuntimeInstrumentation | None,
+        observe_artifacts: Callable[[Any, int], None],
     ):
         super().__init__(function)
         self._budget = budget
         self._instrumentation = instrumentation
+        self._observe_artifacts = observe_artifacts
 
     async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
+        observation_cursor = getattr(self.func, "artifact_observation_cursor", None)
+        completed_successfully = False
         budget = self._budget()
         if budget is not None:
             budget.before_tool_call()
@@ -187,6 +181,7 @@ class WorkerFunctionTool(FunctionTool):
                 if rejection is not None:
                     raise rejection
             result = await super().run_async(args=args, tool_context=tool_context)
+            completed_successfully = not (isinstance(result, Mapping) and result.get("ok") is False)
         except asyncio.CancelledError:
             _end_span(span, outcome="cancelled")
             raise
@@ -207,6 +202,13 @@ class WorkerFunctionTool(FunctionTool):
                     "retryable": bool(getattr(error, "retryable", False)),
                 },
             }
+        finally:
+            if (
+                completed_successfully
+                and type(observation_cursor) is int
+                and observation_cursor >= 0
+            ):
+                self._observe_artifacts(self.func, observation_cursor)
         outcome = (
             "failed" if isinstance(result, Mapping) and result.get("ok") is False else "succeeded"
         )
@@ -323,17 +325,15 @@ class AdkWorkerRuntime:
         self._instrumentation = context.adapter_handles.instrumentation
         self._session_service = InMemorySessionService()
         self._session_id = context.allocation_id
-        self._finalizer_session_id = f"{context.allocation_id}-result-finalizer"
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
         self._accepting = True
         self._invoke_lock = asyncio.Lock()
         self._active_task: asyncio.Task[Any] | None = None
         self._runner: Runner | None = None
-        self._finalizer_runner: Runner | None = None
         self._agent: LlmAgent | None = None
-        self._finalizer_agent: LlmAgent | None = None
         self._active_budget: _InvocationBudget | None = None
+        self._invocation_observed_refs: list[ArtifactRef] = []
         self._model_spans: list[RuntimeSpan] = []
         self._agent_skills: PreparedAgentSkills | None = context.agent_skills
         self._workspace_exporter = workspace_exporter
@@ -347,6 +347,7 @@ class AdkWorkerRuntime:
                 tool,
                 lambda: self._active_budget,
                 self._instrumentation,
+                self._observe_tool_artifacts,
             )
             for tool in context.tools.values()
         ]
@@ -359,15 +360,13 @@ class AdkWorkerRuntime:
             )
         self._agent = LlmAgent(
             name="contractor_worker",
-            description=context.agent_template.description,
+            description=context.description,
             model=model,
-            instruction=context.agent_template.instructions.text,
+            instruction=context.instruction,
             tools=adk_tools,
-            # Do not combine ADK output_schema with function tools. OpenAI-compatible
-            # local backends turn that schema into a grammar on every turn, including
-            # tool-selection turns, and some reject the resulting grammar. The final
-            # free-text candidate is validated strictly below before it crosses the
-            # Worker boundary.
+            # The model owns task work and a human-readable summary only. Runtime
+            # projects that summary and invocation-local trusted tool observations
+            # into the private A2A response below.
             generate_content_config=generation,
             before_model_callback=self._before_model,
             after_model_callback=self._after_model,
@@ -378,28 +377,6 @@ class AdkWorkerRuntime:
             agent=self._agent,
             session_service=self._session_service,
         )
-        self._finalizer_agent = LlmAgent(
-            name="contractor_worker_result_finalizer",
-            description="Serialize one already completed Contractor Worker result",
-            model=model,
-            instruction=(
-                "You are a result serializer, not a task executor. Tools are unavailable. "
-                "Return exactly one raw StageContentResult JSON object using only an exact "
-                "ArtifactRef explicitly supplied in the finalization request. Never invent, "
-                "shorten, or alter a revision."
-            ),
-            tools=[],
-            output_schema=StageContentResult,
-            generate_content_config=generation.model_copy(deep=True),
-            before_model_callback=self._before_model,
-            after_model_callback=self._after_model,
-            on_model_error_callback=self._on_model_error,
-        )
-        self._finalizer_runner = Runner(
-            app_name=self._app_name,
-            agent=self._finalizer_agent,
-            session_service=self._session_service,
-        )
         endpoint = (
             f"{context.a2a_base_url.rstrip('/')}/private/v1/allocations/{context.allocation_id}/a2a"
         )
@@ -407,8 +384,8 @@ class AdkWorkerRuntime:
             allocation_id=context.allocation_id,
             endpoint=endpoint,
             logical_agent_name=context.logical_agent_name,
-            description=context.agent_template.description,
-            version=context.agent_template.ref.version,
+            description=context.description,
+            version=context.card_version,
         )
         self._agent_card = agent_card_dict(self._card)
         self._a2a_application = build_worker_a2a_application(self, self._card)
@@ -420,20 +397,6 @@ class AdkWorkerRuntime:
             session_id=self._session_id,
             state={"metrics": self._metrics.snapshot()},
         )
-        try:
-            await self._session_service.create_session(
-                app_name=self._app_name,
-                user_id=self._user_id,
-                session_id=self._finalizer_session_id,
-                state={},
-            )
-        except Exception:
-            await self._session_service.delete_session(
-                app_name=self._app_name,
-                user_id=self._user_id,
-                session_id=self._session_id,
-            )
-            raise
 
     @property
     def agent_card(self) -> Mapping[str, Any]:
@@ -499,7 +462,7 @@ class AdkWorkerRuntime:
                 )
                 exportable = False
             else:
-                result, exportable = await self._run_adk(encoded_request.decode("utf-8"))
+                result, exportable = await self._run_adk(request)
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
@@ -547,199 +510,123 @@ class AdkWorkerRuntime:
     async def abort(self, deadline: datetime) -> None:
         await self._stop(deadline)
 
-    async def _run_adk(self, request_json: str) -> tuple[StageContentResult, bool]:
+    async def _run_adk(self, request: StageContentRequest) -> tuple[StageContentResult, bool]:
         runner = self._runner
         if runner is None:
             return _failure(
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
-        prompt = (
-            "Execute the following Contractor StageContentRequest. Durable data is represented "
-            "only by ArtifactRef values.\n"
-            + request_json
-            + "\nReturn raw JSON without Markdown fences. A successful final response has "
-            'shape {"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
-            '"summary":"...","artifacts":{}}. Populate artifacts only when the task '
-            "instructions require them. Every artifacts key must be the exact result slot name "
-            "stated in those instructions, and every value must be an exact ArtifactRef observed "
-            'through a tool. A failed response uses outcome "failed", may use an empty artifacts '
-            'object, and must add {"error":{"code":"...","message":"...",'
-            '"retryable":true}}. Return exactly one StageContentResult JSON object.'
-        )
+        prompt = _task_prompt(request)
+        self._invocation_observed_refs.clear()
         candidate: str | None = None
-        result: StageContentResult | None = None
-        issue: _ResultCandidateIssue | None = None
         try:
-            async for event in runner.run_async(
-                user_id=self._user_id,
-                session_id=self._session_id,
-                invocation_id=f"worker-{uuid.uuid4().hex}",
-                new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-            ):
-                text = _candidate_text(event)
-                if text is not None:
-                    candidate = text
-            result, issue = self._decode_result_candidate(candidate)
-            if issue is not None and issue.recoverable:
-                try:
-                    candidate = await self._recover_result_candidate(request_json, issue)
-                except WorkerBudgetExceeded:
-                    self._metrics.record_worker_result_recovery(succeeded=False)
-                    raise
-                result, issue = self._decode_result_candidate(candidate)
-                self._metrics.record_worker_result_recovery(succeeded=result is not None)
-        except WorkerBudgetExceeded as error:
-            self._metrics.record_worker_budget_exhausted(error.dimension)
-            return (
-                _failure(
-                    "worker_budget_exhausted",
-                    f"Worker invocation budget exhausted ({error.dimension})",
-                    True,
-                ),
-                False,
+            try:
+                async for event in runner.run_async(
+                    user_id=self._user_id,
+                    session_id=self._session_id,
+                    invocation_id=f"worker-{uuid.uuid4().hex}",
+                    new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+                ):
+                    text = _candidate_text(event)
+                    if text is not None:
+                        candidate = text
+            except WorkerBudgetExceeded as error:
+                self._metrics.record_worker_budget_exhausted(error.dimension)
+                return (
+                    _failure(
+                        "worker_budget_exhausted",
+                        f"Worker invocation budget exhausted ({error.dimension})",
+                        True,
+                    ),
+                    False,
+                )
+            return self._build_runtime_result(
+                request, candidate, tuple(self._invocation_observed_refs)
             )
-        if result is not None:
-            return result, True
-        assert issue is not None
-        if issue.classification is not None:
-            self._metrics.record_worker_result_error(issue.classification)
-        return _failure(issue.code, issue.summary, issue.retryable), False
+        finally:
+            self._invocation_observed_refs.clear()
+            _clear_artifact_observation_logs(self._context.tools)
 
-    def _decode_result_candidate(
-        self, candidate: str | None
-    ) -> tuple[StageContentResult | None, _ResultCandidateIssue | None]:
+    def _build_runtime_result(
+        self,
+        request: StageContentRequest,
+        candidate: str | None,
+        observed_refs: tuple[ArtifactRef, ...],
+    ) -> tuple[StageContentResult, bool]:
         if candidate is None:
-            return None, _ResultCandidateIssue(
-                code="invalid_worker_result",
-                summary="Worker returned no bounded JSON result",
-                retryable=True,
-                classification="missing",
-                recoverable=True,
-            )
+            return _failure(
+                "worker_result_missing", "Worker returned no final summary", True
+            ), False
         if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
-            return None, _ResultCandidateIssue(
-                code="invalid_worker_result",
-                summary="Worker returned an oversized StageContentResult",
-                retryable=True,
-                classification="oversized",
-                recoverable=False,
-            )
+            return _failure(
+                "worker_result_too_large", "Worker final summary exceeds its limit", False
+            ), False
         wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
         gateway_token = (
             wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
         )
         if gateway_token and gateway_token in candidate:
-            return None, _ResultCandidateIssue(
-                code="unsafe_worker_result",
-                summary="Worker returned content blocked by Runtime policy",
-                retryable=False,
-                classification=None,
-                recoverable=False,
-            )
-        try:
-            result = StageContentResult.model_validate_json(_unwrap_json_fence(candidate))
-        except ValidationError as error:
-            error_types = sorted(
-                {
-                    item_type
-                    for item in error.errors(
-                        include_url=False, include_context=False, include_input=False
-                    )
-                    if isinstance((item_type := item.get("type")), str)
-                    and SAFE_TOOL_ERROR_CODE.fullmatch(item_type) is not None
-                }
-            )
-            classification = "schema_" + "_".join(error_types[:8])
-            return None, _ResultCandidateIssue(
-                code="invalid_worker_result",
-                summary="Worker returned an invalid StageContentResult",
-                retryable=True,
-                classification=classification,
-                recoverable=True,
-            )
-        if len(result.summary) > MAX_RESULT_SUMMARY_CHARS or len(
-            result.artifacts
-        ) > MAX_RESULT_ARTIFACTS - (
-            len(self._workspace_exporter.reserved_slots) if self._workspace_exporter else 0
-        ):
-            return None, _ResultCandidateIssue(
-                code="invalid_worker_result",
-                summary="Worker returned an oversized StageContentResult",
-                retryable=False,
-                classification="oversized",
-                recoverable=False,
-            )
+            return _failure(
+                "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
+            ), False
+        summary = candidate.strip()
+        if not summary:
+            return _failure(
+                "worker_result_missing", "Worker returned no final summary", True
+            ), False
+        if len(summary) > MAX_RESULT_SUMMARY_CHARS:
+            return _failure(
+                "worker_result_too_large", "Worker final summary exceeds its limit", False
+            ), False
+        observed = {
+            (ref.namespace, ref.name): ref for ref in _latest_observed_exact_refs(observed_refs)
+        }
+        artifacts: dict[str, ArtifactRef] = {}
         exporter = self._workspace_exporter
-        if exporter is not None and exporter.reserved_slots & result.artifacts.keys():
-            return None, _ResultCandidateIssue(
-                code="invalid_worker_result",
-                summary="Worker result contains a Runtime-reserved workspace export slot",
-                retryable=False,
-                classification="reserved_workspace_artifact",
-                recoverable=False,
-            )
-        if any(
-            is_reserved_memory_binding(ref.namespace, ref.name) for ref in result.artifacts.values()
-        ):
-            return None, _ResultCandidateIssue(
-                code="invalid_worker_result",
-                summary="Worker result contains a reserved Memory binding",
-                retryable=False,
-                classification="reserved_memory_artifact",
-                recoverable=False,
-            )
-        known = _known_exact_refs(self._context.tools)
-        if any(_ref_key(ref) not in known for ref in result.artifacts.values()):
-            return None, _ResultCandidateIssue(
-                code="unverified_artifact_ref",
-                summary=(
-                    "Worker result contains an artifact revision not observed "
-                    "through ArtifactClient"
-                ),
-                retryable=True,
-                classification=None,
-                recoverable=False,
-            )
-        return result, None
-
-    async def _recover_result_candidate(
-        self, request_json: str, issue: _ResultCandidateIssue
-    ) -> str | None:
-        """Request one isolated structured envelope after missing or invalid final text."""
-
-        runner = self._finalizer_runner
-        if runner is None:
-            return None
-        exact_refs = [
-            ref.model_dump(mode="json", by_alias=True)
-            for ref in _latest_known_exact_refs(self._context.tools)
-        ]
-        prompt = (
-            "The Worker tool phase completed, but its final result envelope was rejected as "
-            + (issue.classification or "invalid")
-            + ". Do not perform more analysis. Serialize its result now.\nStageContentRequest:\n"
-            + request_json
-            + "\nLatest exact ArtifactRefs observed through trusted tools:\n"
-            + json.dumps(exact_refs, ensure_ascii=False, separators=(",", ":"))
-            + "\nReturn raw JSON without Markdown fences. For success use "
-            '{"apiVersion":"contractor/v1alpha1","outcome":"succeeded",'
-            '"summary":"...","artifacts":{}}. Populate artifacts only when the task '
-            "instructions require them. Every artifacts key must be the exact result slot name "
-            'stated in those instructions. For failure use outcome "failed", an empty artifacts '
-            'object if appropriate, and add {"error":{"code":"...","message":"...",'
-            '"retryable":true}}. Use only supplied exact refs and return exactly one object.'
+        reserved_slots = exporter.reserved_slots if exporter is not None else frozenset()
+        for slot, binding in request.result_artifacts.items():
+            if slot in reserved_slots:
+                continue
+            if is_reserved_memory_binding(binding.namespace, binding.name):
+                return _failure(
+                    "invalid_worker_result_binding",
+                    "Worker result binding is reserved by Runtime policy",
+                    False,
+                ), False
+            exact = observed.get((binding.namespace, binding.name))
+            if exact is not None:
+                artifacts[slot] = exact
+        if len(artifacts) > MAX_RESULT_ARTIFACTS - len(reserved_slots):
+            return _failure(
+                "worker_result_too_large", "Worker result exceeds its limit", False
+            ), False
+        result = StageContentResult(
+            apiVersion=API_VERSION,
+            outcome=StageOutcome.SUCCEEDED,
+            summary=summary,
+            artifacts=artifacts,
         )
-        candidate: str | None = None
-        async for event in runner.run_async(
-            user_id=self._user_id,
-            session_id=self._finalizer_session_id,
-            invocation_id=f"worker-finalizer-{uuid.uuid4().hex}",
-            new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-        ):
-            text = _candidate_text(event)
-            if text is not None:
-                candidate = text
-        return candidate
+        if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
+            return _failure(
+                "worker_result_too_large", "Worker result exceeds its limit", False
+            ), False
+        return result, True
+
+    def _observe_tool_artifacts(self, tool: Any, cursor: int) -> None:
+        observations = getattr(tool, "observed_exact_refs_since", None)
+        if not callable(observations):
+            return
+        try:
+            refs = observations(cursor)
+            for ref in refs:
+                exact = ref.require_exact()
+                if not is_reserved_memory_binding(exact.namespace, exact.name):
+                    self._invocation_observed_refs.append(exact)
+        except Exception:
+            # A provenance adapter defect must not turn a completed tool side
+            # effect into an invented result. Omitting the ref fails the Stage
+            # result contract closed at the Planner boundary.
+            return
 
     async def _stop(self, deadline: datetime) -> None:
         self._accepting = False
@@ -754,8 +641,6 @@ class AdkWorkerRuntime:
                 raise TimeoutError("active ADK invocation did not stop")
         runner = self._runner
         self._runner = None
-        finalizer_runner = self._finalizer_runner
-        self._finalizer_runner = None
         failures: list[Exception] = []
         try:
             if runner is not None:
@@ -763,20 +648,14 @@ class AdkWorkerRuntime:
                     await runner.close()
                 except Exception as error:
                     failures.append(error)
-            if finalizer_runner is not None:
-                try:
-                    await finalizer_runner.close()
-                except Exception as error:
-                    failures.append(error)
-            for session_id in (self._session_id, self._finalizer_session_id):
-                try:
-                    await self._session_service.delete_session(
-                        app_name=self._app_name,
-                        user_id=self._user_id,
-                        session_id=session_id,
-                    )
-                except Exception as error:
-                    failures.append(error)
+            try:
+                await self._session_service.delete_session(
+                    app_name=self._app_name,
+                    user_id=self._user_id,
+                    session_id=self._session_id,
+                )
+            except Exception as error:
+                failures.append(error)
             agent_skills = self._agent_skills
             if agent_skills is not None:
                 try:
@@ -791,7 +670,6 @@ class AdkWorkerRuntime:
             if isinstance(model, GatewayLiteLlm):
                 model.clear_credentials()
             self._agent = None
-            self._finalizer_agent = None
             self._instrumentation = None
             self._agent_skills = None
             self._workspace_exporter = None
@@ -881,38 +759,38 @@ def _candidate_text(event: Event) -> str | None:
     return "".join(text) if text else None
 
 
-def _unwrap_json_fence(candidate: str) -> str:
-    stripped = candidate.strip()
-    for prefix in ("```json\n", "```JSON\n", "```\n"):
-        if stripped.startswith(prefix) and stripped.endswith("\n```"):
-            return stripped[len(prefix) : -4].strip()
-    return stripped
-
-
-def _known_exact_refs(tools: Mapping[str, Any]) -> set[tuple[str, str, str]]:
-    result: set[tuple[str, str, str]] = set()
-    for tool in tools.values():
-        for ref in getattr(tool, "known_exact_refs", ()):
-            if not is_reserved_memory_binding(ref.namespace, ref.name):
-                result.add(_ref_key(ref))
-    return result
-
-
-def _latest_known_exact_refs(tools: Mapping[str, Any]) -> list[ArtifactRef]:
+def _latest_observed_exact_refs(refs: tuple[ArtifactRef, ...]) -> list[ArtifactRef]:
     latest: dict[tuple[str, str], ArtifactRef] = {}
-    for tool in tools.values():
-        for ref in getattr(tool, "known_exact_refs", ()):
-            exact = ref.require_exact()
-            if is_reserved_memory_binding(exact.namespace, exact.name):
-                continue
-            latest[(exact.namespace, exact.name)] = exact
+    for ref in refs:
+        exact = ref.require_exact()
+        if is_reserved_memory_binding(exact.namespace, exact.name):
+            continue
+        latest[(exact.namespace, exact.name)] = exact
     return [latest[key] for key in sorted(latest)]
 
 
-def _ref_key(ref: ArtifactRef) -> tuple[str, str, str]:
-    revision = ref.require_exact().revision
-    assert revision is not None
-    return ref.namespace, ref.name, revision
+def _clear_artifact_observation_logs(tools: Mapping[str, Any]) -> None:
+    for tool in tools.values():
+        clear = getattr(tool, "clear_artifact_observations", None)
+        if callable(clear):
+            clear()
+
+
+def _task_prompt(request: StageContentRequest) -> str:
+    """Render Planner-supplied task data; wire/lifecycle contracts stay Runtime-private."""
+
+    inputs = {
+        name: ref.model_dump(mode="json", by_alias=True)
+        for name, ref in sorted(request.artifacts.items())
+    }
+    return (
+        f"Objective:\n{request.objective}\n\n"
+        f"Task instructions:\n{request.instructions}\n\n"
+        "String parameters:\n"
+        + json.dumps(request.parameters, ensure_ascii=False, sort_keys=True, indent=2)
+        + "\n\nNamed input artifacts:\n"
+        + json.dumps(inputs, ensure_ascii=False, sort_keys=True, indent=2)
+    )
 
 
 def _start_span(

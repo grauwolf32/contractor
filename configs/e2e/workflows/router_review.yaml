@@ -51,6 +51,7 @@ spec:
           reviewed:
             required: true
             mediaTypes: [text/plain]
+            from: {namespace: review, name: copied}
       workflowOutputs:
         result: reviewed
       on:

@@ -70,6 +70,7 @@ spec:
           openapi:
             required: true
             mediaTypes: [application/yaml]
+            from: {namespace: openapi, name: openapi}
       on:
         succeeded:
           next: openapi_validate
@@ -116,9 +117,11 @@ spec:
           openapi:
             required: true
             mediaTypes: [application/yaml]
+            from: {namespace: openapi, name: openapi}
           validation_report:
             required: true
             mediaTypes: [text/markdown]
+            from: {namespace: openapi, name: validation-report}
       workflowOutputs:
         openapi: openapi
         validation_report: validation_report

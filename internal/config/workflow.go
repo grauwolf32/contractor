@@ -149,10 +149,14 @@ func resolveArtifactSlots(field string, source *map[string]artifactSlotSource) (
 	if source == nil {
 		return nil, fmt.Errorf("%s is required (use {} for none)", field)
 	}
-	return resolveArtifactSlotMap(field, *source)
+	return resolveArtifactSlotMap(field, *source, false)
 }
 
-func resolveArtifactSlotMap(field string, source map[string]artifactSlotSource) (map[string]ArtifactSlot, error) {
+func resolveArtifactSlotMap(
+	field string,
+	source map[string]artifactSlotSource,
+	allowFrom bool,
+) (map[string]ArtifactSlot, error) {
 	result := make(map[string]ArtifactSlot, len(source))
 	for name, slot := range source {
 		if err := validateMapKey(field+" slot name", name); err != nil {
@@ -165,7 +169,24 @@ func resolveArtifactSlotMap(field string, source map[string]artifactSlotSource) 
 		if err != nil {
 			return nil, err
 		}
-		result[name] = ArtifactSlot{Required: *slot.Required, MediaTypes: mediaTypes}
+		if slot.From != nil && !allowFrom {
+			return nil, fmt.Errorf("%s.%s.from is allowed only for Stage result artifacts", field, name)
+		}
+		var from *ArtifactBinding
+		if slot.From != nil {
+			if err := validateArtifactComponent(field+"."+name+".from.namespace", slot.From.Namespace); err != nil {
+				return nil, err
+			}
+			if err := validateArtifactComponent(field+"."+name+".from.name", slot.From.Name); err != nil {
+				return nil, err
+			}
+			if artifactpolicy.IsPurposeReservedNamespace(slot.From.Namespace) ||
+				artifactpolicy.IsReservedMemoryBinding(slot.From.Namespace, slot.From.Name) {
+				return nil, fmt.Errorf("%s.%s.from identifies a Runtime-reserved binding", field, name)
+			}
+			from = &ArtifactBinding{Namespace: slot.From.Namespace, Name: slot.From.Name}
+		}
+		result[name] = ArtifactSlot{Required: *slot.Required, MediaTypes: mediaTypes, From: from}
 	}
 	return result, nil
 }
@@ -207,6 +228,9 @@ func (l *loader) resolveStage(
 		return ResolvedStage{}, err
 	}
 	if err := validateStageWorkspace(context, result, agents); err != nil {
+		return ResolvedStage{}, err
+	}
+	if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
 		return ResolvedStage{}, err
 	}
 	mappings, err := resolveWorkflowOutputMappings(stageName, source.WorkflowOutputs, workflowOutputs, result.Artifacts)
@@ -450,12 +474,47 @@ func resolveStageResult(source *stageResultSource) (StageResultContract, error) 
 	if source.Artifacts == nil {
 		return StageResultContract{}, fmt.Errorf("result.artifacts is required when result is present")
 	}
-	artifacts, err := resolveArtifactSlotMap("result.artifacts", *source.Artifacts)
+	artifacts, err := resolveArtifactSlotMap("result.artifacts", *source.Artifacts, true)
 	if err != nil {
 		return StageResultContract{}, err
 	}
 	result.Artifacts = artifacts
 	return result, nil
+}
+
+func validateStageResultBindings(
+	result StageResultContract,
+	workspace *WorkspaceContext,
+	agents map[string]ResolvedAgentBinding,
+) error {
+	exports := map[string]struct{}{}
+	if workspace != nil && workspace.Export != nil {
+		exports[workspace.Export.State] = struct{}{}
+		exports[workspace.Export.Diff] = struct{}{}
+	}
+	namespaces := make(map[string]struct{}, len(agents))
+	for _, agent := range agents {
+		namespaces[agent.Namespace] = struct{}{}
+	}
+	for name, slot := range result.Artifacts {
+		if _, runtimeOwned := exports[name]; runtimeOwned {
+			if slot.From != nil {
+				return fmt.Errorf("result.artifacts.%s.from must be omitted for Runtime-owned workspace export", name)
+			}
+			continue
+		}
+		if slot.From == nil {
+			return fmt.Errorf("result.artifacts.%s.from is required", name)
+		}
+		if _, assigned := namespaces[slot.From.Namespace]; !assigned {
+			return fmt.Errorf(
+				"result.artifacts.%s.from.namespace %q is not assigned to a Stage Agent",
+				name,
+				slot.From.Namespace,
+			)
+		}
+	}
+	return nil
 }
 
 func resolveWorkflowOutputMappings(

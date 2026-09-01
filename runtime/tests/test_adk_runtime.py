@@ -38,7 +38,6 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     SandboxProfileRef,
     StageContentRequest,
-    StageContentResult,
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
@@ -74,27 +73,13 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
                     },
                     call_id="write-1",
                 ),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Report created",
-                        "artifacts": {
-                            "report": {
-                                "namespace": "builder",
-                                "name": "report",
-                                "revision": "write-r1",
-                            }
-                        },
-                    }
-                ),
+                text_result("Report created"),
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
         assert runtime._agent is not None
         assert runtime._agent.output_schema is None
-        assert runtime._finalizer_agent is not None
-        assert runtime._finalizer_agent.output_schema is StageContentResult
+        assert not hasattr(runtime, "_finalizer_agent")
 
         result = await runtime.invoke(stage_request())
 
@@ -156,14 +141,7 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
                     {"namespace": "inputs", "name": "source", "revision": "input-r1"},
                     call_id="read-for-telemetry",
                 ),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Telemetry-safe result",
-                        "artifacts": {},
-                    }
-                ),
+                text_result("Telemetry-safe result"),
             ]
         )
         instrumentation = RecordingInstrumentation()
@@ -205,119 +183,48 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
     asyncio.run(scenario())
 
 
-def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
+def test_adk_worker_treats_protocol_shaped_text_as_summary_and_blocks_secrets(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
-        invalid = scripted_model(
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Looks valid",
-                        "artifacts": {},
-                        "invented": True,
-                    }
-                ),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Still invalid",
-                        "artifacts": {},
-                        "invented": True,
-                    }
-                ),
-            ]
-        )
-        invalid_state = WorkerState()
-        invalid_instrumentation = RecordingInstrumentation()
-        first = await create_runtime(
-            tmp_path / "invalid",
-            invalid_state,
+        shaped = '{"outcome":"succeeded","artifacts":{"report":{"revision":"guessed"}}}'
+        model = scripted_model([text_result(shaped)])
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path / "shaped",
+            state,
             {},
-            invalid,
-            instrumentation=invalid_instrumentation,
+            model,
         )
-        invalid_result = await first.invoke(stage_request())
-        assert invalid_result.error is not None
-        assert invalid_result.error.code == "invalid_worker_result"
-        assert invalid_result.error.retryable is True
-        error_spans = [
-            span for span in invalid_instrumentation.spans if span.name == "contractor.worker.error"
-        ]
-        assert len(error_spans) == 1
-        assert error_spans[0].attributes["error.type"] == "invalid_worker_result"
-        assert invalid_state.metrics.errors[-1].code == "worker_result_schema_extra_forbidden"
-        assert invalid_state.metrics.counters["worker_result_recovery_attempts"] == 1
-        assert invalid_state.metrics.counters["worker_result_recovery.failed"] == 1
-        await first.abort(datetime.now(UTC) + timedelta(seconds=1))
+        result = await runtime.invoke(stage_request())
+        assert result.outcome.value == "succeeded"
+        assert result.summary == shaped
+        assert result.artifacts == {}
+        assert len(model.requests) == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
-        invented = scripted_model(
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Invented ref",
-                        "artifacts": {
-                            "report": {
-                                "namespace": "builder",
-                                "name": "report",
-                                "revision": "guessed-r1",
-                            }
-                        },
-                    }
-                )
-            ]
-        )
-        second = await create_runtime(tmp_path / "invented", WorkerState(), {}, invented)
-        invented_result = await second.invoke(stage_request())
-        assert invented_result.error is not None
-        assert invented_result.error.code == "unverified_artifact_ref"
-        assert invented_result.error.retryable is True
-        await second.abort(datetime.now(UTC) + timedelta(seconds=1))
-
-        secret_bearing = scripted_model(
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": SECRET,
-                        "artifacts": {},
-                    }
-                )
-            ]
-        )
+        secret_bearing = scripted_model([text_result(SECRET)])
         secret_state = WorkerState()
-        third = await create_runtime(tmp_path / "secret", secret_state, {}, secret_bearing)
-        secret_result = await third.invoke(stage_request())
+        secret_runtime = await create_runtime(tmp_path / "secret", secret_state, {}, secret_bearing)
+        secret_result = await secret_runtime.invoke(stage_request())
         assert secret_result.error is not None
         assert secret_result.error.code == "unsafe_worker_result"
         assert SECRET not in secret_result.model_dump_json(by_alias=True)
         assert SECRET not in repr(secret_state.metrics.snapshot())
-        await third.abort(datetime.now(UTC) + timedelta(seconds=1))
+        await secret_runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
 
-def test_adk_worker_rejects_reserved_memory_results_but_not_purpose_namespace_names(
+def test_adk_worker_maps_only_declared_runtime_result_bindings(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
         hidden = ArtifactRef(namespace="builder", name="memory.hidden", revision="memory-r1")
         hidden_model = scripted_model(
             [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Attempted to return notebook state",
-                        "artifacts": {"report": hidden.model_dump(mode="json", by_alias=True)},
-                    }
-                )
+                tool_call("ref_probe", {}, call_id="hidden-ref"),
+                text_result("Notebook update completed"),
             ]
         )
         first = await create_runtime(
@@ -326,23 +233,16 @@ def test_adk_worker_rejects_reserved_memory_results_but_not_purpose_namespace_na
             {"ref_probe": RefExposingTool(hidden)},
             hidden_model,
         )
-        rejected = await first.invoke(stage_request())
-        assert rejected.error is not None
-        assert rejected.error.code == "invalid_worker_result"
-        assert rejected.error.retryable is False
-        await first.abort(datetime.now(UTC) + timedelta(seconds=1))
+        hidden_result = await first.invoke(stage_request())
+        assert hidden_result.outcome.value == "succeeded"
+        assert hidden_result.artifacts == {}
+        await first.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         allowed = ArtifactRef(namespace="inputs", name="memory.workflow_input", revision="input-r1")
         allowed_model = scripted_model(
             [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Purpose namespace artifact remains ordinary",
-                        "artifacts": {"report": allowed.model_dump(mode="json", by_alias=True)},
-                    }
-                )
+                tool_call("ref_probe", {}, call_id="allowed-ref"),
+                text_result("Purpose input selected"),
             ]
         )
         second = await create_runtime(
@@ -351,7 +251,14 @@ def test_adk_worker_rejects_reserved_memory_results_but_not_purpose_namespace_na
             {"ref_probe": RefExposingTool(allowed)},
             allowed_model,
         )
-        accepted = await second.invoke(stage_request())
+        request = stage_request().model_copy(
+            update={
+                "result_artifacts": {
+                    "report": ArtifactRef(namespace="inputs", name="memory.workflow_input")
+                }
+            }
+        )
+        accepted = await second.invoke(request)
         assert accepted.outcome.value == "succeeded"
         assert accepted.artifacts["report"] == allowed
         await second.finalize(datetime.now(UTC) + timedelta(seconds=1))
@@ -359,7 +266,7 @@ def test_adk_worker_rejects_reserved_memory_results_but_not_purpose_namespace_na
     asyncio.run(scenario())
 
 
-def test_adk_worker_recovers_invalid_json_with_structured_finalizer(tmp_path: Path) -> None:
+def test_adk_worker_builds_result_from_plain_summary_and_trusted_artifacts(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
         state = WorkerState()
@@ -377,21 +284,7 @@ def test_adk_worker_recovers_invalid_json_with_structured_finalizer(tmp_path: Pa
                     },
                     call_id="write-before-invalid-result",
                 ),
-                text_result('{"apiVersion":"contractor/v1alpha1","outcome":'),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Recovered exact report",
-                        "artifacts": {
-                            "report": {
-                                "namespace": "builder",
-                                "name": "report",
-                                "revision": "write-r1",
-                            }
-                        },
-                    }
-                ),
+                text_result("Report created"),
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
@@ -400,22 +293,94 @@ def test_adk_worker_recovers_invalid_json_with_structured_finalizer(tmp_path: Pa
 
         assert result.outcome.value == "succeeded"
         assert result.artifacts["report"].revision == "write-r1"
-        assert len(model.requests) == 3
+        assert result.summary == "Report created"
+        assert len(model.requests) == 2
         assert model.requests[1]["hasResponseSchema"] is False
-        assert model.requests[2]["toolNames"] == []
-        assert model.requests[2]["hasResponseSchema"] is True
-        assert model.requests[2]["responseMimeType"] == "application/json"
-        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
-        assert state.metrics.counters["worker_result_recovery.succeeded"] == 1
-        assert not any(
-            error.code.startswith("worker_result_schema") for error in state.metrics.errors
-        )
+        assert all(request["hasResponseSchema"] is False for request in model.requests)
+        for request in model.requests:
+            model_context = request["contentText"] + repr(request["systemInstruction"])
+            for forbidden in (
+                "StageContentRequest",
+                "StageContentResult",
+                "apiVersion",
+                "result slot",
+                "output bindings",
+                "protocol envelope",
+                "AgentTemplate",
+            ):
+                assert forbidden not in model_context
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
 
-def test_adk_worker_invalid_json_recovery_obeys_model_call_budget(tmp_path: Path) -> None:
+def test_adk_worker_does_not_select_artifact_from_failed_tool_call(tmp_path: Path) -> None:
+    class FailingRefTool(RefExposingTool):
+        async def __call__(self) -> dict[str, bool]:
+            self._observations += 1
+            raise RuntimeError("synthetic failure after observation")
+
+    async def scenario() -> None:
+        ref = ArtifactRef(namespace="builder", name="report", revision="failed-r1")
+        model = scripted_model(
+            [
+                tool_call("ref_probe", {}, call_id="failed-ref"),
+                text_result("Could not update the report"),
+            ]
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {"ref_probe": FailingRefTool(ref)},
+            model,
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        assert result.artifacts == {}
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_reuse_artifact_observed_by_an_earlier_invocation(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        tools = await selected_tools(tmp_path, client, WorkerState())
+        model = scripted_model(
+            [
+                tool_call(
+                    "write_artifact",
+                    {
+                        "namespace": "builder",
+                        "name": "report",
+                        "media_type": "application/json",
+                        "data_base64": base64.b64encode(b"{}").decode(),
+                        "expected_revision": None,
+                    },
+                    call_id="first-write",
+                ),
+                text_result("First task completed"),
+                text_result("Second task completed without touching the result"),
+            ]
+        )
+        runtime = await create_runtime(tmp_path, WorkerState(), tools, model)
+
+        first = await runtime.invoke(stage_request())
+        second = await runtime.invoke(stage_request())
+
+        assert first.artifacts["report"].revision == "write-r1"
+        assert second.outcome.value == "succeeded"
+        assert second.artifacts == {}
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_plain_summary_needs_no_recovery_model_call(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model([text_result("not-json")])
@@ -423,15 +388,13 @@ def test_adk_worker_invalid_json_recovery_obeys_model_call_budget(tmp_path: Path
 
         result = await runtime.invoke(stage_request())
 
-        assert result.error is not None
-        assert result.error.code == "worker_budget_exhausted"
+        assert result.outcome.value == "succeeded"
+        assert result.summary == "not-json"
         assert len(model.requests) == 1
-        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
-        assert state.metrics.counters["worker_result_recovery.failed"] == 1
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.metrics.worker_budget is not None
-        assert report.metrics.worker_budget.exhausted == "model_calls"
-        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+        assert report.metrics.worker_budget.exhausted is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
@@ -563,7 +526,7 @@ def test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding(
     asyncio.run(scenario())
 
 
-def test_adk_worker_uses_one_tool_free_turn_when_tool_phase_has_no_final_text(
+def test_adk_worker_does_not_start_a_serializer_when_final_text_is_missing(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -584,51 +547,31 @@ def test_adk_worker_uses_one_tool_free_turn_when_tool_phase_has_no_final_text(
                     call_id="write-before-missing-result",
                 ),
                 thought_result("The report is complete."),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Report created",
-                        "artifacts": {
-                            "report": {
-                                "namespace": "builder",
-                                "name": "report",
-                                "revision": "write-r1",
-                            }
-                        },
-                    }
-                ),
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
-        assert result.artifacts["report"].revision == "write-r1"
-        assert len(model.requests) == 3
+        assert result.error is not None
+        assert result.error.code == "worker_result_missing"
+        assert len(model.requests) == 2
         assert model.requests[0]["toolNames"] == ["read_artifact", "write_artifact"]
         assert model.requests[1]["toolNames"] == ["read_artifact", "write_artifact"]
-        assert model.requests[2]["toolNames"] == []
         assert all("result_slot" not in request["contentText"] for request in model.requests)
-        assert "exact result slot name" in model.requests[0]["contentText"]
-        assert "exact result slot name" in model.requests[2]["contentText"]
-        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
-        assert state.metrics.counters["worker_result_recovery.succeeded"] == 1
-        assert not any(error.code == "worker_result_missing" for error in state.metrics.errors)
+        assert all("StageContentResult" not in request["contentText"] for request in model.requests)
         assert SECRET not in repr(state.metrics.snapshot())
-        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
 
-def test_adk_worker_bounds_missing_result_recovery_to_one_turn(tmp_path: Path) -> None:
+def test_adk_worker_missing_summary_fails_without_an_extra_model_turn(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model(
             [
                 thought_result("The task is complete."),
-                thought_result("The result is ready."),
             ]
         )
         runtime = await create_runtime(tmp_path, state, {}, model)
@@ -636,20 +579,16 @@ def test_adk_worker_bounds_missing_result_recovery_to_one_turn(tmp_path: Path) -
         result = await runtime.invoke(stage_request())
 
         assert result.error is not None
-        assert result.error.code == "invalid_worker_result"
+        assert result.error.code == "worker_result_missing"
         assert result.error.retryable
-        assert len(model.requests) == 2
+        assert len(model.requests) == 1
         assert model.requests[0]["toolNames"] == []
-        assert model.requests[1]["toolNames"] == []
-        assert state.metrics.counters["worker_result_recovery_attempts"] == 1
-        assert state.metrics.counters["worker_result_recovery.failed"] == 1
-        assert state.metrics.errors[-1].code == "worker_result_missing"
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
 
-def test_adk_worker_model_budget_includes_tool_free_result_recovery(tmp_path: Path) -> None:
+def test_adk_worker_missing_summary_does_not_exhaust_model_budget(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model([thought_result("Task complete")])
@@ -658,17 +597,14 @@ def test_adk_worker_model_budget_includes_tool_free_result_recovery(tmp_path: Pa
         result = await runtime.invoke(stage_request())
 
         assert result.error is not None
-        assert result.error.code == "worker_budget_exhausted"
+        assert result.error.code == "worker_result_missing"
         assert result.error.retryable
-        assert "model_calls" in result.error.message
         assert len(model.requests) == 1
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.complete
         assert report.metrics.worker_budget is not None
         assert report.metrics.worker_budget.observed_model_calls == 1
-        assert report.metrics.worker_budget.exhausted == "model_calls"
-        assert [error.code for error in report.errors].count("worker_budget_exhausted") == 1
-        assert state.metrics.counters["worker_result_recovery.failed"] == 1
+        assert report.metrics.worker_budget.exhausted is None
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -942,7 +878,9 @@ def build_context(
         stage_execution_id="stage-execution-1",
         logical_agent_name="builder",
         namespace="builder",
-        agent_template=template,
+        description=template.description,
+        instruction=template.instructions.text,
+        card_version=template.ref.version,
         model_policy=template.model_policy.model_copy(deep=True),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
         tools=tools,  # type: ignore[arg-type]
@@ -1035,6 +973,7 @@ def stage_request() -> StageContentRequest:
         instructions="Read the input and write the report.",
         parameters={"format": "json"},
         artifacts={"source": ArtifactRef(namespace="inputs", name="source", revision="input-r1")},
+        resultArtifacts={"report": ArtifactRef(namespace="builder", name="report")},
     )
 
 
@@ -1042,10 +981,18 @@ class FakeArtifactClient:
     def __init__(self) -> None:
         self.calls: list[str] = []
         self._known: dict[tuple[str, str, str], ArtifactRef] = {}
+        self._observed: list[ArtifactRef] = []
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return tuple(self._known.values())
+
+    @property
+    def observation_cursor(self) -> int:
+        return len(self._observed)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return tuple(self._observed[cursor:])
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         self.calls.append("read_artifact")
@@ -1081,6 +1028,7 @@ class FakeArtifactClient:
     def _remember(self, ref: ArtifactRef) -> None:
         assert ref.revision is not None
         self._known[(ref.namespace, ref.name, ref.revision)] = ref
+        self._observed.append(ref)
 
 
 class NoArtifactAccessClient:
@@ -1108,10 +1056,19 @@ class RefExposingTool:
         self.__name__ = "ref_probe"
         self.__doc__ = "Expose trusted test provenance."
         self._ref = ref
+        self._observations = 0
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return (self._ref,)
 
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return self._observations
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return (self._ref,) if cursor < self._observations else ()
+
     async def __call__(self) -> dict[str, bool]:
+        self._observations += 1
         return {"ok": True}

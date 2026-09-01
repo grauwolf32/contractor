@@ -14,8 +14,11 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.artifact_visibility import (
+    artifact_observation_cursor,
+    clear_artifact_observations,
     is_model_hidden_binding,
     model_visible_exact_refs,
+    model_visible_observations_since,
     require_model_visible_binding,
 )
 from contractor_runtime.workspace import AllocationWorkspace
@@ -100,6 +103,16 @@ class _BaseTool:
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         value = getattr(self._client, "known_exact_refs", ())
         return model_visible_exact_refs(value)
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return artifact_observation_cursor(self._client)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return model_visible_observations_since(self._client, cursor)
+
+    def clear_artifact_observations(self) -> None:
+        clear_artifact_observations(self._client)
 
     async def close(self) -> None:
         self._secrets = ()

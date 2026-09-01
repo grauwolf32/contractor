@@ -20,7 +20,6 @@ from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     AllocationWorkspaceExportV2,
-    ResolvedAgentTemplate,
     ResolvedModelPolicy,
     ResolvedSkill,
     RuntimeSettings,
@@ -73,7 +72,9 @@ class WorkerBuildContext:
     stage_execution_id: str
     logical_agent_name: str
     namespace: str
-    agent_template: ResolvedAgentTemplate
+    description: str
+    instruction: str
+    card_version: str
     model_policy: ResolvedModelPolicy
     workspace: AllocationWorkspace
     tools: Mapping[str, ToolInstance]
@@ -233,10 +234,10 @@ class StubWorkerRuntime:
         )
         self._agent_card: dict[str, Any] = {
             "name": context.logical_agent_name,
-            "description": context.agent_template.description,
+            "description": context.description,
             "url": endpoint,
             "protocolVersion": "1.0",
-            "version": context.agent_template.ref.version,
+            "version": context.card_version,
             "capabilities": {},
             "defaultInputModes": ["application/json"],
             "defaultOutputModes": ["application/json"],

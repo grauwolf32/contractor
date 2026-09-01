@@ -52,3 +52,23 @@ def require_model_visible_binding(namespace: object, name: object) -> None:
 
 def model_visible_exact_refs(refs: Iterable[ArtifactRef]) -> tuple[ArtifactRef, ...]:
     return tuple(ref for ref in refs if not is_model_hidden_binding(ref.namespace, ref.name))
+
+
+def artifact_observation_cursor(client: object) -> int:
+    value = getattr(client, "observation_cursor", 0)
+    if type(value) is not int or value < 0:
+        raise TypeError("ArtifactClient observation cursor must be a non-negative integer")
+    return value
+
+
+def model_visible_observations_since(client: object, cursor: int) -> tuple[ArtifactRef, ...]:
+    observed = getattr(client, "observed_exact_refs_since", None)
+    if not callable(observed):
+        return ()
+    return model_visible_exact_refs(observed(cursor))
+
+
+def clear_artifact_observations(client: object) -> None:
+    clear = getattr(client, "clear_observations", None)
+    if callable(clear):
+        clear()

@@ -3,11 +3,12 @@ package contracts
 import "strings"
 
 type StageContentRequest struct {
-	APIVersion   string                 `json:"apiVersion"`
-	Objective    string                 `json:"objective"`
-	Instructions string                 `json:"instructions"`
-	Parameters   map[string]string      `json:"parameters"`
-	Artifacts    map[string]ArtifactRef `json:"artifacts"`
+	APIVersion      string                 `json:"apiVersion"`
+	Objective       string                 `json:"objective"`
+	Instructions    string                 `json:"instructions"`
+	Parameters      map[string]string      `json:"parameters"`
+	Artifacts       map[string]ArtifactRef `json:"artifacts"`
+	ResultArtifacts map[string]ArtifactRef `json:"resultArtifacts,omitempty"`
 }
 
 func (r StageContentRequest) Validate() error {
@@ -28,6 +29,17 @@ func (r StageContentRequest) Validate() error {
 		}
 		if err := ref.ValidateExact(); err != nil {
 			return err
+		}
+	}
+	for key, ref := range r.ResultArtifacts {
+		if err := validateOpaqueID("result artifact slot", key); err != nil {
+			return err
+		}
+		if err := ref.Validate(); err != nil {
+			return err
+		}
+		if ref.Revision != nil {
+			return invalidf("result artifact binding must be versionless")
 		}
 	}
 	return nil

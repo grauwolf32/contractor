@@ -66,6 +66,7 @@ spec:
           dependency_report:
             required: true
             mediaTypes: [text/markdown]
+            from: {namespace: analysis, name: dependencies}
           workspace_state:
             required: true
             mediaTypes: [application/vnd.contractor.workspace-overlay+json]
@@ -124,6 +125,7 @@ spec:
           project_report:
             required: true
             mediaTypes: [text/markdown]
+            from: {namespace: analysis, name: project}
           workspace_state:
             required: true
             mediaTypes: [application/vnd.contractor.workspace-overlay+json]
@@ -190,6 +192,7 @@ spec:
           architecture:
             required: true
             mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
           workspace_state:
             required: true
             mediaTypes: [application/vnd.contractor.workspace-overlay+json]
@@ -256,9 +259,11 @@ spec:
           architecture:
             required: true
             mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
           validation_report:
             required: true
             mediaTypes: [text/markdown]
+            from: {namespace: likec4, name: validation-report}
           workspace_state:
             required: true
             mediaTypes: [application/vnd.contractor.workspace-overlay+json]

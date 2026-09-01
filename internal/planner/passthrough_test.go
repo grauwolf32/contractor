@@ -76,7 +76,8 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	if worker.request.Objective != invocation.Stage.Objective ||
 		worker.request.Instructions != invocation.Stage.Instructions.Text ||
 		worker.request.Parameters["mode"] != "strict" ||
-		len(worker.request.Artifacts) != 1 || worker.request.Artifacts["source"].Revision == nil {
+		len(worker.request.Artifacts) != 1 || worker.request.Artifacts["source"].Revision == nil ||
+		worker.request.ResultArtifacts["report"] != (contracts.ArtifactRef{Namespace: "builder", Name: "report"}) {
 		t.Fatalf("StageContentRequest = %+v", worker.request)
 	}
 	if len(sessions.facts.ParameterNames) != 1 || sessions.facts.ParameterNames[0] != "mode" ||
@@ -323,7 +324,10 @@ func testInvocation() Invocation {
 				"notes":  {Namespace: "inputs", Name: "notes", Required: false},
 			}},
 			Result: workflowconfig.StageResultContract{Artifacts: map[string]workflowconfig.ArtifactSlot{
-				"report": {Required: true, MediaTypes: []string{"application/json"}},
+				"report": {
+					Required: true, MediaTypes: []string{"application/json"},
+					From: &workflowconfig.ArtifactBinding{Namespace: "builder", Name: "report"},
+				},
 			}},
 		},
 		Context: StageContext{

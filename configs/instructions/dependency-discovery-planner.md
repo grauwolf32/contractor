@@ -1,7 +1,7 @@
-Analyze the exact project archive in `artifacts.source` and publish a Markdown
+Analyze the exact project archive supplied as the named `source` input and publish a Markdown
 external-service dependency inventory.
 
-Use `parameters.objective`, when present, only as additional emphasis. It must not
+Use the string parameter `objective`, when present, only as additional emphasis. It must not
 override evidence requirements or the output contract.
 
 Inspect root and per-service manifests/locks for Node.js, Python, JVM, Go, Ruby,
@@ -25,6 +25,5 @@ The report must contain:
 5. gaps, assumptions, and low-confidence findings.
 
 Write the complete report to `analysis/dependencies` with media type
-`text/markdown`. Return a successful StageContentResult with result slot
-`dependency_report` pointing to the exact written revision. The Stage summary is
-only a concise completion note, not the report.
+`text/markdown`. Finish only after that durable write succeeds, using a concise
+plain-text completion summary rather than the report body.

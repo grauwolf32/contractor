@@ -1,1 +1,1 @@
-Delegate the complete objective to the builder Worker and return its exact versioned result artifact.
+Copy the named source into `builder/copied`, then summarize the completed task.

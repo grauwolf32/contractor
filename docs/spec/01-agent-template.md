@@ -263,11 +263,11 @@ model response;
 crossing the token ceiling stops the loop before a response tool call is
 executed, while reaching the ceiling permits a final text result but no later
 operation. Missing token usage is recorded explicitly and never disables the
-independent model/tool-call ceilings. Exhaustion returns one safe failed
-`StageContentResult` with code `worker_budget_exhausted`, the exhausted
-dimension in bounded metrics, and `retryable: true`. Passthrough therefore
-supplies a normal failed candidate to Scheduler, whose Workflow transition owns
-whole-Stage retry.
+independent model/tool-call ceilings. Exhaustion makes Runtime construct one safe
+failed Worker response with code `worker_budget_exhausted`, the exhausted dimension
+in bounded metrics, and `retryable: true`. The model does not serialize that
+response. Passthrough therefore supplies a normal failed candidate to Scheduler,
+whose Workflow transition owns whole-Stage retry.
 
 `temperature` is optional; when absent, Worker omits the parameter instead of
 inventing a default. When present, it is a finite JSON number greater than or
@@ -748,8 +748,14 @@ but another backend may replace it when it satisfies the configured
 model-client protocol. An active allocation uses one resolved settings
 snapshot; configuration changes or label rebinding never mutate it.
 
-AgentTemplate remains the sole authored model-visible behavior contract. Its
-explicit Toolset selections own domain tools and its explicit `skills` refs
+AgentTemplate remains the sole authored reusable Worker-behavior contract. The
+Runtime Agent allocation layer consumes the resolved template and builds a minimal
+Worker context containing description, instruction text, card version, effective
+model policy, instantiated tools and prepared skills. `WorkerBuildContext` does not
+contain an `AgentTemplate`; neither the ADK implementation nor its model sees a
+template ref, digest, manifest or allocation projection. Stage objective/instructions
+remain separate per-task semantic input under [00]. Its explicit Toolset selections
+own domain tools and its explicit `skills` refs
 own the bounded native ADK SkillToolset described by [09]. A Runtime label may
 configure a proxy, telemetry exporter or an already selected Toolset adapter,
 but cannot add a tool, Toolset, skill, instruction or Worker behavior. Runtime

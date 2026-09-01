@@ -195,7 +195,7 @@ def test_adk_maps_partial_export_to_stable_retryable_failure(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_adk_exports_valid_failed_result_but_not_malformed_or_reserved_result(
+def test_adk_treats_protocol_shaped_text_as_summary_before_workspace_export(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -223,7 +223,8 @@ def test_adk_exports_valid_failed_result_but_not_malformed_or_reserved_result(
         )
         await failed_session.write_text("source.txt", "useful partial state\n")
         failed = await failed_runtime.invoke(stage_request())
-        assert failed.error is not None and failed.error.code == "analysis_incomplete"
+        assert failed.error is None
+        assert '"outcome":"failed"' in failed.summary
         assert set(failed.artifacts) == {"workspace_state", "workspace_diff"}
         assert failed_runtime._metrics.counters["workspace_exports.succeeded"] == 1
         await failed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
@@ -234,13 +235,14 @@ def test_adk_exports_valid_failed_result_but_not_malformed_or_reserved_result(
             tmp_path,
             malformed_session,
             malformed_client,
-            [text_result("not json"), text_result("still not json")],
+            [text_result("ordinary summary")],
         )
         await malformed_session.write_text("source.txt", "must stay private\n")
         malformed = await malformed_runtime.invoke(stage_request())
-        assert malformed.error is not None and malformed.error.code == "invalid_worker_result"
-        assert malformed_client.calls == []
-        assert await malformed_session.changed_paths() == ("source.txt",)
+        assert malformed.error is None
+        assert malformed.summary == "ordinary summary"
+        assert set(malformed.artifacts) == {"workspace_state", "workspace_diff"}
+        assert await malformed_session.changed_paths() == ()
         await malformed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         reserved_session = await overlay("reserved")
@@ -267,8 +269,10 @@ def test_adk_exports_valid_failed_result_but_not_malformed_or_reserved_result(
             ],
         )
         reserved = await reserved_runtime.invoke(stage_request())
-        assert reserved.error is not None and reserved.error.code == "invalid_worker_result"
-        assert reserved_client.calls == []
+        assert reserved.error is None
+        assert '"revision":"invented"' in reserved.summary
+        assert reserved.artifacts["workspace_diff"].revision == "revision-1"
+        assert reserved.artifacts["workspace_state"].revision == "revision-1"
         await reserved_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -416,7 +420,9 @@ def build_context(
         stage_execution_id="stage-export",
         logical_agent_name="editor",
         namespace="editor",
-        agent_template=template,
+        description=template.description,
+        instruction=template.instructions.text,
+        card_version=template.ref.version,
         model_policy=template.model_policy,
         workspace=AllocationWorkspace(root=tmp_path, path=tmp_path),
         tools={},

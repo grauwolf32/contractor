@@ -50,6 +50,7 @@ spec:
           report:
             required: true
             mediaTypes: [text/markdown]
+            from: {namespace: security, name: report}
       workflowOutputs:
         report: report
       on:

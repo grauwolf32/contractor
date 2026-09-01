@@ -9,5 +9,11 @@
       "name": "source",
       "revision": "019c-revision-1"
     }
+  },
+  "resultArtifacts": {
+    "report": {
+      "namespace": "builder",
+      "name": "report"
+    }
   }
 }

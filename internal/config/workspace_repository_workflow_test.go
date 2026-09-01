@@ -166,8 +166,7 @@ func TestRepositoryWorkspaceTemplatesUseOnlyNarrowFilesystemContracts(t *testing
 			t.Fatalf("%s workspace tools = %+v", ref, toolsets)
 		}
 		instructions := strings.Join(strings.Fields(template.Instructions.Text), " ")
-		if !strings.Contains(instructions, "workspace_state") ||
-			!strings.Contains(instructions, "workspace_diff") ||
+		if !strings.Contains(strings.ToLower(instructions), "workspace export is automatic") ||
 			!strings.Contains(instructions, "host path") {
 			t.Fatalf("%s instructions do not explain workspace boundaries", ref)
 		}

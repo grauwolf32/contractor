@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fakes.model import json_result, scripted_model, tool_call
+from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_text_artifacts_toolset import MemoryArtifactClient
 
@@ -30,6 +30,7 @@ from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
+    ArtifactRef,
     CaidoSettingsV2,
     FinalizeAllocationRequest,
     HTTPProxySettingsV2,
@@ -294,20 +295,7 @@ def worker_model() -> object:
                 call_id="write-report",
             ),
             tool_call("http_session_clear", {}, call_id="session-clear"),
-            json_result(
-                {
-                    "apiVersion": API_VERSION,
-                    "outcome": "succeeded",
-                    "summary": "Bounded HTTP and Caido analysis completed",
-                    "artifacts": {
-                        "report": {
-                            "namespace": "analysis",
-                            "name": "report",
-                            "revision": "revision-2",
-                        }
-                    },
-                }
-            ),
+            text_result("Bounded HTTP and Caido analysis completed"),
         ]
     )
 
@@ -319,6 +307,7 @@ def stage_request() -> StageContentRequest:
         instructions="Use only selected tools and publish one report.",
         parameters={"target": "target.example"},
         artifacts={},
+        resultArtifacts={"report": ArtifactRef(namespace="analysis", name="report")},
     )
 
 

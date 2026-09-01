@@ -52,6 +52,12 @@ fixed_decisions:
     protocol: A2A 1.0
     binding: HTTP JSON-RPC
     go_sdk: github.com/a2aproject/a2a-go/v2
+  worker_model_boundary:
+    reusable_behavior: AgentTemplate resolved instruction text and selected tools/skills
+    task_input: Planner objective/instructions, string parameters and named exact input refs
+    result_projection: >-
+      Runtime-owned strict A2A response from plain final summary plus only
+      current-invocation trusted tool observations matched to Workflow `from` bindings.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -161,9 +167,9 @@ milestones:
   - id: live-model-reliability
     exit_task: V5-003
     outcome: >-
-      Tool-complete Workers recover malformed result envelopes through bounded
-      structured output, project-scale LikeC4 variants use explicit larger
-      finite budgets, and owners can inspect safe actionable attempt errors.
+      Tool-complete Workers tolerate arbitrary bounded final text without a
+      model-authored result envelope, project-scale LikeC4 variants use explicit
+      larger finite budgets, and owners can inspect safe actionable attempt errors.
   - id: lifecycle-review-hardening
     exit_task: V6-003
     outcome: >-
@@ -227,6 +233,12 @@ milestones:
     outcome: >-
       Injection, proxy-bypass, response-bomb, GraphQL, concurrency, cancellation
       and secret-retention gates close the migrated HTTP/Caido surface.
+  - id: worker-model-boundary
+    exit_task: V13-001
+    outcome: >-
+      Worker models receive only AgentTemplate behavior and Planner task data;
+      Runtime privately and deterministically projects strict A2A results from
+      invocation-local trusted artifact observations.
 
 v8_v12_spec_review:
   reviewed_on: "2026-09-01"
@@ -266,7 +278,7 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V12-008
+  completed_through: V13-001
   next_task: null
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
@@ -302,7 +314,11 @@ current_checkpoint:
     response-cookie cleanup; added adversarial URL/redirect/response/GraphQL,
     concurrency and retained-secret suites plus a strict executable matrix;
     and documented the explicit DNS/egress and Caido schema-compatibility
-    boundaries. Every planned V8 through V12 task is complete.
+    boundaries. V13-001 removed the model-facing Contractor result protocol and
+    second serializer call. AgentTemplate now supplies reusable behavior,
+    Planner supplies semantic task data, and Runtime maps only exact artifacts
+    observed in the current invocation through trusted Workflow result bindings.
+    Every planned V8 through V13 task is complete.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -848,9 +864,10 @@ planning_review:
       Explicit caller-selected discovery reuse is implemented. Automatic cache
       keys, provenance compatibility checks, and invalidation remain deferred.
     - >-
-      Model quality and result-envelope reliability remain provider-dependent.
-      Finite Worker budgets now bound time and spend, but policy tuning across
-      larger repositories needs a broader future evaluation matrix.
+      Model task quality and final-summary quality remain provider-dependent.
+      Result-envelope correctness is Runtime-owned; finite Worker budgets bound
+      time and spend, but policy tuning across larger repositories needs a
+      broader future evaluation matrix.
 
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
@@ -973,3 +990,4 @@ tasks:
   - {id: V12-006, file: v12-006-caido-skill-and-configs.yml}
   - {id: V12-007, file: v12-007-http-caido-process-e2e.yml}
   - {id: V12-008, file: v12-008-http-caido-hardening.yml}
+  - {id: V13-001, file: v13-001-runtime-owned-worker-result.yml}

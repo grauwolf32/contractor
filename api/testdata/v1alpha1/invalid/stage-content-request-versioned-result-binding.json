@@ -1,0 +1,14 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "objective": "Copy the source artifact",
+  "instructions": "Use the exact input.",
+  "parameters": {},
+  "artifacts": {},
+  "resultArtifacts": {
+    "report": {
+      "namespace": "builder",
+      "name": "report",
+      "revision": "invented-revision"
+    }
+  }
+}

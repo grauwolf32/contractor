@@ -62,6 +62,10 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	if stage.WorkflowOutputs["result"] != "copied" || stage.On.Succeeded.Kind != TransitionSucceed {
 		t.Fatalf("unexpected resolved Stage: %+v", stage)
 	}
+	from := stage.Result.Artifacts["copied"].From
+	if from == nil || *from != (ArtifactBinding{Namespace: "builder", Name: "copied"}) {
+		t.Fatalf("Stage result binding = %+v", from)
+	}
 
 	instructions, err := snapshot.Instructions("instructions/copy-planner.md")
 	if err != nil {
@@ -69,6 +73,39 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 	if instructions != stage.Instructions {
 		t.Fatalf("resolved instructions differ: %+v != %+v", instructions, stage.Instructions)
+	}
+}
+
+func TestRepositoryInstructionsDoNotExposePrivateWorkerProtocol(t *testing.T) {
+	t.Parallel()
+
+	patterns := []string{
+		filepath.Join(repositoryConfigRoot, "instructions", "*.md"),
+		filepath.Join(repositoryConfigRoot, "e2e", "instructions", "*.md"),
+	}
+	for _, pattern := range patterns {
+		paths, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range paths {
+			text := string(readFile(t, path))
+			for _, forbidden := range []string{
+				"StageContentRequest",
+				"StageContentResult",
+				"contractor/v1alpha1",
+				"result slot",
+				"declared output",
+				"Runtime records",
+				"Runtime associates",
+				"Runtime owns",
+				"Scheduler",
+			} {
+				if strings.Contains(text, forbidden) {
+					t.Errorf("%s exposes private Worker protocol phrase %q", path, forbidden)
+				}
+			}
+		}
 	}
 }
 
@@ -729,14 +766,66 @@ func TestWorkflowTransitionRejectsOptionalResultAsRequiredOutput(t *testing.T) {
 	root := copyConfigTree(t)
 	workflow := strings.Replace(
 		multiStageWorkflowYAML,
-		"          copied: {required: true, mediaTypes: [text/plain]}\n      workflowOutputs:",
-		"          copied: {required: false, mediaTypes: [text/plain]}\n      workflowOutputs:",
+		"          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}\n      workflowOutputs:",
+		"          copied: {required: false, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}\n      workflowOutputs:",
 		1,
 	)
 	writeFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), []byte(workflow))
 	if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "without required output") {
 		t.Fatalf("Load() = (%v, %v), want required output error", snapshot, err)
+	}
+}
+
+func TestWorkflowResultBindingsAreTrustedAndVersionless(t *testing.T) {
+	t.Parallel()
+
+	path := "workflows/artifact_copy.yaml"
+	for _, test := range []struct {
+		name        string
+		old         string
+		replacement string
+		fragment    string
+	}{
+		{
+			name:        "missing",
+			old:         "            from: {namespace: builder, name: copied}\n",
+			replacement: "",
+			fragment:    "result.artifacts.copied.from is required",
+		},
+		{
+			name:        "unassigned namespace",
+			old:         "from: {namespace: builder, name: copied}",
+			replacement: "from: {namespace: reviewer, name: copied}",
+			fragment:    "is not assigned to a Stage Agent",
+		},
+		{
+			name:        "reserved namespace",
+			old:         "from: {namespace: builder, name: copied}",
+			replacement: "from: {namespace: outputs, name: copied}",
+			fragment:    "Runtime-reserved binding",
+		},
+		{
+			name:        "revision",
+			old:         "from: {namespace: builder, name: copied}",
+			replacement: "from: {namespace: builder, name: copied, revision: invented}",
+			fragment:    "field revision not found",
+		},
+		{
+			name:        "workflow input",
+			old:         "      mediaTypes: [text/plain]\n\n  outputs:",
+			replacement: "      mediaTypes: [text/plain]\n      from: {namespace: builder, name: copied}\n\n  outputs:",
+			fragment:    "allowed only for Stage result artifacts",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := copyConfigTree(t)
+			replaceFile(t, filepath.Join(root, path), test.old, test.replacement)
+			snapshot, err := Load(root, MVPDescriptors())
+			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.fragment) {
+				t.Fatalf("Load() = (%v, %v), want %q", snapshot, err, test.fragment)
+			}
+		})
 	}
 }
 
@@ -766,7 +855,7 @@ spec:
           source: {namespace: inputs, name: source, required: true}
       result:
         artifacts:
-          copied: {required: true, mediaTypes: [text/plain]}
+          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}
       on:
         succeeded: {next: review}
         failed:
@@ -787,7 +876,7 @@ const reviewStageYAML = `      objective: Review the candidate
           candidate: {namespace: builder, name: copied, required: true}
       result:
         artifacts:
-          copied: {required: true, mediaTypes: [text/plain]}
+          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}
       workflowOutputs:
         result: copied
       on:

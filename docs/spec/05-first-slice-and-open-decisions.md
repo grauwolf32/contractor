@@ -209,7 +209,7 @@ This slice must demonstrate:
   they expose no `escalate` operation, and Scheduler alone applies independently
   declared `failed` or `interrupted` escalation configuration by creating a new
   StageExecution with a pinned executionConfig override; escalation eligibility
-  does not depend on a model-produced `retryable` value;
+  does not depend on a model-backed Planner candidate's `retryable` value;
 - Streamline and Router enforce the selected ModelPolicy's model-call,
   cumulative-token, per-response and Worker-call limits plus a finite
   Stage/Planner wall deadline; exhaustion produces an interrupted, retryable
@@ -274,14 +274,17 @@ This slice must demonstrate:
   not alter the exact refs already recorded for an execution;
 - artifact bytes use the Server's private allocation-bound Artifact API while
   A2A carries only the ref;
-- Artifact API reads/writes return a versioned ArtifactRef, and Worker, Planner
-  and Scheduler preserve that revision through candidate acceptance without
-  re-resolving current;
+- Artifact API reads/writes return a versioned ArtifactRef; Runtime maps only refs
+  observed through trusted tools to server-declared Stage result `from` bindings,
+  after which Planner and Scheduler preserve that revision through candidate
+  acceptance without re-resolving current;
 - Workflow loading validates that every `workflowOutputs` key is a declared
   Workflow output and every value is a result artifact declared by that Stage;
 - every Workflow input/output and Stage-result artifact slot explicitly defines
-  `required` and a non-empty `mediaTypes`; tests cover missing required slots,
-  exact media-type matching, explicit `*/*` and incompatible output mappings;
+  `required` and a non-empty `mediaTypes`; every non-workspace Stage result also
+  defines a versionless `from` binding in an assigned Agent Namespace. Tests cover
+  missing/invalid bindings, exact media-type matching, explicit `*/*` and
+  incompatible output mappings;
 - accepted output is frozen under `outputs/<slot>` and is not implicitly
   published back to UserScope;
 - release clears the allocation's A2A identity, State, tools, access context

@@ -508,8 +508,9 @@ files or UI state.
 Unlike retry, escalation does not consult the source StageError or
 StageTermination `retryable` flag: the explicit outcome branch, the action's own
 attempt limit and a still-`running` WorkflowRun are the complete eligibility
-rule. Thus a model-produced failed candidate cannot enable or suppress an
-escalation indirectly. When the limit is exhausted, Scheduler evaluates `then`,
+rule. Thus a failed candidate produced by a model-backed Planner cannot enable
+or suppress an escalation indirectly. When the limit is exhausted, Scheduler
+evaluates `then`,
 which contains exactly one `next` or `fail` action. The counter belongs to that
 exact declared action across the StageExecution ancestry and is not reset by
 alternating outcomes. A policy under `failed` never applies to `interrupted`,
@@ -576,21 +577,27 @@ objective as its global task and the instruction text as its operating
 guidance. Router additionally receives the deterministic agent-purpose section
 defined below.
 
-PassthroughPlanner has no reasoning step of its own. It creates one Worker task
-text deterministically as:
+PassthroughPlanner has no reasoning step of its own. It creates one private
+Worker-task request containing the Stage objective, resolved Stage instructions,
+string parameters, pinned input refs and declared result bindings. Runtime renders
+only the Planner-supplied task portion for the model, beginning deterministically as:
 
 ```text
 Objective:
 <Stage objective>
 
-Instructions:
+Task instructions:
 <resolved Stage instructions text>
 ```
 
-That single text plus the separate structured Run-parameter mapping and pinned
-artifact refs form its initial A2A request. This is the explicit passthrough
-adapter behavior; it does not turn the Stage instruction into reusable Worker
-configuration.
+The rendered task also labels string parameters and named exact artifact inputs for
+the selected tools. Declared result bindings remain Runtime-private and are not
+rendered. Runtime adds no authored behavioral instruction of its own: reusable
+Worker behavior comes from AgentTemplate and task behavior comes from Planner. The
+task never includes the A2A DTO name, API version, allocation identity,
+StageExecution lifecycle, result-envelope schema, retry policy or Scheduler
+transition. This is the explicit passthrough adapter behavior; it does not turn the
+Stage instruction into reusable Worker configuration.
 
 These strings are semantic input, not executable policy. Scheduler does not try
 to infer success from their text, and they cannot override result contracts,
@@ -605,7 +612,8 @@ Workflow artifact contracts have three distinct levels:
 - `spec.inputs` and `spec.outputs` declare the public input and output slots of
   the reusable Workflow;
 - `stage.result.artifacts` declares the Stage-local artifact names that may
-  appear as keys in its `StageResult.artifacts`;
+  appear as keys in its `StageResult.artifacts` and the versionless RunScope
+  binding from which Runtime may obtain each Worker-produced exact ref;
 - `stage.workflowOutputs` explicitly maps Workflow output slots to those
   Stage-local result names.
 
@@ -646,6 +654,9 @@ spec:
           candidate:
             required: true
             mediaTypes: [application/yaml, application/json]
+            from:
+              namespace: oas_builder
+              name: openapi
 
       workflowOutputs:
         openapi: candidate
@@ -708,8 +719,7 @@ current binding again. There is no implicit output mapping based on artifact
 Namespace, name, list position or matching slot names. Workers cannot write the
 reserved `outputs` Namespace directly.
 
-The same minimal artifact-slot contract is used in `spec.inputs`,
-`spec.outputs` and `stage.result.artifacts`:
+Every artifact slot uses the same minimal payload contract:
 
 - `required` is a mandatory boolean; it has no default;
 - `mediaTypes` is a mandatory, non-empty list of unique media types;
@@ -719,6 +729,15 @@ The same minimal artifact-slot contract is used in `spec.inputs`,
   specific values;
 - `v1alpha1` has no artifact cardinality, size, filename-extension or structured
   payload schema in a slot contract. One slot binds at most one ArtifactRef.
+
+A Stage result artifact additionally has a mandatory versionless `from` binding
+with exactly `namespace` and `name`. Its Namespace must be assigned to at least one
+logical Agent of that Stage. A revision is invalid because the concrete revision is
+created or observed only inside one Run. The sole exception is a Runtime-owned
+overlay `workspace_state` or `workspace_diff` export slot: it omits `from`, and
+`context.workspace.export` supplies the trusted mapping. `from` is invalid on
+Workflow input/output slots and is never shown as a result-selection instruction to
+the Worker model.
 
 For a required Workflow input, the Run request must supply a binding; an
 optional input may be absent. Scheduler validates the exact selected source
@@ -1064,10 +1083,10 @@ the declared outcome policy. There is no model-facing `escalate` operation.
 
 Each prepared ADK Worker independently enforces the cumulative model-call,
 tool-call, and provider-reported token ceilings embedded in its exact
-ModelPolicy. The optional tool-free result-finalization call consumes the same
-budget. Exhaustion stops before the next side effect and returns retryable
-failed code `worker_budget_exhausted`; it is a Worker candidate, not a Planner
-budget termination and not a direct StageExecution write.
+ModelPolicy. There is no result-serialization model call. Exhaustion stops before
+the next side effect and Runtime returns retryable failed code
+`worker_budget_exhausted`; it is a Worker response, not a Planner budget termination
+and not a direct StageExecution write.
 
 `streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
 `maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
@@ -1109,15 +1128,25 @@ interruption instead uses the bounded `aborting` path.
 `PassthroughPlanner` is the baseline integration path. It requires one prepared
 Worker, sends the deterministic Stage input through the direct A2A
 `WorkerInvoker`, waits for the remote invocation to complete and maps the
-response and artifact refs into `StageResult`.
+Runtime-owned response and artifact refs into `StageResult`.
 
 ```text
 StageSpec + StageContext + WorkerHandle
   -> A2A SendMessage
-  -> immediate Message or Worker A2A Task
-  -> completed response / versioned artifact refs
+  -> Runtime renders semantic task for Worker model
+  -> model final plain-text summary + trusted tool observations
+  -> Runtime-owned completed response / versioned artifact refs
   -> StageResult
 ```
+
+The Worker model does not serialize this response. A normal bounded final text is
+the presentation summary. Runtime matches each declared `resultArtifacts` binding
+against exact refs actually observed through allocation-bound tools, attaches only
+those matches, and constructs the private A2A envelope. A protocol-shaped model
+string remains ordinary summary text and cannot select an outcome, result slot,
+revision, retryability value or lifecycle transition. Missing/oversized/secret-bearing
+final text and Runtime/tool/budget failures are classified by Runtime. Scheduler and
+Planner retain their existing independent result-contract validation.
 
 It knows neither which Runtime Agent hosts the Worker nor how that process
 configured the selected runtime.

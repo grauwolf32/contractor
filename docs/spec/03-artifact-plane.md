@@ -438,12 +438,15 @@ public change feed.
 
 ## A2A and ADK
 
-Normal durable artifact bytes stay in ArtifactStore. A2A progress/results carry
-a small structured `ArtifactRef` extension. A Worker forwards the versioned ref
-returned by its artifact read/write operation when it identifies a concrete
-result. An A2A message may still carry a versionless ArtifactRef when it
-deliberately means "read current"; this is unrelated to the catalog
-instruction-resource refs used by Workflow and AgentTemplate configuration.
+Normal durable artifact bytes stay in ArtifactStore. Private A2A task input carries
+exact input refs plus server-declared versionless result bindings. Runtime, not the
+Worker model, projects trusted tool observations into the A2A result: it matches each
+declared binding to the exact versioned ref actually observed during the invocation.
+The model may receive refs as ordinary selected-tool arguments/results, but never
+serializes the A2A envelope or chooses a result slot/revision. A private A2A input may
+still carry a versionless ArtifactRef when it deliberately means "read current";
+this is unrelated to catalog instruction-resource refs used by Workflow and
+AgentTemplate configuration.
 
 ADK `BaseArtifactService` is an adapter, not the authoritative contract:
 

@@ -50,17 +50,18 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) error{
-		"agent-registration-idle-with-allocation.json":       reject[AgentRegistration],
-		"agent-registration-oversized-software-version.json": reject[AgentRegistration],
-		"agent-heartbeat-missing-allocation.json":            reject[AgentHeartbeat],
-		"heartbeat-response-unknown-action.json":             reject[HeartbeatResponse],
-		"llm-gateway-config-secret-field.json":               reject[ResolvedLLMGatewayConfig],
-		"allocation-spec-bad-api-version.json":               reject[AllocationSpec],
-		"allocation-spec-resolved-skill-versionless.json":    reject[AllocationSpec],
-		"stage-content-request-unknown-field.json":           reject[StageContentRequest],
-		"stage-content-result-unversioned-artifact.json":     reject[StageContentResult],
-		"stage-content-result-success-with-error.json":       reject[StageContentResult],
-		"artifact-read-result-unversioned.json":              reject[ArtifactReadResult],
+		"agent-registration-idle-with-allocation.json":        reject[AgentRegistration],
+		"agent-registration-oversized-software-version.json":  reject[AgentRegistration],
+		"agent-heartbeat-missing-allocation.json":             reject[AgentHeartbeat],
+		"heartbeat-response-unknown-action.json":              reject[HeartbeatResponse],
+		"llm-gateway-config-secret-field.json":                reject[ResolvedLLMGatewayConfig],
+		"allocation-spec-bad-api-version.json":                reject[AllocationSpec],
+		"allocation-spec-resolved-skill-versionless.json":     reject[AllocationSpec],
+		"stage-content-request-unknown-field.json":            reject[StageContentRequest],
+		"stage-content-request-versioned-result-binding.json": reject[StageContentRequest],
+		"stage-content-result-unversioned-artifact.json":      reject[StageContentResult],
+		"stage-content-result-success-with-error.json":        reject[StageContentResult],
+		"artifact-read-result-unversioned.json":               reject[ArtifactReadResult],
 	}
 
 	for filename, decode := range cases {

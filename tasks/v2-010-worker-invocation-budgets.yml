@@ -5,6 +5,10 @@ milestone: project-workflows-operations
 priority: P1
 status: completed
 implementation_commit: "9426486745fbc3fda74208d11c286585f431f17f"
+amended_by: V13-001
+amendment_note: >-
+  Budget enforcement remains unchanged, but there is no optional
+  result-finalization model call; Runtime constructs the failure response.
 depends_on: [V2-008]
 languages: [go, python, yaml]
 

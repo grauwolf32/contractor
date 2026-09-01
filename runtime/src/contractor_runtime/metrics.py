@@ -211,21 +211,6 @@ class MetricsState:
             )
         )
 
-    def record_worker_result_error(self, classification: str) -> None:
-        normalized = _metric_identifier(classification)
-        self._append_error(
-            ExecutionError(
-                code=f"worker_result_{normalized}",
-                message=f"Worker result rejected ({normalized})",
-                retryable=False,
-            )
-        )
-
-    def record_worker_result_recovery(self, *, succeeded: bool) -> None:
-        self._increment("worker_result_recovery_attempts")
-        outcome = "succeeded" if succeeded else "failed"
-        self._increment(f"worker_result_recovery.{outcome}")
-
     def record_workspace_export(
         self,
         *,

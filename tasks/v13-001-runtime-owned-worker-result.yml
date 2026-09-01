@@ -1,0 +1,101 @@
+schema_version: "1.0"
+id: V13-001
+title: Keep Contractor transport and result selection outside the Worker model
+milestone: worker-model-boundary
+priority: P0
+status: complete
+implementation_commit: null
+depends_on: [V5-001, V12-008]
+languages: [go, python, yaml, typescript]
+
+goal: >-
+  Restore the intended Worker abstraction: AgentTemplate supplies reusable
+  model behavior, Planner supplies one semantic task, and Python Runtime alone
+  constructs the private Contractor A2A result from plain final text and
+  invocation-local trusted artifact observations.
+
+context:
+  defect: >-
+    adk_runtime.py rendered StageContentRequest and StageContentResult details,
+    result slots, retryability and API version into model prompts, then used a
+    second schema-constrained LLM as a result serializer. AgentTemplate is a
+    Server configuration abstraction, so it must be consumed by the allocation
+    layer instead of being passed into WorkerBuildContext; its model may not
+    depend on transport/lifecycle concepts.
+  supersedes: >-
+    This task replaces only the Worker-result parsing/finalizer design from
+    V5-001 and the corresponding portions of MVP-012, V2-010 and V11-010. Their
+    other completed lifecycle, budget and workspace work remains authoritative.
+
+scope:
+  in:
+    - Keep StageContentRequest and StageContentResult as private Control Plane/Runtime A2A DTOs, never as model schemas or instructions.
+    - Pass AgentTemplate instruction text unchanged as the ADK system instruction; render only Planner objective/instructions, string parameters and named exact inputs as task content.
+    - Project the resolved AgentTemplate into minimal WorkerBuildContext fields; do not pass the template object, ref, digest or manifest to the Worker implementation.
+    - Add a trusted versionless `from` binding to every ordinary Stage result artifact slot; workspace auto-export slots remain Runtime-owned and omit it.
+    - Carry the trusted mappings privately in StageContentRequest.resultArtifacts without rendering them to the model.
+    - Treat the last bounded non-thought model text only as a presentation summary; protocol-shaped JSON is inert text.
+    - Journal exact artifact reads/writes and select only a matching ref observed by a completed trusted tool call in the current A2A invocation.
+    - Preserve actual tool-completion order when the same binding has several observed revisions, and never reuse an earlier subtask's observation.
+    - Construct and validate the strict succeeded/failed A2A response in Runtime; Runtime alone owns technical failure codes and retryability.
+    - Remove the tool-free finalizer, recovery Session, recovery metrics and second model call.
+    - Remove private transport/lifecycle wording from shipped Worker and passthrough task instructions.
+    - Expose the trusted `from` mapping in Workflow inspection OpenAPI while keeping it absent from Workflow input/output slots.
+  out:
+    - Renaming the private A2A DTOs, adding a model-facing finish/fail protocol to Worker, changing Planner finish semantics, or adding a new Artifact endpoint.
+    - Inferring semantic failure from free text. A normal Worker completion is succeeded; missing required outputs are rejected by the existing Planner/Scheduler result contract.
+
+requirements:
+  - {id: R1, text: No Runtime-authored behavioral prompt, private DTO name, API version, result binding, lifecycle state or retry policy reaches the Worker model.}
+  - {id: R2, text: A model cannot select outcome, slot, namespace, revision, retryability or a workspace export by formatting its final text.}
+  - {id: R3, text: Every ordinary result ref is exact, matches a trusted Workflow binding and was observed during the same invocation that returned it.}
+  - {id: R4, text: Streamline/Router reuse of one allocation cannot make a later subtask inherit an earlier subtask's artifact result.}
+  - {id: R5, text: Workflow publication rejects missing, versioned, reserved, input/output-level or non-Agent-namespace result bindings.}
+  - {id: R6, text: WorkerBuildContext contains no AgentTemplate object or template identity; allocation code alone resolves that Server abstraction.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Worker writes the configured binding and returns ordinary text.
+    when: Runtime completes the invocation.
+    then: It emits one strict succeeded StageContentResult with that text as summary and the observed exact ref under the Server-declared slot, without another model call.
+  - id: A2
+    given: Final text contains a complete invented StageContentResult including outcome, slot and revision.
+    when: Runtime projects the result.
+    then: The string remains only summary text and no invented field or ref enters the A2A DTO.
+  - id: A3
+    given: One allocation completes a first invocation that observes a result ref and a second invocation that does not touch it.
+    when: The second result is built.
+    then: Its artifact map is empty and existing required-output validation fails closed upstream.
+  - id: A4
+    given: Invalid Workflow result `from` mappings and Runtime-owned workspace export slots.
+    when: Config is loaded and the public Workflow resource is validated.
+    then: Invalid ordinary mappings are rejected, export slots omit `from`, and the OpenAPI response remains schema-valid.
+  - id: A5
+    given: Repository Worker/task instructions and recorded model requests.
+    when: Regression gates scan them.
+    then: They contain semantic work only and no private Contractor transport/result instructions.
+  - id: A6
+    given: Runtime Agent prepares a resolved AgentTemplate allocation.
+    when: It constructs the selected Worker implementation.
+    then: The build context contains only projected behavior and execution dependencies, not AgentTemplate identity or structure.
+
+tests:
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests", covers: [A1, A2, A3, A5, A6]}
+  - {name: contracts-config, command: "go test ./internal/contracts ./internal/config ./internal/planner/...", covers: [A1, A4, A5]}
+  - {name: public-api-ui, command: "make verify-public-api ui-typecheck ui-test", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}
+
+decisions:
+  - >-
+    Input ArtifactRefs remain visible as named task inputs because selected
+    artifact/domain tools require those exact arguments. Result bindings are
+    different: they are authority and remain Runtime-private.
+  - >-
+    A tool observation journal is append-only during one A2A invocation.
+    Runtime projects only completed observations from that invocation and then
+    clears the journal; a later subtask cannot inherit it or grow an unbounded
+    revision transcript.
+  - >-
+    AgentTemplate remains a Server abstraction. Runtime receives its resolved
+    projection to instantiate ADK but passes only description, instruction text,
+    selected tools and skills—not the template identity or manifest—to ADK.

@@ -45,6 +45,7 @@ spec:
           copied:
             required: true
             mediaTypes: [text/plain]
+            from: {namespace: builder, name: copied}
       workflowOutputs:
         result: copied
       on:

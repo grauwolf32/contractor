@@ -5,6 +5,10 @@ milestone: mvp
 priority: P0
 status: completed
 implementation_commit: "a565c2426b7ca6019de7735f4567ab3b9260c370"
+amended_by: V13-001
+amendment_note: >-
+  The A2A DTO remains strict, but final model text is no longer parsed as that
+  DTO. Runtime owns response construction and trusted result-ref projection.
 depends_on: [MVP-010, MVP-011]
 languages: [python]
 

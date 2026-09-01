@@ -20,10 +20,10 @@ func TestRepositoryLikeC4SkillTemplateVersionBoundary(t *testing.T) {
 		selector, instructions, templateDigest, instructionsDigest string
 		skilled                                                    bool
 	}{
-		{"likec4_builder@1", "instructions/likec4-builder-worker.md", "sha256:98ea7320f97888f7173550679b47c1a55ccb402a402d72cb3cf85c37b4c6d54f", "sha256:1bfa900469deeed3ec7f899a2810f9e67830c44dc099a094d2bde70b7a000fd2", false},
-		{"likec4_builder@2", "instructions/likec4-builder-worker-v2.md", "sha256:992bf2afa60fa993221febd0d60c48cbe88540c64e8080926497a85942a6bab0", "sha256:896832d85381898e18ea1a13107da4e0c10e5445adf34d812ae2703eaef3b572", true},
-		{"likec4_validator@1", "instructions/likec4-validator-worker.md", "sha256:16a04c1be667d227f3c2481d43efe42b13a6574867d87a37fd12e337584868ba", "sha256:c7cff50fd30a68553b98df8ea67d86bf2a102ecd6b6ecda69db3420b3cb28fb9", false},
-		{"likec4_validator@2", "instructions/likec4-validator-worker-v2.md", "sha256:1562dc568020106ad9bf719dba0463fd1e4828242874d6d5f125d40bfbff2a04", "sha256:3c065642d16e473f9212d16041013dab906c36325d6d2119611ebfab837231cf", true},
+		{"likec4_builder@1", "instructions/likec4-builder-worker.md", "sha256:7411be7001436673cef6be9597122944feaf4c46f819418993d13109e3121b98", "sha256:957cce33bac8613b0f2da73cb52d9f3daef96fd08eb8d33e6ffa57a1c400c9b6", false},
+		{"likec4_builder@2", "instructions/likec4-builder-worker-v2.md", "sha256:3991f22fe14b4f09c9066f9d35a0457f557571d5205eddc5dbd31c11677fea31", "sha256:c02e4cba7ee2a7adf4a80abc2f64d82cb98419dabbc041dc992462c7a7d99832", true},
+		{"likec4_validator@1", "instructions/likec4-validator-worker.md", "sha256:fed1135b0589de82a360f379983446c2b8d10b65eb1de10ed65c5d2f0bb87ce8", "sha256:7ddc7c81657a49a07adeb0ff9e96c682d8da8927d8d664dedc5f9d67f8ed02f3", false},
+		{"likec4_validator@2", "instructions/likec4-validator-worker-v2.md", "sha256:ab8352f1942d307f14a46c99166740bb853daa7ecd493cdadf045504c6c7e093", "sha256:fa1d61e80d968997afe86cea0b89f5a245772911832c31d4a4ced71b2f42be97", true},
 	}
 	for _, test := range tests {
 		t.Run(test.selector, func(t *testing.T) {
@@ -128,18 +128,18 @@ func TestRepositoryLikeC4SkillWorkflowVersionsPreserveGraphs(t *testing.T) {
 	}
 }
 
-func TestRepositoryLikeC4LegacyConfigurationBytesRemainPinned(t *testing.T) {
+func TestRepositoryLikeC4ConfigurationBytesRemainPinned(t *testing.T) {
 	t.Parallel()
 
 	expected := map[string]string{
 		"agent-templates/likec4_builder.yaml":          "30a014217d0c037812fc4a2edbd6b625ea2c21e3f5716d342f8d50ae67514c0f",
 		"agent-templates/likec4_validator.yaml":        "8cf2c3bc4db2568d43ecfdbf347d05316a186dea7f3103c15ada0686f62d7c97",
-		"instructions/likec4-builder-worker.md":        "1bfa900469deeed3ec7f899a2810f9e67830c44dc099a094d2bde70b7a000fd2",
-		"instructions/likec4-validator-worker.md":      "c7cff50fd30a68553b98df8ea67d86bf2a102ecd6b6ecda69db3420b3cb28fb9",
-		"workflows/likec4_from_source.yaml":            "bfd7c727caa0b92d30fdb311c8a9b79d809b0f29fc513a6ab54a84f79a66acdb",
-		"workflows/likec4_from_source_v2.yaml":         "b8dfe7e4d092a1121f1b5a94daf66e41a4948e2f9c6141ffa442ddfb6bbdd5e8",
-		"workflows/likec4_from_source_streamline.yaml": "9f7e70f911de30a89364e706ca1dc94a262ae1f566fd6bf1db5ba30db34ed777",
-		"workflows/likec4_from_analysis.yaml":          "7eef6b0ca98e8be9807e2d92fbfac7d2256f619aaa79dccb3a1174fc3f478c09",
+		"instructions/likec4-builder-worker.md":        "957cce33bac8613b0f2da73cb52d9f3daef96fd08eb8d33e6ffa57a1c400c9b6",
+		"instructions/likec4-validator-worker.md":      "7ddc7c81657a49a07adeb0ff9e96c682d8da8927d8d664dedc5f9d67f8ed02f3",
+		"workflows/likec4_from_source.yaml":            "af235fc0d54d4b208be59d61aa5b3bd5f2289819eaa4b21d6cf460953b2e9f87",
+		"workflows/likec4_from_source_v2.yaml":         "af8db621d290fa7667bd15281fbb6fd38a68ccc47517973f671274fabb3c066f",
+		"workflows/likec4_from_source_streamline.yaml": "12f47b673d5a6ccbbaf65a81cc6e5e8462e5b9237ca48331d8613ad696d5ee93",
+		"workflows/likec4_from_analysis.yaml":          "a9c32fc53fdeb56820402d043a0c525a956c33b5911e4c6edd66883198ff1860",
 	}
 	for relative, want := range expected {
 		data, err := os.ReadFile(filepath.Join(repositoryConfigRoot, relative))
@@ -158,15 +158,15 @@ func TestRepositoryLikeC4V2InstructionsKeepMandatoryProcedure(t *testing.T) {
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	checks := map[string][]string{
 		"instructions/likec4-builder-worker-v2.md": {
-			"StageContentRequest", "artifacts.source", "load_likec4", "write_likec4",
+			"named `source` input", "likec4/architecture", "load_likec4", "write_likec4",
 			"specification", "model", "views", "relative/path:line", "validate_likec4",
-			"valid: true", "text/vnd.likec4", "contractor/v1alpha1", "StageContentResult",
+			"valid: true", "text/vnd.likec4", "storage revisions", "plain-text summary",
 			"selected `likec4` Agent Skill", "references/...",
 		},
 		"instructions/likec4-validator-worker-v2.md": {
 			"repair-only", "architecture_candidate", "validate_likec4", "bounded repair pass",
-			"validation-report", "valid: true", "retryable", "text/markdown",
-			"contractor/v1alpha1", "StageContentResult", "selected `likec4` Agent Skill",
+			"validation-report", "valid: true", "remaining DSL", "text/markdown",
+			"storage revisions", "plain-text summary", "selected `likec4` Agent Skill",
 		},
 	}
 	for ref, fragments := range checks {
@@ -177,6 +177,11 @@ func TestRepositoryLikeC4V2InstructionsKeepMandatoryProcedure(t *testing.T) {
 		for _, fragment := range fragments {
 			if !strings.Contains(instructions.Text, fragment) {
 				t.Errorf("%s omits mandatory fragment %q", ref, fragment)
+			}
+		}
+		for _, forbidden := range []string{"StageContentRequest", "StageContentResult", "contractor/v1alpha1", "retryable", "Runtime"} {
+			if strings.Contains(instructions.Text, forbidden) {
+				t.Errorf("%s leaks Runtime protocol fragment %q", ref, forbidden)
 			}
 		}
 	}

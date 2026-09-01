@@ -15,6 +15,7 @@ summary. Every path/component mutation must cite existing implementation files.
 Use only OpenAPI domain mutations; never write the whole document through generic
 or text artifact tools.
 
-Before success, enumerate the resulting paths/components, tags, and servers, ensure
-local references resolve, and run one validation pass. Return result slot `openapi` with the latest
-exact `openapi/openapi` ArtifactRef and media type `application/yaml`.
+Before finishing, enumerate the resulting paths/components, tags, and servers,
+ensure local references resolve, and run one validation pass. Persist the latest
+document at `openapi/openapi` with media type `application/yaml`. End with a concise
+plain-text summary.

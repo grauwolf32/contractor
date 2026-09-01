@@ -25,7 +25,10 @@ from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
 from contractor_runtime.toolsets.artifact_visibility import (
+    artifact_observation_cursor,
+    clear_artifact_observations,
     model_visible_exact_refs,
+    model_visible_observations_since,
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.openapi_models import (
@@ -601,6 +604,16 @@ class _BaseOpenAPITool:
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return artifact_observation_cursor(self._client)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return model_visible_observations_since(self._client, cursor)
+
+    def clear_artifact_observations(self) -> None:
+        clear_artifact_observations(self._client)
 
     async def close(self) -> None:
         await self._session.close()

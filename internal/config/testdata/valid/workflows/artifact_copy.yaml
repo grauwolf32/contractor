@@ -27,7 +27,7 @@ spec:
           source: {namespace: inputs, name: source, required: true}
       result:
         artifacts:
-          copied: {required: true, mediaTypes: [text/plain]}
+          copied: {required: true, mediaTypes: [text/plain], from: {namespace: builder, name: copied}}
       workflowOutputs: {result: copied}
       on:
         succeeded: {succeed: {}}

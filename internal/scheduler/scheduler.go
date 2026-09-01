@@ -2461,6 +2461,10 @@ func cloneArtifactSlots(
 	result := make(map[string]workflowconfig.ArtifactSlot, len(source))
 	for name, slot := range source {
 		slot.MediaTypes = append([]string(nil), slot.MediaTypes...)
+		if slot.From != nil {
+			from := *slot.From
+			slot.From = &from
+		}
 		result[name] = slot
 	}
 	return result

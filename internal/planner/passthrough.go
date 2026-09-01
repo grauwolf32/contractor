@@ -340,9 +340,19 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 			artifacts[name] = cloneArtifactRef(*ref)
 		}
 	}
+	resultArtifacts := make(map[string]contracts.ArtifactRef)
+	for name, slot := range invocation.Stage.Result.Artifacts {
+		if slot.From != nil {
+			resultArtifacts[name] = contracts.ArtifactRef{
+				Namespace: slot.From.Namespace,
+				Name:      slot.From.Name,
+			}
+		}
+	}
 	request := contracts.StageContentRequest{
 		APIVersion: contracts.APIVersion, Objective: invocation.Stage.Objective,
 		Instructions: invocation.Stage.Instructions.Text, Parameters: parameters, Artifacts: artifacts,
+		ResultArtifacts: resultArtifacts,
 	}
 	if err := request.Validate(); err != nil {
 		return contracts.StageContentRequest{}, fmt.Errorf("invalid StageContentRequest: %w", err)
@@ -431,6 +441,10 @@ func cloneStageRequest(request contracts.StageContentRequest) contracts.StageCon
 	result.Artifacts = make(map[string]contracts.ArtifactRef, len(request.Artifacts))
 	for name, ref := range request.Artifacts {
 		result.Artifacts[name] = cloneArtifactRef(ref)
+	}
+	result.ResultArtifacts = make(map[string]contracts.ArtifactRef, len(request.ResultArtifacts))
+	for name, ref := range request.ResultArtifacts {
+		result.ResultArtifacts[name] = cloneArtifactRef(ref)
 	}
 	return result
 }

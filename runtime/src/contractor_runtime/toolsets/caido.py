@@ -19,7 +19,12 @@ from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGra
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings, RuntimeSettingsV2
-from contractor_runtime.toolsets.artifact_visibility import model_visible_exact_refs
+from contractor_runtime.toolsets.artifact_visibility import (
+    artifact_observation_cursor,
+    clear_artifact_observations,
+    model_visible_exact_refs,
+    model_visible_observations_since,
+)
 from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -201,6 +206,16 @@ class _CaidoSession:
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         client = self._artifact_client
         return model_visible_exact_refs(getattr(client, "known_exact_refs", ()))
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return artifact_observation_cursor(self._artifact_client)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return model_visible_observations_since(self._artifact_client, cursor)
+
+    def clear_artifact_observations(self) -> None:
+        clear_artifact_observations(self._artifact_client)
 
     async def scopes(self) -> dict[str, Any]:
         async with self._lock:
@@ -856,6 +871,16 @@ class _CaidoTool:
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return self._session.known_exact_refs
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return self._session.artifact_observation_cursor
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return self._session.observed_exact_refs_since(cursor)
+
+    def clear_artifact_observations(self) -> None:
+        self._session.clear_artifact_observations()
 
     async def close(self) -> None:
         await self._session.close()

@@ -55,6 +55,7 @@ spec:
           document:
             required: true
             mediaTypes: [application/yaml, application/json]
+            from: {namespace: openapi, name: openapi}
       workflowOutputs:
         document: document
       on:

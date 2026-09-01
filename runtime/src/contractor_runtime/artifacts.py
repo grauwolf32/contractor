@@ -103,11 +103,28 @@ class ArtifactClient:
         self._allocation_id = allocation_id
         self._transport = transport
         self._root = f"/allocations/{quote(allocation_id, safe='')}/artifacts"
-        self._known_exact_refs: dict[tuple[str, str, str], ArtifactRef] = {}
+        self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
+        self._observed_exact_refs: list[ArtifactRef] = []
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
         return tuple(self._known_exact_refs.values())
+
+    @property
+    def observation_cursor(self) -> int:
+        """Return an allocation-local cursor for invocation-scoped provenance."""
+
+        return len(self._observed_exact_refs)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        if type(cursor) is not int or cursor < 0 or cursor > len(self._observed_exact_refs):
+            raise ValueError("artifact observation cursor is invalid")
+        return tuple(self._observed_exact_refs[cursor:])
+
+    def clear_observations(self) -> None:
+        """Discard a completed invocation journal without losing latest refs."""
+
+        self._observed_exact_refs.clear()
 
     async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
         path = self._root
@@ -235,7 +252,8 @@ class ArtifactClient:
     def _remember(self, ref: ArtifactRef) -> None:
         revision = ref.require_exact().revision
         assert revision is not None
-        self._known_exact_refs[(ref.namespace, ref.name, revision)] = ref
+        self._known_exact_refs[(ref.namespace, ref.name)] = ref
+        self._observed_exact_refs.append(ref)
 
     def _ref_path(self, ref: ArtifactRef) -> str:
         path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}"
