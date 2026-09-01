@@ -7,8 +7,10 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
   "a2a-sdk[http-server]==1.1.2",
   "google-adk==2.8.0",
+  "httpx>=0.28,<1",
   "jcs>=0.2,<1",
   "litellm==1.98.0",
+  "opentelemetry-proto==1.42.1",
   "pydantic>=2.11,<3",
   "pyyaml>=6.0,<7",
   "regex>=2026.7,<2027",
@@ -25,7 +27,6 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-  "httpx>=0.28,<1",
   "jsonschema>=4.25,<5",
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",

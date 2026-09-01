@@ -63,7 +63,7 @@ class RunArtifactsToolsetFactory:
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("run-artifacts@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
-        secrets = (runtime_settings.llm_gateway_token.get_secret_value(),)
+        secrets = gateway_secrets(runtime_settings)
         builders = {
             "list_artifacts": lambda: ListArtifactsTool(client, metrics, secrets),
             "read_artifact": lambda: ReadArtifactTool(client, metrics, secrets),
@@ -218,6 +218,11 @@ class WriteArtifactTool(_BaseTool):
         except Exception as error:
             self._failure(arguments, error, started_ns)
             raise
+
+
+def gateway_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
+    token = settings.llm_gateway_token
+    return () if token is None else (token.get_secret_value(),)
 
 
 def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:

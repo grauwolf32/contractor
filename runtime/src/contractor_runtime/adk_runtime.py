@@ -27,6 +27,7 @@ from contractor_runtime.a2a_server import (
     build_agent_card,
     build_worker_a2a_application,
 )
+from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
@@ -142,23 +143,38 @@ class WorkerFunctionTool(FunctionTool):
     """Return bounded tool failures to the model so it can correct or terminate."""
 
     def __init__(
-        self, function: Callable[..., Any], budget: Callable[[], _InvocationBudget | None]
+        self,
+        function: Callable[..., Any],
+        budget: Callable[[], _InvocationBudget | None],
+        instrumentation: RuntimeInstrumentation | None,
     ):
         super().__init__(function)
         self._budget = budget
+        self._instrumentation = instrumentation
 
     async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
         budget = self._budget()
         if budget is not None:
             budget.before_tool_call()
+        span = _start_span(
+            self._instrumentation,
+            "contractor.worker.tool",
+            {"operation.kind": "tool", "tool.name": self.name},
+        )
         try:
-            return await super().run_async(args=args, tool_context=tool_context)
+            result = await super().run_async(args=args, tool_context=tool_context)
         except asyncio.CancelledError:
+            _end_span(span, outcome="cancelled")
             raise
         except Exception as error:
             code = getattr(error, "code", "tool_call_failed")
             if not isinstance(code, str) or SAFE_TOOL_ERROR_CODE.fullmatch(code) is None:
                 code = "tool_call_failed"
+            _end_span(
+                span,
+                outcome="failed",
+                attributes={"error.type": _safe_error_type(error)},
+            )
             return {
                 "ok": False,
                 "error": {
@@ -167,6 +183,11 @@ class WorkerFunctionTool(FunctionTool):
                     "retryable": bool(getattr(error, "retryable", False)),
                 },
             }
+        outcome = (
+            "failed" if isinstance(result, Mapping) and result.get("ok") is False else "succeeded"
+        )
+        _end_span(span, outcome=outcome)
+        return result
 
 
 class GatewayLiteLlm(LiteLlm):
@@ -198,9 +219,9 @@ def gateway_model(context: WorkerBuildContext) -> BaseLlm:
         "api_base": settings.llm_gateway_url,
         "timeout": float(settings.request_timeout_seconds),
     }
-    token = settings.llm_gateway_token.get_secret_value()
-    if token:
-        options["api_key"] = token
+    token = settings.llm_gateway_token
+    if token is not None and (token_value := token.get_secret_value()):
+        options["api_key"] = token_value
     return GatewayLiteLlm(model=f"openai/{policy.model}", **options)
 
 
@@ -227,6 +248,7 @@ class AdkWorkerRuntime:
         self._context = context
         self._model: BaseLlm | None = model
         self._metrics = context.state.metrics
+        self._instrumentation = context.adapter_handles.instrumentation
         self._session_service = InMemorySessionService()
         self._session_id = context.allocation_id
         self._finalizer_session_id = f"{context.allocation_id}-result-finalizer"
@@ -240,13 +262,19 @@ class AdkWorkerRuntime:
         self._agent: LlmAgent | None = None
         self._finalizer_agent: LlmAgent | None = None
         self._active_budget: _InvocationBudget | None = None
+        self._model_spans: list[RuntimeSpan] = []
 
         policy = context.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
         if policy.temperature is not None:
             generation.temperature = policy.temperature
         adk_tools = [
-            WorkerFunctionTool(tool, lambda: self._active_budget) for tool in context.tools.values()
+            WorkerFunctionTool(
+                tool,
+                lambda: self._active_budget,
+                self._instrumentation,
+            )
+            for tool in context.tools.values()
         ]
         self._agent = LlmAgent(
             name="contractor_worker",
@@ -335,6 +363,33 @@ class AdkWorkerRuntime:
         return self._a2a_application
 
     async def invoke(self, request: StageContentRequest) -> StageContentResult:
+        span = _start_span(
+            self._instrumentation,
+            "contractor.worker.a2a_task",
+            {"operation.kind": "a2a_task"},
+        )
+        try:
+            result = await self._invoke(request)
+        except asyncio.CancelledError:
+            _end_span(span, outcome="cancelled")
+            raise
+        except Exception as error:
+            error_type = _safe_error_type(error)
+            _end_span(
+                span,
+                outcome="failed",
+                attributes={"error.type": error_type},
+            )
+            _record_worker_error(self._instrumentation, error_type)
+            raise
+        attributes = _aggregate_count_attributes(self._metrics.counters)
+        if result.error is not None:
+            attributes["error.type"] = result.error.code
+            _record_worker_error(self._instrumentation, result.error.code)
+        _end_span(span, outcome=result.outcome.value, attributes=attributes)
+        return result
+
+    async def _invoke(self, request: StageContentRequest) -> StageContentResult:
         if not self._accepting:
             return _failure("worker_draining", "Worker is no longer accepting A2A work", True)
         if self._invoke_lock.locked():
@@ -463,7 +518,10 @@ class AdkWorkerRuntime:
                 classification="oversized",
                 recoverable=False,
             )
-        gateway_token = self._context.runtime_settings.llm_gateway_token.get_secret_value()
+        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
+        gateway_token = (
+            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
+        )
         if gateway_token and gateway_token in candidate:
             return None, _ResultCandidateIssue(
                 code="unsafe_worker_result",
@@ -586,12 +644,15 @@ class AdkWorkerRuntime:
                 session_id=self._finalizer_session_id,
             )
         finally:
+            while self._model_spans:
+                _end_span(self._model_spans.pop(), outcome="cancelled")
             model = self._model
             self._model = None
             if isinstance(model, GatewayLiteLlm):
                 model.clear_credentials()
             self._agent = None
             self._finalizer_agent = None
+            self._instrumentation = None
 
     async def _before_model(
         self, callback_context: CallbackContext, llm_request: LlmRequest
@@ -601,13 +662,25 @@ class AdkWorkerRuntime:
         if budget is not None:
             budget.before_model_call()
         self._metrics.record_model_call()
+        span = _start_span(
+            self._instrumentation,
+            "contractor.worker.model",
+            {
+                "operation.kind": "model",
+                "model.alias": self._context.model_policy.model,
+            },
+        )
+        if span is not None:
+            self._model_spans.append(span)
 
     async def _after_model(
         self, callback_context: CallbackContext, llm_response: LlmResponse
     ) -> None:
         del callback_context
+        usage_attributes = _usage_attributes(llm_response.usage_metadata)
         if llm_response.usage_metadata is not None:
             self._metrics.record_model_usage(llm_response.usage_metadata)
+        _end_span(self._pop_model_span(), outcome="succeeded", attributes=usage_attributes)
         budget = self._active_budget
         if budget is not None:
             budget.after_model_response(llm_response.usage_metadata)
@@ -619,9 +692,19 @@ class AdkWorkerRuntime:
         error: Exception,
     ) -> None:
         del callback_context, llm_request
+        span = self._pop_model_span()
         if isinstance(error, WorkerBudgetExceeded):
+            _end_span(span, outcome="rejected", attributes={"error.type": type(error).__name__})
             return
+        _end_span(
+            span,
+            outcome="failed",
+            attributes={"error.type": _safe_error_type(error)},
+        )
         self._metrics.record_model_error(error)
+
+    def _pop_model_span(self) -> RuntimeSpan | None:
+        return self._model_spans.pop() if self._model_spans else None
 
     async def _sync_metrics(self) -> None:
         session = await self._session_service.get_session(
@@ -682,6 +765,80 @@ def _ref_key(ref: ArtifactRef) -> tuple[str, str, str]:
     revision = ref.require_exact().revision
     assert revision is not None
     return ref.namespace, ref.name, revision
+
+
+def _start_span(
+    instrumentation: RuntimeInstrumentation | None,
+    name: str,
+    attributes: Mapping[str, TelemetryAttribute] | None = None,
+) -> RuntimeSpan | None:
+    if instrumentation is None:
+        return None
+    try:
+        return instrumentation.start_span(name, attributes=attributes)
+    except Exception:
+        return None
+
+
+def _end_span(
+    span: RuntimeSpan | None,
+    *,
+    outcome: str,
+    attributes: Mapping[str, TelemetryAttribute] | None = None,
+) -> None:
+    if span is None:
+        return
+    try:
+        span.end(outcome=outcome, attributes=attributes)
+    except Exception:
+        return
+
+
+def _safe_error_type(error: Exception) -> str:
+    error_type = getattr(error, "provider_error_type", type(error).__name__)
+    if not isinstance(error_type, str) or SAFE_TOOL_ERROR_CODE.fullmatch(error_type) is None:
+        return type(error).__name__
+    return error_type
+
+
+def _record_worker_error(
+    instrumentation: RuntimeInstrumentation | None,
+    error_type: str,
+) -> None:
+    span = _start_span(
+        instrumentation,
+        "contractor.worker.error",
+        {"operation.kind": "worker_error", "error.type": error_type},
+    )
+    _end_span(span, outcome="failed")
+
+
+def _aggregate_count_attributes(counters: Mapping[str, int]) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for source, target in (
+        ("llm_calls", "counts.model_calls"),
+        ("tool_calls", "counts.tool_calls"),
+    ):
+        value = counters.get(source)
+        if isinstance(value, int) and value >= 0:
+            result[target] = value
+    return result
+
+
+def _usage_attributes(usage: Any | None) -> dict[str, int]:
+    if usage is None:
+        return {}
+    result: dict[str, int] = {}
+    for source, target in (
+        ("prompt_token_count", "tokens.input"),
+        ("candidates_token_count", "tokens.output"),
+        ("total_token_count", "tokens.total"),
+        ("cached_content_token_count", "tokens.cached_input"),
+    ):
+        value = getattr(usage, source, None)
+        if isinstance(value, int) and value >= 0:
+            result[target] = value
+    return result
 
 
 def _failure(code: str, summary: str, retryable: bool) -> StageContentResult:

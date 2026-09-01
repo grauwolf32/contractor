@@ -12,6 +12,12 @@ from fakes.model import json_result, scripted_model, text_result, thought_result
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_request import LlmRequest
 
+from contractor_runtime.adapters import (
+    AdapterHandles,
+    RuntimeInstrumentation,
+    RuntimeSpan,
+    TelemetryAttribute,
+)
 from contractor_runtime.adk_runtime import (
     AdkWorkerRuntime,
     AdkWorkerRuntimeFactory,
@@ -137,6 +143,67 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
     asyncio.run(scenario())
 
 
+def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        model = scripted_model(
+            [
+                tool_call(
+                    "read_artifact",
+                    {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                    call_id="read-for-telemetry",
+                ),
+                json_result(
+                    {
+                        "apiVersion": API_VERSION,
+                        "outcome": "succeeded",
+                        "summary": "Telemetry-safe result",
+                        "artifacts": {},
+                    }
+                ),
+            ]
+        )
+        instrumentation = RecordingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            model,
+            instrumentation=instrumentation,
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        assert [span.name for span in instrumentation.spans] == [
+            "contractor.worker.a2a_task",
+            "contractor.worker.model",
+            "contractor.worker.tool",
+            "contractor.worker.model",
+        ]
+        assert [span.outcome for span in instrumentation.spans] == [
+            "succeeded",
+            "succeeded",
+            "succeeded",
+            "succeeded",
+        ]
+        model_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.model"
+        ]
+        assert [span.attributes["tokens.total"] for span in model_spans] == [10, 10]
+        assert instrumentation.spans[2].attributes["tool.name"] == "read_artifact"
+        assert instrumentation.spans[0].attributes["counts.model_calls"] == 2
+        assert instrumentation.spans[0].attributes["counts.tool_calls"] == 1
+        rendered = repr([span.attributes for span in instrumentation.spans])
+        for forbidden in (SECRET, "inputs", "source", "input-r1", "Telemetry-safe result"):
+            assert forbidden not in rendered
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
     tmp_path: Path,
 ) -> None:
@@ -164,11 +231,23 @@ def test_adk_worker_rejects_unknown_fields_and_unobserved_artifact_refs(
             ]
         )
         invalid_state = WorkerState()
-        first = await create_runtime(tmp_path / "invalid", invalid_state, {}, invalid)
+        invalid_instrumentation = RecordingInstrumentation()
+        first = await create_runtime(
+            tmp_path / "invalid",
+            invalid_state,
+            {},
+            invalid,
+            instrumentation=invalid_instrumentation,
+        )
         invalid_result = await first.invoke(stage_request())
         assert invalid_result.error is not None
         assert invalid_result.error.code == "invalid_worker_result"
         assert invalid_result.error.retryable is True
+        error_spans = [
+            span for span in invalid_instrumentation.spans if span.name == "contractor.worker.error"
+        ]
+        assert len(error_spans) == 1
+        assert error_spans[0].attributes["error.type"] == "invalid_worker_result"
         assert invalid_state.metrics.errors[-1].code == "worker_result_schema_extra_forbidden"
         assert invalid_state.metrics.counters["worker_result_recovery_attempts"] == 1
         assert invalid_state.metrics.counters["worker_result_recovery.failed"] == 1
@@ -653,9 +732,15 @@ async def create_runtime(
     max_model_calls: int = 8,
     max_tool_calls: int = 16,
     max_total_tokens: int = 32768,
+    instrumentation: RuntimeInstrumentation | None = None,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
+    if instrumentation is not None:
+        context = replace(
+            context,
+            adapter_handles=AdapterHandles(instrumentation=instrumentation),
+        )
     context = replace(
         context,
         model_policy=context.model_policy.model_copy(
@@ -707,6 +792,44 @@ def build_context(
         a2a_base_url="https://runtime.example",
         runtime_settings=runtime_settings(),
     )
+
+
+class RecordingInstrumentation:
+    def __init__(self) -> None:
+        self.spans: list[RecordingSpan] = []
+
+    def start_span(
+        self,
+        name: str,
+        *,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> RuntimeSpan:
+        span = RecordingSpan(name, attributes or {})
+        self.spans.append(span)
+        return span
+
+
+class RecordingSpan:
+    def __init__(self, name: str, attributes: dict[str, TelemetryAttribute]) -> None:
+        self.name = name
+        self.attributes = dict(attributes)
+        self.outcome: str | None = None
+
+    def end(
+        self,
+        *,
+        outcome: str,
+        attributes: dict[str, TelemetryAttribute] | None = None,
+    ) -> None:
+        self.outcome = outcome
+        if attributes is not None:
+            self.attributes.update(attributes)
+
+    def __repr__(self) -> str:
+        return (
+            f"RecordingSpan(name={self.name!r}, outcome={self.outcome!r}, "
+            f"attribute_keys={tuple(sorted(self.attributes))!r})"
+        )
 
 
 def agent_template() -> ResolvedAgentTemplate:

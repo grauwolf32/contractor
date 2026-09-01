@@ -41,7 +41,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
 
         assert snapshot.runtimes == ("adk@1",)
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
-        assert snapshot.runtime_adapters == ()
+        assert snapshot.runtime_adapters == ("otlp-http@1",)
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
         assert "write_likec4" in toolsets["likec4@1"]
         assert "validate_likec4" not in toolsets["likec4@1"]

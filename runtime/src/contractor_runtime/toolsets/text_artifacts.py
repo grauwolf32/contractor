@@ -10,7 +10,11 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
-from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
+from contractor_runtime.toolsets.run_artifacts import (
+    ArtifactClientFactory,
+    ToolMetrics,
+    gateway_secrets,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_TEXT_WRITE_BYTES = 1024 * 1024
@@ -51,7 +55,7 @@ class TextArtifactsToolsetFactory:
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("text-artifacts@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
-        secrets = (runtime_settings.llm_gateway_token.get_secret_value(),)
+        secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "read_text_artifact": lambda: ReadTextArtifactTool(client, metrics, secrets),
             "write_text_artifact": lambda: WriteTextArtifactTool(

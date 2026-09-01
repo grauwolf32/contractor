@@ -18,7 +18,11 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
-from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
+from contractor_runtime.toolsets.run_artifacts import (
+    ArtifactClientFactory,
+    ToolMetrics,
+    gateway_secrets,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_DOCUMENT_UTF8_BYTES = 1024 * 1024
@@ -80,7 +84,7 @@ class LikeC4ToolsetFactory:
             raise TypeError("likec4@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
         session = _LikeC4Session(client, namespace, workspace.path)
-        secrets = (runtime_settings.llm_gateway_token.get_secret_value(),)
+        secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "load_likec4": lambda: LoadLikeC4Tool(session, client, metrics, secrets),
             "write_likec4": lambda: WriteLikeC4Tool(session, client, metrics, secrets),

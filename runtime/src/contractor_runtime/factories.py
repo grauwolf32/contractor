@@ -13,6 +13,7 @@ from contractor_runtime.adapters import (
     RuntimeAdapterFactory,
 )
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ResolvedAgentTemplate, ResolvedModelPolicy, RuntimeSettings
@@ -124,6 +125,7 @@ def built_in_factories(
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
+    telemetry = OTLPHTTPAdapterFactory()
     return FactoryRegistry(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
@@ -134,7 +136,7 @@ def built_in_factories(
             text_toolset.ref: text_toolset,
         },
         sandbox_profiles={sandbox.ref: sandbox},
-        runtime_adapters={},
+        runtime_adapters={telemetry.ref: telemetry},
     )
 
 

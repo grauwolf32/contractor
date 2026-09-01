@@ -401,3 +401,43 @@ tests that make the choice observable.
   telemetry would violate secret erasure; constructing adapters after sandbox
   would leave avoidable local resources on configuration failure; and adding a
   second final-report envelope would fork the already active lifecycle route.
+
+### D020 — Worker telemetry is a bounded allocation-local OTLP projection
+
+- Applies to: V8-011.
+- Decision: `otlp-http@1` builds official OTLP/HTTP trace protobuf messages
+  directly instead of installing a second tracing runtime or LangChain. Each
+  allocation owns one exporter, one HTTP client and an encoded FIFO bounded by
+  2048 spans and 2 MiB. The queue has no background worker or durable spool; it
+  is flushed once through the existing bounded terminal adapter lifecycle.
+- Content boundary: instrumentation accepts only four fixed span names and a
+  closed attribute allowlist. It records correlation identifiers, exact safe
+  refs/labels, model aliases, tool names, outcomes, durations and aggregate
+  counters. Prompts, responses, tool arguments/results, artifact bytes,
+  provider bodies and URLs have no representable field. Header values and the
+  selected endpoint are additionally treated as secrets and cause matching
+  attribute values to be omitted.
+- Provenance encoding: exact RuntimeConfig refs and digests are exported as
+  parallel bounded arrays. A combined `name@version#digest` can exceed the
+  normative 256-byte string bound, while the parallel representation retains
+  exact identity without truncating a digest. Run labels, Agent labels and
+  adapter refs are independently bounded arrays from the already pinned
+  allocation context.
+- Transport boundary: `httpx` is an explicit Runtime dependency. The client
+  disables environment proxy/trust inheritance and redirects, uses one
+  connection, sends secret headers only to the exact configured endpoint, and
+  never receives Runtime mTLS material or Artifact grants. A successful HTTP
+  response is accepted only when its bounded protobuf body reports no partial
+  rejection; response text is never surfaced.
+- Failure semantics: queue overflow, encoding failure, backend rejection,
+  disconnect and final flush timeout affect only allowlisted adapter metrics.
+  They cannot change the semantic Worker result or prevent release. Close
+  retains the stronger V8-010 erasure/fencing rule. ADK hook failures are also
+  swallowed at the instrumentation boundary. While wiring this path, optional
+  LLM Gateway credentials were corrected so a configuration without a token
+  does not attempt to dereference `None`.
+- Alternatives rejected: the full OpenTelemetry SDK would add global provider
+  and background-exporter lifecycle questions; JSON OTLP would weaken wire
+  interoperability; redirects or ambient proxies could disclose configured
+  headers to an unintended authority; recording arbitrary callback attributes
+  would make the no-content policy depend on every model/tool implementation.

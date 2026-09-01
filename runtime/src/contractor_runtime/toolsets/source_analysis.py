@@ -22,7 +22,11 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
-from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
+from contractor_runtime.toolsets.run_artifacts import (
+    ArtifactClientFactory,
+    ToolMetrics,
+    gateway_secrets,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_ARCHIVE_ENTRIES = 10_000
@@ -137,7 +141,7 @@ class SourceAnalysisToolsetFactory:
             raise TypeError("source-analysis@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
         session = _SourceArchiveSession(client, workspace)
-        secrets = (runtime_settings.llm_gateway_token.get_secret_value(),)
+        secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "open_source_archive": lambda: OpenSourceArchiveTool(session, client, metrics, secrets),
             "list_source_files": lambda: ListSourceFilesTool(session, client, metrics, secrets),

@@ -11,6 +11,11 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterFactory,
     RuntimeAdapterMetricsState,
 )
+from contractor_runtime.adapters.instrumentation import (
+    RuntimeInstrumentation,
+    RuntimeSpan,
+    TelemetryAttribute,
+)
 
 __all__ = [
     "AdapterFactoryError",
@@ -22,4 +27,7 @@ __all__ = [
     "RuntimeAdapterBuildContext",
     "RuntimeAdapterFactory",
     "RuntimeAdapterMetricsState",
+    "RuntimeInstrumentation",
+    "RuntimeSpan",
+    "TelemetryAttribute",
 ]

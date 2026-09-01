@@ -27,7 +27,11 @@ from contractor_runtime.toolsets.openapi_models import (
     Response,
     SecurityScheme,
 )
-from contractor_runtime.toolsets.run_artifacts import ArtifactClientFactory, ToolMetrics
+from contractor_runtime.toolsets.run_artifacts import (
+    ArtifactClientFactory,
+    ToolMetrics,
+    gateway_secrets,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
@@ -121,7 +125,7 @@ class OpenAPIToolsetFactory:
             raise TypeError("openapi@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
         session = _OpenAPISession(client, namespace, workspace)
-        secrets = (runtime_settings.llm_gateway_token.get_secret_value(),)
+        secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "load_openapi": lambda: LoadOpenAPITool(session, client, metrics, secrets),
             "initialize_openapi": lambda: InitializeOpenAPITool(session, client, metrics, secrets),

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
+from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
     AllocationSpecV2,
     HTTPProxySettingsV2,
@@ -37,7 +38,7 @@ class AdapterHandles:
     model_http: Any | None = field(default=None, repr=False)
     tool_http: Any | None = field(default=None, repr=False)
     tool_subprocess: Any | None = field(default=None, repr=False)
-    instrumentation: Any | None = field(default=None, repr=False)
+    instrumentation: RuntimeInstrumentation | None = field(default=None, repr=False)
 
     def merge(self, other: AdapterHandles) -> AdapterHandles:
         values: dict[str, Any | None] = {}
@@ -72,6 +73,12 @@ class RuntimeAdapterBuildContext:
     run_id: str
     stage_execution_id: str
     logical_agent_name: str
+    request_timeout_seconds: int
+    runtime_config_refs: tuple[str, ...]
+    runtime_config_digests: tuple[str, ...]
+    run_labels: tuple[str, ...]
+    agent_labels: tuple[str, ...]
+    runtime_adapter_refs: tuple[str, ...]
 
 
 class AdapterFactoryError(RuntimeError):
@@ -214,6 +221,16 @@ class AllocationAdapterHost:
             run_id=spec.run_id,
             stage_execution_id=spec.stage_execution_id,
             logical_agent_name=spec.logical_agent_name,
+            request_timeout_seconds=spec.runtime_settings.request_timeout_seconds,
+            runtime_config_refs=_runtime_config_refs(spec),
+            runtime_config_digests=_runtime_config_digests(spec),
+            run_labels=tuple(
+                item.label for item in spec.resolved_runtime_config_provenance.run_labels
+            ),
+            agent_labels=tuple(
+                item.label for item in spec.resolved_runtime_config_provenance.agent_labels
+            ),
+            runtime_adapter_refs=tuple(spec.resolved_runtime_config_provenance.runtime_adapters),
         )
         retryable = False
         construction_unconfirmed = False
@@ -372,6 +389,18 @@ def _selected_settings(settings: RuntimeSettingsV2) -> dict[str, AdapterSettings
     if settings.http_proxy is not None:
         selected[settings.http_proxy.adapter] = settings.http_proxy
     return selected
+
+
+def _runtime_config_refs(spec: AllocationSpecV2) -> tuple[str, ...]:
+    provenance = spec.resolved_runtime_config_provenance
+    bindings = (provenance.default, *provenance.run_labels, *provenance.agent_labels)
+    return tuple(f"{binding.config.name}@{binding.config.version}" for binding in bindings)
+
+
+def _runtime_config_digests(spec: AllocationSpecV2) -> tuple[str, ...]:
+    provenance = spec.resolved_runtime_config_provenance
+    bindings = (provenance.default, *provenance.run_labels, *provenance.agent_labels)
+    return tuple(binding.config.digest for binding in bindings)
 
 
 def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) -> None:
