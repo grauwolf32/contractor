@@ -3,8 +3,8 @@ id: V8-016
 title: Harden Runtime labels with full API browser and failure-path E2E
 milestone: label-driven-runtime-configuration
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 5ea78cc580edc833c41aadd6cd3e87201fbda0a5
 depends_on: [V8-013, V8-014, V8-015]
 languages: [go, python, typescript, sql]
 

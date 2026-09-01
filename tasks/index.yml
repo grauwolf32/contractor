@@ -240,15 +240,39 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-015
-  next_task: V8-016
+  completed_through: V8-016
+  next_task: V9-001
   summary: >-
-    The separate React/Node UI now publishes immutable RuntimeConfigs, manages
-    write-only Runtime credentials and revisioned label bindings, edits durable
-    Runtime Agent labels, selects sorted Run labels, and displays only closed
-    pinned allocation provenance. Production browser coverage exercises the
-    real API, static route allowlist and heterogeneous capability probes. Next,
-    add the adversarial cross-process runtime-configuration hardening gate.
+    Label-driven Runtime configuration is complete through its deterministic
+    hardening gate: response-loss replay, CAS/pinning races, certificate/SPKI
+    identity attacks, Planner/Worker telemetry separation, required proxy
+    failure, secret-retention scans, browser operation and reuse of two
+    disjoint specialist Runtime slots all pass. Next, implement the shared
+    artifact-backed Memory note codec and metadata contract.
+
+runtime_configuration_hardening_review:
+  reviewed_on: "2026-09-01"
+  verdict: complete
+  implementation_commit: 5ea78cc580edc833c41aadd6cd3e87201fbda0a5
+  checks:
+    - >-
+      The executable matrix references every new mutation boundary and every
+      acceptance category; its validator fails if an owning Go/Python test is
+      removed or renamed.
+    - >-
+      The full PostgreSQL race gate, 25 strict Python adapter/lease tests, the
+      two-certificate production process scenario and Chromium stack pass.
+    - >-
+      The process scenario replays RuntimeConfig, Runtime credential, label,
+      Agent-label and Run creation mutations, rejects a duplicate live SPKI and
+      allocation borrowing by another CA-valid principal, and then reuses both
+      adapter-specialist slots.
+    - >-
+      Spec review clarified equal Runtime role eligibility versus allocation-
+      scoped principal/instance grants; no other V8 cross-document conflict was
+      found. LikeC4, OpenAPI/config validation, all documentation links and the
+      110-task acyclic dependency graph pass.
+  decisions: [D025]
 
 current_planning_review:
   reviewed_on: "2026-08-31"
