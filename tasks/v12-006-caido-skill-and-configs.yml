@@ -37,10 +37,10 @@ requirements:
 
 acceptance_criteria:
   - {id: A1, given: Fresh config/Skill initialization, when: Server publishes configs, then: New templates/workflow resolve and exact Skill artifact is pinned per Run.}
-  - {id: A2, given: Missing selected Caido tool or malformed Skill reference, when: Validation runs, then: It fails before Run creation.}
+  - {id: A2, given: A checked-in Caido template is missing a named tool or has a malformed Skill reference, when: Repository validation runs, then: The release gate fails before that configuration can ship.}
   - {id: A3, given: Repository config/Skill scan, when: Secret/infrastructure patterns are searched, then: Only documented placeholders exist.}
 
 tests:
-  - {name: configs, command: "go test ./internal/config ./internal/skillcatalog", covers: [A1, A2, A3]}
-  - {name: skill-runtime, command: "cd runtime && uv run pytest tests/test_agent_skills_runtime.py", covers: [A1, A2]}
+  - {name: configs, command: "go test ./internal/config ./internal/agentskills", covers: [A1, A2, A3]}
+  - {name: skill-runtime, command: "cd runtime && uv run pytest tests/test_agent_skill_toolset.py", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

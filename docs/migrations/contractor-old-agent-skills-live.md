@@ -7,17 +7,20 @@ files listed below were copied. No legacy agent, workflow, prompt, Python
 implementation, tool declaration, container image, sandbox, credential, or
 network configuration was migrated.
 
-The packages are deliberately unassigned. They are ordinary Skill artifacts,
-not Runtime capabilities. Their model-visible text does not mention
-AgentTemplate; server-side AgentTemplate selection remains the place where a
-future configuration must combine a package with every compatible Toolset.
+The `auth`, `code-exec`, and `exploit` packages remain deliberately unassigned.
+The `caido` package is assigned only by the checked-in `caido_analyst@1`
+AgentTemplate, which explicitly selects every HTTP and Caido operation named by
+that package. All four remain ordinary Skill artifacts, not Runtime
+capabilities. Their model-visible text does not mention AgentTemplate;
+server-side configuration and repository compatibility tests own the package
+to Toolset association.
 
 The canonical package digests are:
 
 | Package | Digest |
 | --- | --- |
 | `auth` | `sha256:c7165c518840bf65cb2f139d9b06ed1aa240597356c20f081ab1ae2894a3f62f` |
-| `caido` | `sha256:ab88f0a1f411c67b5060bb338928d2b7bd13b5096ed076d6d9b7ac5ae2448499` |
+| `caido` | `sha256:676d2d4736054dad6556a5a9f8fac49e7ffd89858bf9761fbe2517634b3459c1` |
 | `code-exec` | `sha256:ae482885e234465206e603a258463508998478d9845f1c323cfd2d2b5a7bd4d0` |
 | `exploit` | `sha256:e44969fa40e36907273490e1f7e58743003d46612f1d5ac31bc9156c16276e3f` |
 
@@ -59,12 +62,12 @@ must be revised and republished; this migration adds no alias.
 | --- | --- | --- | --- |
 | `load_skill`, `load_skill_resource` | `exploit` | Native bounded ADK SkillToolset operations | Already supplied only when the resolved package list is non-empty; they grant no domain capability. |
 | `read_memory`, `write_memory` | `auth`, `exploit` | Implemented by `memory-tools@1` | Select the exact operations explicitly; notes use valid names such as `auth_creds`, not reserved paths. |
-| `http_request` | all four packages | No current Toolset exports it | A future authorized HTTP Toolset must bind an allocation-local client to `runtime-http-client`, enforce its own bounds, and define evidence fields. |
-| `http_session_set` | `auth`, `exploit` | No current Toolset exports it | A future HTTP Toolset must define allocation-local cookie/header/auth state and how later requests consume it. |
+| `http_request`, `http_read_body`, `http_history` | `caido` (`http_request` also appears in all four packages) | Implemented by `http-tools@1`; all three are selected by `caido_analyst@1` | The allocation-local client enforces bounded requests, artifact bodies and history. Other packages remain unassigned until a template selects their complete compatible surface. |
+| `http_session_set` | `auth`, `exploit` | Implemented by `http-tools@1` but not assigned to either package | A future assigning template must select it explicitly together with the HTTP operations required by that package; session secrets remain allocation-local. |
 | `get_vulnerability`, `submit_verdict` | `code-exec`, `exploit` | No current Toolset exports them | A future finding/verdict Toolset must define exact input, durable output, idempotency, and optional `request_ids` semantics. |
 | `run_python`, `execute_bash` | `code-exec`, `exploit` references | No current Toolset exports them | A future code-execution Toolset must use `runtime-subprocess-launcher` and an exact stronger execution contract; `local-workdir@1` promises no container, dependency, network isolation, or persistence. |
-| `caido_replay`, `caido_automate_run`, `caido_history`, `caido_request_detail` | `caido`, `exploit` | No current Toolset exports them | A future Caido API Toolset must use an allocation-owned HTTP client and typed instance settings; applying the `caido` Runtime label or HTTP proxy alone must not add model-visible tools. |
-| `caido_workflow_list`, `caido_workflow_run`, `caido_workflow_findings` | `caido` | No current Toolset exports them | The same future Caido Toolset must define instance-specific IDs, bounded polling/results, and enabled-workflow semantics. |
+| `caido_scope`, `caido_history`, `caido_request_detail`, `caido_replay`, `caido_automate_run`, `caido_automate_results`, `caido_sitemap` | `caido`, with a subset also named by `exploit` | Implemented by `caido@1`; the complete set is selected only by `caido_analyst@1` | The Toolset uses an allocation-owned static GraphQL adapter and bounded operation contracts. Applying a Runtime label alone still adds no model-visible operation. |
+| `caido_workflow_list`, `caido_workflow_run`, `caido_workflow_findings` | `caido` | Implemented by `caido@1` and selected by `caido_analyst@1` | IDs remain instance-specific; calls use bounded inputs, polling/results and exact artifact output where required. |
 
 `request_id`, `request_tag`, and `request_ids` are conditional data fields, not
 operations. Package text now tells the model to use them only when the visible
@@ -86,9 +89,11 @@ operation schemas actually provide them.
   working directory, background-process survival, or automatic artifact
   export. Every recipe is conditional on the visible operation's own schema and
   environment description.
-- Caido, HTTP, finding/verdict, and code-execution names remain recognizable for
-  a future compatible Toolset, but all statements are conditional. No current
-  descriptor, Runtime capability, configuration selector, or alias was added.
+- Caido guidance was revised against the exact bounded `caido@1` and
+  `http-tools@1` schemas and is selected only by `caido_analyst@1`. This
+  explicit configuration adds no dynamic dependency interpretation: removing a
+  required operation fails the repository release gate. Finding/verdict and
+  code-execution names remain conditional future compatibility points.
 - Authorization, exact target scope, controlled identities, non-destructive
   proof, stop conditions, and cleanup now appear in the root instructions before
   live-testing procedure. The reviewed reference payload corpus and technical

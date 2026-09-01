@@ -33,12 +33,16 @@ spec:
 apiVersion: contractor/v1alpha1
 kind: RuntimeConfig
 metadata:
-  name: caido-local
+  name: caido-analysis
   version: "1"
 spec:
   worker:
     httpProxy:
       adapter: http-proxy@1
-      proxyUrl: https://caido.example
-      credential: caido-local
-      targets: [llm-gateway]
+      proxyUrl: https://caido-forward.example:8080
+      targets: [tool-http]
+    caido:
+      adapter: caido-graphql@1
+      endpoint: https://caido-control.example:8443
+      credential: caido-api
+      requestTimeoutSeconds: 30

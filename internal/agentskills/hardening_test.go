@@ -20,7 +20,7 @@ func TestMigratedAgentSkillsAreDeterministicAndWorkerFacing(t *testing.T) {
 
 	want := map[string]string{
 		"auth":      "sha256:c7165c518840bf65cb2f139d9b06ed1aa240597356c20f081ab1ae2894a3f62f",
-		"caido":     "sha256:ab88f0a1f411c67b5060bb338928d2b7bd13b5096ed076d6d9b7ac5ae2448499",
+		"caido":     "sha256:676d2d4736054dad6556a5a9f8fac49e7ffd89858bf9761fbe2517634b3459c1",
 		"code-exec": "sha256:ae482885e234465206e603a258463508998478d9845f1c323cfd2d2b5a7bd4d0",
 		"exploit":   "sha256:e44969fa40e36907273490e1f7e58743003d46612f1d5ac31bc9156c16276e3f",
 		"likec4":    "sha256:84bc32ac3f6ca32d13785280090701e1d54a3e4f0cd373572236f0a2cd22b95e",

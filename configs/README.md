@@ -48,6 +48,22 @@ references. It is packaged and published into the owner-scoped `skills/likec4`
 artifact by the Skill Catalog path; configuration refers to the logical binding,
 not a checked-in digest.
 
+`security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
+and Caido analysis. It requires the caller to provide `objective`, `target` and
+`authorization_scope` string parameters, accepts one optional text context
+artifact, and freezes one Markdown report. Its `caido_analyst@1` template pins
+the versionless `skills/caido` artifact and explicitly selects every HTTP and
+Caido operation named by that package. `http_explorer@1` provides a reusable
+HTTP-only template without the Caido Skill or adapter requirement.
+
+Infrastructure is not embedded in those manifests. Before starting the
+workflow, publish and bind a RuntimeConfig such as the secret-free
+[`caido-analysis@1` example](../deploy/runtime-labels/runtime-configs.example.yaml),
+create its write-only credential separately, and add the resulting `caido`
+label to the Run. Omitting the label leaves the Stage waiting for a compatible
+allocation configuration; it does not silently fall back to an unconfigured or
+direct Caido client.
+
 All limits remain finite and are enforced per Planner or Worker invocation.
 Select the passthrough variant when one Worker can follow the complete Stage
 contract directly; select Streamline when the Planner should decompose that

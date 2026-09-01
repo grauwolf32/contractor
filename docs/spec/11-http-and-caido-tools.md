@@ -277,6 +277,23 @@ AgentTemplate selection is the model authority boundary. Merely attaching a
 Caido mutation is permitted only when its exact tool name is selected. No Skill
 can add a tool that AgentTemplate omitted.
 
+The checked-in `caido_analyst@1` template is the initial closed assignment. It
+selects all ten `caido@1` operations, the bounded `http_request`,
+`http_read_body` and `http_history` operations, text artifact read/write, and
+the versionless `skills/caido` ref. `security-analysis@1` uses that template in
+one passthrough Stage; `http_explorer@1` is the reusable HTTP-only template and
+selects all six `http-tools@1` operations without a Caido Skill or adapter
+requirement. Their Workflow, template, instructions and Skill contain no
+endpoint, proxy route or credential setting. Deployment binds those separately
+through RuntimeConfig labels.
+
+This association is configuration, not Skill metadata semantics. Runtime does
+not parse guidance to install Toolsets and a label does not make a Skill or tool
+visible. A repository compatibility gate scans model-visible operation names in
+the bundled Caido package and requires them in the exact checked-in template;
+changing either side requires a reviewed config/Skill revision and a new
+canonical package digest.
+
 Metrics may retain tool/operation name, outcome, duration, status class,
 request/response byte count, retry count and safe error code. They must not
 retain URLs, query/filter text, headers, cookies, credentials, raw bodies,
@@ -305,9 +322,10 @@ Stable errors include:
    metrics, logs, reports and tool views.
 6. Every Caido tool passes against a deterministic fake GraphQL server with
    exact variables, pagination/bounds, mutation and error fixtures.
-7. The migrated `configs/skills/caido` package is assigned only to an
-   AgentTemplate that selects its required Caido tools; native Skill loading
-   introduces no additional execution authority.
+7. The migrated `configs/skills/caido` package is assigned only to
+   `caido_analyst@1`, whose exact Toolset allowlist includes every HTTP/Caido
+   operation named by the package; removing one fails the repository release
+   gate and native Skill loading introduces no additional execution authority.
 8. Real process tests cover two Runtime Agents where only one advertises Caido,
    label-based placement, response loss/release, and subsequent clean slot
    reuse.

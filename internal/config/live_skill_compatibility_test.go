@@ -9,15 +9,23 @@ func TestRepositoryLiveSkillCompatibilityBoundary(t *testing.T) {
 	t.Parallel()
 
 	targetSkills := map[string]bool{
-		"auth": true, "caido": true, "code-exec": true, "exploit": true,
+		"auth": true, "code-exec": true, "exploit": true,
 	}
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	caidoSelectors := []string{}
 	for selector, template := range snapshot.templates {
 		for _, skill := range template.Skills {
 			if targetSkills[skill.Name] {
 				t.Errorf("current AgentTemplate %s prematurely selects skills/%s", selector, skill.Name)
 			}
+			if skill.Name == "caido" {
+				caidoSelectors = append(caidoSelectors, selector)
+			}
 		}
+	}
+	slices.Sort(caidoSelectors)
+	if !slices.Equal(caidoSelectors, []string{"caido_analyst@1"}) {
+		t.Fatalf("skills/caido selectors = %v, want only caido_analyst@1", caidoSelectors)
 	}
 
 	descriptors := MVPDescriptors()

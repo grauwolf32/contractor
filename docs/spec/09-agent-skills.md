@@ -93,6 +93,13 @@ absent. Server configuration, migration documents and selection tests may use
 the AgentTemplate term because they describe the control-plane side of this
 boundary.
 
+For a checked-in package that depends on named operations, the repository may
+lock one reviewed AgentTemplate to that package and assert that its explicit
+Toolset allowlist contains every operation named by the guidance. This is a
+release-time compatibility test only. Runtime still does not interpret Skill
+metadata or prose as dependencies, install tools automatically, or expand an
+allocation's authority.
+
 AgentTemplate configuration loading validates ref syntax, uniqueness and
 limits but does not read ArtifactStore. Run initialization fails before
 scheduling if the owner has no valid current artifact for any declared ref.
