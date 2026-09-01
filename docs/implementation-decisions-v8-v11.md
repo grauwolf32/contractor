@@ -558,3 +558,31 @@ tests that make the choice observable.
   the spec. Returning the full private provenance was rejected because it
   would couple owner-facing Run views to physical deployment and credential
   metadata.
+
+### D025 — Runtime-configuration hardening is one executable composed matrix
+
+- Applies to: V8-016.
+- Decision: keep one production-boundary process scenario for the complete
+  Server/PostgreSQL/Scheduler/Planner/mTLS/Python Runtime/adapter path, then
+  compose deterministic PostgreSQL, race-detector, real-certificate and Python
+  lifecycle tests for fault points that cannot be injected from an external
+  client. A strict YAML matrix names every mutation/failure contract and its
+  owning test; the release target executes the matrix, focused hardening,
+  process and browser gates together.
+- Process additions: every new public mutation is immediately replayed as if
+  its first response had been lost; a second instance using the same live
+  certificate is rejected; another CA-valid Agent cannot borrow a copied
+  allocation/instance identity; Planner and Worker export to distinct pinned
+  collectors; required proxy rejection fails the Run; two disjoint adapter
+  specialists both execute a final successful reuse probe.
+- Alternatives rejected: one monolithic process with internal SQL/network
+  hooks would either replace production resolution/release code, introduce
+  test-only mutation endpoints or make response partitions and nanosecond CAS
+  races timing-dependent. Merely listing existing test commands in prose could
+  silently lose coverage after a rename. Running every browser permutation
+  would add time without reaching the private race linearization points.
+- Compatibility impact: `make verify` remains database-independent and checks
+  the executable matrix; `make test-runtime-configuration-e2e` requires
+  PostgreSQL and runs the full deterministic increment; `make release-verify`
+  is the CI aggregate. External LM Studio, Langfuse, Caido, cloud services and
+  internet access remain outside the gate.

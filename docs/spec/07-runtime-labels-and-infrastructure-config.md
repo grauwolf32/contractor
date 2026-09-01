@@ -70,7 +70,9 @@ registration the Control Plane database is authoritative.
 
 Labels are configuration selection, not authorization roles, scheduling
 scores, arbitrary user tags or Workflow graph conditions. All valid Runtime
-Agent certificates retain equal private-API privileges under [02].
+Agent certificates have the same Runtime role eligibility under [02]; access
+to one allocation's settings, A2A route and Artifact scope remains bound to
+that allocation's authenticated principal and instance grant.
 
 ## Label and configuration identity
 

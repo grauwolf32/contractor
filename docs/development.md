@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-08-31, implementation tasks through `V7-004` are complete. The
+As of 2026-09-01, implementation tasks through `V8-016` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -63,6 +63,19 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - immutable Runtime startup capability probes, complete heterogeneous
   specialist/generalist placement, positive capability visibility in
   Operations, and a real two-environment capacity-waiting gate.
+- immutable database-backed RuntimeConfig versions, revisioned default/Run/
+  Agent label bindings and write-only encrypted OTLP/proxy credentials;
+- certificate-SPKI Runtime principals, candidate-specific exact configuration
+  resolution, atomic allocation provenance and just-in-time secret delivery;
+- allocation-local Python OTLP and explicit HTTP proxy adapters plus
+  invocation-local Go Planner OTLP, all with bounded cleanup and no ambient
+  process configuration;
+- complete Runtime configuration Operations UI, Run label selection and safe
+  historical Stage allocation provenance;
+- an executable Runtime-configuration hardening matrix covering response-loss
+  replay, PostgreSQL/CAS races, mTLS impersonation, adapter/lease/release
+  failures, secret retention, browser operation and reuse of two disjoint
+  specialist Runtime slots.
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
@@ -152,6 +165,9 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/cont
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-runtime-labels-e2e
+
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-runtime-configuration-e2e
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-project-workflows
@@ -262,6 +278,52 @@ active changes only future Runs (for Run labels) or future allocations (for
 Agent labels). `make test-runtime-labels-e2e` proves these rules with real
 Server, PostgreSQL, two uniquely certified Runtime processes, OTLP protobuf,
 authenticated proxying, exporter failure and complete slot reuse.
+
+## Runtime-configuration hardening and release gate
+
+The complete deterministic gate is:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-runtime-configuration-e2e
+```
+
+It first runs the strict executable matrix in
+`tests/e2e/runtime_configuration_matrix.yml`, all relevant Go packages under
+the race detector and the Python adapter/lease failure suites. It then runs the
+two-certificate process scenario and the real Chromium stack. `make
+release-verify` prepends the ordinary Go/Python/UI verification and is the CI
+release command. `make verify` remains database-independent and validates the
+matrix references, so removing or renaming an owning hardening test cannot
+silently narrow the release gate.
+
+The process scenario uses production RuntimeConfig resolution, placement,
+Scheduler, Planner, mTLS, Artifact API and adapter host code. Only the external
+LLM, OTLP collector and HTTP proxy endpoints are deterministic local fixtures.
+It deliberately gives one Runtime only `otlp-http@1` and the other only
+`http-proxy@1`, so the final successful probe on each adapter proves both slots
+were actually released after the injected telemetry and proxy failures.
+
+If this gate fails:
+
+- an HTTP `409` from the deliberate duplicate-certificate registration is
+  expected; a successful registration is an identity regression;
+- a proxy-failure Run must be `failed`, while an OTLP-failure Run must still be
+  `succeeded`; reversing either outcome is a policy regression;
+- a Run stuck in `preparing` usually means the advertised adapter sets no
+  longer match the test's intentionally disjoint Runtime processes;
+- a terminal Run with a non-idle Agent indicates release reconciliation, not a
+  reason to increase an unbounded timeout; inspect the final Operations
+  snapshot and the bounded child-process diagnostics emitted by the test;
+- PostgreSQL must allow isolated schema create/drop, and Chromium plus
+  `runtime/.venv` must already be installable as described below.
+
+Accepted first-slice boundaries remain explicit: there is one active Control
+Plane, no Vault/KMS or immutable RuntimeConfig garbage collection, no dynamic
+Runtime capability changes, no content-bearing telemetry, no performance
+benchmark and no dependency on a real LM Studio, Langfuse, Caido or cloud
+service. These are deferred product/deployment features, not gaps hidden by
+the hardening gate.
 
 ## Complete browser stack gate
 

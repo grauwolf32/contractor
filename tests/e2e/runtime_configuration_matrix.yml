@@ -1,0 +1,113 @@
+schema_version: "1.0"
+
+policy:
+  real_boundary: >-
+    Contractor resolution, pinning, mTLS identity, adapter lifecycle,
+    scheduling and release are exercised by their production implementations.
+    Fakes replace only bounded external LLM, OTLP and forward-proxy endpoints.
+  finite_failure: >-
+    Every injected dependency failure has a deadline and is followed by an
+    assertion that the allocation is released or remains safely fenced for
+    deterministic recovery.
+  secret_retention: >-
+    Credential canaries are scanned across public/event/browser evidence,
+    process logs, safe PostgreSQL projections, ciphertext, reports and OTLP.
+
+mutations:
+  - id: runtime_config.publish
+    response_loss: Exact key/body replay returns the immutable original version.
+    test: {source: internal/runtimeconfig/postgres_integration_test.go, symbol: TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS}
+  - id: runtime_credential.create_delete
+    response_loss: Exact create/delete replay preserves one encrypted record or tombstone.
+    test: {source: internal/credentials/runtime_service_postgres_test.go, symbol: TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary}
+  - id: runtime_label.put_delete
+    response_loss: Exact replay returns the original revision while a stale independent writer fails.
+    test: {source: internal/runtimeconfig/postgres_integration_test.go, symbol: TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe}
+  - id: runtime_agent_labels.put_delete
+    response_loss: Exact replay returns the original principal revision while concurrent CAS has one winner.
+    test: {source: internal/runtimeconfig/principal_postgres_integration_test.go, symbol: TestPostgresRuntimeAgentPrincipalSeedCASAndDelete}
+  - id: run.create
+    response_loss: Replay is resolved before mutable dependencies and returns the same pinned Run.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings}
+
+cases:
+  - id: complete_process_boundary
+    category: process
+    requirements: [A1, A2, A3, A4]
+    expected: >-
+      Two certificate-distinct specialist Runtimes prove mutation replay,
+      Planner/Worker endpoint separation, old/new pins, identity rejection,
+      proxy failure and final reuse of both slots.
+    test: {source: tests/e2e/runtime_labels_test.go, symbol: TestLabelDrivenRuntimeConfigurationAcrossProcesses}
+  - id: browser_operations_and_provenance
+    category: browser
+    requirements: [A1, A4]
+    expected: The real browser manages configuration and sees only safe immutable provenance.
+    test: {source: tests/ui-stack/stack_test.go, symbol: TestBrowserOperationsStack}
+  - id: same_layer_order_independence
+    category: race
+    requirements: [A1]
+    expected: Equal-layer permutations resolve identically or return the same typed conflict.
+    test: {source: internal/runtimeconfig/merge_test.go, symbol: TestMergeSameLayerReturnsDeterministicSafeConflict}
+  - id: run_binding_linearization
+    category: race
+    requirements: [A1]
+    expected: Concurrent Run creation and label rebind produce a complete old-or-new snapshot.
+    test: {source: internal/runstore/postgres_integration_test.go, symbol: TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind}
+  - id: allocation_agent_label_linearization
+    category: race
+    requirements: [A1]
+    expected: A principal-label revision change discards an uncommitted provisional placement.
+    test: {source: internal/controlplane/placement_postgres_test.go, symbol: TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange}
+  - id: duplicate_certificate_principal
+    category: identity
+    requirements: [A2]
+    expected: One authenticated SPKI owns at most one live Runtime process.
+    test: {source: internal/controlplane/registry_test.go, symbol: TestAuthenticatedPrincipalOwnsOnlyOneLiveProcessAndEveryHeartbeat}
+  - id: endpoint_spki_substitution
+    category: identity
+    requirements: [A2]
+    expected: A different CA-valid endpoint certificate is rejected before an HTTP request is sent.
+    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestRuntimeControlClientRejectsDifferentCAValidPrincipalBeforeRequest}
+  - id: allocation_artifact_borrowing
+    category: identity
+    requirements: [A2, A4]
+    expected: A different CA-valid principal cannot use a copied instance/allocation identity.
+    test: {source: internal/httpapi/privateartifacts/handler_test.go, symbol: TestPrivateArtifactGrantBindsPrincipalAndInstanceBeforeBodyRead}
+  - id: proxy_channel_and_tls_failures
+    category: adapter_failure
+    requirements: [A3, A4]
+    expected: Only selected channels use authenticated TLS proxying and every proxy failure fails closed.
+    test: {source: runtime/tests/test_http_proxy_adapter.py, symbol: test_proxy_failures_are_bounded_and_never_fall_back}
+  - id: otlp_failure_delay_overflow
+    category: adapter_failure
+    requirements: [A3, A4]
+    expected: Delivery failures and queue overflow remain bounded supplementary telemetry facts.
+    test: {source: runtime/tests/test_otlp_adapter.py, symbol: test_otlp_queue_enforces_count_and_encoded_byte_bounds}
+  - id: prepare_rollback
+    category: adapter_failure
+    requirements: [A3]
+    expected: A later adapter preparation failure rolls back every earlier resource and slot.
+    test: {source: runtime/tests/test_adapter_host.py, symbol: test_second_adapter_prepare_failure_rolls_back_first_before_sandbox}
+  - id: confirmed_lease_loss
+    category: lease_release
+    requirements: [A3]
+    expected: Asymmetric partitions self-fence both authorities and late acknowledgements cannot revive work.
+    test: {source: tests/integration/lease/lease_test.go, symbol: TestAsymmetricPartitionsFenceBothAuthorities}
+  - id: terminal_release_retry
+    category: lease_release
+    requirements: [A3, A4]
+    expected: Failed terminal cleanup does not block claims and retries only remaining allocations.
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations}
+  - id: retained_secret_surfaces
+    category: secrets
+    requirements: [A4]
+    expected: The process and browser gates reject every seeded canary on retained safe surfaces.
+    test: {source: tests/e2e/runtime_labels_test.go, symbol: TestLabelDrivenRuntimeConfigurationAcrossProcesses}
+
+gates:
+  - {id: matrix, command: make test-runtime-configuration-matrix}
+  - {id: hardening, command: make test-runtime-configuration-hardening}
+  - {id: process, command: make test-runtime-labels-e2e}
+  - {id: browser, command: make test-ui-stack}
+  - {id: release, command: make test-runtime-configuration-e2e}

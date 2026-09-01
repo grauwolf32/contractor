@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	"github.com/grauwolf32/contractor/internal/localpki"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -39,6 +40,11 @@ type runtimeOperations struct {
 	client   *http.Client
 	baseURL  string
 	evidence [][]byte
+}
+
+type runtimeOperationResponse struct {
+	body   []byte
+	header http.Header
 }
 
 type observedRuntimePrincipal struct {
@@ -75,7 +81,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -117,6 +123,8 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	t.Cleanup(oldProxy.close)
 	newProxy := newAuthenticatedForwardProxy(gateway.server.URL, runtimeProxyCanary, false)
 	t.Cleanup(newProxy.close)
+	rejectingProxy := newRejectingForwardProxy()
+	t.Cleanup(rejectingProxy.close)
 
 	configRoot := stageE2EConfiguration(
 		t, filepath.Join(repositoryRoot, "configs", "e2e"),
@@ -164,7 +172,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	telemetryRuntime := startRuntimeWithAdapters(
 		t, "Python Runtime Agent telemetry", repositoryRoot, python,
 		privateBaseURL, telemetryAddress, telemetryWork, caPaths.Certificate,
-		telemetryIdentity, nil,
+		telemetryIdentity, []string{"otlp-http@1"},
 	)
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
 	waitForHTTP(t, ctx, proxyOnlyRuntime, controlClient, "https://"+proxyOnlyAddress+"/healthz", http.StatusOK)
@@ -184,7 +192,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 				switch strings.Join(item.SupportedRuntimeAdapters, ",") {
 				case "http-proxy@1":
 					foundProxyOnly = true
-				case "http-proxy@1,otlp-http@1":
+				case "otlp-http@1":
 					foundTelemetry = true
 				}
 			}
@@ -224,6 +232,10 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 		"headers": map[string]string{"x-contractor-token": runtimeOTLPAgentCanary},
 	})
 	runDebug := operations.publishRuntimeConfig("debug-run", "1", map[string]any{
+		"planner": map[string]any{"telemetry": map[string]any{
+			"adapter": "otlp-http@1", "endpoint": runCollector.URL(),
+			"credential": "otel-run", "captureContent": false, "flushTimeoutSeconds": 2,
+		}},
 		"worker": map[string]any{"telemetry": map[string]any{
 			"adapter": "otlp-http@1", "endpoint": runCollector.URL(),
 			"credential": "otel-run", "captureContent": false, "flushTimeoutSeconds": 2,
@@ -238,7 +250,10 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	operations.createRuntimeLabel("debug", runDebug)
 	operations.createRuntimeLabel("agent-debug", agentDebug)
 	principals := operations.runtimeAgentPrincipals()
-	telemetryPrincipal := principalWithAdapters(t, principals, "http-proxy@1", "otlp-http@1")
+	telemetryPrincipal := principalWithAdapters(t, principals, "otlp-http@1")
+	assertDuplicatePrincipalRegistrationRejected(
+		t, operations, caPaths.Certificate, telemetryIdentity, privateBaseURL, telemetryPrincipal,
+	)
 	updatedPrincipal := operations.replacePrincipalLabels(telemetryPrincipal, []string{"agent-debug"})
 
 	debug := operations.createRun("artifact-copy@1", "runtime-label-debug-agent", uploaded, []string{"debug"})
@@ -249,11 +264,12 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	if debugStatus.State != "succeeded" || debugAllocation.RuntimeAgentID != telemetryPrincipal.RuntimeAgentID ||
 		baselineAllocation.RuntimeConfiguration == nil || debugAllocation.RuntimeConfiguration == nil ||
 		baselineAllocation.RuntimeConfiguration.ModelPolicy != debugAllocation.RuntimeConfiguration.ModelPolicy ||
-		agentCollector.requests() == 0 || runCollector.requests() != 0 {
-		t.Fatalf("Agent telemetry override was not applied: principal=%s allocation=%+v agentOTLP=%d runOTLP=%d",
+		agentCollector.requests() == 0 || runCollector.requests() == 0 {
+		t.Fatalf("independent Planner/Agent telemetry routing was not applied: principal=%s allocation=%+v agentOTLP=%d runOTLP=%d",
 			telemetryPrincipal.RuntimeAgentID, debugAllocation, agentCollector.requests(), runCollector.requests())
 	}
 	assertOTLPPayloadSafe(t, agentCollector.payloads(), runtimeOTLPAgentCanary, runtimeOTLPRunCanary, runtimeProxyCanary, runtimeProxyUsername)
+	assertOTLPPayloadsContainSafeScope(t, runCollector.payloads(), "contractor.planner.", runtimeOTLPAgentCanary, runtimeOTLPRunCanary, runtimeProxyCanary, runtimeProxyUsername)
 	gateway.ResetScenario()
 	operations.replacePrincipalLabels(updatedPrincipal, []string{})
 
@@ -295,6 +311,14 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	operations.createRuntimeLabel("caido", caidoOld)
 	pinnedOld := operations.createRun("artifact-copy@1", "runtime-label-caido-old", uploaded, []string{"caido"})
 	oldProxy.waitForFirstRequest(t, ctx)
+	oldAllocation := onlyRunAllocation(t, ctx, store, pinnedOld.RunID)
+	foreignIdentity := telemetryIdentity
+	if oldAllocation.RuntimeAgentID == telemetryPrincipal.RuntimeAgentID {
+		foreignIdentity = proxyOnlyIdentity
+	}
+	assertForeignAgentCannotBorrowAllocation(
+		t, operations, caPaths.Certificate, foreignIdentity, privateBaseURL, oldAllocation,
+	)
 	operations.rebindRuntimeLabel("caido", "1", caidoNew)
 	oldProxy.releaseFirstRequest()
 	oldStatus := waitForRunAcross(
@@ -323,6 +347,58 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	if failures := append(runCollector.failuresSnapshot(), agentCollector.failuresSnapshot()...); len(failures) != 0 {
 		t.Fatalf("OTLP collector envelope failures: %v", failures)
 	}
+
+	// A required proxy failure is semantic rather than supplementary. It must
+	// fail the Run through the normal Worker result path, release the selected
+	// allocation and leave both specialist processes reusable.
+	refused := operations.publishRuntimeConfig("caido-refused", "1", map[string]any{
+		"worker": map[string]any{"httpProxy": map[string]any{
+			"adapter": "http-proxy@1", "proxyUrl": rejectingProxy.URL(),
+			"targets": []string{"llm-gateway"},
+		}},
+	})
+	operations.createRuntimeLabel("caido-refused", refused)
+	refusedRun := operations.createRun(
+		"artifact-copy@1", "runtime-label-caido-refused", uploaded, []string{"caido-refused"},
+	)
+	refusedStatus := waitForRunTerminalAcross(
+		t, ctx, server, runtimes, publicClient, publicBaseURL, refusedRun.RunID,
+	)
+	if refusedStatus.State != "failed" || rejectingProxy.requests() == 0 {
+		t.Fatalf("required proxy failure was not semantic: status=%+v requests=%d",
+			refusedStatus, rejectingProxy.requests())
+	}
+	gateway.ResetScenario()
+
+	// The adapter sets are intentionally disjoint. These final probes therefore
+	// prove reuse of both physical slots after all injected failures: debug can
+	// run only on the OTLP specialist and caido only on the proxy specialist.
+	runCollector.setReject(false)
+	reuseTelemetry := operations.createRun(
+		"artifact-copy@1", "runtime-label-reuse-telemetry", uploaded, []string{"debug"},
+	)
+	if status := waitForRunAcross(
+		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, reuseTelemetry.RunID,
+	); status.State != "succeeded" {
+		t.Fatalf("telemetry specialist reuse status = %+v", status)
+	}
+	if allocation := onlyRunAllocation(t, ctx, store, reuseTelemetry.RunID); allocation.RuntimeAgentID != telemetryPrincipal.RuntimeAgentID {
+		t.Fatalf("telemetry reuse selected principal %s, want %s", allocation.RuntimeAgentID, telemetryPrincipal.RuntimeAgentID)
+	}
+	gateway.ResetScenario()
+	reuseProxy := operations.createRun(
+		"artifact-copy@1", "runtime-label-reuse-proxy", uploaded, []string{"caido"},
+	)
+	if status := waitForRunAcross(
+		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, reuseProxy.RunID,
+	); status.State != "succeeded" {
+		t.Fatalf("proxy specialist reuse status = %+v", status)
+	}
+	proxyPrincipal := principalWithAdapters(t, principals, "http-proxy@1")
+	if allocation := onlyRunAllocation(t, ctx, store, reuseProxy.RunID); allocation.RuntimeAgentID != proxyPrincipal.RuntimeAgentID {
+		t.Fatalf("proxy reuse selected principal %s, want %s", allocation.RuntimeAgentID, proxyPrincipal.RuntimeAgentID)
+	}
+	gateway.ResetScenario()
 
 	finalAgents, finalSnapshot := waitForObservedRuntimeAgents(
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
@@ -380,12 +456,101 @@ func startRuntimeWithAdapters(
 	)
 }
 
+func assertDuplicatePrincipalRegistrationRejected(
+	t *testing.T,
+	operations *runtimeOperations,
+	caFile string,
+	identity localpki.Paths,
+	controlPlaneURL string,
+	principal observedRuntimePrincipal,
+) {
+	t.Helper()
+	if principal.Live == nil {
+		t.Fatalf("Runtime Agent principal has no live process: %+v", principal)
+	}
+	toolsets := make([]contracts.ToolsetCapability, len(principal.Live.SupportedToolsets))
+	for index, capability := range principal.Live.SupportedToolsets {
+		toolsets[index] = contracts.ToolsetCapability{
+			Ref: capability.Ref, Tools: append([]string(nil), capability.Tools...),
+		}
+	}
+	adapters := make([]contracts.RuntimeAdapterRef, len(principal.Live.SupportedRuntimeAdapters))
+	for index, adapter := range principal.Live.SupportedRuntimeAdapters {
+		adapters[index] = contracts.RuntimeAdapterRef(adapter)
+	}
+	registration := contracts.AgentRegistrationV2{
+		APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
+		InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
+		StartedAt: time.Now().UTC(), ControlURL: "https://127.0.0.1:1", A2AURL: "https://127.0.0.1:1",
+		InitialLabels: []string{}, SupportedRuntimes: append([]string(nil), principal.Live.SupportedRuntimes...),
+		SupportedToolsets:        toolsets,
+		SupportedSandboxProfiles: append([]string(nil), principal.Live.SupportedSandboxProfiles...),
+		SupportedRuntimeAdapters: adapters, ObservedState: contracts.AgentIdle,
+	}
+	if err := registration.Validate(); err != nil {
+		t.Fatalf("duplicate registration fixture: %v", err)
+	}
+	body, err := json.Marshal(registration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequest(
+		http.MethodPost, controlPlaneURL+"/private/v1/agents/register", bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response := do(t, newMTLSClient(t, caFile, identity), request, http.StatusConflict)
+	defer response.Body.Close()
+	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.evidence = append(operations.evidence, responseBody)
+}
+
+func assertForeignAgentCannotBorrowAllocation(
+	t *testing.T,
+	operations *runtimeOperations,
+	caFile string,
+	foreignIdentity localpki.Paths,
+	privateBaseURL string,
+	allocation runstore.StageAllocation,
+) {
+	t.Helper()
+	target := privateBaseURL + "/private/v1/allocations/" +
+		url.PathEscape(allocation.AllocationID) + "/artifacts"
+	request, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set(privateartifacts.RuntimeInstanceHeader, allocation.RuntimeAgentInstanceID)
+	response := do(t, newMTLSClient(t, caFile, foreignIdentity), request, http.StatusNotFound)
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	operations.evidence = append(operations.evidence, body)
+}
+
 func (o *runtimeOperations) request(
 	method, path string,
 	body any,
 	expected int,
 	headers map[string]string,
 ) []byte {
+	o.t.Helper()
+	return o.requestResponse(method, path, body, expected, headers).body
+}
+
+func (o *runtimeOperations) requestResponse(
+	method, path string,
+	body any,
+	expected int,
+	headers map[string]string,
+) runtimeOperationResponse {
 	o.t.Helper()
 	var reader io.Reader
 	if body != nil {
@@ -413,46 +578,79 @@ func (o *runtimeOperations) request(
 		o.t.Fatal(err)
 	}
 	o.evidence = append(o.evidence, append([]byte(nil), data...))
-	return data
+	return runtimeOperationResponse{body: data, header: response.Header.Clone()}
+}
+
+func (o *runtimeOperations) requireReplay(response runtimeOperationResponse, boundary string) {
+	o.t.Helper()
+	if response.header.Get("Idempotency-Replayed") != "true" {
+		o.t.Fatalf("%s response-loss replay was not acknowledged: headers=%v body=%s",
+			boundary, response.header, response.body)
+	}
 }
 
 func (o *runtimeOperations) createRuntimeCredential(id, kind string, material any) {
 	o.t.Helper()
-	data := o.request(http.MethodPost, "/v1/operations/runtime-credentials", map[string]any{
+	body := map[string]any{
 		"credentialId": id, "kind": kind, "material": material,
-	}, http.StatusCreated, map[string]string{"Idempotency-Key": "e2e-create-" + id})
+	}
+	headers := map[string]string{"Idempotency-Key": "e2e-create-" + id}
+	data := o.request(http.MethodPost, "/v1/operations/runtime-credentials", body, http.StatusCreated, headers)
 	if bytes.Contains(data, []byte("material")) {
 		o.t.Fatalf("Runtime credential response exposed material: %s", data)
 	}
+	o.requireReplay(
+		o.requestResponse(http.MethodPost, "/v1/operations/runtime-credentials", body, http.StatusCreated, headers),
+		"Runtime credential create",
+	)
 }
 
 func (o *runtimeOperations) publishRuntimeConfig(name, version string, spec any) runtimeconfig.Ref {
 	o.t.Helper()
-	data := o.request(http.MethodPost, "/v1/operations/runtime-configs", map[string]any{
+	body := map[string]any{
 		"apiVersion": "contractor/v1alpha1", "kind": "RuntimeConfig",
 		"metadata": map[string]string{"name": name, "version": version}, "spec": spec,
-	}, http.StatusCreated, map[string]string{"Idempotency-Key": "e2e-publish-" + name + "-" + version})
+	}
+	headers := map[string]string{"Idempotency-Key": "e2e-publish-" + name + "-" + version}
+	data := o.request(http.MethodPost, "/v1/operations/runtime-configs", body, http.StatusCreated, headers)
 	var resource struct {
 		Ref runtimeconfig.Ref `json:"ref"`
 	}
 	if err := json.Unmarshal(data, &resource); err != nil || resource.Ref.Name != name {
 		o.t.Fatalf("decode published RuntimeConfig: ref=%+v error=%v body=%s", resource.Ref, err, data)
 	}
+	o.requireReplay(
+		o.requestResponse(http.MethodPost, "/v1/operations/runtime-configs", body, http.StatusCreated, headers),
+		"RuntimeConfig publish",
+	)
 	return resource.Ref
 }
 
 func (o *runtimeOperations) createRuntimeLabel(label string, ref runtimeconfig.Ref) {
 	o.t.Helper()
-	o.request(http.MethodPut, "/v1/operations/runtime-labels/"+url.PathEscape(label),
-		map[string]any{"config": ref}, http.StatusCreated,
-		map[string]string{"Idempotency-Key": "e2e-create-label-" + label, "If-None-Match": "*"})
+	path := "/v1/operations/runtime-labels/" + url.PathEscape(label)
+	body := map[string]any{"config": ref}
+	headers := map[string]string{"Idempotency-Key": "e2e-create-label-" + label, "If-None-Match": "*"}
+	o.request(http.MethodPut, path, body, http.StatusCreated, headers)
+	o.requireReplay(
+		o.requestResponse(http.MethodPut, path, body, http.StatusCreated, headers),
+		"Runtime label create",
+	)
 }
 
 func (o *runtimeOperations) rebindRuntimeLabel(label, revision string, ref runtimeconfig.Ref) {
 	o.t.Helper()
-	o.request(http.MethodPut, "/v1/operations/runtime-labels/"+url.PathEscape(label),
-		map[string]any{"config": ref}, http.StatusOK,
-		map[string]string{"Idempotency-Key": "e2e-rebind-label-" + label + "-" + revision, "If-Match": strconv.Quote(revision)})
+	path := "/v1/operations/runtime-labels/" + url.PathEscape(label)
+	body := map[string]any{"config": ref}
+	headers := map[string]string{
+		"Idempotency-Key": "e2e-rebind-label-" + label + "-" + revision,
+		"If-Match":        strconv.Quote(revision),
+	}
+	o.request(http.MethodPut, path, body, http.StatusOK, headers)
+	o.requireReplay(
+		o.requestResponse(http.MethodPut, path, body, http.StatusOK, headers),
+		"Runtime label rebind",
+	)
 }
 
 func (o *runtimeOperations) runtimeAgentPrincipals() []observedRuntimePrincipal {
@@ -485,6 +683,16 @@ func (o *runtimeOperations) replacePrincipalLabels(
 	if err := json.Unmarshal(data, &result); err != nil {
 		o.t.Fatalf("decode Runtime Agent principal mutation: %v", err)
 	}
+	replay := o.requestResponse(
+		http.MethodPut,
+		"/v1/operations/runtime-agent-principals/"+url.PathEscape(principal.RuntimeAgentID)+"/labels",
+		map[string]any{"labels": labels}, http.StatusOK,
+		map[string]string{
+			"Idempotency-Key": "e2e-agent-labels-" + principal.RuntimeAgentID[:12] + "-" + principal.Revision,
+			"If-Match":        strconv.Quote(principal.Revision),
+		},
+	)
+	o.requireReplay(replay, "Runtime Agent label replacement")
 	return result
 }
 
@@ -501,13 +709,27 @@ func (o *runtimeOperations) createRun(
 	if labels != nil {
 		body["labels"] = labels
 	}
-	data := o.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted,
-		map[string]string{"Idempotency-Key": idempotencyKey})
+	headers := map[string]string{"Idempotency-Key": idempotencyKey}
+	data := o.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
 	var result createdLabeledRun
 	if err := json.Unmarshal(data, &result); err != nil || result.RunID == "" || result.State != "running" {
 		o.t.Fatalf("create labeled Run = (%+v, %v): %s", result, err, data)
 	}
+	replay := o.requestResponse(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
+	o.requireReplay(replay, "Run create")
+	var replayed createdLabeledRun
+	if err := json.Unmarshal(replay.body, &replayed); err != nil || replayed.RunID != result.RunID ||
+		!samePinnedRuntimeConfiguration(result, replayed) {
+		o.t.Fatalf("Run replay changed identity or pinned Runtime configuration: first=%+v replay=%+v error=%v",
+			result, replayed, err)
+	}
 	return result
+}
+
+func samePinnedRuntimeConfiguration(left, right createdLabeledRun) bool {
+	leftEncoded, leftErr := json.Marshal(left.RuntimeConfiguration)
+	rightEncoded, rightErr := json.Marshal(right.RuntimeConfiguration)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftEncoded, rightEncoded)
 }
 
 func principalWithAdapters(
@@ -567,6 +789,49 @@ func waitForRunAcross(
 		select {
 		case <-ctx.Done():
 			t.Fatalf("wait for Run %s: %v", runID, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForRunTerminalAcross(
+	t *testing.T,
+	ctx context.Context,
+	server *childProcess,
+	runtimes []*childProcess,
+	client *http.Client,
+	baseURL, runID string,
+) runStatus {
+	t.Helper()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		request, _ := http.NewRequestWithContext(
+			ctx, http.MethodGet, baseURL+"/v1/runs/"+url.PathEscape(runID), nil,
+		)
+		request.Header.Set("Authorization", "Bearer "+publicToken)
+		response, err := client.Do(request)
+		if err == nil {
+			var status runStatus
+			if response.StatusCode == http.StatusOK {
+				decodeResponse(t, response, &status)
+			}
+			response.Body.Close()
+			switch status.State {
+			case "succeeded", "failed", "cancelled":
+				return status
+			}
+		}
+		for _, process := range append([]*childProcess{server}, runtimes...) {
+			if exited, processErr := process.exited(); exited {
+				t.Fatalf("%s exited while waiting for terminal Run: %v\n%s", process.name, processErr,
+					process.logs.redacted(publicToken, llmGatewayToken, runtimeOTLPRunCanary,
+						runtimeOTLPAgentCanary, runtimeProxyCanary))
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("wait for terminal Run %s: %v", runID, ctx.Err())
 		case <-ticker.C:
 		}
 	}
@@ -704,6 +969,29 @@ func assertOTLPPayloadSafe(t *testing.T, payloads [][]byte, secrets ...string) {
 	}
 }
 
+func assertOTLPPayloadsContainSafeScope(
+	t *testing.T,
+	payloads [][]byte,
+	scopePrefix string,
+	secrets ...string,
+) {
+	t.Helper()
+	found := false
+	for _, payload := range payloads {
+		if bytes.Contains(payload, []byte(scopePrefix)) {
+			found = true
+		}
+		for _, secret := range secrets {
+			if bytes.Contains(payload, []byte(secret)) {
+				t.Fatal("OTLP protobuf payload exposed secret canary")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("OTLP protobuf payloads have no %q scope", scopePrefix)
+	}
+}
+
 type authenticatedForwardProxy struct {
 	server      *httptest.Server
 	targetHost  string
@@ -717,6 +1005,34 @@ type authenticatedForwardProxy struct {
 	mu           sync.Mutex
 	calls        int
 	failureCodes []string
+}
+
+type rejectingForwardProxy struct {
+	server *httptest.Server
+
+	mu    sync.Mutex
+	calls int
+}
+
+func newRejectingForwardProxy() *rejectingForwardProxy {
+	proxy := &rejectingForwardProxy{}
+	proxy.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxy.mu.Lock()
+		proxy.calls++
+		proxy.mu.Unlock()
+		http.Error(w, "proxy upstream unavailable", http.StatusBadGateway)
+	}))
+	return proxy
+}
+
+func (p *rejectingForwardProxy) URL() string { return p.server.URL }
+
+func (p *rejectingForwardProxy) close() { p.server.Close() }
+
+func (p *rejectingForwardProxy) requests() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls
 }
 
 func newAuthenticatedForwardProxy(target, password string, blockFirst bool) *authenticatedForwardProxy {
