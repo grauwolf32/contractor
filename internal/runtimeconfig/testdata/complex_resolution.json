@@ -1,0 +1,63 @@
+{
+  "gatewayId": "primary",
+  "credentialId": "agent-key",
+  "workerTelemetry": {
+    "adapter": "otlp-http@1",
+    "endpoint": "https://otel.example/run",
+    "credential": "run-otel",
+    "captureContent": false,
+    "flushTimeoutSeconds": 3
+  },
+  "proxyEnabled": false,
+  "plannerEndpoint": "https://otel.example/planner",
+  "adapters": ["otlp-http@1"],
+  "origins": {
+    "llmGateway": {"layer": "escalation_execution_config"},
+    "llmCredential": {
+      "layer": "agent_labels",
+      "configs": [{"name": "config-site", "version": "1", "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"}]
+    },
+    "workerTelemetry": {
+      "layer": "run_labels",
+      "configs": [{"name": "config-debug", "version": "1", "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"}]
+    },
+    "httpProxy": {
+      "layer": "agent_labels",
+      "configs": [{"name": "config-site", "version": "1", "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"}]
+    },
+    "plannerTelemetry": {
+      "layer": "run_labels",
+      "configs": [{"name": "config-debug", "version": "1", "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"}]
+    }
+  },
+  "provenance": {
+    "default": {
+      "label": "default",
+      "bindingRevision": 1,
+      "config": {"name": "runtime-default", "version": "1", "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+    },
+    "runLabels": [
+      {
+        "label": "caido",
+        "bindingRevision": 3,
+        "config": {"name": "config-caido", "version": "1", "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333"}
+      },
+      {
+        "label": "debug",
+        "bindingRevision": 4,
+        "config": {"name": "config-debug", "version": "1", "digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"}
+      }
+    ],
+    "agentLabels": [
+      {
+        "label": "site",
+        "bindingRevision": 5,
+        "config": {"name": "config-site", "version": "1", "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"}
+      }
+    ],
+    "runtimeAdapters": ["otlp-http@1"],
+    "llmGatewayConfig": {"gatewayId": "primary", "version": "1", "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"},
+    "llmCredential": {"credentialId": "agent-key"},
+    "runtimeCredentialRefs": [{"credentialId": "run-otel", "kind": "otlp-headers@1"}]
+  }
+}

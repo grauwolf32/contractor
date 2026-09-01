@@ -58,19 +58,19 @@ type LLMGatewayPatch struct {
 }
 
 type TelemetryConfig struct {
-	Adapter             string
-	Endpoint            string
-	Credential          string
-	CaptureContent      bool
-	FlushTimeoutSeconds int
+	Adapter             string `json:"adapter"`
+	Endpoint            string `json:"endpoint"`
+	Credential          string `json:"credential,omitempty"`
+	CaptureContent      bool   `json:"captureContent"`
+	FlushTimeoutSeconds int    `json:"flushTimeoutSeconds"`
 }
 
 type HTTPProxyConfig struct {
-	Adapter     string
-	ProxyURL    string
-	Credential  string
-	CABundlePEM string
-	Targets     []string
+	Adapter     string   `json:"adapter"`
+	ProxyURL    string   `json:"proxyUrl"`
+	Credential  string   `json:"credential,omitempty"`
+	CABundlePEM string   `json:"caBundlePem,omitempty"`
+	Targets     []string `json:"targets"`
 }
 
 type WorkerPatch struct {

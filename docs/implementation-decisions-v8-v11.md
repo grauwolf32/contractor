@@ -228,3 +228,31 @@ tests that make the choice observable.
 - Observable tests: real PostgreSQL tests hold a pin transaction open while a
   rebind blocks, prove old/new Runs observe whole old/new refs, verify both
   credential deletion queries, and reject mutation of the committed snapshot.
+
+### D015 — The pure resolver consumes authorization metadata, not secrets
+
+- Applies to: V8-006 and V8-007.
+- Decision: the pure resolver accepts exact pinned RuntimeConfig bodies,
+  execution-route patches, immutable Gateway bodies, LLM credential effective
+  policy metadata and Runtime credential kinds. It returns effective physical
+  settings, typed field origins and protocol-v2 safe provenance. Token/header/
+  password material is neither an input nor an output; V8-007 resolves only the
+  chosen IDs after durable placement.
+- Planner boundary: default and Run-label Planner telemetry is resolved and
+  kind-checked in the same deterministic call, but it contributes neither a
+  candidate Runtime adapter requirement nor a Worker credential provenance
+  ref. Agent-label Planner blocks are ignored after requiring that each Agent
+  label contain at least one Worker-applicable operation.
+- Authorization: a present LLM credential must match the final exact Gateway
+  and its effective policy must contain both the already selected exact
+  ModelPolicy ref and model alias. The resolver has no operation that can
+  replace that policy, its budgets or the alias.
+- Alternatives rejected: resolving secrets inside the pure merge would make
+  candidate comparison side-effectful and broaden secret lifetime; requiring
+  Planner OTLP support from a Python Runtime would conflate Server and Worker
+  adapter capabilities; retaining only the credential/Gateway pair would miss
+  a label-driven policy bypass.
+- Observable tests: every permutation of equal/conflicting label layers has an
+  identical result/error, explicit clears retain their winning origin, Agent
+  Planner input cannot win, and route/kind/policy failures expose only stable
+  codes plus typed paths.
