@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.0",
+  "cases": [
+    {
+      "id": "valid-full",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQD6YNEyvgAAAL4AAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZSBwcm9ncmVzc2l2ZSBndWlkYW5jZS4KbGljZW5zZTogQXBhY2hlLTIuMApjb21wYXRpYmlsaXR5OiBDb250cmFjdG9yIGFka0AxCm1ldGFkYXRhOgogIGF1dGhvcjogY29udHJhY3RvcgotLS0KIyBFeGFtcGxlCgpVc2UgdGhlIHJlZmVyZW5jZSB3aGVuIG5lZWRlZC4KUEsDBBQAAAAAAAAAIQBy/dtsAgAAAAIAAAATAAAAYXNzZXRzL3RlbXBsYXRlLmJpbgD/UEsDBBQAAAAAAAAAIQCie6YPCAAAAAgAAAATAAAAcmVmZXJlbmNlcy9ndWlkZS5tZCMgR3VpZGUKUEsBAhQDFAAAAAAAAAAhAPpg0TK+AAAAvgAAAAgAAAAAAAAAAAAAAKSBAAAAAFNLSUxMLm1kUEsBAhQDFAAAAAAAAAAhAHL922wCAAAAAgAAABMAAAAAAAAAAAAAAKSB5AAAAGFzc2V0cy90ZW1wbGF0ZS5iaW5QSwECFAMUAAAAAAAAACEAonumDwgAAAAIAAAAEwAAAAAAAAAAAAAApIEXAQAAcmVmZXJlbmNlcy9ndWlkZS5tZFBLBQYAAAAAAwADALgAAABQAQAAAAA=",
+      "expectedName": "example",
+      "expectedCode": "",
+      "expected": {
+        "digest": "sha256:36ee91626979dac010008ecf09523827319081d0d1b78d4e3fbad5a4a1378ef9",
+        "manifest": {
+          "name": "example",
+          "description": "Example progressive guidance.",
+          "license": "Apache-2.0",
+          "compatibility": "Contractor adk@1",
+          "metadata": {"author": "contractor"}
+        },
+        "resources": [
+          {"path": "assets/template.bin", "size": 2},
+          {"path": "references/guide.md", "size": 8}
+        ]
+      }
+    },
+    {
+      "id": "valid-deflate",
+      "archiveBase64": "UEsDBBQAAAAIAAAAIQA+ELzJLAAAADYAAAAIAAAAU0tJTEwubWTT1dXlykvMTbVSSM7PLUhMLuFKSS1OLsosKMnMz7NScIYI6nHpAtUpw7hcAFBLAwQUAAAACAAAACEApYVuSAQAAAACAAAADwAAAHJlZmVyZW5jZXMvYS5tZHPkAgBQSwECFAMUAAAACAAAACEAPhC8ySwAAAA2AAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAACAAAACEApYVuSAQAAAACAAAADwAAAAAAAAAAAAAApIFSAAAAcmVmZXJlbmNlcy9hLm1kUEsFBgAAAAACAAIAcwAAAIMAAAAAAA==",
+      "expectedName": "compact",
+      "expectedCode": "",
+      "expected": {
+        "digest": "sha256:9ff7998502575d0e093f230c3cec2907214d958c76f305324b8d51b9fc6373a7",
+        "manifest": {"name": "compact", "description": "Compact."},
+        "resources": [{"path": "references/a.md", "size": 2}]
+      }
+    },
+    {
+      "id": "path-traversal",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAIMW3IwBAAAAAQAAAAcAAAAuLi9ldmlseFBLAQIUAxQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAAAAAAAAAAACkgQAAAABTS0lMTC5tZFBLAQIUAxQAAAAAAAAAIQCDFtyMAQAAAAEAAAAHAAAAAAAAAAAAAACkgVkAAAAuLi9ldmlsUEsFBgAAAAACAAIAawAAAH8AAAAAAA==",
+      "expectedName": "example",
+      "expectedCode": "skill_path_invalid"
+    },
+    {
+      "id": "path-absolute",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAIMW3IwBAAAAAQAAAAUAAAAvZXZpbHhQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAgxbcjAEAAAABAAAABQAAAAAAAAAAAAAApIFZAAAAL2V2aWxQSwUGAAAAAAIAAgBpAAAAfQAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_path_invalid"
+    },
+    {
+      "id": "path-backslash",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAIMW3IwBAAAAAQAAAAsAAABhc3NldHNcZXZpbHhQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAgxbcjAEAAAABAAAACwAAAAAAAAAAAAAApIFZAAAAYXNzZXRzXGV2aWxQSwUGAAAAAAIAAgBvAAAAgwAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_path_invalid"
+    },
+    {
+      "id": "member-scripts",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAIMW3IwBAAAAAQAAAA4AAABzY3JpcHRzL3J1bi5zaHhQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAgxbcjAEAAAABAAAADgAAAAAAAAAAAAAApIFZAAAAc2NyaXB0cy9ydW4uc2hQSwUGAAAAAAIAAgByAAAAhgAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_member_forbidden"
+    },
+    {
+      "id": "member-unknown-root",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAIMW3IwBAAAAAQAAAAgAAABub3Rlcy5tZHhQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAgxbcjAEAAAABAAAACAAAAAAAAAAAAAAApIFZAAAAbm90ZXMubWRQSwUGAAAAAAIAAgBsAAAAgAAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_member_forbidden"
+    },
+    {
+      "id": "path-lowercase-manifest",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAIMW3IwBAAAAAQAAAAgAAABza2lsbC5tZHhQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAgxbcjAEAAAABAAAACAAAAAAAAAAAAAAApIFZAAAAc2tpbGwubWRQSwUGAAAAAAIAAgBsAAAAgAAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_member_forbidden"
+    },
+    {
+      "id": "member-symlink",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAPwvb0YGAAAABgAAAAsAAABhc3NldHMvbGlua3RhcmdldFBLAQIUAxQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAAAAAAAAAAACkgQAAAABTS0lMTC5tZFBLAQIUAxQAAAAAAAAAIQD8L29GBgAAAAYAAAALAAAAAAAAAAAAAAD/oVkAAABhc3NldHMvbGlua1BLBQYAAAAAAgACAG8AAACIAAAAAAA=",
+      "expectedName": "example",
+      "expectedCode": "skill_member_forbidden"
+    },
+    {
+      "id": "path-duplicate",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAEO+t+gBAAAAAQAAAAgAAABhc3NldHMvYWFQSwMEFAAAAAAAAAAhAPnvvnEBAAAAAQAAAAgAAABhc3NldHMvYWJQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAQ7636AEAAAABAAAACAAAAAAAAAAAAAAApIFZAAAAYXNzZXRzL2FQSwECFAMUAAAAAAAAACEA+e++cQEAAAABAAAACAAAAAAAAAAAAAAApIGAAAAAYXNzZXRzL2FQSwUGAAAAAAMAAwCiAAAApwAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_path_invalid"
+    },
+    {
+      "id": "path-prefix-collision",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAEO+t+gBAAAAAQAAAAgAAABhc3NldHMvYWFQSwMEFAAAAAAAAAAhAPnvvnEBAAAAAQAAAAoAAABhc3NldHMvYS9iYlBLAQIUAxQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAAAAAAAAAAACkgQAAAABTS0lMTC5tZFBLAQIUAxQAAAAAAAAAIQBDvrfoAQAAAAEAAAAIAAAAAAAAAAAAAACkgVkAAABhc3NldHMvYVBLAQIUAxQAAAAAAAAAIQD5775xAQAAAAEAAAAKAAAAAAAAAAAAAACkgYAAAABhc3NldHMvYS9iUEsFBgAAAAADAAMApAAAAKkAAAAAAA==",
+      "expectedName": "example",
+      "expectedCode": "skill_path_invalid"
+    },
+    {
+      "id": "manifest-allowed-tools",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQCViHoYSAAAAEgAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KYWxsb3dlZC10b29sczogc2hlbGwKLS0tCiMgQm9keQpQSwECFAMUAAAAAAAAACEAlYh6GEgAAABIAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwUGAAAAAAEAAQA2AAAAbgAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "manifest-alias",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQBsgvPlNgAAADYAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogJm5hbWUgZXhhbXBsZQpkZXNjcmlwdGlvbjogKm5hbWUKLS0tCiMgQm9keQpQSwECFAMUAAAAAAAAACEAbILz5TYAAAA2AAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwUGAAAAAAEAAQA2AAAAXAAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "manifest-custom-tag",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQAIlIUoOwAAADsAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogIWN1c3RvbSBFeGFtcGxlLgotLS0KIyBCb2R5ClBLAQIUAxQAAAAAAAAAIQAIlIUoOwAAADsAAAAIAAAAAAAAAAAAAACkgQAAAABTS0lMTC5tZFBLBQYAAAAAAQABADYAAABhAAAAAAA=",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "manifest-numeric-metadata",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQCdVwN8SAAAAEgAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KbWV0YWRhdGE6CiAgY291bnQ6IDEKLS0tCiMgQm9keQpQSwECFAMUAAAAAAAAACEAnVcDfEgAAABIAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwUGAAAAAAEAAQA2AAAAbgAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "manifest-empty-body",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQAxMNN3LgAAAC4AAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiAKUEsBAhQDFAAAAAAAAAAhADEw03cuAAAALgAAAAgAAAAAAAAAAAAAAKSBAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAFQAAAAAAA==",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "manifest-name-mismatch",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwUGAAAAAAEAAQA2AAAAWQAAAAAA",
+      "expectedName": "different",
+      "expectedCode": "skill_name_mismatch"
+    },
+    {
+      "id": "reference-invalid-utf8",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwMEFAAAAAAAAAAhAAAAAP8BAAAAAQAAABEAAAByZWZlcmVuY2VzL2JhZC5tZP9QSwECFAMUAAAAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwECFAMUAAAAAAAAACEAAAAA/wEAAAABAAAAEQAAAAAAAAAAAAAApIFZAAAAcmVmZXJlbmNlcy9iYWQubWRQSwUGAAAAAAIAAgB1AAAAiQAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "manifest-missing",
+      "archiveBase64": "UEsDBBQAAAAAAAAAIQBDvrfoAQAAAAEAAAAIAAAAYXNzZXRzL2FhUEsBAhQDFAAAAAAAAAAhAEO+t+gBAAAAAQAAAAgAAAAAAAAAAAAAAKSBAAAAAGFzc2V0cy9hUEsFBgAAAAABAAEANgAAACcAAAAAAA==",
+      "expectedName": "example",
+      "expectedCode": "skill_manifest_invalid"
+    },
+    {
+      "id": "archive-invalid",
+      "archiveBase64": "bm90IGEgemlw",
+      "expectedName": "example",
+      "expectedCode": "skill_archive_invalid"
+    },
+    {
+      "id": "archive-unsupported-method",
+      "archiveBase64": "UEsDBBQAAABjAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwECFAMUAAAAYwAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwUGAAAAAAEAAQA2AAAAWQAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_archive_invalid"
+    },
+    {
+      "id": "archive-encrypted",
+      "archiveBase64": "UEsDBBQAAQAAAAAAIQA+YqbCMwAAADMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZTogZXhhbXBsZQpkZXNjcmlwdGlvbjogRXhhbXBsZS4KLS0tCiMgQm9keQpQSwECFAMUAAEAAAAAACEAPmKmwjMAAAAzAAAACAAAAAAAAAAAAAAApIEAAAAAU0tJTEwubWRQSwUGAAAAAAEAAQA2AAAAWQAAAAAA",
+      "expectedName": "example",
+      "expectedCode": "skill_archive_invalid"
+    }
+  ]
+}
