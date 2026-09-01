@@ -6,7 +6,7 @@ import difflib
 import hashlib
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import jcs
@@ -30,6 +30,7 @@ WORKSPACE_OVERLAY_API_VERSION = "contractor.workspace/v1"
 WORKSPACE_OVERLAY_KIND = "WorkspaceOverlay"
 WORKSPACE_OVERLAY_MEDIA_TYPE = "application/vnd.contractor.workspace-overlay+json"
 MAX_DIFF_BYTES = 1 << 20
+MAX_WORKSPACE_EXPORT_BYTES = 16 << 20
 
 
 class WorkspaceStateError(ValueError):
@@ -48,6 +49,16 @@ class OverlayOperation:
             assert self.text is not None
             result["text"] = self.text
         return result
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceExportBundle:
+    """One immutable F snapshot and its two durable export payloads."""
+
+    snapshot: WorkspaceSnapshot = field(repr=False)
+    state: bytes = field(repr=False)
+    diff: bytes = field(repr=False)
+    result_workspace_digest: str
 
 
 class OverlayWorkspaceSession(DirectWorkspaceSession):
@@ -212,6 +223,48 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
     async def commit_checkpoint(self) -> WorkspaceSnapshot:
         async with self._lock:
             self._require_open()
+            self._checkpoint = self._tree.clone()
+            return self._checkpoint.snapshot()
+
+    async def prepare_export(
+        self, *, max_payload_bytes: int = MAX_WORKSPACE_EXPORT_BYTES
+    ) -> WorkspaceExportBundle:
+        """Capture cumulative state and the checkpoint delta from one F."""
+
+        if (
+            not isinstance(max_payload_bytes, int)
+            or isinstance(max_payload_bytes, bool)
+            or max_payload_bytes <= 0
+            or max_payload_bytes > MAX_WORKSPACE_EXPORT_BYTES
+        ):
+            raise WorkspaceStorageError("workspace_limit_exceeded")
+        async with self._lock:
+            self._require_open()
+            snapshot = self._tree.snapshot()
+            state = encode_workspace_state(self._source, self._tree)
+            diff = _workspace_diff(
+                self._checkpoint,
+                self._tree,
+                "",
+                max_payload_bytes,
+                0,
+            )
+            if len(state) > max_payload_bytes or diff.truncated:
+                raise WorkspaceStorageError("workspace_limit_exceeded")
+            return WorkspaceExportBundle(
+                snapshot=snapshot,
+                state=state,
+                diff=diff.text.encode("utf-8"),
+                result_workspace_digest=snapshot.digest,
+            )
+
+    async def commit_export(self, bundle: WorkspaceExportBundle) -> WorkspaceSnapshot:
+        """Advance B only if the exported F is still the effective tree."""
+
+        async with self._lock:
+            self._require_open()
+            if self._tree.snapshot() != bundle.snapshot:
+                raise WorkspaceStorageError("workspace_export_stale")
             self._checkpoint = self._tree.clone()
             return self._checkpoint.snapshot()
 

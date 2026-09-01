@@ -18,6 +18,7 @@ from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
+    AllocationWorkspaceExportV2,
     ResolvedAgentTemplate,
     ResolvedModelPolicy,
     ResolvedSkill,
@@ -38,6 +39,7 @@ from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactor
 
 if TYPE_CHECKING:
     from contractor_runtime.agent_skills.runtime import PreparedAgentSkills
+    from contractor_runtime.projectfs import DirectWorkspaceSession
     from contractor_runtime.projectfs.storage import (
         WorkspaceChanges,
         WorkspaceReader,
@@ -81,7 +83,8 @@ class WorkerBuildContext:
     )
     resolved_skills: tuple[ResolvedSkill, ...] = ()
     agent_skills: PreparedAgentSkills | None = field(default=None, repr=False)
-    project_workspace: WorkspaceReader | None = field(default=None, repr=False)
+    project_workspace: DirectWorkspaceSession | None = field(default=None, repr=False)
+    workspace_export: AllocationWorkspaceExportV2 | None = None
 
 
 class WorkerRuntimeFactory(Protocol):

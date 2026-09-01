@@ -1,10 +1,19 @@
 """Allocation-private project workspace storage primitives."""
 
+from contractor_runtime.projectfs.exporter import (
+    MAX_EXPORTED_RESULT_ARTIFACTS,
+    MAX_EXPORTED_RESULT_JSON_BYTES,
+    WORKSPACE_DIFF_MEDIA_TYPE,
+    WorkspaceAutoExporter,
+    WorkspaceExportError,
+    WorkspaceExportResult,
+)
 from contractor_runtime.projectfs.hydrate import WorkspacePreparationError, hydrate_workspace
 from contractor_runtime.projectfs.overlay import (
     WORKSPACE_OVERLAY_MEDIA_TYPE,
     OverlayOperation,
     OverlayWorkspaceSession,
+    WorkspaceExportBundle,
     WorkspaceStateError,
     canonical_overlay_operations,
     decode_workspace_state,
@@ -35,6 +44,9 @@ from contractor_runtime.projectfs.storage import (
 )
 
 __all__ = [
+    "MAX_EXPORTED_RESULT_ARTIFACTS",
+    "MAX_EXPORTED_RESULT_JSON_BYTES",
+    "WORKSPACE_DIFF_MEDIA_TYPE",
     "WORKSPACE_OVERLAY_MEDIA_TYPE",
     "DirectWorkspaceSession",
     "LocalWorkspaceProvider",
@@ -43,11 +55,15 @@ __all__ = [
     "OverlayOperation",
     "OverlayWorkspaceSession",
     "ProjectWorkspaceStorage",
+    "WorkspaceAutoExporter",
     "WorkspaceCapabilitySnapshot",
     "WorkspaceChange",
     "WorkspaceChanges",
     "WorkspaceChangesView",
     "WorkspaceDiff",
+    "WorkspaceExportBundle",
+    "WorkspaceExportError",
+    "WorkspaceExportResult",
     "WorkspacePreparationError",
     "WorkspaceProvider",
     "WorkspaceReader",

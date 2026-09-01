@@ -11,8 +11,10 @@ from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
+    AbortAllocationRequest,
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
+    TerminationError,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -123,6 +125,75 @@ def test_allocation_prepare_hydrates_before_ready_and_release_erases_project_tre
         assert not project_path.exists()
         await service.confirm_release(spec.allocation_id)
         assert await service.snapshot() is None
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("termination", ["abort", "lease"])
+def test_abort_and_lease_loss_erase_project_tree_before_release(
+    tmp_path: Path, termination: str
+) -> None:
+    async def scenario() -> None:
+        source_spec, reader = workspace_inputs(
+            [("source", "", archive({"src/main.py": b"private source\n"}))]
+        )
+        source_spec.mode = "overlay"
+        provider = LocalWorkspaceProvider(local_settings(tmp_path / "project"))
+        sandbox = LocalWorkdirFactory(tmp_path / "sandbox")
+        runtime = StubADKWorkerRuntimeFactory()
+        artifact_tools = RunArtifactsToolsetFactory(lambda *_: reader)  # type: ignore[arg-type]
+        factories = FactoryRegistry(
+            worker_runtimes={runtime.ref: runtime},
+            toolsets={artifact_tools.ref: artifact_tools},
+            sandbox_profiles={sandbox.ref: sandbox},
+            workspace_provider=provider,
+            artifact_client_factory=lambda *_: reader,  # type: ignore[arg-type]
+        )
+        capabilities = CapabilitySnapshot.create(
+            runtimes=factories.worker_runtimes,
+            toolsets={artifact_tools.ref: artifact_tools.exported_tools},
+            sandbox_profiles=factories.sandbox_profiles,
+            workspace=provider.capability,
+        )
+        state = RuntimeState(instance_id="workspace-runtime")
+        await state.mark_registered()
+        service = AllocationService(
+            state,
+            factories,
+            capabilities,
+            a2a_base_url="https://runtime.example",
+        )
+        spec = allocation_spec(tools=["read_artifact"])
+        spec.workspace = source_spec
+        await service.prepare(spec)
+        assert service._context is not None
+        assert service._context.project_workspace is not None
+        project_path = Path(service._context.project_workspace.storage.root)
+
+        if termination == "abort":
+            await service.abort(
+                AbortAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId=spec.allocation_id,
+                    abortId="abort-workspace",
+                    reason=TerminationError(
+                        code="run_cancelled",
+                        message="WorkflowRun was cancelled",
+                        retryable=False,
+                    ),
+                    deadline=spec.lease_expires_at,
+                )
+            )
+        else:
+            await service.expire_control_lease(1)
+
+        assert not project_path.exists()
+        snapshot = await service.snapshot()
+        assert snapshot is not None and not snapshot.has_project_workspace
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        await service.confirm_release(spec.allocation_id)
 
     asyncio.run(scenario())
 

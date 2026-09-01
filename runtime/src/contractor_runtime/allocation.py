@@ -265,6 +265,11 @@ class AllocationService:
                         adapter_handles=adapter_host.handles.for_worker(),
                         resolved_skills=tuple(spec.resolved_skills),
                         project_workspace=project_workspace,
+                        workspace_export=(
+                            spec.workspace.export
+                            if isinstance(spec, AllocationSpecV2) and spec.workspace is not None
+                            else None
+                        ),
                     )
                 )
                 handle = WorkerHandle(
@@ -843,6 +848,8 @@ class AllocationService:
 
             context.worker = None
             await self._stop_adapters_or_exit(context, deadline)
+            if kind == "abort":
+                await self._discard_project_workspace_or_exit(context)
             response = AllocationFinalResponse(
                 apiVersion=API_VERSION,
                 report=_build_report(context, self._now(), reason),
@@ -863,6 +870,7 @@ class AllocationService:
         if context.worker is None:
             deadline = self._now() + timedelta(seconds=timeout_seconds)
             await self._stop_adapters_or_exit(context, deadline)
+            await self._discard_project_workspace_or_exit(context)
             await self._state.fence_allocation(context.allocation_id)
             return
 
@@ -900,6 +908,7 @@ class AllocationService:
 
         context.worker = None
         await self._stop_adapters_or_exit(context, deadline)
+        await self._discard_project_workspace_or_exit(context)
         context.termination_kind = "lease"
         context.termination_id = None
         context.terminal_response = AllocationFinalResponse(
@@ -928,6 +937,31 @@ class AllocationService:
                 retryable=False,
                 status_code=503,
             ) from None
+
+    async def _discard_project_workspace_or_exit(self, context: _AllocationContext) -> None:
+        project_workspace = context.project_workspace
+        if project_workspace is None:
+            return
+        try:
+            await project_workspace.close()
+            provider = self._factories.workspace_provider
+            if provider is None:
+                raise RuntimeError("project workspace provider is unavailable")
+            await provider.cleanup(project_workspace.storage)
+        except asyncio.CancelledError:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise
+        except Exception:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise AllocationError(
+                "workspace_cleanup_unconfirmed",
+                "allocation project workspace cleanup could not be guaranteed",
+                retryable=False,
+                status_code=503,
+            ) from None
+        context.project_workspace = None
 
     async def _rollback_prepare(
         self,

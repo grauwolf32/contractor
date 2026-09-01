@@ -226,6 +226,37 @@ class MetricsState:
         outcome = "succeeded" if succeeded else "failed"
         self._increment(f"worker_result_recovery.{outcome}")
 
+    def record_workspace_export(
+        self,
+        *,
+        state_bytes: int | None = None,
+        diff_bytes: int | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        self._increment("workspace_exports")
+        if error is None:
+            if (
+                type(state_bytes) is not int
+                or state_bytes < 0
+                or type(diff_bytes) is not int
+                or diff_bytes < 0
+            ):
+                raise ValueError("workspace export byte metrics must be non-negative")
+            self._increment("workspace_exports.succeeded")
+            self._increment("workspace_export_state_bytes", state_bytes)
+            self._increment("workspace_export_diff_bytes", diff_bytes)
+            return
+        self._increment("workspace_exports.failed")
+        cause = _metric_identifier(str(getattr(error, "cause", "unknown")))
+        retryable = bool(getattr(error, "retryable", False))
+        self._append_error(
+            ExecutionError(
+                code="workspace_export_failed",
+                message=f"Workspace export failed ({cause})",
+                retryable=retryable,
+            )
+        )
+
     def record_outcome(self, outcome: str) -> None:
         normalized = _metric_identifier(outcome)
         self.final_outcome = normalized

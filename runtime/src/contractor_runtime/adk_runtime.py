@@ -47,6 +47,13 @@ from contractor_runtime.model_client import (
     clear_gateway_client_options,
     gateway_client_options,
 )
+from contractor_runtime.projectfs import (
+    MAX_EXPORTED_RESULT_ARTIFACTS,
+    MAX_EXPORTED_RESULT_JSON_BYTES,
+    OverlayWorkspaceSession,
+    WorkspaceAutoExporter,
+    WorkspaceExportError,
+)
 from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
 
 if TYPE_CHECKING:
@@ -57,8 +64,8 @@ if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
 
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
-MAX_STAGE_RESULT_JSON_BYTES = 256 * 1024
-MAX_RESULT_ARTIFACTS = 128
+MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
+MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
 MAX_RESULT_SUMMARY_CHARS = 64 * 1024
 SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
@@ -266,7 +273,26 @@ class AdkWorkerRuntimeFactory:
             context = replace(context, agent_skills=prepared)
         runtime: AdkWorkerRuntime | None = None
         try:
-            runtime = AdkWorkerRuntime(context, self._model_factory(context))
+            workspace_exporter: WorkspaceAutoExporter | None = None
+            if context.workspace_export is not None:
+                if (
+                    not isinstance(context.project_workspace, OverlayWorkspaceSession)
+                    or self._artifact_client_factory is None
+                ):
+                    raise RuntimeError("overlay workspace export dependencies are unavailable")
+                workspace_exporter = WorkspaceAutoExporter(
+                    workspace=context.project_workspace,
+                    client=self._artifact_client_factory(
+                        context.allocation_id, context.runtime_settings
+                    ),
+                    namespace=context.namespace,
+                    slots=context.workspace_export,
+                )
+            runtime = AdkWorkerRuntime(
+                context,
+                self._model_factory(context),
+                workspace_exporter=workspace_exporter,
+            )
             await runtime.start()
             return runtime
         except asyncio.CancelledError:
@@ -283,7 +309,13 @@ class AdkWorkerRuntimeFactory:
 
 
 class AdkWorkerRuntime:
-    def __init__(self, context: WorkerBuildContext, model: BaseLlm) -> None:
+    def __init__(
+        self,
+        context: WorkerBuildContext,
+        model: BaseLlm,
+        *,
+        workspace_exporter: WorkspaceAutoExporter | None = None,
+    ) -> None:
         self.allocation_id = context.allocation_id
         self._context = context
         self._model: BaseLlm | None = model
@@ -304,6 +336,7 @@ class AdkWorkerRuntime:
         self._active_budget: _InvocationBudget | None = None
         self._model_spans: list[RuntimeSpan] = []
         self._agent_skills: PreparedAgentSkills | None = context.agent_skills
+        self._workspace_exporter = workspace_exporter
 
         policy = context.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
@@ -464,8 +497,26 @@ class AdkWorkerRuntime:
                 result = _failure(
                     "stage_content_too_large", "StageContentRequest exceeds the Worker limit", False
                 )
+                exportable = False
             else:
-                result = await self._run_adk(encoded_request.decode("utf-8"))
+                result, exportable = await self._run_adk(encoded_request.decode("utf-8"))
+            exporter = self._workspace_exporter
+            if exportable and exporter is not None:
+                try:
+                    exported = await exporter.export(result)
+                except WorkspaceExportError as error:
+                    self._metrics.record_workspace_export(error=error)
+                    result = _failure(
+                        "workspace_export_failed",
+                        f"Workspace export failed ({error.cause})",
+                        error.retryable,
+                    )
+                else:
+                    self._metrics.record_workspace_export(
+                        state_bytes=exported.state_bytes,
+                        diff_bytes=exported.diff_bytes,
+                    )
+                    result = exported.result
             self._metrics.record_outcome(result.outcome.value)
             return result
         except asyncio.CancelledError:
@@ -496,10 +547,12 @@ class AdkWorkerRuntime:
     async def abort(self, deadline: datetime) -> None:
         await self._stop(deadline)
 
-    async def _run_adk(self, request_json: str) -> StageContentResult:
+    async def _run_adk(self, request_json: str) -> tuple[StageContentResult, bool]:
         runner = self._runner
         if runner is None:
-            return _failure("worker_draining", "Worker is no longer accepting A2A work", True)
+            return _failure(
+                "worker_draining", "Worker is no longer accepting A2A work", True
+            ), False
         prompt = (
             "Execute the following Contractor StageContentRequest. Durable data is represented "
             "only by ArtifactRef values.\n"
@@ -535,17 +588,20 @@ class AdkWorkerRuntime:
                 self._metrics.record_worker_result_recovery(succeeded=result is not None)
         except WorkerBudgetExceeded as error:
             self._metrics.record_worker_budget_exhausted(error.dimension)
-            return _failure(
-                "worker_budget_exhausted",
-                f"Worker invocation budget exhausted ({error.dimension})",
-                True,
+            return (
+                _failure(
+                    "worker_budget_exhausted",
+                    f"Worker invocation budget exhausted ({error.dimension})",
+                    True,
+                ),
+                False,
             )
         if result is not None:
-            return result
+            return result, True
         assert issue is not None
         if issue.classification is not None:
             self._metrics.record_worker_result_error(issue.classification)
-        return _failure(issue.code, issue.summary, issue.retryable)
+        return _failure(issue.code, issue.summary, issue.retryable), False
 
     def _decode_result_candidate(
         self, candidate: str | None
@@ -599,15 +655,25 @@ class AdkWorkerRuntime:
                 classification=classification,
                 recoverable=True,
             )
-        if (
-            len(result.summary) > MAX_RESULT_SUMMARY_CHARS
-            or len(result.artifacts) > MAX_RESULT_ARTIFACTS
+        if len(result.summary) > MAX_RESULT_SUMMARY_CHARS or len(
+            result.artifacts
+        ) > MAX_RESULT_ARTIFACTS - (
+            len(self._workspace_exporter.reserved_slots) if self._workspace_exporter else 0
         ):
             return None, _ResultCandidateIssue(
                 code="invalid_worker_result",
                 summary="Worker returned an oversized StageContentResult",
                 retryable=False,
                 classification="oversized",
+                recoverable=False,
+            )
+        exporter = self._workspace_exporter
+        if exporter is not None and exporter.reserved_slots & result.artifacts.keys():
+            return None, _ResultCandidateIssue(
+                code="invalid_worker_result",
+                summary="Worker result contains a Runtime-reserved workspace export slot",
+                retryable=False,
+                classification="reserved_workspace_artifact",
                 recoverable=False,
             )
         if any(
@@ -726,6 +792,7 @@ class AdkWorkerRuntime:
             self._finalizer_agent = None
             self._instrumentation = None
             self._agent_skills = None
+            self._workspace_exporter = None
             self._context = None  # type: ignore[assignment]
         if failures:
             raise failures[0]
