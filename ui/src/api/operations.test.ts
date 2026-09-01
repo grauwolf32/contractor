@@ -7,6 +7,7 @@ import {
   createRuntimeCredential,
   deleteCredential,
   deleteRuntimeCredential,
+  deleteRuntimeAgentPrincipal,
   deleteRuntimeLabel,
   getConfiguration,
   getCredential,
@@ -14,14 +15,17 @@ import {
   getRuntimeConfig,
   getRuntimeCredential,
   getRuntimeLabel,
+  getRuntimeAgentPrincipal,
   listAllocations,
   listRuntimeAgents,
   listRuntimeConfigs,
   listRuntimeCredentials,
   listRuntimeLabels,
+  listRuntimeAgentPrincipals,
   publishConfiguration,
   publishRuntimeConfig,
   putRuntimeLabel,
+  replaceRuntimeAgentPrincipalLabels,
   type CreateCredentialRequest,
 } from "./operations";
 
@@ -116,6 +120,7 @@ describe("Operations API", () => {
                 },
               ],
               supportedSandboxProfiles: ["remote@1", "local-workdir@1"],
+              supportedRuntimeAdapters: ["otlp-http@1"],
               observedState: "idle",
               slotState: "idle",
               localPath: "/private/runtime/path",
@@ -126,6 +131,7 @@ describe("Operations API", () => {
               supportedRuntimes: ["adk@1"],
               supportedToolsets: [],
               supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
               observedState: "idle",
               slotState: "idle",
             },
@@ -163,6 +169,7 @@ describe("Operations API", () => {
               supportedRuntimes: ["adk@1", "adk@1"],
               supportedToolsets: [],
               supportedSandboxProfiles: ["local-workdir@1"],
+              supportedRuntimeAdapters: [],
               observedState: "idle",
               slotState: "idle",
             },
@@ -292,6 +299,77 @@ describe("Operations API", () => {
         "readonly-1",
       ),
     ).rejects.toThrow("read-only");
+  });
+
+  it("manages durable Runtime Agent principals without retaining unknown fields", async () => {
+    const runtimeAgentId = "a".repeat(64);
+    const requests: Request[] = [];
+    const principal = {
+      runtimeAgentId,
+      labels: ["debug"],
+      revision: "2",
+      availability: "adapter_capability_mismatch" as const,
+      requiredRuntimeAdapters: ["otlp-http@1"],
+      missingRuntimeAdapters: ["otlp-http@1"],
+      live: {
+        instanceId: "runtime-principal",
+        softwareVersion: "0.1.0",
+        supportedRuntimes: ["adk@1"],
+        supportedToolsets: [],
+        supportedSandboxProfiles: ["local-workdir@1"],
+        supportedRuntimeAdapters: [],
+        observedState: "idle" as const,
+        slotState: "idle" as const,
+      },
+      createdBy: "runtime-registration",
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedBy: "user-1",
+      updatedAt: "2026-09-01T00:01:00Z",
+      certificatePem: "SERVER_CERTIFICATE_CANARY",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        if (request.method === "DELETE") {
+          return response(undefined, 204);
+        }
+        if (request.method === "PUT") {
+          return response(principal, 200, { ETag: '"2"' });
+        }
+        if (new URL(request.url).pathname.endsWith(runtimeAgentId)) {
+          return response(principal, 200, { ETag: '"2"' });
+        }
+        return response({ items: [principal], page: { hasMore: false } });
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    const values = [
+      await listRuntimeAgentPrincipals(api),
+      await getRuntimeAgentPrincipal(api, runtimeAgentId),
+      await replaceRuntimeAgentPrincipalLabels(
+        api,
+        runtimeAgentId,
+        ["debug"],
+        "1",
+        "principal-labels-1",
+      ),
+    ];
+    await deleteRuntimeAgentPrincipal(
+      api,
+      runtimeAgentId,
+      "2",
+      "principal-delete-1",
+    );
+
+    expect(JSON.stringify(values)).not.toMatch(
+      /CERTIFICATE_CANARY|certificatePem/,
+    );
+    expect(await requests[2]?.clone().json()).toEqual({ labels: ["debug"] });
+    expect(requests[2]?.headers.get("If-Match")).toBe('"1"');
+    expect(requests[3]?.headers.get("If-Match")).toBe('"2"');
   });
 
   it("manages RuntimeConfig, labels, and write-only Runtime credentials", async () => {

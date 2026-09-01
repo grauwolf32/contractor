@@ -531,6 +531,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operations/runtime-agent-principals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List durable Runtime Agent certificate principals and current live observations */
+        get: operations["listRuntimeAgentPrincipals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-agent-principals/{runtimeAgentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runtimeAgentId: components["parameters"]["RuntimeAgentId"];
+            };
+            cookie?: never;
+        };
+        /** Get one durable Runtime Agent principal and its current live observation */
+        get: operations["getRuntimeAgentPrincipal"];
+        put?: never;
+        post?: never;
+        /** Delete one offline empty unreferenced Runtime Agent principal */
+        delete: operations["deleteRuntimeAgentPrincipal"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-agent-principals/{runtimeAgentId}/labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runtimeAgentId: components["parameters"]["RuntimeAgentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** CAS-replace the complete authoritative label set of one principal */
+        put: operations["replaceRuntimeAgentPrincipalLabels"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/credentials": {
         parameters: {
             query?: never;
@@ -1515,6 +1571,7 @@ export interface components {
             supportedRuntimes: components["schemas"]["RuntimeCapabilityRef"][];
             supportedToolsets: components["schemas"]["RuntimeToolsetCapability"][];
             supportedSandboxProfiles: components["schemas"]["RuntimeCapabilityRef"][];
+            supportedRuntimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
             /** @enum {unknown} */
             observedState: "idle" | "allocated" | "draining" | "fenced";
             /** @enum {unknown} */
@@ -1526,6 +1583,30 @@ export interface components {
             currentAllocationId?: components["schemas"]["ResourceId"];
             authoritativeAllocationId?: components["schemas"]["ResourceId"];
             reconciliationReason?: components["schemas"]["SafeReason"];
+        };
+        /** @enum {unknown} */
+        RuntimeAgentPrincipalAvailability: "available" | "offline" | "busy" | "slot_unavailable" | "adapter_capability_mismatch";
+        RuntimeAgentPrincipal: {
+            runtimeAgentId: string;
+            labels: components["schemas"]["RuntimeInfrastructureId"][];
+            revision: string;
+            availability: components["schemas"]["RuntimeAgentPrincipalAvailability"];
+            requiredRuntimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
+            missingRuntimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
+            live?: components["schemas"]["RuntimeAgentObservation"];
+            createdBy: components["schemas"]["AuditActor"];
+            /** Format: date-time */
+            createdAt: string;
+            updatedBy: components["schemas"]["AuditActor"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RuntimeAgentPrincipalPage: {
+            items: components["schemas"]["RuntimeAgentPrincipal"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        RuntimeAgentLabelsMutation: {
+            labels: components["schemas"]["RuntimeInfrastructureId"][];
         };
         AllocationObservation: {
             allocationId: components["schemas"]["ResourceId"];
@@ -1840,6 +1921,7 @@ export interface components {
         RuntimeConfigVersion: components["schemas"]["RuntimeConfigVersion"];
         RuntimeLabel: components["schemas"]["RuntimeInfrastructureId"];
         RuntimeCredentialId: components["schemas"]["RuntimeCredentialId"];
+        RuntimeAgentId: string;
         IdempotencyKey: string;
         IfMatch: string;
         RequiredIfMatch: string;
@@ -2932,6 +3014,135 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listRuntimeAgentPrincipals: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Durable principal page with no certificate or secret material */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeAgentPrincipalPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getRuntimeAgentPrincipal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runtimeAgentId: components["parameters"]["RuntimeAgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact principal revision and safe current observation */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeAgentPrincipal"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteRuntimeAgentPrincipal: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                runtimeAgentId: components["parameters"]["RuntimeAgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    replaceRuntimeAgentPrincipalLabels: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                runtimeAgentId: components["parameters"]["RuntimeAgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeAgentLabelsMutation"];
+            };
+        };
+        responses: {
+            /** @description Updated authoritative label set; an active allocation remains unchanged */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeAgentPrincipal"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
         };
     };

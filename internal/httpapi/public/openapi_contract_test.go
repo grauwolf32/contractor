@@ -24,6 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -76,6 +77,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	sort.Strings(implemented)
 	wantImplemented := []string{
 		"DELETE /v1/operations/credentials/{credentialId}",
+		"DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}",
 		"DELETE /v1/operations/runtime-credentials/{credentialId}",
 		"DELETE /v1/operations/runtime-labels/{label}",
 		"GET /v1/artifacts",
@@ -90,6 +92,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/operations/allocations",
 		"GET /v1/operations/credentials",
 		"GET /v1/operations/credentials/{credentialId}",
+		"GET /v1/operations/runtime-agent-principals",
+		"GET /v1/operations/runtime-agent-principals/{runtimeAgentId}",
 		"GET /v1/operations/runtime-agents",
 		"GET /v1/operations/runtime-configs",
 		"GET /v1/operations/runtime-configs/{name}/versions/{version}",
@@ -117,6 +121,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
+		"PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels",
 		"PUT /v1/operations/runtime-labels/{label}",
 	}
 	if !reflect.DeepEqual(implemented, wantImplemented) {
@@ -306,6 +311,7 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 				Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
 			}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"},
+			SupportedRuntimeAdapters: []string{},
 			ObservedState:            contracts.AgentIdle, SlotState: controlplane.SlotReserved,
 			LastAcceptedHeartbeat:     &operationsNow,
 			AuthoritativeAllocationID: stringPointer("allocation-contract"),
@@ -437,6 +443,56 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	putRuntimeLabel.Header.Set("If-None-Match", "*")
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, putRuntimeLabel, true); response.Code != http.StatusCreated {
 		t.Fatalf("put Runtime label = %d: %s", response.Code, response.Body.String())
+	}
+	principalID := strings.Repeat("a", 64)
+	fixture.runtimePrincipals.principals[principalID] = controlplane.RuntimeAgentPrincipalProjection{
+		Principal: runtimeconfig.RuntimeAgentPrincipal{
+			RuntimeAgentID: principalID, Labels: []string{"contract-debug"}, LabelRevision: 1,
+			CreatedBy: "runtime-registration", CreatedAt: operationsNow,
+			UpdatedBy: "runtime-registration", UpdatedAt: operationsNow,
+		},
+		RequiredRuntimeAdapters: []string{"otlp-http@1"},
+		MissingRuntimeAdapters:  []string{"otlp-http@1"},
+		Availability:            controlplane.PrincipalAdapterCapabilityMismatch,
+		Live: &controlplane.RuntimeAgentObservation{
+			InstanceID: "runtime-principal-contract", SoftwareVersion: "0.1.0",
+			SupportedRuntimes: []string{"adk@1"}, SupportedToolsets: []controlplane.RuntimeToolsetCapability{},
+			SupportedSandboxProfiles: []string{"local-workdir@1"}, SupportedRuntimeAdapters: []string{},
+			ObservedState: contracts.AgentIdle, SlotState: controlplane.SlotIdle,
+		},
+	}
+	for name, path := range map[string]string{
+		"Runtime Agent principal page":  "/v1/operations/runtime-agent-principals?limit=1",
+		"Runtime Agent principal exact": "/v1/operations/runtime-agent-principals/" + principalID,
+	} {
+		request := newPublicContractRequest(http.MethodGet, path, nil)
+		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
+	}
+	replacePrincipalLabels := newPublicContractRequest(
+		http.MethodPut, "/v1/operations/runtime-agent-principals/"+principalID+"/labels",
+		[]byte(`{"labels":[]}`),
+	)
+	replacePrincipalLabels.Header.Set("Content-Type", "application/json")
+	replacePrincipalLabels.Header.Set("Idempotency-Key", "contract-replace-principal-labels")
+	replacePrincipalLabels.Header.Set("If-Match", `"1"`)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, replacePrincipalLabels, true); response.Code != http.StatusOK {
+		t.Fatalf("replace Runtime Agent labels = %d: %s", response.Code, response.Body.String())
+	}
+	offlinePrincipal := fixture.runtimePrincipals.principals[principalID]
+	offlinePrincipal.Live = nil
+	offlinePrincipal.Availability = controlplane.PrincipalOffline
+	offlinePrincipal.RequiredRuntimeAdapters = []string{}
+	offlinePrincipal.MissingRuntimeAdapters = []string{}
+	fixture.runtimePrincipals.principals[principalID] = offlinePrincipal
+	deletePrincipal := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-agent-principals/"+principalID, nil,
+	)
+	deletePrincipal.Header.Set("Idempotency-Key", "contract-delete-principal")
+	deletePrincipal.Header.Set("If-Match", `"2"`)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deletePrincipal, true); response.Code != http.StatusNoContent {
+		t.Fatalf("delete Runtime Agent principal = %d: %s", response.Code, response.Body.String())
 	}
 	for name, path := range map[string]string{
 		"RuntimeConfig page":       "/v1/operations/runtime-configs?limit=1",

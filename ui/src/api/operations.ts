@@ -72,6 +72,10 @@ export type RuntimeCredentialPage =
   components["schemas"]["RuntimeCredentialPage"];
 export type CreateRuntimeCredentialRequest =
   components["schemas"]["CreateRuntimeCredentialRequest"];
+export type RuntimeAgentPrincipal =
+  components["schemas"]["RuntimeAgentPrincipal"];
+export type RuntimeAgentPrincipalPage =
+  components["schemas"]["RuntimeAgentPrincipalPage"];
 
 export type WritableConfigurationKind = "model-policies" | "llm-gateways";
 
@@ -139,6 +143,12 @@ function requireRuntimeIdentity(name: string, version?: string): void {
 function requireRuntimeCredentialId(value: string): void {
   if (!/^[a-z][a-z0-9_-]{0,127}$/.test(value)) {
     throw new TypeError("Runtime credential ID is invalid");
+  }
+}
+
+function requireRuntimeAgentId(value: string): void {
+  if (!/^[0-9a-f]{64}$/.test(value)) {
+    throw new TypeError("Runtime Agent principal ID is invalid");
   }
 }
 
@@ -360,6 +370,7 @@ function safeRuntimeAgent(
   const reason = safeReason(value.reconciliationReason);
   const runtimes = safeCapabilityRefs(value.supportedRuntimes, true);
   const sandboxes = safeCapabilityRefs(value.supportedSandboxProfiles, true);
+  const adapters = safeCapabilityRefs(value.supportedRuntimeAdapters, false);
   if (
     !Array.isArray(value.supportedToolsets) ||
     value.supportedToolsets.length > MAX_RUNTIME_TOOLSETS
@@ -400,6 +411,7 @@ function safeRuntimeAgent(
     supportedRuntimes: runtimes,
     supportedToolsets: toolsets,
     supportedSandboxProfiles: sandboxes,
+    supportedRuntimeAdapters: adapters,
     observedState: value.observedState,
     slotState: value.slotState,
     ...(value.lastAcceptedHeartbeat === undefined
@@ -415,6 +427,51 @@ function safeRuntimeAgent(
       ? {}
       : { authoritativeAllocationId: value.authoritativeAllocationId }),
     ...(reason === undefined ? {} : { reconciliationReason: reason }),
+  };
+}
+
+function safeRuntimeAgentPrincipal(
+  value: RuntimeAgentPrincipal,
+): RuntimeAgentPrincipal {
+  requireRuntimeAgentId(value.runtimeAgentId);
+  if (!/^[1-9][0-9]{0,19}$/.test(value.revision)) {
+    throw new TypeError("Runtime Agent principal revision is invalid");
+  }
+  const labels = [...value.labels].sort();
+  labels.forEach((label) => requireRuntimeIdentity(label));
+  if (new Set(labels).size !== labels.length || labels.includes("default")) {
+    throw new TypeError("Runtime Agent principal labels are invalid");
+  }
+  const required = safeCapabilityRefs(value.requiredRuntimeAdapters, false);
+  const missing = safeCapabilityRefs(value.missingRuntimeAdapters, false);
+  const availability = [
+    "available",
+    "offline",
+    "busy",
+    "slot_unavailable",
+    "adapter_capability_mismatch",
+  ] as const;
+  if (
+    !availability.includes(value.availability) ||
+    missing.some((adapter) => !required.includes(adapter)) ||
+    (value.availability === "offline") !== (value.live === undefined) ||
+    (value.availability === "adapter_capability_mismatch") !==
+      missing.length > 0
+  ) {
+    throw new TypeError("Runtime Agent principal adapter status is invalid");
+  }
+  return {
+    runtimeAgentId: value.runtimeAgentId,
+    labels,
+    revision: value.revision,
+    availability: value.availability,
+    requiredRuntimeAdapters: required,
+    missingRuntimeAdapters: missing,
+    ...(value.live === undefined ? {} : { live: safeRuntimeAgent(value.live) }),
+    createdBy: value.createdBy,
+    createdAt: value.createdAt,
+    updatedBy: value.updatedBy,
+    updatedAt: value.updatedAt,
   };
 }
 
@@ -571,6 +628,141 @@ export async function listRuntimeAgents(
     items: page.items.map(safeRuntimeAgent),
     page: safePageInfo(page.page),
   };
+}
+
+export async function listRuntimeAgentPrincipals(
+  api: PublicAPI,
+  request: CursorPageRequest = {},
+): Promise<RuntimeAgentPrincipalPage> {
+  const result = await api.request((client) =>
+    client.GET("/v1/operations/runtime-agent-principals", {
+      params: {
+        query: {
+          limit: OPERATIONS_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  const page = requireData(result);
+  return {
+    items: page.items.map(safeRuntimeAgentPrincipal),
+    page: safePageInfo(page.page),
+  };
+}
+
+export async function getRuntimeAgentPrincipal(
+  api: PublicAPI,
+  runtimeAgentId: string,
+): Promise<RuntimeAgentPrincipal> {
+  requireRuntimeAgentId(runtimeAgentId);
+  const result = await api.request((client) =>
+    client.GET("/v1/operations/runtime-agent-principals/{runtimeAgentId}", {
+      params: { path: { runtimeAgentId } },
+    }),
+  );
+  const principal = safeRuntimeAgentPrincipal(requireData(result));
+  if (
+    principal.runtimeAgentId !== runtimeAgentId ||
+    result.response.headers.get("etag") !== `"${principal.revision}"`
+  ) {
+    throw invalidResponse(
+      result.response.status,
+      "Server returned an invalid Runtime Agent principal",
+    );
+  }
+  return principal;
+}
+
+export async function replaceRuntimeAgentPrincipalLabels(
+  api: PublicAPI,
+  runtimeAgentId: string,
+  labels: string[],
+  revision: string,
+  idempotencyKey: string,
+): Promise<RuntimeAgentPrincipal> {
+  requireRuntimeAgentId(runtimeAgentId);
+  if (!/^[1-9][0-9]{0,19}$/.test(revision)) {
+    throw new TypeError("Runtime Agent principal revision is invalid");
+  }
+  const normalized = [...labels].sort();
+  normalized.forEach((label) => requireRuntimeIdentity(label));
+  if (
+    normalized.length > 32 ||
+    new Set(normalized).size !== normalized.length ||
+    normalized.includes("default")
+  ) {
+    throw new TypeError("Runtime Agent principal labels are invalid");
+  }
+  const headers = api.mutationHeaders({
+    idempotencyKey,
+    ifMatch: `"${revision}"`,
+  });
+  const key = headers.get("Idempotency-Key");
+  if (key === null) {
+    throw new TypeError("Mutation requires an idempotency key");
+  }
+  const result = await api.request((client) =>
+    client.PUT(
+      "/v1/operations/runtime-agent-principals/{runtimeAgentId}/labels",
+      {
+        params: {
+          path: { runtimeAgentId },
+          header: {
+            "Idempotency-Key": key,
+            "If-Match": `"${revision}"`,
+          },
+        },
+        body: { labels: normalized },
+      },
+    ),
+  );
+  const principal = safeRuntimeAgentPrincipal(requireData(result));
+  if (
+    result.response.status !== 200 ||
+    principal.runtimeAgentId !== runtimeAgentId ||
+    result.response.headers.get("etag") !== `"${principal.revision}"`
+  ) {
+    throw invalidResponse(
+      result.response.status,
+      "Server returned an invalid Runtime Agent label mutation",
+    );
+  }
+  return principal;
+}
+
+export async function deleteRuntimeAgentPrincipal(
+  api: PublicAPI,
+  runtimeAgentId: string,
+  revision: string,
+  idempotencyKey: string,
+): Promise<void> {
+  requireRuntimeAgentId(runtimeAgentId);
+  if (!/^[1-9][0-9]{0,19}$/.test(revision)) {
+    throw new TypeError("Runtime Agent principal revision is invalid");
+  }
+  const headers = api.mutationHeaders({
+    idempotencyKey,
+    ifMatch: `"${revision}"`,
+  });
+  const key = headers.get("Idempotency-Key");
+  if (key === null) {
+    throw new TypeError("Mutation requires an idempotency key");
+  }
+  const result = await api.request((client) =>
+    client.DELETE("/v1/operations/runtime-agent-principals/{runtimeAgentId}", {
+      params: {
+        path: { runtimeAgentId },
+        header: {
+          "Idempotency-Key": key,
+          "If-Match": `"${revision}"`,
+        },
+      },
+    }),
+  );
+  if (result.response.status !== 204 || result.error !== undefined) {
+    throw publicAPIError(result.response.status, result.error);
+  }
 }
 
 export async function listAllocations(

@@ -138,6 +138,7 @@ type RuntimeAgentObservation struct {
 	SupportedRuntimes         []string                     `json:"supportedRuntimes"`
 	SupportedToolsets         []RuntimeToolsetCapability   `json:"supportedToolsets"`
 	SupportedSandboxProfiles  []string                     `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters  []string                     `json:"supportedRuntimeAdapters"`
 	ObservedState             contracts.AgentObservedState `json:"observedState"`
 	SlotState                 SlotState                    `json:"slotState"`
 	LastAcceptedHeartbeat     *time.Time                   `json:"lastAcceptedHeartbeat,omitempty"`
@@ -236,11 +237,13 @@ func validateRuntimeCapabilities(observation RuntimeAgentObservation) error {
 		len(observation.SupportedRuntimes) > maximumRuntimeCapabilityRefs ||
 		len(observation.SupportedSandboxProfiles) == 0 ||
 		len(observation.SupportedSandboxProfiles) > maximumRuntimeCapabilityRefs ||
-		len(observation.SupportedToolsets) > maximumRuntimeToolsetRefs {
+		len(observation.SupportedToolsets) > maximumRuntimeToolsetRefs ||
+		len(observation.SupportedRuntimeAdapters) > maximumRuntimeCapabilityRefs {
 		return fmt.Errorf("invalid Runtime Agent capability collection bound")
 	}
 	if !validUniqueCapabilityRefs(observation.SupportedRuntimes) ||
-		!validUniqueCapabilityRefs(observation.SupportedSandboxProfiles) {
+		!validUniqueCapabilityRefs(observation.SupportedSandboxProfiles) ||
+		!validUniqueCapabilityRefs(observation.SupportedRuntimeAdapters) {
 		return fmt.Errorf("invalid or duplicate Runtime Agent capability ref")
 	}
 	seenToolsets := make(map[string]struct{}, len(observation.SupportedToolsets))
@@ -521,6 +524,7 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 		SupportedRuntimes:         append([]string{}, entry.registration.SupportedRuntimes...),
 		SupportedToolsets:         make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
 		SupportedSandboxProfiles:  append([]string{}, entry.registration.SupportedSandboxProfiles...),
+		SupportedRuntimeAdapters:  contracts.RuntimeAdapterCapabilityProjectionV2(entry.registration),
 		ObservedState:             entry.registration.ObservedState,
 		SlotState:                 slotState(entry),
 		CurrentAllocationID:       cloneString(entry.registration.AllocationID),
@@ -533,6 +537,7 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 	}
 	sort.Strings(result.SupportedRuntimes)
 	sort.Strings(result.SupportedSandboxProfiles)
+	sort.Strings(result.SupportedRuntimeAdapters)
 	for index := range result.SupportedToolsets {
 		sort.Strings(result.SupportedToolsets[index].Tools)
 	}

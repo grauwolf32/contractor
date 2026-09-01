@@ -328,3 +328,36 @@ tests that make the choice observable.
   `If-None-Match: *` precondition whenever the label already exists, including
   when it already points at the requested ref. Exact replay still succeeds by
   idempotency key without consuming another revision.
+
+### D018 — Durable principal labels advance the live placement snapshot
+
+- Applies to: V8-009.
+- Decision: Operations reads principal identity, labels and audit metadata from
+  PostgreSQL and joins them to a current process observation held only by the
+  in-memory Registry. After a successful durable label CAS, Control Plane
+  advances every matching live Registry entry to the committed revision. It
+  sends no label command to Runtime and does not alter any active reservation's
+  pinned RuntimeSettings or provenance. A replay of an older successful
+  mutation re-reads and applies the newest durable principal revision, while
+  returning the original mutation result.
+- Reason: leaving the Registry on the registration-time revision would make
+  every later placement fail its database recheck until the process restarted.
+  Persisting heartbeat or capabilities to solve that mismatch would instead
+  create a second liveness authority. The post-commit update has a safe race:
+  placement observing the old revision is rejected by the existing SQL
+  principal lock/recheck, and placement after the update sees the new complete
+  set.
+- Availability projection: `offline` means no live or allocation-bound process
+  observation exists. For a live process, intrinsic adapter requirements
+  contributed by its Agent labels are compared with its frozen registration
+  capabilities; `adapter_capability_mismatch` takes precedence over busy slot
+  status so an operator can see why later label-resolved work cannot use it.
+  This is not a claim that the Agent can run every Workflow: ordinary runtime,
+  Toolset, SandboxProfile and Run-specific adapter matching remains placement
+  work.
+- Deletion boundary: an empty offline principal is still fenced by every
+  durable allocation whose release is incomplete. Terminal allocation rows are
+  immutable historical provenance values, not live foreign-key ownership, and
+  do not retain the principal configuration row forever. Principal-row locking
+  serializes deletion with candidate placement before either inserts or removes
+  that live durable reference.

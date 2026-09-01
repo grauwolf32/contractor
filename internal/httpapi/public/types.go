@@ -129,6 +129,13 @@ type RuntimeCredentialManagement interface {
 	Delete(context.Context, string, string) (credentials.RuntimeCredentialDeleteResult, error)
 }
 
+type RuntimeAgentPrincipalManagement interface {
+	List(context.Context, string, int) ([]controlplane.RuntimeAgentPrincipalProjection, error)
+	Get(context.Context, string) (controlplane.RuntimeAgentPrincipalProjection, error)
+	ReplaceLabels(context.Context, string, uint64, []string, string, string, time.Time) (controlplane.RuntimeAgentPrincipalProjection, bool, error)
+	Delete(context.Context, string, uint64, string, string, time.Time) (bool, error)
+}
+
 type Dependencies struct {
 	Authentication         *auth.Service
 	BrowserOrigins         auth.OriginPolicy
@@ -139,6 +146,7 @@ type Dependencies struct {
 	ManagedCredentials     ManagedCredentialLifecycle
 	RuntimeConfigs         RuntimeConfigManagement
 	RuntimeCredentials     RuntimeCredentialManagement
+	RuntimeAgentPrincipals RuntimeAgentPrincipalManagement
 	Runs                   RunReader
 	PlannerPlans           PlannerPlanReader
 	Metrics                MetricsReader
@@ -451,6 +459,45 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 type runtimeCredentialPageResponse struct {
 	Items []credentials.RuntimeCredentialMetadata `json:"items"`
 	Page  pageInfoResponse                        `json:"page"`
+}
+
+type runtimeAgentPrincipalResponse struct {
+	RuntimeAgentID          string                                         `json:"runtimeAgentId"`
+	Labels                  []string                                       `json:"labels"`
+	Revision                string                                         `json:"revision"`
+	Availability            controlplane.RuntimeAgentPrincipalAvailability `json:"availability"`
+	RequiredRuntimeAdapters []string                                       `json:"requiredRuntimeAdapters"`
+	MissingRuntimeAdapters  []string                                       `json:"missingRuntimeAdapters"`
+	Live                    *controlplane.RuntimeAgentObservation          `json:"live,omitempty"`
+	CreatedBy               string                                         `json:"createdBy"`
+	CreatedAt               time.Time                                      `json:"createdAt"`
+	UpdatedBy               string                                         `json:"updatedBy"`
+	UpdatedAt               time.Time                                      `json:"updatedAt"`
+}
+
+type runtimeAgentPrincipalPageResponse struct {
+	Items []runtimeAgentPrincipalResponse `json:"items"`
+	Page  pageInfoResponse                `json:"page"`
+}
+
+type runtimeAgentLabelsMutationRequest struct {
+	Labels []string `json:"labels"`
+}
+
+func (r *runtimeAgentLabelsMutationRequest) UnmarshalJSON(data []byte) error {
+	var envelope struct {
+		Labels json.RawMessage `json:"labels"`
+	}
+	if err := decodeStrictPublicJSON(data, &envelope); err != nil {
+		return err
+	}
+	if len(envelope.Labels) == 0 || bytes.Equal(bytes.TrimSpace(envelope.Labels), []byte("null")) {
+		return errors.New("Runtime Agent labels must be an array")
+	}
+	if err := json.Unmarshal(envelope.Labels, &r.Labels); err != nil || r.Labels == nil {
+		return errors.New("Runtime Agent labels must be an array")
+	}
+	return nil
 }
 
 type operationsCursorResponse struct {

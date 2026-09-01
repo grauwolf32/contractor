@@ -48,6 +48,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		},
 	))
 	runtimeCredentials := newFakeRuntimeCredentialManagement()
+	runtimePrincipals := newFakeRuntimeAgentPrincipalManagement()
 	authentication := newTestAuthentication(t)
 	origins := mustTestOrigins(t)
 	operations := newFakeOperationsReader()
@@ -64,7 +65,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
-		Runs: runs, Artifacts: service,
+		RuntimeAgentPrincipals: runtimePrincipals,
+		Runs:                   runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,
 		BearerToken:  contracts.NewSecretString(testBearerToken),

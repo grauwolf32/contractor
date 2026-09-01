@@ -21,6 +21,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, runtimeconfig.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
+	case errors.Is(err, runtimeconfig.ErrAgentLabelNotApplicable):
+		h.writeError(w, http.StatusBadRequest, "runtime_agent_label_not_applicable", "Runtime label has no Worker-applicable setting", false)
+	case errors.Is(err, runtimeconfig.ErrPrincipalInUse):
+		h.writeError(w, http.StatusConflict, "runtime_agent_in_use", "Runtime Agent principal is live, labeled, or allocation-referenced", false)
 	case errors.As(err, &runtimeLabelInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "runtime_label_in_use", Message: "Runtime label is assigned to a Runtime Agent",

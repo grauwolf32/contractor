@@ -80,15 +80,59 @@ func TestPostgresRuntimeAgentPrincipalSeedCASAndDelete(t *testing.T) {
 		t.Fatalf("delete labeled principal error = %v", err)
 	}
 
-	updated, err := service.ReplaceLabels(ctx, principalID, 1, []string{}, "operator")
-	if err != nil || updated.LabelRevision != 2 || len(updated.Labels) != 0 {
-		t.Fatalf("replace labels = (%+v, %v)", updated, err)
+	type concurrentResult struct {
+		key    string
+		result PrincipalMutationResult
+		err    error
+	}
+	results := make(chan concurrentResult, 2)
+	for _, key := range []string{"principal-labels-a", "principal-labels-b"} {
+		go func(key string) {
+			result, replaceErr := service.ReplaceLabelsIdempotent(
+				ctx, principalID, 1, []string{}, key, "operator", now.Add(time.Minute),
+			)
+			results <- concurrentResult{key: key, result: result, err: replaceErr}
+		}(key)
+	}
+	var successful concurrentResult
+	successes, preconditions := 0, 0
+	for range 2 {
+		result := <-results
+		switch {
+		case result.err == nil:
+			successes++
+			successful = result
+		case errors.Is(result.err, ErrPrecondition):
+			preconditions++
+		default:
+			t.Fatalf("concurrent label replacement error = %v", result.err)
+		}
+	}
+	if successes != 1 || preconditions != 1 || successful.result.Principal == nil ||
+		successful.result.Principal.LabelRevision != 2 || len(successful.result.Principal.Labels) != 0 {
+		t.Fatalf("concurrent label replacements = success %d precondition %d result %+v", successes, preconditions, successful)
+	}
+	replayedMutation, err := service.ReplaceLabelsIdempotent(
+		ctx, principalID, 1, []string{}, successful.key, "operator", now.Add(time.Minute),
+	)
+	if err != nil || !replayedMutation.Replayed || replayedMutation.Principal == nil ||
+		replayedMutation.Principal.LabelRevision != 2 {
+		t.Fatalf("label response-loss replay = (%+v, %v)", replayedMutation, err)
 	}
 	if _, err := service.ReplaceLabels(ctx, principalID, 1, []string{}, "operator"); !errors.Is(err, ErrPrecondition) {
 		t.Fatalf("stale principal CAS error = %v", err)
 	}
-	if err := service.Delete(ctx, principalID, 2); err != nil {
-		t.Fatalf("delete empty offline principal: %v", err)
+	deleted, err := service.DeleteIdempotent(
+		ctx, principalID, 2, "principal-delete", "operator", now.Add(2*time.Minute),
+	)
+	if err != nil || !deleted.Deleted || deleted.Replayed {
+		t.Fatalf("delete empty offline principal = (%+v, %v)", deleted, err)
+	}
+	deleteReplay, err := service.DeleteIdempotent(
+		ctx, principalID, 2, "principal-delete", "operator", now.Add(2*time.Minute),
+	)
+	if err != nil || !deleteReplay.Deleted || !deleteReplay.Replayed {
+		t.Fatalf("delete response-loss replay = (%+v, %v)", deleteReplay, err)
 	}
 	if _, err := NewPrincipalRepository(pool).Get(ctx, principalID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted principal lookup error = %v", err)

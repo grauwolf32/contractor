@@ -18,9 +18,10 @@ import (
 const maximumRuntimeConfigBodyBytes int64 = 128 * 1024
 
 var (
-	runtimeConfigIDPattern      = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
-	runtimeConfigVersionPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
-	runtimeCredentialIDPattern  = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,127}$`)
+	runtimeConfigIDPattern         = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,62}$`)
+	runtimeConfigVersionPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
+	runtimeCredentialIDPattern     = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,127}$`)
+	runtimeAgentPrincipalIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
 func (h *handler) listRuntimeConfigs(w http.ResponseWriter, r *http.Request) {

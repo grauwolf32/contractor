@@ -287,6 +287,10 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Runtime Agent principals: %w", err)
 	}
+	principalOperations, err := controlplane.NewPrincipalOperations(principalService, registry)
+	if err != nil {
+		return fmt.Errorf("configure Runtime Agent principal Operations: %w", err)
+	}
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
 		Pool: pool, Registry: registry, Gateways: configurationManager,
 		LLMCredentials: credentialProvider, RuntimeCredentials: runtimeCredentialLifecycle,
@@ -403,9 +407,10 @@ func RunCLI(
 		Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
-		Metrics:      telemetry.NewRepository(pool),
-		PlannerPlans: plannerSessions,
-		Operations:   registry, OperationsInvalidator: registry, Events: eventHub,
+		RuntimeAgentPrincipals: principalOperations,
+		Metrics:                telemetry.NewRepository(pool),
+		PlannerPlans:           plannerSessions,
+		Operations:             registry, OperationsInvalidator: registry, Events: eventHub,
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken,
 		RunNotifier:  workflowScheduler, Logger: logger,

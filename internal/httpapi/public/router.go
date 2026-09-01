@@ -29,6 +29,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
 		dependencies.RuntimeConfigs == nil || dependencies.RuntimeCredentials == nil ||
+		dependencies.RuntimeAgentPrincipals == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
 		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
@@ -86,6 +87,10 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /v1/operations/runtime-credentials", current.createRuntimeCredential)
 	mux.HandleFunc("GET /v1/operations/runtime-credentials/{credentialId}", current.getRuntimeCredential)
 	mux.HandleFunc("DELETE /v1/operations/runtime-credentials/{credentialId}", current.deleteRuntimeCredential)
+	mux.HandleFunc("GET /v1/operations/runtime-agent-principals", current.listRuntimeAgentPrincipals)
+	mux.HandleFunc("GET /v1/operations/runtime-agent-principals/{runtimeAgentId}", current.getRuntimeAgentPrincipal)
+	mux.HandleFunc("DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}", current.deleteRuntimeAgentPrincipal)
+	mux.HandleFunc("PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels", current.putRuntimeAgentLabels)
 	mux.HandleFunc("GET /v1/operations/snapshot", current.getOperationsSnapshot)
 	mux.HandleFunc("GET /v1/operations/runtime-agents", current.listRuntimeAgents)
 	mux.HandleFunc("GET /v1/operations/allocations", current.listAllocations)

@@ -6,9 +6,105 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
+
+type fakeRuntimeAgentPrincipalManagement struct {
+	mu         sync.Mutex
+	principals map[string]controlplane.RuntimeAgentPrincipalProjection
+}
+
+func newFakeRuntimeAgentPrincipalManagement() *fakeRuntimeAgentPrincipalManagement {
+	return &fakeRuntimeAgentPrincipalManagement{
+		principals: make(map[string]controlplane.RuntimeAgentPrincipalProjection),
+	}
+}
+
+func (f *fakeRuntimeAgentPrincipalManagement) List(
+	_ context.Context, after string, limit int,
+) ([]controlplane.RuntimeAgentPrincipalProjection, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	ids := make([]string, 0, len(f.principals))
+	for id := range f.principals {
+		if id > after {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	if len(ids) > limit {
+		ids = ids[:limit]
+	}
+	result := make([]controlplane.RuntimeAgentPrincipalProjection, len(ids))
+	for index, id := range ids {
+		result[index] = clonePrincipalProjection(f.principals[id])
+	}
+	return result, nil
+}
+
+func (f *fakeRuntimeAgentPrincipalManagement) Get(
+	_ context.Context, id string,
+) (controlplane.RuntimeAgentPrincipalProjection, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	value, ok := f.principals[id]
+	if !ok {
+		return controlplane.RuntimeAgentPrincipalProjection{}, runtimeconfig.ErrNotFound
+	}
+	return clonePrincipalProjection(value), nil
+}
+
+func (f *fakeRuntimeAgentPrincipalManagement) ReplaceLabels(
+	_ context.Context, id string, expected uint64, labels []string, key, actor string, at time.Time,
+) (controlplane.RuntimeAgentPrincipalProjection, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	value, ok := f.principals[id]
+	if !ok {
+		return controlplane.RuntimeAgentPrincipalProjection{}, false, runtimeconfig.ErrNotFound
+	}
+	if value.Principal.LabelRevision != expected {
+		return controlplane.RuntimeAgentPrincipalProjection{}, false, runtimeconfig.ErrPrecondition
+	}
+	value.Principal.Labels = append([]string{}, labels...)
+	value.Principal.LabelRevision++
+	value.Principal.UpdatedBy = actor
+	value.Principal.UpdatedAt = at
+	f.principals[id] = value
+	return clonePrincipalProjection(value), false, nil
+}
+
+func (f *fakeRuntimeAgentPrincipalManagement) Delete(
+	_ context.Context, id string, expected uint64, key, actor string, at time.Time,
+) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	value, ok := f.principals[id]
+	if !ok {
+		return false, runtimeconfig.ErrNotFound
+	}
+	if value.Principal.LabelRevision != expected {
+		return false, runtimeconfig.ErrPrecondition
+	}
+	if len(value.Principal.Labels) != 0 || value.Live != nil {
+		return false, runtimeconfig.ErrPrincipalInUse
+	}
+	delete(f.principals, id)
+	return false, nil
+}
+
+func clonePrincipalProjection(value controlplane.RuntimeAgentPrincipalProjection) controlplane.RuntimeAgentPrincipalProjection {
+	value.Principal.Labels = append([]string{}, value.Principal.Labels...)
+	value.RequiredRuntimeAdapters = append([]string{}, value.RequiredRuntimeAdapters...)
+	value.MissingRuntimeAdapters = append([]string{}, value.MissingRuntimeAdapters...)
+	if value.Live != nil {
+		live := *value.Live
+		value.Live = &live
+	}
+	return value
+}
 
 type fakeRuntimeConfigManagement struct {
 	mu           sync.Mutex

@@ -151,6 +151,7 @@ func cloneRuntimeAgentObservation(
 	result := source
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
+	result.SupportedRuntimeAdapters = append([]string{}, source.SupportedRuntimeAdapters...)
 	result.SupportedToolsets = make(
 		[]controlplane.RuntimeToolsetCapability,
 		len(source.SupportedToolsets),
@@ -163,6 +164,7 @@ func cloneRuntimeAgentObservation(
 	}
 	sort.Strings(result.SupportedRuntimes)
 	sort.Strings(result.SupportedSandboxProfiles)
+	sort.Strings(result.SupportedRuntimeAdapters)
 	sort.Slice(result.SupportedToolsets, func(left, right int) bool {
 		return result.SupportedToolsets[left].Ref < result.SupportedToolsets[right].Ref
 	})

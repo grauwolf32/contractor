@@ -906,6 +906,107 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/operations/runtime-agent-principals:
+    get:
+      operationId: listRuntimeAgentPrincipals
+      tags: [Operations]
+      summary: List durable Runtime Agent certificate principals and current live observations
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Durable principal page with no certificate or secret material
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeAgentPrincipalPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-agent-principals/{runtimeAgentId}:
+    parameters:
+      - $ref: '#/components/parameters/RuntimeAgentId'
+    get:
+      operationId: getRuntimeAgentPrincipal
+      tags: [Operations]
+      summary: Get one durable Runtime Agent principal and its current live observation
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Exact principal revision and safe current observation
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeAgentPrincipal'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteRuntimeAgentPrincipal
+      tags: [Operations]
+      summary: Delete one offline empty unreferenced Runtime Agent principal
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels:
+    parameters:
+      - $ref: '#/components/parameters/RuntimeAgentId'
+    put:
+      operationId: replaceRuntimeAgentPrincipalLabels
+      tags: [Operations]
+      summary: CAS-replace the complete authoritative label set of one principal
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RuntimeAgentLabelsMutation'}
+      responses:
+        '200':
+          description: Updated authoritative label set; an active allocation remains unchanged
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeAgentPrincipal'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/operations/credentials:
     get:
       operationId: listCredentials
@@ -1174,6 +1275,11 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/RuntimeCredentialId'}
+    RuntimeAgentId:
+      name: runtimeAgentId
+      in: path
+      required: true
+      schema: {type: string, pattern: '^[0-9a-f]{64}$'}
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -2639,7 +2745,7 @@ components:
     RuntimeAgentObservation:
       type: object
       additionalProperties: false
-      required: [instanceId, softwareVersion, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, observedState, slotState]
+      required: [instanceId, softwareVersion, supportedRuntimes, supportedToolsets, supportedSandboxProfiles, supportedRuntimeAdapters, observedState, slotState]
       properties:
         instanceId: {$ref: '#/components/schemas/ResourceId'}
         softwareVersion: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'}
@@ -2659,6 +2765,11 @@ components:
           maxItems: 128
           uniqueItems: true
           items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        supportedRuntimeAdapters:
+          type: array
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         observedState: {enum: [idle, allocated, draining, fenced]}
         slotState: {enum: [idle, reserved, busy, draining, fenced]}
         lastAcceptedHeartbeat: {type: string, format: date-time}
@@ -2666,6 +2777,53 @@ components:
         currentAllocationId: {$ref: '#/components/schemas/ResourceId'}
         authoritativeAllocationId: {$ref: '#/components/schemas/ResourceId'}
         reconciliationReason: {$ref: '#/components/schemas/SafeReason'}
+    RuntimeAgentPrincipalAvailability:
+      enum: [available, offline, busy, slot_unavailable, adapter_capability_mismatch]
+    RuntimeAgentPrincipal:
+      type: object
+      additionalProperties: false
+      required: [runtimeAgentId, labels, revision, availability, requiredRuntimeAdapters, missingRuntimeAdapters, createdBy, createdAt, updatedBy, updatedAt]
+      properties:
+        runtimeAgentId: {type: string, pattern: '^[0-9a-f]{64}$'}
+        labels:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+        revision: {type: string, pattern: '^[1-9][0-9]*$', maxLength: 20}
+        availability: {$ref: '#/components/schemas/RuntimeAgentPrincipalAvailability'}
+        requiredRuntimeAdapters:
+          type: array
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        missingRuntimeAdapters:
+          type: array
+          maxItems: 128
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
+        live: {$ref: '#/components/schemas/RuntimeAgentObservation'}
+        createdBy: {$ref: '#/components/schemas/AuditActor'}
+        createdAt: {type: string, format: date-time}
+        updatedBy: {$ref: '#/components/schemas/AuditActor'}
+        updatedAt: {type: string, format: date-time}
+    RuntimeAgentPrincipalPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RuntimeAgentPrincipal'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    RuntimeAgentLabelsMutation:
+      type: object
+      additionalProperties: false
+      required: [labels]
+      properties:
+        labels:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
     AllocationObservation:
       type: object
       additionalProperties: false

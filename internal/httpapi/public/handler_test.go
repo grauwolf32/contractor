@@ -51,6 +51,7 @@ type handlerFixture struct {
 	credentials        *fakeManagedCredentials
 	runtimeConfigs     *fakeRuntimeConfigManagement
 	runtimeCredentials *fakeRuntimeCredentialManagement
+	runtimePrincipals  *fakeRuntimeAgentPrincipalManagement
 	operations         *fakeOperationsReader
 }
 
@@ -100,6 +101,7 @@ func newHandlerFixtureWithAuth(
 		},
 	))
 	runtimeCredentials := newFakeRuntimeCredentialManagement()
+	runtimePrincipals := newFakeRuntimeAgentPrincipalManagement()
 	operations := newFakeOperationsReader()
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
@@ -115,7 +117,8 @@ func newHandlerFixtureWithAuth(
 		Config:                 manager, ConfigurationPublisher: manager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
-		Runs: runs, Artifacts: service, Transactions: unit,
+		RuntimeAgentPrincipals: runtimePrincipals,
+		Runs:                   runs, Artifacts: service, Transactions: unit,
 		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
 		Metrics:      metrics,
 		PlannerPlans: plans,
@@ -136,7 +139,8 @@ func newHandlerFixtureWithAuth(
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
 		credentials:    managedCredentials,
 		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
-		operations: operations,
+		runtimePrincipals: runtimePrincipals,
+		operations:        operations,
 	}
 }
 
