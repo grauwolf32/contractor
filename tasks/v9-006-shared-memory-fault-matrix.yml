@@ -3,8 +3,8 @@ id: V9-006
 title: Prove Memory response-loss CAS and terminal fencing
 milestone: shared-memory-tools
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 1de32aa7e72af50551ac82f5154cbc364ce01b5d
 depends_on: [V8-016, V9-005]
 languages: [go, python]
 

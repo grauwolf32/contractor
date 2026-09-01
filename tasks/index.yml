@@ -238,18 +238,18 @@ v8_v11_spec_review:
     - All indexed task YAML parsed and the 112-task dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
     - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 267 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make verify passes with 275 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V9-005
-  next_task: V9-006
+  completed_through: V9-006
+  next_task: V9-007
   summary: >-
-    Shared Memory now has deterministic Go/Python semantics, strict raw ADK
-    arguments, closed model-visible errors, reserved-binding isolation across
-    every Artifact-backed Toolset and all Stage result boundaries, plus
-    content-free diagnostics. Next, prove response-loss reconciliation and
-    both Worker-grant and Planner-durable terminal race orders.
+    Shared Memory now proves exact Worker PUT and Planner PostgreSQL commit-
+    ambiguity reconciliation for create, replace and append, same-binding CAS
+    interference, both Worker-grant and Planner-durable terminal race orders,
+    durable-allocation fencing and bounded two-slot reuse. Next, close the
+    retained-surface, authorization, inventory and release-readiness gate.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -401,6 +401,7 @@ memory_tools_implementation_review:
     V9-003: acf1c0f2a436cf82ce10d26ef9db5e26c606d557
     V9-004: e11f45b6661732ab9a30a7b11f126f7700ae23e8
     V9-005: a8fe196a0c295efd7c7975e9333b4d9a29421f37
+    V9-006: 1de32aa7e72af50551ac82f5154cbc364ce01b5d
   confirmed:
     - >-
       Go and Python canonical codecs agree on exact bytes, UTF-8/size bounds,
@@ -433,11 +434,16 @@ memory_tools_implementation_review:
       strict raw ADK arguments, closed errors, exact-ETag checks, shared
       Artifact visibility policy and direct Memory-ref rejection at every
       StageContext and StageResult boundary.
+    - >-
+      V9-006 exercises production Worker ArtifactClient PUTs, real allocation
+      grant/fence gates and PostgreSQL Planner transactions at every ambiguous
+      mutation boundary. Deterministic tests prove both terminal winners,
+      same-binding interference, durable-allocation fencing, bounded release
+      recovery and a clean two-slot claim by an unrelated Run.
   release_blockers_assigned:
     - >-
-      V9-006 owns production response-loss/CAS and Worker-grant versus Planner-
-      durable terminal race injection. V9-007 owns complete retained-surface
-      canary scans, schema/route minimality and post-fault slot reuse.
+      V9-007 owns complete retained-surface canary scans, schema/route
+      minimality, authorization isolation and the composed release gate.
   planning_correction: >-
     The former monolithic V9-005 was split into independently testable
     semantic/model-boundary (V9-005), fault/concurrency (V9-006) and
@@ -449,7 +455,8 @@ memory_tools_implementation_review:
     - go test -race ./internal/memory/... ./internal/planner/... ./internal/scheduler/... passes.
     - PostgreSQL Planner Memory finalizing/aborting tests pass five repeated runs.
     - make test-shared-memory-e2e passes against PostgreSQL with two real Python Runtime Agent processes.
-    - make verify passes with 267 Python tests, 1 skipped and 108 UI tests.
+    - make test-shared-memory-faults passes under the Go race detector against PostgreSQL.
+    - make verify passes with 275 Python tests, 1 skipped and 108 UI tests.
     - release-verify passes with the Runtime configuration, browser-stack and shared-Memory process gates composed.
     - All 112 indexed task YAML files parse and their dependency graph is acyclic.
 
