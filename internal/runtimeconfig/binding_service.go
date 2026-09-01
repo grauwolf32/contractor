@@ -109,7 +109,7 @@ func (s *BindingService) Delete(ctx context.Context, label string, expectedRevis
 				return err
 			}
 			if len(principals) != 0 {
-				return ErrConflict
+				return labelInUseError(principals)
 			}
 			return repository.DeleteBinding(ctx, label, expectedRevision)
 		})

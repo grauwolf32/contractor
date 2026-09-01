@@ -250,6 +250,26 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Runtime credential lifecycle: %w", err)
 	}
+	runtimeConfigPublisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
+		Pool: pool,
+		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+			return configurationManager.LLMGateway(selector)
+		}),
+		RuntimeCredentials: runtimeCredentialLifecycle,
+	})
+	if err != nil {
+		return fmt.Errorf("configure RuntimeConfig publisher: %w", err)
+	}
+	runtimeBindingService, err := runtimeconfig.NewBindingService(pool, runtimeCredentialLifecycle)
+	if err != nil {
+		return fmt.Errorf("configure Runtime label bindings: %w", err)
+	}
+	runtimeConfigManagement, err := runtimeconfig.NewManagementService(
+		pool, runtimeConfigPublisher, runtimeBindingService,
+	)
+	if err != nil {
+		return fmt.Errorf("configure RuntimeConfig management: %w", err)
+	}
 	files := mtls.Files{
 		Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile,
 	}
@@ -382,6 +402,7 @@ func RunCLI(
 		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
 		Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
+		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
 		Metrics:      telemetry.NewRepository(pool),
 		PlannerPlans: plannerSessions,
 		Operations:   registry, OperationsInvalidator: registry, Events: eventHub,

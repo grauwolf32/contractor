@@ -76,6 +76,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	sort.Strings(implemented)
 	wantImplemented := []string{
 		"DELETE /v1/operations/credentials/{credentialId}",
+		"DELETE /v1/operations/runtime-credentials/{credentialId}",
+		"DELETE /v1/operations/runtime-labels/{label}",
 		"GET /v1/artifacts",
 		"GET /v1/artifacts/{namespace}/{name}",
 		"GET /v1/artifacts/{namespace}/{name}/lineage",
@@ -89,6 +91,12 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/operations/credentials",
 		"GET /v1/operations/credentials/{credentialId}",
 		"GET /v1/operations/runtime-agents",
+		"GET /v1/operations/runtime-configs",
+		"GET /v1/operations/runtime-configs/{name}/versions/{version}",
+		"GET /v1/operations/runtime-credentials",
+		"GET /v1/operations/runtime-credentials/{credentialId}",
+		"GET /v1/operations/runtime-labels",
+		"GET /v1/operations/runtime-labels/{label}",
 		"GET /v1/operations/snapshot",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
@@ -104,9 +112,12 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"POST /v1/auth/logout",
 		"POST /v1/configurations/{kind}",
 		"POST /v1/operations/credentials",
+		"POST /v1/operations/runtime-configs",
+		"POST /v1/operations/runtime-credentials",
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
+		"PUT /v1/operations/runtime-labels/{label}",
 	}
 	if !reflect.DeepEqual(implemented, wantImplemented) {
 		t.Fatalf("implemented public operations = %v, want %v", implemented, wantImplemented)
@@ -389,6 +400,71 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	conflictingCredential.Header.Set("Idempotency-Key", "contract-create-credential")
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, conflictingCredential, true); response.Code != http.StatusConflict {
 		t.Fatalf("credential idempotency conflict = %d: %s", response.Code, response.Body.String())
+	}
+
+	createRuntimeCredential := newPublicContractRequest(
+		http.MethodPost, "/v1/operations/runtime-credentials",
+		[]byte(`{"credentialId":"contract-otel","kind":"otlp-headers@1","material":{"headers":{"authorization":"write-only-value"}}}`),
+	)
+	createRuntimeCredential.Header.Set("Content-Type", "application/json")
+	createRuntimeCredential.Header.Set("Idempotency-Key", "contract-create-runtime-credential")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, createRuntimeCredential, true); response.Code != http.StatusCreated {
+		t.Fatalf("create Runtime credential = %d: %s", response.Code, response.Body.String())
+	}
+	runtimeConfigDocument := []byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contract-debug","version":"1"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://otel.example/v1/traces","credential":"contract-otel"}}}}`)
+	publishRuntimeConfig := newPublicContractRequest(
+		http.MethodPost, "/v1/operations/runtime-configs", runtimeConfigDocument,
+	)
+	publishRuntimeConfig.Header.Set("Content-Type", "application/json")
+	publishRuntimeConfig.Header.Set("Idempotency-Key", "contract-publish-runtime-config")
+	publishedRuntimeConfig := serveAndValidatePublicContract(t, router, fixture.handler, publishRuntimeConfig, true)
+	if publishedRuntimeConfig.Code != http.StatusCreated {
+		t.Fatalf("publish RuntimeConfig = %d: %s", publishedRuntimeConfig.Code, publishedRuntimeConfig.Body.String())
+	}
+	var runtimeResource runtimeConfigResourceResponse
+	if err := json.Unmarshal(publishedRuntimeConfig.Body.Bytes(), &runtimeResource); err != nil {
+		t.Fatal(err)
+	}
+	bindingBody, err := json.Marshal(runtimeLabelMutationRequest{Config: runtimeResource.Ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	putRuntimeLabel := newPublicContractRequest(
+		http.MethodPut, "/v1/operations/runtime-labels/contract-debug", bindingBody,
+	)
+	putRuntimeLabel.Header.Set("Content-Type", "application/json")
+	putRuntimeLabel.Header.Set("Idempotency-Key", "contract-put-runtime-label")
+	putRuntimeLabel.Header.Set("If-None-Match", "*")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, putRuntimeLabel, true); response.Code != http.StatusCreated {
+		t.Fatalf("put Runtime label = %d: %s", response.Code, response.Body.String())
+	}
+	for name, path := range map[string]string{
+		"RuntimeConfig page":       "/v1/operations/runtime-configs?limit=1",
+		"RuntimeConfig exact":      "/v1/operations/runtime-configs/contract-debug/versions/1",
+		"Runtime label page":       "/v1/operations/runtime-labels?limit=1",
+		"Runtime label exact":      "/v1/operations/runtime-labels/contract-debug",
+		"Runtime credential page":  "/v1/operations/runtime-credentials?limit=1",
+		"Runtime credential exact": "/v1/operations/runtime-credentials/contract-otel",
+	} {
+		request := newPublicContractRequest(http.MethodGet, path, nil)
+		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
+	}
+	deleteRuntimeLabel := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-labels/contract-debug", nil,
+	)
+	deleteRuntimeLabel.Header.Set("Idempotency-Key", "contract-delete-runtime-label")
+	deleteRuntimeLabel.Header.Set("If-Match", `"1"`)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteRuntimeLabel, true); response.Code != http.StatusNoContent {
+		t.Fatalf("delete Runtime label = %d: %s", response.Code, response.Body.String())
+	}
+	deleteRuntimeCredential := newPublicContractRequest(
+		http.MethodDelete, "/v1/operations/runtime-credentials/contract-otel", nil,
+	)
+	deleteRuntimeCredential.Header.Set("Idempotency-Key", "contract-delete-runtime-credential")
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteRuntimeCredential, true); response.Code != http.StatusNoContent {
+		t.Fatalf("delete Runtime credential = %d: %s", response.Code, response.Body.String())
 	}
 
 	inUseBody, err := json.Marshal(createCredentialRequest{

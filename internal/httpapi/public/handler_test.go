@@ -39,17 +39,19 @@ var (
 )
 
 type handlerFixture struct {
-	handler     http.Handler
-	configs     *config.Manager
-	repository  *fakeArtifactRepository
-	artifacts   *artifacts.Service
-	runs        *fakeRunStore
-	unit        *fakeUnitOfWork
-	notifier    *recordingRunNotifier
-	metrics     *fakeMetricsReader
-	plans       *fakePlannerPlanReader
-	credentials *fakeManagedCredentials
-	operations  *fakeOperationsReader
+	handler            http.Handler
+	configs            *config.Manager
+	repository         *fakeArtifactRepository
+	artifacts          *artifacts.Service
+	runs               *fakeRunStore
+	unit               *fakeUnitOfWork
+	notifier           *recordingRunNotifier
+	metrics            *fakeMetricsReader
+	plans              *fakePlannerPlanReader
+	credentials        *fakeManagedCredentials
+	runtimeConfigs     *fakeRuntimeConfigManagement
+	runtimeCredentials *fakeRuntimeCredentialManagement
+	operations         *fakeOperationsReader
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -92,6 +94,12 @@ func newHandlerFixtureWithAuth(
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	managedCredentials := newFakeManagedCredentials()
+	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
+		func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+			return manager.LLMGateway(selector)
+		},
+	))
+	runtimeCredentials := newFakeRuntimeCredentialManagement()
 	operations := newFakeOperationsReader()
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
@@ -106,6 +114,7 @@ func newHandlerFixtureWithAuth(
 		InsecureLoopbackCookie: insecureLoopbackCookie,
 		Config:                 manager, ConfigurationPublisher: manager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
+		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
 		Runs: runs, Artifacts: service, Transactions: unit,
 		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
 		Metrics:      metrics,
@@ -125,8 +134,9 @@ func newHandlerFixtureWithAuth(
 	return handlerFixture{
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, metrics: metrics, plans: plans,
-		credentials: managedCredentials,
-		operations:  operations,
+		credentials:    managedCredentials,
+		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
+		operations: operations,
 	}
 }
 

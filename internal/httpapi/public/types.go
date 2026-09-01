@@ -111,6 +111,24 @@ type ManagedCredentialLifecycle interface {
 	WithRunCreation(context.Context, func() error) error
 }
 
+type RuntimeConfigManagement interface {
+	Publish(context.Context, []byte, string, string) (runtimeconfig.PublishResult, error)
+	ListVersions(context.Context, string, string, int) ([]runtimeconfig.Version, error)
+	GetVersion(context.Context, string, string) (runtimeconfig.Version, error)
+	ListBindings(context.Context, string, int) ([]runtimeconfig.Binding, error)
+	GetBinding(context.Context, string) (runtimeconfig.Binding, error)
+	CreateBinding(context.Context, string, runtimeconfig.Ref, string, string, time.Time) (runtimeconfig.BindingMutationResult, error)
+	Rebind(context.Context, string, uint64, runtimeconfig.Ref, string, string, time.Time) (runtimeconfig.BindingMutationResult, error)
+	DeleteBinding(context.Context, string, uint64, string, string, time.Time) (runtimeconfig.BindingMutationResult, error)
+}
+
+type RuntimeCredentialManagement interface {
+	List(context.Context, string, int) ([]credentials.RuntimeCredentialMetadata, error)
+	Get(context.Context, string) (credentials.RuntimeCredentialMetadata, error)
+	Create(context.Context, credentials.RuntimeCredentialCreateRequest) (credentials.RuntimeCredentialCreateResult, error)
+	Delete(context.Context, string, string) (credentials.RuntimeCredentialDeleteResult, error)
+}
+
 type Dependencies struct {
 	Authentication         *auth.Service
 	BrowserOrigins         auth.OriginPolicy
@@ -119,6 +137,8 @@ type Dependencies struct {
 	ConfigurationPublisher ConfigurationPublisher
 	Credentials            config.CredentialLookup
 	ManagedCredentials     ManagedCredentialLifecycle
+	RuntimeConfigs         RuntimeConfigManagement
+	RuntimeCredentials     RuntimeCredentialManagement
 	Runs                   RunReader
 	PlannerPlans           PlannerPlanReader
 	Metrics                MetricsReader
@@ -340,6 +360,99 @@ type credentialPageResponse struct {
 	Page  pageInfoResponse     `json:"page"`
 }
 
+type runtimeConfigResourceResponse struct {
+	Ref       runtimeconfig.Ref `json:"ref"`
+	Document  json.RawMessage   `json:"document"`
+	BuiltIn   bool              `json:"builtIn"`
+	CreatedBy string            `json:"createdBy"`
+	CreatedAt time.Time         `json:"createdAt"`
+}
+
+type runtimeConfigPageResponse struct {
+	Items []runtimeConfigResourceResponse `json:"items"`
+	Page  pageInfoResponse                `json:"page"`
+}
+
+type runtimeLabelPageResponse struct {
+	Items []runtimeLabelResponse `json:"items"`
+	Page  pageInfoResponse       `json:"page"`
+}
+
+type runtimeLabelResponse struct {
+	Label     string            `json:"label"`
+	Config    runtimeconfig.Ref `json:"config"`
+	Revision  string            `json:"revision"`
+	CreatedBy string            `json:"createdBy"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedBy string            `json:"updatedBy"`
+	UpdatedAt time.Time         `json:"updatedAt"`
+}
+
+type runtimeLabelMutationRequest struct {
+	Config runtimeconfig.Ref `json:"config"`
+}
+
+type createRuntimeCredentialRequest struct {
+	CredentialID string
+	Material     credentials.RuntimeCredentialMaterial
+}
+
+func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
+	var envelope struct {
+		CredentialID string                            `json:"credentialId"`
+		Kind         credentials.RuntimeCredentialKind `json:"kind"`
+		Material     json.RawMessage                   `json:"material"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&envelope); err != nil {
+		return err
+	}
+	if len(envelope.Material) == 0 || bytes.Equal(bytes.TrimSpace(envelope.Material), []byte("null")) {
+		return errors.New("Runtime credential material is required")
+	}
+	var material credentials.RuntimeCredentialMaterial
+	var err error
+	switch envelope.Kind {
+	case credentials.RuntimeCredentialOTLPHeaders:
+		var value struct {
+			Headers map[string]string `json:"headers"`
+		}
+		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+			material, err = credentials.NewOTLPHeadersCredential(value.Headers)
+		}
+	case credentials.RuntimeCredentialProxyBasic:
+		var value struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+			material, err = credentials.NewHTTPProxyBasicCredential(value.Username, value.Password)
+		}
+	case credentials.RuntimeCredentialProxyBearer:
+		var value struct {
+			Token string `json:"token"`
+		}
+		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+			material, err = credentials.NewHTTPProxyBearerCredential(value.Token)
+		}
+	default:
+		err = credentials.ErrRuntimeCredentialInvalid
+	}
+	if err != nil {
+		material.Destroy()
+		return err
+	}
+	r.CredentialID = envelope.CredentialID
+	r.Material = material
+	return nil
+}
+
+type runtimeCredentialPageResponse struct {
+	Items []credentials.RuntimeCredentialMetadata `json:"items"`
+	Page  pageInfoResponse                        `json:"page"`
+}
+
 type operationsCursorResponse struct {
 	Generation string `json:"generation"`
 	Revision   string `json:"revision"`
@@ -445,11 +558,23 @@ type stageTransitionResponse struct {
 }
 
 type errorResponse struct {
-	Code      string                          `json:"code"`
-	Message   string                          `json:"message"`
-	Retryable bool                            `json:"retryable"`
-	RequestID string                          `json:"requestId"`
-	Details   *credentialInUseDetailsResponse `json:"details,omitempty"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable"`
+	RequestID string `json:"requestId"`
+	Details   any    `json:"details,omitempty"`
+}
+
+type runtimeCredentialInUseDetailsResponse struct {
+	Kind          string   `json:"kind"`
+	BindingLabels []string `json:"bindingLabels"`
+	RunIDs        []string `json:"runIds"`
+	AllocationIDs []string `json:"allocationIds"`
+}
+
+type runtimeLabelInUseDetailsResponse struct {
+	Kind            string   `json:"kind"`
+	RuntimeAgentIDs []string `json:"runtimeAgentIds"`
 }
 
 type credentialInUseDetailsResponse struct {

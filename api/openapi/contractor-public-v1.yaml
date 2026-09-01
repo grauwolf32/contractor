@@ -646,6 +646,266 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/operations/runtime-configs:
+    get:
+      operationId: listRuntimeConfigs
+      tags: [Operations]
+      summary: List immutable RuntimeConfig versions
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable secret-free RuntimeConfig page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeConfigPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      operationId: publishRuntimeConfig
+      tags: [Operations]
+      summary: Publish one immutable typed RuntimeConfig version
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 131072
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RuntimeConfigDocument'}
+      responses:
+        '201':
+          description: Immutable normalized RuntimeConfig metadata and document
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeConfigResource'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-configs/{name}/versions/{version}:
+    parameters:
+      - $ref: '#/components/parameters/RuntimeConfigName'
+      - $ref: '#/components/parameters/RuntimeConfigVersion'
+    get:
+      operationId: getRuntimeConfig
+      tags: [Operations]
+      summary: Get one exact immutable RuntimeConfig version
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Exact secret-free RuntimeConfig resource
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeConfigResource'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-labels:
+    get:
+      operationId: listRuntimeLabels
+      tags: [Operations]
+      summary: List current revisioned Runtime label bindings
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable Runtime label page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeLabelPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-labels/{label}:
+    parameters:
+      - $ref: '#/components/parameters/RuntimeLabel'
+    get:
+      operationId: getRuntimeLabel
+      tags: [Operations]
+      summary: Get one current Runtime label binding
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Current exact binding and revision
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeLabelBinding'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      operationId: putRuntimeLabel
+      tags: [Operations]
+      summary: Create or CAS-rebind one Runtime label
+      description: Initial creation requires If-None-Match:*; rebind requires one strong quoted decimal If-Match.
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IfNoneMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RuntimeLabelMutation'}
+      responses:
+        '200': {$ref: '#/components/responses/RuntimeLabelWritten'}
+        '201': {$ref: '#/components/responses/RuntimeLabelWritten'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteRuntimeLabel
+      tags: [Operations]
+      summary: CAS-delete one non-default Runtime label binding
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-credentials:
+    get:
+      operationId: listRuntimeCredentials
+      tags: [Operations]
+      summary: List active Runtime adapter credential metadata
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Secret-free Runtime credential metadata page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeCredentialPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    post:
+      operationId: createRuntimeCredential
+      tags: [Operations]
+      summary: Store one encrypted write-only Runtime adapter credential
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateRuntimeCredentialRequest'}
+      responses:
+        '201':
+          description: Secret-free credential metadata only
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeCredentialMetadata'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/runtime-credentials/{credentialId}:
+    parameters:
+      - $ref: '#/components/parameters/RuntimeCredentialId'
+    get:
+      operationId: getRuntimeCredential
+      tags: [Operations]
+      summary: Get one active Runtime adapter credential's safe metadata
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Secret-free credential metadata
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeCredentialMetadata'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteRuntimeCredential
+      tags: [Operations]
+      summary: Delete one unreferenced Runtime adapter credential
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/operations/credentials:
     get:
       operationId: listCredentials
@@ -894,6 +1154,26 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/ConfigId'}
+    RuntimeConfigName:
+      name: name
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+    RuntimeConfigVersion:
+      name: version
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/RuntimeConfigVersion'}
+    RuntimeLabel:
+      name: label
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+    RuntimeCredentialId:
+      name: credentialId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/RuntimeCredentialId'}
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -908,6 +1188,11 @@ components:
       in: header
       required: false
       schema: {type: string, pattern: '^"[^"\\]+"$'}
+    RequiredIfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string, pattern: '^"[1-9][0-9]{0,19}"$'}
     IfNoneMatch:
       name: If-None-Match
       in: header
@@ -962,6 +1247,9 @@ components:
     IdempotencyReplayed:
       required: false
       schema: {type: string, const: 'true'}
+    NoStore:
+      required: true
+      schema: {type: string, const: no-store}
   responses:
     NoContent:
       description: Mutation completed with no response body
@@ -1035,6 +1323,7 @@ components:
     Forbidden: {$ref: '#/components/responses/Error403'}
     NotFound: {$ref: '#/components/responses/Error404'}
     Conflict: {$ref: '#/components/responses/Error409'}
+    PreconditionFailed: {$ref: '#/components/responses/Error412'}
     PayloadTooLarge: {$ref: '#/components/responses/Error413'}
     RateLimited:
       description: Bounded process-local rate or socket limit
@@ -1053,6 +1342,16 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
+    RuntimeLabelWritten:
+      description: Current binding after create, rebind, or exact replay
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        ETag: {$ref: '#/components/headers/ETag'}
+        Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/RuntimeLabelBinding'}
     GatewayUnavailable:
       description: Bounded managed-Gateway operation failure
       headers:
@@ -1086,6 +1385,10 @@ components:
       description: Immutable identity, idempotency body, or CAS state conflicts
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Error412:
+      description: Strong revision precondition did not match current state
+      headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error413:
       description: Artifact exceeds the 16 MiB limit
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
@@ -1106,11 +1409,30 @@ components:
       minLength: 1
       maxLength: 256
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]*$'
+    AuditActor:
+      type: string
+      minLength: 1
+      maxLength: 256
     ConfigId:
       type: string
       minLength: 1
       maxLength: 128
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+    RuntimeInfrastructureId:
+      type: string
+      minLength: 1
+      maxLength: 63
+      pattern: '^[a-z][a-z0-9_-]*$'
+    RuntimeCredentialId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[a-z][a-z0-9_-]*$'
+    RuntimeConfigVersion:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]*$'
     ConfigVersion:
       type: string
       minLength: 1
@@ -1157,7 +1479,11 @@ components:
         message: {type: string, minLength: 1, maxLength: 512}
         retryable: {type: boolean}
         requestId: {$ref: '#/components/schemas/RequestId'}
-        details: {$ref: '#/components/schemas/CredentialInUseDetails'}
+        details:
+          oneOf:
+            - {$ref: '#/components/schemas/CredentialInUseDetails'}
+            - {$ref: '#/components/schemas/RuntimeCredentialInUseDetails'}
+            - {$ref: '#/components/schemas/RuntimeLabelInUseDetails'}
       example:
         code: invalid_request
         message: request does not satisfy the API contract
@@ -1173,6 +1499,34 @@ components:
           type: array
           maxItems: 128
           items: {$ref: '#/components/schemas/ResourceId'}
+    RuntimeCredentialInUseDetails:
+      type: object
+      additionalProperties: false
+      required: [kind, bindingLabels, runIds, allocationIds]
+      properties:
+        kind: {type: string, const: runtime_credential_in_use}
+        bindingLabels:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+        runIds:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/ResourceId'}
+        allocationIds:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/ResourceId'}
+    RuntimeLabelInUseDetails:
+      type: object
+      additionalProperties: false
+      required: [kind, runtimeAgentIds]
+      properties:
+        kind: {type: string, const: runtime_label_in_use}
+        runtimeAgentIds:
+          type: array
+          maxItems: 128
+          items: {type: string, pattern: '^[0-9a-f]{64}$'}
     PageInfo:
       type: object
       additionalProperties: false
@@ -1362,9 +1716,205 @@ components:
       additionalProperties: false
       required: [name, version, digest]
       properties:
-        name: {$ref: '#/components/schemas/ConfigId'}
-        version: {$ref: '#/components/schemas/ConfigVersion'}
+        name: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+        version: {$ref: '#/components/schemas/RuntimeConfigVersion'}
         digest: {$ref: '#/components/schemas/Digest'}
+    RuntimeConfigMetadata:
+      type: object
+      additionalProperties: false
+      required: [name, version]
+      properties:
+        name: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+        version: {$ref: '#/components/schemas/RuntimeConfigVersion'}
+    RuntimeTelemetryConfig:
+      type: object
+      additionalProperties: false
+      required: [adapter, endpoint]
+      properties:
+        adapter: {type: string, const: otlp-http@1}
+        endpoint: {type: string, format: uri, minLength: 8, maxLength: 2048}
+        credential:
+          $ref: '#/components/schemas/RuntimeCredentialId'
+        captureContent: {type: boolean, const: false}
+        flushTimeoutSeconds: {type: integer, minimum: 1, maximum: 10}
+    RuntimeHTTPProxyConfig:
+      type: object
+      additionalProperties: false
+      required: [adapter, proxyUrl, targets]
+      properties:
+        adapter: {type: string, const: http-proxy@1}
+        proxyUrl: {type: string, format: uri, minLength: 8, maxLength: 2048}
+        credential:
+          $ref: '#/components/schemas/RuntimeCredentialId'
+        caBundlePem: {type: string, minLength: 1, maxLength: 65536}
+        targets:
+          type: array
+          minItems: 1
+          maxItems: 128
+          uniqueItems: true
+          items: {enum: [llm-gateway, tool-http, tool-subprocess]}
+    RuntimeLLMGatewayPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        gateway:
+          oneOf:
+            - {$ref: '#/components/schemas/LLMGatewayConfigRef'}
+            - {$ref: '#/components/schemas/Selector'}
+            - {type: 'null'}
+        credential:
+          oneOf:
+            - {$ref: '#/components/schemas/ConfigId'}
+            - {type: 'null'}
+    RuntimeWorkerPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        llmGateway:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeLLMGatewayPatch'}
+            - {type: 'null'}
+        telemetry:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeTelemetryConfig'}
+            - {type: 'null'}
+        httpProxy:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeHTTPProxyConfig'}
+            - {type: 'null'}
+    RuntimePlannerPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        telemetry:
+          oneOf:
+            - {$ref: '#/components/schemas/RuntimeTelemetryConfig'}
+            - {type: 'null'}
+    RuntimeConfigSpec:
+      type: object
+      additionalProperties: false
+      properties:
+        worker: {$ref: '#/components/schemas/RuntimeWorkerPatch'}
+        planner: {$ref: '#/components/schemas/RuntimePlannerPatch'}
+    RuntimeConfigDocument:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion: {type: string, const: contractor/v1alpha1}
+        kind: {type: string, const: RuntimeConfig}
+        metadata: {$ref: '#/components/schemas/RuntimeConfigMetadata'}
+        spec: {$ref: '#/components/schemas/RuntimeConfigSpec'}
+    RuntimeConfigResource:
+      type: object
+      additionalProperties: false
+      required: [ref, document, builtIn, createdBy, createdAt]
+      properties:
+        ref: {$ref: '#/components/schemas/RuntimeConfigRef'}
+        document: {$ref: '#/components/schemas/RuntimeConfigDocument'}
+        builtIn: {type: boolean}
+        createdBy: {$ref: '#/components/schemas/AuditActor'}
+        createdAt: {type: string, format: date-time}
+    RuntimeConfigPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RuntimeConfigResource'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    RuntimeLabelBinding:
+      type: object
+      additionalProperties: false
+      required: [label, config, revision, createdBy, createdAt, updatedBy, updatedAt]
+      properties:
+        label: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+        config: {$ref: '#/components/schemas/RuntimeConfigRef'}
+        revision: {type: string, pattern: '^[1-9][0-9]*$', maxLength: 20}
+        createdBy: {$ref: '#/components/schemas/AuditActor'}
+        createdAt: {type: string, format: date-time}
+        updatedBy: {$ref: '#/components/schemas/AuditActor'}
+        updatedAt: {type: string, format: date-time}
+    RuntimeLabelPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RuntimeLabelBinding'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    RuntimeLabelMutation:
+      type: object
+      additionalProperties: false
+      required: [config]
+      properties:
+        config: {$ref: '#/components/schemas/RuntimeConfigRef'}
+    RuntimeCredentialKind:
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1]
+    RuntimeCredentialMetadata:
+      type: object
+      additionalProperties: false
+      required: [credentialId, kind, createdBy, createdAt]
+      properties:
+        credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+        kind: {$ref: '#/components/schemas/RuntimeCredentialKind'}
+        createdBy: {$ref: '#/components/schemas/AuditActor'}
+        createdAt: {type: string, format: date-time}
+    RuntimeCredentialPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RuntimeCredentialMetadata'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    OTLPHeadersMaterial:
+      type: object
+      additionalProperties: false
+      required: [headers]
+      properties:
+        headers:
+          type: object
+          minProperties: 1
+          maxProperties: 32
+          propertyNames: {type: string, minLength: 1, maxLength: 64}
+          additionalProperties: {type: string, minLength: 1, maxLength: 4096}
+    HTTPProxyBasicMaterial:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 256}
+        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+    HTTPProxyBearerMaterial:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+    CreateRuntimeCredentialRequest:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: otlp-headers@1}
+            material: {$ref: '#/components/schemas/OTLPHeadersMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: http-proxy-basic@1}
+            material: {$ref: '#/components/schemas/HTTPProxyBasicMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: http-proxy-bearer@1}
+            material: {$ref: '#/components/schemas/HTTPProxyBearerMaterial', writeOnly: true}
     PinnedRuntimeConfig:
       type: object
       additionalProperties: false

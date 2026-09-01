@@ -414,6 +414,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operations/runtime-configs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List immutable RuntimeConfig versions */
+        get: operations["listRuntimeConfigs"];
+        put?: never;
+        /** Publish one immutable typed RuntimeConfig version */
+        post: operations["publishRuntimeConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-configs/{name}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["RuntimeConfigName"];
+                version: components["parameters"]["RuntimeConfigVersion"];
+            };
+            cookie?: never;
+        };
+        /** Get one exact immutable RuntimeConfig version */
+        get: operations["getRuntimeConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List current revisioned Runtime label bindings */
+        get: operations["listRuntimeLabels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-labels/{label}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: components["parameters"]["RuntimeLabel"];
+            };
+            cookie?: never;
+        };
+        /** Get one current Runtime label binding */
+        get: operations["getRuntimeLabel"];
+        /**
+         * Create or CAS-rebind one Runtime label
+         * @description Initial creation requires If-None-Match:*; rebind requires one strong quoted decimal If-Match.
+         */
+        put: operations["putRuntimeLabel"];
+        post?: never;
+        /** CAS-delete one non-default Runtime label binding */
+        delete: operations["deleteRuntimeLabel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List active Runtime adapter credential metadata */
+        get: operations["listRuntimeCredentials"];
+        put?: never;
+        /** Store one encrypted write-only Runtime adapter credential */
+        post: operations["createRuntimeCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/runtime-credentials/{credentialId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credentialId: components["parameters"]["RuntimeCredentialId"];
+            };
+            cookie?: never;
+        };
+        /** Get one active Runtime adapter credential's safe metadata */
+        get: operations["getRuntimeCredential"];
+        put?: never;
+        post?: never;
+        /** Delete one unreferenced Runtime adapter credential */
+        delete: operations["deleteRuntimeCredential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/credentials": {
         parameters: {
             query?: never;
@@ -533,7 +650,11 @@ export interface components {
     schemas: {
         RequestId: string;
         ResourceId: string;
+        AuditActor: string;
         ConfigId: string;
+        RuntimeInfrastructureId: string;
+        RuntimeCredentialId: string;
+        RuntimeConfigVersion: string;
         ConfigVersion: string;
         Selector: string;
         RuntimeCapabilityRef: string;
@@ -555,12 +676,24 @@ export interface components {
             message: string;
             retryable: boolean;
             requestId: components["schemas"]["RequestId"];
-            details?: components["schemas"]["CredentialInUseDetails"];
+            details?: components["schemas"]["CredentialInUseDetails"] | components["schemas"]["RuntimeCredentialInUseDetails"] | components["schemas"]["RuntimeLabelInUseDetails"];
         };
         CredentialInUseDetails: {
             /** @constant */
             kind: "credential_in_use";
             runIds: components["schemas"]["ResourceId"][];
+        };
+        RuntimeCredentialInUseDetails: {
+            /** @constant */
+            kind: "runtime_credential_in_use";
+            bindingLabels: components["schemas"]["RuntimeInfrastructureId"][];
+            runIds: components["schemas"]["ResourceId"][];
+            allocationIds: components["schemas"]["ResourceId"][];
+        };
+        RuntimeLabelInUseDetails: {
+            /** @constant */
+            kind: "runtime_label_in_use";
+            runtimeAgentIds: string[];
         };
         PageInfo: {
             hasMore: boolean;
@@ -697,9 +830,127 @@ export interface components {
             digest: components["schemas"]["Digest"];
         };
         RuntimeConfigRef: {
-            name: components["schemas"]["ConfigId"];
-            version: components["schemas"]["ConfigVersion"];
+            name: components["schemas"]["RuntimeInfrastructureId"];
+            version: components["schemas"]["RuntimeConfigVersion"];
             digest: components["schemas"]["Digest"];
+        };
+        RuntimeConfigMetadata: {
+            name: components["schemas"]["RuntimeInfrastructureId"];
+            version: components["schemas"]["RuntimeConfigVersion"];
+        };
+        RuntimeTelemetryConfig: {
+            /** @constant */
+            adapter: "otlp-http@1";
+            /** Format: uri */
+            endpoint: string;
+            credential?: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            captureContent?: false;
+            flushTimeoutSeconds?: number;
+        };
+        RuntimeHTTPProxyConfig: {
+            /** @constant */
+            adapter: "http-proxy@1";
+            /** Format: uri */
+            proxyUrl: string;
+            credential?: components["schemas"]["RuntimeCredentialId"];
+            caBundlePem?: string;
+            targets: ("llm-gateway" | "tool-http" | "tool-subprocess")[];
+        };
+        RuntimeLLMGatewayPatch: {
+            gateway?: components["schemas"]["LLMGatewayConfigRef"] | components["schemas"]["Selector"] | null;
+            credential?: components["schemas"]["ConfigId"] | null;
+        };
+        RuntimeWorkerPatch: {
+            llmGateway?: components["schemas"]["RuntimeLLMGatewayPatch"] | null;
+            telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
+            httpProxy?: components["schemas"]["RuntimeHTTPProxyConfig"] | null;
+        };
+        RuntimePlannerPatch: {
+            telemetry?: components["schemas"]["RuntimeTelemetryConfig"] | null;
+        };
+        RuntimeConfigSpec: {
+            worker?: components["schemas"]["RuntimeWorkerPatch"];
+            planner?: components["schemas"]["RuntimePlannerPatch"];
+        };
+        RuntimeConfigDocument: {
+            /** @constant */
+            apiVersion: "contractor/v1alpha1";
+            /** @constant */
+            kind: "RuntimeConfig";
+            metadata: components["schemas"]["RuntimeConfigMetadata"];
+            spec: components["schemas"]["RuntimeConfigSpec"];
+        };
+        RuntimeConfigResource: {
+            ref: components["schemas"]["RuntimeConfigRef"];
+            document: components["schemas"]["RuntimeConfigDocument"];
+            builtIn: boolean;
+            createdBy: components["schemas"]["AuditActor"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        RuntimeConfigPage: {
+            items: components["schemas"]["RuntimeConfigResource"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        RuntimeLabelBinding: {
+            label: components["schemas"]["RuntimeInfrastructureId"];
+            config: components["schemas"]["RuntimeConfigRef"];
+            revision: string;
+            createdBy: components["schemas"]["AuditActor"];
+            /** Format: date-time */
+            createdAt: string;
+            updatedBy: components["schemas"]["AuditActor"];
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RuntimeLabelPage: {
+            items: components["schemas"]["RuntimeLabelBinding"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        RuntimeLabelMutation: {
+            config: components["schemas"]["RuntimeConfigRef"];
+        };
+        /** @enum {unknown} */
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1";
+        RuntimeCredentialMetadata: {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            kind: components["schemas"]["RuntimeCredentialKind"];
+            createdBy: components["schemas"]["AuditActor"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        RuntimeCredentialPage: {
+            items: components["schemas"]["RuntimeCredentialMetadata"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        OTLPHeadersMaterial: {
+            headers: {
+                [key: string]: string;
+            };
+        };
+        HTTPProxyBasicMaterial: {
+            username: string;
+            password: string;
+        };
+        HTTPProxyBearerMaterial: {
+            token: string;
+        };
+        CreateRuntimeCredentialRequest: {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "otlp-headers@1";
+            material: components["schemas"]["OTLPHeadersMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "http-proxy-basic@1";
+            material: components["schemas"]["HTTPProxyBasicMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "http-proxy-bearer@1";
+            material: components["schemas"]["HTTPProxyBearerMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -1431,6 +1682,12 @@ export interface components {
             };
             content?: never;
         };
+        PreconditionFailed: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -1456,6 +1713,19 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Current binding after create, rebind, or exact replay */
+        RuntimeLabelWritten: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                ETag: components["headers"]["ETag"];
+                "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                "Cache-Control": components["headers"]["NoStore"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["RuntimeLabelBinding"];
             };
         };
         /** @description Bounded managed-Gateway operation failure */
@@ -1526,6 +1796,16 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Strong revision precondition did not match current state */
+        Error412: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Artifact exceeds the 16 MiB limit */
         Error413: {
             headers: {
@@ -1556,8 +1836,13 @@ export interface components {
         ConfigVersion: components["schemas"]["ConfigVersion"];
         ConfigurationKind: components["schemas"]["ConfigurationKind"];
         CredentialId: components["schemas"]["ConfigId"];
+        RuntimeConfigName: components["schemas"]["RuntimeInfrastructureId"];
+        RuntimeConfigVersion: components["schemas"]["RuntimeConfigVersion"];
+        RuntimeLabel: components["schemas"]["RuntimeInfrastructureId"];
+        RuntimeCredentialId: components["schemas"]["RuntimeCredentialId"];
         IdempotencyKey: string;
         IfMatch: string;
+        RequiredIfMatch: string;
         IfNoneMatch: "*";
         Origin: string;
         /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -1575,6 +1860,7 @@ export interface components {
         ETag: string;
         ContentDisposition: string;
         IdempotencyReplayed: "true";
+        NoStore: "no-store";
     };
     pathItems: never;
 }
@@ -2310,6 +2596,342 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listRuntimeConfigs: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable secret-free RuntimeConfig page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeConfigPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    publishRuntimeConfig: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeConfigDocument"];
+            };
+        };
+        responses: {
+            /** @description Immutable normalized RuntimeConfig metadata and document */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeConfigResource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getRuntimeConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["RuntimeConfigName"];
+                version: components["parameters"]["RuntimeConfigVersion"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact secret-free RuntimeConfig resource */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeConfigResource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listRuntimeLabels: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable Runtime label page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeLabelPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getRuntimeLabel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: components["parameters"]["RuntimeLabel"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current exact binding and revision */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeLabelBinding"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    putRuntimeLabel: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match"?: components["parameters"]["IfMatch"];
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                label: components["parameters"]["RuntimeLabel"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuntimeLabelMutation"];
+            };
+        };
+        responses: {
+            200: components["responses"]["RuntimeLabelWritten"];
+            201: components["responses"]["RuntimeLabelWritten"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteRuntimeLabel: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                label: components["parameters"]["RuntimeLabel"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listRuntimeCredentials: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Secret-free Runtime credential metadata page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeCredentialPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createRuntimeCredential: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRuntimeCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Secret-free credential metadata only */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeCredentialMetadata"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getRuntimeCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credentialId: components["parameters"]["RuntimeCredentialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Secret-free credential metadata */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeCredentialMetadata"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteRuntimeCredential: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                credentialId: components["parameters"]["RuntimeCredentialId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };

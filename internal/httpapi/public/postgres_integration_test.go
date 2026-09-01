@@ -42,6 +42,12 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	runs := runstore.NewPostgresStore(pool)
 	nextRunID := "run-public"
 	managedCredentials := newFakeManagedCredentials()
+	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
+		func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
+			return configurationManager.LLMGateway(selector)
+		},
+	))
+	runtimeCredentials := newFakeRuntimeCredentialManagement()
 	authentication := newTestAuthentication(t)
 	origins := mustTestOrigins(t)
 	operations := newFakeOperationsReader()
@@ -57,6 +63,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Authentication: authentication, BrowserOrigins: origins,
 		Config: configurationManager, ConfigurationPublisher: configurationManager,
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
+		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
 		Runs: runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,

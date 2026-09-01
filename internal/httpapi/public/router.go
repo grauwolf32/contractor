@@ -28,6 +28,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 	if dependencies.Config == nil || dependencies.ConfigurationPublisher == nil ||
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
+		dependencies.RuntimeConfigs == nil || dependencies.RuntimeCredentials == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
 		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
@@ -74,6 +75,17 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /v1/operations/credentials", current.createCredential)
 	mux.HandleFunc("GET /v1/operations/credentials/{credentialId}", current.getCredential)
 	mux.HandleFunc("DELETE /v1/operations/credentials/{credentialId}", current.deleteCredential)
+	mux.HandleFunc("GET /v1/operations/runtime-configs", current.listRuntimeConfigs)
+	mux.HandleFunc("POST /v1/operations/runtime-configs", current.publishRuntimeConfig)
+	mux.HandleFunc("GET /v1/operations/runtime-configs/{name}/versions/{version}", current.getRuntimeConfig)
+	mux.HandleFunc("GET /v1/operations/runtime-labels", current.listRuntimeLabels)
+	mux.HandleFunc("GET /v1/operations/runtime-labels/{label}", current.getRuntimeLabel)
+	mux.HandleFunc("PUT /v1/operations/runtime-labels/{label}", current.putRuntimeLabel)
+	mux.HandleFunc("DELETE /v1/operations/runtime-labels/{label}", current.deleteRuntimeLabel)
+	mux.HandleFunc("GET /v1/operations/runtime-credentials", current.listRuntimeCredentials)
+	mux.HandleFunc("POST /v1/operations/runtime-credentials", current.createRuntimeCredential)
+	mux.HandleFunc("GET /v1/operations/runtime-credentials/{credentialId}", current.getRuntimeCredential)
+	mux.HandleFunc("DELETE /v1/operations/runtime-credentials/{credentialId}", current.deleteRuntimeCredential)
 	mux.HandleFunc("GET /v1/operations/snapshot", current.getOperationsSnapshot)
 	mux.HandleFunc("GET /v1/operations/runtime-agents", current.listRuntimeAgents)
 	mux.HandleFunc("GET /v1/operations/allocations", current.listAllocations)
@@ -111,6 +123,12 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/configurations/{kind}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/credentials/{credentialId}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/credentials", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/runtime-configs/{name}/versions/{version}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/runtime-configs", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/runtime-labels/{label}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/runtime-labels", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/runtime-credentials/{credentialId}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/runtime-credentials", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/snapshot", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/runtime-agents", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/allocations", current.methodNotAllowed)

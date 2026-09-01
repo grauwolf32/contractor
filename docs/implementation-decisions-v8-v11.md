@@ -308,3 +308,23 @@ tests that make the choice observable.
   tests cover live allocation fences; Scheduler tests cover the immutable
   capacity deadline; Go/Python protocol tests cover v2 delivery and secret-free
   returned handles.
+
+### D017 — RuntimeConfig versions remain immutable API history
+
+- Applies to: V8-008.
+- Decision: the first Operations API publishes and reads immutable
+  RuntimeConfig versions but does not delete them. Delete/CAS behavior applies
+  to mutable label bindings and write-only Runtime credentials. Binding
+  mutations use a PostgreSQL-backed idempotency record in the same transaction
+  as the CAS mutation; a transaction-scoped advisory lock serializes the brief
+  interval before that immutable record exists.
+- Reason: V8-008's original A3 accidentally named config deletion even though
+  its endpoint list, owning spec and explicit out-of-scope list defer immutable
+  version garbage collection. Adding a destructive endpoint here would create
+  retention semantics not reviewed by the spec. Durable binding idempotency is
+  necessary because a same-target no-op is not sufficient evidence that a
+  response-loss replay is the original mutation.
+- Compatibility impact: an initial binding PUT now fails its
+  `If-None-Match: *` precondition whenever the label already exists, including
+  when it already points at the requested ref. Exact replay still succeeds by
+  idempotency key without consuming another revision.

@@ -16,13 +16,44 @@ import (
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var credentialInUse *credentials.CredentialInUseError
+	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
+	var runtimeLabelInUse *runtimeconfig.LabelInUseError
 	switch {
+	case errors.Is(err, runtimeconfig.ErrPrecondition):
+		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
+	case errors.As(err, &runtimeLabelInUse):
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Code: "runtime_label_in_use", Message: "Runtime label is assigned to a Runtime Agent",
+			Retryable: false, RequestID: requestid.FromResponse(w),
+			Details: &runtimeLabelInUseDetailsResponse{
+				Kind: "runtime_label_in_use", RuntimeAgentIDs: append([]string(nil), runtimeLabelInUse.RuntimeAgentIDs...),
+			},
+		})
+	case errors.Is(err, runtimeconfig.ErrReserved):
+		h.writeError(w, http.StatusConflict, "runtime_label_in_use", "reserved Runtime label cannot be removed", false)
 	case errors.Is(err, runtimeconfig.ErrNotFound):
 		h.writeError(w, http.StatusBadRequest, "runtime_label_unknown", "a selected Runtime label is unavailable", false)
 	case errors.Is(err, runtimeconfig.ErrConflict):
 		h.writeError(w, http.StatusConflict, "runtime_config_conflict", "selected Runtime labels conflict", false)
 	case errors.Is(err, runtimeconfig.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime label configuration is invalid", false)
+	case errors.As(err, &runtimeCredentialInUse):
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Code: "runtime_credential_in_use", Message: "Runtime credential is referenced by active configuration",
+			Retryable: false, RequestID: requestid.FromResponse(w),
+			Details: &runtimeCredentialInUseDetailsResponse{
+				Kind:          "runtime_credential_in_use",
+				BindingLabels: append([]string(nil), runtimeCredentialInUse.Usage.BindingLabels...),
+				RunIDs:        append([]string(nil), runtimeCredentialInUse.Usage.RunIDs...),
+				AllocationIDs: append([]string(nil), runtimeCredentialInUse.Usage.AllocationIDs...),
+			},
+		})
+	case errors.Is(err, credentials.ErrRuntimeCredentialNotFound):
+		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
+	case errors.Is(err, credentials.ErrRuntimeCredentialConflict):
+		h.writeError(w, http.StatusConflict, "runtime_config_conflict", "Runtime credential identity or idempotency key conflicts", false)
+	case errors.Is(err, credentials.ErrRuntimeCredentialInvalid):
+		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime credential request is invalid", false)
 	case errors.As(err, &credentialInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
 			Code: "credential_in_use", Message: "credential is pinned by a non-terminal Run",

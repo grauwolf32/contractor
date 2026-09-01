@@ -136,3 +136,22 @@ func (e *MergeConflictError) Error() string {
 }
 
 func (e *MergeConflictError) Unwrap() error { return ErrConflict }
+
+type LabelInUseError struct {
+	RuntimeAgentIDs []string
+}
+
+func (e *LabelInUseError) Error() string {
+	return "Runtime label is assigned to a Runtime Agent principal"
+}
+func (e *LabelInUseError) Unwrap() error { return ErrConflict }
+
+func labelInUseError(principals []RuntimeAgentPrincipal) error {
+	const maximumReferences = 128
+	count := min(len(principals), maximumReferences)
+	ids := make([]string, count)
+	for index := 0; index < count; index++ {
+		ids[index] = principals[index].RuntimeAgentID
+	}
+	return &LabelInUseError{RuntimeAgentIDs: ids}
+}

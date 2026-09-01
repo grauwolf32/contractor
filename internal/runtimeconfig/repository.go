@@ -190,11 +190,10 @@ ON CONFLICT DO NOTHING`, label, ref.Name, ref.Version, ref.Digest, actor, databa
 	if command.RowsAffected() == 1 {
 		return r.GetBinding(ctx, label)
 	}
-	existing, getErr := r.GetBinding(ctx, label)
-	if getErr == nil && existing.Ref == ref {
-		return existing, nil
+	if _, getErr := r.GetBinding(ctx, label); getErr != nil && !errors.Is(getErr, ErrNotFound) {
+		return Binding{}, getErr
 	}
-	return Binding{}, ErrConflict
+	return Binding{}, ErrPrecondition
 }
 
 func (r *Repository) GetBinding(ctx context.Context, label string) (Binding, error) {

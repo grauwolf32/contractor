@@ -25,8 +25,9 @@ context:
     secret payload, secret-derived hash, ciphertext, nonce or resolved settings.
   lifecycle: >-
     There is no disabled state. default cannot be deleted. Credential/config
-    deletion must honor active binding, non-terminal Run and live allocation
-    usage fences already exposed by domain services.
+    references remain fenced by active bindings, non-terminal Runs and live
+    allocations. Immutable RuntimeConfig version garbage collection remains
+    out of scope; label and credential deletion use the existing fences.
 
 scope:
   in:
@@ -65,7 +66,7 @@ acceptance_criteria:
     when: Requests race.
     then: One succeeds, one receives 412, and replay of the winner returns the same revision.
   - id: A3
-    given: A credential/config/label in active use.
+    given: A runtime credential or label binding in active use.
     when: Delete is requested.
     then: The API returns the stable in-use error with only safe bounded references and performs no partial deletion.
   - id: A4

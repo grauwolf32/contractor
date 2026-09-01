@@ -4,13 +4,24 @@ import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
 import {
   createCredential,
+  createRuntimeCredential,
   deleteCredential,
+  deleteRuntimeCredential,
+  deleteRuntimeLabel,
   getConfiguration,
   getCredential,
   getOperationsSnapshot,
+  getRuntimeConfig,
+  getRuntimeCredential,
+  getRuntimeLabel,
   listAllocations,
   listRuntimeAgents,
+  listRuntimeConfigs,
+  listRuntimeCredentials,
+  listRuntimeLabels,
   publishConfiguration,
+  publishRuntimeConfig,
+  putRuntimeLabel,
   type CreateCredentialRequest,
 } from "./operations";
 
@@ -24,12 +35,17 @@ const digest = `sha256:${"1".repeat(64)}`;
 const gateway = { gatewayId: "local-litellm", version: "1", digest };
 const policy = { policyId: "worker", version: "1", digest };
 
-function response(value: unknown, status = 200): Response {
+function response(
+  value: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(value === undefined ? undefined : JSON.stringify(value), {
     status,
     headers: {
       "content-type": "application/json",
       "X-Contractor-API-Version": "contractor.public.v1",
+      ...headers,
     },
   });
 }
@@ -276,5 +292,131 @@ describe("Operations API", () => {
         "readonly-1",
       ),
     ).rejects.toThrow("read-only");
+  });
+
+  it("manages RuntimeConfig, labels, and write-only Runtime credentials", async () => {
+    const runtimeDigest = `sha256:${"2".repeat(64)}`;
+    const document = {
+      apiVersion: "contractor/v1alpha1" as const,
+      kind: "RuntimeConfig" as const,
+      metadata: { name: "debug", version: "1" },
+      spec: {
+        worker: {
+          telemetry: {
+            adapter: "otlp-http@1" as const,
+            endpoint: "https://otel.example/v1/traces",
+            captureContent: false as const,
+            flushTimeoutSeconds: 5,
+          },
+        },
+      },
+    };
+    const resource = {
+      ref: { name: "debug", version: "1", digest: runtimeDigest },
+      document: {
+        ...document,
+        leakedToken: "SERVER_RESPONSE_SECRET_CANARY",
+      },
+      builtIn: false,
+      createdBy: "user-1",
+      createdAt: "2026-09-01T00:00:00Z",
+      ciphertext: "SERVER_RESPONSE_CIPHERTEXT_CANARY",
+    };
+    const binding = {
+      label: "debug",
+      config: resource.ref,
+      revision: "1",
+      createdBy: "user-1",
+      createdAt: "2026-09-01T00:00:00Z",
+      updatedBy: "user-1",
+      updatedAt: "2026-09-01T00:00:00Z",
+      secret: "SERVER_RESPONSE_BINDING_CANARY",
+    };
+    const metadata = {
+      credentialId: "otel-debug",
+      kind: "otlp-headers@1" as const,
+      createdBy: "user-1",
+      createdAt: "2026-09-01T00:00:00Z",
+      token: "SERVER_RESPONSE_CREDENTIAL_CANARY",
+    };
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const path = new URL(request.url).pathname;
+        if (request.method === "DELETE") {
+          return response(undefined, 204);
+        }
+        if (path === "/v1/operations/runtime-configs") {
+          return request.method === "POST"
+            ? response(resource, 201)
+            : response({ items: [resource], page: { hasMore: false } });
+        }
+        if (path.includes("/runtime-configs/")) {
+          return response(resource);
+        }
+        if (path === "/v1/operations/runtime-labels") {
+          return response({ items: [binding], page: { hasMore: false } });
+        }
+        if (path.endsWith("/runtime-labels/debug")) {
+          return response(binding, request.method === "PUT" ? 201 : 200, {
+            ETag: '"1"',
+          });
+        }
+        if (path === "/v1/operations/runtime-credentials") {
+          return request.method === "POST"
+            ? response(metadata, 201)
+            : response({ items: [metadata], page: { hasMore: false } });
+        }
+        if (path.endsWith("/runtime-credentials/otel-debug")) {
+          return response(metadata);
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    const values = [
+      await publishRuntimeConfig(api, document, "runtime-config-create-1"),
+      await getRuntimeConfig(api, "debug", "1"),
+      await listRuntimeConfigs(api),
+      await putRuntimeLabel(
+        api,
+        "debug",
+        resource.ref,
+        "runtime-label-create-1",
+      ),
+      await getRuntimeLabel(api, "debug"),
+      await listRuntimeLabels(api),
+      await createRuntimeCredential(
+        api,
+        {
+          credentialId: "otel-debug",
+          kind: "otlp-headers@1",
+          material: { headers: { authorization: "WRITE_ONLY_CANARY" } },
+        },
+        "runtime-credential-create-1",
+      ),
+      await getRuntimeCredential(api, "otel-debug"),
+      await listRuntimeCredentials(api),
+    ];
+    await deleteRuntimeLabel(api, "debug", "1", "runtime-label-delete-1");
+    await deleteRuntimeCredential(
+      api,
+      "otel-debug",
+      "runtime-credential-delete-1",
+    );
+
+    expect(JSON.stringify(values)).not.toMatch(
+      /SERVER_RESPONSE_SECRET|SERVER_RESPONSE_CIPHER|SERVER_RESPONSE_BINDING|SERVER_RESPONSE_CREDENTIAL|leakedToken|ciphertext/,
+    );
+    expect(
+      requests.some((request) => request.headers.get("If-None-Match") === "*"),
+    ).toBe(true);
+    expect(
+      requests.some((request) => request.headers.get("If-Match") === '"1"'),
+    ).toBe(true);
   });
 });

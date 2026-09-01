@@ -1,6 +1,7 @@
 package public
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,6 +47,19 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 			return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
 		}
 		return fmt.Errorf("%w: decode trailing JSON: %v", errInvalidRequest, err)
+	}
+	return nil
+}
+
+func decodeStrictPublicJSON(data []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return errors.New("JSON value has trailing data")
 	}
 	return nil
 }
