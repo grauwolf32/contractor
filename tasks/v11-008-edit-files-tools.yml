@@ -3,8 +3,8 @@ id: V11-008
 title: Add backend-independent edit-files@1 tools
 milestone: run-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 50f0531ca2f8212738c99c60b2547d36dce19692
 depends_on: [V11-005]
 languages: [go, python]
 

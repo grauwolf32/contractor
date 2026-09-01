@@ -260,8 +260,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V11-007
-  next_task: V11-008
+  completed_through: V11-008
+  next_task: V11-009
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -269,8 +269,8 @@ current_checkpoint:
     workspace wire contracts, strict Workflow publication and exact
     StageContext-to-allocation projection, immutable local/memory providers and
     bounded exact-ZIP hydration, cumulative overlay state, invocation
-    checkpoints, deterministic diff/rollback and the bounded read-only
-    filesystem@1 Toolset are complete; V11-008 edit tools are next.
+    checkpoints, deterministic diff/rollback, bounded filesystem@1 reads and
+    atomic edit-files@1 mutations are complete; V11-009 change tools are next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
