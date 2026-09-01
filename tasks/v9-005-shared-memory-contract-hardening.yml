@@ -3,8 +3,8 @@ id: V9-005
 title: Harden Memory semantics and model-visible boundaries
 milestone: shared-memory-tools
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: a8fe196a0c295efd7c7975e9333b4d9a29421f37
 depends_on: [V9-004]
 languages: [go, python]
 

@@ -238,18 +238,18 @@ v8_v11_spec_review:
     - All indexed task YAML parsed and the 112-task dependency graph is acyclic.
     - All local Markdown links resolve and git diff whitespace validation passes.
     - LikeC4 1.56.0 validates docs/spec/architecture.c4.
-    - make verify passes with 251 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
+    - make verify passes with 267 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V9-004
-  next_task: V9-005
+  completed_through: V9-005
+  next_task: V9-006
   summary: >-
-    The process MVP now proves Streamline retry and later-Stage namespace
-    continuity, Router per-operation routing and namespace isolation, and a
-    fresh second Run through the production Server, PostgreSQL, A2A, private
-    Artifact API and two real Python Runtime Agents. Next, close the audited
-    semantic and model-boundary gaps before fault injection.
+    Shared Memory now has deterministic Go/Python semantics, strict raw ADK
+    arguments, closed model-visible errors, reserved-binding isolation across
+    every Artifact-backed Toolset and all Stage result boundaries, plus
+    content-free diagnostics. Next, prove response-loss reconciliation and
+    both Worker-grant and Planner-durable terminal race orders.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -400,6 +400,7 @@ memory_tools_implementation_review:
     V9-002: 8e8fad0e9a651d34553d80fc4e6da29a1e40fdf2
     V9-003: acf1c0f2a436cf82ce10d26ef9db5e26c606d557
     V9-004: e11f45b6661732ab9a30a7b11f126f7700ae23e8
+    V9-005: a8fe196a0c295efd7c7975e9333b4d9a29421f37
   confirmed:
     - >-
       Go and Python canonical codecs agree on exact bytes, UTF-8/size bounds,
@@ -426,12 +427,13 @@ memory_tools_implementation_review:
       Run starts empty. Router exposes exact per-operation worker_name enums,
       keeps same-named notes in two logical namespaces and dispatches both
       Workers without placing physical Runtime identity in model context.
-  release_blockers_assigned:
     - >-
-      V9-005 owns strict Worker raw ADK argument validation, closed internal
-      error normalization, append/order/ordinal/UTC/exact-ETag edges, reserved
-      memory filtering across every Artifact-backed Toolset, and rejection of
-      direct Memory refs in StageContext/StageResult boundaries.
+      V9-005 closes the audited semantic and model-boundary gaps: exact ordinal
+      integrity and ordering, UTC projections, final-payload append limits,
+      strict raw ADK arguments, closed errors, exact-ETag checks, shared
+      Artifact visibility policy and direct Memory-ref rejection at every
+      StageContext and StageResult boundary.
+  release_blockers_assigned:
     - >-
       V9-006 owns production response-loss/CAS and Worker-grant versus Planner-
       durable terminal race injection. V9-007 owns complete retained-surface
@@ -447,7 +449,7 @@ memory_tools_implementation_review:
     - go test -race ./internal/memory/... ./internal/planner/... ./internal/scheduler/... passes.
     - PostgreSQL Planner Memory finalizing/aborting tests pass five repeated runs.
     - make test-shared-memory-e2e passes against PostgreSQL with two real Python Runtime Agent processes.
-    - make verify passes with 251 Python tests, 1 skipped and 108 UI tests.
+    - make verify passes with 267 Python tests, 1 skipped and 108 UI tests.
     - release-verify passes with the Runtime configuration, browser-stack and shared-Memory process gates composed.
     - All 112 indexed task YAML files parse and their dependency graph is acyclic.
 
