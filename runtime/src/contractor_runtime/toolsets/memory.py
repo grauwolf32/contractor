@@ -98,6 +98,7 @@ class MemoryToolsetFactory:
         workspace: AllocationWorkspace,
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, adapter_handles
         if namespace in PURPOSE_RESERVED_NAMESPACES:

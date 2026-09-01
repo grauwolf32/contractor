@@ -110,6 +110,22 @@ func TestTextArtifactToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestFilesystemToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["filesystem@1"]
+	if !ok {
+		t.Fatal("filesystem@1 descriptor is missing")
+	}
+	want := []string{"glob", "grep", "ls", "read_file"}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("filesystem@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if len(descriptor.InfrastructureChannels) != 0 {
+		t.Fatalf("filesystem@1 infrastructure channels = %v, want none", descriptor.InfrastructureChannels)
+	}
+}
+
 func TestMemoryToolsetDescriptor(t *testing.T) {
 	t.Parallel()
 

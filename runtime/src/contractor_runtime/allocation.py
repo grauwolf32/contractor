@@ -243,6 +243,7 @@ class AllocationService:
                 tools = await self._create_tools(
                     spec,
                     workspace,
+                    project_workspace,
                     worker_state,
                     adapter_host.handles,
                 )
@@ -588,6 +589,16 @@ class AllocationService:
                     retryable=False,
                     status_code=422,
                 )
+            factory = self._factories.toolsets.get(toolset_ref)
+            if getattr(factory, "requires_workspace", False) and (
+                not isinstance(spec, AllocationSpecV2) or spec.workspace is None
+            ):
+                raise AllocationError(
+                    "workspace_required",
+                    "selected Toolset requires an allocation project workspace",
+                    retryable=False,
+                    status_code=422,
+                )
 
         if isinstance(spec, AllocationSpecV2):
             if spec.workspace is not None:
@@ -658,6 +669,7 @@ class AllocationService:
         self,
         spec: AllocationSpec,
         workspace: AllocationWorkspace,
+        project_workspace: DirectWorkspaceSession | None,
         worker_state: WorkerState,
         adapter_handles: AdapterHandles,
     ) -> dict[str, ToolInstance]:
@@ -693,6 +705,9 @@ class AllocationService:
                 workspace=workspace,
                 state=worker_state,
                 adapter_handles=adapter_handles.for_tool_channels(channels),
+                project_workspace=(
+                    project_workspace.reader_view() if project_workspace is not None else None
+                ),
             )
             if set(created) != set(selection.tools):
                 raise AllocationError(

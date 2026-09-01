@@ -1,5 +1,6 @@
 schemaVersion: "1.0"
 toolsets:
+  filesystem@1: {}
   likec4@1:
     validate_likec4: [runtime-subprocess-launcher]
   memory-tools@1: {}

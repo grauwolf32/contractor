@@ -137,6 +137,7 @@ class SourceAnalysisToolsetFactory:
         workspace: AllocationWorkspace,
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, namespace, adapter_handles
         unknown = sorted(set(selected) - self.exported_tools)

@@ -55,6 +55,21 @@ class WorkspaceWriter(Protocol):
     async def delete_path(self, path: str, *, recursive: bool = False) -> None: ...
 
 
+class WorkspaceReaderView:
+    """Narrow model-tool handle with no backend or provider properties."""
+
+    __slots__ = ("__reader",)
+
+    def __init__(self, reader: WorkspaceReader) -> None:
+        self.__reader = reader
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        return await self.__reader.snapshot()
+
+    async def read_text(self, path: str) -> str:
+        return await self.__reader.read_text(path)
+
+
 @dataclass(slots=True)
 class ManagedWorkspaceTree:
     directories: set[str] = field(default_factory=set)
@@ -125,6 +140,10 @@ class DirectWorkspaceSession:
     @property
     def limits(self) -> WorkspaceLimits:
         return self._limits
+
+    def reader_view(self) -> WorkspaceReader:
+        self._require_open()
+        return WorkspaceReaderView(self)
 
     async def snapshot(self) -> WorkspaceSnapshot:
         async with self._lock:

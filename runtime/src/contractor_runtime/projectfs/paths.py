@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from fnmatch import fnmatchcase
+from functools import cache
 
 MAX_PROJECT_PATH_BYTES = 4096
 MAX_PROJECT_PATH_COMPONENTS = 128
+MAX_PROJECT_GLOB_BYTES = 1024
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 
 
@@ -60,3 +63,54 @@ def parent_paths(path: str) -> tuple[str, ...]:
     normalized = normalize_project_path(path, allow_root=False)
     parts = normalized.split("/")
     return tuple("/".join(parts[:index]) for index in range(1, len(parts)))
+
+
+def normalize_project_glob(value: str) -> str:
+    if not isinstance(value, str) or value == "":
+        raise ProjectPathError("project glob must not be empty")
+    if (
+        value.startswith("/")
+        or "\\" in value
+        or "\x00" in value
+        or "://" in value
+        or _WINDOWS_DRIVE.match(value)
+    ):
+        raise ProjectPathError("project glob must be relative POSIX syntax")
+    normalized = unicodedata.normalize("NFC", value)
+    try:
+        encoded = normalized.encode("utf-8")
+    except UnicodeError:
+        raise ProjectPathError("project glob is not valid UTF-8 text") from None
+    parts = normalized.split("/")
+    if len(encoded) > MAX_PROJECT_GLOB_BYTES or len(parts) > MAX_PROJECT_PATH_COMPONENTS:
+        raise ProjectPathError("project glob exceeds its bound")
+    for part in parts:
+        if (
+            part in {"", ".", ".."}
+            or ("**" in part and part != "**")
+            or any(ord(character) < 0x20 or ord(character) == 0x7F for character in part)
+        ):
+            raise ProjectPathError("project glob contains an invalid component")
+    return "/".join(parts)
+
+
+def project_glob_matches(path: str, pattern: str) -> bool:
+    path_parts = normalize_project_path(path, allow_root=False).split("/")
+    pattern_parts = normalize_project_glob(pattern).split("/")
+
+    @cache
+    def match(path_index: int, pattern_index: int) -> bool:
+        if pattern_index == len(pattern_parts):
+            return path_index == len(path_parts)
+        component = pattern_parts[pattern_index]
+        if component == "**":
+            return match(path_index, pattern_index + 1) or (
+                path_index < len(path_parts) and match(path_index + 1, pattern_index)
+            )
+        return (
+            path_index < len(path_parts)
+            and fnmatchcase(path_parts[path_index], component)
+            and match(path_index + 1, pattern_index + 1)
+        )
+
+    return match(0, 0)

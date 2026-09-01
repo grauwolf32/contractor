@@ -7,8 +7,10 @@ from contractor_runtime.projectfs.paths import (
     MAX_PROJECT_PATH_COMPONENTS,
     ProjectPathError,
     join_project_path,
+    normalize_project_glob,
     normalize_project_path,
     parent_paths,
+    project_glob_matches,
 )
 
 
@@ -47,3 +49,14 @@ def test_project_paths_enforce_depth_and_utf8_byte_bounds() -> None:
         normalize_project_path("/".join(["a"] * (MAX_PROJECT_PATH_COMPONENTS + 1)))
     with pytest.raises(ProjectPathError, match="byte"):
         normalize_project_path("x" * (MAX_PROJECT_PATH_BYTES + 1))
+
+
+def test_project_globs_are_path_aware_and_double_star_matches_zero_segments() -> None:
+    assert normalize_project_glob("src/**/test_*.py") == "src/**/test_*.py"
+    assert project_glob_matches("src/test_api.py", "src/**/test_*.py")
+    assert project_glob_matches("src/unit/test_api.py", "src/**/test_*.py")
+    assert not project_glob_matches("src/unit/test_api.py", "src/*.py")
+    assert project_glob_matches("root.py", "**/*.py")
+    for invalid in ("", "../*", "/**", "safe\\*", "a/***/b"):
+        with pytest.raises(ProjectPathError):
+            normalize_project_glob(invalid)

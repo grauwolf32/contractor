@@ -125,6 +125,7 @@ class OpenAPIToolsetFactory:
         workspace: AllocationWorkspace,
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: Any = None,
     ) -> Mapping[str, Any]:
         del run_id
         unknown = sorted(set(selected) - self.exported_tools)

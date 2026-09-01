@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.settings import WorkspaceSettings
+from contractor_runtime.toolsets.filesystem import FilesystemToolsetFactory
 from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
@@ -104,6 +105,7 @@ class ToolsetFactory(Protocol):
         workspace: AllocationWorkspace,
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, ToolInstance]: ...
 
 
@@ -149,6 +151,7 @@ def built_in_factories(
     workspace_settings: WorkspaceSettings | None = None,
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
+    filesystem_toolset = FilesystemToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
@@ -171,6 +174,7 @@ def built_in_factories(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
             artifact_toolset.ref: artifact_toolset,
+            filesystem_toolset.ref: filesystem_toolset,
             likec4_toolset.ref: likec4_toolset,
             memory_toolset.ref: memory_toolset,
             openapi_toolset.ref: openapi_toolset,

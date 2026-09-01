@@ -43,6 +43,9 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"filesystem@1": {
+				Tools: []string{"glob", "grep", "ls", "read_file"},
+			},
 			"memory-tools@1": {
 				Tools: []string{
 					"append_memory", "list_memories", "list_memory_tags",
