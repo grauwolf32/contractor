@@ -3,8 +3,8 @@ id: V10-009
 title: Migrate contractor-old live-testing and exploitation skills
 milestone: agent-skills-port-and-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 12915aae696182d379572146fd3e13e328789d5d
 depends_on: [V9-007, V10-007]
 languages: [markdown, go]
 
