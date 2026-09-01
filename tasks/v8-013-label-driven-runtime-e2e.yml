@@ -3,8 +3,8 @@ id: V8-013
 title: Prove label-driven Worker configuration across real processes
 milestone: label-driven-runtime-configuration
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 40d883ee746451dd364e977e3caa7aa36edc9dcd
 depends_on: [V8-008, V8-009, V8-011, V8-012]
 languages: [go, python, yaml]
 

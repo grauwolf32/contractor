@@ -240,14 +240,15 @@ v8_v11_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V8-012
-  next_task: V8-013
+  completed_through: V8-013
+  next_task: V8-014
   summary: >-
-    Runtime now routes only explicitly selected model, tool HTTP and subprocess
-    channels through allocation-owned fail-closed proxy handles. Private
-    traffic and process globals remain untouched; auth, augmented CA material
-    and clients are bounded and erased before slot reuse. Next, prove the full
-    label-driven configuration path across real Server and Runtime processes.
+    A deterministic process gate now configures default, Run and Agent labels
+    only through Operations, places work across two uniquely certified agents,
+    exports safe OTLP, pins proxy settings across concurrent rebind and proves
+    non-semantic exporter failure plus complete slot reuse. Runtime startup may
+    also narrow the immutable built-in adapter factory set before real probes.
+    Next, apply the pinned Run telemetry layer to Server-side Planners.
 
 current_planning_review:
   reviewed_on: "2026-08-31"
