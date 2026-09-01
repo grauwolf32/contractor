@@ -33,6 +33,8 @@ export const queryKeys = {
   configurations: {
     all: ["configurations"] as const,
     picker: (kind: string) => ["configurations", "picker", kind] as const,
+    infinitePicker: (kind: string) =>
+      ["configurations", "infinite-picker", kind] as const,
     list: (kind: string, cursor?: string) =>
       ["configurations", "list", kind, cursor ?? null] as const,
     detail: (kind: string, name: string, version: string) =>

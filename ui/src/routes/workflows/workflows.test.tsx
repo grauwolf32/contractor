@@ -1,13 +1,18 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
+import { createMemoryRouter, MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
+import { PublicAPIProvider } from "../../api/context";
+import { queryKeys } from "../../api/query-keys";
 import type { RuntimeConfig } from "../../config/runtime-config";
 import { Application } from "../../app/application";
+import { createApplicationQueryClient } from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
 import type { WorkflowResource } from "../../api/workflows";
+import { WorkflowRunForm } from "./run-form";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -246,6 +251,39 @@ function renderWorkflowApplication(api: PublicAPI, path: string) {
 }
 
 describe("Workflow routes", () => {
+  it("isolates infinite Run inventories from finite Operations picker cache", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const inventory = inventoryResponse(new URL(request.url).pathname);
+        if (inventory !== undefined) {
+          return inventory;
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    const queryClient = createApplicationQueryClient();
+    queryClient.setQueryData(queryKeys.configurations.picker("llm-gateways"), {
+      items: [],
+      page: { hasMore: false },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <PublicAPIProvider api={api}>
+          <MemoryRouter>
+            <WorkflowRunForm workflow={workflow} />
+          </MemoryRouter>
+        </PublicAPIProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Create Workflow Run" }),
+    ).toBeInTheDocument();
+  });
+
   it("paginates exact published Workflow versions", async () => {
     const api = new PublicAPI(
       runtimeConfig,

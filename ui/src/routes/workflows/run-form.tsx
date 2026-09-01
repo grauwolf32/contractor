@@ -190,7 +190,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     getNextPageParam: nextCursor,
   });
   const modelPolicyInventory = useInfiniteQuery({
-    queryKey: queryKeys.configurations.picker("model-policies"),
+    queryKey: queryKeys.configurations.infinitePicker("model-policies"),
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listConfigurations(
@@ -201,7 +201,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     getNextPageParam: nextCursor,
   });
   const gatewayInventory = useInfiniteQuery({
-    queryKey: queryKeys.configurations.picker("llm-gateways"),
+    queryKey: queryKeys.configurations.infinitePicker("llm-gateways"),
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
       listConfigurations(
