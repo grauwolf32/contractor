@@ -840,7 +840,7 @@ Upload and execute the fixture with `curl` and `jq`:
 
 ```shell
 export CONTRACTOR_API_TOKEN='replace-with-a-local-api-token'
-INPUT_REF="$(curl --fail --silent --show-error \
+INPUT_REF="$(curl --fail --silent --show-error -X PUT \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   -H 'Content-Type: text/plain' -H 'If-None-Match: *' \
   --data-binary $'contractor-local-input\n' \
@@ -969,7 +969,7 @@ the exact revision to `inputs/source`; Workers never read the UserScope binding
 directly.
 
 ```shell
-SOURCE_REF="$(curl --fail --silent --show-error \
+SOURCE_REF="$(curl --fail --silent --show-error -X PUT \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   -H 'Content-Type: application/zip' -H 'If-None-Match: *' \
   --data-binary "@$SOURCE_ZIP" \
@@ -981,7 +981,7 @@ the build Stage reads its exact input revision and creates an independent
 `openapi/openapi` Run binding; the uploaded UserScope value is never mutated.
 
 ```shell
-OPENAPI_SEED_REF="$(curl --fail --silent --show-error \
+OPENAPI_SEED_REF="$(curl --fail --silent --show-error -X PUT \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   -H 'Content-Type: application/yaml' -H 'If-None-Match: *' \
   --data-binary '@/absolute/path/to/openapi.yaml' \
@@ -1094,7 +1094,7 @@ modifies the UserScope artifact. Both the canonical LikeC4 media type and plain
 UTF-8 text are accepted as seeds and normalized to `text/vnd.likec4`.
 
 ```shell
-LIKEC4_SEED_REF="$(curl --fail --silent --show-error \
+LIKEC4_SEED_REF="$(curl --fail --silent --show-error -X PUT \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   -H 'Content-Type: text/vnd.likec4' -H 'If-None-Match: *' \
   --data-binary '@/absolute/path/to/architecture.c4' \
@@ -1150,13 +1150,13 @@ together with the exact source revision. Run creation copies them to
 RunScope artifacts and the uploaded values remain unchanged.
 
 ```shell
-DEPENDENCY_REPORT_REF="$(curl --fail --silent --show-error \
+DEPENDENCY_REPORT_REF="$(curl --fail --silent --show-error -X PUT \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   -H 'Content-Type: text/markdown' -H 'If-None-Match: *' \
   --data-binary '@/absolute/path/to/dependency-report.md' \
   http://127.0.0.1:8080/v1/artifacts/projects/dependency-report | jq -c .artifact)"
 
-PROJECT_REPORT_REF="$(curl --fail --silent --show-error \
+PROJECT_REPORT_REF="$(curl --fail --silent --show-error -X PUT \
   -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
   -H 'Content-Type: text/markdown' -H 'If-None-Match: *' \
   --data-binary '@/absolute/path/to/project-report.md' \
