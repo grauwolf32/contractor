@@ -437,7 +437,7 @@ func validateStageWorkspace(
 		for _, selection := range agent.Template.Toolsets {
 			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
 			switch ref {
-			case "filesystem@1", "edit-files@1":
+			case "filesystem@1", "edit-files@1", "code-analysis@1":
 				workspaceToolsets = true
 			case "workspace-changes@1":
 				workspaceToolsets = true
@@ -446,7 +446,7 @@ func validateStageWorkspace(
 		}
 	}
 	if workspaceToolsets && context.Workspace == nil {
-		return fmt.Errorf("filesystem Toolsets require context.workspace")
+		return fmt.Errorf("workspace-dependent Toolsets require context.workspace")
 	}
 	if changesToolset && context.Workspace != nil && context.Workspace.Mode != contracts.WorkspaceModeOverlay {
 		return fmt.Errorf("workspace-changes@1 requires context.workspace.mode overlay")

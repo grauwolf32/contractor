@@ -22,6 +22,13 @@ from contractor_runtime.factories import (
 from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets import likec4, openapi
+from contractor_runtime.toolsets.code_analysis import (
+    CODE_ANALYSIS_REF,
+    EXPORTED_TOOLS,
+    GRAPH_TOOLS,
+    SHALLOW_TOOLS,
+    dependency_versions_match,
+)
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 
@@ -41,7 +48,30 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
         ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
         for ref, factory in factories.items()
     }
-    assert actual == fixture["toolsets"]
+    expected = dict(fixture["toolsets"])
+    assert expected.pop(CODE_ANALYSIS_REF) == {}
+    assert actual == expected
+    assert CODE_ANALYSIS_REF not in factories
+
+
+def test_code_analysis_static_contract_is_exact_but_not_advertised_yet(
+    tmp_path: Path,
+) -> None:
+    assert {"list_symbols", "search_def"} == SHALLOW_TOOLS
+    assert {
+        "attack_surface",
+        "complexity_hotspots",
+        "entrypoint_paths_to",
+        "find_callees",
+        "find_callers",
+        "find_symbol",
+        "functions_that_raise",
+        "graph_summary",
+        "paths_between",
+    } == GRAPH_TOOLS
+    assert EXPORTED_TOOLS == SHALLOW_TOOLS | GRAPH_TOOLS
+    assert dependency_versions_match()
+    assert CODE_ANALYSIS_REF not in built_in_factories(tmp_path).toolsets
 
 
 def test_builtin_discovery_keeps_editing_tools_without_optional_validators(

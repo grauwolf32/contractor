@@ -211,6 +211,93 @@ func TestFilesystemToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestCodeAnalysisToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["code-analysis@1"]
+	if !ok {
+		t.Fatal("code-analysis@1 descriptor is missing")
+	}
+	want := []string{
+		"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
+		"find_callees", "find_callers", "find_symbol", "functions_that_raise",
+		"graph_summary", "list_symbols", "paths_between", "search_def",
+	}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("code-analysis@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if len(descriptor.InfrastructureChannels) != 0 {
+		t.Fatalf(
+			"code-analysis@1 infrastructure channels = %v, want none",
+			descriptor.InfrastructureChannels,
+		)
+	}
+}
+
+func TestCodeAnalysisToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
+	t.Parallel()
+
+	descriptors, err := normalizeDescriptors(MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := &loader{descriptors: descriptors}
+	selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{
+		Ref: "code-analysis@1", Tools: []string{"search_def", "find_callers"},
+	}})
+	if err != nil {
+		t.Fatalf("valid code-analysis selection: %v", err)
+	}
+	if got, want := selected[0].Tools, []string{"find_callers", "search_def"}; !equalStrings(got, want) {
+		t.Fatalf("normalized code-analysis tools = %v, want %v", got, want)
+	}
+
+	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{{
+		Ref: "code-analysis@1", Tools: []string{"search_definition"},
+	}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
+		t.Fatalf("unknown code-analysis tool error = %v", err)
+	}
+
+	descriptors.Toolsets["alternate@1"] = ToolsetDescriptor{Tools: []string{"search_def"}}
+	current.descriptors = descriptors
+	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{
+		{Ref: "code-analysis@1", Tools: []string{"search_def"}},
+		{Ref: "alternate@1", Tools: []string{"search_def"}},
+	}); err == nil || !strings.Contains(err.Error(), "collides between Toolsets") {
+		t.Fatalf("code-analysis visible-name collision error = %v", err)
+	}
+}
+
+func TestCodeAnalysisSelectionLoadsAndDigestsInWorkspaceTemplate(t *testing.T) {
+	t.Parallel()
+
+	root := copyConfigTree(t)
+	path := filepath.Join(root, "agent-templates/workspace_source_analyst.yaml")
+	replaceFile(t, path, "  sandboxProfile: local-workdir@1", `    - ref: code-analysis@1
+      tools: [search_def, list_symbols, find_callers]
+  sandboxProfile: local-workdir@1`)
+	snapshot := mustLoad(t, root, MVPDescriptors())
+	template, err := snapshot.AgentTemplate("workspace_source_analyst@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertDigest(t, template.Ref.Digest)
+	found := false
+	for _, toolset := range template.Toolsets {
+		if toolset.Ref.ToolsetID != "code-analysis" {
+			continue
+		}
+		found = true
+		want := []string{"find_callers", "list_symbols", "search_def"}
+		if !equalStrings(toolset.Tools, want) {
+			t.Fatalf("normalized code-analysis tools = %v, want %v", toolset.Tools, want)
+		}
+	}
+	if !found {
+		t.Fatal("resolved template omitted code-analysis@1")
+	}
+}
+
 func TestEditFilesToolsetDescriptor(t *testing.T) {
 	t.Parallel()
 

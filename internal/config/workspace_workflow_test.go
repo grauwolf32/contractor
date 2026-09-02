@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -126,11 +127,18 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	if err := validateStageWorkspace(StageContext{Artifacts: map[string]ContextArtifact{}}, StageResultContract{}, workspaceAgents("filesystem")); err == nil {
 		t.Fatal("filesystem Toolset without workspace was accepted")
 	}
+	if err := validateStageWorkspace(StageContext{Artifacts: map[string]ContextArtifact{}}, StageResultContract{}, workspaceAgents("code-analysis")); err == nil ||
+		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
+		t.Fatalf("code-analysis@1 without workspace error = %v", err)
+	}
 	direct := overlay
 	directWorkspace := *overlay.Workspace
 	directWorkspace.Mode = contracts.WorkspaceModeDirect
 	directWorkspace.Export = nil
 	direct.Workspace = &directWorkspace
+	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("code-analysis")); err != nil {
+		t.Fatalf("code-analysis@1 with direct workspace was rejected: %v", err)
+	}
 	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("workspace-changes")); err == nil {
 		t.Fatal("workspace-changes@1 with direct mode was accepted")
 	}
@@ -142,6 +150,24 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	}
 	if err := validateStageWorkspace(overlay, validResult, workspaceAgents("workspace-changes")); err != nil {
 		t.Fatalf("valid workspace Toolset/result contract: %v", err)
+	}
+}
+
+func TestWorkflowPublicationRequiresWorkspaceForCodeAnalysis(t *testing.T) {
+	t.Parallel()
+
+	root := copyConfigTree(t)
+	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
+	replaceFile(t, path, `    - ref: run-artifacts@1
+      tools:
+        - list_artifacts
+        - read_artifact
+        - write_artifact`, `    - ref: code-analysis@1
+      tools: [search_def]`)
+	snapshot, err := Load(root, MVPDescriptors())
+	if err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
+		t.Fatalf("Load() = (%v, %v), want code-analysis workspace error", snapshot, err)
 	}
 }
 

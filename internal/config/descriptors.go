@@ -65,6 +65,13 @@ func MVPDescriptors() Descriptors {
 					"caido_workflow_run":      {CaidoGraphQLClient},
 				},
 			},
+			"code-analysis@1": {
+				Tools: []string{
+					"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
+					"find_callees", "find_callers", "find_symbol", "functions_that_raise",
+					"graph_summary", "list_symbols", "paths_between", "search_def",
+				},
+			},
 			"edit-files@1": {
 				Tools: []string{
 					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
