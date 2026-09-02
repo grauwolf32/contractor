@@ -336,8 +336,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V16-002
-  next_task: V16-003
+  completed_through: V16-003
+  next_task: V16-004
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -411,7 +411,11 @@ current_checkpoint:
     keeping positive Runtime capability absent. V16-002 implemented and
     registered all three portable tools with nineteen-language structural
     resolution, prefix-safe atomic mutation, explicit ambiguity and idempotent
-    replay across local/memory direct/overlay workspaces. V16-003 is next.
+    replay across local/memory direct/overlay workspaces. V16-003 added
+    cancellation-safe parser ownership, close fencing, resulting-file bounds,
+    safe parser/storage failure normalization, real cross-Toolset races,
+    retained-surface redaction and a strict executable hardening matrix.
+    V16-004 is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"

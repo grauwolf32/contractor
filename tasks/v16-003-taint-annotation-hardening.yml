@@ -3,8 +3,8 @@ id: V16-003
 title: Harden taint annotation concurrency lifecycle and redaction
 milestone: workspace-taint-annotations-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 1bf7bf005e3006e339c22d651a75ad9cbcbc5463
 depends_on: [V16-002]
 languages: [python, go, yaml]
 
