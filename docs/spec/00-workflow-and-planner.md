@@ -1083,10 +1083,13 @@ the declared outcome policy. There is no model-facing `escalate` operation.
 
 Each prepared ADK Worker independently enforces the cumulative model-call,
 tool-call, and provider-reported token ceilings embedded in its exact
-ModelPolicy. There is no result-serialization model call. Exhaustion stops before
-the next side effect and Runtime returns retryable failed code
-`worker_budget_exhausted`; it is a Worker response, not a Planner budget termination
-and not a direct StageExecution write.
+ModelPolicy. Its normal model loop produces the strict semantic output defined
+by [14](14-worker-results-and-live-state.md); there is no invalid-output repair
+call. Exhaustion stops before the next side effect and Runtime returns a
+retryable `WorkerFailure` code `worker_budget_exhausted`; it is not a Planner
+budget termination and not a direct StageExecution write. An explicitly
+configured one-shot terminal summarizer has separate soft-limit and accounting
+semantics under [15](15-worker-summarization.md).
 
 `streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
 `maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
@@ -1134,19 +1137,20 @@ Runtime-owned response and artifact refs into `StageResult`.
 StageSpec + StageContext + WorkerHandle
   -> A2A SendMessage
   -> Runtime renders semantic task for Worker model
-  -> model final plain-text summary + trusted tool observations
-  -> Runtime-owned completed response / versioned artifact refs
+  -> model WorkerModelResult(subtask_id, result)
+  -> Runtime WorkerResult + deterministic observations + exact artifact refs
   -> StageResult
 ```
 
-The Worker model does not serialize this response. A normal bounded final text is
-the presentation summary. Runtime matches each declared `resultArtifacts` binding
-against exact refs actually observed through allocation-bound tools, attaches only
-those matches, and constructs the private A2A envelope. A protocol-shaped model
-string remains ordinary summary text and cannot select an outcome, result slot,
-revision, retryability value or lifecycle transition. Missing/oversized/secret-bearing
-final text and Runtime/tool/budget failures are classified by Runtime. Scheduler and
-Planner retain their existing independent result-contract validation.
+The Worker model authors only the two-field semantic result and must echo the
+opaque subtask ID supplied by Planner. Runtime verifies that echo, copies the
+authoritative ID from the request, computes observations and matches each
+declared `resultArtifacts` binding against exact refs actually observed through
+allocation-bound tools. The model cannot select Stage outcome, artifact slot,
+revision, `summarized`, retryability or lifecycle transition. Runtime/tool/
+provider/budget failures are a separate `WorkerFailure`. Passthrough maps the
+trusted completion deterministically; Scheduler and Planner retain their
+independent Stage result-contract validation.
 
 It knows neither which Runtime Agent hosts the Worker nor how that process
 configured the selected runtime.

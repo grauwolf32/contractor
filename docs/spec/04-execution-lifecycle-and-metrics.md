@@ -289,17 +289,19 @@ behavior without exposing an ADK contract. Runtime Agent receives no database
 credentials, and its A2A Task/session mapping remains an implementation detail
 within the allocation.
 
-An ADK Worker reserves a bounded `metrics` section in its in-memory State. Its
-callbacks, guardrails or agent code accumulate counters, redacted/truncated
-tool-call arguments and error details there across all A2A Tasks handled by the
-allocation. A dedicated collector/plugin may manage that section. During
-finalization the Worker converts it to the framework-neutral `ExecutionReport`;
-ADK State itself is only an accumulator implementation, never the Contractor
-wire or persistence schema.
+An ADK Worker reserves one bounded `contractor` subtree in its in-memory State.
+One instrumentation plugin feeds separate allocation metrics and
+invocation-observation reducers there. During finalization the Worker converts
+the metrics reducer to the framework-neutral `ExecutionReport`; a read-only
+private Runtime endpoint may expose the complete Contractor-owned subtree while
+the Worker is live. Raw ADK State is never a Contractor wire or persistence
+schema. The exact state, observation and endpoint contracts are owned by
+[14](14-worker-results-and-live-state.md).
 
 When Agent Skills are selected, ADK's allocation-local activated-skill State is
-separate from `metrics`, remains process-local and is destroyed with Worker. It
-is neither copied into MemoryTools nor persisted as resumable Session state.
+separate from the reserved `contractor` subtree, remains process-local and is
+destroyed with Worker. It is neither copied into MemoryTools nor persisted as
+resumable Session state.
 The package/ref lifecycle and allowed telemetry projection are defined by
 [09](09-agent-skills.md).
 
@@ -307,42 +309,21 @@ RuntimeSettings secrets supplied by Control Plane are held outside ADK Session,
 State, events and model-visible instruction/context. They configure clients
 such as the LLM Gateway adapter and are never a telemetry source.
 
-### Runtime-owned Worker result projection
+### Worker result and live observation boundary
 
-The tool-using ADK Worker loop does not apply a Contractor output schema to model
-turns. Those turns remain able to select function tools on OpenAI-compatible
-Gateways, and the last non-thought model text is only a bounded presentation summary.
-There is no tool-free result-finalizer Agent, recovery Session or second LLM call.
+Worker model, Runtime, Planner and Scheduler own separate result layers. The
+Worker model returns only a strict `WorkerModelResult(subtask_id, result)`.
+Runtime verifies its correlation, attaches deterministic observations and
+trusted exact result artifacts, and returns `WorkerResult` or a separate
+technical `WorkerFailure`. Planner alone turns one or more such completions into
+a StageResult candidate. The complete contract, including the read-only live
+State path and explicit Planner projection tools, is owned by
+[14](14-worker-results-and-live-state.md).
 
-The A2A request/result DTOs are private Runtime/Control Plane transport. Before ADK
-execution, Runtime renders objective, task instructions, string parameters and named
-exact inputs into semantic task text. Result bindings remain Runtime-private. Runtime
-adds no behavioral prompt: reusable behavior is the resolved AgentTemplate's plain
-instruction text, while per-task behavior is supplied by Planner. It never renders
-`StageContentRequest`, `StageContentResult`, `apiVersion`, allocation or
-StageExecution identity, result-envelope fields, retryability or lifecycle rules.
-The model does not learn the AgentTemplate abstraction, its ref or digest.
-
-After the tool loop, Runtime constructs the strict response itself:
-
-- a non-empty bounded final text becomes the summary and never controls a transport
-  field even if it happens to contain JSON;
-- each server-declared result slot is paired with its immutable versionless `from`
-  binding from the Worker-task request;
-- Runtime selects only the latest exact ref for that binding actually observed
-  through a trusted allocation-bound tool during the invocation;
-- unknown, model-invented, reserved Memory and Runtime-owned workspace bindings
-  cannot enter the response;
-- Runtime alone classifies missing/oversized/secret-bearing final text, model/tool
-  failures, budget exhaustion and workspace-export failure into bounded safe errors.
-
-The resulting strict transport response is validated and size-bounded before A2A
-publication. Planner then applies the immutable Stage result contract independently;
-Scheduler repeats validation before durable acceptance. No model call occurs after
-the final Worker turn, and allocation drain/finalization still performs no model or
-tool calls. Runtime clears the per-client observation journal after every invocation;
-only the latest exact ref per logical binding may remain as bounded allocation-local
-tool state, so repeated Planner subtasks do not accumulate a revision transcript.
+There is no invalid-output repair/finalizer call. Optional terminal
+summarization is a distinct one-shot model consumer that runs only before a
+Worker completion under [15](15-worker-summarization.md); allocation
+drain/finalization itself still performs no model or tool calls.
 
 ## Execution reports
 

@@ -230,7 +230,10 @@ This slice must demonstrate:
   StageExecution; ADK-based Planner events are persisted only as redacted facts,
   receive ordered per-session and per-Run sequences before becoming visible on
   the public WebSocket, and never expose raw model or tool payloads, while
-  Worker ADK state remains in the allocated Runtime Agent process;
+  Worker ADK state remains in the allocated Runtime Agent process and only its
+  bounded Contractor-owned subtree is readable by Control Plane through the
+  allocation-correlated private endpoint in
+  [14](14-worker-results-and-live-state.md);
 - Runtime Agent finalizes and destroys its in-process Worker instance through
   its private control endpoint and returns bounded reports before terminal
   acceptance;

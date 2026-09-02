@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V17-003
+title: Cut Worker A2A and Planner adapters over to typed semantic results
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V17-002]
+languages: [go, python, yaml]
+
+goal: >-
+  Make every normal ADK Worker completion use strict structured output and
+  return Runtime-owned WorkerCompletion, while keeping AgentTemplate behavior,
+  StageResult ownership and exact artifact selection outside the Worker model.
+
+context:
+  supersedes: >-
+    This task supersedes only V13-001's plain-final-text success projection.
+    V13's removal of private lifecycle prompts, Runtime-owned trusted artifact
+    selection and AgentTemplate/WorkerBuildContext boundary remain required.
+  ownership: >-
+    Worker model authors WorkerModelResult(subtaskId,result). Runtime validates
+    it, copies the trusted request ID, attaches lean observations and exact
+    artifacts, and returns WorkerCompletion. Planner alone produces
+    StageContentResult/StageResult and Scheduler alone accepts it.
+
+scope:
+  in:
+    - Configure the pinned ADK LlmAgent output_schema as strict WorkerModelResult while retaining all selected function tools on compatible OpenAI/LiteLLM routes.
+    - Render only objective, instructions, authoritative subtask ID, strings and named exact inputs; do not render WorkerCompletion, observations, result bindings, summarized, lifecycle or AgentTemplate identity.
+    - Remove arbitrary plain-text success parsing; require one non-empty schema-valid result and exact subtask echo, then stamp outbound subtaskId from StageContentRequest.
+    - Build WorkerCompletion with summarized=false, the current invocation/state revision, an initially valid lean observation projection, and only same-invocation exact refs matched to trusted result bindings.
+    - Preserve invocation-local artifact ordering, reserved-Memory exclusion and Runtime-owned overlay export before terminal A2A publication.
+    - Convert model/provider/tool/budget/result errors into WorkerFailure; no Worker-facing fail tool or model-authored status is added.
+    - Change A2A encoding/decoding and framework-neutral WorkerInvoker to return WorkerCompletion with strict task/tenant/correlation validation.
+    - Make Streamline/Router execute tools return only the safe WorkerResult view, mark technical failure as failed dispatch, and keep finish as the only Stage outcome operation.
+    - Make Passthrough map WorkerResult to succeeded StageResult and WorkerFailure to a failed candidate without adding a model call.
+    - Update all shipped Worker instructions/tests that explicitly require a plain-text final summary; semantic domain guidance must remain free of private Contractor transport wording.
+  out:
+    - Workspace path tracking, live-State endpoint/tools, terminal summarizer, Worker semantic fail signal or public API changes.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Strict model output and Runtime completion projection.}
+  - {path: runtime/src/contractor_runtime/a2a_server.py, description: WorkerCompletion A2A encoding and safe failure mapping.}
+  - {path: internal/planner/a2a, description: Strict WorkerCompletion client decode and correlation.}
+  - {path: internal/planner, description: WorkerInvoker and Passthrough/Streamline/Router result adapters.}
+  - {path: configs/instructions, description: Semantic instructions compatible with ADK structured output.}
+
+requirements:
+  - {id: R1, text: No arbitrary final model text can become a successful WorkerResult.}
+  - {id: R2, text: Model output cannot select Stage outcome, failure/retryability, observation, summarized flag, artifact slot/ref or lifecycle.}
+  - {id: R3, text: A mismatched subtask echo never advances another PlannerSubtask and is reported with a stable safe failure.}
+  - {id: R4, text: Existing exact artifact and overlay export invariants remain unchanged across the new completion envelope.}
+
+acceptance_criteria:
+  - id: A1
+    given: A tool-using Worker whose model returns the exact two-field schema.
+    when: It completes through real ADK and A2A adapters.
+    then: Planner receives the same semantic result under the trusted subtask ID with summarized=false and no second model call.
+  - id: A2
+    given: Free text, extra fields, wrong ID, oversized/empty result or JSON containing invented outcome/artifacts.
+    when: Runtime validates completion.
+    then: It fails closed or ignores non-authoritative fields; no wrong subtask/ref reaches Planner.
+  - id: A3
+    given: One Streamline result and one Passthrough result.
+    when: Their adapters execute.
+    then: Streamline still requires explicit Planner finish, while Passthrough alone performs the deterministic Stage candidate mapping.
+  - id: A4
+    given: A Worker writes an ordinary result artifact and overlay export.
+    when: Completion becomes terminal.
+    then: Both exact refs are trusted, versioned and visible before write fencing exactly as before.
+
+tests:
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_adk_runtime.py tests/test_a2a_server.py tests/test_workspace_export.py", covers: [A1, A2, A4]}
+  - {name: planner, command: "go test -race ./internal/planner/...", covers: [A1, A2, A3, A4]}
+  - {name: configs, command: "go test ./internal/config/...", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Runtime validates the model's subtask echo but always copies the outbound ID
+    from the trusted request. Echo is a consistency check, not authority.
+  - >-
+    A valid WorkerResult means semantic completion of that dispatch. A
+    model-facing incomplete/fail status remains deliberately unresolved rather
+    than being smuggled into result text parsing.

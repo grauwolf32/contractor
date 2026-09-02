@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V17-002
+title: Centralize Worker instrumentation in bounded allocation-local State
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V17-001]
+languages: [python]
+
+goal: >-
+  Replace scattered ADK callbacks and duplicate per-tool accounting with one
+  WorkerInstrumentationPlugin and a versioned Contractor-owned State store
+  while preserving the existing final ExecutionReport exactly.
+
+context:
+  current_state: >-
+    adk_runtime.py owns model callbacks, WorkerFunctionTool owns other pieces,
+    and many tool implementations call ToolMetrics directly. The ADK Session
+    currently receives only a top-level metrics snapshot. Later observations
+    and private reads need one correlated, lock-safe, bounded state source.
+  state_contract: >-
+    The reserved ADK subtree is contractor={schemaVersion:1,stateRevision,
+    metrics,currentInvocation,lastCompletedInvocation}. No other ADK State or
+    conversation data is exportable. Metrics are cumulative per allocation;
+    invocation details are one active plus one last-completed snapshot.
+
+scope:
+  in:
+    - Implement a WorkerStateStore with one asyncio-safe mutation boundary, positive monotonically increasing revision, immutable deep snapshots and shared admission that keeps the complete encoded AgentStateSnapshot envelope within 4 MiB while reserving mandatory fields/counters.
+    - Begin currentInvocation immediately before run_async with Runtime-generated invocation ID and authoritative subtask ID; close it on success, failure or cancellation and retain exactly one lastCompletedInvocation.
+    - Implement WorkerInstrumentationPlugin as a google.adk BasePlugin installed through App.plugins rather than adding another LlmAgent callback set.
+    - Split allocation-wide MetricsReducer and invocation-local metrics reducer while sharing callback correlation IDs/ordinals.
+    - Count model/tool calls exactly once across before/after/error callback order, identical parallel arguments and a plugin-returned safe error response.
+    - Migrate existing tool metrics producers or adapt them behind one ownership point so current ExecutionReport counters/details do not double count.
+    - Keep tool argument/error sanitization, Memory/Skill stricter projections, 1000-call/100-error limits, report size, OTLP spans and WorkerBudgetMetrics behavior unchanged.
+    - Store only already-sanitized typed facts; never prompt/model/tool bodies, arbitrary provider errors, RuntimeSettings or credentials.
+    - Build final reports from the reducer snapshot before Worker State destruction and prove repeated finalize/abort remains idempotent.
+  out:
+    - Workspace path observations, an HTTP endpoint, Planner tools, WorkerCompletion cutover or summarizer triggers.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/instrumentation.py, description: ADK plugin, callback correlation and independent reducers.}
+  - {path: runtime/src/contractor_runtime/worker_state.py, description: Versioned bounded Contractor State store and immutable snapshots.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: App/plugin integration and removal of duplicate callback ownership.}
+  - {path: runtime/src/contractor_runtime/metrics.py, description: Preserved final-report projection from the new reducer.}
+
+requirements:
+  - {id: R1, text: One logical model/tool attempt changes aggregate counters once for every valid ADK callback ordering.}
+  - {id: R2, text: Every State mutation is revisioned and no snapshot holds the mutation lock while encoding or performing I/O.}
+  - {id: R3, text: Credentials, endpoints, prompt history and arbitrary tool payloads are impossible members of Contractor State, not merely export-redacted.}
+  - {id: R4, text: Final ExecutionReport remains wire-compatible and semantic execution cannot fail because optional instrumentation projection failed.}
+
+acceptance_criteria:
+  - id: A1
+    given: Existing model/tool success, returned-error, raised-error, cancellation and duplicate-argument fixtures.
+    when: They run through the plugin.
+    then: Counters/details equal the pre-refactor expected report with no double count.
+  - id: A2
+    given: Sequential subtask IDs 0 and 1 on one allocation.
+    when: Invocation lifecycle is inspected between callbacks and completions.
+    then: State exposes one matching current invocation, then one immutable last completion; allocation totals include both, revision always increases and the current plus last-completed envelope stays within 4 MiB.
+  - id: A3
+    given: Tokens, URLs, prompts, source bodies and exception canaries.
+    when: State snapshots, reports, logs and OTLP are scanned.
+    then: Only the already allowed content-free projections remain and every secret/content canary is absent.
+  - id: A4
+    given: A snapshot request racing tool completion and finalization.
+    when: It runs repeatedly under asyncio debug mode.
+    then: Every returned document validates as one complete revision and the event loop remains responsive.
+
+tests:
+  - {name: plugin, command: "cd runtime && uv run pytest -W error tests/test_instrumentation.py tests/test_worker_state.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime-regression, command: "cd runtime && uv run pytest -W error tests/test_adk_runtime.py tests/test_metrics.py tests/test_allocation.py", covers: [A1, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    One ADK plugin owns callback correlation, but reducers remain typed and
+    independent. There is no generic dump-args-to-State reducer.
+  - >-
+    Detail admission stops at fixed bounds and marks truncation; it does not
+    evict older facts and silently change deterministic ordering.

@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V17-005
+title: Expose read-only allocation Worker State to Control Plane
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V17-004]
+languages: [go, python, json]
+
+goal: >-
+  Add a bounded mTLS-only Runtime endpoint and Go client for immutable snapshots
+  of the complete Contractor-owned Worker State, with no generic mutation or
+  access to raw ADK Session data.
+
+context:
+  endpoint: GET /private/v1/allocations/{allocation_id}/agent-state
+  placement: >-
+    The thin Python handler belongs in contractor_runtime.server beside
+    prepare/finalize/abort/release. It delegates lifecycle checks to
+    AllocationService and a framework-neutral snapshot method on the live
+    Worker. The Go call belongs in internal/controlplane/runtime_client.go
+    behind WorkerStateReader; Planner code never constructs Runtime URLs.
+  response: >-
+    AgentStateSnapshot contains exactly API version and the entire bounded
+    ContractorWorkerState; it does not repeat allocation ID or revision.
+    The strong ETag "contractor-agent-state-v1-<stateRevision>" is derived only
+    from state.stateRevision; If-None-Match may return an empty 304.
+    Cache-Control is private, no-cache and a successful body including its
+    envelope cannot exceed 4 MiB.
+
+scope:
+  in:
+    - Add strict matching Go/Python AgentStateSnapshot DTOs and shared fixtures; reject unknown fields, a non-positive nested revision and any echoed allocation identity.
+    - Add AllocationService snapshot resolution for the exact active allocation without exposing its internal context or ADK SessionService.
+    - Add the GET route to the Python private ASGI server under its existing Control Plane certificate/SAN authentication and request bounds.
+    - Return closed allocation_not_found for stale/released IDs and agent_state_unavailable when prepare has no live State or drain already destroyed it.
+    - Serialize an immutable deep snapshot outside the mutation lock and enforce the 4 MiB response ceiling without blocking the event loop.
+    - Add revision ETag, exact If-None-Match handling and Cache-Control private/no-cache; never derive ETag from content containing paths.
+    - Add bounded Go Runtime client GET/decode/body-limit/timeout behavior and a framework-neutral WorkerStateReader interface addressed through the prepared Worker handle.
+    - Treat malformed/oversized responses, endpoint mismatch, timeout and mTLS failure as safe typed read errors with no secret or physical endpoint in model-facing text.
+    - Prove POST/PUT/PATCH/DELETE to this path are rejected and no generic state write method exists.
+  out:
+    - Public/Operations routes, PostgreSQL storage, historical state, Planner model tools, configuration patching or an A2A state method.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/server.py, description: Thin authenticated read-only State route.}
+  - {path: runtime/src/contractor_runtime/allocation.py, description: Allocation lifecycle/snapshot delegation.}
+  - {path: internal/contracts, description: Strict private snapshot DTO.}
+  - {path: internal/controlplane/runtime_client.go, description: Bounded conditional GET and WorkerStateReader adapter.}
+
+requirements:
+  - {id: R1, text: The endpoint can return only the Contractor-owned subtree produced by WorkerStateStore, never raw session.state or events.}
+  - {id: R2, text: Snapshot identity is bound to the requested active allocation and authenticated Control Plane peer.}
+  - {id: R3, text: No HTTP method can mutate State or active pinned RuntimeSettings.}
+  - {id: R4, text: Slow encoding/client reads cannot hold the Worker mutation lock or block Runtime heartbeat/watchdog indefinitely.}
+
+acceptance_criteria:
+  - id: A1
+    given: A live Worker with one completed invocation.
+    when: Control Plane performs GET and then repeats with its ETag.
+    then: It receives one strict matching snapshot and then 304 without body while no State mutation occurred.
+  - id: A2
+    given: A tool mutation races repeated reads.
+    when: Hundreds of snapshots are decoded.
+    then: Every document is internally revision-consistent and the Worker/heartbeat event loop continues making progress.
+  - id: A3
+    given: Wrong allocation IDs, state before ready, destroyed state and non-GET methods.
+    when: The route is called over valid mTLS.
+    then: Closed bounded errors/method responses are returned and no other allocation data is exposed.
+  - id: A4
+    given: A CA-valid Runtime certificate without the reserved Control Plane URI SAN and a secret-seeded allocation.
+    when: It requests State and all retained surfaces are scanned.
+    then: Authentication rejects it, and credentials/endpoints never occur in any successful snapshot or error.
+
+tests:
+  - {name: runtime-http, command: "cd runtime && uv run pytest -W error tests/test_server.py tests/test_agent_state_endpoint.py", covers: [A1, A2, A3, A4]}
+  - {name: go-client, command: "go test -race ./internal/contracts ./internal/controlplane/...", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Full State means the full bounded Contractor schema, not all framework
+    State. Credentials are excluded at storage time, not filtered only by the
+    HTTP handler.
+  - >-
+    State remains ephemeral. Final reports and artifacts already own durable
+    telemetry/domain data, so this endpoint introduces no database schema.

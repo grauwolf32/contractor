@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V17-001
+title: Add strict Worker semantic result and completion wire contracts
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V16-005]
+languages: [go, python, json]
+
+goal: >-
+  Introduce a strict Python-only model result and matching Go/Python private
+  completion contracts without switching the production A2A path until the
+  following tasks are ready.
+
+context:
+  current_boundary: >-
+    The current StageContentResult is used both as a Worker transport response
+    and a Planner Stage candidate. V13 also treats arbitrary final model text as
+    successful output. The new boundary needs a mandatory opaque subtask ID,
+    a two-field model schema, deterministic Runtime-owned observations and a
+    separate technical failure variant.
+  exact_shapes: >-
+    WorkerModelResult has only subtaskId and result. WorkerResult has
+    subtaskId, result, observations, exact artifacts and summarized.
+    WorkerCompletion contains exactly one WorkerResult or WorkerFailure plus
+    Runtime-generated invocationId and positive stateRevision.
+
+scope:
+  in:
+    - Add mandatory subtaskId to StageContentRequest in Go/Python and every strict fixture; require 1..128 bytes matching [A-Za-z0-9][A-Za-z0-9._:-]{0,127} and reject unknown fields.
+    - Make Passthrough supply fixed subtask ID "0" and Streamline/Router supply the exact claimed PlannerSubtask ID without accepting it from any other request field.
+    - Add Python Runtime-internal WorkerModelResult with exactly subtaskId and 1..65536 UTF-8 bytes of result text; do not add it to the Go domain or A2A wire.
+    - Add closed lean@1 WorkerObservations, ToolObservationCount and optional WorkspaceObservationSummary DTOs with non-negative scoped/discovered/read/matched/modified counts and declared completeness/truncation fields.
+    - Add WorkerResult with exact artifacts, mandatory summarized boolean and no outcome/error/retry fields.
+    - Add WorkerFailure with a 1..64-byte lowercase snake-style code, sanitized 1..4096-byte message and retryable; make WorkerCompletion an exactly-one result/failure union with a 1..128-byte Runtime invocationId and positive stateRevision.
+    - Add matching golden success/failure, empty-observation and invalid-union fixtures decoded strictly by both languages.
+    - Keep the production WorkerInvoker and A2A response on the old type in this task so the commit remains buildable and independently reviewable.
+  out:
+    - ADK output_schema wiring, observation capture, private State HTTP, Planner state tools, summarization behavior or public API changes.
+
+deliverables:
+  - {path: internal/contracts, description: Framework-neutral Go request/result/completion contracts and validation.}
+  - {path: runtime/src/contractor_runtime/contracts.py, description: Exact strict Pydantic parity.}
+  - {path: testdata/contracts, description: Shared valid and hostile wire fixtures.}
+
+requirements:
+  - {id: R1, text: WorkerResult cannot carry Stage outcome, Stage error, retry policy, physical identity or model-authored observation metadata.}
+  - {id: R2, text: WorkerCompletion accepts exactly one semantic result or technical failure and always carries trusted correlation metadata.}
+  - {id: R3, text: Every ArtifactRef in WorkerResult is exact; unversioned refs and reserved invalid refs fail strict validation.}
+  - {id: R4, text: Go and Python reject the same unknown fields, empty strings, negative counters, oversized text and inconsistent completeness shapes.}
+
+acceptance_criteria:
+  - id: A1
+    given: Shared success and technical-failure JSON documents.
+    when: Both contract suites decode and re-encode them.
+    then: They produce byte-equivalent normalized shapes and no Stage outcome appears in WorkerResult.
+  - id: A2
+    given: A completion with both/neither result and failure, a zero stateRevision, or a non-exact artifact.
+    when: Strict validation runs.
+    then: Both implementations reject it before any A2A or artifact side effect.
+  - id: A3
+    given: Passthrough and model-backed Planner request construction.
+    when: Their StageContentRequest is inspected.
+    then: Passthrough uses "0" and each modeled dispatch uses its authoritative claimed subtask ID.
+
+tests:
+  - {name: go-contracts, command: "go test ./internal/contracts ./internal/planner/...", covers: [A1, A2, A3]}
+  - {name: python-contracts, command: "cd runtime && uv run pytest -W error tests/test_contracts.py", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+decisions:
+  - >-
+    Keep StageContentResult temporarily as a historical production adapter;
+    V17-003 performs the atomic A2A/Planner cutover after State correlation is
+    available.
+  - >-
+    subtaskId is opaque. It may later contain hierarchical values such as 1.1,
+    but Runtime and Worker never derive scheduling semantics from its format.

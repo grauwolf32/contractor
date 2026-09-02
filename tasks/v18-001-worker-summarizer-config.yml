@@ -1,0 +1,76 @@
+schema_version: "1.0"
+id: V18-001
+title: Add optional pinned Worker summarizer configuration
+milestone: terminal-worker-summarization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V17-007]
+languages: [go, python, yaml]
+
+goal: >-
+  Let an AgentTemplate opt into one independently modeled, tool-free terminal
+  summarizer with deterministic soft token thresholds while preserving exact
+  Run/allocation pinning and absence-as-disabled behavior.
+
+context:
+  authoring_shape: >-
+    AgentTemplate spec.summarizer is optional. When present it contains exact
+    modelPolicy plus at least one positive softTotalTokens or softPromptTokens.
+    It uses the Worker's already pinned LLM Gateway/credential but its own model
+    alias and limits. Runtime labels cannot enable or change it.
+  consumer_rules: >-
+    A summarizer ModelPolicy requires maxOutputTokens, maxTotalTokens and exact
+    maxModelCalls=1, and permits no maxToolCalls/maxWorkerCalls. Runtime will
+    make exactly zero or one call. SoftTotalTokens must be below the normal
+    Worker's maxTotalTokens; comparable soft prompt bounds must be positive
+    and structurally safe.
+
+scope:
+  in:
+    - Add the closed optional AgentTemplate summarizer schema to Go/Python/config/OpenAPI DTOs and normalize omission consistently.
+    - Resolve its exact ModelPolicy, validate tool-free consumer compatibility and include ref/body in template digest, WorkflowRun dependency snapshot and AllocationSpec.
+    - Reject empty blocks, unknown/duplicate fields, missing both thresholds, non-positive values, softTotalTokens at/above the Worker hard total, maxModelCalls other than exactly one and policies containing tool/worker limits.
+    - Keep the summarizer Gateway/credential identical to the effective Worker route and retain separate trusted ModelPolicy provenance for metrics.
+    - Ensure executionConfig cannot override only summarizer policy and Runtime/Run labels cannot enable/disable semantic behavior.
+    - Extend strict Go/Python allocation fixtures, digest tests, config inspection and Runtime digest verification without invoking a summarizer yet.
+    - Add one disabled and one enabled example ModelPolicy/AgentTemplate used only by later deterministic E2E fixtures; do not alter existing workflow versions implicitly.
+  out:
+    - Trigger/runtime calls, a separate Gateway/credential, UI fields, ADK event compaction or provider context estimation.
+
+deliverables:
+  - {path: internal/config, description: Authoring, resolution, digest and consumer validation.}
+  - {path: internal/contracts, description: Pinned private allocation summarizer projection.}
+  - {path: runtime/src/contractor_runtime/contracts.py, description: Strict allocation parity and digest verification.}
+  - {path: configs/e2e, description: Explicit enabled fixture without changing current templates.}
+
+requirements:
+  - {id: R1, text: Omitted summarizer adds no model dependency, Gateway call or behavior change.}
+  - {id: R2, text: Every enabled allocation pins one exact summarizer ModelPolicy and the same physical Worker route before scheduling.}
+  - {id: R3, text: Labels/config rebinding after Run creation cannot enable, disable or reinterpret the summarizer.}
+  - {id: R4, text: No secret or endpoint contributes to AgentTemplate digest or immutable Run snapshot.}
+
+acceptance_criteria:
+  - id: A1
+    given: Equivalent YAML with omitted optional formatting/order changes.
+    when: AgentTemplate is resolved.
+    then: Its normalized summarizer/digest is stable, while changing a threshold or exact policy changes the digest.
+  - id: A2
+    given: Invalid thresholds or a Planner/tool-using ModelPolicy.
+    when: Configuration loads.
+    then: It fails before Run creation/capacity reservation with a bounded exact field error.
+  - id: A3
+    given: A Run pins an enabled template and later config files/labels change.
+    when: AllocationSpec is produced.
+    then: It carries the original exact summarizer body/ref and the selected allocation's pinned Worker route only.
+
+tests:
+  - {name: config, command: "go test ./internal/config/... ./internal/contracts/...", covers: [A1, A2, A3]}
+  - {name: runtime-contracts, command: "cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_allocation_contracts.py", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+decisions:
+  - >-
+    The first summarizer shares the Worker's physical Gateway/credential. A
+    second route and executionConfig override are deferred to avoid another
+    precedence/secret plane before behavior is evaluated.

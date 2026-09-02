@@ -5,11 +5,12 @@ milestone: run-workspaces-mvp
 priority: P0
 status: complete
 implementation_commit: 4d39a6925278a5916f9c97be1ec2526b0789f5c6
-amended_by: V13-001
+amended_by: V17-003
 amendment_note: >-
-  Auto-export still precedes terminal A2A, but it augments a Runtime-owned
-  response; model text is never parsed as StageContentResult and cannot collide
-  with reserved workspace slots.
+  Auto-export still precedes terminal A2A and augments a Runtime-owned result;
+  model output cannot collide with reserved workspace slots. V17 removes the
+  model-authored semantic failed outcome, so export applies only to a valid
+  WorkerResult and never to WorkerFailure.
 depends_on: [V11-003, V11-006, V11-009]
 languages: [python]
 

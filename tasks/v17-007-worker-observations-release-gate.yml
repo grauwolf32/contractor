@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V17-007
+title: Prove typed Worker results and live observations across process boundaries
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V17-006]
+languages: [go, python, yaml]
+
+goal: >-
+  Release-gate the complete V17 contract with real Server, PostgreSQL, mTLS,
+  Streamline/Router and Runtime processes, including stale-state races,
+  truncation, cleanup and retained-data redaction.
+
+context:
+  process_scenario: >-
+    Use deterministic OpenAI-compatible model fixtures that exercise tools and
+    return strict WorkerModelResult. Run one Streamline Stage and one two-Worker
+    Router Stage against local Runtime processes, query every Planner State
+    projection, finish the Stages, release slots and reuse them.
+  historical_regression: >-
+    V13 removed an unreliable result serializer but made every arbitrary final
+    text a success. This gate must prove the new structured semantic boundary
+    without reintroducing lifecycle prompts or a second repair model call.
+
+scope:
+  in:
+    - Add one PostgreSQL/mTLS real-process scenario covering request subtask IDs, ADK schema+tools, WorkerCompletion A2A, exact artifact selection and explicit Planner finish.
+    - Exercise complete and truncated workspace coverage, repeated reads, grep/edit observations and all four Streamline/Router State projection tools.
+    - Force wrong subtask output, malformed structured output, stale lastCompleted replacement, endpoint timeout/oversize/304, Runtime loss and query after drain.
+    - Prove one Runtime read failure cannot invalidate the prior WorkerResult and Scheduler still reaches a bounded terminal state according to Planner policy.
+    - Prove final report metrics equal plugin State aggregates, remain complete when possible and do not double count across sequential invocations.
+    - Release and reuse every Runtime slot; assert State, ETag cache, observation paths, model/session data and clients are absent before the next allocation.
+    - Scan PostgreSQL except approved Artifact blobs, Server/Runtime logs, A2A errors, public API, Planner facts, final reports and OTLP for prompt/source/secret/endpoint/path canaries outside explicitly live Planner results.
+    - Add an executable V17 requirement/fault matrix whose validator rejects missing or duplicate named test owners.
+    - Compose the new gate into make release-verify without requiring an external LLM.
+  out:
+    - Summarizer behavior, public State UI, external LM Studio quality evaluation or long-term observation analytics.
+
+deliverables:
+  - {path: tests/integration/worker_observations, description: Real process, PostgreSQL and mTLS scenario.}
+  - {path: tests/matrices/worker_observations.yml, description: Strict V17 invariant/fault ownership matrix.}
+  - {path: Makefile, description: Focused and aggregate release targets.}
+
+requirements:
+  - {id: R1, text: The production process path uses no in-memory Go/Python shortcut for A2A, State reads or artifacts.}
+  - {id: R2, text: Every V17 invariant and failure boundary has one deterministic owning test.}
+  - {id: R3, text: State is erased before slot reuse and no live detail becomes durable by accident.}
+  - {id: R4, text: The gate is offline/reproducible and does not depend on LM Studio or a provider account.}
+
+acceptance_criteria:
+  - id: A1
+    given: Production Server, PostgreSQL and two mTLS Runtime processes.
+    when: Streamline and Router workflows execute typed tool-using Workers.
+    then: Results, observations, exact artifacts, State projections and Planner finish all cross real boundaries correctly.
+  - id: A2
+    given: Every declared stale/truncation/network/result failure.
+    when: Fault injection runs.
+    then: It fails closed with bounded errors, no cross-subtask/state leak and no indefinitely occupied healthy slot.
+  - id: A3
+    given: Terminal release followed by another allocation on each process.
+    when: The second Worker State is read.
+    then: It starts at a fresh revision/history and contains no prior observation, metric detail or secret.
+  - id: A4
+    given: The exact V17 matrix and retained-surface scan.
+    when: release-verify runs.
+    then: All named owners exist and only explicitly allowed live relative paths appeared before release.
+
+tests:
+  - {name: process, command: "make test-worker-observations-e2e", covers: [A1, A2, A3]}
+  - {name: hardening, command: "make test-worker-observations-hardening", covers: [A2, A3, A4]}
+  - {name: aggregate, command: "make release-verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Live-model quality/F1 experiments are valuable but not a deterministic
+    correctness gate. The release scenario uses a scripted compatible Gateway;
+    LM Studio remains an opt-in evaluation target.

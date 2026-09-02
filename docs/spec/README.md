@@ -46,6 +46,8 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [11](11-http-and-caido-tools.md) | Allocation-scoped HTTP exploration and label-configured Caido GraphQL tools |
 | [12](12-code-analysis-tools.md) | Workspace Tree-sitter analysis and local-only allocation-scoped Trailmark graph tools |
 | [13](13-taint-annotations.md) | Structured, atomic `@trace`/`@validate`/`@sink` workspace annotations |
+| [14](14-worker-results-and-live-state.md) | Typed Worker results, deterministic observations, volatile Worker State and explicit Planner projections |
+| [15](15-worker-summarization.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -61,6 +63,8 @@ Workflow
   -> Control Plane resolves pinned default/Run labels plus Agent labels and prepares compatible Worker allocations
   -> PlannerFactory creates the selected Stage-local Planner
   -> Planner tools talk through WorkerInvoker/A2A to allocated Runtime Agents acting as Workers
+  -> Runtime validates one typed semantic Worker result and attaches deterministic observations
+  -> explicit Planner state tools may inspect safe live projections from that allocation
   -> explicitly selected MemoryTools let Planner and each logical Worker share that Worker's Run-scoped notes
   -> all participants exchange durable data through RunArtifactSpace
   -> Planner returns one candidate StageResult
@@ -98,6 +102,8 @@ The boundaries are deliberately narrow:
 | HTTP/Caido tools | Explicit Worker tools over allocation-owned direct/proxied HTTP and typed label-configured Caido clients |
 | Code analysis | Read-only shallow Tree-sitter tools on local/memory workspaces and local-only killable Trailmark graph tools |
 | Taint annotations | Explicitly selected structured source mutations over a narrowed workspace Writer |
+| Worker State | Bounded volatile Runtime-owned metrics/observation state, readable only through private Control Plane transport |
+| Planner state tools | Explicit typed projections over a logical Worker's newest correlated live snapshot; never a generic State query |
 | UserScope | Authenticated user's durable artifact library |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 

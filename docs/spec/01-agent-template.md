@@ -74,6 +74,12 @@ class SandboxProfileRef(BaseModel):
     version: str
 
 
+class WorkerSummarizerConfig(BaseModel):
+    model_policy: ModelPolicyRef
+    soft_total_tokens: int | None = None
+    soft_prompt_tokens: int | None = None
+
+
 class AgentTemplate(BaseModel):
     ref: AgentTemplateRef
     description: str
@@ -81,6 +87,7 @@ class AgentTemplate(BaseModel):
     instructions: ResolvedInstructions
     skills: list[ArtifactRef] = Field(default_factory=list)
     model_policy: ModelPolicyRef
+    summarizer: WorkerSummarizerConfig | None = None
     toolsets: list[ToolsetSelection]
     sandbox_profile: SandboxProfileRef
 ```
@@ -118,14 +125,15 @@ spec:
 The document follows the shared configuration-file and envelope contract in
 [00](00-workflow-and-planner.md). `metadata` contains exactly `name` and
 `version`; their pair is the AgentTemplateCatalog lookup key regardless of the
-file name. `spec` contains the six mandatory fields and the optional `skills`
-field described below.
+file name. `spec` contains the six mandatory fields and optional `skills` and
+`summarizer` fields.
 `description` is a mandatory non-empty purpose string for human-facing
 configuration and for the deterministic `router@1` agent roster. `runtime`,
 `modelPolicy` and `sandboxProfile` are mandatory exact selectors;
 `instructions` contains exactly the mandatory `ref`; `skills` is the optional
 versionless ArtifactRef set defined by [09](09-agent-skills.md), with omission
-equivalent to an empty set; and
+equivalent to an empty set; `summarizer` is the optional one-shot terminal
+summarization policy defined by [15](15-worker-summarization.md); and
 `toolsets` is the mandatory, possibly empty selection list defined below.
 Unknown fields and duplicate YAML mapping keys are invalid.
 
@@ -248,6 +256,9 @@ before Run execution if the selected policy is incompatible:
   AgentTemplate exposes any model-visible Contractor tool or Agent Skill and
   does not use
   `maxWorkerCalls`;
+- an optional Worker summarizer requires `maxOutputTokens` and
+  `maxTotalTokens`, requires `maxModelCalls: 1`, permits neither
+  `maxToolCalls` nor `maxWorkerCalls`, and is invoked at most once;
 - a `streamline@1` or `router@1` Planner requires `maxOutputTokens`,
   `maxModelCalls`, `maxWorkerCalls` and `maxTotalTokens`; it does not use
   `maxToolCalls` in the first UI/configuration slice;
@@ -261,13 +272,13 @@ Worker Runtime checks call and tool capacity before starting the next
 operation. It adds provider-reported `total_token_count` after each completed
 model response;
 crossing the token ceiling stops the loop before a response tool call is
-executed, while reaching the ceiling permits a final text result but no later
-operation. Missing token usage is recorded explicitly and never disables the
-independent model/tool-call ceilings. Exhaustion makes Runtime construct one safe
-failed Worker response with code `worker_budget_exhausted`, the exhausted dimension
-in bounded metrics, and `retryable: true`. The model does not serialize that
-response. Passthrough therefore supplies a normal failed candidate to Scheduler,
-whose Workflow transition owns whole-Stage retry.
+executed, while reaching the ceiling permits a valid structured semantic result
+but no later operation. Missing token usage is recorded explicitly and never
+disables the independent model/tool-call ceilings. Exhaustion makes Runtime
+construct one safe `WorkerFailure` with code `worker_budget_exhausted`, the
+exhausted dimension in bounded metrics, and `retryable: true`. The model does
+not serialize that failure. Passthrough therefore supplies a normal failed
+candidate to Scheduler, whose Workflow transition owns whole-Stage retry.
 
 `temperature` is optional; when absent, Worker omits the parameter instead of
 inventing a default. When present, it is a finite JSON number greater than or
@@ -530,11 +541,12 @@ profiles require new exact refs rather than changing `local-workdir@1`
 semantics.
 
 An AgentTemplate body is immutable. `template_id + version + digest` identifies
-that exact body, including its logical skill ArtifactRef set. Workflow authoring
+that exact body, including its logical skill ArtifactRef set and optional
+summarizer policy. Workflow authoring
 uses the exact `<id>@<version>` selector defined
 in [00](00-workflow-and-planner.md); `latest`, ranges and unversioned aliases are
-invalid. Any template instruction, policy, tool or normalized logical skill-ref
-set change creates a new version and digest. Omitted `skills` and explicit
+invalid. Any template instruction, policy, summarizer, tool or normalized
+logical skill-ref set change creates a new version and digest. Omitted `skills` and explicit
 `skills: []` are the same empty body. Writing a new current UserScope artifact
 revision for an already selected logical ref is deliberately resolved as
 separate Run-pinned behavior under [09](09-agent-skills.md) and does not mutate
@@ -556,7 +568,8 @@ configuration-root-relative `ref` and
 exact instruction `digest`; their full text is carried beside the manifest but
 need not be duplicated inside it. A non-empty `skills` set appears as sorted
 logical `{namespace,name}` refs with no revision; the property is omitted for
-the empty set. Every model, toolset and sandbox reference appears in its
+the empty set. An optional summarizer appears with its exact ModelPolicy ref and
+normalized soft limits. Every model, toolset and sandbox reference appears in its
 normalized exact form. The computed AgentTemplate digest itself is the only
 AgentTemplate field excluded from the input.
 
@@ -573,10 +586,11 @@ the digest of an existing pre-Agent-Skills template.
 
 AgentTemplateCatalog computes and stores the digest with the resolved template.
 AllocationSpec carries the normalized manifest, resolved instruction text,
-resolved default ModelPolicy dependency and the separately selected effective
-ModelPolicy body with their exact refs. Before creating Worker, Runtime Agent
-verifies the instruction, both policy dependencies and enclosing AgentTemplate
-digests. A mismatch fails preparation with non-retryable
+resolved default ModelPolicy dependency, optional summarizer ModelPolicy and
+the separately selected effective Worker ModelPolicy body with their exact
+refs. Before creating Worker, Runtime Agent verifies the instruction, every
+policy dependency and enclosing AgentTemplate digests. A mismatch fails
+preparation with non-retryable
 `template_digest_mismatch`; Runtime Agent never silently recomputes a new
 identity or fetches replacement configuration content.
 
@@ -759,7 +773,8 @@ snapshot; configuration changes or label rebinding never mutate it.
 AgentTemplate remains the sole authored reusable Worker-behavior contract. The
 Runtime Agent allocation layer consumes the resolved template and builds a minimal
 Worker context containing description, instruction text, card version, effective
-model policy, instantiated tools and prepared skills. `WorkerBuildContext` does not
+model policy, optional resolved summarizer policy, instantiated tools and
+prepared skills. `WorkerBuildContext` does not
 contain an `AgentTemplate`; neither the ADK implementation nor its model sees a
 template ref, digest, manifest or allocation projection. Stage objective/instructions
 remain separate per-task semantic input under [00]. Its explicit Toolset selections

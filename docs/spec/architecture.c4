@@ -204,6 +204,10 @@ model {
       #contractor
     }
 
+    plannerStateTools = component 'Typed Planner State Projections — no raw keys' {
+      #contractor
+    }
+
     plannerArtifactInspector = component 'Planner ArtifactInspector — exact RunScope validation' {
       #contractor
     }
@@ -264,6 +268,8 @@ model {
     plannerFactories -> stagePlanner 'Construct Passthrough/one-Worker Streamline/logical multi-Worker Router'
     plannerFactories -> executionConfigService 'Resolve pinned Planner credential'
     stagePlanner -> workerInvokerTools 'Dispatch exact current subtask sequentially; Router selects logical worker_name'
+    stagePlanner -> plannerStateTools 'Query only explicit projections for the newest correlated Worker completion'
+    plannerStateTools -> controlPlane 'Read bounded live Worker State through logical prepared handles'
     workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
     workflowScheduler -> artifactService 'Pin/fork inputs and exact owner skills; transactionally bind accepted Run outputs'
     stagePlanner -> plannerArtifactInspector 'Validate exact input, intermediate and candidate refs'
@@ -312,6 +318,10 @@ model {
     }
 
     workerState = component 'In-memory Worker Session / State' {
+      #contractor
+    }
+
+    workerInstrumentation = component 'ADK Worker Instrumentation — typed metrics / observation reducers' {
       #contractor
     }
 
@@ -395,7 +405,10 @@ model {
     slotManager -> workspaceProvider 'Hydrate exact Run artifacts; create / discard one private WorkspaceSession'
     a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
     workerRuntime -> workerState 'Read / update in-memory allocation State'
-    workerRuntime -> executionCollector 'Accumulate bounded metrics across allocation'
+    workerRuntime -> workerInstrumentation 'Emit ADK run / model / tool callback boundaries'
+    workerInstrumentation -> workerState 'Reduce bounded invocation observations and allocation metrics'
+    workerInstrumentation -> executionCollector 'Project bounded metrics for the final report'
+    controlEndpoint -> workerState 'Read immutable Contractor-owned snapshot for Control Plane only'
     controlEndpoint -> executionCollector 'Finalize or abort cached reports without semantic work'
     workerRuntime -> namespaceTools 'Construct only AgentTemplate-selected domain tools for fixed Namespace'
     workerRuntime -> runArtifactTools 'Construct selected list/read/write operations; grant remains authoritative'
@@ -435,7 +448,7 @@ model {
   apiClient -> server.userArtifactApi 'Upload / read / list UserScope; publish authorized Run output'
 
   runtimeAgent.registryClient -> server.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
-  server.controlPlane -> runtimeAgent.controlEndpoint 'Control Plane mTLS: AllocationSpec + RuntimeSettings / finalize / abort / release'
+  server.controlPlane -> runtimeAgent.controlEndpoint 'Control Plane mTLS: prepare / state snapshot / finalize / abort / release'
   server.workerInvokerTools -> runtimeAgent.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
   runtimeAgent.artifactClient -> server.artifactService 'Agent mTLS + allocation ID: RunScope operations; no DB/S3 credentials'
 
@@ -504,6 +517,7 @@ views {
     include server.stagePlanner
     include server.plannerSessionService
     include server.workerInvokerTools
+    include server.plannerStateTools
     include server.plannerMemoryTools
     include server.controlPlane
     include server.runtimeRegistry
@@ -518,6 +532,7 @@ views {
     include runtimeAgent.a2aServer
     include runtimeAgent.workerRuntime
     include runtimeAgent.workerState
+    include runtimeAgent.workerInstrumentation
     include runtimeAgent.executionCollector
     include runtimeAgent.adapterHost
     include runtimeAgent.memoryTools
@@ -539,12 +554,14 @@ views {
     include server.stagePlanner
     include server.plannerSessionService
     include server.workerInvokerTools
+    include server.plannerStateTools
     include server.plannerMemoryTools
 
     include runtimeAgent
     include runtimeAgent.a2aServer
     include runtimeAgent.workerRuntime
     include runtimeAgent.workerState
+    include runtimeAgent.workerInstrumentation
     include runtimeAgent.executionCollector
     include runtimeAgent.adapterHost
     include runtimeAgent.memoryTools
@@ -580,6 +597,7 @@ views {
     include runtimeAgent.a2aServer
     include runtimeAgent.workerRuntime
     include runtimeAgent.workerState
+    include runtimeAgent.workerInstrumentation
     include runtimeAgent.executionCollector
     include runtimeAgent.adapterHost
     include runtimeAgent.workspaceProvider

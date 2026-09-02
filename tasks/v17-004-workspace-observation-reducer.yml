@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V17-004
+title: Add deterministic workspace observations and lean Worker projection
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V17-003]
+languages: [python]
+
+goal: >-
+  Track bounded per-invocation file interactions at model-visible tool
+  boundaries and populate deterministic lean Worker observations without
+  equating internal analyzer scans with files the model read.
+
+context:
+  reference: >-
+    contractor-old tracked read_count, match_count and per-invocation file
+    paths. Its deterministic observations improved token use and evaluation F1,
+    but its implementation mixed tool state and projection. Reuse the behavior
+    as a reference, not its global fsspec coupling or unbounded assumptions.
+  workspace_scope: >-
+    Scope is the effective managed-text checkpoint at invocation start.
+    It admits at most 10000 lexical paths and 2 MiB encoded path detail.
+    Interactions independently admit 10000 paths; incomplete state is always
+    explicit and unread count is absent unless both dimensions are complete.
+
+scope:
+  in:
+    - Add a WorkspaceObservationReducer behind WorkerInstrumentationPlugin and one reviewed ObservationExtractor interface attached to model-visible tools.
+    - Capture a checkpoint workspace digest and bounded lexical managed-text path universe without exposing a provider root or duplicating file contents.
+    - Record successful read_file paths as read; grep returned-match paths as matched; ls/glob returned paths and discovery counts as discovered; successful Edit/annotation targets as modified; workspace-changes only paths in its visible page.
+    - Count retries by operation while counting each unique path once for coverage; retain first/last completed call ordinals and deterministic tie-breaks.
+    - Keep failed/cancelled calls in metrics but out of positive read/mutation observations.
+    - Keep Tree-sitter/Trailmark internal scans out of read coverage; attach their existing typed scan coverage as a distinct safe observation where applicable.
+    - Populate lean@1 tool counts and WorkspaceObservationSummary on every valid WorkerResult, including at most 25 first-observation-ordered read paths and explicit truncation.
+    - Reset invocation observations for every A2A task while keeping allocation report metrics cumulative.
+    - Support local and memory WorkspaceSession through narrow Reader metadata; do not add raw fsspec/concrete backend checks to the plugin.
+  out:
+    - Byte/range coverage, content retention, public persistence, configurable observation profiles, state HTTP or Planner projection tools.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/observations.py, description: Typed reducer, extractors, bounds and lean projection.}
+  - {path: runtime/src/contractor_runtime/toolsets, description: Safe per-tool observation adapters without raw payload retention.}
+  - {path: runtime/src/contractor_runtime/projectfs, description: Narrow checkpoint path/digest metadata needed by the reducer.}
+
+requirements:
+  - {id: R1, text: A path is marked read only when file content or returned matching lines were actually visible to the model under the stated semantics.}
+  - {id: R2, text: Incomplete scope/detail produces lower bounds and never an exact unread count.}
+  - {id: R3, text: Observation extraction cannot change a tool response or fail semantic execution.}
+  - {id: R4, text: No source text, search/edit payload, diff, host path or Artifact revision enters State observations or WorkerResult.}
+
+acceptance_criteria:
+  - id: A1
+    given: A workspace with read, repeated read, grep, glob, edit, annotation and code-analysis calls.
+    when: The invocation completes.
+    then: Paths/counts follow the exact operation table, repeated calls preserve unique coverage, and analyzer scans do not become reads.
+  - id: A2
+    given: More than 10000/2 MiB scope paths, more than 10000 interactions or more than 25 read paths.
+    when: State and lean observations are projected.
+    then: Bounds hold, truncation/completeness is honest and unreadFiles is absent.
+  - id: A3
+    given: Two sequential invocations over one direct or overlay workspace.
+    when: The second starts after checkpoint advancement or mutation.
+    then: Its observations start empty against its own effective checkpoint and never inherit the first invocation's paths.
+  - id: A4
+    given: Path/content/secret canaries in tool inputs and files.
+    when: State/result/report/log retained surfaces are scanned.
+    then: Only normalized relative paths appear in allowed live observations; contents, patterns, revisions and secrets are absent everywhere else.
+
+tests:
+  - {name: observations, command: "cd runtime && uv run pytest -W error tests/test_observations.py tests/test_filesystem_observations.py", covers: [A1, A2, A3, A4]}
+  - {name: toolsets, command: "cd runtime && uv run pytest -W error tests/test_filesystem_tools.py tests/test_edit_tools.py tests/test_code_analysis_shallow.py tests/test_taint_annotations.py", covers: [A1, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Immediate observations use fixed lean@1. Exact future composition remains
+    an evaluation question; a new profile must be versioned instead of changing
+    the meaning of already returned lean@1.
+  - >-
+    Interaction order uses Runtime call ordinals rather than wall timestamps or
+    Artifact revisions, neither of which helps the model understand exposure.

@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V17-006
+title: Add explicit Planner projections over correlated Worker State
+milestone: worker-results-and-live-state
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V17-005]
+languages: [go]
+
+goal: >-
+  Let Streamline and Router inspect workspace coverage and tool usage through
+  explicit typed functions while ensuring the Planner model can never select a
+  State key, Runtime endpoint, allocation, invocation or revision.
+
+context:
+  tools: >-
+    Streamline receives get_workspace_coverage(), list_read_files(cursor,limit),
+    list_unread_files(cursor,limit) and get_worker_tool_usage(). Router receives
+    the same names with mandatory worker_name constrained to valid logical
+    bindings. Passthrough receives none.
+  selection: >-
+    The execute adapter retains a hidden selector from the newest
+    WorkerCompletion for each logical binding: allocation ID, invocation ID,
+    authoritative subtask ID and state revision. Every projection fetches the
+    complete snapshot, validates lastCompletedInvocation against that selector,
+    and only then filters/aggregates it.
+
+scope:
+  in:
+    - Add a StageExecution-local Planner StateProjectionService over WorkerStateReader with no dependency on HTTP or ADK types.
+    - Record/replace the hidden newest-completion selector only after a valid WorkerCompletion; clear it during Planner cleanup and never persist physical identity in Planner facts.
+    - Generate exact Streamline schemas without worker_name and Router schemas with a required enum restricted per operation to eligible immutable logical bindings.
+    - Expose workspace functions only for bindings with Stage workspace plus a selected workspace-observing tool; expose tool usage for every modeled Worker binding.
+    - Implement get_workspace_coverage with scoped/discovered/read/matched/modified exact-or-lower-bound counts and explicit scope/detail completeness.
+    - Implement list_read_files ordered by first observation ordinal and list_unread_files as lexical complete checkpoint scope minus read paths; reject unread queries when either input set is incomplete.
+    - Implement get_worker_tool_usage with sorted per-tool calls/failures plus bounded invocation model/token counts; never return arguments, results, prompts or errors.
+    - Use 1..100 page limits and opaque signed/revision-bound cursors; reject changed revision, projection or logical Worker with worker_state_changed.
+    - Cache validated complete snapshots by allocation ID plus ETag only inside one Planner invocation and use conditional reads; never cache across StageExecutions.
+    - Return closed correctable tool errors for absent completion, unavailable Runtime, stale correlation, incomplete coverage or invalid cursor without changing an already completed subtask/WorkerResult.
+    - Reduce durable Planner facts to operation, logical Worker, counts/outcome and stable error code; paths/state IDs/revisions remain live-conversation-only.
+  out:
+    - get_state/jsonpath/arbitrary field selection, state mutation, public/UI State API, Passthrough tools or persistence of file paths.
+
+deliverables:
+  - {path: internal/planner/stateview, description: Correlation, snapshot cache, typed projections and cursors.}
+  - {path: internal/planner/streamline, description: Streamline/Router function construction and safe facts.}
+  - {path: internal/planner/types.go, description: Framework-neutral WorkerStateReader dependency and hidden completion selector.}
+
+requirements:
+  - {id: R1, text: No model-facing input contains state key, allocation ID, invocation ID, state revision, URL or physical Runtime identity.}
+  - {id: R2, text: A snapshot for another/newer invocation fails correlation and cannot be shown as the selected subtask's evidence.}
+  - {id: R3, text: Incomplete workspace detail cannot produce an exact unread set.}
+  - {id: R4, text: State-read/tool failure never rewrites WorkerResult, dispatch status or StageResult automatically.}
+
+acceptance_criteria:
+  - id: A1
+    given: One Streamline Worker completion with complete observations.
+    when: All four tools are called and paged.
+    then: Their schemas contain only declared semantic arguments and results match deterministic filtered State.
+  - id: A2
+    given: Router bindings reader and reviewer with different tool selections.
+    when: Tool declarations and calls are inspected.
+    then: worker_name enums include only eligible logical names and each request reaches only that binding's prepared handle.
+  - id: A3
+    given: A later invocation replaces Runtime lastCompleted state before an older selector is queried.
+    when: The projection validates correlation.
+    then: It returns worker_state_changed/unavailable and exposes no newer subtask data.
+  - id: A4
+    given: Planner durable facts/reports and public Run state after path queries.
+    when: They are scanned.
+    then: No path, raw State, physical identity, invocation/revision or query result was persisted.
+
+tests:
+  - {name: projections, command: "go test -race ./internal/planner/stateview/...", covers: [A1, A2, A3, A4]}
+  - {name: planner, command: "go test -race ./internal/planner/streamline/... ./internal/planner/router/... ./internal/planner/session/...", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Planner tools fetch the complete safe snapshot and apply fixed Server-side
+    projections. They never forward a model-selected selector into State.
+  - >-
+    Detailed state is advisory live context. Compact Worker observations remain
+    available when the Runtime read path fails.

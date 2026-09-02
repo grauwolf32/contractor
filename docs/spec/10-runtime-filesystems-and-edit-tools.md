@@ -419,9 +419,9 @@ choose among multiple matches.
 
 ## Auto export and A2A ordering
 
-For overlay with `export`, Runtime augments every successful normal Worker-model
-completion after its Runtime-owned response has been projected and before it
-becomes terminal over A2A:
+For overlay with `export`, Runtime augments every successful normal
+`WorkerResult` after semantic output and deterministic observations have been
+validated and before its `WorkerCompletion` becomes terminal over A2A:
 
 1. snapshot `F` under the workspace lock;
 2. encode and locally validate cumulative state `S -> F` and diff `B -> F`;
@@ -429,7 +429,8 @@ becomes terminal over A2A:
    allocation Artifact API;
 4. inject both exact returned refs into their reserved result slots after the
    ordinary observed-ref projection;
-5. validate the final result; only then publish the terminal A2A response;
+5. validate the final Worker result/completion; only then publish the terminal
+   A2A response;
 6. advance checkpoint to `F` after both writes have succeeded.
 
 Both artifacts bind the same `resultWorkspaceDigest`; diff metadata may carry
@@ -439,11 +440,11 @@ harmless because Scheduler never selects it. Temporary Artifact API failures
 produce retryable `workspace_export_failed`; invalid state/quota/fence failures
 are classified by their stable cause.
 
-No export occurs for a Runtime-classified failed response, `INPUT_REQUIRED` (the
-allocation continues), lost lease, forced abort/cancel, crash, missing/unsafe final
-summary or invocation cancellation. This ordering guarantees artifact writes finish
-before Scheduler observes terminal A2A state and enters its write-fenced
-`finalizing`/`aborting` transition.
+No export occurs for `WorkerFailure`, `INPUT_REQUIRED` (the allocation
+continues), lost lease, forced abort/cancel, crash, missing/unsafe structured
+semantic output or invocation cancellation. This ordering guarantees artifact
+writes finish before Scheduler observes terminal A2A state and enters its
+write-fenced `finalizing`/`aborting` transition.
 
 ## Lifecycle and cleanup
 

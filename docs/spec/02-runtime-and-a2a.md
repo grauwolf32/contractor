@@ -400,15 +400,17 @@ For one allocation the Runtime Agent:
    API, hydrates the selected local/memory storage and establishes a checkpoint;
 5. binds the private Artifact client and fetches/validates the exact RunScope
    Agent Skill packages selected under [09](09-agent-skills.md);
-6. prepares allocation-local State and selected tools, then creates one
-   in-process Worker runtime from the complete AgentTemplate, resolved native
-   ADK SkillToolset and effective ModelPolicy selected by the Run's
-   ResolvedExecutionConfig;
+6. validates the resolved AgentTemplate projection, prepares allocation-local
+   Contractor State, instrumentation reducers, selected tools and native ADK
+   SkillToolset, then passes only the minimal `WorkerBuildContext` plus the
+   effective ModelPolicy selected by the Run's ResolvedExecutionConfig to the
+   in-process Worker runtime factory;
 7. configures its own A2A Server and Agent Card for that allocation;
 8. binds model access to the allocation context;
 9. reports ready and handles the Worker's A2A Tasks itself;
-10. before each graceful terminal A2A result, performs any declared overlay
-   auto export; on finalization or abort, rejects new Tasks, requests
+10. before each graceful terminal A2A `WorkerCompletion`, closes the matching
+   observation snapshot and performs any declared overlay auto export; on
+   finalization or abort, rejects new Tasks, requests
    cancellation of active work, destroys the Worker runtime instance, closes
    every selected Toolset, bounded-flushes/destroys allocation adapters and
    serializes the report;
@@ -468,7 +470,8 @@ it without changing Workflow, AgentTemplate or allocation semantics.
 Secret fields are accepted only over the private mTLS control channel, retained
 in memory for the active allocation and redacted from logs, Agent Cards,
 WorkerHandle, metrics and durable StageExecution state. They are erased during
-release. Durable execution and metrics may retain the non-secret
+release and never copied into ADK State or the private live-State snapshot.
+Durable execution and metrics may retain the non-secret
 LLMGatewayConfig and credential refs, never their resolved token. A token that
 expires during a long allocation fails through the ordinary bounded Gateway
 error path; silently replacing the active settings snapshot is not allowed.
@@ -737,6 +740,11 @@ transport, allocation and lease checks.
 The private control protocol owns registration, heartbeat, reservation,
 AllocationSpec and RuntimeSettings delivery, readiness, lease, idempotent Worker
 finalization and abort, execution/runtime report transport, release and cleanup.
+While a Worker is live it also owns the read-only allocation-correlated
+`GET /private/v1/allocations/{allocation_id}/agent-state` transport. That route
+returns only bounded Contractor-owned State to Control Plane; it is neither an
+A2A operation nor a public/generic state API. [14](14-worker-results-and-live-state.md)
+owns its schema and lifecycle.
 
 A2A owns interaction with a Runtime Agent's already prepared Worker instance:
 messages/streams, Task state and continuation, cancellation, progress and
@@ -827,3 +835,6 @@ managed AgentTemplate service are not prerequisites.
 23. Agent Skill packages are allocation data pinned by WorkflowRun, not Runtime
     environment capabilities or A2A Agent Card operations; Runtime never
     resolves an owner UserScope current skill binding.
+24. Runtime exposes live Worker State only through the read-only
+    allocation-correlated Control Plane endpoint; no private request can write
+    an arbitrary ADK State key or replace pinned allocation configuration.

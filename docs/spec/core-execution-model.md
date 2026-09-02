@@ -19,6 +19,8 @@ The current working agreement is split across the documents indexed in
 - [HTTP and Caido tools](11-http-and-caido-tools.md).
 - [Workspace code-analysis tools](12-code-analysis-tools.md).
 - [Structured taint annotations](13-taint-annotations.md).
+- [Worker results and live State](14-worker-results-and-live-state.md).
+- [Optional terminal Worker summarization](15-worker-summarization.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

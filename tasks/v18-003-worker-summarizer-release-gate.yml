@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V18-003
+title: Harden and process-test optional terminal Worker summarization
+milestone: terminal-worker-summarization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V18-002]
+languages: [go, python, yaml]
+
+goal: >-
+  Prove enabled and disabled summarizer semantics, one-call bounds,
+  cancellation, redaction, attribution and slot reuse through the production
+  Server/Runtime/A2A process path.
+
+context:
+  deterministic_gateway: >-
+    A local scripted OpenAI-compatible Gateway must emit provider usage, tool
+    calls, structured normal output and structured/failing summarizer output on
+    named model aliases. The test must not require LM Studio or external model
+    quality.
+
+scope:
+  in:
+    - Add a real PostgreSQL/mTLS Server plus Runtime process scenario for disabled, soft-total, soft-prompt and valid-normal-at-boundary cases.
+    - Prove exactly one summarizer request, no tools in its schema/request, same pinned Gateway credential and distinct trusted ModelPolicy attribution.
+    - Exercise missing/inconsistent usage, transcript truncation boundaries, cancellation during normal unwind and summarizer call, invalid structured output, provider timeout and hard budget exhaustion.
+    - Prove finalize/abort/release never call the summarizer and one failed/cancelled summarizer cannot block another Run or clean slot reuse.
+    - Compare WorkerResult summarized flags, deterministic observations, exact artifacts, State phase and final metrics across all outcomes.
+    - Scan Gateway captures, State, reports, logs, PostgreSQL and OTLP for credentials, hidden/internal State, provider bodies and transcript/result retention outside the intended live request.
+    - Add an executable V18 invariant/fault matrix and compose its targets into release-verify.
+    - Document an opt-in LM Studio evaluation command separately; it is not an acceptance dependency.
+  out:
+    - Quality/F1 threshold, event compaction, alternative Gateway routing, UI editing or automatic enablement of existing AgentTemplates.
+
+deliverables:
+  - {path: tests/integration/worker_summarizer, description: Production-boundary deterministic process scenario.}
+  - {path: tests/matrices/worker_summarizer.yml, description: Strict invariant and fault ownership.}
+  - {path: Makefile, description: Focused/release verification targets.}
+  - {path: docs/development.md, description: Optional live-model evaluation command and expected diagnostics.}
+
+requirements:
+  - {id: R1, text: Every enabled path is bounded to one summarizer call and every disabled path makes zero.}
+  - {id: R2, text: Summarization never runs from finalize, abort, lease-loss reconciliation or release.}
+  - {id: R3, text: Observations/artifacts remain Runtime-trusted and summarizer usage remains separately attributable.}
+  - {id: R4, text: Failure/cancellation cannot retain secrets/state or prevent clean slot reuse.}
+
+acceptance_criteria:
+  - id: A1
+    given: The deterministic Gateway crosses each soft threshold.
+    when: The production process scenario runs.
+    then: Exactly one terminal summary occurs at the safe boundary with correct typed result, flag, observations and metrics.
+  - id: A2
+    given: Disabled/missing-usage/normal-final cases.
+    when: Requests are counted at the Gateway.
+    then: No summarizer request occurs and pre-feature Worker budget semantics remain unchanged.
+  - id: A3
+    given: Cancellation/failure at every summarizer boundary.
+    when: Scheduler drains/releases the allocation.
+    then: The Stage terminates boundedly, no post-fence model/tool call occurs and the Runtime slot is reusable.
+  - id: A4
+    given: The retained-data scan and executable matrix.
+    when: release-verify runs.
+    then: All owners exist and no secret/transcript/internal-State canary survives in forbidden surfaces.
+
+tests:
+  - {name: process, command: "make test-worker-summarizer-e2e", covers: [A1, A2, A3]}
+  - {name: hardening, command: "make test-worker-summarizer-hardening", covers: [A2, A3, A4]}
+  - {name: aggregate, command: "make release-verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Correctness is proven with an offline scripted Gateway. Live-model behavior
+    is an opt-in evaluation because it cannot be deterministic or required for
+    repository release.

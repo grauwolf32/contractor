@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V18-002
+title: Implement deterministic one-shot terminal Worker summarization
+milestone: terminal-worker-summarization
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V18-001]
+languages: [python, go]
+
+goal: >-
+  Stop an enabled long-running Worker at a safe soft-token boundary, invoke one
+  separate tool-free model over bounded model-visible history, and return a
+  normal trusted WorkerResult stamped summarized=true.
+
+context:
+  trigger: >-
+    After a normal model response and all of its selected tool calls complete,
+    accept an already valid WorkerModelResult normally. Otherwise, before the
+    next normal model call, request summarization when cumulative provider
+    total tokens reaches softTotalTokens or the newest provider prompt count
+    reaches softPromptTokens. Missing usage does not trigger an estimate.
+  coordinator: >-
+    WorkerInstrumentationPlugin records an internal request but never performs
+    nested LLM work in a callback. AdkWorkerRuntime unwinds the normal Runner,
+    builds the bounded transcript and invokes an independent tool-free agent
+    exactly once.
+
+scope:
+  in:
+    - Extend invocation budget/state tracking with latest prompt tokens and a closed disabled/not_requested/requested/succeeded/failed summarizer phase.
+    - Detect the soft boundary only after completed response tool calls and before another normal model/tool side effect.
+    - Preserve a valid normal WorkerModelResult at the boundary with summarized=false; do not replace it merely because usage crossed a threshold.
+    - Stop/unwind the normal Runner through an internal control signal handled by the Runtime coordinator, not a nested callback model call.
+    - Build at most 512 KiB of chronological non-thought model-visible transcript, retaining immutable task data first and newest complete event groups next with explicit transcriptTruncated.
+    - Include deterministic Worker observations but no separately supplied trusted result bindings; an ArtifactRef may reappear only through an already model-visible bounded event. Exclude Runtime internals, hidden thought, credentials, provider exceptions and raw ADK State.
+    - Construct an independent LlmAgent/model client with no tools/skills/workspace/artifact handles and strict WorkerModelResult output schema.
+    - Make exactly one summarizer call, validate exact subtask/result/secret/size rules, reuse trusted artifact projection and stamp summarized=true only in Runtime.
+    - On cancellation, provider failure, budget exhaustion or invalid output return safe retryable worker_summarization_failed and never resume/repair the normal loop.
+    - Add a separate optional summarizer metrics aggregate to Go/Python ExecutionMetrics and final-report validation/provenance; never mix its call/token counts into normal Worker budget observations.
+  out:
+    - Continuing after compaction, summarizer tools/retries, reactive context-overflow recovery, guessed token counts or a different Gateway credential.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/summarizer.py, description: Bounded input projection and one-shot tool-free consumer.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Safe trigger/coordinator/result integration.}
+  - {path: runtime/src/contractor_runtime/instrumentation.py, description: Soft-boundary signal and separate metrics reducer.}
+  - {path: internal/contracts, description: Summarizer metrics wire validation and trusted attribution.}
+
+requirements:
+  - {id: R1, text: A soft trigger begins no next normal model/tool operation and never interrupts a tool already selected by the completed response.}
+  - {id: R2, text: The plugin never performs a nested LLM call; the coordinator makes at most one independent summarizer call.}
+  - {id: R3, text: Only Runtime can set summarized and deterministic observations remain unchanged by summarizer output.}
+  - {id: R4, text: Disabled configuration and missing usage preserve the existing hard-budget path exactly.}
+
+acceptance_criteria:
+  - id: A1
+    given: A tool response crosses a configured soft total/prompt threshold without a final result.
+    when: ADK would start its next model call.
+    then: That normal call does not start; one tool-free summarizer returns a typed WorkerResult with summarized=true.
+  - id: A2
+    given: The crossing model response already contains a valid WorkerModelResult.
+    when: Runtime evaluates the boundary.
+    then: It returns that normal result with summarized=false and makes no summarizer call.
+  - id: A3
+    given: Missing provider usage, disabled config, or hard failure before a safe boundary.
+    when: Runtime handles the invocation.
+    then: It never estimates/retroactively summarizes and follows existing hard-limit/failure behavior.
+  - id: A4
+    given: Invalid/failed/cancelled summarizer output and secret/transcript canaries.
+    when: Runtime terminates the invocation and builds reports.
+    then: It returns one safe failure, makes no retry, preserves cleanup, separates metrics and leaks no forbidden value.
+
+tests:
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_worker_summarizer.py tests/test_adk_runtime.py", covers: [A1, A2, A3, A4]}
+  - {name: contracts, command: "go test ./internal/contracts ./internal/telemetry/...", covers: [A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    This is terminal summarization, not ADK event compaction. The normal Worker
+    never continues after the soft-triggered summarizer.
+  - >-
+    A provider context error is already past the deterministic soft boundary;
+    it remains a normal failure until a separately designed recovery policy
+    exists.

@@ -5,6 +5,12 @@ milestone: worker-model-boundary
 priority: P0
 status: complete
 implementation_commit: bdcaca77cc7bf148464c98b94086375f7c670e24
+superseded_by: V17-003
+supersession_note: >-
+  Historical implementation record. V17-003 supersedes only this task's
+  arbitrary plain-final-text success projection with WorkerModelResult and
+  WorkerCompletion. Runtime-owned exact artifact selection, removal of private
+  lifecycle prompts and the AgentTemplate/Worker boundary remain authoritative.
 depends_on: [V5-001, V12-008]
 languages: [go, python, yaml, typescript]
 

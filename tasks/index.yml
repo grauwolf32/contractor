@@ -54,10 +54,31 @@ fixed_decisions:
     go_sdk: github.com/a2aproject/a2a-go/v2
   worker_model_boundary:
     reusable_behavior: AgentTemplate resolved instruction text and selected tools/skills
-    task_input: Planner objective/instructions, string parameters and named exact input refs
+    task_input: Planner objective/instructions, opaque subtask ID, string parameters and named exact input refs
+    model_output: Strict WorkerModelResult with only exact subtask ID and semantic result text
     result_projection: >-
-      Runtime-owned strict A2A response from plain final summary plus only
-      current-invocation trusted tool observations matched to Workflow `from` bindings.
+      Runtime validates the subtask echo, stamps trusted identity, deterministic
+      observations, summarized state and only current-invocation exact artifact
+      refs; Planner separately owns StageResult.
+  worker_live_state:
+    storage: >-
+      One bounded versioned Contractor subtree in allocation-local ADK State;
+      cumulative metrics plus one current and one last-completed invocation.
+    transport: >-
+      Read-only mTLS Runtime endpoint for complete safe snapshots. There is no
+      generic state mutation, public endpoint or durable state history.
+    planner_access: >-
+      Streamline/Router receive only explicit Server-side coverage/file/tool
+      projections correlated to the newest WorkerCompletion; no raw state key,
+      allocation, invocation or revision is model-selectable.
+  worker_summarization:
+    mode: >-
+      Optional AgentTemplate-selected one-shot terminal summarizer at a
+      deterministic provider-reported soft-token boundary; omission disables it.
+    isolation: >-
+      Separate exact tool-free ModelPolicy over the same pinned Worker Gateway
+      route, bounded model-visible transcript, Runtime-owned summarized flag and
+      separately attributable metrics. ADK continuing compaction is deferred.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -193,9 +214,10 @@ milestones:
   - id: live-model-reliability
     exit_task: V5-003
     outcome: >-
-      Tool-complete Workers tolerate arbitrary bounded final text without a
-      model-authored result envelope, project-scale LikeC4 variants use explicit
-      larger finite budgets, and owners can inspect safe actionable attempt errors.
+      Historical V5 behavior let tool-complete Workers recover from malformed
+      output, added explicit project-scale LikeC4 budgets and exposed safe
+      attempt errors. Its result-finalizer was superseded by V13 and the later
+      plain-text projection is superseded by the typed V17 boundary.
   - id: lifecycle-review-hardening
     exit_task: V6-003
     outcome: >-
@@ -297,6 +319,86 @@ milestones:
       The bundled trace Skill and a graph-aware overlay Workflow use structured
       annotations through production process boundaries with bounded lifecycle,
       redaction, exported artifacts and clean slot reuse.
+  - id: worker-results-and-live-state
+    exit_task: V17-007
+    outcome: >-
+      Every Worker returns a strict semantic result correlated to its subtask;
+      Runtime attaches deterministic observations and exact artifacts, while
+      explicit Planner tools inspect only safe live State projections through
+      the private Runtime endpoint.
+  - id: terminal-worker-summarization
+    exit_task: V18-003
+    outcome: >-
+      An AgentTemplate may opt into one bounded tool-free terminal summarizer at
+      a deterministic soft-token boundary without changing disabled behavior,
+      trusted observations/artifacts, lifecycle ownership or slot cleanup.
+
+worker_results_state_planning_review:
+  reviewed_on: "2026-09-02"
+  verdict: ready_to_implement_in_dependency_order
+  source_reference:
+    repository: /home/ruslan/src/contractor-old
+    reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+    retained_ideas:
+      - Structured per-subtask semantic Worker output.
+      - Deterministic tool/file observations separated from model claims.
+      - Per-invocation filesystem interactions and explicit incomplete coverage.
+    rejected_implementation_details:
+      - Global fsspec coupling and implicit State-key access by model tools.
+      - Arbitrary result-format recovery and model-authored observation fields.
+  checks:
+    - >-
+      Result ownership is explicit: Worker model authors only subtaskId/result,
+      Runtime owns trusted metadata and technical failures, Planner owns
+      StageResult and Scheduler owns durable acceptance/policy.
+    - >-
+      V17-001 adds inert compatible wire types; V17-002 supplies revisioned
+      State/correlation before V17-003 atomically changes A2A and Planner
+      adapters, keeping every task commit buildable.
+    - >-
+      One ADK plugin owns callback correlation, while typed reducers and
+      per-tool safe extractors prevent generic argument/result retention and
+      preserve current ExecutionReport semantics.
+    - >-
+      Workspace coverage describes model-visible operations. Tree-sitter and
+      Trailmark internal scans retain their distinct analyzer coverage and do
+      not falsely mark every parsed file as read.
+    - >-
+      The Runtime state route is GET-only and exposes the full bounded
+      Contractor schema, never raw ADK State. Go Planner tools load that
+      snapshot and apply fixed typed projections without model-selected keys.
+    - >-
+      Correlation through hidden allocation/invocation/subtask/revision data
+      closes the sequential-allocation race; those values are removed before
+      Planner model output and durable facts.
+    - >-
+      RuntimeSettings and credentials remain constructor-injected outside ADK
+      State. Allocation prepare is the only initial configuration channel;
+      per-task semantic data remains StageContentRequest and shared mutable
+      facts remain Memory/artifacts.
+    - >-
+      V18 depends on the complete V17 release gate and implements terminal
+      summarization independently from ADK conversation compaction. Disabled
+      AgentTemplates retain the exact pre-feature hard-budget path.
+    - >-
+      All ten new tasks are self-contained, independently testable and have
+      implementation_commit null until their implementation task is completed.
+  accepted_risks:
+    - >-
+      The first lean@1 observation composition is intentionally evaluable, not
+      permanently universal. Future alternatives need a new profile identity.
+    - >-
+      A 10000-path/4 MiB live State bound can make workspace coverage partial;
+      projections expose lower bounds and refuse exact unread results instead
+      of consuming unbounded Runtime memory.
+    - >-
+      Live detailed paths disappear on release and are not available in UI or
+      historical inspection. Durable support would require a separately
+      reviewed privacy/retention contract.
+    - >-
+      Missing provider usage cannot trigger the initial token-based summarizer,
+      and a context rejection that happens before a safe boundary remains a
+      Worker failure. The independent hard call/tool limits still terminate it.
 
 v8_v12_spec_review:
   reviewed_on: "2026-09-01"
@@ -337,7 +439,7 @@ v8_v12_spec_review:
 
 current_checkpoint:
   completed_through: V16-005
-  next_task: null
+  next_task: V17-001
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -423,7 +525,12 @@ current_checkpoint:
     annotation state/diff export, a visible authoritative fence plus recovery
     after a lost release acknowledgement, clean same-slot reuse and retained
     data redaction. The gate also found and fixed ADK JSON-Schema generation for
-    callable annotation tools before their first model call.
+    callable annotation tools before their first model call. V17-001 through
+    V17-007 are now planned for strict per-subtask Worker results,
+    instrumentation-backed deterministic observations, a read-only private
+    Worker State snapshot and explicit Streamline/Router projections. V18-001
+    through V18-003 separately plan optional one-shot terminal summarization;
+    no V17/V18 implementation has started.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -1290,3 +1397,13 @@ tasks:
   - {id: V16-003, file: v16-003-taint-annotation-hardening.yml}
   - {id: V16-004, file: v16-004-trace-annotation-config.yml}
   - {id: V16-005, file: v16-005-taint-annotation-process-e2e.yml}
+  - {id: V17-001, file: v17-001-worker-completion-contracts.yml}
+  - {id: V17-002, file: v17-002-worker-instrumentation-state.yml}
+  - {id: V17-003, file: v17-003-structured-worker-results.yml}
+  - {id: V17-004, file: v17-004-workspace-observation-reducer.yml}
+  - {id: V17-005, file: v17-005-private-agent-state.yml}
+  - {id: V17-006, file: v17-006-planner-state-tools.yml}
+  - {id: V17-007, file: v17-007-worker-observations-release-gate.yml}
+  - {id: V18-001, file: v18-001-worker-summarizer-config.yml}
+  - {id: V18-002, file: v18-002-terminal-worker-summarizer.yml}
+  - {id: V18-003, file: v18-003-worker-summarizer-release-gate.yml}
