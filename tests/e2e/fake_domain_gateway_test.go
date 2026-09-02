@@ -104,6 +104,7 @@ type domainGatewayStep struct {
 	validate  func(map[string]any) error
 	summary   string
 	artifacts map[string]domainArtifactBinding
+	plain     bool
 	outcome   string
 	errorCode string
 	retryable bool
@@ -291,23 +292,30 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 		if outcome == "" {
 			outcome = "succeeded"
 		}
-		resultBody := map[string]any{
-			"apiVersion": "contractor/v1alpha1",
-			"outcome":    outcome,
-			"summary":    step.summary,
-			"artifacts":  artifacts,
-		}
-		if step.errorCode != "" {
-			resultBody["error"] = map[string]any{
-				"code": step.errorCode, "message": "deterministic retry request",
-				"retryable": step.retryable,
+		if step.plain {
+			if outcome != "succeeded" || step.errorCode != "" {
+				return nil, "", 0, errors.New("plain final response must succeed")
 			}
+			message = map[string]any{"role": "assistant", "content": step.summary}
+		} else {
+			resultBody := map[string]any{
+				"apiVersion": "contractor/v1alpha1",
+				"outcome":    outcome,
+				"summary":    step.summary,
+				"artifacts":  artifacts,
+			}
+			if step.errorCode != "" {
+				resultBody["error"] = map[string]any{
+					"code": step.errorCode, "message": "deterministic retry request",
+					"retryable": step.retryable,
+				}
+			}
+			result, marshalErr := json.Marshal(resultBody)
+			if marshalErr != nil {
+				return nil, "", 0, marshalErr
+			}
+			message = map[string]any{"role": "assistant", "content": string(result)}
 		}
-		result, marshalErr := json.Marshal(resultBody)
-		if marshalErr != nil {
-			return nil, "", 0, marshalErr
-		}
-		message = map[string]any{"role": "assistant", "content": string(result)}
 		finishReason = "stop"
 	}
 

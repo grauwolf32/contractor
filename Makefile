@@ -42,6 +42,11 @@ test-taint-annotations-runtime:
 test-taint-annotations-hardening: test-taint-annotations-matrix test-taint-annotations-runtime
 	cd runtime && uv run pytest -W error tests/test_taint_annotations_hardening.py tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py
 
+test-taint-annotations-e2e: test-taint-annotations-hardening
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestTaintAnnotationsAcrossRealRuntimeProcess$$'
+
 test-contracts:
 	go test ./internal/contracts/...
 	cd runtime && uv run pytest tests/test_contracts.py
@@ -194,7 +199,7 @@ test-faults:
 test-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
-	go test -tags=e2e -count=1 -timeout=14m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses)$$'
+	go test -tags=e2e -count=1 -timeout=16m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess)$$'
 
 test-capability-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
@@ -289,4 +294,4 @@ build:
 
 verify: lint test build ui-verify test-runtime-configuration-matrix test-shared-memory-matrix test-http-caido-matrix
 
-release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-hardening
+release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e

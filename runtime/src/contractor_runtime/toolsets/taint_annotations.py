@@ -240,9 +240,13 @@ class _TaintAnnotationSession:
 
 
 class _BaseAnnotationTool:
-    name: str
-    kind: AnnotationKind
-    description: str
+    # Keep these runtime class attributes unannotated. Google ADK asks
+    # typing.get_type_hints() for a callable instance while building its JSON
+    # Schema; inherited forward annotations are then evaluated without this
+    # module's globals and fail before the first model call.
+    name = ""
+    kind = ""
+    description = ""
 
     def __init__(self, session: _TaintAnnotationSession, metrics: ToolMetrics) -> None:
         self._session = session

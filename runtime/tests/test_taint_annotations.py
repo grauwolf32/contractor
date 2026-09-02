@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from google.adk.tools import FunctionTool
 from test_projectfs_zip import archive, settings, workspace_inputs
 
 from contractor_runtime.contracts import RuntimeSettings
@@ -409,6 +410,40 @@ def test_factory_requires_a_writer_and_successful_positive_probe(
                 project_workspace=MemoryWriter({"app.py": "def handler(): pass\n"}),
                 **common,
             )
+
+    asyncio.run(scenario())
+
+
+def test_all_annotation_tools_generate_adk_function_declarations(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        tools, _ = await make_tools(
+            tmp_path,
+            MemoryWriter({"app.py": "def handler(value):\n    return value\n"}),
+        )
+        declarations = {
+            name: FunctionTool(tool)._get_declaration().model_dump(mode="json")
+            for name, tool in tools.items()
+        }
+        assert sorted(declarations) == sorted(EXPORTED_TOOLS)
+        assert declarations["annotate_trace"]["parameters_json_schema"] == {
+            "properties": {
+                "path": {"title": "Path", "type": "string"},
+                "symbol": {"title": "Symbol", "type": "string"},
+                "target": {"default": "unknown", "title": "Target", "type": "string"},
+                "args": {"default": "", "title": "Args", "type": "string"},
+                "calls": {"default": "", "title": "Calls", "type": "string"},
+                "definition_line": {
+                    "default": 0,
+                    "title": "Definition Line",
+                    "type": "integer",
+                },
+            },
+            "required": ["path", "symbol"],
+            "title": "annotate_traceParams",
+            "type": "object",
+        }
+        assert declarations["annotate_validate"]["name"] == "annotate_validate"
+        assert declarations["annotate_sink"]["name"] == "annotate_sink"
 
     asyncio.run(scenario())
 
