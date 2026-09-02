@@ -3,8 +3,8 @@ id: V14-003
 title: Bound Runtime cleanup without blocking the asyncio event loop
 milestone: runtime-lifecycle-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: ca4b819f8634d0eaeba8198e86ed792a422f49d2
 depends_on: [V14-001, V14-002, V11-012, V12-008]
 languages: [python]
 
