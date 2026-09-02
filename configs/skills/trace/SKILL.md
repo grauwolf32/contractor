@@ -9,8 +9,9 @@ metadata:
 # Trace Annotation Skill
 
 Use this skill to trace handler/request execution paths through a project,
-annotate relevant functions, and report only vulnerabilities supported by
-visible code evidence.
+annotate relevant functions with the dedicated annotation operations when they
+are available, and report only vulnerabilities supported by visible code
+evidence.
 
 The goal is not to find every suspicious pattern. The goal is to produce
 a defensible trace: where input enters, how it changes, where it reaches
@@ -76,13 +77,14 @@ before labeling an unfamiliar sink.
 
 ### Phase 3 — Annotate relevant functions
 
-When source-editing tools are available, annotate only the entrypoint,
+When annotation tools are available, annotate only the entrypoint,
 validation/sanitization point, sink wrapper, key transformation, or
-authorization decision. Use only the recognized annotation forms. Before
-ending annotation work, inspect the changed paths and diff through the
-available source-editing interface and confirm only intended files/lines
-changed. If editing is unavailable, report proposed annotation locations
-without claiming that source was modified.
+authorization decision. Use `annotate_trace`, `annotate_validate`, and
+`annotate_sink`; do not emulate them with a generic source edit. Before ending
+annotation work, use `changed_paths` and `diff` and confirm only intended
+files/lines changed. Use `rollback_changes` if the resulting change set is not
+safe. If annotation tools are unavailable, report proposed locations without
+claiming that source was modified.
 
 Call `load_skill_resource(skill_name="trace", file_path="references/annotations.md")`
 for forms, syntax, and placement.

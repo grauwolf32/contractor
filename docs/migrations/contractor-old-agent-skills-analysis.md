@@ -6,17 +6,19 @@ migrated from the exact contractor-old revision
 knowledge only. It does not copy legacy agents, prompts, workflows, Python
 implementations, Memory adapters, or tool declarations.
 
-The packages are deliberately unassigned. No current AgentTemplate provides an
-exact replacement for the legacy threat-analysis, trace, source-annotation,
-finding-reporting, or authorized HTTP-testing surfaces. Publishing knowledge is
-not treated as proof that a compatible Worker exists.
+The STRIDE, vulnerability-scan, and vulnerability-playbook packages remain
+unassigned. The trace package is assigned only to
+`workspace_taint_analyst@1`, whose exact source-navigation, structured
+annotation, change-inspection, and report-writing operations now cover its
+model-visible procedure. Publishing any other package remains distinct from
+proving that a compatible Worker exists.
 
 The canonical package digests for the migrated source trees are:
 
 | Package | Digest |
 | --- | --- |
 | `stride` | `sha256:92cb91b0952fb419021e89ec5d977ae36b1ab6439d9f36f2b5240412ea530043` |
-| `trace` | `sha256:245b3799afc85ab27cb55fdeb196f461e85e8a5c4ab5542e2a959b61fd5fec98` |
+| `trace` | `sha256:2b71e3f49e9da6aee8e9724c60fe8dc22987907ac99d262c1d0068d4936b3ebc` |
 | `vuln-scan` | `sha256:504c68f2c72545ab190d9b79140ee74fcab7abee6d02a4039cdc41caada20b16` |
 | `vulns` | `sha256:92dc4640426c8aa5f6374eed1b53775552fe14daf1becd89d7f456886212d274` |
 
@@ -67,13 +69,13 @@ contain underscores.
 - `vuln_scan` identifiers became `vuln-scan` in the package body and native
   disclosure examples. Reference filenames and the security subject matter did
   not change.
-- Old exact tool names such as `list_symbols`, `read_file`, `changed_paths`,
-  and `report_vulnerability` became capability-neutral source-navigation,
-  editing, and reporting operations. The text now requires an operation to be
-  present in the current Worker invocation before it can be used; it does not
-  expose the server-side AgentTemplate abstraction to the model.
-- Trace annotation is conditional on a future Worker receiving edit tools. A
-  read-only Worker must return proposed locations and may not claim mutations.
+- Old exact tool names became capability-neutral wording where no compatible
+  surface exists. The trace package now names only the exact annotation and
+  change-inspection operations selected by its compatible template; it still
+  does not expose the server-side AgentTemplate abstraction to the model.
+- Trace annotation is conditional on receiving `annotate_trace`,
+  `annotate_validate`, and `annotate_sink`. A read-only Worker must return
+  proposed locations and may not claim mutations.
 - The STRIDE package still models rather than exploits. The `vulns` package
   retains explicit authorization, non-destructive proof, evidence, stop, and
   scope-escalation boundaries. No payload, bypass, exploit chain, or offensive

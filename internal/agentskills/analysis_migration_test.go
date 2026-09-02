@@ -26,7 +26,7 @@ type migratedAnalysisSkill struct {
 var migratedAnalysisSkills = []migratedAnalysisSkill{
 	{name: "stride", digest: "sha256:92cb91b0952fb419021e89ec5d977ae36b1ab6439d9f36f2b5240412ea530043"},
 	{
-		name: "trace", digest: "sha256:245b3799afc85ab27cb55fdeb196f461e85e8a5c4ab5542e2a959b61fd5fec98",
+		name: "trace", digest: "sha256:2b71e3f49e9da6aee8e9724c60fe8dc22987907ac99d262c1d0068d4936b3ebc",
 		references: []string{
 			"references/annotations.md", "references/controls.md", "references/cwe-mapping.md",
 			"references/finding-shapes.md", "references/frameworks.md", "references/sinks.md",
@@ -90,7 +90,7 @@ func TestMigratedAnalysisSkillsAreCompleteDeterministicAndClosed(t *testing.T) {
 	}
 
 	assertMigratedAnalysisInventory(t)
-	assertMigratedAnalysisSkillsRemainUnassigned(t)
+	assertMigratedAnalysisSkillAssignments(t)
 }
 
 func assertMigratedAnalysisReferenceClosure(
@@ -108,11 +108,18 @@ func assertMigratedAnalysisReferenceClosure(
 		text := string(data)
 		for _, token := range []string{
 			"skills_read", "skills_list", "run_skill_script", "scripts/",
-			"report_vulnerability", "list_symbols", "read_file", "changed_paths",
+			"report_vulnerability",
 			"AgentTemplate", "/home/ruslan/", "index is always in memory",
 		} {
 			if strings.Contains(text, token) {
 				t.Errorf("%s retains unavailable platform token %q", memberPath, token)
+			}
+		}
+		if specification.name != "trace" {
+			for _, token := range []string{"list_symbols", "read_file", "changed_paths"} {
+				if strings.Contains(text, token) {
+					t.Errorf("%s retains unavailable platform token %q", memberPath, token)
+				}
 			}
 		}
 		if specification.oldName != "" && strings.Contains(text, specification.oldName) {
@@ -222,7 +229,7 @@ func assertMigratedAnalysisInventory(t *testing.T) {
 	}
 }
 
-func assertMigratedAnalysisSkillsRemainUnassigned(t *testing.T) {
+func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 	t.Helper()
 	root := filepath.Join("..", "..", "configs", "agent-templates")
 	entries, err := os.ReadDir(root)
@@ -230,6 +237,7 @@ func assertMigratedAnalysisSkillsRemainUnassigned(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets := map[string]bool{"stride": true, "trace": true, "vuln-scan": true, "vulns": true}
+	traceAssigned := false
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
 			continue
@@ -248,9 +256,16 @@ func assertMigratedAnalysisSkillsRemainUnassigned(t *testing.T) {
 		}
 		for _, skill := range document.Spec.Skills {
 			if targets[skill.Name] {
-				t.Errorf("AgentTemplate %s prematurely selects skills/%s", entry.Name(), skill.Name)
+				if entry.Name() == "workspace_taint_analyst.yaml" && skill.Name == "trace" {
+					traceAssigned = true
+					continue
+				}
+				t.Errorf("AgentTemplate %s unexpectedly selects skills/%s", entry.Name(), skill.Name)
 			}
 		}
+	}
+	if !traceAssigned {
+		t.Error("workspace_taint_analyst.yaml does not select skills/trace")
 	}
 }
 

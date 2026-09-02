@@ -4,19 +4,39 @@ description: Annotation discipline for the trace skill — exact comment forms, 
 
 # Annotation Discipline
 
-Annotations are machine-readable comments placed above relevant
-function definitions. They describe visible code only — never invent
-calls, files, arguments, middleware, or framework behavior.
+Annotations are machine-readable comments placed above relevant function
+definitions. They describe visible code only — never invent calls, files,
+arguments, middleware, or framework behavior. Insert them only through the
+dedicated operations below; never synthesize comment edits manually.
 
 ## Exact forms
 
-Place comments directly above function definitions. Use only:
+Use only these calls:
+
+```text
+annotate_trace(
+  path,
+  symbol,
+  target="unknown",
+  args="",
+  calls="",
+  definition_line=0
+)
+annotate_validate(path, symbol, arg, kind, definition_line=0)
+annotate_sink(path, symbol, kind, arg="unknown", definition_line=0)
+```
+
+They insert these canonical forms directly above function definitions:
 
   @trace target=<target_id_or_unknown> args=<arg:state,...> calls=<symbol,...>
   @validate arg=<arg> kind=<kind>
   @sink kind=<kind> arg=<arg_or_unknown>
 
-No other annotation forms are recognized.
+No other annotation forms are recognized. `path` is a normalized
+workspace-relative path and `symbol` is an exact, case-sensitive unqualified
+function-like name. If the same `(path, symbol)` identifies more than one
+declaration, inspect the current source and repeat with that declaration's
+positive 1-based `definition_line`; never guess or accept the first match.
 
 `<state>` ∈ { tainted, validated, clean, derived } — see
 `references/sources.md` for state semantics.
@@ -46,10 +66,11 @@ Do not invent sink labels.
 The annotation body (`@trace ...`) is identical across languages; only
 the comment marker changes. Match the surrounding file's convention.
 
-| Language(s)                                                                   | Marker                |
-| ----------------------------------------------------------------------------- | --------------------- |
-| Python, Ruby, Shell, YAML, TOML                                               | `# @trace ...`        |
-| JS, TS, Go, Rust, Java, C, C++, C#, Kotlin, Swift, Scala, PHP                 | `// @trace ...`       |
+| Language(s) | Marker |
+| --- | --- |
+| Python, Ruby, Bash, Elixir | `# @trace ...` |
+| Haskell, Lua | `-- @trace ...` |
+| JavaScript, TypeScript, TSX, Go, Rust, Java, Kotlin, C, C++, C#, PHP, Scala, Swift | `// @trace ...` |
 
 
 Use the form that is a real comment in the file's language. Do not
@@ -57,8 +78,9 @@ introduce a `#` line into a JS or Go file.
 
 ## Placement
 
-Place annotations directly above the function/method/handler/closure
-definition they describe.
+The annotation operations place annotations directly above the
+function/method/handler/closure definition they describe and above any
+syntax-owned decorator, attribute, export, or template prefix.
 
 Good:
 
@@ -115,8 +137,8 @@ than guessing the runtime target.
 
 ## Multi-target functions
 
-When a single function is on the path of two or more assigned targets,
-emit one `@trace` line per target, in assignment order:
+When a single function is on the path of two or more assigned targets, call
+`annotate_trace` once per target, in assignment order:
 
 ```
 # @trace target=getOrder args=req:tainted calls=findOrderById
@@ -125,7 +147,7 @@ def shared_handler(req): ...
 ```
 
 Do NOT collapse multiple targets into one comma-separated `target=`
-value — the parser expects a single id per line.
+value — the annotation form accepts a single id per line.
 
 ## Annotate when at least one applies
 
@@ -207,28 +229,30 @@ sink unless it directly performs or wraps the sink.
 
 ## Before inserting
 
-- check whether the function already has trace annotations
+- inspect whether the function already has trace annotations
 - preserve correct existing annotations
 - add only missing annotations that materially improve the trace
-- do not insert duplicate lines
+- rely on exact replay returning `changed=false`; do not treat it as a failure
+- if the same trace target already has a different body, stop on conflict and
+  inspect or roll back instead of silently replacing it
 - do not create conflicting states for the same argument at the same
   function entry
 - do not change unrelated formatting or comments
 
 ## Verification
 
-Before ending annotation work, use the available source-editing interface to
-inspect changed paths and the diff. Confirm that only
-the intended files and lines changed. If no editing interface is available,
-return proposed annotations without claiming that they were applied.
+Before ending annotation work, call `changed_paths`, then inspect the bounded
+result with `diff`. Confirm that only the intended files and lines changed. If
+those operations are unavailable, return proposed annotations without claiming
+that they were applied.
 
 Confirm comment syntax matches the file language, annotations are
 directly above the right function, and no unrelated whitespace edits
 were introduced.
 
-If verification shows unintended changes (whitespace edits, accidental
-overwrites, extra annotations), use `restore` on the affected path and
-re-insert only the intended lines.
+If verification shows unintended changes, call `rollback_changes` for the
+affected path (or the complete current change set) and re-insert only the
+intended lines.
 
 ## Examples
 

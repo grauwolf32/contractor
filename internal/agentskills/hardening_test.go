@@ -25,7 +25,7 @@ func TestMigratedAgentSkillsAreDeterministicAndWorkerFacing(t *testing.T) {
 		"exploit":   "sha256:e44969fa40e36907273490e1f7e58743003d46612f1d5ac31bc9156c16276e3f",
 		"likec4":    "sha256:84bc32ac3f6ca32d13785280090701e1d54a3e4f0cd373572236f0a2cd22b95e",
 		"stride":    "sha256:92cb91b0952fb419021e89ec5d977ae36b1ab6439d9f36f2b5240412ea530043",
-		"trace":     "sha256:245b3799afc85ab27cb55fdeb196f461e85e8a5c4ab5542e2a959b61fd5fec98",
+		"trace":     "sha256:2b71e3f49e9da6aee8e9724c60fe8dc22987907ac99d262c1d0068d4936b3ebc",
 		"vuln-scan": "sha256:504c68f2c72545ab190d9b79140ee74fcab7abee6d02a4039cdc41caada20b16",
 		"vulns":     "sha256:92dc4640426c8aa5f6374eed1b53775552fe14daf1becd89d7f456886212d274",
 	}
