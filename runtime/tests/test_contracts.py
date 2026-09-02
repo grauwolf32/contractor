@@ -34,6 +34,8 @@ from contractor_runtime.contracts import (
     RuntimeSettingsV2,
     StageContentRequest,
     StageContentResult,
+    WorkerCompletion,
+    WorkerModelResult,
     WorkspaceCapabilitiesV2,
     decode_private_v2,
     encode_private_v2,
@@ -98,6 +100,9 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
     "stage-content-request.json": StageContentRequest,
     "stage-content-result-success.json": StageContentResult,
     "stage-content-result-failure.json": StageContentResult,
+    "worker-completion-success.json": WorkerCompletion,
+    "worker-completion-failure.json": WorkerCompletion,
+    "worker-completion-empty-observations.json": WorkerCompletion,
 }
 
 INVALID_MODELS: dict[str, type[BaseModel]] = {
@@ -112,6 +117,8 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "stage-content-request-versioned-result-binding.json": StageContentRequest,
     "stage-content-result-unversioned-artifact.json": StageContentResult,
     "stage-content-result-success-with-error.json": StageContentResult,
+    "worker-completion-both-variants.json": WorkerCompletion,
+    "worker-completion-no-variant.json": WorkerCompletion,
     "artifact-read-result-unversioned.json": ArtifactReadResult,
 }
 
@@ -132,6 +139,9 @@ FIXTURE_SCHEMAS = {
     "stage-content-request": "stage-content.schema.json",
     "stage-content-result-success": "stage-content.schema.json",
     "stage-content-result-failure": "stage-content.schema.json",
+    "worker-completion-success": "worker-completion.schema.json",
+    "worker-completion-failure": "worker-completion.schema.json",
+    "worker-completion-empty-observations": "worker-completion.schema.json",
     "agent-registration-idle-with-allocation": "agent-registration.schema.json",
     "agent-registration-oversized-software-version": "agent-registration.schema.json",
     "agent-heartbeat-missing-allocation": "agent-heartbeat.schema.json",
@@ -143,6 +153,8 @@ FIXTURE_SCHEMAS = {
     "stage-content-request-versioned-result-binding": "stage-content.schema.json",
     "stage-content-result-unversioned-artifact": "stage-content.schema.json",
     "stage-content-result-success-with-error": "stage-content.schema.json",
+    "worker-completion-both-variants": "worker-completion.schema.json",
+    "worker-completion-no-variant": "worker-completion.schema.json",
     "artifact-read-result-unversioned": "artifact.schema.json",
 }
 
@@ -160,6 +172,69 @@ def test_invalid_golden_fixture_is_rejected(filename: str, model: type[BaseModel
     raw = (FIXTURES / "invalid" / filename).read_text(encoding="utf-8")
     with pytest.raises(ValidationError):
         model.model_validate_json(raw)
+
+
+def test_worker_model_result_is_strict_and_runtime_internal() -> None:
+    result = WorkerModelResult.model_validate(
+        {"subtaskId": "1.1", "result": "Completed the assigned analysis."}
+    )
+    assert result.model_dump(by_alias=True) == {
+        "subtaskId": "1.1",
+        "result": "Completed the assigned analysis.",
+    }
+
+    for invalid in (
+        {"subtaskId": "1.1", "result": "done", "outcome": "succeeded"},
+        {"subtaskId": "with space", "result": "done"},
+        {"subtaskId": "1", "result": "   "},
+        {"subtaskId": "1", "result": "é" * 32769},
+    ):
+        with pytest.raises(ValidationError):
+            WorkerModelResult.model_validate(invalid)
+
+
+def test_worker_completion_rejects_nested_authority_and_inconsistent_observations() -> None:
+    baseline = json.loads(
+        (FIXTURES / "valid" / "worker-completion-success.json").read_text(encoding="utf-8")
+    )
+
+    candidates: list[dict[str, Any]] = []
+
+    zero_revision = json.loads(json.dumps(baseline))
+    zero_revision["stateRevision"] = 0
+    candidates.append(zero_revision)
+
+    unversioned = json.loads(json.dumps(baseline))
+    del unversioned["result"]["artifacts"]["report"]["revision"]
+    candidates.append(unversioned)
+
+    reserved = json.loads(json.dumps(baseline))
+    reserved["result"]["artifacts"]["report"]["name"] = "memory.note"
+    candidates.append(reserved)
+
+    invalid_count = json.loads(json.dumps(baseline))
+    invalid_count["result"]["observations"]["tools"]["read_file"] = {
+        "calls": 1,
+        "failures": 2,
+    }
+    candidates.append(invalid_count)
+
+    missing_unread = json.loads(json.dumps(baseline))
+    del missing_unread["result"]["observations"]["workspace"]["unreadFiles"]
+    candidates.append(missing_unread)
+
+    false_positive_truncation = json.loads(json.dumps(baseline))
+    false_positive_truncation["result"]["observations"]["workspace"]["filesReadTruncated"] = True
+    false_positive_truncation["result"]["observations"]["truncated"] = True
+    candidates.append(false_positive_truncation)
+
+    model_outcome = json.loads(json.dumps(baseline))
+    model_outcome["result"]["outcome"] = "succeeded"
+    candidates.append(model_outcome)
+
+    for candidate in candidates:
+        with pytest.raises(ValidationError):
+            WorkerCompletion.model_validate(candidate)
 
 
 @pytest.mark.parametrize(("filename", "model"), PRIVATE_V2_VALID_MODELS.items())

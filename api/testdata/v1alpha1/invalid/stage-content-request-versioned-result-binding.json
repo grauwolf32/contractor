@@ -1,5 +1,6 @@
 {
   "apiVersion": "contractor/v1alpha1",
+  "subtaskId": "0",
   "objective": "Copy the source artifact",
   "instructions": "Use the exact input.",
   "parameters": {},

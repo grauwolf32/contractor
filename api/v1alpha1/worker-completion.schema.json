@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/worker-completion.schema.json",
+  "$defs": {
+    "uint64": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "subtaskId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "toolObservationCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calls", "failures"],
+      "properties": {
+        "calls": {"$ref": "#/$defs/uint64"},
+        "failures": {"$ref": "#/$defs/uint64"}
+      }
+    },
+    "workspaceObservationSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scopedFiles",
+        "scopeComplete",
+        "discoveredFiles",
+        "readFiles",
+        "matchedFiles",
+        "modifiedFiles",
+        "detailComplete",
+        "filesRead",
+        "filesReadTruncated"
+      ],
+      "properties": {
+        "scopedFiles": {"$ref": "#/$defs/uint64"},
+        "scopeComplete": {"type": "boolean"},
+        "discoveredFiles": {"$ref": "#/$defs/uint64"},
+        "readFiles": {"$ref": "#/$defs/uint64"},
+        "matchedFiles": {"$ref": "#/$defs/uint64"},
+        "modifiedFiles": {"$ref": "#/$defs/uint64"},
+        "detailComplete": {"type": "boolean"},
+        "unreadFiles": {"$ref": "#/$defs/uint64"},
+        "filesRead": {
+          "type": "array",
+          "maxItems": 25,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "filesReadTruncated": {"type": "boolean"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["scopeComplete", "detailComplete"],
+            "properties": {
+              "scopeComplete": {"const": true},
+              "detailComplete": {"const": true}
+            }
+          },
+          "then": {"required": ["unreadFiles"]},
+          "else": {"not": {"required": ["unreadFiles"]}}
+        }
+      ]
+    },
+    "workerObservations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "tools", "truncated"],
+      "properties": {
+        "profile": {"const": "lean@1"},
+        "tools": {
+          "type": "object",
+          "maxProperties": 256,
+          "propertyNames": {
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "additionalProperties": {"$ref": "#/$defs/toolObservationCount"}
+        },
+        "workspace": {"$ref": "#/$defs/workspaceObservationSummary"},
+        "truncated": {"type": "boolean"}
+      }
+    },
+    "workerResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subtaskId", "result", "observations", "artifacts", "summarized"],
+      "properties": {
+        "subtaskId": {"$ref": "#/$defs/subtaskId"},
+        "result": {"type": "string", "minLength": 1, "maxLength": 65536},
+        "observations": {"$ref": "#/$defs/workerObservations"},
+        "artifacts": {
+          "type": "object",
+          "maxProperties": 128,
+          "additionalProperties": {"$ref": "common.schema.json#/$defs/exactArtifactRef"}
+        },
+        "summarized": {"type": "boolean"}
+      }
+    },
+    "workerFailure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "message": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "retryable": {"type": "boolean"}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "invocationId", "stateRevision"],
+  "properties": {
+    "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+    "result": {"$ref": "#/$defs/workerResult"},
+    "failure": {"$ref": "#/$defs/workerFailure"},
+    "invocationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000\\r\\n\\t]{1,128}$"
+    },
+    "stateRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 18446744073709551615
+    }
+  },
+  "oneOf": [
+    {
+      "required": ["result"],
+      "not": {"required": ["failure"]}
+    },
+    {
+      "required": ["failure"],
+      "not": {"required": ["result"]}
+    }
+  ]
+}

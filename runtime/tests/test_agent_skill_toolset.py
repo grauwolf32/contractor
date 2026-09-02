@@ -552,6 +552,7 @@ def runtime_settings() -> RuntimeSettings:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        subtaskId="0",
         objective="Use the selected skill",
         instructions="Complete the task.",
         parameters={},

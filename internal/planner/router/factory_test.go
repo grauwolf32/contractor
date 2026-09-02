@@ -58,6 +58,7 @@ func TestRouterSelectsExactWorkerWithDeterministicPromptAndContext(t *testing.T)
 	}
 	call := workers.calls[0]
 	if call.handle.AllocationID != "allocation-reviewer" ||
+		call.request.SubtaskID != "0" ||
 		call.request.Objective != "Build the API document" ||
 		call.request.Instructions != "Use the exact source" ||
 		call.request.Parameters["mode"] != "strict" ||

@@ -256,6 +256,7 @@ def data_request(
 ) -> SendMessageRequest:
     payload = {
         "apiVersion": api_version,
+        "subtaskId": "0",
         "objective": "Produce a result",
         "instructions": "Follow the template instructions.",
         "parameters": {"mode": "test"},

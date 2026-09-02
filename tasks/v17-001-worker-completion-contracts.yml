@@ -23,8 +23,9 @@ context:
   exact_shapes: >-
     WorkerModelResult has only subtaskId and result. WorkerResult has
     subtaskId, result, observations, exact artifacts and summarized.
-    WorkerCompletion contains exactly one WorkerResult or WorkerFailure plus
-    Runtime-generated invocationId and positive stateRevision.
+    WorkerCompletion carries apiVersion and contains exactly one WorkerResult
+    or WorkerFailure plus Runtime-generated invocationId and positive
+    stateRevision.
 
 scope:
   in:
@@ -42,7 +43,7 @@ scope:
 deliverables:
   - {path: internal/contracts, description: Framework-neutral Go request/result/completion contracts and validation.}
   - {path: runtime/src/contractor_runtime/contracts.py, description: Exact strict Pydantic parity.}
-  - {path: testdata/contracts, description: Shared valid and hostile wire fixtures.}
+  - {path: api/testdata/v1alpha1, description: Shared valid and hostile wire fixtures.}
 
 requirements:
   - {id: R1, text: WorkerResult cannot carry Stage outcome, Stage error, retry policy, physical identity or model-authored observation metadata.}

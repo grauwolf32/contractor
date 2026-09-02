@@ -4,6 +4,7 @@ import "strings"
 
 type StageContentRequest struct {
 	APIVersion      string                 `json:"apiVersion"`
+	SubtaskID       string                 `json:"subtaskId"`
 	Objective       string                 `json:"objective"`
 	Instructions    string                 `json:"instructions"`
 	Parameters      map[string]string      `json:"parameters"`
@@ -13,6 +14,9 @@ type StageContentRequest struct {
 
 func (r StageContentRequest) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
+		return err
+	}
+	if err := validateWorkerSubtaskID(r.SubtaskID); err != nil {
 		return err
 	}
 	if strings.TrimSpace(r.Objective) == "" || strings.TrimSpace(r.Instructions) == "" {

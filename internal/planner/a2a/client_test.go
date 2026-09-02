@@ -275,7 +275,7 @@ func TestDecodeCardAcceptsPythonProtoJSONEmptySecurityScopes(t *testing.T) {
 
 func stageRequest() contracts.StageContentRequest {
 	return contracts.StageContentRequest{
-		APIVersion: contracts.APIVersion, Objective: "Build a report",
+		APIVersion: contracts.APIVersion, SubtaskID: "0", Objective: "Build a report",
 		Instructions: "Use the source.", Parameters: map[string]string{"mode": "strict"},
 		Artifacts: map[string]contracts.ArtifactRef{},
 	}

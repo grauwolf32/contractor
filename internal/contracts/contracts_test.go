@@ -14,22 +14,25 @@ func TestValidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) ([]byte, error){
-		"agent-registration.json":           roundTrip[AgentRegistration],
-		"agent-registration-response.json":  roundTrip[AgentRegistrationResponse],
-		"agent-heartbeat.json":              roundTrip[AgentHeartbeat],
-		"heartbeat-response.json":           roundTrip[HeartbeatResponse],
-		"llm-gateway-config.json":           roundTrip[ResolvedLLMGatewayConfig],
-		"allocation-spec.json":              roundTrip[AllocationSpec],
-		"allocation-spec-skills.json":       roundTrip[AllocationSpec],
-		"allocation-final-response.json":    roundTrip[AllocationFinalResponse],
-		"finalize-allocation.json":          roundTrip[FinalizeAllocationRequest],
-		"abort-allocation.json":             roundTrip[AbortAllocationRequest],
-		"release-allocation.json":           roundTrip[ReleaseAllocationRequest],
-		"artifact-read-result.json":         roundTrip[ArtifactReadResult],
-		"artifact-list-result.json":         roundTrip[ArtifactListResult],
-		"stage-content-request.json":        roundTrip[StageContentRequest],
-		"stage-content-result-success.json": roundTrip[StageContentResult],
-		"stage-content-result-failure.json": roundTrip[StageContentResult],
+		"agent-registration.json":                   roundTrip[AgentRegistration],
+		"agent-registration-response.json":          roundTrip[AgentRegistrationResponse],
+		"agent-heartbeat.json":                      roundTrip[AgentHeartbeat],
+		"heartbeat-response.json":                   roundTrip[HeartbeatResponse],
+		"llm-gateway-config.json":                   roundTrip[ResolvedLLMGatewayConfig],
+		"allocation-spec.json":                      roundTrip[AllocationSpec],
+		"allocation-spec-skills.json":               roundTrip[AllocationSpec],
+		"allocation-final-response.json":            roundTrip[AllocationFinalResponse],
+		"finalize-allocation.json":                  roundTrip[FinalizeAllocationRequest],
+		"abort-allocation.json":                     roundTrip[AbortAllocationRequest],
+		"release-allocation.json":                   roundTrip[ReleaseAllocationRequest],
+		"artifact-read-result.json":                 roundTrip[ArtifactReadResult],
+		"artifact-list-result.json":                 roundTrip[ArtifactListResult],
+		"stage-content-request.json":                roundTrip[StageContentRequest],
+		"stage-content-result-success.json":         roundTrip[StageContentResult],
+		"stage-content-result-failure.json":         roundTrip[StageContentResult],
+		"worker-completion-success.json":            roundTrip[WorkerCompletion],
+		"worker-completion-failure.json":            roundTrip[WorkerCompletion],
+		"worker-completion-empty-observations.json": roundTrip[WorkerCompletion],
 	}
 
 	for filename, decode := range cases {
@@ -61,6 +64,8 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 		"stage-content-request-versioned-result-binding.json": reject[StageContentRequest],
 		"stage-content-result-unversioned-artifact.json":      reject[StageContentResult],
 		"stage-content-result-success-with-error.json":        reject[StageContentResult],
+		"worker-completion-both-variants.json":                reject[WorkerCompletion],
+		"worker-completion-no-variant.json":                   reject[WorkerCompletion],
 		"artifact-read-result-unversioned.json":               reject[ArtifactReadResult],
 	}
 

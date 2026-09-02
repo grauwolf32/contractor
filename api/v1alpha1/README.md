@@ -7,9 +7,11 @@ and rejects unknown fields. Reusable resolved values such as
 `ResolvedLLMGatewayConfig` are embedded components rather than standalone
 messages, so their version is carried by their exact digest-bearing ref.
 
-A2A envelopes themselves are owned by the official A2A 1.0 SDKs. Contractor
-places `StageContentRequest` and `StageContentResult` in an A2A DataPart with
-media type `application/vnd.contractor.stage-content+json`.
+A2A envelopes themselves are owned by the official A2A 1.0 SDKs. The currently
+deployed adapter places `StageContentRequest` and `StageContentResult` in an A2A
+DataPart with media type `application/vnd.contractor.stage-content+json`.
+`worker-completion.schema.json` reserves the strict Runtime-owned successor
+wire contract; its production A2A cutover is intentionally a later atomic task.
 
 The schemas are review artifacts and compatibility contracts. Go and Python
 DTOs are maintained explicitly and are checked against shared golden fixtures

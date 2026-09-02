@@ -67,7 +67,8 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 	if got := workers.bindingCalls(); !reflect.DeepEqual(got, []string{"builder"}) {
 		t.Fatalf("Worker calls = %v", got)
 	}
-	if workers.calls[0].request.Parameters["mode"] != "strict" ||
+	if workers.calls[0].request.SubtaskID != "0" ||
+		workers.calls[0].request.Parameters["mode"] != "strict" ||
 		workers.calls[0].request.Objective != "Analyze the input" ||
 		workers.calls[0].request.Instructions != "Produce the final report" ||
 		workers.calls[0].request.Artifacts["source"].Revision == nil ||
@@ -550,6 +551,9 @@ func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 	}
 	if got := workers.bindingCalls(); !reflect.DeepEqual(got, []string{"builder", "builder"}) {
 		t.Fatalf("Worker calls = %v", got)
+	}
+	if workers.calls[0].request.SubtaskID != "0" || workers.calls[1].request.SubtaskID != "1" {
+		t.Fatalf("Worker subtask IDs = %q, %q", workers.calls[0].request.SubtaskID, workers.calls[1].request.SubtaskID)
 	}
 	streamline := instance.(*streamlinePlanner)
 	plan := streamline.plan.Snapshot()

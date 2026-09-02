@@ -6,9 +6,15 @@
       "title": "StageContentRequest",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "objective", "instructions", "parameters", "artifacts"],
+      "required": ["apiVersion", "subtaskId", "objective", "instructions", "parameters", "artifacts"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
+        "subtaskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
         "objective": {"type": "string", "minLength": 1},
         "instructions": {"type": "string", "minLength": 1},
         "parameters": {"type": "object", "additionalProperties": {"type": "string"}},

@@ -1,0 +1,16 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "result": {
+    "subtaskId": "0",
+    "result": "No tools were needed for this task.",
+    "observations": {
+      "profile": "lean@1",
+      "tools": {},
+      "truncated": false
+    },
+    "artifacts": {},
+    "summarized": false
+  },
+  "invocationId": "worker-0000000000000000",
+  "stateRevision": 1
+}

@@ -321,6 +321,7 @@ def success_result() -> dict[str, object]:
 def stage_request() -> StageContentRequest:
     return StageContentRequest(
         apiVersion=API_VERSION,
+        subtaskId="0",
         objective="Exercise the private workspace",
         instructions="Use only selected tools and return a strict result.",
         parameters={},

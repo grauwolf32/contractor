@@ -73,7 +73,8 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	if !worker.deadline.Equal(invocation.Deadline) {
 		t.Fatalf("Worker deadline = %s, want Stage deadline %s", worker.deadline, invocation.Deadline)
 	}
-	if worker.request.Objective != invocation.Stage.Objective ||
+	if worker.request.SubtaskID != "0" ||
+		worker.request.Objective != invocation.Stage.Objective ||
 		worker.request.Instructions != invocation.Stage.Instructions.Text ||
 		worker.request.Parameters["mode"] != "strict" ||
 		len(worker.request.Artifacts) != 1 || worker.request.Artifacts["source"].Revision == nil ||

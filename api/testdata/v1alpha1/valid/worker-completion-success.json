@@ -1,0 +1,37 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "result": {
+    "subtaskId": "1.1",
+    "result": "The API surface and authentication flow were documented.",
+    "observations": {
+      "profile": "lean@1",
+      "tools": {
+        "grep": {"calls": 2, "failures": 0},
+        "read_file": {"calls": 3, "failures": 1}
+      },
+      "workspace": {
+        "scopedFiles": 3,
+        "scopeComplete": true,
+        "discoveredFiles": 2,
+        "readFiles": 2,
+        "matchedFiles": 1,
+        "modifiedFiles": 1,
+        "detailComplete": true,
+        "unreadFiles": 1,
+        "filesRead": ["cmd/main.go", "internal/api.go"],
+        "filesReadTruncated": false
+      },
+      "truncated": false
+    },
+    "artifacts": {
+      "report": {
+        "namespace": "builder",
+        "name": "report",
+        "revision": "report-r1"
+      }
+    },
+    "summarized": false
+  },
+  "invocationId": "worker-0123456789abcdef",
+  "stateRevision": 7
+}

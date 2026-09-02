@@ -1,0 +1,10 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "failure": {
+    "code": "worker_budget_exhausted",
+    "message": "Worker model-call budget was exhausted",
+    "retryable": true
+  },
+  "invocationId": "worker-fedcba9876543210",
+  "stateRevision": 11
+}

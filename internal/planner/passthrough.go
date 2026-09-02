@@ -350,7 +350,7 @@ func stageRequest(invocation Invocation) (contracts.StageContentRequest, error) 
 		}
 	}
 	request := contracts.StageContentRequest{
-		APIVersion: contracts.APIVersion, Objective: invocation.Stage.Objective,
+		APIVersion: contracts.APIVersion, SubtaskID: "0", Objective: invocation.Stage.Objective,
 		Instructions: invocation.Stage.Instructions.Text, Parameters: parameters, Artifacts: artifacts,
 		ResultArtifacts: resultArtifacts,
 	}

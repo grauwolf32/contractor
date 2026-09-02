@@ -72,7 +72,7 @@ class WorkerResult(BaseModel):
     subtask_id: str
     result: str
     observations: WorkerObservations
-    artifacts: dict[str, ArtifactRef] = Field(default_factory=dict)
+    artifacts: dict[str, ArtifactRef]  # mandatory non-null; may be empty
     summarized: bool
 
 
@@ -83,15 +83,17 @@ class WorkerFailure(BaseModel):
 
 
 class WorkerCompletion(BaseModel):
+    api_version: Literal["contractor/v1alpha1"]
     result: WorkerResult | None = None
     failure: WorkerFailure | None = None
     invocation_id: str
     state_revision: int
 ```
 
-`WorkerCompletion` is a strict private A2A union: exactly one of `result` and
-`failure` is present. `invocation_id` and `state_revision` are control metadata
-for Server correlation and never enter a model-facing Planner tool result.
+`WorkerCompletion` is a versioned strict private A2A union: exactly one of
+`result` and `failure` is present. `invocation_id` and `state_revision` are
+control metadata for Server correlation and never enter a model-facing Planner
+tool result.
 
 `WorkerResult` has no outcome or error field. Receiving it means that the
 Worker model produced one valid semantic completion. Runtime/tool/provider,
@@ -281,10 +283,12 @@ unique managed-text path counts under the operation semantics above.
 `unread_files` is present only when both scope and interaction detail are
 complete and is the cardinality of `scope_paths - observed_read_paths`; it is
 not arithmetic subtraction of the two exposed counts because a Worker may read
-a file created after the checkpoint. Tool names are sorted; zero-call tools are
-omitted. This compact projection is always Runtime-authored. Its precise future
-composition remains an evaluation subject; a later named profile may change
-what is surfaced, but cannot reinterpret results already stamped `lean@1`.
+a file created after the checkpoint. `files_read_truncated` is true exactly
+when `files_read` omits part of the `read_files` set. Tool names are sorted;
+zero-call tools are omitted. This compact projection is always Runtime-authored.
+Its precise future composition remains an evaluation subject; a later named
+profile may change what is surfaced, but cannot reinterpret results already
+stamped `lean@1`.
 
 ## Contractor-owned Worker State
 

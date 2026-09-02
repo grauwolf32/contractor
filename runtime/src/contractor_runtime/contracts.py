@@ -32,6 +32,15 @@ VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 NATIVE_SKILL_TOOL_NAMES = frozenset({"list_skills", "load_skill", "load_skill_resource"})
+WORKER_SUBTASK_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+WORKER_FAILURE_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+MAX_WORKER_RESULT_BYTES = 64 * 1024
+MAX_WORKER_FAILURE_MESSAGE_BYTES = 4 * 1024
+MAX_WORKER_RESULT_ARTIFACTS = 128
+MAX_WORKER_OBSERVATION_TOOLS = 256
+MAX_WORKER_FILES_READ = 25
+MAX_WORKER_COMPLETION_BYTES = 256 * 1024
+MAX_UINT64 = 2**64 - 1
 
 
 def _to_camel(value: str) -> str:
@@ -742,6 +751,7 @@ class ArtifactListResult(VersionedWireModel):
 
 
 class StageContentRequest(VersionedWireModel):
+    subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
     objective: str
     instructions: str
     parameters: dict[str, str]
@@ -752,6 +762,7 @@ class StageContentRequest(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_content(self) -> Self:
+        _require_worker_subtask_id(self.subtask_id)
         _require_text("objective", self.objective)
         _require_text("instructions", self.instructions)
         for key in self.parameters:
@@ -763,6 +774,174 @@ class StageContentRequest(VersionedWireModel):
             _require_text("result artifact slot", key)
             if artifact.revision is not None:
                 raise ValueError("result artifact binding must be versionless")
+        return self
+
+
+def _require_worker_subtask_id(value: str) -> str:
+    if (
+        len(value.encode("ascii", errors="ignore")) != len(value)
+        or not 1 <= len(value) <= 128
+        or WORKER_SUBTASK_ID_PATTERN.fullmatch(value) is None
+    ):
+        raise ValueError("subtaskId is invalid")
+    return value
+
+
+def _require_worker_result_text(value: str) -> str:
+    if not value.strip() or len(value.encode("utf-8")) > MAX_WORKER_RESULT_BYTES:
+        raise ValueError("Worker result must contain 1..65536 UTF-8 bytes")
+    return value
+
+
+def _reserved_worker_result_binding(artifact: ArtifactRef) -> bool:
+    return artifact.namespace in {"inputs", "outputs", "skills"} or artifact.name.startswith(
+        "memory."
+    )
+
+
+class WorkerModelResult(WireModel):
+    """Strict model-only result; it never crosses the Runtime A2A boundary."""
+
+    subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
+    result: str
+
+    @model_validator(mode="after")
+    def validate_model_result(self) -> Self:
+        _require_worker_subtask_id(self.subtask_id)
+        _require_worker_result_text(self.result)
+        return self
+
+
+class ToolObservationCount(WireModel):
+    calls: int = Field(ge=0, le=MAX_UINT64)
+    failures: int = Field(ge=0, le=MAX_UINT64)
+
+    @model_validator(mode="after")
+    def validate_count(self) -> Self:
+        if self.failures > self.calls:
+            raise ValueError("Worker observation failures exceed calls")
+        return self
+
+
+class WorkspaceObservationSummary(WireModel):
+    scoped_files: int = Field(ge=0, le=MAX_UINT64)
+    scope_complete: bool
+    discovered_files: int = Field(ge=0, le=MAX_UINT64)
+    read_files: int = Field(ge=0, le=MAX_UINT64)
+    matched_files: int = Field(ge=0, le=MAX_UINT64)
+    modified_files: int = Field(ge=0, le=MAX_UINT64)
+    detail_complete: bool
+    unread_files: int | None = Field(default=None, ge=0, le=MAX_UINT64)
+    files_read: list[str] = Field(max_length=MAX_WORKER_FILES_READ)
+    files_read_truncated: bool
+
+    @model_validator(mode="after")
+    def validate_workspace(self) -> Self:
+        seen: set[str] = set()
+        for path in self.files_read:
+            if not path:
+                raise ValueError("Worker observed workspace path must not be empty")
+            _require_workspace_target(path)
+            if path in seen:
+                raise ValueError("Worker filesRead paths must be unique")
+            seen.add(path)
+        if len(self.files_read) > self.read_files:
+            raise ValueError("Worker filesRead detail exceeds readFiles")
+        if self.files_read_truncated != (len(self.files_read) < self.read_files):
+            raise ValueError("Worker filesRead truncation is inconsistent")
+        coverage_complete = self.scope_complete and self.detail_complete
+        if coverage_complete != (self.unread_files is not None):
+            raise ValueError("Worker unreadFiles completeness is inconsistent")
+        if self.unread_files is not None and self.unread_files > self.scoped_files:
+            raise ValueError("Worker unreadFiles exceeds scopedFiles")
+        return self
+
+
+class WorkerObservations(WireModel):
+    profile: Literal["lean@1"]
+    tools: dict[str, ToolObservationCount]
+    workspace: WorkspaceObservationSummary | None = None
+    truncated: bool
+
+    @model_validator(mode="after")
+    def validate_observations(self) -> Self:
+        if len(self.tools) > MAX_WORKER_OBSERVATION_TOOLS:
+            raise ValueError("Worker observation tools exceed their bound")
+        for name in self.tools:
+            if len(name) > 128 or ID_PATTERN.fullmatch(name) is None:
+                raise ValueError("Worker observation tool name is invalid")
+        if (
+            self.workspace is not None
+            and (
+                not self.workspace.scope_complete
+                or not self.workspace.detail_complete
+                or self.workspace.files_read_truncated
+            )
+            and not self.truncated
+        ):
+            raise ValueError("Worker observation truncation is inconsistent")
+        return self
+
+
+class WorkerResult(WireModel):
+    subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
+    result: str
+    observations: WorkerObservations
+    artifacts: dict[str, ArtifactRef]
+    summarized: bool
+
+    @model_validator(mode="after")
+    def validate_worker_result(self) -> Self:
+        _require_worker_subtask_id(self.subtask_id)
+        _require_worker_result_text(self.result)
+        if len(self.artifacts) > MAX_WORKER_RESULT_ARTIFACTS:
+            raise ValueError("Worker result artifacts exceed their bound")
+        for slot, artifact in self.artifacts.items():
+            _require_text("Worker result artifact slot", slot)
+            artifact.require_exact()
+            if _reserved_worker_result_binding(artifact):
+                raise ValueError("Worker result artifact identifies a reserved binding")
+        return self
+
+
+class WorkerFailure(WireModel):
+    code: str = Field(pattern=WORKER_FAILURE_CODE_PATTERN.pattern)
+    message: str
+    retryable: bool
+
+    @model_validator(mode="after")
+    def validate_failure(self) -> Self:
+        if WORKER_FAILURE_CODE_PATTERN.fullmatch(self.code) is None:
+            raise ValueError("Worker failure code is invalid")
+        if (
+            not self.message.strip()
+            or len(self.message.encode("utf-8")) > MAX_WORKER_FAILURE_MESSAGE_BYTES
+        ):
+            raise ValueError("Worker failure message must contain 1..4096 UTF-8 bytes")
+        return self
+
+
+class WorkerCompletion(VersionedWireModel):
+    result: WorkerResult | None = None
+    failure: WorkerFailure | None = None
+    invocation_id: str
+    state_revision: int = Field(gt=0, le=MAX_UINT64)
+
+    @model_validator(mode="after")
+    def validate_completion(self) -> Self:
+        if (self.result is None) == (self.failure is None):
+            raise ValueError("WorkerCompletion requires exactly one result or failure")
+        if (
+            self.invocation_id != self.invocation_id.strip()
+            or not 1 <= len(self.invocation_id.encode("utf-8")) <= 128
+            or any(character in self.invocation_id for character in "\r\n\t\x00")
+        ):
+            raise ValueError("Worker invocationId is invalid")
+        if (
+            len(self.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8"))
+            > MAX_WORKER_COMPLETION_BYTES
+        ):
+            raise ValueError("WorkerCompletion exceeds its bounded contract")
         return self
 
 
