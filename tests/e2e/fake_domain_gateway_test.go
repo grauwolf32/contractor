@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -73,6 +74,17 @@ views {
 }
 `
 )
+
+func TestDomainGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
+	request := map[string]any{"messages": []any{map[string]any{
+		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
+			"{\"source\":{\"namespace\":\"inputs\",\"name\":\"source\",\"revision\":\"rev-1\"}}",
+	}}}
+	artifact, found := stageArtifact(request, "source")
+	if !found || artifact["namespace"] != "inputs" || artifact["name"] != "source" || artifact["revision"] != "rev-1" {
+		t.Fatalf("named input artifact = (%v, %t)", artifact, found)
+	}
+}
 
 type domainGateway struct {
 	server *httptest.Server
@@ -656,7 +668,6 @@ func walkDomainJSON(value any, visit func(map[string]any)) {
 			decoder.UseNumber()
 			if decoder.Decode(&decoded) == nil {
 				walkDomainJSON(decoded, visit)
-				return
 			}
 		}
 	}

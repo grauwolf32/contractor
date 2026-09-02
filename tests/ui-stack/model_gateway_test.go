@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -76,6 +77,17 @@ type gatewayStep struct {
 type artifactBinding struct {
 	namespace string
 	name      string
+}
+
+func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
+	request := map[string]any{"messages": []any{map[string]any{
+		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
+			"{\"source\":{\"namespace\":\"inputs\",\"name\":\"source\",\"revision\":\"rev-1\"}}",
+	}}}
+	artifact, found := stageArtifact(request, "source")
+	if !found || artifact["namespace"] != "inputs" || artifact["name"] != "source" || artifact["revision"] != "rev-1" {
+		t.Fatalf("named input artifact = (%v, %t)", artifact, found)
+	}
 }
 
 func newModelGateway(token string) *modelGateway {
@@ -638,7 +650,6 @@ func walkJSON(value any, visit func(map[string]any)) {
 			decoder.UseNumber()
 			if decoder.Decode(&decoded) == nil {
 				walkJSON(decoded, visit)
-				return
 			}
 		}
 	}
