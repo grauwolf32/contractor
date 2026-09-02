@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from contractor_runtime.metrics import (
     MAX_ARGUMENT_SUMMARY_BYTES,
+    MAX_METRIC_COUNTER,
     MAX_METRIC_ERRORS,
     MAX_METRIC_TOOL_CALLS,
     MAX_REPORT_JSON_BYTES,
@@ -147,3 +148,30 @@ def test_skill_metric_projects_only_validated_identity_outcome_and_result_size()
     assert second.error.code == "SKILL_DISCLOSURE_LIMIT"
     assert second.result_size_bytes == 96
     assert "content must not be retained" not in encoded
+
+
+def test_allocation_counters_saturate_at_the_state_wire_limit() -> None:
+    state = MetricsState()
+    state.record_model_usage(
+        SimpleNamespace(
+            prompt_token_count=MAX_METRIC_COUNTER + 10,
+            candidates_token_count=MAX_METRIC_COUNTER + 20,
+            total_token_count=MAX_METRIC_COUNTER + 30,
+            cached_content_token_count=MAX_METRIC_COUNTER + 40,
+        )
+    )
+    state.record_model_usage(
+        SimpleNamespace(
+            prompt_token_count=1,
+            candidates_token_count=1,
+            total_token_count=1,
+            cached_content_token_count=1,
+        )
+    )
+
+    assert state.counters == {
+        "cached_input_tokens": MAX_METRIC_COUNTER,
+        "input_tokens": MAX_METRIC_COUNTER,
+        "output_tokens": MAX_METRIC_COUNTER,
+        "total_tokens": MAX_METRIC_COUNTER,
+    }

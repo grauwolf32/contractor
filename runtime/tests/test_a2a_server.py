@@ -193,7 +193,10 @@ def test_return_immediately_exposes_working_task_while_worker_continues(
             assert len(responses) == 1 and responses[0].HasField("task")
             task = responses[0].task
             assert task.status.state == TaskState.TASK_STATE_WORKING
-            assert model.started.is_set()
+            # RETURN_IMMEDIATELY guarantees an observable working Task, not
+            # that every asynchronous before-run callback has already reached
+            # the model provider in the same event-loop turn.
+            await asyncio.wait_for(model.started.wait(), timeout=1)
 
             model.release()
             for _ in range(100):

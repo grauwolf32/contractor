@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Mapping
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -28,6 +30,7 @@ MAX_REPORT_JSON_BYTES = 1024 * 1024
 MAX_METRIC_ITEMS = 32
 MAX_METRIC_DEPTH = 4
 MAX_METRIC_TEXT_BYTES = 4096
+MAX_METRIC_COUNTER = 2**64 - 1
 _ALLOCATION_ENVELOPE_RESERVE_BYTES = 4096
 SENSITIVE_METRIC_KEYS = frozenset(
     {
@@ -57,6 +60,19 @@ SAFE_DERIVED_SIZE_METRIC_KEYS = frozenset(
         "result_description_bytes",
     }
 )
+_TOOL_METRIC_CORRELATION: ContextVar[str | None] = ContextVar(
+    "contractor_tool_metric_correlation", default=None
+)
+
+
+def bind_tool_metric_correlation(correlation_id: str) -> Token[str | None]:
+    """Bind one Runtime-owned tool attempt to existing typed metric producers."""
+
+    return _TOOL_METRIC_CORRELATION.set(correlation_id)
+
+
+def reset_tool_metric_correlation(token: Token[str | None]) -> None:
+    _TOOL_METRIC_CORRELATION.reset(token)
 
 
 @dataclass(slots=True)
@@ -71,6 +87,7 @@ class MetricsState:
     _tool_metrics: dict[str, dict[str, int]] = field(default_factory=dict)
     _next_call_number: int = 1
     _worker_budget: WorkerBudgetMetrics | None = None
+    _tool_correlation_outcomes: dict[str, bool] = field(default_factory=dict, repr=False)
 
     def start_worker_budget(
         self, *, max_model_calls: int, max_tool_calls: int, max_total_tokens: int
@@ -129,23 +146,29 @@ class MetricsState:
         duration_ms: int | None = None,
         result_size_bytes: int | None = None,
     ) -> None:
+        correlation_id = _TOOL_METRIC_CORRELATION.get()
+        if correlation_id is not None and correlation_id in self._tool_correlation_outcomes:
+            # A tool implementation and an adapter wrapper may both observe the
+            # same logical call. The ADK plugin owns the correlation and admits
+            # only the first already-sanitized projection.
+            return
         identifier = _metric_identifier(name)
         self._increment("tool_calls")
         self._increment(f"tool_calls.{identifier}")
         aggregate = self._tool_metrics.setdefault(
             identifier, {"calls": 0, "succeeded": 0, "failed": 0}
         )
-        aggregate["calls"] += 1
+        aggregate["calls"] = min(MAX_METRIC_COUNTER, aggregate["calls"] + 1)
 
         sanitized_arguments, value_truncated = _sanitize_metric_value(arguments, secrets=secrets)
         arguments_summary, size_truncated = _bound_arguments(sanitized_arguments)
         call_error: ExecutionError | None = None
         if error is None:
             outcome = ToolCallOutcome.SUCCEEDED
-            aggregate["succeeded"] += 1
+            aggregate["succeeded"] = min(MAX_METRIC_COUNTER, aggregate["succeeded"] + 1)
         else:
             outcome = ToolCallOutcome.FAILED
-            aggregate["failed"] += 1
+            aggregate["failed"] = min(MAX_METRIC_COUNTER, aggregate["failed"] + 1)
             self._increment("tool_errors")
             code = _bounded_text(str(getattr(error, "code", "tool_call_failed")), secrets)
             retryable = bool(getattr(error, "retryable", False))
@@ -180,6 +203,16 @@ class MetricsState:
         )
         self._next_call_number += 1
         self._append_tool_call(record)
+        if correlation_id is not None:
+            self._tool_correlation_outcomes[correlation_id] = error is not None
+
+    def correlated_tool_outcome(self, correlation_id: str) -> bool | None:
+        """Return False/True for recorded success/failure, or None if absent."""
+
+        return self._tool_correlation_outcomes.get(correlation_id)
+
+    def release_tool_correlation(self, correlation_id: str) -> None:
+        self._tool_correlation_outcomes.pop(correlation_id, None)
 
     def record_model_call(self) -> None:
         self._increment("llm_calls")
@@ -333,7 +366,9 @@ class MetricsState:
         return report
 
     def _increment(self, name: str, value: int = 1) -> None:
-        self.counters[name] = self.counters.get(name, 0) + value
+        if type(value) is not int or value < 0:
+            raise ValueError("metric counter increment must be a non-negative integer")
+        self.counters[name] = min(MAX_METRIC_COUNTER, self.counters.get(name, 0) + value)
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:
         if len(self.tool_calls) >= MAX_METRIC_TOOL_CALLS:
@@ -371,8 +406,10 @@ def _sanitize_metric_value(
     if isinstance(value, str):
         bounded = _bounded_text(value, secrets)
         return bounded, bounded != value
-    if value is None or isinstance(value, bool | int | float):
+    if value is None or isinstance(value, bool | int):
         return value, False
+    if isinstance(value, float):
+        return (value, False) if math.isfinite(value) else ("[NON_FINITE]", True)
     if isinstance(value, Mapping):
         result: dict[str, Any] = {}
         truncated = False
@@ -415,12 +452,13 @@ def _bound_arguments(value: Any) -> tuple[dict[str, Any], bool]:
 
 
 def _bounded_text(value: str, secrets: tuple[str, ...]) -> str:
-    result = value
-    for secret in secrets:
-        if secret:
-            result = result.replace(secret, "[REDACTED]")
-    if "://" in result:
-        parsed = urlsplit(result)
+    if "://" in value:
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            # A URL-shaped value which cannot be parsed safely is not useful
+            # diagnostic detail and may still contain credentials.
+            return "[REDACTED_URL]"
         if (
             parsed.username is not None
             or parsed.password is not None
@@ -428,6 +466,10 @@ def _bounded_text(value: str, secrets: tuple[str, ...]) -> str:
             or parsed.fragment
         ):
             return "[REDACTED_URL]"
+    result = value
+    for secret in secrets:
+        if secret:
+            result = result.replace(secret, "[REDACTED]")
     return _truncate_utf8(result, MAX_METRIC_TEXT_BYTES)
 
 

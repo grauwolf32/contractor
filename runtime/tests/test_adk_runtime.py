@@ -79,6 +79,10 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         runtime = await create_runtime(tmp_path, state, tools, model)
         assert runtime._agent is not None
         assert runtime._agent.output_schema is None
+        assert runtime._app.plugins == [runtime._plugin]
+        assert runtime._agent.before_model_callback is None
+        assert runtime._agent.after_model_callback is None
+        assert runtime._agent.on_model_error_callback is None
         assert not hasattr(runtime, "_finalizer_agent")
 
         result = await runtime.invoke(stage_request())
@@ -120,8 +124,11 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
             session_id=runtime._session_id,
         )
         assert session is not None
-        assert session.state["metrics"]["finalOutcome"] == "succeeded"
-        assert session.state["metrics"]["counters"]["tool_calls"] == 2
+        contractor_state = session.state["contractor"]
+        assert contractor_state["metrics"]["finalOutcome"] == "succeeded"
+        assert contractor_state["metrics"]["counters"]["tool_calls"] == 2
+        assert contractor_state["currentInvocation"] is None
+        assert contractor_state["lastCompletedInvocation"]["subtaskId"] == "0"
         serialized = repr(runtime) + repr(state.metrics) + result.model_dump_json(by_alias=True)
         assert SECRET not in serialized
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
@@ -439,6 +446,41 @@ def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> No
         assert session is not None
         assert SECRET not in repr(session.events)
         assert "load_optional failed (MissingArtifact)" in repr(session.events)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_counts_unknown_model_tool_without_retaining_its_name(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        model_authored_name = "recognizable_model_authored_tool_name"
+        model = scripted_model(
+            [
+                tool_call(model_authored_name, {"body": SECRET}, call_id="unknown-1"),
+                text_result("Recovered from an unknown tool"),
+            ]
+        )
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            model,
+            instrumentation=instrumentation,
+        )
+
+        result = await runtime.invoke(stage_request())
+
+        assert result.outcome.value == "succeeded"
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert set(report.metrics.tools) == {"unknown_tool"}
+        assert report.metrics.tools["unknown_tool"].failed == 1
+        exported = repr(state.metrics.snapshot()) + repr(
+            [span.attributes for span in instrumentation.spans]
+        )
+        assert model_authored_name not in exported
+        assert SECRET not in exported
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())

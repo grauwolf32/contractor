@@ -104,6 +104,11 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
             call.result_size_bytes and call.result_size_bytes > 0
             for call in state.metrics.tool_calls
         )
+        budget = state.metrics.build_report(
+            report_id="worker-skill-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.observed_tool_calls == 3
         serialized_metrics = json.dumps(state.metrics.snapshot(), sort_keys=True)
         assert "Follow the exact demo procedure" not in serialized_metrics
         assert "Reference contents" not in serialized_metrics
@@ -209,7 +214,7 @@ def test_disclosure_reservation_is_exact_non_refunding_and_pre_dispatch(
             used=MAXIMUM_DISCLOSURE_BYTES - charge,
         )
         state = WorkerState()
-        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         declarations = json.dumps(
             [tool._get_declaration().model_dump(mode="json") for tool in tools.values()],
@@ -272,7 +277,7 @@ def test_concurrent_disclosure_reservations_stop_at_the_exact_allocation_limit(
             used=MAXIMUM_DISCLOSURE_BYTES - 3 * charge,
         )
         state = WorkerState()
-        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         results = await asyncio.gather(
             *(
@@ -323,7 +328,7 @@ def test_invalid_model_arguments_are_not_retained_or_dispatched(tmp_path: Path, 
         )
         assert prepared is not None
         state = WorkerState()
-        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         result = await tools["load_skill_resource"].run_async(
             args={"skill_name": "demo", "file_path": raw},
@@ -354,7 +359,7 @@ def test_binary_resource_authorization_is_single_use_and_invocation_local(
         )
         assert prepared is not None
         state = WorkerState()
-        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         context = FakeToolContext("invocation-binary")
         result = await tools["load_skill_resource"].run_async(
@@ -388,7 +393,7 @@ def test_oversized_native_result_is_suppressed_without_binary_authorization(
         )
         assert prepared is not None
         state = WorkerState()
-        adapter = prepared.build_adapter(budget=lambda: None, metrics=state.metrics)
+        adapter = prepared.build_adapter(metrics=state.metrics)
         tools = {tool.name: tool for tool in await adapter.get_tools()}
         charge = prepared.charge_for("load_skill_resource", "demo", "assets/pixel.bin")
         tools["load_skill_resource"]._native = OversizedBinaryNativeTool(charge)  # type: ignore[attr-defined]

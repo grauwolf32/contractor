@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol
 
 from google.adk.agents import LlmAgent
+from google.adk.apps import App
 from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.lite_llm import LiteLlm
@@ -42,6 +43,7 @@ from contractor_runtime.contracts import (
     StageOutcome,
     TerminationError,
 )
+from contractor_runtime.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.model_client import (
     clear_gateway_client_options,
     gateway_client_options,
@@ -54,9 +56,9 @@ from contractor_runtime.projectfs import (
     WorkspaceExportError,
 )
 from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.worker_state import InvocationPhase, WorkerStateStore
 
 if TYPE_CHECKING:
-    from google.adk.agents.callback_context import CallbackContext
     from google.adk.models.llm_request import LlmRequest
     from google.adk.models.llm_response import LlmResponse
 
@@ -146,74 +148,6 @@ class _InvocationBudget:
             total_tokens=self.total_tokens,
             token_usage_unavailable=self.token_usage_unavailable,
         )
-
-
-class WorkerFunctionTool(FunctionTool):
-    """Return bounded tool failures to the model so it can correct or terminate."""
-
-    def __init__(
-        self,
-        function: Callable[..., Any],
-        budget: Callable[[], _InvocationBudget | None],
-        instrumentation: RuntimeInstrumentation | None,
-        observe_artifacts: Callable[[Any, int], None],
-    ):
-        super().__init__(function)
-        self._budget = budget
-        self._instrumentation = instrumentation
-        self._observe_artifacts = observe_artifacts
-
-    async def run_async(self, *, args: dict[str, Any], tool_context: Any) -> Any:
-        observation_cursor = getattr(self.func, "artifact_observation_cursor", None)
-        completed_successfully = False
-        budget = self._budget()
-        if budget is not None:
-            budget.before_tool_call()
-        span = _start_span(
-            self._instrumentation,
-            "contractor.worker.tool",
-            {"operation.kind": "tool", "tool.name": self.name},
-        )
-        try:
-            raw_argument_error = getattr(self.func, "contractor_raw_argument_error", None)
-            if callable(raw_argument_error):
-                rejection = raw_argument_error(args)
-                if rejection is not None:
-                    raise rejection
-            result = await super().run_async(args=args, tool_context=tool_context)
-            completed_successfully = not (isinstance(result, Mapping) and result.get("ok") is False)
-        except asyncio.CancelledError:
-            _end_span(span, outcome="cancelled")
-            raise
-        except Exception as error:
-            code = getattr(error, "code", "tool_call_failed")
-            if not isinstance(code, str) or SAFE_TOOL_ERROR_CODE.fullmatch(code) is None:
-                code = "tool_call_failed"
-            _end_span(
-                span,
-                outcome="failed",
-                attributes={"error.type": _safe_error_type(error)},
-            )
-            return {
-                "ok": False,
-                "error": {
-                    "code": code,
-                    "message": f"{self.name} failed ({type(error).__name__})",
-                    "retryable": bool(getattr(error, "retryable", False)),
-                },
-            }
-        finally:
-            if (
-                completed_successfully
-                and type(observation_cursor) is int
-                and observation_cursor >= 0
-            ):
-                self._observe_artifacts(self.func, observation_cursor)
-        outcome = (
-            "failed" if isinstance(result, Mapping) and result.get("ok") is False else "succeeded"
-        )
-        _end_span(span, outcome=outcome)
-        return result
 
 
 class GatewayLiteLlm(LiteLlm):
@@ -334,30 +268,30 @@ class AdkWorkerRuntime:
         self._agent: LlmAgent | None = None
         self._active_budget: _InvocationBudget | None = None
         self._invocation_observed_refs: list[ArtifactRef] = []
-        self._model_spans: list[RuntimeSpan] = []
         self._agent_skills: PreparedAgentSkills | None = context.agent_skills
         self._workspace_exporter = workspace_exporter
+        if not isinstance(context.state, WorkerStateStore):
+            raise TypeError("adk@1 requires WorkerStateStore")
+        self._worker_state = context.state
 
         policy = context.model_policy
         generation = types.GenerateContentConfig(max_output_tokens=policy.max_output_tokens)
         if policy.temperature is not None:
             generation.temperature = policy.temperature
-        adk_tools = [
-            WorkerFunctionTool(
-                tool,
-                lambda: self._active_budget,
-                self._instrumentation,
-                self._observe_tool_artifacts,
-            )
-            for tool in context.tools.values()
-        ]
+        adk_tools = [FunctionTool(tool) for tool in context.tools.values()]
         if self._agent_skills is not None:
             adk_tools.append(
                 self._agent_skills.build_adapter(
-                    budget=lambda: self._active_budget,
                     metrics=self._metrics,
                 )
             )
+        self._plugin = WorkerInstrumentationPlugin(
+            state=self._worker_state,
+            budget=lambda: self._active_budget,
+            instrumentation=self._instrumentation,
+            model_alias=policy.model,
+            observe_artifacts=self._observe_tool_artifacts,
+        )
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.description,
@@ -368,13 +302,14 @@ class AdkWorkerRuntime:
             # projects that summary and invocation-local trusted tool observations
             # into the private A2A response below.
             generate_content_config=generation,
-            before_model_callback=self._before_model,
-            after_model_callback=self._after_model,
-            on_model_error_callback=self._on_model_error,
+        )
+        self._app = App(
+            name=self._app_name,
+            root_agent=self._agent,
+            plugins=[self._plugin],
         )
         self._runner = Runner(
-            app_name=self._app_name,
-            agent=self._agent,
+            app=self._app,
             session_service=self._session_service,
         )
         endpoint = (
@@ -391,11 +326,12 @@ class AdkWorkerRuntime:
         self._a2a_application = build_worker_a2a_application(self, self._card)
 
     async def start(self) -> None:
+        state = await self._worker_state.snapshot()
         await self._session_service.create_session(
             app_name=self._app_name,
             user_id=self._user_id,
             session_id=self._session_id,
-            state={"metrics": self._metrics.snapshot()},
+            state={"contractor": state},
         )
 
     @property
@@ -449,6 +385,8 @@ class AdkWorkerRuntime:
         )
         self._active_budget = budget
         model_errors_before = self._metrics.counters.get("llm_errors", 0)
+        invocation_id: str | None = None
+        invocation_phase: InvocationPhase = "failed"
         try:
             budget.start()
             if not self._accepting:
@@ -462,7 +400,12 @@ class AdkWorkerRuntime:
                 )
                 exportable = False
             else:
-                result, exportable = await self._run_adk(request)
+                invocation_id = f"worker-{uuid.uuid4().hex}"
+                self._plugin.prepare_invocation(
+                    invocation_id=invocation_id,
+                    subtask_id=request.subtask_id,
+                )
+                result, exportable = await self._run_adk(request, invocation_id)
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
@@ -481,19 +424,22 @@ class AdkWorkerRuntime:
                     )
                     result = exported.result
             self._metrics.record_outcome(result.outcome.value)
+            invocation_phase = "succeeded" if result.outcome is StageOutcome.SUCCEEDED else "failed"
             return result
         except asyncio.CancelledError:
             self._metrics.record_outcome("cancelled")
+            invocation_phase = "cancelled"
             raise
         except Exception as error:
             if self._metrics.counters.get("llm_errors", 0) == model_errors_before:
-                self._metrics.record_model_error(error)
+                await self._plugin.record_unhandled_model_error(error)
             result = _failure("worker_execution_failed", "Worker execution failed", True)
             self._metrics.record_outcome(result.outcome.value)
+            invocation_phase = "failed"
             return result
         finally:
             try:
-                await asyncio.shield(self._sync_metrics())
+                await self._finish_invocation_state(invocation_id, invocation_phase)
             finally:
                 self._active_budget = None
                 self._active_task = None
@@ -510,7 +456,11 @@ class AdkWorkerRuntime:
     async def abort(self, deadline: datetime) -> None:
         await self._stop(deadline)
 
-    async def _run_adk(self, request: StageContentRequest) -> tuple[StageContentResult, bool]:
+    async def _run_adk(
+        self,
+        request: StageContentRequest,
+        invocation_id: str,
+    ) -> tuple[StageContentResult, bool]:
         runner = self._runner
         if runner is None:
             return _failure(
@@ -524,18 +474,21 @@ class AdkWorkerRuntime:
                 async for event in runner.run_async(
                     user_id=self._user_id,
                     session_id=self._session_id,
-                    invocation_id=f"worker-{uuid.uuid4().hex}",
+                    invocation_id=invocation_id,
                     new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
                 ):
                     text = _candidate_text(event)
                     if text is not None:
                         candidate = text
-            except WorkerBudgetExceeded as error:
-                self._metrics.record_worker_budget_exhausted(error.dimension)
+            except Exception as error:
+                budget_error = _worker_budget_error(error)
+                if budget_error is None:
+                    raise
+                self._metrics.record_worker_budget_exhausted(budget_error.dimension)
                 return (
                     _failure(
                         "worker_budget_exhausted",
-                        f"Worker invocation budget exhausted ({error.dimension})",
+                        f"Worker invocation budget exhausted ({budget_error.dimension})",
                         True,
                     ),
                     False,
@@ -663,8 +616,6 @@ class AdkWorkerRuntime:
                 except Exception as error:
                     failures.append(error)
         finally:
-            while self._model_spans:
-                _end_span(self._model_spans.pop(), outcome="cancelled")
             model = self._model
             self._model = None
             if isinstance(model, GatewayLiteLlm):
@@ -677,59 +628,31 @@ class AdkWorkerRuntime:
         if failures:
             raise failures[0]
 
-    async def _before_model(
-        self, callback_context: CallbackContext, llm_request: LlmRequest
-    ) -> None:
-        del callback_context, llm_request
-        budget = self._active_budget
-        if budget is not None:
-            budget.before_model_call()
-        self._metrics.record_model_call()
-        span = _start_span(
-            self._instrumentation,
-            "contractor.worker.model",
-            {
-                "operation.kind": "model",
-                "model.alias": self._context.model_policy.model,
-            },
-        )
-        if span is not None:
-            self._model_spans.append(span)
-
-    async def _after_model(
-        self, callback_context: CallbackContext, llm_response: LlmResponse
-    ) -> None:
-        del callback_context
-        usage_attributes = _usage_attributes(llm_response.usage_metadata)
-        if llm_response.usage_metadata is not None:
-            self._metrics.record_model_usage(llm_response.usage_metadata)
-        _end_span(self._pop_model_span(), outcome="succeeded", attributes=usage_attributes)
-        budget = self._active_budget
-        if budget is not None:
-            budget.after_model_response(llm_response.usage_metadata)
-
-    async def _on_model_error(
+    async def _finish_invocation_state(
         self,
-        callback_context: CallbackContext,
-        llm_request: LlmRequest,
-        error: Exception,
+        invocation_id: str | None,
+        phase: InvocationPhase,
     ) -> None:
-        del callback_context, llm_request
-        span = self._pop_model_span()
-        if isinstance(error, WorkerBudgetExceeded):
-            _end_span(span, outcome="rejected", attributes={"error.type": type(error).__name__})
-            return
-        _end_span(
-            span,
-            outcome="failed",
-            attributes={"error.type": _safe_error_type(error)},
-        )
-        self._metrics.record_model_error(error)
+        async def finish() -> None:
+            snapshot = None
+            if invocation_id is not None:
+                snapshot = await self._plugin.complete_invocation(
+                    invocation_id=invocation_id,
+                    phase=phase,
+                )
+            await self._sync_worker_state(snapshot)
 
-    def _pop_model_span(self) -> RuntimeSpan | None:
-        return self._model_spans.pop() if self._model_spans else None
+        task = asyncio.create_task(finish(), name="worker-invocation-state-finalize")
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                await task
+            raise
 
-    async def _sync_metrics(self) -> None:
+    async def _sync_worker_state(self, snapshot: dict[str, Any] | None = None) -> None:
+        if snapshot is None:
+            snapshot = await self._worker_state.sync_metrics()
         session = await self._session_service.get_session(
             app_name=self._app_name, user_id=self._user_id, session_id=self._session_id
         )
@@ -738,9 +661,9 @@ class AdkWorkerRuntime:
         await self._session_service.append_event(
             session,
             Event(
-                invocationId=f"metrics-{uuid.uuid4().hex}",
+                invocationId=f"state-{uuid.uuid4().hex}",
                 author="contractor_runtime",
-                actions=EventActions(stateDelta={"metrics": self._metrics.snapshot()}),
+                actions=EventActions(stateDelta={"contractor": snapshot}),
             ),
         )
 
@@ -827,6 +750,19 @@ def _safe_error_type(error: Exception) -> str:
     return error_type
 
 
+def _worker_budget_error(error: BaseException) -> WorkerBudgetExceeded | None:
+    """Find a budget signal through ADK's plugin callback wrappers."""
+
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, WorkerBudgetExceeded):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
 def _record_worker_error(
     instrumentation: RuntimeInstrumentation | None,
     error_type: str,
@@ -846,22 +782,6 @@ def _aggregate_count_attributes(counters: Mapping[str, int]) -> dict[str, int]:
         ("tool_calls", "counts.tool_calls"),
     ):
         value = counters.get(source)
-        if isinstance(value, int) and value >= 0:
-            result[target] = value
-    return result
-
-
-def _usage_attributes(usage: Any | None) -> dict[str, int]:
-    if usage is None:
-        return {}
-    result: dict[str, int] = {}
-    for source, target in (
-        ("prompt_token_count", "tokens.input"),
-        ("candidates_token_count", "tokens.output"),
-        ("total_token_count", "tokens.total"),
-        ("cached_content_token_count", "tokens.cached_input"),
-    ):
-        value = getattr(usage, source, None)
         if isinstance(value, int) and value >= 0:
             result[target] = value
     return result

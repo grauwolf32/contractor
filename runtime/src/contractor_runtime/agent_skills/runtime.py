@@ -142,14 +142,13 @@ class PreparedAgentSkills:
     def build_adapter(
         self,
         *,
-        budget: Callable[[], Any | None],
         metrics: Any,
     ) -> ContractorSkillToolset:
         if self._closed:
             raise RuntimeError("Agent Skill owner is closed")
         if self._adapter is not None:
             raise RuntimeError("Agent Skill adapter already exists")
-        adapter = ContractorSkillToolset(self, budget=budget, metrics=metrics)
+        adapter = ContractorSkillToolset(self, metrics=metrics)
         self._adapter = adapter
         return adapter
 
@@ -230,7 +229,6 @@ class ContractorSkillToolset(BaseToolset):
         self,
         owner: PreparedAgentSkills,
         *,
-        budget: Callable[[], Any | None],
         metrics: Any,
     ) -> None:
         super().__init__()
@@ -240,7 +238,6 @@ class ContractorSkillToolset(BaseToolset):
                 name=name,
                 native=owner.native_tools[name],
                 owner=owner,
-                budget=budget,
                 metrics=metrics,
             )
             for name in EXACT_SKILL_TOOL_NAMES
@@ -276,7 +273,6 @@ class ContractorSkillTool(BaseTool):
         name: str,
         native: BaseTool,
         owner: PreparedAgentSkills,
-        budget: Callable[[], Any | None],
         metrics: Any,
     ) -> None:
         descriptions = {
@@ -289,7 +285,6 @@ class ContractorSkillTool(BaseTool):
         super().__init__(name=name, description=descriptions[name])
         self._native: BaseTool | None = native
         self._owner: PreparedAgentSkills | None = owner
-        self._budget = budget
         self._metrics = metrics
 
     def _get_declaration(self) -> types.FunctionDeclaration:
@@ -322,10 +317,6 @@ class ContractorSkillTool(BaseTool):
 
     async def run_async(self, *, args: dict[str, Any], tool_context: ToolContext) -> Any:
         started = time.monotonic()
-        budget = self._budget()
-        if budget is not None:
-            budget.before_tool_call()
-
         owner = self._owner
         native = self._native
         safe_arguments: dict[str, Any] = {"arguments_valid": False}

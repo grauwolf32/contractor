@@ -57,6 +57,7 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
 )
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.worker_state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
 RESERVED_NAMESPACES = frozenset({"inputs", "outputs", "skills"})
@@ -76,9 +77,9 @@ class AllocationError(Exception):
         return {"code": self.code, "message": self.message, "retryable": self.retryable}
 
 
-@dataclass(slots=True)
-class WorkerState:
-    metrics: MetricsState = field(default_factory=MetricsState)
+# Backward-compatible import surface for toolset tests and embedders. The
+# concrete allocation object is now the revisioned State store.
+WorkerState = WorkerStateStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +109,7 @@ class _AllocationContext:
     project_workspace: DirectWorkspaceSession | None = field(repr=False)
     adapter_host: AllocationAdapterHost = field(repr=False)
     tools: dict[str, ToolInstance]
-    worker_state: WorkerState | None
+    worker_state: WorkerStateStore | None
     runtime_settings: RuntimeSettings | None = field(repr=False)
     worker: WorkerRuntime | None = field(repr=False)
     prepare_response: PrepareAllocationResponse | None = None
@@ -206,7 +207,7 @@ class AllocationService:
             workspace: AllocationWorkspace | None = None
             project_workspace: DirectWorkspaceSession | None = None
             tools: dict[str, ToolInstance] = {}
-            worker_state: WorkerState | None = None
+            worker_state: WorkerStateStore | None = None
             worker: WorkerRuntime | None = None
             try:
                 adapter_deadline = min(
@@ -241,7 +242,7 @@ class AllocationService:
                         allocation_id=spec.allocation_id,
                         timeout_seconds=remaining,
                     )
-                worker_state = WorkerState()
+                worker_state = WorkerStateStore()
                 tools = await self._create_tools(
                     spec,
                     workspace,
@@ -750,7 +751,7 @@ class AllocationService:
         spec: AllocationSpec,
         workspace: AllocationWorkspace,
         project_workspace: DirectWorkspaceSession | None,
-        worker_state: WorkerState,
+        worker_state: WorkerStateStore,
         adapter_handles: AdapterHandles,
     ) -> dict[str, ToolInstance]:
         result: dict[str, ToolInstance] = {}
