@@ -438,8 +438,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V17-001
-  next_task: V17-002
+  completed_through: V17-002
+  next_task: V17-003
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -532,8 +532,13 @@ current_checkpoint:
     is complete: every Worker request now carries its authoritative subtask ID,
     and strict Go/Python Worker completion contracts share valid and hostile
     fixtures while the production A2A response intentionally remains on the
-    historical adapter until V17-003. V18-001 through V18-003 separately plan
-    optional one-shot terminal summarization. V17-002 is next.
+    historical adapter until V17-003. V17-002 is complete: one App-level ADK
+    plugin now owns model/tool correlation, budget enforcement and content-free
+    telemetry; the allocation-local Contractor State has monotonic revisions,
+    cumulative bounded metrics plus exactly one current and last-completed
+    invocation, and the legacy detailed ExecutionReport remains compatible
+    without duplicate tool accounting. V18-001 through V18-003 separately plan
+    optional one-shot terminal summarization. V17-003 is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"

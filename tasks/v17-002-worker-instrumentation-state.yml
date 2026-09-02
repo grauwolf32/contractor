@@ -3,8 +3,8 @@ id: V17-002
 title: Centralize Worker instrumentation in bounded allocation-local State
 milestone: worker-results-and-live-state
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 22b5ebc19df5545b7a28cdc12b5a734777d26f16
 depends_on: [V17-001]
 languages: [python]
 
