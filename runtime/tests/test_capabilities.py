@@ -150,7 +150,7 @@ def test_workspace_capability_is_probed_frozen_and_registered(
         assert snapshot.workspace.modes == ("direct", "overlay")
         assert snapshot.workspace.limits.max_files == 123
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
-        expected_code_tools = SHALLOW_TOOLS | (CORE_GRAPH_TOOLS if storage == "local" else set())
+        expected_code_tools = SHALLOW_TOOLS | (GRAPH_TOOLS if storage == "local" else set())
         assert toolsets[CODE_ANALYSIS_REF] == tuple(sorted(expected_code_tools))
 
         registration = await RuntimeState(

@@ -240,7 +240,10 @@ def test_pagination_is_deterministic_integrity_protected_and_query_bound(
         assert [item["name"] for item in second["items"]] == ["second"]
         assert not second["truncated"] and second["nextCursor"] is None
 
-        tampered = first["nextCursor"][:-1] + ("A" if first["nextCursor"][-1] != "A" else "B")
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        final_index = alphabet.index(first["nextCursor"][-1])
+        assert final_index % 4 == 0
+        tampered = first["nextCursor"][:-1] + alphabet[final_index + 1]
         with pytest.raises(CodeAnalysisError, match="code_analysis_cursor_invalid"):
             await tools["list_symbols"](cursor=tampered, limit=1)
         with pytest.raises(CodeAnalysisError, match="code_analysis_cursor_invalid"):

@@ -136,6 +136,45 @@ class GraphRelationshipPage:
 
 
 @dataclass(frozen=True, slots=True)
+class GraphPathPage:
+    snapshot_digest: str
+    items: tuple[tuple[GraphSymbolProjection, ...], ...]
+    truncated: bool
+    traversal_steps: int
+
+
+@dataclass(frozen=True, slots=True)
+class GraphEntrypointProjection:
+    symbol: GraphSymbolProjection
+    entrypoint_kind: str
+    trust_level: str
+    asset_value: str
+    description: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class GraphEntrypointPage:
+    snapshot_digest: str
+    items: tuple[GraphEntrypointProjection, ...]
+    observed_total: int
+    truncated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class GraphComplexityProjection:
+    symbol: GraphSymbolProjection
+    complexity: int
+
+
+@dataclass(frozen=True, slots=True)
+class GraphComplexityPage:
+    snapshot_digest: str
+    items: tuple[GraphComplexityProjection, ...]
+    observed_total: int
+    truncated: bool
+
+
+@dataclass(frozen=True, slots=True)
 class _PreparedMirror:
     path: Path
     snapshot_digest: str
@@ -314,6 +353,159 @@ class TrailmarkChildHost:
             )
             try:
                 return _relationship_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    expected_offset=offset,
+                    expected_limit=limit,
+                )
+            except TrailmarkHostError:
+                await self._stop_locked(remove_mirror=True)
+                raise
+
+    async def paths_between(
+        self,
+        source_id: str,
+        target_id: str,
+        *,
+        max_depth: int,
+        limit: int,
+    ) -> GraphPathPage:
+        return await self._paths(
+            "paths_between",
+            {
+                "sourceId": source_id,
+                "targetId": target_id,
+                "maxDepth": max_depth,
+                "limit": limit,
+            },
+            target_id=target_id,
+            source_id=source_id,
+            max_depth=max_depth,
+            limit=limit,
+        )
+
+    async def entrypoint_paths_to(
+        self,
+        symbol_id: str,
+        *,
+        max_depth: int,
+        limit: int,
+    ) -> GraphPathPage:
+        return await self._paths(
+            "entrypoint_paths_to",
+            {"symbolId": symbol_id, "maxDepth": max_depth, "limit": limit},
+            target_id=symbol_id,
+            source_id=None,
+            max_depth=max_depth,
+            limit=limit,
+        )
+
+    async def _paths(
+        self,
+        operation: str,
+        arguments: Mapping[str, Any],
+        *,
+        target_id: str,
+        source_id: str | None,
+        max_depth: int,
+        limit: int,
+    ) -> GraphPathPage:
+        async with self._lock:
+            self._require_running()
+            assert self._mirror is not None
+            self.validate_symbol_id(target_id, self._mirror.snapshot_digest)
+            if source_id is not None:
+                self.validate_symbol_id(source_id, self._mirror.snapshot_digest)
+            result = await self._request_locked(
+                operation,
+                arguments,
+                timeout=self._query_timeout_seconds,
+                timeout_code="code_analysis_query_timeout",
+            )
+            try:
+                return _path_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    target_id=target_id,
+                    source_id=source_id,
+                    max_depth=max_depth,
+                    limit=limit,
+                )
+            except TrailmarkHostError:
+                await self._stop_locked(remove_mirror=True)
+                raise
+
+    async def attack_surface(self, *, offset: int, limit: int) -> GraphEntrypointPage:
+        async with self._lock:
+            self._require_running()
+            assert self._mirror is not None
+            result = await self._request_locked(
+                "attack_surface",
+                {"offset": offset, "limit": limit},
+                timeout=self._query_timeout_seconds,
+                timeout_code="code_analysis_query_timeout",
+            )
+            try:
+                return _entrypoint_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    expected_offset=offset,
+                    expected_limit=limit,
+                )
+            except TrailmarkHostError:
+                await self._stop_locked(remove_mirror=True)
+                raise
+
+    async def complexity_hotspots(
+        self,
+        threshold: int,
+        *,
+        offset: int,
+        limit: int,
+    ) -> GraphComplexityPage:
+        async with self._lock:
+            self._require_running()
+            assert self._mirror is not None
+            result = await self._request_locked(
+                "complexity_hotspots",
+                {"threshold": threshold, "offset": offset, "limit": limit},
+                timeout=self._query_timeout_seconds,
+                timeout_code="code_analysis_query_timeout",
+            )
+            try:
+                return _complexity_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    expected_offset=offset,
+                    expected_limit=limit,
+                    expected_threshold=threshold,
+                )
+            except TrailmarkHostError:
+                await self._stop_locked(remove_mirror=True)
+                raise
+
+    async def functions_that_raise(
+        self,
+        exception: str,
+        *,
+        offset: int,
+        limit: int,
+    ) -> GraphSymbolPage:
+        async with self._lock:
+            self._require_running()
+            assert self._mirror is not None
+            result = await self._request_locked(
+                "functions_that_raise",
+                {"exception": exception, "offset": offset, "limit": limit},
+                timeout=self._query_timeout_seconds,
+                timeout_code="code_analysis_query_timeout",
+            )
+            try:
+                return _symbol_page(
                     result,
                     self._mirror.snapshot_digest,
                     bytes(self._symbol_key),
@@ -508,7 +700,14 @@ async def probe_trailmark_child(scratch_root: Path, *, timeout_seconds: float = 
 
     if timeout_seconds <= 0:
         raise ValueError("Trailmark probe timeout must be positive")
-    source = "def probe_leaf():\n    return 1\n\ndef main():\n    return probe_leaf()\n"
+    source = (
+        "def probe_leaf():\n"
+        "    if False:\n"
+        "        raise ValueError('probe')\n"
+        "    return 1\n\n"
+        "def main():\n"
+        "    return probe_leaf()\n"
+    )
     size = len(source.encode("utf-8"))
     snapshot = WorkspaceSnapshot(
         directories=(),
@@ -526,7 +725,35 @@ async def probe_trailmark_child(scratch_root: Path, *, timeout_seconds: float = 
         try:
             async with asyncio.timeout(timeout_seconds):
                 result = await host.build(snapshot)
-                return result.node_count >= 2 and result.languages == ("python",)
+                leaf_page = await host.find_symbols("probe_leaf", offset=0, limit=10)
+                main_page = await host.find_symbols("main", offset=0, limit=10)
+                if len(leaf_page.items) != 1 or len(main_page.items) != 1:
+                    return False
+                leaf_id = leaf_page.items[0].symbol_id
+                main_id = main_page.items[0].symbol_id
+                direct_paths = await host.paths_between(
+                    main_id,
+                    leaf_id,
+                    max_depth=4,
+                    limit=2,
+                )
+                entrypoint_paths = await host.entrypoint_paths_to(
+                    leaf_id,
+                    max_depth=4,
+                    limit=2,
+                )
+                surface = await host.attack_surface(offset=0, limit=10)
+                hotspots = await host.complexity_hotspots(1, offset=0, limit=10)
+                raises = await host.functions_that_raise("ValueError", offset=0, limit=10)
+                return (
+                    result.node_count >= 2
+                    and result.languages == ("python",)
+                    and len(direct_paths.items) == 1
+                    and len(entrypoint_paths.items) >= 1
+                    and surface.observed_total >= 1
+                    and hotspots.observed_total >= 2
+                    and raises.observed_total == 1
+                )
         except (TimeoutError, TrailmarkHostError, OSError):
             return False
     finally:
@@ -871,6 +1098,166 @@ def _relationship_page(
         )
         projected.append(GraphRelationshipProjection(symbol, confidence))
     return GraphRelationshipPage(expected_digest, tuple(projected), observed_total, truncated)
+
+
+def _path_page(
+    value: Mapping[str, Any],
+    expected_digest: str,
+    symbol_key: bytes,
+    *,
+    target_id: str,
+    source_id: str | None,
+    max_depth: int,
+    limit: int,
+) -> GraphPathPage:
+    if set(value) != {"snapshotDigest", "items", "truncated", "traversalSteps"}:
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    rows = value.get("items")
+    truncated = value.get("truncated")
+    traversal_steps = value.get("traversalSteps")
+    if (
+        value.get("snapshotDigest") != expected_digest
+        or not isinstance(rows, list)
+        or len(rows) > limit
+        or not isinstance(truncated, bool)
+        or not isinstance(traversal_steps, int)
+        or isinstance(traversal_steps, bool)
+        or not 0 <= traversal_steps <= 9_223_372_036_854_775_807
+    ):
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    paths: list[tuple[GraphSymbolProjection, ...]] = []
+    for row in rows:
+        if not isinstance(row, list) or not 1 <= len(row) <= max_depth:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        path = tuple(_symbol_projection(item, expected_digest, symbol_key) for item in row)
+        symbol_ids = tuple(item.symbol_id for item in path)
+        if len(set(symbol_ids)) != len(symbol_ids) or symbol_ids[-1] != target_id:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        if source_id is not None and symbol_ids[0] != source_id:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        paths.append(path)
+    return GraphPathPage(expected_digest, tuple(paths), truncated, traversal_steps)
+
+
+def _entrypoint_page(
+    value: Mapping[str, Any],
+    expected_digest: str,
+    symbol_key: bytes,
+    *,
+    expected_offset: int,
+    expected_limit: int,
+) -> GraphEntrypointPage:
+    rows, observed_total, truncated = _collection_rows(
+        value,
+        expected_digest,
+        expected_offset=expected_offset,
+        expected_limit=expected_limit,
+    )
+    projected: list[GraphEntrypointProjection] = []
+    symbol_keys = {"symbolId", "name", "kind", "path", "line", "endLine", "column"}
+    expected_keys = symbol_keys | {
+        "entrypointKind",
+        "trustLevel",
+        "assetValue",
+        "description",
+    }
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != expected_keys:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        entrypoint_kind = row["entrypointKind"]
+        trust_level = row["trustLevel"]
+        asset_value = row["assetValue"]
+        description = row["description"]
+        if (
+            entrypoint_kind not in {"user_input", "api", "database", "file_system", "third_party"}
+            or trust_level
+            not in {"untrusted_external", "semi_trusted_external", "trusted_internal"}
+            or asset_value not in {"high", "medium", "low"}
+            or (
+                description is not None
+                and not _bounded_protocol_text(description, 256, allow_empty=True)
+            )
+        ):
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        symbol = _symbol_projection(
+            {key: row[key] for key in symbol_keys},
+            expected_digest,
+            symbol_key,
+        )
+        projected.append(
+            GraphEntrypointProjection(
+                symbol,
+                entrypoint_kind,
+                trust_level,
+                asset_value,
+                description,
+            )
+        )
+    return GraphEntrypointPage(expected_digest, tuple(projected), observed_total, truncated)
+
+
+def _complexity_page(
+    value: Mapping[str, Any],
+    expected_digest: str,
+    symbol_key: bytes,
+    *,
+    expected_offset: int,
+    expected_limit: int,
+    expected_threshold: int,
+) -> GraphComplexityPage:
+    rows, observed_total, truncated = _collection_rows(
+        value,
+        expected_digest,
+        expected_offset=expected_offset,
+        expected_limit=expected_limit,
+    )
+    projected: list[GraphComplexityProjection] = []
+    symbol_keys = {"symbolId", "name", "kind", "path", "line", "endLine", "column"}
+    for row in rows:
+        if not isinstance(row, dict) or set(row) != symbol_keys | {"complexity"}:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        complexity = row["complexity"]
+        if (
+            not isinstance(complexity, int)
+            or isinstance(complexity, bool)
+            or not expected_threshold <= complexity <= 2_147_483_647
+        ):
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        symbol = _symbol_projection(
+            {key: row[key] for key in symbol_keys},
+            expected_digest,
+            symbol_key,
+        )
+        projected.append(GraphComplexityProjection(symbol, complexity))
+    return GraphComplexityPage(expected_digest, tuple(projected), observed_total, truncated)
+
+
+def _collection_rows(
+    value: Mapping[str, Any],
+    expected_digest: str,
+    *,
+    expected_offset: int,
+    expected_limit: int,
+) -> tuple[list[Any], int, bool]:
+    if set(value) != {"snapshotDigest", "items", "observedTotal", "truncated"}:
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    rows = value.get("items")
+    observed_total = value.get("observedTotal")
+    truncated = value.get("truncated")
+    if (
+        value.get("snapshotDigest") != expected_digest
+        or not isinstance(rows, list)
+        or len(rows) > 200
+        or not isinstance(observed_total, int)
+        or isinstance(observed_total, bool)
+        or not 0 <= observed_total <= 2_147_483_647
+        or not 0 <= expected_offset <= observed_total
+        or len(rows) != min(expected_limit, observed_total - expected_offset)
+        or not isinstance(truncated, bool)
+        or truncated != (expected_offset + len(rows) < observed_total)
+    ):
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    return rows, observed_total, truncated
 
 
 def _symbol_projection(

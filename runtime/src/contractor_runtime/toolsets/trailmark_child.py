@@ -22,6 +22,9 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_ADDRESS_SPACE_BYTES = 1024 * 1024 * 1024
 MAX_REQUEST_ID_CHARS = 64
 MAX_SYMBOLS_RESPONSE = 200
+MAX_PATHS_RESPONSE = 50
+MAX_PATH_DEPTH = 20
+MAX_MODEL_RESPONSE_BYTES = 256 * 1024
 MAX_NAME_CHARS = 256
 MAX_QUERY_CHARS = 256
 MAX_PATH_CHARS = 4096
@@ -63,6 +66,11 @@ class _TrailmarkAdapter:
         self._name_index: dict[str, tuple[str, ...]] = {}
         self._incoming: dict[str, tuple[tuple[str, str], ...]] = {}
         self._outgoing: dict[str, tuple[tuple[str, str], ...]] = {}
+        self._call_adjacency: dict[str, tuple[str, ...]] = {}
+        self._entrypoints: tuple[dict[str, Any], ...] = ()
+        self._entrypoint_ids: tuple[str, ...] = ()
+        self._complexities: tuple[dict[str, Any], ...] = ()
+        self._exception_index: dict[str, tuple[dict[str, Any], ...]] = {}
         self._symbol_key: bytes | None = None
 
     def build(self, arguments: object) -> dict[str, Any]:
@@ -131,6 +139,7 @@ class _TrailmarkAdapter:
 
         incoming: dict[str, list[tuple[str, str]]] = {}
         outgoing: dict[str, list[tuple[str, str]]] = {}
+        adjacency: dict[str, set[str]] = {}
         for edge in graph.edges:
             if _enum_value(edge.kind) != "calls":
                 continue
@@ -141,6 +150,38 @@ class _TrailmarkAdapter:
             confidence = _edge_confidence(edge.confidence)
             outgoing.setdefault(source, []).append((target, confidence))
             incoming.setdefault(target, []).append((source, confidence))
+            adjacency.setdefault(source, set()).add(target)
+
+        entrypoint_pairs: list[tuple[str, dict[str, Any]]] = []
+        for raw_id, tag in graph.entrypoints.items():
+            if raw_id not in nodes:
+                raise _RequestError("code_analysis_engine_failed")
+            row = dict(nodes[raw_id])
+            row.update(_entrypoint_projection(tag))
+            entrypoint_pairs.append((raw_id, row))
+        entrypoint_pairs.sort(key=lambda item: (*_entrypoint_sort_key(item[1]), item[0]))
+
+        complexities: list[tuple[str, dict[str, Any]]] = []
+        exceptions: dict[str, list[str]] = {}
+        for raw_id in raw_ids:
+            node = graph.nodes[raw_id]
+            complexity = getattr(node, "cyclomatic_complexity", None)
+            if complexity is not None:
+                if (
+                    not isinstance(complexity, int)
+                    or isinstance(complexity, bool)
+                    or not 0 <= complexity <= 2_147_483_647
+                ):
+                    raise _RequestError("code_analysis_engine_failed")
+                complexity_row = dict(nodes[raw_id])
+                complexity_row["complexity"] = complexity
+                complexities.append((raw_id, complexity_row))
+            for exception in getattr(node, "exception_types", ()):
+                name = getattr(exception, "name", None)
+                if not isinstance(name, str) or not name:
+                    raise _RequestError("code_analysis_engine_failed")
+                exceptions.setdefault(name, []).append(raw_id)
+        complexities.sort(key=lambda item: (*_complexity_sort_key(item[1]), item[0]))
 
         self._graph = graph
         self._snapshot_digest = digest
@@ -150,8 +191,38 @@ class _TrailmarkAdapter:
         self._raw_ids = raw_ids
         self._nodes = nodes
         self._name_index = {key: tuple(sorted(values)) for key, values in name_index.items()}
-        self._incoming = {key: tuple(sorted(values)) for key, values in incoming.items()}
-        self._outgoing = {key: tuple(sorted(values)) for key, values in outgoing.items()}
+        self._incoming = {
+            key: tuple(
+                sorted(
+                    values,
+                    key=lambda item: (*_node_sort_key(item[0], nodes), item[1]),
+                )
+            )
+            for key, values in incoming.items()
+        }
+        self._outgoing = {
+            key: tuple(
+                sorted(
+                    values,
+                    key=lambda item: (*_node_sort_key(item[0], nodes), item[1]),
+                )
+            )
+            for key, values in outgoing.items()
+        }
+        self._call_adjacency = {
+            key: tuple(sorted(values, key=lambda raw_id: _node_sort_key(raw_id, nodes)))
+            for key, values in adjacency.items()
+        }
+        self._entrypoints = tuple(row for _, row in entrypoint_pairs)
+        self._entrypoint_ids = tuple(raw_id for raw_id, _ in entrypoint_pairs)
+        self._complexities = tuple(row for _, row in complexities)
+        self._exception_index = {
+            key: tuple(
+                nodes[raw_id]
+                for raw_id in sorted(value, key=lambda item: _node_sort_key(item, nodes))
+            )
+            for key, value in exceptions.items()
+        }
         self._symbol_key = symbol_key
         return self.summary()
 
@@ -198,8 +269,10 @@ class _TrailmarkAdapter:
         matched: set[str] = set()
         for key in _query_name_keys(query):
             matched.update(self._name_index.get(key, ()))
-        rows = [self._nodes[raw_id] for raw_id in matched]
-        rows.sort(key=_projection_sort_key)
+        rows = [
+            self._nodes[raw_id]
+            for raw_id in sorted(matched, key=lambda item: _node_sort_key(item, self._nodes))
+        ]
         return self._collection(rows, offset, limit)
 
     def relationships(self, operation: str, arguments: object) -> dict[str, Any]:
@@ -216,8 +289,71 @@ class _TrailmarkAdapter:
             row = dict(self._nodes[related_id])
             row["confidence"] = confidence
             rows.append(row)
-        rows.sort(key=_relationship_sort_key)
         return self._collection(rows, offset, limit)
+
+    def paths(self, operation: str, arguments: object) -> dict[str, Any]:
+        self._require_graph()
+        if operation == "paths_between":
+            document = _object(
+                arguments,
+                {"sourceId", "targetId", "maxDepth", "limit"},
+            )
+            source_id = document["sourceId"]
+            if not isinstance(source_id, str):
+                raise _RequestError("code_analysis_symbol_not_found")
+            sources = (self._resolve_symbol_id(source_id),)
+        else:
+            document = _object(arguments, {"symbolId", "maxDepth", "limit"})
+            sources = self._entrypoint_ids
+        target_id = document["targetId"] if operation == "paths_between" else document["symbolId"]
+        if not isinstance(target_id, str):
+            raise _RequestError("code_analysis_symbol_not_found")
+        target = self._resolve_symbol_id(target_id)
+        max_depth, limit = _path_arguments(document)
+        paths, truncated, traversal_steps = _bounded_simple_paths(
+            self._call_adjacency,
+            sources,
+            target,
+            max_depth=max_depth,
+            limit=limit,
+        )
+        rows = [[self._nodes[raw_id] for raw_id in path] for path in paths]
+        assert self._coverage is not None
+        rows, truncated = _fit_path_rows(rows, truncated, self._coverage)
+        assert self._snapshot_digest is not None
+        return {
+            "snapshotDigest": self._snapshot_digest,
+            "items": rows,
+            "truncated": truncated,
+            "traversalSteps": traversal_steps,
+        }
+
+    def attack_surface(self, arguments: object) -> dict[str, Any]:
+        self._require_graph()
+        document = _object(arguments, {"offset", "limit"})
+        offset, limit = _page_arguments(document)
+        return self._collection(list(self._entrypoints), offset, limit)
+
+    def complexity_hotspots(self, arguments: object) -> dict[str, Any]:
+        self._require_graph()
+        document = _object(arguments, {"threshold", "offset", "limit"})
+        threshold = document["threshold"]
+        if (
+            not isinstance(threshold, int)
+            or isinstance(threshold, bool)
+            or not 1 <= threshold <= 10_000
+        ):
+            raise _RequestError("code_analysis_input_invalid")
+        offset, limit = _page_arguments(document)
+        rows = [item for item in self._complexities if item["complexity"] >= threshold]
+        return self._collection(rows, offset, limit)
+
+    def functions_that_raise(self, arguments: object) -> dict[str, Any]:
+        self._require_graph()
+        document = _object(arguments, {"exception", "offset", "limit"})
+        exception = _query(document["exception"])
+        offset, limit = _page_arguments(document)
+        return self._collection(list(self._exception_index.get(exception, ())), offset, limit)
 
     def _resolve_symbol_id(self, symbol_id: str) -> str:
         assert self._symbol_key is not None
@@ -323,6 +459,14 @@ def _dispatch(adapter: _TrailmarkAdapter, operation: str, arguments: object) -> 
         return adapter.find_symbols(arguments)
     if operation in {"find_callers", "find_callees"}:
         return adapter.relationships(operation, arguments)
+    if operation in {"paths_between", "entrypoint_paths_to"}:
+        return adapter.paths(operation, arguments)
+    if operation == "attack_surface":
+        return adapter.attack_surface(arguments)
+    if operation == "complexity_hotspots":
+        return adapter.complexity_hotspots(arguments)
+    if operation == "functions_that_raise":
+        return adapter.functions_that_raise(arguments)
     raise _RequestError("unsupported_operation")
 
 
@@ -432,6 +576,93 @@ def _page_arguments(document: Mapping[str, Any]) -> tuple[int, int]:
     return offset, limit
 
 
+def _path_arguments(document: Mapping[str, Any]) -> tuple[int, int]:
+    max_depth = document["maxDepth"]
+    limit = document["limit"]
+    if (
+        not isinstance(max_depth, int)
+        or isinstance(max_depth, bool)
+        or not 1 <= max_depth <= MAX_PATH_DEPTH
+        or not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_PATHS_RESPONSE
+    ):
+        raise _RequestError("code_analysis_input_invalid")
+    return max_depth, limit
+
+
+def _bounded_simple_paths(
+    adjacency: Mapping[str, tuple[str, ...]],
+    sources: tuple[str, ...],
+    target: str,
+    *,
+    max_depth: int,
+    limit: int,
+) -> tuple[list[tuple[str, ...]], bool, int]:
+    """Enumerate at most limit+1 deterministic simple paths without a frontier cache."""
+
+    paths: list[tuple[str, ...]] = []
+    traversal_steps = 0
+
+    def walk(node: str, path: list[str], visited: set[str]) -> None:
+        nonlocal traversal_steps
+        if len(paths) > limit:
+            return
+        if node == target:
+            paths.append(tuple(path))
+            return
+        if len(path) >= max_depth:
+            return
+        for successor in adjacency.get(node, ()):
+            traversal_steps += 1
+            if successor in visited:
+                continue
+            visited.add(successor)
+            path.append(successor)
+            walk(successor, path, visited)
+            path.pop()
+            visited.remove(successor)
+            if len(paths) > limit:
+                return
+
+    for source in sources:
+        walk(source, [source], {source})
+        if len(paths) > limit:
+            break
+    return paths[:limit], len(paths) > limit, traversal_steps
+
+
+def _fit_path_rows(
+    rows: list[list[dict[str, Any]]],
+    truncated: bool,
+    coverage: Mapping[str, Any],
+) -> tuple[list[list[dict[str, Any]]], bool]:
+    selected = rows
+    while True:
+        candidate = {
+            "items": selected,
+            "truncated": truncated or len(selected) < len(rows),
+            "coverage": coverage,
+        }
+        try:
+            size = len(
+                json.dumps(
+                    candidate,
+                    ensure_ascii=False,
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8")
+            )
+        except (TypeError, ValueError):
+            raise _RequestError("code_analysis_engine_failed") from None
+        if size <= MAX_MODEL_RESPONSE_BYTES:
+            return selected, bool(candidate["truncated"])
+        if not selected:
+            raise _RequestError("code_analysis_capacity_exceeded")
+        selected = selected[:-1]
+
+
 def _index_name_keys(identifier: str, name: str) -> set[str]:
     folded_name = name.casefold()
     folded_id = identifier.casefold()
@@ -460,12 +691,58 @@ def _projection_sort_key(item: Mapping[str, Any]) -> tuple[object, ...]:
         item["column"],
         item["name"],
         item["kind"],
-        item["symbolId"],
     )
 
 
-def _relationship_sort_key(item: Mapping[str, Any]) -> tuple[object, ...]:
-    return (*_projection_sort_key(item), item["confidence"])
+def _node_sort_key(raw_id: str, nodes: Mapping[str, Mapping[str, Any]]) -> tuple[object, ...]:
+    item = nodes[raw_id]
+    return (
+        item["path"],
+        item["line"],
+        item["column"],
+        item["name"],
+        item["kind"],
+        raw_id,
+    )
+
+
+def _entrypoint_projection(tag: object) -> dict[str, Any]:
+    entrypoint_kind = _enum_value(getattr(tag, "kind", ""))
+    trust_level = _enum_value(getattr(tag, "trust_level", ""))
+    asset_value = _enum_value(getattr(tag, "asset_value", ""))
+    if entrypoint_kind not in {"user_input", "api", "database", "file_system", "third_party"}:
+        raise _RequestError("code_analysis_engine_failed")
+    if trust_level not in {
+        "untrusted_external",
+        "semi_trusted_external",
+        "trusted_internal",
+    }:
+        raise _RequestError("code_analysis_engine_failed")
+    if asset_value not in {"high", "medium", "low"}:
+        raise _RequestError("code_analysis_engine_failed")
+    description = getattr(tag, "description", None)
+    if description is not None and not isinstance(description, str):
+        raise _RequestError("code_analysis_engine_failed")
+    return {
+        "entrypointKind": entrypoint_kind,
+        "trustLevel": trust_level,
+        "assetValue": asset_value,
+        "description": None if description is None else _safe_text(description, 256),
+    }
+
+
+def _entrypoint_sort_key(item: Mapping[str, Any]) -> tuple[object, ...]:
+    return (
+        *_projection_sort_key(item),
+        item["entrypointKind"],
+        item["trustLevel"],
+        item["assetValue"],
+        item["description"] or "",
+    )
+
+
+def _complexity_sort_key(item: Mapping[str, Any]) -> tuple[object, ...]:
+    return (-item["complexity"], *_projection_sort_key(item))
 
 
 def _edge_confidence(value: object) -> str:

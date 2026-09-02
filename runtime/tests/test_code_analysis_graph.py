@@ -13,6 +13,7 @@ from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs.storage import ManagedWorkspaceTree, WorkspaceSnapshot
 from contractor_runtime.toolsets.code_analysis import (
     CORE_GRAPH_TOOLS,
+    GRAPH_TOOLS,
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
 )
@@ -303,6 +304,178 @@ def test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor(
     asyncio.run(scenario())
 
 
+def test_path_tools_use_exact_ids_depth_and_limit_plus_one(tmp_path: Path) -> None:
+    files = {
+        "app.py": (
+            "def target():\n"
+            "    return 1\n\n"
+            "def left():\n"
+            "    return target()\n\n"
+            "def right():\n"
+            "    return target()\n\n"
+            "def entry():\n"
+            "    left()\n"
+            "    return right()\n\n"
+            "def main():\n"
+            "    return entry()\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, metrics, _ = await _tools(tmp_path, MutableReader(files))
+        symbols = {
+            name: (await tools["find_symbol"](name))["items"][0]["symbolId"]
+            for name in ("main", "target")
+        }
+        first = await tools["paths_between"](
+            symbols["main"],
+            symbols["target"],
+            max_depth=4,
+            limit=1,
+        )
+        assert set(first) == {"items", "truncated", "coverage"}
+        assert first["truncated"] is True
+        assert len(first["items"]) == 1
+        assert [item["name"] for item in first["items"][0]] in (
+            ["main", "entry", "left", "target"],
+            ["main", "entry", "right", "target"],
+        )
+        assert all("confidence" not in item for item in first["items"][0])
+
+        too_shallow = await tools["paths_between"](
+            symbols["main"],
+            symbols["target"],
+            max_depth=3,
+        )
+        assert too_shallow["items"] == []
+        assert too_shallow["truncated"] is False
+
+        from_entrypoints = await tools["entrypoint_paths_to"](
+            symbols["target"],
+            max_depth=4,
+            limit=1,
+        )
+        assert from_entrypoints["items"]
+        assert from_entrypoints["truncated"] is True
+        assert from_entrypoints["items"][0][-1]["symbolId"] == symbols["target"]
+
+        with pytest.raises(CodeAnalysisError) as bare_name:
+            await tools["paths_between"]("main", symbols["target"])
+        assert bare_name.value.code == "code_analysis_symbol_not_found"
+        with pytest.raises(CodeAnalysisError) as bad_depth:
+            await tools["entrypoint_paths_to"](symbols["target"], max_depth=0)
+        assert bad_depth.value.code == "code_analysis_input_invalid"
+        retained = json.dumps(metrics.snapshot(), sort_keys=True)
+        assert symbols["target"] not in retained
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_entrypoint_paths_keep_duplicate_targets_exact(tmp_path: Path) -> None:
+    files = {
+        "a.py": "def target():\n    return 'a'\n\ndef main():\n    return target()\n",
+        "b.py": "def target():\n    return 'b'\n\ndef main():\n    return target()\n",
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        targets = (await tools["find_symbol"]("target"))["items"]
+        assert [item["path"] for item in targets] == ["a.py", "b.py"]
+
+        selected = targets[0]
+        result = await tools["entrypoint_paths_to"](
+            selected["symbolId"],
+            max_depth=2,
+            limit=10,
+        )
+        assert result["items"]
+        assert all(path[-1]["symbolId"] == selected["symbolId"] for path in result["items"])
+        assert all(path[-1]["path"] == "a.py" for path in result["items"])
+        assert all(
+            len({item["symbolId"] for item in path}) == len(path) for path in result["items"]
+        )
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_attack_surface_complexity_and_exception_tools_are_slim(tmp_path: Path) -> None:
+    files = {
+        "app.py": (
+            "from fastapi import FastAPI\n"
+            "app = FastAPI()\n\n"
+            "@app.get('/items')\n"
+            "def route(value):\n"
+            "    if value:\n"
+            "        for item in value:\n"
+            "            if item:\n"
+            "                raise ValueError('bad')\n"
+            "    return 1\n\n"
+            "def simple():\n"
+            "    raise TypeError('other')\n"
+        )
+    }
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(tmp_path, MutableReader(files))
+        surface = await tools["attack_surface"]()
+        route = next(item for item in surface["items"] if item["name"] == "route")
+        assert route["entrypointKind"] == "api"
+        assert route["trustLevel"] == "untrusted_external"
+        assert route["assetValue"] == "high"
+        assert "attributes" not in route
+        assert not route["path"].startswith("/")
+
+        hotspots = await tools["complexity_hotspots"](threshold=2)
+        assert hotspots["items"]
+        assert hotspots["items"][0]["name"] == "route"
+        assert hotspots["items"][0]["complexity"] >= 2
+        assert [item["complexity"] for item in hotspots["items"]] == sorted(
+            (item["complexity"] for item in hotspots["items"]),
+            reverse=True,
+        )
+
+        raises = await tools["functions_that_raise"]("ValueError")
+        assert [(item["name"], item["path"]) for item in raises["items"]] == [("route", "app.py")]
+        assert (await tools["functions_that_raise"]("valueerror"))["items"] == []
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_advanced_collection_cursor_is_argument_bound_and_resumable(tmp_path: Path) -> None:
+    functions = "\n\n".join(
+        f"def raises_{index:03d}():\n    raise ValueError('{index}')" for index in range(35)
+    )
+
+    async def scenario() -> None:
+        tools, _, _ = await _tools(
+            tmp_path,
+            MutableReader({"errors.py": functions + "\n"}),
+        )
+        first = await tools["functions_that_raise"]("ValueError", limit=10)
+        assert len(first["items"]) == 10
+        assert first["observedTotal"] == 35
+        assert first["truncated"] is True
+        second = await tools["functions_that_raise"](
+            "ValueError",
+            cursor=first["nextCursor"],
+            limit=10,
+        )
+        assert first["items"][-1]["name"] < second["items"][0]["name"]
+        with pytest.raises(CodeAnalysisError) as wrong_argument:
+            await tools["functions_that_raise"](
+                "TypeError",
+                cursor=first["nextCursor"],
+                limit=10,
+            )
+        assert wrong_argument.value.code == "code_analysis_cursor_invalid"
+        await _close(tools)
+
+    asyncio.run(scenario())
+
+
 class MutableReader:
     def __init__(self, files: dict[str, str]) -> None:
         self._tree = ManagedWorkspaceTree(
@@ -332,12 +505,12 @@ async def _tools(
         workspace_storage="local", graph_probe_root=root / "probe"
     )
     if factory is None:
-        assert await selected_factory.probe() >= CORE_GRAPH_TOOLS
+        assert await selected_factory.probe() >= GRAPH_TOOLS
     scratch = root / "allocation"
     scratch.mkdir(mode=0o700)
     metrics = MetricsState()
     tools = await selected_factory.create_selected(
-        selected=tuple(sorted(CORE_GRAPH_TOOLS)),
+        selected=tuple(sorted(GRAPH_TOOLS)),
         allocation_id=f"allocation-{root.name}",
         run_id="run-code-graph",
         namespace="analysis",

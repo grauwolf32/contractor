@@ -20,7 +20,7 @@ test-runtime-hardening:
 	cd runtime && uv run pytest -W error tests
 
 test-code-analysis-runtime:
-	cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_trailmark_child.py tests/test_code_analysis_child_lifecycle.py tests/test_trailmark_probe.py tests/test_capabilities.py
+	cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_code_analysis_traversal.py tests/test_trailmark_child.py tests/test_code_analysis_child_lifecycle.py tests/test_trailmark_probe.py tests/test_capabilities.py
 
 test-contracts:
 	go test ./internal/contracts/...

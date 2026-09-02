@@ -36,7 +36,10 @@ from contractor_runtime.toolsets.code_analysis_languages import Language, Symbol
 from contractor_runtime.toolsets.run_artifacts import ToolMetrics
 from contractor_runtime.toolsets.trailmark_host import (
     GraphBuildResult,
+    GraphComplexityProjection,
     GraphCoverage,
+    GraphEntrypointProjection,
+    GraphPathPage,
     GraphRelationshipProjection,
     GraphSymbolProjection,
     TrailmarkChildHost,
@@ -149,7 +152,7 @@ class CodeAnalysisToolsetFactory:
         ):
             self._graph_probe_succeeded = await probe_trailmark_child(self._graph_probe_root)
         if self._graph_probe_succeeded:
-            self._available_tools |= CORE_GRAPH_TOOLS
+            self._available_tools |= GRAPH_TOOLS
         return self._available_tools
 
     async def create_selected(
@@ -174,17 +177,22 @@ class CodeAnalysisToolsetFactory:
         metrics = getattr(state, "metrics", None)
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("code-analysis@1 requires State.metrics")
-        graph_selected = bool(set(selected) & CORE_GRAPH_TOOLS)
+        graph_selected = bool(set(selected) & GRAPH_TOOLS)
         session = _CodeAnalysisSession(
             project_workspace,
             graph_scratch=workspace.path if graph_selected else None,
         )
         builders = {
+            "attack_surface": lambda: AttackSurfaceTool(session, metrics),
+            "complexity_hotspots": lambda: ComplexityHotspotsTool(session, metrics),
+            "entrypoint_paths_to": lambda: EntrypointPathsToTool(session, metrics),
             "find_callees": lambda: FindCalleesTool(session, metrics),
             "find_callers": lambda: FindCallersTool(session, metrics),
             "find_symbol": lambda: FindSymbolTool(session, metrics),
+            "functions_that_raise": lambda: FunctionsThatRaiseTool(session, metrics),
             "graph_summary": lambda: GraphSummaryTool(session, metrics),
             "list_symbols": lambda: ListSymbolsTool(session, metrics),
+            "paths_between": lambda: PathsBetweenTool(session, metrics),
             "search_def": lambda: SearchDefinitionTool(session, metrics),
         }
         return {name: builders[name]() for name in selected}
@@ -499,6 +507,252 @@ class _CodeAnalysisSession:
                     invalidations=invalidations,
                 ),
             )
+
+    async def paths_between(
+        self,
+        source_id: str,
+        target_id: str,
+        max_depth: int,
+        limit: int,
+    ) -> _OperationResult:
+        normalized_source = _symbol_id(source_id)
+        normalized_target = _symbol_id(target_id)
+        resolved_depth = _path_depth(max_depth)
+        resolved_limit = _path_limit(limit)
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            host = self._require_graph_host()
+            self._validate_symbol_id(host, normalized_source, snapshot.digest)
+            self._validate_symbol_id(host, normalized_target, snapshot.digest)
+            graph = await self._ensure_graph(snapshot)
+            try:
+                page = await host.paths_between(
+                    normalized_source,
+                    normalized_target,
+                    max_depth=resolved_depth,
+                    limit=resolved_limit,
+                )
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            return self._path_operation_result(
+                page,
+                graph,
+                invalidations=invalidations,
+            )
+
+    async def entrypoint_paths_to(
+        self,
+        symbol_id: str,
+        max_depth: int,
+        limit: int,
+    ) -> _OperationResult:
+        normalized_symbol = _symbol_id(symbol_id)
+        resolved_depth = _path_depth(max_depth)
+        resolved_limit = _path_limit(limit)
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            host = self._require_graph_host()
+            self._validate_symbol_id(host, normalized_symbol, snapshot.digest)
+            graph = await self._ensure_graph(snapshot)
+            try:
+                page = await host.entrypoint_paths_to(
+                    normalized_symbol,
+                    max_depth=resolved_depth,
+                    limit=resolved_limit,
+                )
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            return self._path_operation_result(
+                page,
+                graph,
+                invalidations=invalidations,
+            )
+
+    async def attack_surface(self, cursor: str, limit: int) -> _OperationResult:
+        resolved_limit = _limit(limit)
+        query_digest = _query_digest({"operation": "attack_surface"})
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            offset = (
+                self._cursor_offset(cursor, snapshot.digest, "attack_surface", query_digest)
+                if cursor
+                else 0
+            )
+            graph = await self._ensure_graph(snapshot)
+            host = self._require_graph_host()
+            try:
+                page = await host.attack_surface(offset=offset, limit=resolved_limit)
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            rows = [_graph_entrypoint_row(item) for item in page.items]
+            value = self._graph_page(
+                rows,
+                observed_total=page.observed_total,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation="attack_surface",
+                query=query_digest,
+                coverage=graph.coverage,
+            )
+            return _OperationResult(
+                value,
+                self._graph_metric(
+                    count=len(value["items"]),
+                    truncated=bool(value["truncated"]),
+                    graph=graph,
+                    invalidations=invalidations,
+                ),
+            )
+
+    async def complexity_hotspots(
+        self,
+        threshold: int,
+        cursor: str,
+        limit: int,
+    ) -> _OperationResult:
+        resolved_threshold = _complexity_threshold(threshold)
+        resolved_limit = _limit(limit)
+        query_digest = _query_digest(
+            {"operation": "complexity_hotspots", "threshold": resolved_threshold}
+        )
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            offset = (
+                self._cursor_offset(
+                    cursor,
+                    snapshot.digest,
+                    "complexity_hotspots",
+                    query_digest,
+                )
+                if cursor
+                else 0
+            )
+            graph = await self._ensure_graph(snapshot)
+            host = self._require_graph_host()
+            try:
+                page = await host.complexity_hotspots(
+                    resolved_threshold,
+                    offset=offset,
+                    limit=resolved_limit,
+                )
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            rows = [_graph_complexity_row(item) for item in page.items]
+            value = self._graph_page(
+                rows,
+                observed_total=page.observed_total,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation="complexity_hotspots",
+                query=query_digest,
+                coverage=graph.coverage,
+            )
+            return _OperationResult(
+                value,
+                self._graph_metric(
+                    count=len(value["items"]),
+                    truncated=bool(value["truncated"]),
+                    graph=graph,
+                    invalidations=invalidations,
+                ),
+            )
+
+    async def functions_that_raise(
+        self,
+        exception: str,
+        cursor: str,
+        limit: int,
+    ) -> _OperationResult:
+        normalized_exception = _query_string(exception)
+        resolved_limit = _limit(limit)
+        query_digest = _query_digest(
+            {"operation": "functions_that_raise", "exception": normalized_exception}
+        )
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            offset = (
+                self._cursor_offset(
+                    cursor,
+                    snapshot.digest,
+                    "functions_that_raise",
+                    query_digest,
+                )
+                if cursor
+                else 0
+            )
+            graph = await self._ensure_graph(snapshot)
+            host = self._require_graph_host()
+            try:
+                page = await host.functions_that_raise(
+                    normalized_exception,
+                    offset=offset,
+                    limit=resolved_limit,
+                )
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            rows = [_graph_symbol_row(item) for item in page.items]
+            value = self._graph_page(
+                rows,
+                observed_total=page.observed_total,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation="functions_that_raise",
+                query=query_digest,
+                coverage=graph.coverage,
+            )
+            return _OperationResult(
+                value,
+                self._graph_metric(
+                    count=len(value["items"]),
+                    truncated=bool(value["truncated"]),
+                    graph=graph,
+                    invalidations=invalidations,
+                ),
+            )
+
+    @staticmethod
+    def _validate_symbol_id(
+        host: TrailmarkChildHost,
+        symbol_id: str,
+        snapshot_digest: str,
+    ) -> None:
+        try:
+            host.validate_symbol_id(symbol_id, snapshot_digest)
+        except TrailmarkHostError as error:
+            raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+
+    def _path_operation_result(
+        self,
+        page: GraphPathPage,
+        graph: GraphBuildResult,
+        *,
+        invalidations: int,
+    ) -> _OperationResult:
+        paths = [[_graph_symbol_row(item) for item in path] for path in page.items]
+        truncated = page.truncated
+        while True:
+            value = {
+                "items": paths,
+                "truncated": truncated,
+                "coverage": graph.coverage.wire(),
+            }
+            if len(jcs.canonicalize(value)) <= MAX_RESULT_BYTES:
+                metric = self._graph_metric(
+                    count=len(paths),
+                    truncated=truncated,
+                    graph=graph,
+                    invalidations=invalidations,
+                )
+                metric["traversal_steps"] = page.traversal_steps
+                metric["path_nodes"] = sum(len(path) for path in paths)
+                return _OperationResult(value, metric)
+            if not paths:
+                raise CodeAnalysisError("code_analysis_capacity_exceeded")
+            paths = paths[:-1]
+            truncated = True
 
     async def _ensure_graph(self, snapshot: WorkspaceSnapshot) -> GraphBuildResult:
         host = self._require_graph_host()
@@ -960,6 +1214,107 @@ class FindCalleesTool(_BaseCodeAnalysisTool):
             raise
 
 
+class PathsBetweenTool(_BaseCodeAnalysisTool):
+    name = "paths_between"
+    description = "Find bounded direct-call paths between two exact graph symbol IDs."
+
+    async def __call__(
+        self,
+        source_id: str,
+        target_id: str,
+        max_depth: int = 20,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.paths_between(
+                source_id,
+                target_id,
+                max_depth,
+                limit,
+            )
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class EntrypointPathsToTool(_BaseCodeAnalysisTool):
+    name = "entrypoint_paths_to"
+    description = "Find bounded call paths from detected entrypoints to one exact symbol ID."
+
+    async def __call__(
+        self,
+        symbol_id: str,
+        max_depth: int = 20,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.entrypoint_paths_to(symbol_id, max_depth, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class AttackSurfaceTool(_BaseCodeAnalysisTool):
+    name = "attack_surface"
+    description = "List bounded framework-detected entrypoints and reviewed trust metadata."
+
+    async def __call__(self, cursor: str = "", limit: int = 100) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.attack_surface(cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class ComplexityHotspotsTool(_BaseCodeAnalysisTool):
+    name = "complexity_hotspots"
+    description = "List graph symbols at or above a cyclomatic-complexity threshold."
+
+    async def __call__(
+        self,
+        threshold: int = 10,
+        cursor: str = "",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.complexity_hotspots(threshold, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class FunctionsThatRaiseTool(_BaseCodeAnalysisTool):
+    name = "functions_that_raise"
+    description = "List graph symbols whose parser-detected exceptions exactly match a name."
+
+    async def __call__(
+        self,
+        exception: str,
+        cursor: str = "",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.functions_that_raise(exception, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
 def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) -> dict[str, Any]:
     return {
         "engine": "shallow",
@@ -992,6 +1347,22 @@ def _graph_symbol_row(item: GraphSymbolProjection) -> dict[str, Any]:
 
 def _graph_relationship_row(item: GraphRelationshipProjection) -> dict[str, Any]:
     return {**_graph_symbol_row(item.symbol), "confidence": item.confidence}
+
+
+def _graph_entrypoint_row(item: GraphEntrypointProjection) -> dict[str, Any]:
+    result = {
+        **_graph_symbol_row(item.symbol),
+        "entrypointKind": item.entrypoint_kind,
+        "trustLevel": item.trust_level,
+        "assetValue": item.asset_value,
+    }
+    if item.description is not None:
+        result["description"] = item.description
+    return result
+
+
+def _graph_complexity_row(item: GraphComplexityProjection) -> dict[str, Any]:
+    return {**_graph_symbol_row(item.symbol), "complexity": item.complexity}
 
 
 def _query_string(value: str) -> str:
@@ -1039,6 +1410,35 @@ def _node_type(value: str) -> str:
 def _limit(value: int) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= MAX_PAGE_ITEMS:
         raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _path_limit(value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 50:
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _path_depth(value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 20:
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _complexity_threshold(value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 10_000:
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _symbol_id(value: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or not value.isascii()
+        or len(value) > MAX_SYMBOL_ID_BYTES
+    ):
+        raise CodeAnalysisError("code_analysis_symbol_not_found")
     return value
 
 
@@ -1113,7 +1513,10 @@ def _b64(value: bytes) -> str:
 def _unb64(value: str) -> bytes:
     if not value or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
         raise ValueError
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    if _b64(decoded) != value:
+        raise ValueError
+    return decoded
 
 
 def _elapsed_ms(started_ns: int) -> int:

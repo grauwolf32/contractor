@@ -133,8 +133,9 @@ func TestReserveAllContainsCodeAnalysisOperationSubsets(t *testing.T) {
 	graph := testRegistration("agent-b-graph")
 	graph.SupportedToolsets = append(graph.SupportedToolsets, contracts.ToolsetCapability{
 		Ref: "code-analysis@1", Tools: []string{
-			"find_callees", "find_callers", "find_symbol", "graph_summary",
-			"list_symbols", "search_def",
+			"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
+			"find_callees", "find_callers", "find_symbol", "functions_that_raise",
+			"graph_summary", "list_symbols", "paths_between", "search_def",
 		},
 	})
 	registerReadyWith(t, registry, shallow)
@@ -144,7 +145,7 @@ func TestReserveAllContainsCodeAnalysisOperationSubsets(t *testing.T) {
 		RunID: "run-code-analysis", StageExecutionID: "stage-code-analysis",
 		Bindings: []BindingRequirement{
 			testBinding(t, "a-shallow", "shallow", codeAnalysisTemplate(t, "list_symbols")),
-			testBinding(t, "b-graph", "graph", codeAnalysisTemplate(t, "find_callers")),
+			testBinding(t, "b-graph", "graph", codeAnalysisTemplate(t, "paths_between")),
 		},
 	})
 	if err != nil {
