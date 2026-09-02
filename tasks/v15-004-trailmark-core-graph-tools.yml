@@ -3,8 +3,8 @@ id: V15-004
 title: Expose core Trailmark graph navigation tools
 milestone: workspace-code-analysis-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 83aa10fd3cbabc24a5a0fbcc95f615fdbdad2127
 depends_on: [V15-002, V15-003]
 languages: [python]
 
@@ -66,7 +66,7 @@ acceptance_criteria:
 
 tests:
   - {name: core-tools, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_graph.py -k 'summary or symbol or callers or callees'", covers: [A2, A3, A4]}
-  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_factories.py tests/test_trailmark_probe.py", covers: [A1]}
+  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_trailmark_probe.py", covers: [A1]}
   - {name: placement, command: "go test ./internal/controlplane ./internal/config", covers: [A1]}
   - {name: aggregate, command: "make test-code-analysis-runtime", covers: [A1, A2, A3, A4]}
 

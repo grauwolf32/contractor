@@ -311,8 +311,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V15-003
-  next_task: V15-004
+  completed_through: V15-004
+  next_task: V15-005
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -364,7 +364,11 @@ current_checkpoint:
     workspaces. V15-003 added an allocation-scratch snapshot mirror, a
     sanitized and 1 GiB-bounded Trailmark child, strict framed protocol,
     deadline/reap/cleanup lifecycle, local-only offline graph readiness probe
-    and a reproducible resource characterization command. V15-004 is the next
+    and a reproducible resource characterization command. V15-004 exposed the
+    four core graph operations only on healthy local Runtime Agents, added
+    allocation-key-protected exact symbol identity, duplicate-safe resolution,
+    bounded pagination and projections, digest-triggered child replacement,
+    and exact operation-subset placement coverage. V15-005 is the next
     workspace code-analysis task.
 
 runtime_configuration_hardening_review:
