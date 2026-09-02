@@ -103,6 +103,19 @@ fixed_decisions:
       trailmark==0.5.0 runs offline in one bounded allocation-local child over a
       managed-text scratch mirror. It is internal Toolset machinery, not a
       runtime-subprocess-launcher channel, and must be reaped before slot reuse.
+  taint_annotations:
+    toolset: >-
+      taint-annotations@1 exports exactly annotate_trace, annotate_validate and
+      annotate_sink as portable Tree-sitter-backed structured mutations over a
+      narrowed workspace Writer. It is separate from read-only code-analysis@1.
+    mutation: >-
+      Runtime resolves one exact function-like declaration, preserves syntax
+      prefixes and atomically compares parsed text inside update_text. Exact
+      replay is a no-op; ambiguity and concurrent changes fail explicitly.
+    persistence: >-
+      Direct changes remain disposable. Durable annotation state/diff uses the
+      existing Workflow-selected overlay auto-export and ordinary artifacts;
+      no Server annotation API or graph mutation exists.
   http_caido:
     generic_http: >-
       http-tools@1 uses allocation-owned direct transport or the optional
@@ -272,6 +285,18 @@ milestones:
       deterministic implementations, explicit shallow/graph Workflow variants
       and heterogeneous production-process placement, invalidation, cleanup and
       retained-data proof.
+  - id: workspace-taint-annotations-mvp
+    exit_task: V16-002
+    outcome: >-
+      Local and memory Runtime Agents expose exact Tree-sitter-resolved
+      trace/validation/sink annotation operations with syntax-safe atomic edits,
+      explicit ambiguity and idempotent replay.
+  - id: workspace-taint-annotations-port
+    exit_task: V16-005
+    outcome: >-
+      The bundled trace Skill and a graph-aware overlay Workflow use structured
+      annotations through production process boundaries with bounded lifecycle,
+      redaction, exported artifacts and clean slot reuse.
 
 v8_v12_spec_review:
   reviewed_on: "2026-09-01"
@@ -311,8 +336,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V15-007
-  next_task: V15-008
+  completed_through: V15-008
+  next_task: V16-001
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -378,8 +403,10 @@ current_checkpoint:
     concurrency/fault/redaction coverage. V15-007 published immutable shallow
     `openapi/likec4-from-workspace@2` and all-graph `@3` variants with narrow
     discovery templates, model-facing coverage/opaque-ID guidance and strict
-    digest/graph-isolation tests. V15-008 is the next workspace code-analysis
-    task.
+    digest/graph-isolation tests. V15-008 added the real PostgreSQL/mTLS Server,
+    memory/local Runtime and deterministic-gateway process gate; it also fixed
+    capacity-defer claim fairness so an unavailable graph Stage cannot starve a
+    runnable shallow Stage. V16-001 is the next task.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -890,10 +917,11 @@ code_analysis_port:
       ASTs, graphs and source caches never persist across allocations; digest
       change invalidates state automatically and there is no refresh tool.
   rejected_surface: >-
-    Mutable annotations, preanalysis/findings, SARIF/weAudit/binary graph
-    augmentation, raw AST/graph export, code execution, host-root discovery,
-    global parser monkeypatches, private QueryEngine graph access, graph
-    artifacts and cross-allocation caches.
+    Mutable annotations inside read-only code-analysis@1 (the separate
+    taint-annotations@1 Toolset owns structured source comments),
+    preanalysis/findings, SARIF/weAudit/binary graph augmentation, raw AST/graph
+    export, code execution, host-root discovery, global parser monkeypatches,
+    private QueryEngine graph access, graph artifacts and cross-allocation caches.
 
 code_analysis_planning_review:
   reviewed_on: "2026-09-02"
@@ -948,6 +976,81 @@ code_analysis_planning_review:
       Graph indexes are rebuilt for every allocation and digest. Persisted
       graph artifacts or a cross-Run cache may improve performance later but
       require separate provenance, invalidation and Artifact contracts.
+
+taint_annotations_port:
+  source_repository: /home/ruslan/src/contractor-old
+  reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+  implementation_references:
+    - contractor/tools/code/annotations.py
+    - contractor/agents/trace_agent/agent.py
+    - contractor/agents/trace_agent/prompts/converge.md
+    - contractor/skills/trace/references/annotations.md
+  test_references:
+    - tests/units/contractor_tests/tools/test_code_annotations.py
+  retained_surface: [annotate_trace, annotate_validate, annotate_sink]
+  intentional_differences:
+    - >-
+      taint-annotations@1 receives one narrow workspace Writer; it never sees a
+      raw fsspec object, Runtime storage provider, root or ArtifactRef.
+    - >-
+      Real function-like definitions resolve case-sensitively; duplicate names
+      require definition_line instead of selecting the first search result.
+    - >-
+      Annotation placement preserves decorators, attributes, exports and
+      templates. Different trace targets can coexist in insertion order.
+    - >-
+      Exact replay returns changed=false, while a changed body for the same
+      target conflicts. A compare under update_text prevents lost concurrent
+      Edit-tool changes.
+    - >-
+      PHP uses the trace Skill's // convention and Haskell/Lua use --. Stable
+      errors and automatic telemetry omit source, paths and annotation values.
+  rejected_surface: >-
+    Mutable Trailmark graph annotations, generic editing authority, grep
+    fallback, host materialization, annotation deletion/replacement, a Server
+    annotation endpoint and persistence outside ordinary overlay artifacts.
+
+taint_annotations_planning_review:
+  reviewed_on: "2026-09-02"
+  verdict: ready_to_implement
+  blocking_findings: []
+  checks:
+    - >-
+      The design reuses context.workspace, exact Toolset operation placement,
+      WorkspaceWriter atomic mutation, overlay auto-export, ToolInstance
+      teardown, metrics and Agent Skill pinning. It adds no wire type, database
+      table, public/private endpoint, label, credential or infrastructure channel.
+    - >-
+      V16-001 keeps the descriptor inert until V16-002 registers a complete
+      factory. V16-002 is the smallest usable portable MVP and owns all three
+      operations so capability cannot imply inconsistent language coverage.
+    - >-
+      Structural identity is intentionally path + exact symbol + optional line,
+      not code-analysis symbolId: the latter is graph-engine and digest local,
+      while annotation works on memory Runtime Agents without Trailmark.
+    - >-
+      Parsing outside the event loop plus an exact compare inside update_text
+      closes both heartbeat starvation and cross-Toolset lost-update races
+      without widening WorkspaceWriter or inventing a second persistence API.
+    - >-
+      V16-003 independently owns cancellation, race, bound and redaction proof;
+      V16-004 owns only Skill/template/Workflow compatibility; V16-005 crosses
+      the real PostgreSQL, mTLS, Scheduler, A2A and Runtime process boundaries.
+    - >-
+      Every task is self-contained, testable, acyclic and records the full last
+      implementation commit when completed under implementation_commit_rule.
+  accepted_risks:
+    - >-
+      Version 1 inserts but does not replace/delete annotations. A conflicting
+      same-target trace requires rollback or a future reviewed mutation API;
+      this keeps retries deterministic and avoids silent evidence rewriting.
+    - >-
+      Tree-sitter provides structural, not semantic, identity. Overloads or
+      repeated local functions with equal names require a current line selector,
+      and edits that shift it require re-reading before retry.
+    - >-
+      Direct-mode annotations intentionally disappear at release. Workflows
+      needing a durable diff must declare overlay export explicitly.
     - >-
       This application boundary prevents tools from seeing provider paths; it
       is not an OS sandbox against arbitrary trusted Runtime Python code.
@@ -1165,3 +1268,8 @@ tasks:
   - {id: V15-006, file: v15-006-code-analysis-lifecycle-hardening.yml}
   - {id: V15-007, file: v15-007-code-analysis-configs.yml}
   - {id: V15-008, file: v15-008-code-analysis-process-e2e.yml}
+  - {id: V16-001, file: v16-001-taint-annotation-contract.yml}
+  - {id: V16-002, file: v16-002-taint-annotation-runtime.yml}
+  - {id: V16-003, file: v16-003-taint-annotation-hardening.yml}
+  - {id: V16-004, file: v16-004-trace-annotation-config.yml}
+  - {id: V16-005, file: v16-005-taint-annotation-process-e2e.yml}

@@ -505,10 +505,12 @@ The initial port retains the two read-only Tree-sitter tools and nine read-only
 Trailmark tools listed above. Existing unit fixtures may be adapted as semantic
 references, but old architecture is not authoritative.
 
-The following old behavior is explicitly excluded:
+The following behavior is explicitly excluded from **this read-only
+Toolset**:
 
-- `annotate_trace`, `annotate_validate`, `annotate_sink` and all other mutable
-  graph annotations; a future reviewed `code-annotations@1` may own them;
+- `annotate_trace`, `annotate_validate` and `annotate_sink`; the separate
+  [`taint-annotations@1`](13-taint-annotations.md) Toolset owns those
+  structured workspace mutations without making the Trailmark graph mutable;
 - preanalysis/findings, SARIF, weAudit and binary graph augmentation;
 - raw AST, CodeGraph or graph serialization exposed to the model;
 - model-visible code/script execution;

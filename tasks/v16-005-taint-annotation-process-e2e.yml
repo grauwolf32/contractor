@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V16-005
+title: Prove taint annotation artifacts cleanup and reuse end to end
+milestone: workspace-taint-annotations-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V16-003, V16-004]
+languages: [go, python, shell]
+
+goal: >-
+  Execute the checked-in taint trace Workflow across PostgreSQL, mTLS, Server,
+  Scheduler, A2A and a real local Runtime process, then prove exported diff,
+  cleanup, retained-data policy and clean slot reuse.
+
+context:
+  process_shape: >-
+    Use production registration/heartbeat/control/private Artifact/A2A paths,
+    generated deployment CA leaves and exact checked-in configuration. A local
+    deterministic OpenAI-compatible fake may choose Worker calls, but no
+    workspace, Artifact, allocation, Toolset or Scheduler boundary may be
+    replaced with in-memory test doubles.
+  scenario: >-
+    Upload a ZIP containing a decorated handler and duplicate symbol fixture.
+    Start taint-trace-from-workspace@1. The Worker must use real graph/shallow
+    reads, disambiguate and insert trace/validate/sink comments, inspect diff,
+    write the report and complete. Download frozen outputs and then run an
+    unrelated allocation on the same clean slot.
+
+scope:
+  in:
+    - Add a deterministic model gateway script for the exact Worker tool sequence.
+    - Assert Runtime registration exposes the complete annotation capability only after probe.
+    - Assert frozen workspace diff/state reproduce the exact decorated-prefix-safe annotation tree and report binding.
+    - Inject one lost terminal response and prove recovery reaps all allocation state and releases the slot.
+    - Scan database reports/events/metrics, process logs, OTLP sink and scratch roots for source/path/target/credential canaries outside allowed Artifact/model payloads.
+    - Add the process test to test-e2e and release-verify through one focused Make target.
+  out:
+    - Live-model quality, vulnerability correctness benchmark, browser UI or multi-host deployment.
+
+requirements:
+  - {id: R1, text: The checked-in Workflow performs real structured mutations and freezes exact state diff and report outputs.}
+  - {id: R2, text: Terminal response loss cannot strand workspace data or the Runtime slot.}
+  - {id: R3, text: Retained operational state contains no annotation/source/path/credential canaries.}
+
+acceptance_criteria:
+  - {id: A1, given: Uploaded decorated source and exact Workflow, when: Scheduler completes it, then: The frozen diff has only intended canonical lines above the decorator and the state reapplies exactly.}
+  - {id: A2, given: One dropped terminal response, when: Recovery polls, then: Runtime cleanup is retried and the same slot runs an unrelated allocation with no prior files or Toolset state.}
+  - {id: A3, given: Canaries in source path target values and credentials, when: Durable and process surfaces are scanned, then: They appear only in allowed Artifact/model content channels.}
+
+tests:
+  - {name: process, command: "make test-taint-annotations-e2e", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make release-verify", covers: [A1, A2, A3]}
+
+decisions:
+  - >-
+    The deterministic gateway substitutes only model choice. It still drives
+    the public Run, real Worker tools, overlay auto-export and terminal recovery
+    so the gate proves the architectural contract rather than prompt quality.

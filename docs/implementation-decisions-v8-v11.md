@@ -733,3 +733,28 @@ tests that make the choice observable.
   response bombs, GraphQL shapes, concurrency, cancellation and retained
   canaries; the release gate adds PostgreSQL, mTLS and two real Python Runtime
   processes with release-response loss and clean slot reuse.
+
+### D033 — Taint annotations are structured workspace edits, not graph state
+
+- Applies to: V16-001 through V16-005 and later trace-oriented templates.
+- Identity decision: the portable `taint-annotations@1` resolver uses a
+  normalized workspace path, exact unqualified function-like symbol and an
+  optional current line selector. It does not consume Trailmark `symbolId`:
+  those IDs are allocation/digest-local and unavailable on memory Runtime
+  Agents, while source annotations must work with the common Tree-sitter
+  capability. Same-name definitions fail as ambiguous instead of first-match.
+- Mutation decision: parsing occurs off the asyncio loop, followed by an exact
+  source comparison inside the existing atomic `WorkspaceWriter.update_text`.
+  This closes lost updates against independently selected Edit Toolsets without
+  expanding the workspace interface or adding a Server endpoint. Exact replay
+  is a no-op; a different body for the same trace target conflicts rather than
+  silently rewriting evidence.
+- Syntax decision: annotation placement treats decorators, attributes,
+  exports and templates as a declaration prefix, permits one trace line per
+  target in insertion order, and uses the actual v1 line comment marker for
+  every supported language. The old decorator split, duplicate rejection,
+  PHP-marker mismatch and arbitrary exception text are not compatibility
+  requirements.
+- Persistence decision: direct-mode edits remain disposable. Durable output is
+  the already specified cumulative overlay state and text diff auto-export;
+  annotations create no graph mutation, Artifact type, table or API.

@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V16-003
+title: Harden taint annotation concurrency lifecycle and redaction
+milestone: workspace-taint-annotations-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V16-002]
+languages: [python, go, yaml]
+
+goal: >-
+  Prove bounded behavior under cancellation, close, malformed input, parser and
+  storage faults, cross-Toolset concurrency and retained-surface inspection.
+
+context:
+  lifecycle: >-
+    Allocation teardown closes Toolsets before adapters and project workspace.
+    Python cannot kill an active parser thread, so cancellation/close must join
+    bounded parsing before releasing session ownership. Workspace update_text
+    is the atomic commit boundary.
+  observability: >-
+    Model results may contain the closed logical path/symbol/line projection.
+    Metrics, logs, ExecutionReport and OTLP may retain only operation, annotation
+    kind, outcome, duration and changed; they must omit all caller values,
+    source, annotation text, parser details and physical paths.
+
+scope:
+  in:
+    - Add raw ADK argument-shape rejection before framework binding.
+    - Normalize every unexpected parser/storage exception to one stable safe code.
+    - Exercise simultaneous annotation calls and races with edit-files@1 over the same real WorkspaceSession.
+    - Exercise cancellation during delayed parsing, close during a call, repeated close and all terminal allocation paths.
+    - Exercise exact 4 MiB/file, 4 KiB line, token/list/line bounds and malformed/manual annotation blocks.
+    - Scan metrics, reports, logs and reusable workspace roots for source/path/value/credential canaries.
+    - Add a strict named hardening matrix and focused Make targets included in release-verify.
+  out:
+    - Remote fuzzing service, unbounded parser preemption, replacement/deletion tools or UI changes.
+
+requirements:
+  - {id: R1, text: Cancellation and close never allow background parsing or writes to escape allocation teardown.}
+  - {id: R2, text: Exactly one writer wins each race and no successful unrelated mutation is lost.}
+  - {id: R3, text: Automatic retained surfaces are content path and value free.}
+
+acceptance_criteria:
+  - {id: A1, given: Delayed parser work and concurrent close/cancel, when: Teardown completes, then: No task/thread-owned mutation can occur afterward and a clean slot is reusable.}
+  - {id: A2, given: Annotation/edit races and response-loss replay, when: Calls settle, then: State is one valid serial outcome and retry is idempotent.}
+  - {id: A3, given: Every limit and injected unexpected failure, when: Tools return, then: Errors use only the closed code/retryability table with no canary leakage.}
+  - {id: A4, given: The hardening matrix, when: Repository tests change, then: Missing named coverage fails the gate.}
+
+tests:
+  - {name: runtime-hardening, command: "make test-taint-annotations-hardening", covers: [A1, A2, A3, A4]}
+  - {name: allocation, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py", covers: [A1, A3]}
+  - {name: go-matrix, command: "go test ./tests/e2e -run '^TestTaintAnnotationHardeningMatrixIsComplete$'", covers: [A4]}

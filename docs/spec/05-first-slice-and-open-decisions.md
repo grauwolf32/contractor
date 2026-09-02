@@ -450,6 +450,24 @@ The structural analysis increment adds one explicitly selected
 
 [12](12-code-analysis-tools.md) owns the complete contract.
 
+## Structured taint-annotation increment
+
+The next workspace increment ports the useful `contractor-old` annotation
+surface without adding mutation to `code-analysis@1`:
+
+- `taint-annotations@1` exports only `annotate_trace`, `annotate_validate` and
+  `annotate_sink` over a narrowed workspace Writer;
+- all three operations resolve a real function-like Tree-sitter definition,
+  preserve decorators/attributes, indentation and newline style, and never
+  accept a host path or ArtifactRef;
+- exact replay is a no-op, ambiguous definitions require a line selector, and
+  a concurrent workspace mutation fails with a retryable stable error rather
+  than overwriting it;
+- direct mode remains disposable, while ordinary overlay auto-export produces
+  the cumulative state and diff artifacts selected by Workflow.
+
+[13](13-taint-annotations.md) owns the complete contract.
+
 ## Deliberately deferred
 
 The following decisions remain open; no legacy document defines them

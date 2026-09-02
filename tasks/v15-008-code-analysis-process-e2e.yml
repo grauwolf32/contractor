@@ -3,8 +3,8 @@ id: V15-008
 title: Prove heterogeneous code-analysis placement and cleanup end to end
 milestone: workspace-code-analysis-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: ffac4717e83053e32a87270423b7c28fe6057c9c
 depends_on: [V15-006, V15-007]
 languages: [go, python, shell]
 

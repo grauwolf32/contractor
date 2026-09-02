@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V16-004
+title: Publish a trace Skill backed annotation template and Workflow
+milestone: workspace-taint-annotations-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V16-002]
+languages: [yaml, markdown, go]
+
+goal: >-
+  Make the migrated annotation surface usable through one immutable graph-aware
+  AgentTemplate and one overlay-exporting source-trace Workflow.
+
+context:
+  authority: >-
+    AgentTemplate, not Skill or Worker code, grants tools. The existing bundled
+    skills/trace package supplies semantic guidance through ordinary artifact
+    pinning and native ADK disclosure. It must name only tools selected by the
+    new template and must not refer to AgentTemplate, AllocationSpec, Runtime
+    internals, host paths or infrastructure configuration.
+  workspace_result: >-
+    The Workflow hydrates a required application/zip input in overlay mode and
+    declares cumulative workspace state plus text diff results. Runtime auto-
+    exports them before terminal A2A; the Worker only writes an evidence report
+    through text-artifacts@1 and verifies annotations through workspace changes.
+
+scope:
+  in:
+    - Update trace Skill annotation guidance to exact path/symbol/definition_line signatures and safe replay behavior.
+    - Add a graph-aware workspace_taint_analyst@1 template selecting filesystem, all code-analysis operations, all three annotation operations, workspace change inspection and text artifacts.
+    - Deliberately omit generic edit-files@1 from that template.
+    - Add concise Worker instructions containing only model-visible behavior and a passthrough Planner instruction.
+    - Add taint-trace-from-workspace@1 with required source ZIP, string target/objective/context, Markdown report and overlay state/diff outputs.
+    - Add immutable digest and exact Skill/tool/workspace/result contract tests.
+  out:
+    - Vulnerability-report Toolset, UI editor, Router fan-out, hidden automatic target discovery or infrastructure credentials.
+
+requirements:
+  - {id: R1, text: Every operation named by instructions or Skill is explicitly selected by the template.}
+  - {id: R2, text: The Worker sees only semantic task/workspace/tool guidance and no Server/Runtime implementation model.}
+  - {id: R3, text: Durable annotation output uses only declared overlay state/diff and ordinary report artifacts.}
+
+acceptance_criteria:
+  - {id: A1, given: Repository config root, when: It loads, then: Template Skill instruction and Workflow refs resolve to immutable digests.}
+  - {id: A2, given: The trace template, when: Its exact tools are inspected, then: It has graph reads structured annotations change inspection and report writes but no generic source writer.}
+  - {id: A3, given: The Workflow Stage, when: Cross-document validation runs, then: Required source hydration and exact state/diff/report result mappings are accepted.}
+
+tests:
+  - {name: repository-config, command: "go test ./internal/config -run 'Taint|TraceAnnotation'", covers: [A1, A2, A3]}
+  - {name: skill, command: "go test ./internal/agentskills -run 'Trace'", covers: [A1, A2]}
+  - {name: config-gate, command: "make test-config", covers: [A1, A2, A3]}

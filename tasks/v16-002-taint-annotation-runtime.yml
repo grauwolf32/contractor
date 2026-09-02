@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V16-002
+title: Implement portable atomic taint annotation tools
+milestone: workspace-taint-annotations-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V16-001]
+languages: [python]
+
+goal: >-
+  Expose annotate_trace, annotate_validate and annotate_sink on local and
+  memory Runtime workspaces with strict structural resolution, syntax-safe
+  placement, atomic mutation and idempotent replay.
+
+context:
+  source_reference: >-
+    Review /home/ruslan/src/contractor-old/contractor/tools/code/annotations.py
+    and its unit tests for intended comment forms only. Do not port raw fsspec,
+    first-match selection, generic exception text, decorator splitting or the
+    one-trace-per-function bug.
+  boundary: >-
+    Use only WorkspaceWriter.read_text/update_text. Parse one current managed
+    UTF-8 file off the asyncio loop, then compare the exact parsed text inside
+    update_text before inserting. Do not accept ArtifactRefs, host roots,
+    Trailmark IDs or concrete provider objects.
+  contract: >-
+    Follow docs/spec/13-taint-annotations.md exactly, including nineteen
+    languages, named arrow/closure assignments, wrapper deduplication,
+    definition_line disambiguation, limits, canonical tokens, stable response
+    shape and closed errors.
+
+scope:
+  in:
+    - Implement a portable ToolsetFactory sharing the pinned parser readiness probe.
+    - Implement exact case-sensitive function-like resolution and collapse syntax wrappers into one declaration.
+    - Place comments before decorators, attributes, exports and templates while preserving indentation, LF/CRLF and every unrelated byte.
+    - Canonicalize safe scalar/list syntax; reject injection, invalid state, duplicates, oversized input and unsupported files.
+    - Make exact replay changed=false, allow different trace targets, and reject changed same-target trace bodies.
+    - Use an exact-text compare inside atomic update_text to reject cross-Toolset write races.
+    - Register the completed factory and add focused local/memory direct/overlay tests.
+  out:
+    - AgentTemplate/Workflow files, generic source editing, graph mutation, annotation replacement/deletion or process E2E.
+
+requirements:
+  - {id: R1, text: Only real function-like definitions can be annotated and an ambiguous name is never first-match selected.}
+  - {id: R2, text: Every successful mutation changes exactly one canonical line without invalidating syntax-owned prefixes.}
+  - {id: R3, text: Concurrent unrelated writes are preserved because stale parsed text cannot commit.}
+  - {id: R4, text: Exact replay is safe after response loss and all model-visible failures use the closed vocabulary.}
+
+acceptance_criteria:
+  - {id: A1, given: Function fixtures for all nineteen languages and both newline styles, when: Each annotation kind runs, then: The exact marker/indent/prefix placement is valid and no other byte changes.}
+  - {id: A2, given: Decorated/exported/template declarations, named closures, same-name declarations and call-site-only names, when: Resolution runs, then: Wrappers deduplicate, line selection is deterministic and invalid targets fail closed.}
+  - {id: A3, given: Exact duplicate, distinct trace target and conflicting same target, when: Calls repeat, then: They respectively no-op, append in call order and return conflict.}
+  - {id: A4, given: Another writer changes the file after parse, when: Annotation reaches commit, then: It returns retryable workspace_changed and preserves the winner unchanged.}
+
+tests:
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_taint_annotations.py", covers: [A1, A2, A3, A4]}
+  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py", covers: [A1]}
+  - {name: lint, command: "cd runtime && uv run ruff check . && uv run ruff format --check .", covers: [A1, A2, A3, A4]}

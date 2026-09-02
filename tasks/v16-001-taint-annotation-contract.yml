@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V16-001
+title: Add the taint-annotations descriptor and workspace publication contract
+milestone: workspace-taint-annotations-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V15-008]
+languages: [go, python, yaml]
+
+goal: >-
+  Make taint-annotations@1 an exact code-backed configuration and placement
+  contract while keeping Runtime capability absent until the complete factory
+  lands in V16-002.
+
+context:
+  architecture: >-
+    Server validates AgentTemplate Toolset selections through
+    internal/config/descriptors.go. Runtime registration is a positive startup
+    snapshot and must never advertise a tool whose complete implementation is
+    unavailable. These operations require an existing context.workspace and a
+    narrowed write view, but no Artifact endpoint or infrastructure channel.
+  exports: [annotate_trace, annotate_validate, annotate_sink]
+  dependency_contract: >-
+    Reuse the exact tree-sitter==0.25.2 and
+    tree-sitter-language-pack==1.14.3 locks already owned by code-analysis@1;
+    do not add a second parser/version policy.
+
+scope:
+  in:
+    - Add the exact three-operation Go descriptor with no infrastructure channels.
+    - Add shared Python ref/tool constants and descriptor-parity fixtures without registering a Runtime factory.
+    - Treat taint-annotations@1 as workspace-dependent in Workflow publication validation.
+    - Accept both direct and overlay workspace modes; do not require export slots merely because the Toolset can write.
+    - Add strict unknown-tool, duplicate-name, missing-workspace and dependency-contract tests.
+    - Update spec links and architecture if implementation details expose any mismatch.
+  out:
+    - Model-visible annotation callables, Runtime capability advertisement, trace AgentTemplate/Workflow or new persistence/API.
+
+requirements:
+  - {id: R1, text: Go and Python agree on exactly taint-annotations@1 and the three visible operation names.}
+  - {id: R2, text: A Workflow cannot publish a Stage selecting the Toolset without context.workspace.}
+  - {id: R3, text: No Runtime advertises the still-unimplemented Toolset after this task.}
+
+acceptance_criteria:
+  - {id: A1, given: Valid and invalid AgentTemplate selections, when: Config loading runs, then: Only the exact three names normalize and digest successfully.}
+  - {id: A2, given: A Stage binding the Toolset with no workspace, when: Cross-document validation runs, then: Publication fails with the existing stable workspace-dependent error.}
+  - {id: A3, given: Local and memory Runtime startup, when: Capability discovery runs before V16-002, then: taint-annotations@1 is absent.}
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A2]}
+  - {name: runtime-contract, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py", covers: [A1, A3]}
+  - {name: repository-config, command: "make test-config", covers: [A1, A2]}
+
+decisions:
+  - >-
+    A writable Toolset does not imply durable output. Direct mode remains a
+    useful disposable analysis copy; Workflow explicitly chooses overlay
+    export when it wants state/diff artifacts.

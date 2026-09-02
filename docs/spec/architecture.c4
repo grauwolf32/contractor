@@ -342,6 +342,11 @@ model {
       #optional
     }
 
+    taintAnnotationTools = component 'Selected taint-annotations@1 — structured atomic workspace mutations' {
+      #contractor
+      #optional
+    }
+
     trailmarkChild = component 'Allocation-local Trailmark child — bounded and killable' {
       #contractor
       #optional
@@ -386,6 +391,7 @@ model {
     slotManager -> sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
     capabilityProbe -> workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
     capabilityProbe -> codeAnalysisTools 'Probe offline Tree-sitter subset and local-only Trailmark subset'
+    capabilityProbe -> taintAnnotationTools 'Probe complete offline Tree-sitter annotation surface'
     slotManager -> workspaceProvider 'Hydrate exact Run artifacts; create / discard one private WorkspaceSession'
     a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
     workerRuntime -> workerState 'Read / update in-memory allocation State'
@@ -396,6 +402,7 @@ model {
     workerRuntime -> memoryTools 'Construct selected shared-note operations for fixed Namespace'
     workerRuntime -> filesystemTools 'Construct only selected operations over narrowed Reader / Writer / ChangeSet handles'
     workerRuntime -> codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
+    workerRuntime -> taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
     workerRuntime -> httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
     workerRuntime -> skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     namespaceTools -> artifactClient 'Logical reads / immutable writes / CAS'
@@ -409,6 +416,7 @@ model {
     filesystemTools -> workspaceProvider 'Relative run_workdir paths only; no raw local path or backend selection'
     codeAnalysisTools -> workspaceProvider 'Read exact effective managed-text snapshots; no provider root'
     codeAnalysisTools -> trailmarkChild 'Materialize bounded private mirror and issue typed graph queries'
+    taintAnnotationTools -> workspaceProvider 'Resolve current function syntax and atomically update one managed-text file'
     workspaceProvider -> artifactClient 'Read exact ZIP/state and auto-export cumulative state/diff'
     workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
     httpCaidoTools -> artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
@@ -577,6 +585,7 @@ views {
     include runtimeAgent.workspaceProvider
     include runtimeAgent.filesystemTools
     include runtimeAgent.codeAnalysisTools
+    include runtimeAgent.taintAnnotationTools
     include runtimeAgent.trailmarkChild
     include runtimeAgent.memoryTools
     include runtimeAgent.skillToolset
@@ -599,6 +608,7 @@ views {
     include runtimeAgent.workspaceProvider
     include runtimeAgent.filesystemTools
     include runtimeAgent.codeAnalysisTools
+    include runtimeAgent.taintAnnotationTools
     include runtimeAgent.trailmarkChild
     include runtimeAgent.executionCollector
     include runtimeWorkspaceStorage
@@ -623,6 +633,7 @@ views {
     include runtimeAgent.workerRuntime
     include runtimeAgent.workspaceProvider
     include runtimeAgent.codeAnalysisTools
+    include runtimeAgent.taintAnnotationTools
     include runtimeAgent.trailmarkChild
     include runtimeWorkspaceStorage
 
