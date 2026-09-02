@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V15-005
+title: Add bounded Trailmark graph analysis operations
+milestone: workspace-code-analysis-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V15-004]
+languages: [python]
+
+goal: >-
+  Complete the read-only contractor-old graph surface with bounded paths,
+  entrypoints, complexity and exception analysis that cannot materialize an
+  exponential result before applying its limit.
+
+context:
+  defect_to_avoid: >-
+    Trailmark 0.5.0 QueryEngine.paths_between and entrypoint_paths_to call
+    rustworkx all-simple-path enumeration and return the complete list. Slicing
+    that list afterwards does not bound work or memory. The Runtime must use a
+    deterministic depth-first traversal over retained public CodeGraph call
+    edges and stop immediately after limit+1 paths.
+  operations:
+    - paths_between(source_id, target_id, max_depth=20, limit=20)
+    - entrypoint_paths_to(symbol_id, max_depth=20, limit=20)
+    - attack_surface(cursor="", limit=100)
+    - complexity_hotspots(threshold=10, cursor="", limit=100)
+    - functions_that_raise(exception, cursor="", limit=100)
+
+scope:
+  in:
+    - Implement deterministic simple call-path traversal with sorted adjacency, visited-on-current-path cycle avoidance, max_depth 1..20 and limit 1..50.
+    - Stop traversal after limit+1 matches or before the 256 KiB encoded-result ceiling, return at most limit, set truncated honestly and never claim a total or retain a resumable frontier.
+    - Return each path as bounded slim symbol projections using exact opaque IDs and relative locations.
+    - Implement attack_surface with bounded reviewed route/trust fields only and ordinary cursor pages.
+    - Implement complexity_hotspots with threshold 1..10000, descending complexity plus deterministic tie-breaks and ordinary pages.
+    - Implement functions_that_raise with exact bounded exception-name matching and ordinary pages.
+    - Include graph coverage on every response and preserve core stale-ID/digest rebuild behavior.
+    - Extend the local graph capability subset atomically with all five operations only after their child protocol handlers pass probe compatibility.
+    - Add high-branching, cyclic, deep, duplicate-name, empty/polyglot and large-result fixtures.
+  out:
+    - Trailmark annotation/preanalysis/findings, SARIF/weAudit/binary augmentation, cursor continuation for path frontier, or persisted graphs.
+
+requirements:
+  - {id: R1, text: No path operation invokes Trailmark or rustworkx APIs that first materialize all simple paths.}
+  - {id: R2, text: Path work is bounded by exact ID, depth, limit+1, query deadline and child memory/protocol ceilings.}
+  - {id: R3, text: Every collection projection strips arbitrary upstream data and has deterministic bounded pagination.}
+  - {id: R4, text: All five operations remain read-only and require no infrastructure channel or new Runtime authority.}
+
+acceptance_criteria:
+  - id: A1
+    given: A graph with exponentially many simple paths and cycles.
+    when: Both path tools run with small depth/limit.
+    then: Instrumented traversal visits only bounded work, returns limit rows plus truncated=true after observing one extra, and never calls upstream all-simple-path APIs.
+  - id: A2
+    given: Multiple entrypoints and duplicate bare target names.
+    when: entrypoint_paths_to runs.
+    then: It requires one exact target ID and returns deterministically ordered paths without ambiguous resolution.
+  - id: A3
+    given: Large entrypoint, hotspot and exception result sets with arbitrary attributes.
+    when: Ordinary pages are requested and resumed.
+    then: Cursors are stable for one digest, response size stays bounded and only approved slim fields are visible.
+  - id: A4
+    given: Memory and local Runtime Agents.
+    when: Frozen capabilities are compared.
+    then: Only the successfully probed local Runtime includes all nine graph operations and memory remains shallow-only.
+
+tests:
+  - {name: advanced-tools, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_graph.py -k 'paths or entrypoint or surface or complexity or raises'", covers: [A1, A2, A3]}
+  - {name: traversal, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_traversal.py", covers: [A1, A2]}
+  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_trailmark_probe.py", covers: [A4]}
+  - {name: aggregate, command: "make test-code-analysis-runtime", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Path calls intentionally have no cursor. A continuation token would retain
+    or reconstruct an exponential frontier; callers instead narrow exact
+    symbols or reduce depth.

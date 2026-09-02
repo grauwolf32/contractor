@@ -6,10 +6,11 @@ the same execution architecture; there is no second legacy specification in
 this tree.
 
 The smallest deployment is one VM containing Contractor Server, PostgreSQL and
-one or more identical single-slot Runtime Agent processes. Each allocated
-Runtime Agent acts as its one Worker in-process and exposes that Worker's A2A
-endpoint. External dependencies such as the LLM Gateway and an S3 blob backend
-remain replaceable deployment adapters.
+one or more single-slot Runtime Agent processes running the same Contractor
+code. Their immutable environments and positive tool capabilities may differ.
+Each allocated Runtime Agent acts as its one Worker in-process and exposes that
+Worker's A2A endpoint. External dependencies such as the LLM Gateway and an S3
+blob backend remain replaceable deployment adapters.
 
 ## Entry points
 
@@ -27,6 +28,8 @@ remain replaceable deployment adapters.
 - [Shared MemoryTools](spec/08-memory-tools.md)
 - [Agent Skills](spec/09-agent-skills.md)
 - [Runtime filesystems and Edit tools](spec/10-runtime-filesystems-and-edit-tools.md)
+- [HTTP and Caido tools](spec/11-http-and-caido-tools.md)
+- [Workspace code-analysis tools](spec/12-code-analysis-tools.md)
 - [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
 ## Local commands

@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V15-008
+title: Prove heterogeneous code-analysis placement and cleanup end to end
+milestone: workspace-code-analysis-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V15-006, V15-007]
+languages: [go, python, shell]
+
+goal: >-
+  Verify the complete code-analysis contract across PostgreSQL, mTLS, Server,
+  one memory Runtime process and one local Runtime process, including capacity
+  waiting, effective overlay analysis, terminal cleanup and slot reuse.
+
+context:
+  process_shape: >-
+    Use production registration/heartbeat, Scheduler allocation, private
+    control/A2A and workspace Artifact APIs. Start two separately certificated
+    Runtime Agent processes: memory must advertise exactly the shallow
+    code-analysis subset; local with pinned Trailmark must advertise all eleven
+    operations. A deterministic local OpenAI-compatible fake may control Worker
+    tool calls, but no registry, allocation, Artifact or Toolset boundary may be
+    replaced with direct in-memory fixtures.
+  ordering: >-
+    First occupy or withhold the local slot and prove a graph-requiring Stage
+    stays waiting while a shallow Stage can use memory. Then expose/release
+    local capacity, execute real Trailmark operations, terminalize both and run
+    unrelated follow-up allocations on both clean slots.
+
+scope:
+  in:
+    - Add a production-boundary process harness with PostgreSQL, generated deployment CA/leaves, Server, memory Runtime, local Runtime and deterministic model gateway.
+    - Create exact Run ZIP/state artifacts through the public API and execute the versioned shallow and graph workflow/template paths.
+    - Assert Operations reports the exact positive 2-versus-11 tool subsets and never reports probe diagnostics, workspace refs, paths or content.
+    - Prove graph placement waits without consuming memory capacity, then proceeds on local after capacity becomes available.
+    - Make the Worker call shallow definition/symbol tools and real core/advanced Trailmark tools with duplicate symbols and a high-branching bounded path fixture.
+    - Apply an overlay edit, assert the next query sees it and stale cursor/symbol ID is rejected, then complete the declared analysis artifact.
+    - Force one terminal release-response loss and prove recovery reaps child/removes mirror without blocking the other Run.
+    - Reuse both slots for unrelated allocations and scan Server/Runtime logs, PostgreSQL, metrics, reports, OTLP test sink and filesystem scratch for content/path/query/credential canaries.
+    - Add the process gate and focused Runtime tests to release-verify, with exact cleanup and timeout budgets.
+  out:
+    - Live external LLM quality evaluation, performance guarantees for arbitrary repositories, Kubernetes, remote graph service or UI graph visualization.
+
+requirements:
+  - {id: R1, text: Real Scheduler placement enforces exact operation subsets across heterogeneous Runtime processes and never downgrades graph work.}
+  - {id: R2, text: Tool calls cross the production Worker/workspace boundary and analyze exact Artifact-derived effective state.}
+  - {id: R3, text: Terminal/recovery behavior cannot strand a child, mirror or slot or block progress on the other Runtime.}
+  - {id: R4, text: Retained operational surfaces are content/path/query/credential free and both slots are safely reusable.}
+
+acceptance_criteria:
+  - id: A1
+    given: Only memory is free and a graph Stage plus shallow Stage are runnable.
+    when: Scheduler polls.
+    then: Shallow runs on memory, graph remains waiting with diagnosable missing operations, and no incomplete reservation leaks.
+  - id: A2
+    given: Local becomes free.
+    when: Scheduler retries placement.
+    then: The graph Stage runs there, executes actual Trailmark queries with bounded honest results and never exposes physical path/identity.
+  - id: A3
+    given: An overlay edit and old shallow cursor/graph symbol ID.
+    when: The next tool calls run.
+    then: New calls analyze the edit while both old tokens fail as stale without mixing digests.
+  - id: A4
+    given: Lost terminal control/release response and concurrent unrelated Run progress.
+    when: Recovery polls.
+    then: Cleanup is retried independently, child and mirror disappear, the unrelated Run progresses and both slots later accept clean allocations.
+  - id: A5
+    given: Canaries in code, query, paths and Runtime credentials.
+    when: All durable/operational surfaces and reusable roots are scanned.
+    then: Canaries occur only in allowed Artifact/workspace/model tool-result payloads and nowhere retained after release.
+
+tests:
+  - {name: process-e2e, command: "make test-code-analysis-e2e", covers: [A1, A2, A3, A4, A5]}
+  - {name: runtime-hardening, command: "make test-code-analysis-hardening", covers: [A3, A4, A5]}
+  - {name: race, command: "go test -race ./internal/controlplane ./internal/scheduler ./internal/config", covers: [A1, A4]}
+  - {name: release, command: "make release-verify", covers: [A1, A2, A3, A4, A5]}
+
+decisions:
+  - >-
+    The deterministic gateway may script model choices, but every scheduling,
+    capability, mTLS, A2A, workspace, Trailmark and cleanup boundary remains
+    production code so the test proves architecture rather than prompt quality.

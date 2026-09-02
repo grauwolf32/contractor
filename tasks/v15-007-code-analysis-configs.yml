@@ -1,0 +1,75 @@
+schema_version: "1.0"
+id: V15-007
+title: Add explicit shallow and graph analysis Workflow variants
+milestone: workspace-code-analysis-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V15-005]
+languages: [yaml, markdown, go]
+
+goal: >-
+  Make structural analysis usable from built-in OpenAPI and LikeC4 workspace
+  Workflows through additive versioned AgentTemplates, with an explicit choice
+  between portable shallow placement and local-only graph placement.
+
+context:
+  existing_configs: >-
+    openapi-from-workspace@1 and likec4-from-workspace@1 use
+    workspace_source_analyst@1 for dependency/project discovery and preserve
+    analysis as ordinary Markdown artifacts for later builder/validator Stages.
+    Do not edit those immutable versions or their instruction resource.
+  desired_variants: >-
+    Version 2 of each Workflow uses a new shallow source analyst selecting
+    search_def/list_symbols and can run on local or memory. Version 3 uses a
+    separately named graph source analyst selecting all eleven operations and
+    therefore waits for local graph capacity. Builder/validator Stages continue
+    to consume the explicit reports; Scheduler gets no analyzer-aware branch.
+
+scope:
+  in:
+    - Add workspace_source_analyst@2 with existing read/artifact tools plus exact shallow code-analysis operations.
+    - Add workspace_source_graph_analyst@1 with the exact eleven-operation code-analysis selection and only the other tools needed to publish dependency/project reports.
+    - Add new instruction resources that describe model-visible tool semantics, exact-ID graph navigation and incomplete coverage without mentioning AgentTemplate, Runtime internals or physical agents.
+    - Add openapi-from-workspace@2 and likec4-from-workspace@2 using the shallow analyst for both discovery Stages.
+    - Add openapi-from-workspace@3 and likec4-from-workspace@3 using the graph analyst for both discovery Stages.
+    - Preserve all existing input/output/workspace overlay contracts, explicit reports, retries, executionConfig and builder/validator template versions.
+    - Add config-loader, digest snapshot and repository fixture tests proving exact tool lists and version isolation.
+  out:
+    - Automatic local preference, hidden fallback, changing existing versioned YAML, adding graph tools to every Worker, or making analysis state implicit between Stages.
+
+requirements:
+  - {id: R1, text: Shallow and graph behavior is an explicit immutable template/workflow choice, not inferred from whichever Runtime happens to claim the Stage.}
+  - {id: R2, text: Instructions describe available tools and honest coverage only; Worker still has no knowledge of AgentTemplate, placement or Runtime internals.}
+  - {id: R3, text: Discovery results remain explicit Run artifacts consumed by later Stages, and each Stage gets its own exact hydrated workspace.}
+  - {id: R4, text: Existing @1 Workflow and AgentTemplate manifests remain unchanged and valid.}
+
+acceptance_criteria:
+  - id: A1
+    given: The complete built-in config tree.
+    when: Strict loading and digest generation run.
+    then: All old versions retain expected digests and new @2/@3 identities resolve exact shallow/graph tool selections.
+  - id: A2
+    given: Only a memory workspace Runtime is available.
+    when: Version 2 and version 3 discovery requirements are evaluated.
+    then: Version 2 has compatible capacity while version 3 remains waiting for the selected graph operations.
+  - id: A3
+    given: New Worker instruction text.
+    when: Prompt-boundary tests inspect it.
+    then: It teaches search/graph/coverage usage but contains no AgentTemplate, AllocationSpec, physical Runtime identity, host path or implementation prompt protocol.
+  - id: A4
+    given: OpenAPI and LikeC4 new variants.
+    when: Their graphs are validated.
+    then: They preserve four serial Stages, explicit analysis artifacts, exact workspace state and declared frozen outputs.
+
+tests:
+  - {name: config-loader, command: "go test ./internal/config", covers: [A1, A2, A4]}
+  - {name: prompt-boundary, command: "go test ./internal/config -run 'CodeAnalysis|WorkerPromptBoundary'", covers: [A3]}
+  - {name: config-gate, command: "make test-config", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Graph analysis is added to discovery Workers first. Later document-building
+    Stages consume their durable reports and keep their current focused output
+    tools, avoiding repeated graph construction in every Stage.

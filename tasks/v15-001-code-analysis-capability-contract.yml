@@ -1,0 +1,89 @@
+schema_version: "1.0"
+id: V15-001
+title: Add code-analysis descriptors and workspace validation
+milestone: workspace-code-analysis-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V14-003]
+languages: [go, python]
+
+goal: >-
+  Make code-analysis@1 a strict code-backed Toolset contract that configuration
+  may select, while keeping every Runtime graph capability absent until a later
+  task has a complete usable implementation and probe.
+
+context:
+  architecture: >-
+    Server validates every AgentTemplate against internal/config/descriptors.go.
+    Runtime later reports positive subsets through supportedToolsets[].tools,
+    and registry placement already requires exact selected-tool containment.
+    Every code-analysis operation consumes context.workspace through the
+    existing read-only WorkspaceReader view; it does not accept ArtifactRefs or
+    use an infrastructure channel.
+  exports:
+    - search_def
+    - list_symbols
+    - graph_summary
+    - find_symbol
+    - find_callers
+    - find_callees
+    - paths_between
+    - entrypoint_paths_to
+    - attack_surface
+    - complexity_hotspots
+    - functions_that_raise
+  dependencies: >-
+    Pin tree-sitter==0.25.2, tree-sitter-language-pack==1.14.3 and
+    trailmark==0.5.0 in runtime/pyproject.toml and runtime/uv.lock. Do not use a
+    range: a Trailmark change requires explicit compatibility review.
+
+scope:
+  in:
+    - Add the exact eleven-operation Server descriptor with an empty infrastructure-channel map.
+    - Add shared Runtime constants/operation partitions and dependency/version checks without constructing model-visible tools.
+    - Extend Workflow publication validation so any Stage binding to an AgentTemplate selecting code-analysis@1 requires context.workspace.
+    - Keep code-analysis distinct from archive-oriented source-analysis@1 and preserve all existing template/workflow versions.
+    - Add descriptor parity and negative config fixtures for missing workspace, unknown tools and duplicate visible names.
+    - Pin and lock exact Python dependencies reproducibly for Python 3.13.
+  out:
+    - Tree-sitter parsing, Trailmark child execution, model-visible code-analysis tools, or new configuration files.
+
+requirements:
+  - {id: R1, text: Static descriptor accepts exactly the eleven names and declares no runtime-subprocess-launcher or other infrastructure channel.}
+  - {id: R2, text: No Runtime advertises or constructs an unimplemented code-analysis operation after this commit.}
+  - {id: R3, text: A Workflow cannot publish a Stage that selects any code-analysis operation without a logical workspace.}
+  - {id: R4, text: Existing source-analysis@1 descriptors and configurations remain byte/behavior compatible.}
+
+acceptance_criteria:
+  - id: A1
+    given: AgentTemplates selecting valid shallow or graph subsets.
+    when: Server configuration normalization runs.
+    then: Exact names are accepted, normalized and digested while a typo or unlisted operation is rejected.
+  - id: A2
+    given: A Workflow Stage binds such a template but omits context.workspace.
+    when: The Workflow catalog resolves cross-document requirements.
+    then: Publication fails with one stable workspace-required validation error before Run creation.
+  - id: A3
+    given: Runtime dependency locks and Server/Runtime operation constants.
+    when: Contract tests run.
+    then: Versions and all eleven names match exactly and no graph capability is registered yet.
+  - id: A4
+    given: Existing source-analysis and workspace configurations.
+    when: Full config tests run.
+    then: They remain valid without implicit tool additions or digest rewriting.
+
+tests:
+  - {name: go-config, command: "go test ./internal/config", covers: [A1, A2, A4]}
+  - {name: runtime-contract, command: "cd runtime && uv run pytest -W error tests/test_factories.py tests/test_capabilities.py tests/test_settings.py", covers: [A3, A4]}
+  - {name: config-gate, command: "make test-config", covers: [A1, A2, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Landing the Server descriptor before a Runtime implementation is safe:
+    configuration can express desired capacity, but exact positive placement
+    prevents assignment until a later task advertises the selected operations.
+  - >-
+    The Trailmark child is trusted internal Toolset machinery, not the
+    runtime-subprocess-launcher channel used by external validator tools.

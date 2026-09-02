@@ -90,6 +90,19 @@ fixed_decisions:
       Direct changes affect only a disposable copy. Overlay state is cumulative
       text persisted through ordinary artifacts before terminal A2A; release,
       abort and lease loss erase private storage. No host materialize exists.
+  code_analysis:
+    toolset: >-
+      code-analysis@1 exports two portable Tree-sitter operations plus nine
+      local-only Trailmark graph operations. AgentTemplate selects exact tools
+      and existing supportedToolsets[].tools placement never downgrades them.
+    workspace: >-
+      Every call reads one exact effective WorkspaceSnapshot through a narrow
+      reader. Derived state invalidates by digest; neither shallow nor graph
+      code sees an ArtifactRef, fsspec backend or provider physical root.
+    graph_runtime: >-
+      trailmark==0.5.0 runs offline in one bounded allocation-local child over a
+      managed-text scratch mirror. It is internal Toolset machinery, not a
+      runtime-subprocess-launcher channel, and must be reaped before slot reuse.
   http_caido:
     generic_http: >-
       http-tools@1 uses allocation-owned direct transport or the optional
@@ -245,6 +258,20 @@ milestones:
       Multi-Runtime terminal control cannot strand healthy Workers, volatile
       process-instance retention cannot exhaust admission, and allocation
       filesystem teardown remains deadline-bounded without blocking asyncio.
+  - id: workspace-code-analysis-mvp
+    exit_task: V15-004
+    outcome: >-
+      Local and memory Runtime Agents expose bounded Tree-sitter symbol tools,
+      while a successfully probed local Runtime additionally serves core
+      Trailmark summary/symbol/caller navigation from a killable child over the
+      exact effective workspace snapshot.
+  - id: workspace-code-analysis-port
+    exit_task: V15-008
+    outcome: >-
+      All retained read-only contractor-old code-analysis tools have bounded
+      deterministic implementations, explicit shallow/graph Workflow variants
+      and heterogeneous production-process placement, invalidation, cleanup and
+      retained-data proof.
 
 v8_v12_spec_review:
   reviewed_on: "2026-09-01"
@@ -284,8 +311,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V13-001
-  next_task: null
+  completed_through: V14-003
+  next_task: V15-001
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -324,7 +351,12 @@ current_checkpoint:
     second serializer call. AgentTemplate now supplies reusable behavior,
     Planner supplies semantic task data, and Runtime maps only exact artifacts
     observed in the current invocation through trusted Workflow result bindings.
-    Every planned V8 through V13 task is complete.
+    V14-001 made terminal control fan-out concurrent with independent budgets
+    and repeatable drain/finalize/abort/release recovery. V14-002 bounded
+    retired Runtime process-instance history. V14-003 moved allocation cleanup
+    off asyncio and retained one deadline-bounded retry-safe cleanup task.
+    Every planned V8 through V14 task is complete; V15 starts the workspace
+    code-analysis port.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
@@ -795,6 +827,108 @@ http_caido_implementation_review:
     - make release-verify passes the complete PostgreSQL race, browser, Memory, Skill and HTTP/Caido process aggregate.
   decisions: [D011, D032]
 
+code_analysis_port:
+  source_repository: /home/ruslan/src/contractor-old
+  reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+  implementation_references:
+    - contractor/tools/code/tools.py
+    - contractor/tools/code/graph.py
+    - scripts/measure_trailmark.py
+  test_references:
+    - tests/units/contractor_tests/tools/test_code.py
+    - tests/units/contractor_tests/tools/test_code_graph.py
+  retained_surface:
+    shallow: [search_def, list_symbols]
+    graph:
+      - graph_summary
+      - find_symbol
+      - find_callers
+      - find_callees
+      - paths_between
+      - entrypoint_paths_to
+      - attack_surface
+      - complexity_hotspots
+      - functions_that_raise
+  intentional_differences:
+    - >-
+      code-analysis@1 reads the current effective WorkspaceSnapshot and never
+      discovers a concrete fsspec/host root or accepts a source ArtifactRef.
+    - >-
+      Tree-sitter is portable across local/memory providers; pinned Trailmark
+      is local-only and runs in a killable allocation child over a private
+      managed-text mirror.
+    - >-
+      Symbol ambiguity returns candidates and graph relations require opaque
+      exact symbol IDs; the old first-match resolver is rejected.
+    - >-
+      Contractor performs capped path traversal rather than slicing the result
+      of Trailmark's unbounded all-simple-path enumeration.
+    - >-
+      ASTs, graphs and source caches never persist across allocations; digest
+      change invalidates state automatically and there is no refresh tool.
+  rejected_surface: >-
+    Mutable annotations, preanalysis/findings, SARIF/weAudit/binary graph
+    augmentation, raw AST/graph export, code execution, host-root discovery,
+    global parser monkeypatches, private QueryEngine graph access, graph
+    artifacts and cross-allocation caches.
+
+code_analysis_planning_review:
+  reviewed_on: "2026-09-02"
+  verdict: ready_to_implement
+  checks:
+    - >-
+      The design reuses existing context.workspace, WorkspaceReader,
+      supportedToolsets[].tools placement, ToolInstance cleanup and metrics. It
+      adds no Artifact endpoint, database table, Runtime label, infrastructure
+      channel or Server-side analysis engine.
+    - >-
+      V15-001 lands only static descriptors, exact dependency locks and
+      workspace publication validation; no Runtime advertises a model-visible
+      implementation prematurely. V15-002 is the first independently useful
+      shallow MVP on local and memory.
+    - >-
+      V15-003 isolates mirror/protocol/process/resource mechanics before
+      V15-004 advertises core graph tools. This prevents a positive capability
+      whose lifecycle cannot yet be honored.
+    - >-
+      V15-005 owns only the remaining five graph operations and explicitly
+      replaces upstream all-path materialization with limit+1 bounded
+      traversal. V15-006 then closes concurrency, cancellation, OOM, teardown
+      and retained-content behavior across the complete surface.
+    - >-
+      All analysis starts from one immutable effective snapshot. Local direct
+      and overlay therefore share the same mirror path, while memory remains
+      shallow-only by explicit resource policy rather than technical accident.
+    - >-
+      Operation-level positive capability is sufficient: shallow templates run
+      on either provider and graph templates wait for local capacity without a
+      new profile type or hidden fallback.
+    - >-
+      V15-007 adds only new AgentTemplate/Workflow versions; old identities stay
+      untouched. V15-008 crosses PostgreSQL, mTLS, registration, Scheduler,
+      A2A, Artifact workspace and both real Runtime process boundaries.
+    - >-
+      Every task is self-contained, names exact bounds/failures/deliverables,
+      starts with implementation_commit null and has focused deterministic
+      tests plus aggregate gates.
+  accepted_risks:
+    - >-
+      Trailmark graph support is Linux/local-workspace oriented and capped at a
+      fixed 1 GiB child address space in v1. Repositories outside the bounded
+      coverage receive explicit incomplete/capacity results rather than an
+      unbounded best effort.
+    - >-
+      Tree-sitter node_type is language-specific and graph quality/language
+      coverage is constrained by pinned upstream parsers. No result claims
+      semantic completeness when coverage is incomplete.
+    - >-
+      Graph indexes are rebuilt for every allocation and digest. Persisted
+      graph artifacts or a cross-Run cache may improve performance later but
+      require separate provenance, invalidation and Artifact contracts.
+    - >-
+      This application boundary prevents tools from seeing provider paths; it
+      is not an OS sandbox against arbitrary trusted Runtime Python code.
+
 project_workflow_port:
   source_repository: /home/ruslan/src/contractor-old
   reviewed_revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
@@ -1000,3 +1134,11 @@ tasks:
   - {id: V14-001, file: v14-001-concurrent-runtime-termination.yml}
   - {id: V14-002, file: v14-002-runtime-instance-retirement.yml}
   - {id: V14-003, file: v14-003-bounded-async-runtime-cleanup.yml}
+  - {id: V15-001, file: v15-001-code-analysis-capability-contract.yml}
+  - {id: V15-002, file: v15-002-portable-tree-sitter-analysis.yml}
+  - {id: V15-003, file: v15-003-trailmark-child-host.yml}
+  - {id: V15-004, file: v15-004-trailmark-core-graph-tools.yml}
+  - {id: V15-005, file: v15-005-bounded-graph-analysis-tools.yml}
+  - {id: V15-006, file: v15-006-code-analysis-lifecycle-hardening.yml}
+  - {id: V15-007, file: v15-007-code-analysis-configs.yml}
+  - {id: V15-008, file: v15-008-code-analysis-process-e2e.yml}

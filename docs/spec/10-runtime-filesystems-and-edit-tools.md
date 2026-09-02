@@ -371,6 +371,11 @@ AgentTemplate selects an exact subset by normal Toolset allowlist. Tool
 implementations receive narrow `WorkspaceReader`, `WorkspaceWriter` and
 `WorkspaceChanges` handles, never raw fsspec objects or host paths.
 
+The read-only `code-analysis@1` Toolset consumes the same `WorkspaceReader`
+snapshot boundary. Its portable Tree-sitter operations and local-only
+allocation child used for Trailmark graph analysis are specified in
+[12](12-code-analysis-tools.md); neither receives the provider's physical root.
+
 ### `filesystem@1`
 
 | Tool | Contract |

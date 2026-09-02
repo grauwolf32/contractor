@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V15-003
+title: Build the allocation-local Trailmark child host
+milestone: workspace-code-analysis-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V15-001]
+languages: [python]
+
+goal: >-
+  Isolate Trailmark graph memory and failure inside one bounded child process
+  per local-workspace allocation, with a typed private protocol and an exact
+  effective-snapshot mirror ready for graph tools.
+
+context:
+  safety_problem: >-
+    contractor-old imports Trailmark into the long-lived process, finds a
+    concrete local backend root, reads stale overlay underlay, installs a
+    process-global UTF-8 monkeypatch and accesses QueryEngine._store._graph.
+    None of those behaviors may be copied. Runtime RAM is constrained and a
+    released allocation must return graph RSS to the OS.
+  upstream: >-
+    Use trailmark==0.5.0. Build via trailmark.parse.parse_directory and retained
+    public CodeGraph data, then add entrypoint detection/query indexes inside a
+    version-specific adapter. Never call or expose a private _store._graph.
+  references:
+    - /home/ruslan/src/contractor-old/contractor/tools/code/graph.py
+    - /home/ruslan/src/contractor-old/scripts/measure_trailmark.py
+    - runtime/src/contractor_runtime/workspace.py
+    - runtime/src/contractor_runtime/projectfs/storage.py
+
+scope:
+  in:
+    - Materialize the admitted managed-text projection of one WorkspaceSnapshot into a unique mirror below AllocationWorkspace scratch, never the provider root.
+    - Admit paths lexicographically under the 20000-file, 128 MiB aggregate and 4 MiB/file bounds and carry exact incomplete coverage to the child host.
+    - Start the same installed Python directly without a shell, with a strict module entrypoint, sanitized allowlisted environment and no RuntimeSettings, Artifact grant or credential.
+    - Implement a versioned framed request/response protocol capped at 16 KiB/2 MiB with exact request IDs, schema rejection and protocol-only stdout.
+    - Set the 1 GiB child address-space limit before Trailmark imports and enforce a 120-second build deadline plus 10-second query deadline in the parent.
+    - Build and retain at most one public CodeGraph/index per child and return only normalized typed projections; never serialize the full graph over IPC.
+    - Implement idempotent start/stop/reap/mirror cleanup, process-group termination and one-child ownership under an async allocation session lock.
+    - Add an offline five-second tiny-fixture graph probe for local workspace providers, but do not advertise graph tools until V15-004 constructs them.
+    - Adapt the old measurement script into a reproducible characterization command that reports build time/RSS/counts for small, medium and bounded-overflow fixtures without making wall-clock performance a flaky CI assertion.
+  out:
+    - Model-visible graph operations, graph artifacts, cross-allocation cache, memory-provider graph capability, network sandbox claims or external validator launcher integration.
+
+requirements:
+  - {id: R1, text: The child reads only a parent-created managed-text mirror representing one exact effective snapshot; it cannot discover provider or host roots.}
+  - {id: R2, text: Child RSS is reclaimable by termination and no child/mirror can survive confirmed allocation cleanup.}
+  - {id: R3, text: Parent/child input, output, build, query and memory use are all finite and malformed protocol fails closed.}
+  - {id: R4, text: The child receives no allocation infrastructure secrets and emits no raw source path/content on logs or stderr.}
+  - {id: R5, text: Startup probing is offline and finite; a failure affects only the future graph operation subset.}
+
+acceptance_criteria:
+  - id: A1
+    given: Local direct and overlay sessions whose physical underlay differs from the effective snapshot.
+    when: A graph child is built.
+    then: Its normalized counts/symbols correspond exactly to the effective snapshot and no underlay-only file appears.
+  - id: A2
+    given: Secret RuntimeSettings and canary host/allocation paths.
+    when: Child argv/environment/protocol/logs and projections are inspected.
+    then: No secret or physical path crosses the child boundary or appears in retained output.
+  - id: A3
+    given: Hang, crash, OOM, oversized frame, malformed JSON and partial-frame faults.
+    when: Build/query/stop runs.
+    then: Parent classifies the failure, kills/reaps the process group, remains responsive and preserves a fenced cleanup outcome when reaping is unconfirmed.
+  - id: A4
+    given: Repeated start/stop and concurrent close calls.
+    when: Lifecycle tests finish.
+    then: At most one child exists, close is idempotent, and mirror/scratch contain no source-bearing residue.
+  - id: A5
+    given: A local provider with exact dependencies and a memory provider or broken Trailmark install.
+    when: Internal graph probe runs.
+    then: Only the local healthy case returns positive and Runtime still advertises no graph tools before V15-004.
+
+tests:
+  - {name: child-protocol, command: "cd runtime && uv run pytest -W error tests/test_trailmark_child.py", covers: [A1, A2, A3, A4]}
+  - {name: child-lifecycle, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_child_lifecycle.py tests/test_allocation.py tests/test_lease_watchdog.py", covers: [A2, A3, A4]}
+  - {name: probe, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_trailmark_probe.py", covers: [A5]}
+  - {name: characterization, command: "cd runtime && uv run python scripts/measure_trailmark.py --fixture small --json", covers: [A1, A2]}
+
+decisions:
+  - >-
+    Snapshot-to-scratch materialization is used even for local direct mode. It
+    gives direct and overlay one correctness boundary and prevents physical
+    provider paths from becoming an accidental Toolset API.
+  - >-
+    The child is an internal implementation process. It is deliberately not a
+    runtime-subprocess-launcher handle and creates no model authority to run
+    commands.

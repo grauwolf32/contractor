@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V15-002
+title: Implement portable Tree-sitter workspace analysis
+milestone: workspace-code-analysis-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V15-001]
+languages: [python]
+
+goal: >-
+  Deliver a useful shallow code-analysis MVP on both local and memory workspace
+  Runtime Agents through bounded search_def and list_symbols operations over
+  the current exact effective WorkspaceSnapshot.
+
+context:
+  integration: >-
+    Add CodeAnalysisToolsetFactory to built_in_factories with
+    requires_workspace=true and workspace_access=read. The factory receives a
+    narrow WorkspaceReader and State.metrics; it receives no AgentTemplate,
+    concrete fsspec backend, provider root or Artifact client.
+  languages: >-
+    Support exactly python, javascript, typescript, tsx, go, rust, java,
+    kotlin, c, cpp, c_sharp, ruby, php, scala, swift, lua, elixir, haskell and
+    bash with the retained contractor-old extension/node tables adapted to
+    relative v2 paths and strict UTF-8 WorkspaceTextFile values.
+  references:
+    - /home/ruslan/src/contractor-old/contractor/tools/code/tools.py
+    - /home/ruslan/src/contractor-old/tests/units/contractor_tests/tools/test_code.py
+    - runtime/src/contractor_runtime/projectfs/storage.py
+    - runtime/src/contractor_runtime/toolsets/filesystem.py
+
+scope:
+  in:
+    - Implement a finite offline startup probe that loads every fixed v1 parser; advertise both shallow tools only if the complete set passes.
+    - Implement search_def(symbol, path="", language="", cursor="", limit=50) with bounded case-folded text prefilter followed by structural definition validation.
+    - Implement list_symbols(path="", language="", node_type="", cursor="", limit=100) over structural definition nodes.
+    - Parse one file at a time outside asyncio, discard AST/source objects and retain only a bounded compact per-digest symbol cache.
+    - Use normalized relative project paths, deterministic ordering, integrity-protected digest/query-bound cursors and explicit coverage metadata.
+    - Enforce 20000 files, 128 MiB aggregate, 4 MiB/file, 100000 compact symbols, cooperative 10-second analysis, 200-item page and 256 KiB encoded-result ceilings.
+    - Port semantic fixtures for every language and add local/memory plus direct/overlay parity tests.
+    - Record only content-free operation/count/duration/cache metrics and close/cache-zeroization behavior.
+    - Add make test-code-analysis-runtime for the focused shallow suite; later V15 tasks extend the same target.
+  out:
+    - Any Trailmark import or graph operation, grep fallback, raw AST output, ArtifactRef input, filesystem mutation or persisted index.
+
+requirements:
+  - {id: R1, text: Every call answers from one immutable effective snapshot and a later edit invalidates derived state by digest.}
+  - {id: R2, text: search_def never returns textual occurrences as definitions; users grant filesystem@1/grep separately when needed.}
+  - {id: R3, text: File, byte, symbol, parser and deadline truncation is deterministic and visible through coverage.incomplete/reasons.}
+  - {id: R4, text: Runtime retains no AST or source-content cache and parsing cannot block heartbeat/event-loop progress.}
+  - {id: R5, text: Model-visible errors and all non-tool-result telemetry contain no query, source content or path.}
+
+acceptance_criteria:
+  - id: A1
+    given: Equal polyglot effective snapshots on local and isolated memory providers.
+    when: Both shallow tools run with pages and filters.
+    then: They return equal normalized rows, correct nextCursor behavior and explicit binary/unsupported/parse coverage.
+  - id: A2
+    given: A symbol appears in comments/calls but has no structural definition.
+    when: search_def runs.
+    then: It returns an empty definition page rather than a grep fallback.
+  - id: A3
+    given: An overlay or direct Edit commits between calls or between cursor pages.
+    when: Analysis is called again.
+    then: A fresh call sees the edit and a stale cursor fails with code_analysis_workspace_changed.
+  - id: A4
+    given: Oversized, parser-error and over-limit trees plus a deliberately slow parser.
+    when: Calls execute alongside heartbeat probes.
+    then: The cooperative budget is observed between bounded files, heartbeat remains responsive, and no AST/source object survives completion.
+  - id: A5
+    given: Missing/broken parser dependencies at startup.
+    when: Capability discovery runs.
+    then: It omits both shallow operations while unrelated Runtime capabilities remain usable.
+
+tests:
+  - {name: shallow-tools, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py", covers: [A1, A2, A3, A4]}
+  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_factories.py", covers: [A1, A5]}
+  - {name: workspace-parity, command: "cd runtime && uv run pytest -W error tests/test_projectfs_storage.py tests/test_projectfs_overlay.py tests/test_code_analysis_shallow.py", covers: [A1, A3, A4]}
+  - {name: aggregate, command: "make test-code-analysis-runtime", covers: [A1, A2, A3, A4, A5]}
+
+decisions:
+  - >-
+    A partial parser-language capability cannot be expressed by the current
+    Toolset wire shape, so the fixed shallow language set probes atomically.
+  - >-
+    Parser node_type remains a language-specific filter in v1; inventing a
+    lossy universal symbol taxonomy is deferred.

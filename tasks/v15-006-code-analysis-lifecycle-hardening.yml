@@ -1,0 +1,83 @@
+schema_version: "1.0"
+id: V15-006
+title: Harden code-analysis invalidation, faults and cleanup
+milestone: workspace-code-analysis-port
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V15-002, V15-005]
+languages: [python]
+
+goal: >-
+  Close allocation lifecycle, concurrency, resource and retained-data gaps for
+  both shallow and graph analysis before the Toolset is used by production
+  Workflow configurations.
+
+context:
+  lifecycle: >-
+    One Runtime process has one slot. Worker terminalization closes tools;
+    release then disposes project workspace and SandboxProfile through the
+    allocation-wide bounded cleanup task implemented by V14-003. Abort, lease
+    loss and prepare failure must fail closed. Code-analysis adds CPU threads,
+    compact cache, mirror and child resources that must participate in this
+    exact order without blocking asyncio or making a dirty slot idle.
+  retained_surface: >-
+    Source content is allowed only in the active WorkspaceSnapshot/mirror and
+    model-visible definition preview. It must not be retained in metrics,
+    errors, logs, child stderr, final reports, OTLP, cursors or a reused slot.
+
+scope:
+  in:
+    - Serialize build/query/digest replacement/close with one allocation session state machine and make every tool close idempotently share that owner.
+    - Prove a call uses one immutable snapshot while concurrent edits force the next call to invalidate shallow rows, cursors, public IDs, mirror and child.
+    - Move mirror creation/removal, Tree-sitter parsing and all blocking process waits off the asyncio event-loop thread.
+    - Integrate child termination and mirror deletion into graceful terminal, release, abort, lease loss, failed prepare and Runtime shutdown paths.
+    - Kill/reap a timed-out, OOM, crashed, protocol-violating or stderr-flooding child; allow at most one safe internal replay for a definitely unprocessed read-only request.
+    - Keep the slot fenced when termination or cleanup cannot be confirmed and have release retries join existing cleanup rather than spawn a second delete/child.
+    - Bound compact-cache entry/symbol memory, zero cursor key/state and erase all source-bearing scratch on cleanup.
+    - Add stable retryability mapping and content-free metrics for every incomplete/failure/lifecycle outcome.
+    - Add a strict executable requirement-to-test matrix and one aggregate make test-code-analysis-hardening target.
+  out:
+    - OS sandboxing against arbitrary in-process plugins, remote/shared graph service, cross-allocation caching or automatic Stage retry policy.
+
+requirements:
+  - {id: R1, text: No analysis CPU, filesystem deletion or child wait can block Runtime heartbeat/watchdog/private HTTP scheduling.}
+  - {id: R2, text: An allocation owns at most one current digest cache, one mirror and one child, all destroyed before confirmed slot reuse.}
+  - {id: R3, text: Concurrent edits cannot mix rows/edges from two workspace digests or make a stale cursor/symbol ID appear current.}
+  - {id: R4, text: Timeout, cancellation, crash, OOM and cleanup failure are finite, classified and fail closed.}
+  - {id: R5, text: No content/path/query/ID/credential canary survives outside allowed active workspace and model-result fields.}
+
+acceptance_criteria:
+  - id: A1
+    given: Slow bounded Tree-sitter files, blocked mirror removal and a hung Trailmark child.
+    when: Heartbeat/watchdog and terminal control run concurrently.
+    then: Control remains responsive, the shallow cooperative budget is checked between files, graph deadlines return bounded safe errors, and the slot stays fenced until the one owned cleanup finishes.
+  - id: A2
+    given: Direct and overlay edits race shallow indexing, graph build and cursor paging.
+    when: Both winner orders are forced repeatedly.
+    then: Each response is single-snapshot-consistent and the next call either uses the new digest or rejects stale state.
+  - id: A3
+    given: Child crash before/after request acceptance, malformed/oversized frames, stderr flood and memory-limit termination.
+    when: The host handles them.
+    then: Replay happens at most once only when safe, every child is reaped, and errors expose only stable classifications.
+  - id: A4
+    given: Finalize, abort, lost lease, failed prepare, release response loss and retry.
+    when: Lifecycle completes or faults.
+    then: No duplicate cleanup starts, no source-bearing resource remains in an idle slot, and an unrelated later allocation runs cleanly.
+  - id: A5
+    given: Exact/JSON/URL-encoded content, path, symbol, query and credential canaries.
+    when: PostgreSQL-free Runtime state, logs, metrics, final reports, OTLP and reusable scratch are scanned.
+    then: Canaries exist only in explicitly allowed active workspace/model-result locations.
+
+tests:
+  - {name: concurrency, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_concurrency.py", covers: [A1, A2, A4]}
+  - {name: faults, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_faults.py", covers: [A1, A3, A4]}
+  - {name: redaction, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_redaction.py", covers: [A5]}
+  - {name: lifecycle, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_code_analysis_child_lifecycle.py", covers: [A1, A4]}
+  - {name: hardening, command: "make test-code-analysis-hardening", covers: [A1, A2, A3, A4, A5]}
+
+decisions:
+  - >-
+    Cancellation cannot stop an already-running filesystem syscall. As in
+    V14-003, cleanup retains one shielded authoritative task; a retry joins it
+    and the Runtime remains fenced until completion is confirmed.

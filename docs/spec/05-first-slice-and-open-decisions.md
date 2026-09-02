@@ -433,6 +433,23 @@ The next Runtime tools increment ports bounded generic HTTP and Caido behavior:
 
 [11](11-http-and-caido-tools.md) owns the complete contract.
 
+## Workspace code-analysis increment
+
+The structural analysis increment adds one explicitly selected
+`code-analysis@1` Toolset without changing Artifact or Scheduler semantics:
+
+- local and memory workspace Runtime Agents can advertise bounded Tree-sitter
+  definition/symbol operations after an offline dependency probe;
+- only a local workspace Runtime may advertise the pinned Trailmark graph
+  operations, which execute in a killable allocation-local child;
+- every analysis uses the current exact effective `WorkspaceSnapshot`, so
+  direct and overlay edits invalidate derived state by digest;
+- operation-level capability placement has no hidden shallow fallback;
+- all results, scans, paths, child resources, caches and lifecycle cleanup are
+  finite, explicit and content-redacted outside model tool results.
+
+[12](12-code-analysis-tools.md) owns the complete contract.
+
 ## Deliberately deferred
 
 The following decisions remain open; no legacy document defines them

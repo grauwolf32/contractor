@@ -424,6 +424,14 @@ model-visible operations. It cannot name an artifact, host path or backend,
 change workspace mode, or request persistence outside declared Stage result
 slots.
 
+`code-analysis@1` follows the same workspace and allowlist rule. Its shallow
+`search_def`/`list_symbols` operations may be reported by local or memory
+Runtime Agents, while its Trailmark graph operations are a positive local-only
+capability. A template names the exact operations it needs; Scheduler never
+silently substitutes shallow analysis for a selected graph operation. The
+complete snapshot, child-process, bound and lifecycle contract is owned by
+[12](12-code-analysis-tools.md).
+
 `http-tools@1` and `caido@1` use the same exact allowlist rule. A Runtime label
 may configure HTTP routing or a Caido endpoint/credential, but labels do not
 add either Toolset. `caido@1` requires the private `caido-graphql@1` adapter

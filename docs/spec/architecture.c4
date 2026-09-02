@@ -337,6 +337,16 @@ model {
       #optional
     }
 
+    codeAnalysisTools = component 'Selected code-analysis@1 — shallow Tree-sitter / local graph facade' {
+      #contractor
+      #optional
+    }
+
+    trailmarkChild = component 'Allocation-local Trailmark child — bounded and killable' {
+      #contractor
+      #optional
+    }
+
     httpCaidoTools = component 'Selected http-tools@1 / caido@1 tools' {
       #contractor
       #optional
@@ -375,6 +385,7 @@ model {
     slotManager -> workerState 'Create / destroy allocation-local Session and State'
     slotManager -> sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
     capabilityProbe -> workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
+    capabilityProbe -> codeAnalysisTools 'Probe offline Tree-sitter subset and local-only Trailmark subset'
     slotManager -> workspaceProvider 'Hydrate exact Run artifacts; create / discard one private WorkspaceSession'
     a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
     workerRuntime -> workerState 'Read / update in-memory allocation State'
@@ -384,6 +395,7 @@ model {
     workerRuntime -> runArtifactTools 'Construct selected list/read/write operations; grant remains authoritative'
     workerRuntime -> memoryTools 'Construct selected shared-note operations for fixed Namespace'
     workerRuntime -> filesystemTools 'Construct only selected operations over narrowed Reader / Writer / ChangeSet handles'
+    workerRuntime -> codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
     workerRuntime -> httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
     workerRuntime -> skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     namespaceTools -> artifactClient 'Logical reads / immutable writes / CAS'
@@ -395,6 +407,8 @@ model {
     adapterHost -> namespaceTools 'Inject proxy-aware clients only into selected tools'
     adapterHost -> httpCaidoTools 'Inject optional forward-proxy and mandatory typed Caido handles'
     filesystemTools -> workspaceProvider 'Relative run_workdir paths only; no raw local path or backend selection'
+    codeAnalysisTools -> workspaceProvider 'Read exact effective managed-text snapshots; no provider root'
+    codeAnalysisTools -> trailmarkChild 'Materialize bounded private mirror and issue typed graph queries'
     workspaceProvider -> artifactClient 'Read exact ZIP/state and auto-export cumulative state/diff'
     workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
     httpCaidoTools -> artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
@@ -562,6 +576,8 @@ views {
     include runtimeAgent.adapterHost
     include runtimeAgent.workspaceProvider
     include runtimeAgent.filesystemTools
+    include runtimeAgent.codeAnalysisTools
+    include runtimeAgent.trailmarkChild
     include runtimeAgent.memoryTools
     include runtimeAgent.skillToolset
     include runtimeAgent.artifactClient
@@ -582,9 +598,33 @@ views {
     include runtimeAgent.workerRuntime
     include runtimeAgent.workspaceProvider
     include runtimeAgent.filesystemTools
+    include runtimeAgent.codeAnalysisTools
+    include runtimeAgent.trailmarkChild
     include runtimeAgent.executionCollector
     include runtimeWorkspaceStorage
     include caidoService
+
+    exclude * -> * where tag is #contextOnly
+
+    global style ownership
+    autoLayout LeftRight
+  }
+
+  view runtimeCodeAnalysis {
+    title 'Contractor v2 — Workspace Code Analysis Capability and Lifecycle'
+
+    include server
+    include server.workflowScheduler
+    include server.controlPlane
+    include server.runtimeRegistry
+    include runtimeAgent
+    include runtimeAgent.capabilityProbe
+    include runtimeAgent.slotManager
+    include runtimeAgent.workerRuntime
+    include runtimeAgent.workspaceProvider
+    include runtimeAgent.codeAnalysisTools
+    include runtimeAgent.trailmarkChild
+    include runtimeWorkspaceStorage
 
     exclude * -> * where tag is #contextOnly
 

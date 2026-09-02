@@ -191,6 +191,13 @@ returning `validator unavailable` is not that operation's successful startup
 capability. The factory omits that tool while retaining independent tools that
 passed their own prerequisites.
 
+`code-analysis@1` is one concrete use of partial positive capability. Its
+Tree-sitter operations may pass on either workspace provider, while its
+Trailmark graph operations additionally require a local provider and a bounded
+offline child-process probe. The child is internal Toolset machinery rather
+than a `runtime-subprocess-launcher` channel. Exact placement and lifecycle are
+owned by [12](12-code-analysis-tools.md).
+
 Capability probes cover only Runtime-owned prerequisites available before an
 allocation. They do not probe an LLM Gateway URL/token, OTLP endpoint, HTTP
 proxy, Artifact API grant or other RuntimeSettings supplied later in
