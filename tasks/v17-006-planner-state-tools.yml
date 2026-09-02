@@ -3,8 +3,8 @@ id: V17-006
 title: Add explicit Planner projections over correlated Worker State
 milestone: worker-results-and-live-state
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 991f557a0497388a98be0085e0179cf47dc3eda2
 depends_on: [V17-005]
 languages: [go]
 
