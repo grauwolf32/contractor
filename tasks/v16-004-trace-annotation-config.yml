@@ -3,8 +3,8 @@ id: V16-004
 title: Publish a trace Skill backed annotation template and Workflow
 milestone: workspace-taint-annotations-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 270350375fca87ae0d55a3bf41527e081b242a40
 depends_on: [V16-002]
 languages: [yaml, markdown, go]
 
