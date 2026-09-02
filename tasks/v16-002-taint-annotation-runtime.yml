@@ -3,8 +3,8 @@ id: V16-002
 title: Implement portable atomic taint annotation tools
 milestone: workspace-taint-annotations-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: e2e59da42c6359c4faf23b0bb715a7af49a28f43
 depends_on: [V16-001]
 languages: [python]
 
