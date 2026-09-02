@@ -3,8 +3,8 @@ id: V17-003
 title: Cut Worker A2A and Planner adapters over to typed semantic results
 milestone: worker-results-and-live-state
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: b19d3f9371b68897216256bad2e2ff0e48edaebe
 depends_on: [V17-002]
 languages: [go, python, yaml]
 
