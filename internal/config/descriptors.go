@@ -126,6 +126,9 @@ func MVPDescriptors() Descriptors {
 			"text-artifacts@1": {
 				Tools: []string{"read_text_artifact", "write_text_artifact"},
 			},
+			"taint-annotations@1": {
+				Tools: []string{"annotate_sink", "annotate_trace", "annotate_validate"},
+			},
 			"workspace-changes@1": {
 				Tools: []string{"changed_paths", "diff", "rollback_changes"},
 			},

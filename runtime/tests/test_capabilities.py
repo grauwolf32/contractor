@@ -21,7 +21,7 @@ from contractor_runtime.factories import (
 )
 from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.state import RuntimeState
-from contractor_runtime.toolsets import code_analysis_languages, likec4, openapi
+from contractor_runtime.toolsets import code_analysis_languages, likec4, openapi, taint_annotations
 from contractor_runtime.toolsets.code_analysis import (
     CODE_ANALYSIS_REF,
     CORE_GRAPH_TOOLS,
@@ -45,11 +45,16 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     fixture = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert fixture["schemaVersion"] == "1.0"
     factories = built_in_factories(tmp_path).toolsets
+    expected = dict(fixture["toolsets"])
+    # V16-001 publishes the Server contract before V16-002 registers the
+    # complete Runtime implementation. Positive capability must remain absent
+    # during that deliberate one-task boundary.
+    expected.pop(taint_annotations.TAINT_ANNOTATIONS_REF)
     actual = {
         ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
         for ref, factory in factories.items()
     }
-    assert actual == fixture["toolsets"]
+    assert actual == expected
 
 
 def test_code_analysis_static_contract_and_shallow_factory_are_exact(
@@ -80,6 +85,22 @@ def test_code_analysis_static_contract_and_shallow_factory_are_exact(
     assert factory.infrastructure_channels == {}
     assert factory.requires_workspace is True  # type: ignore[attr-defined]
     assert factory.workspace_access == "read"  # type: ignore[attr-defined]
+
+
+def test_taint_annotation_static_contract_is_exact_but_factory_is_not_registered_yet(
+    tmp_path: Path,
+) -> None:
+    assert taint_annotations.TAINT_ANNOTATIONS_REF == "taint-annotations@1"
+    assert {
+        "annotate_trace",
+        "annotate_validate",
+        "annotate_sink",
+    } == taint_annotations.EXPORTED_TOOLS
+    assert dict(taint_annotations.PINNED_DEPENDENCIES) == {
+        "tree-sitter": "0.25.2",
+        "tree-sitter-language-pack": "1.14.3",
+    }
+    assert taint_annotations.TAINT_ANNOTATIONS_REF not in built_in_factories(tmp_path).toolsets
 
 
 def test_builtin_discovery_keeps_editing_tools_without_optional_validators(

@@ -29,7 +29,7 @@ context:
 scope:
   in:
     - Add the exact three-operation Go descriptor with no infrastructure channels.
-    - Add shared Python ref/tool constants and descriptor-parity fixtures without registering a Runtime factory.
+    - Add shared Python ref/tool constants and cross-language contract tests without registering a Runtime factory.
     - Treat taint-annotations@1 as workspace-dependent in Workflow publication validation.
     - Accept both direct and overlay workspace modes; do not require export slots merely because the Toolset can write.
     - Add strict unknown-tool, duplicate-name, missing-workspace and dependency-contract tests.

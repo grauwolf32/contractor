@@ -437,7 +437,7 @@ func validateStageWorkspace(
 		for _, selection := range agent.Template.Toolsets {
 			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
 			switch ref {
-			case "filesystem@1", "edit-files@1", "code-analysis@1":
+			case "filesystem@1", "edit-files@1", "code-analysis@1", "taint-annotations@1":
 				workspaceToolsets = true
 			case "workspace-changes@1":
 				workspaceToolsets = true

@@ -131,6 +131,10 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("code-analysis@1 without workspace error = %v", err)
 	}
+	if err := validateStageWorkspace(StageContext{Artifacts: map[string]ContextArtifact{}}, StageResultContract{}, workspaceAgents("taint-annotations")); err == nil ||
+		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
+		t.Fatalf("taint-annotations@1 without workspace error = %v", err)
+	}
 	direct := overlay
 	directWorkspace := *overlay.Workspace
 	directWorkspace.Mode = contracts.WorkspaceModeDirect
@@ -138,6 +142,9 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	direct.Workspace = &directWorkspace
 	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("code-analysis")); err != nil {
 		t.Fatalf("code-analysis@1 with direct workspace was rejected: %v", err)
+	}
+	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("taint-annotations")); err != nil {
+		t.Fatalf("taint-annotations@1 with direct workspace was rejected: %v", err)
 	}
 	if err := validateStageWorkspace(direct, StageResultContract{}, workspaceAgents("workspace-changes")); err == nil {
 		t.Fatal("workspace-changes@1 with direct mode was accepted")
@@ -168,6 +175,24 @@ func TestWorkflowPublicationRequiresWorkspaceForCodeAnalysis(t *testing.T) {
 	if err == nil || snapshot != nil ||
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("Load() = (%v, %v), want code-analysis workspace error", snapshot, err)
+	}
+}
+
+func TestWorkflowPublicationRequiresWorkspaceForTaintAnnotations(t *testing.T) {
+	t.Parallel()
+
+	root := copyConfigTree(t)
+	path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
+	replaceFile(t, path, `    - ref: run-artifacts@1
+      tools:
+        - list_artifacts
+        - read_artifact
+        - write_artifact`, `    - ref: taint-annotations@1
+      tools: [annotate_trace]`)
+	snapshot, err := Load(root, MVPDescriptors())
+	if err == nil || snapshot != nil ||
+		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
+		t.Fatalf("Load() = (%v, %v), want taint annotation workspace error", snapshot, err)
 	}
 }
 

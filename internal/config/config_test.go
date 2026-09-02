@@ -234,6 +234,59 @@ func TestCodeAnalysisToolsetDescriptor(t *testing.T) {
 	}
 }
 
+func TestTaintAnnotationsToolsetDescriptor(t *testing.T) {
+	t.Parallel()
+
+	descriptor, ok := MVPDescriptors().Toolsets["taint-annotations@1"]
+	if !ok {
+		t.Fatal("taint-annotations@1 descriptor is missing")
+	}
+	want := []string{"annotate_sink", "annotate_trace", "annotate_validate"}
+	if !equalStrings(descriptor.Tools, want) {
+		t.Fatalf("taint-annotations@1 tools = %v, want %v", descriptor.Tools, want)
+	}
+	if len(descriptor.InfrastructureChannels) != 0 {
+		t.Fatalf(
+			"taint-annotations@1 infrastructure channels = %v, want none",
+			descriptor.InfrastructureChannels,
+		)
+	}
+}
+
+func TestTaintAnnotationsToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
+	t.Parallel()
+
+	descriptors, err := normalizeDescriptors(MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := &loader{descriptors: descriptors}
+	selected, err := current.resolveToolsets(&[]toolsetSelectionSource{{
+		Ref: "taint-annotations@1", Tools: []string{"annotate_validate", "annotate_trace"},
+	}})
+	if err != nil {
+		t.Fatalf("valid taint annotation selection: %v", err)
+	}
+	if got, want := selected[0].Tools, []string{"annotate_trace", "annotate_validate"}; !equalStrings(got, want) {
+		t.Fatalf("normalized taint annotation tools = %v, want %v", got, want)
+	}
+
+	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{{
+		Ref: "taint-annotations@1", Tools: []string{"annotate"},
+	}}); err == nil || !strings.Contains(err.Error(), "does not export selected tool") {
+		t.Fatalf("unknown taint annotation tool error = %v", err)
+	}
+
+	descriptors.Toolsets["alternate@1"] = ToolsetDescriptor{Tools: []string{"annotate_trace"}}
+	current.descriptors = descriptors
+	if _, err := current.resolveToolsets(&[]toolsetSelectionSource{
+		{Ref: "taint-annotations@1", Tools: []string{"annotate_trace"}},
+		{Ref: "alternate@1", Tools: []string{"annotate_trace"}},
+	}); err == nil || !strings.Contains(err.Error(), "collides between Toolsets") {
+		t.Fatalf("taint annotation visible-name collision error = %v", err)
+	}
+}
+
 func TestCodeAnalysisToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
 	t.Parallel()
 

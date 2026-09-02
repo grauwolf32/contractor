@@ -23,5 +23,6 @@ toolsets:
     validate_openapi: [runtime-subprocess-launcher]
   run-artifacts@1: {}
   source-analysis@1: {}
+  taint-annotations@1: {}
   text-artifacts@1: {}
   workspace-changes@1: {}
