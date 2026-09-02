@@ -212,7 +212,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 			existing.principalClaimDeadline = r.monotonicNow() + r.confirmedLease
 		}
 		r.detectObservedLoss(existing, LossRuntimeMismatch)
-		existing.reconciliationRequired = registrationNeedsReconciliation(existing)
+		existing.reconciliationRequired = r.entryNeedsReconciliationLocked(existing)
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
 		return snapshotAgent(existing), nil
 	}
@@ -246,7 +246,7 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 			entry.blockedByInstanceID = cloneString(&instanceID)
 		}
 	}
-	entry.reconciliationRequired = registrationNeedsReconciliation(entry)
+	entry.reconciliationRequired = r.entryNeedsReconciliationLocked(entry)
 	r.agents[normalized.InstanceID] = entry
 	r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
 	return snapshotAgent(entry), nil
@@ -297,7 +297,7 @@ func (r *InMemoryRegistry) HeartbeatAuthenticated(
 	entry.registration.AllocationID = cloneString(heartbeat.AllocationID)
 	r.detectObservedLoss(entry, LossRuntimeMismatch)
 	response, reconciliation := heartbeatAction(entry, heartbeat.HeartbeatSeq)
-	entry.reconciliationRequired = reconciliation || registrationNeedsReconciliation(entry)
+	entry.reconciliationRequired = reconciliation || r.entryNeedsReconciliationLocked(entry)
 	r.recordHeartbeat(entry, heartbeat.HeartbeatSeq, response)
 	r.recordOperationsChangeLocked(OperationsRuntimeAgent, heartbeat.InstanceID)
 	return cloneHeartbeatResponse(response), nil
@@ -803,12 +803,18 @@ func (r *InMemoryRegistry) SetWriteFence(allocationID string) error {
 	if !ok || stored.writeGate != gate {
 		return ErrAllocationNotFound
 	}
-	if stored.reservation.Grant.WriteFenced {
-		return nil
+	fenceChanged := !stored.reservation.Grant.WriteFenced
+	if fenceChanged {
+		stored.reservation.Grant.WriteFenced = true
+		r.allocations[allocationID] = stored
+		r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
 	}
-	stored.reservation.Grant.WriteFenced = true
-	r.allocations[allocationID] = stored
-	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
+	entry, ownsAllocation := r.agents[stored.reservation.Grant.RuntimeInstanceID]
+	if ownsAllocation && entry.authoritativeAllocationID != nil &&
+		*entry.authoritativeAllocationID == allocationID && !entry.reconciliationRequired {
+		entry.reconciliationRequired = true
+		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+	}
 	return nil
 }
 
@@ -851,7 +857,7 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 	for _, candidate := range r.agents {
 		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
 			candidate.blockedByInstanceID = nil
-			candidate.reconciliationRequired = registrationNeedsReconciliation(candidate)
+			candidate.reconciliationRequired = r.entryNeedsReconciliationLocked(candidate)
 		}
 	}
 	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
@@ -993,6 +999,17 @@ func registrationNeedsReconciliation(entry *agentEntry) bool {
 	}
 	return entry.registration.ObservedState != contracts.AgentAllocated || entry.registration.AllocationID == nil ||
 		*entry.registration.AllocationID != *entry.authoritativeAllocationID
+}
+
+func (r *InMemoryRegistry) entryNeedsReconciliationLocked(entry *agentEntry) bool {
+	if registrationNeedsReconciliation(entry) {
+		return true
+	}
+	if entry.authoritativeAllocationID == nil {
+		return false
+	}
+	stored, ok := r.allocations[*entry.authoritativeAllocationID]
+	return ok && stored.reservation.Grant.WriteFenced
 }
 
 func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {

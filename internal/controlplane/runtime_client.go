@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -658,17 +659,24 @@ func (c *RuntimeBatchController) FinalizeAll(
 			failures = append(failures, fmt.Errorf("observe finalizing allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 	}
+	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+		callContext context.Context, _ int, reservation Reservation,
+	) (contracts.AllocationFinalReport, error) {
+		return c.runtime.Finalize(callContext, reservation, finalizationID, deadline)
+	})
 	reports := make(map[string]contracts.AllocationFinalReport, len(reservations))
-	for _, reservation := range reservations {
-		report, err := c.runtime.Finalize(ctx, reservation, finalizationID, deadline)
-		if err != nil {
-			failures = append(failures, fmt.Errorf("finalize allocation %q: %w", reservation.Grant.AllocationID, err))
+	for index, reservation := range reservations {
+		result := results[index]
+		if result.err != nil {
+			failures = append(failures, fmt.Errorf(
+				"finalize allocation %q: %w", reservation.Grant.AllocationID, result.err,
+			))
 			continue
 		}
-		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, report); err != nil {
+		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, result.value); err != nil {
 			failures = append(failures, fmt.Errorf("observe final report for allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
-		reports[reservation.Grant.LogicalAgentName] = report
+		reports[reservation.Grant.LogicalAgentName] = result.value
 	}
 	return reports, errors.Join(failures...)
 }
@@ -695,15 +703,24 @@ func (c *RuntimeBatchController) AbortAll(
 		); err != nil {
 			failures = append(failures, fmt.Errorf("observe aborting allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
-		report, err := c.runtime.Abort(ctx, reservation, abortID, reason, deadline)
-		if err != nil {
-			failures = append(failures, fmt.Errorf("abort allocation %q: %w", reservation.Grant.AllocationID, err))
+	}
+	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+		callContext context.Context, _ int, reservation Reservation,
+	) (contracts.AllocationFinalReport, error) {
+		return c.runtime.Abort(callContext, reservation, abortID, reason, deadline)
+	})
+	for index, reservation := range reservations {
+		result := results[index]
+		if result.err != nil {
+			failures = append(failures, fmt.Errorf(
+				"abort allocation %q: %w", reservation.Grant.AllocationID, result.err,
+			))
 			continue
 		}
-		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, report); err != nil {
+		if err := c.registry.RecordAllocationReport(reservation.Grant.AllocationID, result.value); err != nil {
 			failures = append(failures, fmt.Errorf("observe abort report for allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
-		reports[reservation.Grant.LogicalAgentName] = report
+		reports[reservation.Grant.LogicalAgentName] = result.value
 	}
 	return reports, errors.Join(failures...)
 }
@@ -719,8 +736,19 @@ func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []
 		); err != nil {
 			failures = append(failures, fmt.Errorf("observe releasing allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
-		if err := c.runtime.Release(ctx, reservation); err != nil {
-			failures = append(failures, fmt.Errorf("release Runtime Agent allocation %q: %w", reservation.Grant.AllocationID, err))
+	}
+	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+		callContext context.Context, _ int, reservation Reservation,
+	) (struct{}, error) {
+		return struct{}{}, c.runtime.Release(callContext, reservation)
+	})
+	for index, reservation := range reservations {
+		if results[index].err != nil {
+			failures = append(failures, fmt.Errorf(
+				"release Runtime Agent allocation %q: %w",
+				reservation.Grant.AllocationID,
+				results[index].err,
+			))
 			continue
 		}
 		if err := c.registry.Release(reservation.Grant.AllocationID); err != nil {
@@ -738,34 +766,99 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 	}
 	deadline := c.now().Add(c.cleanupTimeout)
 	var failures []error
+	safeReason := safeTerminationReason(reason)
 	for _, reservation := range reservations {
 		allocationID := reservation.Grant.AllocationID
 		if err := c.registry.SetWriteFence(allocationID); err != nil {
 			failures = append(failures, fmt.Errorf("fence failed prepare allocation %q: %w", allocationID, err))
 		}
-		safeReason := safeTerminationReason(reason)
 		if err := c.registry.SetAllocationPhase(allocationID, AllocationAborting, &safeReason); err != nil {
 			failures = append(failures, fmt.Errorf("observe failed prepare allocation %q: %w", allocationID, err))
 		}
-		abortID, err := c.newID("abort_")
-		if err != nil {
-			failures = append(failures, fmt.Errorf("create cleanup abort ID: %w", err))
-		} else if report, err := c.runtime.Abort(ctx, reservation, abortID, reason, deadline); err != nil {
-			failures = append(failures, fmt.Errorf("abort failed prepare allocation %q: %w", allocationID, err))
-		} else if err := c.registry.RecordAllocationReport(allocationID, report); err != nil {
-			failures = append(failures, fmt.Errorf("observe failed prepare report %q: %w", allocationID, err))
+	}
+	abortIDs := make([]string, len(reservations))
+	abortIDErrors := make([]error, len(reservations))
+	for index := range reservations {
+		abortIDs[index], abortIDErrors[index] = c.newID("abort_")
+	}
+	type cleanupResult struct {
+		report              contracts.AllocationFinalReport
+		reportAvailable     bool
+		abortErr            error
+		releasingPhaseError error
+		releaseErr          error
+	}
+	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+		callContext context.Context, index int, reservation Reservation,
+	) (cleanupResult, error) {
+		result := cleanupResult{}
+		if abortIDErrors[index] != nil {
+			result.abortErr = fmt.Errorf("create cleanup abort ID: %w", abortIDErrors[index])
+		} else {
+			result.report, result.abortErr = c.runtime.Abort(
+				callContext, reservation, abortIDs[index], reason, deadline,
+			)
+			result.reportAvailable = result.abortErr == nil
 		}
-		if err := c.registry.SetAllocationPhase(allocationID, AllocationReleasing, nil); err != nil {
-			failures = append(failures, fmt.Errorf("observe failed prepare release %q: %w", allocationID, err))
+		result.releasingPhaseError = c.registry.SetAllocationPhase(
+			reservation.Grant.AllocationID, AllocationReleasing, nil,
+		)
+		result.releaseErr = c.runtime.Release(callContext, reservation)
+		return result, nil
+	})
+	for index, reservation := range reservations {
+		allocationID := reservation.Grant.AllocationID
+		if results[index].err != nil {
+			failures = append(failures, fmt.Errorf("cleanup failed prepare allocation %q: %w", allocationID, results[index].err))
+			continue
 		}
-		if err := c.runtime.Release(ctx, reservation); err != nil {
-			failures = append(failures, fmt.Errorf("release failed prepare Runtime Agent allocation %q: %w", allocationID, err))
+		result := results[index].value
+		if result.abortErr != nil {
+			failures = append(failures, fmt.Errorf("abort failed prepare allocation %q: %w", allocationID, result.abortErr))
+		}
+		if result.reportAvailable {
+			if err := c.registry.RecordAllocationReport(allocationID, result.report); err != nil {
+				failures = append(failures, fmt.Errorf("observe failed prepare report %q: %w", allocationID, err))
+			}
+		}
+		if result.releasingPhaseError != nil {
+			failures = append(failures, fmt.Errorf("observe failed prepare release %q: %w", allocationID, result.releasingPhaseError))
+		}
+		if result.releaseErr != nil {
+			failures = append(failures, fmt.Errorf("release failed prepare Runtime Agent allocation %q: %w", allocationID, result.releaseErr))
+			continue
 		}
 		if err := c.registry.Release(allocationID); err != nil {
 			failures = append(failures, fmt.Errorf("release failed prepare registry allocation %q: %w", allocationID, err))
 		}
 	}
 	return errors.Join(failures...)
+}
+
+type runtimeCallResult[T any] struct {
+	value T
+	err   error
+}
+
+func fanOutRuntimeCalls[T any](
+	ctx context.Context,
+	reservations []Reservation,
+	timeout time.Duration,
+	call func(context.Context, int, Reservation) (T, error),
+) []runtimeCallResult[T] {
+	results := make([]runtimeCallResult[T], len(reservations))
+	var group sync.WaitGroup
+	group.Add(len(reservations))
+	for index := range reservations {
+		go func(index int) {
+			defer group.Done()
+			callContext, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			results[index].value, results[index].err = call(callContext, index, reservations[index])
+		}(index)
+	}
+	group.Wait()
+	return results
 }
 
 func safeTerminationReason(source contracts.TerminationError) SafeReason {

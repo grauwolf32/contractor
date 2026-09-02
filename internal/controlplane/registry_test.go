@@ -392,6 +392,45 @@ func TestReservationRetryReturnsSameAllocationsAndGrantLifecycleIsExact(t *testi
 	}
 }
 
+func TestWriteFencedMatchingAllocationHeartbeatAlwaysDrains(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	registration := testRegistration("agent-fenced-drain")
+	registerReadyWith(t, registry, registration)
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-fenced-drain", StageExecutionID: "stage-fenced-drain",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	allocated := func(sequence, echoed uint64) contracts.AgentHeartbeat {
+		return contracts.AgentHeartbeat{
+			APIVersion: contracts.APIVersion, InstanceID: registration.InstanceID,
+			HeartbeatSeq: sequence, EchoedAckSeq: echoed,
+			ObservedState: contracts.AgentAllocated, AllocationID: &allocationID,
+		}
+	}
+	if response, err := registry.Heartbeat(allocated(3, 2)); err != nil || response.Action != contracts.ActionContinue {
+		t.Fatalf("active allocation heartbeat = (%+v, %v)", response, err)
+	}
+	if err := registry.SetWriteFence(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	if response, err := registry.Heartbeat(allocated(4, 3)); err != nil || response.Action != contracts.ActionDrain {
+		t.Fatalf("write-fenced heartbeat = (%+v, %v)", response, err)
+	}
+
+	registration.ObservedState = contracts.AgentAllocated
+	registration.AllocationID = &allocationID
+	if snapshot, err := registry.Register(registration); err != nil || !snapshot.ReconciliationRequired {
+		t.Fatalf("write-fenced re-registration = (%+v, %v)", snapshot, err)
+	}
+	if response, err := registry.Heartbeat(allocated(5, 4)); err != nil || response.Action != contracts.ActionDrain {
+		t.Fatalf("heartbeat after re-registration = (%+v, %v)", response, err)
+	}
+}
+
 func TestReservationFingerprintPinsExactResolvedSkillsManifest(t *testing.T) {
 	t.Parallel()
 
