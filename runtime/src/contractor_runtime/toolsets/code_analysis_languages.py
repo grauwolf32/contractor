@@ -413,6 +413,12 @@ def parse_symbols(
     return ParseResult(tuple(symbols), root.has_error, symbol_limit_reached)
 
 
+def extract_node_name(node: Node, source: bytes, preferred_field: str = "") -> str | None:
+    """Extract one reviewed structural name for another Tree-sitter Toolset."""
+
+    return _extract_name(node, source, preferred_field)
+
+
 def _extract_text(node: Node, source: bytes) -> str:
     return source[node.start_byte : node.end_byte].decode("utf-8", errors="strict").strip()
 

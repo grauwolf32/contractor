@@ -45,16 +45,11 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     fixture = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert fixture["schemaVersion"] == "1.0"
     factories = built_in_factories(tmp_path).toolsets
-    expected = dict(fixture["toolsets"])
-    # V16-001 publishes the Server contract before V16-002 registers the
-    # complete Runtime implementation. Positive capability must remain absent
-    # during that deliberate one-task boundary.
-    expected.pop(taint_annotations.TAINT_ANNOTATIONS_REF)
     actual = {
         ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
         for ref, factory in factories.items()
     }
-    assert actual == expected
+    assert actual == fixture["toolsets"]
 
 
 def test_code_analysis_static_contract_and_shallow_factory_are_exact(
@@ -87,7 +82,7 @@ def test_code_analysis_static_contract_and_shallow_factory_are_exact(
     assert factory.workspace_access == "read"  # type: ignore[attr-defined]
 
 
-def test_taint_annotation_static_contract_is_exact_but_factory_is_not_registered_yet(
+def test_taint_annotation_static_contract_and_factory_are_exact(
     tmp_path: Path,
 ) -> None:
     assert taint_annotations.TAINT_ANNOTATIONS_REF == "taint-annotations@1"
@@ -100,7 +95,11 @@ def test_taint_annotation_static_contract_is_exact_but_factory_is_not_registered
         "tree-sitter": "0.25.2",
         "tree-sitter-language-pack": "1.14.3",
     }
-    assert taint_annotations.TAINT_ANNOTATIONS_REF not in built_in_factories(tmp_path).toolsets
+    factory = built_in_factories(tmp_path).toolsets[taint_annotations.TAINT_ANNOTATIONS_REF]
+    assert factory.exported_tools == taint_annotations.EXPORTED_TOOLS
+    assert factory.infrastructure_channels == {}
+    assert factory.requires_workspace is True  # type: ignore[attr-defined]
+    assert factory.workspace_access == "write"  # type: ignore[attr-defined]
 
 
 def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
@@ -173,6 +172,9 @@ def test_workspace_capability_is_probed_frozen_and_registered(
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
         expected_code_tools = SHALLOW_TOOLS | (GRAPH_TOOLS if storage == "local" else set())
         assert toolsets[CODE_ANALYSIS_REF] == tuple(sorted(expected_code_tools))
+        assert toolsets[taint_annotations.TAINT_ANNOTATIONS_REF] == tuple(
+            sorted(taint_annotations.EXPORTED_TOOLS)
+        )
 
         registration = await RuntimeState(
             instance_id=f"workspace-{storage}", capabilities=snapshot
@@ -210,6 +212,7 @@ def test_broken_code_analysis_parser_probe_omits_only_that_toolset(
         snapshot = await discover_capabilities(factories)
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
         assert CODE_ANALYSIS_REF not in toolsets
+        assert taint_annotations.TAINT_ANNOTATIONS_REF not in toolsets
         assert "filesystem@1" in toolsets
 
     asyncio.run(scenario())

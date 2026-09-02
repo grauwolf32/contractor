@@ -36,6 +36,7 @@ from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.toolsets.source_analysis import SourceAnalysisToolsetFactory
+from contractor_runtime.toolsets.taint_annotations import TaintAnnotationsToolsetFactory
 from contractor_runtime.toolsets.text_artifacts import TextArtifactsToolsetFactory
 from contractor_runtime.toolsets.workspace_changes import WorkspaceChangesToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
@@ -183,6 +184,7 @@ def built_in_factories(
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
     source_toolset = SourceAnalysisToolsetFactory(artifact_client_factory)
+    taint_annotations_toolset = TaintAnnotationsToolsetFactory()
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
     telemetry = OTLPHTTPAdapterFactory()
@@ -210,6 +212,7 @@ def built_in_factories(
             memory_toolset.ref: memory_toolset,
             openapi_toolset.ref: openapi_toolset,
             source_toolset.ref: source_toolset,
+            taint_annotations_toolset.ref: taint_annotations_toolset,
             text_toolset.ref: text_toolset,
             workspace_changes_toolset.ref: workspace_changes_toolset,
         },
