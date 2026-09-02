@@ -11,6 +11,7 @@ from typing import Any
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.observations import WorkspaceToolObservation, edit_tool_observation
 from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.toolsets.filesystem import FilesystemToolError
@@ -128,6 +129,13 @@ class _BaseEditTool:
 
     async def close(self) -> None:
         await self._session.close()
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation | None:
+        return edit_tool_observation(self.name, tool_args, result)
 
     async def _invoke(self, operation: Callable[[], Awaitable[None]]) -> dict[str, bool]:
         started = time.perf_counter_ns()

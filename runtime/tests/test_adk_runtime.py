@@ -933,6 +933,7 @@ async def create_runtime(
     max_tool_calls: int = 16,
     max_total_tokens: int = 32768,
     instrumentation: RuntimeInstrumentation | None = None,
+    project_workspace: Any = None,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
@@ -941,6 +942,8 @@ async def create_runtime(
             context,
             adapter_handles=AdapterHandles(instrumentation=instrumentation),
         )
+    if project_workspace is not None:
+        context = replace(context, project_workspace=project_workspace)
     context = replace(
         context,
         model_policy=context.model_policy.model_copy(

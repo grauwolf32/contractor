@@ -19,6 +19,10 @@ import regex as bounded_regex
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    filesystem_tool_observation,
+)
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
     normalize_project_glob,
@@ -402,6 +406,13 @@ class _BaseFilesystemTool:
 
     async def close(self) -> None:
         await self._session.close()
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation | None:
+        return filesystem_tool_observation(self.name, tool_args, result)
 
     def _success(self, name: str, started: int, result: Mapping[str, Any]) -> None:
         self._metrics.record_tool_call(

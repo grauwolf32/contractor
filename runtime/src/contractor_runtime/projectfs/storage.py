@@ -43,6 +43,14 @@ class WorkspaceSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkspaceObservationMetadata:
+    """Content-free metadata for one effective managed-text workspace tree."""
+
+    digest: str
+    managed_text_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class WorkspaceDiff:
     text: str = field(repr=False)
     returned_bytes: int
@@ -62,6 +70,8 @@ class WorkspaceReader(Protocol):
     async def snapshot(self) -> WorkspaceSnapshot: ...
 
     async def read_text(self, path: str) -> str: ...
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata: ...
 
 
 class WorkspaceWriter(WorkspaceReader, Protocol):
@@ -104,6 +114,9 @@ class WorkspaceReaderView:
     async def read_text(self, path: str) -> str:
         return await self.__reader.read_text(path)
 
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        return await self.__reader.observation_metadata()
+
 
 class WorkspaceWriterView:
     """Narrow text writer/reader with no concrete backend escape hatch."""
@@ -118,6 +131,9 @@ class WorkspaceWriterView:
 
     async def read_text(self, path: str) -> str:
         return await self.__writer.read_text(path)  # type: ignore[attr-defined]
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        return await self.__writer.observation_metadata()  # type: ignore[attr-defined]
 
     async def write_text(self, path: str, text: str) -> None:
         await self.__writer.write_text(path, text)
@@ -244,6 +260,14 @@ class DirectWorkspaceSession:
         async with self._lock:
             self._require_open()
             return self._tree.snapshot()
+
+    async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        async with self._lock:
+            self._require_open()
+            return WorkspaceObservationMetadata(
+                digest=workspace_digest(self._tree.directories, self._tree.text_files),
+                managed_text_paths=tuple(sorted(self._tree.text_files)),
+            )
 
     async def read_text(self, path: str) -> str:
         normalized = _normalized_path(path)

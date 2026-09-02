@@ -17,6 +17,10 @@ import jcs
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    workspace_changes_observation,
+)
 from contractor_runtime.projectfs.paths import ProjectPathError
 from contractor_runtime.projectfs.storage import (
     WorkspaceChange,
@@ -194,6 +198,13 @@ class _BaseChangesTool:
 
     async def close(self) -> None:
         await self._session.close()
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation | None:
+        return workspace_changes_observation(self.name, tool_args, result)
 
     async def _invoke(self, operation: Callable[[], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
         started = time.perf_counter_ns()

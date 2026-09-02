@@ -15,6 +15,10 @@ from typing import Any, Literal
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.observations import (
+    WorkspaceToolObservation,
+    annotation_tool_observation,
+)
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceStorageError, WorkspaceWriter
 from contractor_runtime.toolsets import code_analysis_languages as language_support
@@ -256,6 +260,13 @@ class _BaseAnnotationTool:
 
     async def close(self) -> None:
         await self._session.close()
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation:
+        return annotation_tool_observation(tool_args, result)
 
     def contractor_raw_argument_error(self, args: object) -> TaintAnnotationError | None:
         if _valid_raw_arguments(self.name, args):

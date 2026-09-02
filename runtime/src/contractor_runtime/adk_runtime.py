@@ -52,6 +52,7 @@ from contractor_runtime.model_client import (
     clear_gateway_client_options,
     gateway_client_options,
 )
+from contractor_runtime.observations import lean_workspace_summary
 from contractor_runtime.projectfs import (
     MAX_EXPORTED_RESULT_ARTIFACTS,
     MAX_EXPORTED_RESULT_JSON_BYTES,
@@ -294,6 +295,7 @@ class AdkWorkerRuntime:
             instrumentation=self._instrumentation,
             model_alias=policy.model,
             observe_artifacts=self._observe_tool_artifacts,
+            workspace_observation_source=context.project_workspace,
         )
         self._agent = LlmAgent(
             name="contractor_worker",
@@ -941,9 +943,10 @@ def _lean_observations(
             calls=aggregate.get("calls"),
             failures=aggregate.get("failures"),
         )
+    workspace, workspace_truncated = lean_workspace_summary(completed.get("workspace"))
     return WorkerObservations(
         profile="lean@1",
         tools=tools,
-        workspace=None,
-        truncated=bool(metrics.get("truncated")) or projection_failed,
+        workspace=workspace,
+        truncated=(bool(metrics.get("truncated")) or workspace_truncated or projection_failed),
     )

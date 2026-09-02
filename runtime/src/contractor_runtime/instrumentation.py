@@ -18,6 +18,11 @@ from contractor_runtime.metrics import (
     bind_tool_metric_correlation,
     reset_tool_metric_correlation,
 )
+from contractor_runtime.observations import (
+    WorkspaceObservationReducer,
+    WorkspaceObservationSource,
+    WorkspaceToolObservation,
+)
 from contractor_runtime.worker_state import InvocationPhase, WorkerStateStore
 
 _SAFE_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
@@ -114,6 +119,7 @@ class _PendingTool:
     started_ns: int
     span: RuntimeSpan | None
     owner: Any
+    ordinal: int
     observation_cursor: int | None
     metric_token: Any
     error: Exception | None = None
@@ -137,6 +143,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         instrumentation: RuntimeInstrumentation | None,
         model_alias: str,
         observe_artifacts: Callable[[Any, int], None],
+        workspace_observation_source: WorkspaceObservationSource | None = None,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
@@ -145,10 +152,12 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._instrumentation = instrumentation
         self._model_alias = model_alias
         self._observe_artifacts = observe_artifacts
+        self._workspace_observation_source = workspace_observation_source
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
         self._active_invocation_id: str | None = None
         self._invocation_metrics: InvocationMetricsReducer | None = None
+        self._workspace_observations: WorkspaceObservationReducer | None = None
         self._pending_models: list[RuntimeSpan | None] = []
         self._pending_tools: dict[int, _PendingTool] = {}
         self._next_tool_ordinal = 1
@@ -164,6 +173,17 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._prepared = (invocation_id, subtask_id)
 
     async def before_run_callback(self, *, invocation_context: Any) -> None:
+        workspace_observations: WorkspaceObservationReducer | None = None
+        workspace_projection_failed = False
+        source = self._workspace_observation_source
+        if source is not None:
+            try:
+                metadata = await source.observation_metadata()
+                workspace_observations = WorkspaceObservationReducer.from_metadata(metadata)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                workspace_projection_failed = True
         async with self._lock:
             prepared = self._prepared
             if prepared is None or prepared[0] != invocation_context.invocation_id:
@@ -171,6 +191,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._prepared = None
             self._active_invocation_id = prepared[0]
             self._invocation_metrics = InvocationMetricsReducer()
+            self._workspace_observations = workspace_observations
+            self._projection_failed = self._projection_failed or workspace_projection_failed
             self._pending_models.clear()
             self._pending_tools.clear()
             self._next_tool_ordinal = 1
@@ -178,6 +200,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 invocation_id=prepared[0],
                 subtask_id=prepared[1],
                 metrics=self._invocation_metrics.snapshot(),
+                workspace=self._workspace_snapshot(),
             )
             _install_session_snapshot(invocation_context, snapshot)
 
@@ -275,6 +298,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     {"operation.kind": "tool", "tool.name": str(tool.name)},
                 ),
                 owner=owner,
+                ordinal=ordinal,
                 observation_cursor=cursor if type(cursor) is int and cursor >= 0 else None,
                 metric_token=metric_token,
             )
@@ -307,7 +331,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         tool_context: Any,
         result: Any,
     ) -> None:
-        del tool, tool_args
+        del tool
         async with self._lock:
             pending = self._pending_tools.pop(id(tool_context), None)
             if pending is None:
@@ -318,6 +342,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 failed=failed,
                 error=pending.error,
                 callback_context=tool_context,
+                tool_args=tool_args,
+                result=result,
             )
 
     async def on_tool_error_callback(
@@ -353,6 +379,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                         {"operation.kind": "tool", "tool.name": "unknown_tool"},
                     ),
                     owner=owner,
+                    ordinal=ordinal,
                     observation_cursor=None,
                     metric_token=bind_tool_metric_correlation(correlation_id),
                 )
@@ -362,6 +389,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 failed=True,
                 error=error,
                 callback_context=tool_context,
+                tool_args=None,
+                result=None,
             )
             return _safe_tool_response(pending.name, error)
 
@@ -394,14 +423,18 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     failed=True,
                     error=_RecordedToolFailure("tool_call_cancelled", retryable=True),
                     callback_context=None,
+                    tool_args=None,
+                    result=None,
                 )
             snapshot = await self._state.complete_invocation(
                 invocation_id=invocation_id,
                 phase=phase,
                 metrics=self._require_reducer().snapshot(),
+                workspace=self._workspace_snapshot(),
             )
             self._active_invocation_id = None
             self._invocation_metrics = None
+            self._workspace_observations = None
             return snapshot
 
     async def close(self) -> None:
@@ -420,6 +453,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._pending_tools.clear()
             self._active_invocation_id = None
             self._invocation_metrics = None
+            self._workspace_observations = None
 
     @property
     def projection_failed(self) -> bool:
@@ -432,6 +466,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
         failed: bool,
         error: Exception | None,
         callback_context: Any | None,
+        tool_args: Mapping[str, Any] | None,
+        result: Any,
     ) -> None:
         recorded_failure = self._metrics.correlated_tool_outcome(pending.correlation_id)
         if recorded_failure is None:
@@ -463,6 +499,19 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 self._observe_artifacts(pending.owner, pending.observation_cursor)
             except Exception:
                 self._projection_failed = True
+        if not failed:
+            extractor = getattr(pending.owner, "contractor_observation", None)
+            workspace = self._workspace_observations
+            if callable(extractor) and workspace is not None:
+                try:
+                    observation = extractor(tool_args or {}, result)
+                    if observation is not None:
+                        if not isinstance(observation, WorkspaceToolObservation):
+                            raise TypeError("tool returned an invalid workspace observation")
+                        workspace.record(observation, ordinal=pending.ordinal)
+                except Exception:
+                    workspace.mark_incomplete()
+                    self._projection_failed = True
         _end_span(
             pending.span,
             outcome="failed" if failed else "succeeded",
@@ -487,6 +536,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             snapshot = await self._state.publish_invocation_metrics(
                 invocation_id=active,
                 metrics=reducer.snapshot(),
+                workspace=self._workspace_snapshot(),
             )
         except Exception:
             # Optional live projection cannot change a tool/model result. The
@@ -504,6 +554,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
         if reducer is None:
             raise RuntimeError("Worker invocation metrics are unavailable")
         return reducer
+
+    def _workspace_snapshot(self) -> dict[str, Any] | None:
+        reducer = self._workspace_observations
+        return reducer.snapshot() if reducer is not None else None
 
 
 def _install_session_snapshot(context: Any | None, snapshot: dict[str, Any]) -> None:

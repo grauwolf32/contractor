@@ -70,7 +70,7 @@ acceptance_criteria:
 
 tests:
   - {name: observations, command: "cd runtime && uv run pytest -W error tests/test_observations.py tests/test_filesystem_observations.py", covers: [A1, A2, A3, A4]}
-  - {name: toolsets, command: "cd runtime && uv run pytest -W error tests/test_filesystem_tools.py tests/test_edit_tools.py tests/test_code_analysis_shallow.py tests/test_taint_annotations.py", covers: [A1, A3, A4]}
+  - {name: toolsets, command: "cd runtime && uv run pytest -W error tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py tests/test_code_analysis_shallow.py tests/test_taint_annotations.py", covers: [A1, A3, A4]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
 
 decisions:

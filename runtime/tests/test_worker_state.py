@@ -88,6 +88,7 @@ def test_state_tracks_sequential_invocations_with_immutable_snapshots() -> None:
             "subtaskId": "0",
             "phase": "succeeded",
             "metrics": first_metrics.snapshot(),
+            "workspace": None,
         }
 
         allocation_metrics.record_model_call()

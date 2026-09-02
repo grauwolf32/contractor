@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from contractor_runtime.contracts import API_VERSION
 from contractor_runtime.metrics import MetricsState
+from contractor_runtime.observations import validate_workspace_observation
 
 WORKER_STATE_SCHEMA_VERSION = 1
 MAX_AGENT_STATE_SNAPSHOT_BYTES = 4 * 1024 * 1024
@@ -34,6 +35,13 @@ _INVOCATION_COUNTER_FIELDS = (
 _INVOCATION_METRIC_FIELDS = frozenset((*_INVOCATION_COUNTER_FIELDS, "tools", "truncated"))
 
 InvocationPhase = Literal["running", "succeeded", "failed", "cancelled"]
+
+
+class _Unset:
+    __slots__ = ()
+
+
+_UNSET = _Unset()
 
 
 class WorkerStateError(RuntimeError):
@@ -67,10 +75,12 @@ class WorkerStateStore:
         invocation_id: str,
         subtask_id: str,
         metrics: Mapping[str, Any],
+        workspace: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         _require_identifier("invocationId", invocation_id, _INVOCATION_ID)
         _require_identifier("subtaskId", subtask_id, _SUBTASK_ID)
         invocation_metrics = _invocation_metrics_copy(metrics)
+        invocation_workspace = _workspace_observation_copy(workspace)
 
         def mutate(state: dict[str, Any]) -> None:
             if state["currentInvocation"] is not None:
@@ -80,6 +90,7 @@ class WorkerStateStore:
                 "subtaskId": subtask_id,
                 "phase": "running",
                 "metrics": invocation_metrics,
+                "workspace": invocation_workspace,
             }
 
         return await self._mutate(mutate)
@@ -89,12 +100,18 @@ class WorkerStateStore:
         *,
         invocation_id: str,
         metrics: Mapping[str, Any],
+        workspace: Mapping[str, Any] | _Unset | None = _UNSET,
     ) -> dict[str, Any]:
         invocation_metrics = _invocation_metrics_copy(metrics)
+        invocation_workspace = (
+            _UNSET if workspace is _UNSET else _workspace_observation_copy(workspace)
+        )
 
         def mutate(state: dict[str, Any]) -> None:
             current = _matching_current(state, invocation_id)
             current["metrics"] = invocation_metrics
+            if invocation_workspace is not _UNSET:
+                current["workspace"] = invocation_workspace
 
         return await self._mutate(mutate)
 
@@ -104,16 +121,22 @@ class WorkerStateStore:
         invocation_id: str,
         phase: InvocationPhase,
         metrics: Mapping[str, Any],
+        workspace: Mapping[str, Any] | _Unset | None = _UNSET,
     ) -> dict[str, Any]:
         if phase not in _TERMINAL_PHASES:
             raise WorkerStateError("Worker invocation completion phase is invalid")
         invocation_metrics = _invocation_metrics_copy(metrics)
+        invocation_workspace = (
+            _UNSET if workspace is _UNSET else _workspace_observation_copy(workspace)
+        )
 
         def mutate(state: dict[str, Any]) -> None:
             current = _matching_current(state, invocation_id)
             completed = copy.deepcopy(current)
             completed["phase"] = phase
             completed["metrics"] = invocation_metrics
+            if invocation_workspace is not _UNSET:
+                completed["workspace"] = invocation_workspace
             state["lastCompletedInvocation"] = completed
             state["currentInvocation"] = None
 
@@ -224,6 +247,13 @@ def _invocation_metrics_copy(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _workspace_observation_copy(value: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    try:
+        return validate_workspace_observation(value)
+    except (TypeError, ValueError) as error:
+        raise WorkerStateError("Worker workspace observation is invalid") from error
+
+
 def _fit_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     """Admit optional metric detail while preserving the fixed State envelope."""
 
@@ -242,6 +272,7 @@ def _fit_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     metrics["toolCalls"] = []
     metrics["errors"] = []
     metrics["truncated"] = True
+    _trim_workspace_detail(candidate)
     if _envelope_size(candidate) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
         raise WorkerStateError("mandatory Worker State exceeds the 4 MiB envelope")
 
@@ -252,6 +283,33 @@ def _fit_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     if _envelope_size(candidate) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
         raise WorkerStateError("Worker State admission produced an oversized envelope")
     return candidate
+
+
+def _trim_workspace_detail(state: dict[str, Any]) -> None:
+    """Deterministically reduce optional invocation path detail until it fits."""
+
+    while _envelope_size(state) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
+        choices: list[tuple[int, int, dict[str, Any], str]] = []
+        for invocation_order, field_name in enumerate(
+            ("lastCompletedInvocation", "currentInvocation")
+        ):
+            invocation = state.get(field_name)
+            workspace = invocation.get("workspace") if isinstance(invocation, dict) else None
+            if not isinstance(workspace, dict):
+                continue
+            for section_order, section in enumerate(("scopePaths", "interactions")):
+                values = workspace.get(section)
+                if isinstance(values, list) and values:
+                    choices.append(
+                        (len(values), -(invocation_order * 2 + section_order), workspace, section)
+                    )
+        if not choices:
+            return
+        _, _, workspace, section = max(choices, key=lambda item: (item[0], item[1]))
+        values = workspace[section]
+        next_length = len(values) // 2
+        workspace[section] = values[:next_length]
+        workspace["scopeComplete" if section == "scopePaths" else "detailComplete"] = False
 
 
 def _largest_fitting_prefix(
