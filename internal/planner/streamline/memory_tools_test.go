@@ -130,7 +130,8 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 	}}
 	sessions := newFakeSessions()
 	factory, err := NewFactoryWithMemory(
-		sessions, sessions, worker, &fakeInspector{}, store, model, Limits{},
+		sessions, sessions, worker, &fakeInspector{}, unavailableWorkerStateReader{},
+		store, model, Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -265,7 +266,7 @@ func TestPlannerMemoryDependencyFailsBeforeModelFactory(t *testing.T) {
 	modelCalls := 0
 	sessions := newFakeSessions()
 	factory, err := NewConfiguredFactory(
-		sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
+		sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, unavailableWorkerStateReader{},
 		func(planner.ModelAccess) (model.LLM, error) {
 			modelCalls++
 			return &scriptedModel{}, nil
@@ -297,7 +298,8 @@ func TestPlannerMemoryCallConsumesTheOrdinaryModelTurnBudget(t *testing.T) {
 	}}
 	sessions := newFakeSessions()
 	factory, err := newFactory(
-		streamlineProfile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, store,
+		streamlineProfile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
+		unavailableWorkerStateReader{}, store,
 		model, nil,
 		Limits{MaxModelCalls: 1, MaxTokens: 1_000, MaxWorkerCalls: 4, MaxWallTime: time.Minute},
 	)
@@ -373,7 +375,8 @@ func newMemoryPlanner(
 	t.Helper()
 	sessions := newFakeSessions()
 	factory, err := newFactory(
-		profile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, store,
+		profile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
+		unavailableWorkerStateReader{}, store,
 		llm, nil, Limits{},
 	)
 	if err != nil {

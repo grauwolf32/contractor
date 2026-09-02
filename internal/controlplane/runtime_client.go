@@ -20,6 +20,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -37,29 +38,11 @@ type RuntimeLifecycle interface {
 	Release(context.Context, Reservation) error
 }
 
-// WorkerStateReader is the framework-neutral live State dependency consumed
-// by Server-side Planner projections. Physical routing remains in WorkerHandle.
-type WorkerStateReader interface {
-	ReadWorkerState(context.Context, contracts.WorkerHandle, string) (WorkerStateReadResult, error)
-}
+type WorkerStateReader = planner.WorkerStateReader
+type WorkerStateReadResult = planner.WorkerStateReadResult
+type WorkerStateReadError = planner.WorkerStateReadError
 
-type WorkerStateReadResult struct {
-	Snapshot    *contracts.AgentStateSnapshot
-	ETag        string
-	NotModified bool
-}
-
-type WorkerStateReadError struct {
-	StatusCode int
-	Code       string
-	Retryable  bool
-}
-
-func (e *WorkerStateReadError) Error() string {
-	return fmt.Sprintf("Runtime Agent Worker State read failed (%s)", e.Code)
-}
-
-var _ WorkerStateReader = (*RuntimeControlClient)(nil)
+var _ planner.WorkerStateReader = (*RuntimeControlClient)(nil)
 
 type RuntimeAPIError struct {
 	StatusCode int

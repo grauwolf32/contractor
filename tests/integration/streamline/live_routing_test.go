@@ -43,7 +43,7 @@ func TestLiveRouterWorkflow(t *testing.T) {
 	sessions := newLiveRouterSessions()
 	worker := &liveRouterWorker{}
 	factory, err := router.NewFactory(
-		sessions, sessions, worker, liveRouterInspector{}, llm,
+		sessions, sessions, worker, liveRouterInspector{}, unavailableWorkerStateReader{}, llm,
 		router.Limits{
 			MaxModelCalls: 8, MaxTokens: 32_768, MaxWorkerCalls: 2,
 			MaxWallTime: 90 * time.Second,

@@ -15,6 +15,7 @@ import (
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
@@ -38,6 +39,7 @@ type streamlinePlanner struct {
 	adkSessions    ADKSessionFactory
 	invoker        planner.WorkerInvoker
 	inspector      planner.ArtifactInspector
+	stateViews     *stateview.Service
 	model          model.LLM
 	limits         Limits
 	deadline       time.Time
@@ -51,6 +53,7 @@ func (p *streamlinePlanner) Run(
 	ctx context.Context,
 ) (candidate contracts.StageContentResult, runErr error) {
 	startedAt := time.Now()
+	defer p.stateViews.Close()
 	state := newExecutionState(p.limits)
 	var identity planner.SessionIdentity
 	defer func() {
@@ -387,6 +390,7 @@ func (p *streamlinePlanner) systemInstruction() string {
 	if guidance := p.memoryInstruction(); guidance != "" {
 		sections = append(sections, guidance)
 	}
+	sections = append(sections, p.stateInstruction())
 	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)
 	return strings.Join(sections, "\n\n")
 }
@@ -411,6 +415,7 @@ func (p *streamlinePlanner) routerSystemInstruction() string {
 	if guidance := p.memoryInstruction(); guidance != "" {
 		sections = append(sections, guidance)
 	}
+	sections = append(sections, p.stateInstruction())
 	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)
 	return strings.Join(sections, "\n\n")
 }
@@ -442,6 +447,21 @@ func (p *streamlinePlanner) memoryInstruction() string {
 		"Memory notes are coordination state only. They never become Stage result artifacts automatically and do not change the global objective, routing plan, subtask state, or finish contract.",
 		"Memory operations by logical Worker:",
 		strings.Join(bindings, "\n"),
+	}, "\n")
+}
+
+func (p *streamlinePlanner) stateInstruction() string {
+	if p.profile.routesWorkers {
+		return strings.Join([]string{
+			"Declared Worker State tools expose only fixed, content-free projections for the newest completed dispatch of each eligible logical Worker. They never expose raw State, physical Runtime identity, invocation IDs, or revisions.",
+			"Use worker_name only from each function's schema. Pagination cursors are opaque and valid only for the same function, logical Worker, and completed dispatch; copy them exactly and do not interpret them.",
+			"Worker State evidence is advisory. A State projection error does not undo a completed subtask and must not by itself change its Worker result, dispatch status, or the Stage outcome.",
+		}, "\n")
+	}
+	return strings.Join([]string{
+		"Declared Worker State tools expose only fixed, content-free projections for the newest completed dispatch of the sole logical Worker. They never expose raw State, physical Runtime identity, invocation IDs, or revisions.",
+		"Pagination cursors are opaque and valid only for the same function and completed dispatch; copy them exactly and do not interpret them.",
+		"Worker State evidence is advisory. A State projection error does not undo a completed subtask and must not by itself change its Worker result, dispatch status, or the Stage outcome.",
 	}, "\n")
 }
 

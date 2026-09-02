@@ -12,6 +12,7 @@ import (
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"google.golang.org/adk/model"
 	adksession "google.golang.org/adk/session"
 )
@@ -50,6 +51,7 @@ type Factory struct {
 	adkSessions  ADKSessionFactory
 	invoker      planner.WorkerInvoker
 	inspector    planner.ArtifactInspector
+	stateReader  planner.WorkerStateReader
 	memoryStore  plannermemory.Store
 	model        model.LLM
 	modelFactory InvocationModelFactory
@@ -63,10 +65,14 @@ func NewFactory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(streamlineProfile, sessions, adkSessions, invoker, inspector, nil, llm, nil, limits)
+	return newFactory(
+		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		nil, llm, nil, limits,
+	)
 }
 
 func NewFactoryWithMemory(
@@ -74,12 +80,14 @@ func NewFactoryWithMemory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, memoryStore, llm, nil, limits,
+		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		memoryStore, llm, nil, limits,
 	)
 }
 
@@ -88,11 +96,13 @@ func NewConfiguredFactory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, nil, nil, modelFactory, limits,
+		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		nil, nil, modelFactory, limits,
 	)
 }
 
@@ -101,12 +111,14 @@ func NewConfiguredFactoryWithMemory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, memoryStore, nil, modelFactory, limits,
+		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		memoryStore, nil, modelFactory, limits,
 	)
 }
 
@@ -118,10 +130,14 @@ func NewRouterDelegate(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
-	return newFactory(routerProfile, sessions, adkSessions, invoker, inspector, nil, llm, nil, limits)
+	return newFactory(
+		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		nil, llm, nil, limits,
+	)
 }
 
 func NewRouterDelegateWithMemory(
@@ -129,12 +145,14 @@ func NewRouterDelegateWithMemory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, memoryStore, llm, nil, limits,
+		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		memoryStore, llm, nil, limits,
 	)
 }
 
@@ -143,11 +161,13 @@ func NewConfiguredRouterDelegate(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, nil, nil, modelFactory, limits,
+		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		nil, nil, modelFactory, limits,
 	)
 }
 
@@ -156,12 +176,14 @@ func NewConfiguredRouterDelegateWithMemory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, memoryStore, nil, modelFactory, limits,
+		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
+		memoryStore, nil, modelFactory, limits,
 	)
 }
 
@@ -171,12 +193,13 @@ func newFactory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	llm model.LLM,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
-	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil ||
+	if sessions == nil || adkSessions == nil || invoker == nil || inspector == nil || stateReader == nil ||
 		(llm == nil) == (modelFactory == nil) {
 		return nil, fmt.Errorf("model-backed Planner dependencies are incomplete")
 	}
@@ -186,7 +209,7 @@ func newFactory(
 	}
 	return &Factory{
 		profile: profile, sessions: sessions, adkSessions: adkSessions, invoker: invoker,
-		inspector: inspector, memoryStore: memoryStore,
+		inspector: inspector, stateReader: stateReader, memoryStore: memoryStore,
 		model: llm, modelFactory: modelFactory, limits: normalized,
 	}, nil
 }
@@ -207,6 +230,7 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 		return nil, fmt.Errorf("initialize Planner plan: %w", err)
 	}
 	workers := make([]workerBinding, 0, len(bindings))
+	stateBindings := make([]stateview.Binding, 0, len(bindings))
 	namespaces := make(map[string]*plannermemory.Namespace)
 	for _, logicalName := range bindings {
 		binding := invocation.Stage.Agents[logicalName]
@@ -231,13 +255,20 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 				namespaces[binding.Namespace] = memoryNamespace
 			}
 		}
+		workspaceState := invocation.Stage.Context.Workspace != nil &&
+			selectedWorkspaceObservation(binding.Template)
+		handle := planner.CloneWorkerHandle(invocation.Workers[logicalName])
 		workers = append(workers, workerBinding{
-			logicalName: logicalName,
-			description: binding.Template.Description,
-			handle:      planner.CloneWorkerHandle(invocation.Workers[logicalName]),
-			namespace:   binding.Namespace,
-			memoryTools: memoryOperations,
-			memory:      memoryNamespace,
+			logicalName:    logicalName,
+			description:    binding.Template.Description,
+			handle:         handle,
+			namespace:      binding.Namespace,
+			memoryTools:    memoryOperations,
+			memory:         memoryNamespace,
+			workspaceState: workspaceState,
+		})
+		stateBindings = append(stateBindings, stateview.Binding{
+			LogicalName: logicalName, Handle: handle, WorkspaceEligible: workspaceState,
 		})
 	}
 	// Resolve the complete immutable model-visible surface before constructing
@@ -261,11 +292,16 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 			return nil, err
 		}
 	}
+	stateViews, err := stateview.New(f.stateReader, stateBindings, stateview.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("initialize Planner Worker State projections: %w", err)
+	}
 	return &streamlinePlanner{
 		profile: f.profile, invocation: invocation, request: request, workers: workers, plan: plan,
 		resultContract: cloneResultContract(invocation.Stage.Result.Artifacts),
 		sessions:       f.sessions, adkSessions: f.adkSessions,
-		invoker: f.invoker, inspector: f.inspector, model: selectedModel, limits: selectedLimits,
+		invoker: f.invoker, inspector: f.inspector, stateViews: stateViews,
+		model: selectedModel, limits: selectedLimits,
 	}, nil
 }
 
@@ -297,12 +333,41 @@ func limitsFromPolicy(policy contracts.ResolvedModelPolicy, wallTime time.Durati
 }
 
 type workerBinding struct {
-	logicalName string
-	description string
-	handle      contracts.WorkerHandle
-	namespace   string
-	memoryTools map[string]struct{}
-	memory      *plannermemory.Namespace
+	logicalName    string
+	description    string
+	handle         contracts.WorkerHandle
+	namespace      string
+	memoryTools    map[string]struct{}
+	memory         *plannermemory.Namespace
+	workspaceState bool
+}
+
+func selectedWorkspaceObservation(template contracts.ResolvedAgentTemplate) bool {
+	for _, selection := range template.Toolsets {
+		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
+		for _, operation := range selection.Tools {
+			switch ref {
+			case "filesystem@1":
+				if operation == "ls" || operation == "glob" || operation == "read_file" || operation == "grep" {
+					return true
+				}
+			case "edit-files@1":
+				switch operation {
+				case "write_file", "append_file", "rm", "insert_line", "edit", "replace_range", "cp", "mv", "mkdir":
+					return true
+				}
+			case "taint-annotations@1":
+				if operation == "annotate_trace" || operation == "annotate_validate" || operation == "annotate_sink" {
+					return true
+				}
+			case "workspace-changes@1":
+				if operation == "changed_paths" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func selectedMemoryOperations(template contracts.ResolvedAgentTemplate) (map[string]struct{}, error) {

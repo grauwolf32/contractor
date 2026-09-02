@@ -56,7 +56,7 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	workers := &workerInvoker{}
 	inspector := artifactInspector{}
 	factory, err := streamline.NewFactory(
-		sessions, sessions, workers, inspector, llm,
+		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, llm,
 		streamline.Limits{MaxModelCalls: 8, MaxTokens: 10_000, MaxWorkerCalls: 8, MaxWallTime: time.Minute},
 	)
 	if err != nil {
@@ -82,7 +82,8 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	restartedFactory, err := streamline.NewFactory(
-		restartedSessions, restartedSessions, workers, inspector, llm, streamline.DefaultLimits(),
+		restartedSessions, restartedSessions, workers, inspector,
+		unavailableWorkerStateReader{}, llm, streamline.DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -163,6 +164,20 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 		t.Fatalf("durable Planner state redaction = (%s, %v)", storedSession.State, err)
 	}
 }
+
+type unavailableWorkerStateReader struct{}
+
+func (unavailableWorkerStateReader) ReadWorkerState(
+	context.Context,
+	contracts.WorkerHandle,
+	string,
+) (planner.WorkerStateReadResult, error) {
+	return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+		Code: "runtime_unavailable", Retryable: true,
+	}
+}
+
+var _ planner.WorkerStateReader = unavailableWorkerStateReader{}
 
 type scriptedGateway struct {
 	t      *testing.T

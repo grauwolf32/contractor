@@ -370,14 +370,14 @@ func RunCLI(
 	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
 	streamlineFactory, err := streamline.NewConfiguredFactoryWithMemory(
 		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
-		plannerMemoryStore, plannerModelFactory, streamlineLimits,
+		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Streamline Planner: %w", err)
 	}
 	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
 		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
-		plannerMemoryStore, plannerModelFactory, streamlineLimits,
+		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Router Planner: %w", err)

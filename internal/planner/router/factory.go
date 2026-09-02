@@ -27,11 +27,12 @@ func NewFactory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
 	delegate, err := streamline.NewRouterDelegate(
-		sessions, adkSessions, invoker, inspector, llm, limits,
+		sessions, adkSessions, invoker, inspector, stateReader, llm, limits,
 	)
 	if err != nil {
 		return nil, err
@@ -44,12 +45,13 @@ func NewFactoryWithMemory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	llm model.LLM,
 	limits Limits,
 ) (*Factory, error) {
 	delegate, err := streamline.NewRouterDelegateWithMemory(
-		sessions, adkSessions, invoker, inspector, memoryStore, llm, limits,
+		sessions, adkSessions, invoker, inspector, stateReader, memoryStore, llm, limits,
 	)
 	if err != nil {
 		return nil, err
@@ -62,11 +64,12 @@ func NewConfiguredFactory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	delegate, err := streamline.NewConfiguredRouterDelegate(
-		sessions, adkSessions, invoker, inspector, modelFactory, limits,
+		sessions, adkSessions, invoker, inspector, stateReader, modelFactory, limits,
 	)
 	if err != nil {
 		return nil, err
@@ -79,12 +82,13 @@ func NewConfiguredFactoryWithMemory(
 	adkSessions ADKSessionFactory,
 	invoker planner.WorkerInvoker,
 	inspector planner.ArtifactInspector,
+	stateReader planner.WorkerStateReader,
 	memoryStore plannermemory.Store,
 	modelFactory InvocationModelFactory,
 	limits Limits,
 ) (*Factory, error) {
 	delegate, err := streamline.NewConfiguredRouterDelegateWithMemory(
-		sessions, adkSessions, invoker, inspector, memoryStore, modelFactory, limits,
+		sessions, adkSessions, invoker, inspector, stateReader, memoryStore, modelFactory, limits,
 	)
 	if err != nil {
 		return nil, err

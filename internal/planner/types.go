@@ -72,6 +72,32 @@ type WorkerInvoker interface {
 	) (contracts.WorkerCompletion, error)
 }
 
+// WorkerStateReader is the framework-neutral live-State boundary used only by
+// modeled Planner projections. Implementations own physical Runtime routing;
+// callers supply a previously validated WorkerHandle and an optional strong
+// ETag, never a model-selected URL or allocation identity.
+type WorkerStateReader interface {
+	ReadWorkerState(context.Context, contracts.WorkerHandle, string) (WorkerStateReadResult, error)
+}
+
+type WorkerStateReadResult struct {
+	Snapshot    *contracts.AgentStateSnapshot
+	ETag        string
+	NotModified bool
+}
+
+// WorkerStateReadError deliberately retains no wrapped transport error. It is
+// safe to normalize into a model-facing projection failure.
+type WorkerStateReadError struct {
+	StatusCode int
+	Code       string
+	Retryable  bool
+}
+
+func (e *WorkerStateReadError) Error() string {
+	return "Runtime Agent Worker State read failed (" + e.Code + ")"
+}
+
 type SessionIdentity struct {
 	SessionID        string
 	StageExecutionID string

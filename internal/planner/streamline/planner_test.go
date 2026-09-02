@@ -342,9 +342,11 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 	names := make([]string, 0, len(tools))
 	var executeDeclaration *genai.FunctionDeclaration
 	var listDeclaration *genai.FunctionDeclaration
+	var usageDeclaration *genai.FunctionDeclaration
 	for _, current := range tools {
 		names = append(names, current.Name())
-		if current.Name() == executeCurrentSubtaskToolName || current.Name() == listSubtasksToolName {
+		if current.Name() == executeCurrentSubtaskToolName || current.Name() == listSubtasksToolName ||
+			current.Name() == getWorkerToolUsageToolName {
 			provider, ok := current.(interface {
 				Declaration() *genai.FunctionDeclaration
 			})
@@ -353,13 +355,16 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 			}
 			if current.Name() == listSubtasksToolName {
 				listDeclaration = provider.Declaration()
+			} else if current.Name() == getWorkerToolUsageToolName {
+				usageDeclaration = provider.Declaration()
 			} else {
 				executeDeclaration = provider.Declaration()
 			}
 		}
 	}
 	wantNames := []string{
-		addSubtaskToolName, listSubtasksToolName, executeCurrentSubtaskToolName, finishToolName,
+		addSubtaskToolName, listSubtasksToolName, executeCurrentSubtaskToolName,
+		getWorkerToolUsageToolName, finishToolName,
 	}
 	if !reflect.DeepEqual(names, wantNames) || len(allowed) != len(wantNames) {
 		t.Fatalf("tools = %v allowed = %v, want exactly %v", names, allowed, wantNames)
@@ -375,12 +380,22 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 	if listDeclaration == nil {
 		t.Fatal("list_subtasks declaration is absent")
 	}
+	if usageDeclaration == nil {
+		t.Fatal("get_worker_tool_usage declaration is absent")
+	}
 	listSchema, err := json.Marshal(listDeclaration.ParametersJsonSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(listSchema) != `{"type":"object","properties":{},"additionalProperties":false}` {
 		t.Fatalf("list_subtasks schema = %s", listSchema)
+	}
+	usageSchema, err := json.Marshal(usageDeclaration.ParametersJsonSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(usageSchema) != `{"type":"object","properties":{},"additionalProperties":false}` {
+		t.Fatalf("get_worker_tool_usage schema = %s", usageSchema)
 	}
 	encoded, err := json.Marshal(executeDeclaration.ParametersJsonSchema)
 	if err != nil {
@@ -468,7 +483,7 @@ func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.
 	models := []*scriptedModel{{}, {}}
 	var accesses []planner.ModelAccess
 	factory, err := NewConfiguredFactory(
-		sessions, sessions, workers, inspector,
+		sessions, sessions, workers, inspector, unavailableWorkerStateReader{},
 		func(access planner.ModelAccess) (model.LLM, error) {
 			accesses = append(accesses, access)
 			return models[len(accesses)-1], nil
@@ -1047,12 +1062,28 @@ func mustFactory(
 	limits Limits,
 ) *Factory {
 	t.Helper()
-	factory, err := NewFactory(sessions, sessions, workers, inspector, llm, limits)
+	factory, err := NewFactory(
+		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, llm, limits,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return factory
 }
+
+type unavailableWorkerStateReader struct{}
+
+func (unavailableWorkerStateReader) ReadWorkerState(
+	context.Context,
+	contracts.WorkerHandle,
+	string,
+) (planner.WorkerStateReadResult, error) {
+	return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+		Code: "runtime_unavailable", Retryable: true,
+	}
+}
+
+var _ planner.WorkerStateReader = unavailableWorkerStateReader{}
 
 func testInvocation(bindings ...string) planner.Invocation {
 	sourceRevision := "source-r1"

@@ -176,7 +176,9 @@ func TestRouterPersistsTwoSubtasksAndOneLogicalDispatchWithoutWorkerPayload(t *t
 		"reviewer": successfulResult(workerCanary),
 	}}
 	sessions := newFakeSessions()
-	factory, err := NewFactory(sessions, sessions, workers, fakeInspector{}, llm, DefaultLimits())
+	factory, err := NewFactory(
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, llm, DefaultLimits(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +296,9 @@ func TestRouterFactoryRejectsEmptyBindingsBeforeSideEffects(t *testing.T) {
 	llm := &scriptedModel{}
 	workers := &fakeWorkerInvoker{}
 	sessions := newFakeSessions()
-	factory, err := NewFactory(sessions, sessions, workers, fakeInspector{}, llm, DefaultLimits())
+	factory, err := NewFactory(
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, llm, DefaultLimits(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +351,9 @@ func mustPlanner(
 ) planner.Planner {
 	t.Helper()
 	sessions := newFakeSessions()
-	factory, err := NewFactory(sessions, sessions, workers, fakeInspector{}, llm, DefaultLimits())
+	factory, err := NewFactory(
+		sessions, sessions, workers, fakeInspector{}, unavailableWorkerStateReader{}, llm, DefaultLimits(),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,6 +581,20 @@ func (fakeInspector) Inspect(
 		return planner.ArtifactMetadata{}, errors.New("artifact absent")
 	}
 }
+
+type unavailableWorkerStateReader struct{}
+
+func (unavailableWorkerStateReader) ReadWorkerState(
+	context.Context,
+	contracts.WorkerHandle,
+	string,
+) (planner.WorkerStateReadResult, error) {
+	return planner.WorkerStateReadResult{}, &planner.WorkerStateReadError{
+		Code: "runtime_unavailable", Retryable: true,
+	}
+}
+
+var _ planner.WorkerStateReader = unavailableWorkerStateReader{}
 
 func testInvocation() planner.Invocation {
 	bindings := []struct {
