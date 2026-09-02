@@ -336,8 +336,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V15-008
-  next_task: V16-001
+  completed_through: V16-001
+  next_task: V16-002
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -406,7 +406,9 @@ current_checkpoint:
     digest/graph-isolation tests. V15-008 added the real PostgreSQL/mTLS Server,
     memory/local Runtime and deterministic-gateway process gate; it also fixed
     capacity-defer claim fairness so an unavailable graph Stage cannot starve a
-    runnable shallow Stage. V16-001 is the next task.
+    runnable shallow Stage. V16-001 added the exact inert Server/Python
+    taint-annotations@1 contract and workspace publication validation while
+    keeping positive Runtime capability absent. V16-002 is the next task.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
