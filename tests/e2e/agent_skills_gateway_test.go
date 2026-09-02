@@ -117,9 +117,7 @@ func failedAgentSkillGatewayStage(
 	sort.Strings(tools)
 	steps := agentSkillDisclosureSteps(fixture)
 	steps = append(steps, domainGatewayStep{
-		validate: requireToolOutput(canary), summary: "Scripted retry after Skill disclosure",
-		artifacts: map[string]domainArtifactBinding{}, outcome: "failed",
-		errorCode: "scripted_skill_retry", retryable: true,
+		validate: requireToolOutput(canary), modelFail: true,
 	})
 	return domainGatewayStage{name: name, tools: tools, steps: steps}
 }

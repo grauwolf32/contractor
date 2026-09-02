@@ -86,6 +86,25 @@ func TestDomainGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 	}
 }
 
+func TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure(t *testing.T) {
+	gateway := &domainGateway{stages: []domainGatewayStage{{
+		name: "retry-probe", tools: []string{"probe"},
+		steps: []domainGatewayStep{{modelFail: true}},
+	}}}
+	request := map[string]any{"tools": []any{map[string]any{
+		"function": map[string]any{"name": "probe"},
+	}}}
+	_, _, call, err := gateway.next(request)
+	var scripted *scriptedModelFailure
+	if !errors.As(err, &scripted) || call != 1 || gateway.CompletedStages() != 1 || gateway.Calls() != 1 {
+		t.Fatalf("scripted failure = (call:%d stages:%d calls:%d err:%v)",
+			call, gateway.CompletedStages(), gateway.Calls(), err)
+	}
+	if failures := gateway.Failures(); len(failures) != 0 {
+		t.Fatalf("scripted failure polluted fixture failures: %v", failures)
+	}
+}
+
 type domainGateway struct {
 	server *httptest.Server
 	token  string
@@ -117,10 +136,12 @@ type domainGatewayStep struct {
 	summary   string
 	artifacts map[string]domainArtifactBinding
 	plain     bool
-	outcome   string
-	errorCode string
-	retryable bool
+	modelFail bool
 }
+
+type scriptedModelFailure struct{}
+
+func (*scriptedModelFailure) Error() string { return "scripted model failure" }
 
 type domainArtifactBinding struct {
 	namespace string
@@ -216,6 +237,17 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	message, finishReason, call, err := g.next(request)
 	if err != nil {
+		var scripted *scriptedModelFailure
+		if errors.As(err, &scripted) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": map[string]any{
+					"message": "deterministic model failure", "type": "invalid_request_error",
+				},
+			})
+			return
+		}
 		g.writeFailure(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -281,7 +313,14 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 	}
 	var message map[string]any
 	finishReason := "tool_calls"
-	if step.tool != "" {
+	var responseErr error
+	if step.modelFail {
+		if step.tool != "" || len(step.artifacts) != 0 || step.plain {
+			return nil, "", 0, errors.New("scripted model failure step has incompatible response fields")
+		}
+		finishReason = ""
+		responseErr = &scriptedModelFailure{}
+	} else if step.tool != "" {
 		arguments, buildErr := step.arguments(request)
 		if buildErr != nil {
 			return nil, "", 0, fmt.Errorf("%s step %d: %w", stage.name, stepNumber, buildErr)
@@ -300,27 +339,14 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 			}
 			artifacts[slot] = artifact
 		}
-		outcome := step.outcome
-		if outcome == "" {
-			outcome = "succeeded"
-		}
 		if step.plain {
-			if outcome != "succeeded" || step.errorCode != "" {
-				return nil, "", 0, errors.New("plain final response must succeed")
-			}
 			message = map[string]any{"role": "assistant", "content": step.summary}
 		} else {
 			resultBody := map[string]any{
 				"apiVersion": "contractor/v1alpha1",
-				"outcome":    outcome,
+				"outcome":    "succeeded",
 				"summary":    step.summary,
 				"artifacts":  artifacts,
-			}
-			if step.errorCode != "" {
-				resultBody["error"] = map[string]any{
-					"code": step.errorCode, "message": "deterministic retry request",
-					"retryable": step.retryable,
-				}
 			}
 			result, marshalErr := json.Marshal(resultBody)
 			if marshalErr != nil {
@@ -334,7 +360,9 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 	g.calls++
 	call := g.calls
 	tool := step.tool
-	if tool == "" {
+	if step.modelFail {
+		tool = "<model-error>"
+	} else if tool == "" {
 		tool = "<final>"
 	}
 	g.observations = append(g.observations, domainGatewayObservation{
@@ -345,7 +373,7 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 		g.stageIndex++
 		g.stepIndex = 0
 	}
-	return message, finishReason, call, nil
+	return message, finishReason, call, responseErr
 }
 
 func (g *domainGateway) writeFailure(w http.ResponseWriter, status int, message string) {
@@ -579,7 +607,7 @@ func finalGatewayStep(
 	summary string,
 	artifacts map[string]domainArtifactBinding,
 ) domainGatewayStep {
-	return domainGatewayStep{summary: summary, artifacts: artifacts}
+	return domainGatewayStep{summary: summary, artifacts: artifacts, plain: true}
 }
 
 func fixedArguments(value map[string]any) func(map[string]any) (map[string]any, error) {
