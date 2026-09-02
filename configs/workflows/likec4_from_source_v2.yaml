@@ -30,6 +30,7 @@ spec:
     workers:
       modelPolicy: project_worker@1
       llmGateway: local-litellm@1
+      credential: development-worker
 
   entryStage: dependency_discovery
   stages:

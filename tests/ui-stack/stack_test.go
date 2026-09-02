@@ -636,7 +636,7 @@ func stageUIStackConfiguration(
 	source := filepath.Join(repositoryRoot, "configs")
 	encodedGatewayURL, _ := json.Marshal(gatewayURL)
 	encodedManagementURL, _ := json.Marshal(managementURL)
-	gatewayUpdated, managerUpdated, workflowUpdates := false, false, 0
+	gatewayUpdated, managerUpdated := false, false
 	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -680,9 +680,6 @@ func stageUIStackConfiguration(
 			}
 			text = strings.Join(lines, "\n")
 		}
-		if strings.HasPrefix(relative, "workflows"+string(filepath.Separator)) {
-			text, workflowUpdates = addDevelopmentCredential(text, workflowUpdates)
-		}
 		return os.WriteFile(destination, []byte(text), 0o600)
 	})
 	if err != nil {
@@ -693,22 +690,13 @@ func stageUIStackConfiguration(
 	if err != nil {
 		t.Fatal(err)
 	}
-	streamline, nextUpdates := addDevelopmentCredential(string(streamlineBytes), workflowUpdates)
-	workflowUpdates = nextUpdates
-	if err := os.WriteFile(filepath.Join(target, "workflows", "streamline_copy.yaml"), []byte(streamline), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(target, "workflows", "streamline_copy.yaml"), streamlineBytes, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if !gatewayUpdated || !managerUpdated || workflowUpdates == 0 {
-		t.Fatalf("staged config updates = Gateway:%t manager:%t workflows:%d", gatewayUpdated, managerUpdated, workflowUpdates)
+	if !gatewayUpdated || !managerUpdated {
+		t.Fatalf("staged config updates = Gateway:%t manager:%t", gatewayUpdated, managerUpdated)
 	}
 	return target
-}
-
-func addDevelopmentCredential(text string, updates int) (string, int) {
-	const gatewaySelection = "      llmGateway: local-litellm@1\n"
-	const credentialSelection = gatewaySelection + "      credential: development-worker\n"
-	count := strings.Count(text, gatewaySelection)
-	return strings.ReplaceAll(text, gatewaySelection, credentialSelection), updates + count
 }
 
 func projectSourceArchive(t *testing.T) []byte {

@@ -35,6 +35,7 @@ spec:
   executionConfig:
     workers:
       llmGateway: local-litellm@1
+      credential: development-worker
 
   entryStage: likec4_build
   stages:

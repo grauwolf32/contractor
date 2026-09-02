@@ -14,6 +14,7 @@ import (
 type fakeManagedCredentials struct {
 	mu        sync.Mutex
 	records   map[string]credentials.Record
+	lookups   map[string]config.CredentialMetadata
 	created   map[string]string
 	deleted   map[string]string
 	guarded   int
@@ -23,7 +24,7 @@ type fakeManagedCredentials struct {
 
 func newFakeManagedCredentials() *fakeManagedCredentials {
 	return &fakeManagedCredentials{
-		records: make(map[string]credentials.Record),
+		records: make(map[string]credentials.Record), lookups: make(map[string]config.CredentialMetadata),
 		created: make(map[string]string), deleted: make(map[string]string),
 	}
 }
@@ -136,12 +137,18 @@ func (f *fakeManagedCredentials) LookupLLMCredential(
 	ctx context.Context, id string,
 ) (config.CredentialMetadata, error) {
 	record, err := f.GetCredential(ctx, id)
-	if err != nil {
+	if err == nil {
+		return config.CredentialMetadata{
+			Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: record.LLMGateway,
+		}, nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	metadata, ok := f.lookups[id]
+	if !ok {
 		return config.CredentialMetadata{}, err
 	}
-	return config.CredentialMetadata{
-		Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: record.LLMGateway,
-	}, nil
+	return metadata, nil
 }
 
 var _ ManagedCredentialLifecycle = (*fakeManagedCredentials)(nil)

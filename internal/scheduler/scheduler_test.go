@@ -1615,6 +1615,17 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 			LLMGatewayToken: contracts.NewSecretString("test-token"),
 			ArtifactAPIURL:  "https://control.test/private/v1", RequestTimeoutSeconds: 5,
 		},
+		Credentials: credentialResolverFunc(func(
+			_ context.Context,
+			credential contracts.LLMCredentialRef,
+			_ contracts.LLMGatewayConfigRef,
+		) (contracts.SecretString, error) {
+			if credential.CredentialID != "development-worker" &&
+				credential.CredentialID != "development-planner" {
+				return contracts.SecretString{}, errors.New("unknown test LLM credential")
+			}
+			return contracts.NewSecretString("test-token"), nil
+		}),
 		Clock: clock,
 		NewID: func(prefix string) (string, error) {
 			idSequence++

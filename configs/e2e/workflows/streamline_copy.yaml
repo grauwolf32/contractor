@@ -24,8 +24,10 @@ spec:
     planner:
       modelPolicy: planner@1
       llmGateway: local-litellm@1
+      credential: development-planner
     workers:
       llmGateway: local-litellm@1
+      credential: development-worker
 
   entryStage: copy
   stages:

@@ -97,6 +97,13 @@ func newHandlerFixtureWithAuth(
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
 	managedCredentials := newFakeManagedCredentials()
+	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
+		for _, id := range []string{"development-worker", "development-planner"} {
+			managedCredentials.lookups[id] = config.CredentialMetadata{
+				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
+			}
+		}
+	}
 	runtimeConfigs := newFakeRuntimeConfigManagement(runtimeconfig.GatewayResolverFunc(
 		func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
 			return manager.LLMGateway(selector)
@@ -1090,12 +1097,14 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 		result.Attempts[1].ExecutionConfig.Ref == nil ||
 		result.Attempts[1].ExecutionConfig.Ref.ConfigID != "strong-oas-review" ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "strong_domain_worker" ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential == nil ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential.CredentialID != "development-worker" ||
 		result.Transitions[0].Action != runstore.StageTransitionEscalate ||
 		!result.Transitions[1].EscalationExhausted {
 		t.Fatalf("public escalation read model = %+v", result)
 	}
 	if strings.Contains(response.Body.String(), "http://litellm") ||
-		strings.Contains(response.Body.String(), "credential") {
+		strings.Contains(response.Body.String(), "secret-value") {
 		t.Fatalf("public escalation read model leaked connection details: %s", response.Body.String())
 	}
 }

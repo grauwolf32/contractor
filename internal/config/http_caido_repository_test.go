@@ -84,6 +84,9 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 			t.Fatal(err)
 		}
 		lower := strings.ToLower(string(contents))
+		// A Workflow may select a non-secret LLM credential ID. Keep the
+		// infrastructure closure check strict for every other credential value.
+		lower = strings.ReplaceAll(lower, "credential: development-worker", "")
 		for _, forbidden := range []string{
 			"http://", "https://", "proxyurl:", "endpoint:", "credential:",
 			"token:", "cabundlepem:", "run_skill_script", "scripts/",

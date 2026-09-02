@@ -136,10 +136,10 @@ func TestRepositoryLikeC4ConfigurationBytesRemainPinned(t *testing.T) {
 		"agent-templates/likec4_validator.yaml":        "8cf2c3bc4db2568d43ecfdbf347d05316a186dea7f3103c15ada0686f62d7c97",
 		"instructions/likec4-builder-worker.md":        "957cce33bac8613b0f2da73cb52d9f3daef96fd08eb8d33e6ffa57a1c400c9b6",
 		"instructions/likec4-validator-worker.md":      "7ddc7c81657a49a07adeb0ff9e96c682d8da8927d8d664dedc5f9d67f8ed02f3",
-		"workflows/likec4_from_source.yaml":            "af235fc0d54d4b208be59d61aa5b3bd5f2289819eaa4b21d6cf460953b2e9f87",
-		"workflows/likec4_from_source_v2.yaml":         "af8db621d290fa7667bd15281fbb6fd38a68ccc47517973f671274fabb3c066f",
-		"workflows/likec4_from_source_streamline.yaml": "12f47b673d5a6ccbbaf65a81cc6e5e8462e5b9237ca48331d8613ad696d5ee93",
-		"workflows/likec4_from_analysis.yaml":          "a9c32fc53fdeb56820402d043a0c525a956c33b5911e4c6edd66883198ff1860",
+		"workflows/likec4_from_source.yaml":            "b3fdf49c24c3d0454e2aeb6ec1377119a7999b371ad52e65e8aa62383dba4f1a",
+		"workflows/likec4_from_source_v2.yaml":         "04047c41a75692390f78c9aeb079f7206e819bc925deb2334efdb1c60867ee7c",
+		"workflows/likec4_from_source_streamline.yaml": "8c38bfb028a4386691221b78fc2221c5d1e25c689d340ebfaf790003f2a84a70",
+		"workflows/likec4_from_analysis.yaml":          "80c63f54adead3519f8f26c96303bd28b1181a1bda24b70fcc189c152a3940c0",
 	}
 	for relative, want := range expected {
 		data, err := os.ReadFile(filepath.Join(repositoryConfigRoot, relative))

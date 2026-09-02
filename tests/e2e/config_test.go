@@ -13,8 +13,9 @@ import (
 )
 
 // stageE2EConfiguration creates an immutable config root before Server starts.
-// The test Gateway endpoint and the explicit development credential are normal
-// authored selections; process environment never overrides a pinned Run.
+// It changes only the test Gateway endpoint. Role-specific development
+// credentials remain authored in the source Workflow manifests so the tests
+// exercise the same executionConfig that the demo deployment loads.
 func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) string {
 	t.Helper()
 	encodedURL, err := json.Marshal(gatewayURL)
@@ -22,7 +23,6 @@ func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) stri
 		t.Fatal(err)
 	}
 	gatewayUpdated := false
-	workflowUpdates := 0
 	err = filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -56,21 +56,13 @@ func stageE2EConfiguration(t *testing.T, source, target, gatewayURL string) stri
 			}
 			text = strings.Join(lines, "\n")
 		}
-		if strings.HasPrefix(relative, "workflows"+string(filepath.Separator)) {
-			const gatewaySelection = "      llmGateway: local-litellm@1\n"
-			const credentialSelection = gatewaySelection + "      credential: development-worker\n"
-			if strings.Contains(text, gatewaySelection) {
-				text = strings.ReplaceAll(text, gatewaySelection, credentialSelection)
-				workflowUpdates++
-			}
-		}
 		return os.WriteFile(destination, []byte(text), 0o600)
 	})
 	if err != nil {
 		t.Fatalf("stage E2E configuration: %v", err)
 	}
-	if !gatewayUpdated || workflowUpdates == 0 {
-		t.Fatalf("staged config updates = gateway:%t workflows:%d", gatewayUpdated, workflowUpdates)
+	if !gatewayUpdated {
+		t.Fatal("staged configuration did not update the Gateway URL")
 	}
 	return target
 }

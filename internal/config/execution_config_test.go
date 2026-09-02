@@ -18,6 +18,7 @@ func TestResolveRunWorkflowAppliesAllWorkerLayersAndPinsBodies(t *testing.T) {
 	replaceFile(t, workflowPath, `  executionConfig:
     workers:
       llmGateway: local-litellm@1
+      credential: development-worker
 `, `  executionConfig:
     workers:
       modelPolicy: domain_worker@1
@@ -125,6 +126,7 @@ func TestResolveRunWorkflowAllowsOnlyWorkerPhysicalGatewayToRemainAbsent(t *test
 	replaceFile(t, workflowPath, `  executionConfig:
     workers:
       llmGateway: local-litellm@1
+      credential: development-worker
 
 `, "")
 	snapshot, err := Load(root, MVPDescriptors())
@@ -162,6 +164,7 @@ func TestResolveRunWorkflowKeepsPlannerAndWorkerSelectionsIndependent(t *testing
 	replaceFile(t, workflowPath, `  executionConfig:
     workers:
       llmGateway: local-litellm@1
+      credential: development-worker
 `, `  executionConfig:
     planner:
       modelPolicy: planner@1
@@ -259,7 +262,7 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 			name: "Workflow credential null",
 			mutate: func(t *testing.T, root string) {
 				path := filepath.Join(root, "workflows/artifact_copy.yaml")
-				replaceFile(t, path, "      llmGateway: local-litellm@1\n", "      llmGateway: local-litellm@1\n      credential: null\n")
+				replaceFile(t, path, "      credential: development-worker\n", "      credential: null\n")
 			},
 			want: "workers.credential must not be null",
 		},
@@ -269,8 +272,8 @@ func TestExecutionConfigRejectsConsumerIncompatibilityAndInvalidWorkflowPatches(
 				path := filepath.Join(root, "workflows/artifact_copy.yaml")
 				replaceFile(
 					t, path,
-					"    workers:\n      llmGateway: local-litellm@1\n",
-					"    workers:\n      llmGateway: local-litellm@1\n    stages:\n      absent:\n        agents: {}\n",
+					"    workers:\n      llmGateway: local-litellm@1\n      credential: development-worker\n",
+					"    workers:\n      llmGateway: local-litellm@1\n      credential: development-worker\n    stages:\n      absent:\n        agents: {}\n",
 				)
 			},
 			want: "unknown Stage",
@@ -366,6 +369,18 @@ func (l metadataLookup) LookupLLMCredential(_ context.Context, id string) (Crede
 func credentialMetadata(id string, gateway contracts.LLMGatewayConfigRef) CredentialMetadata {
 	return CredentialMetadata{
 		Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway,
+	}
+}
+
+func developmentCredentialLookup(t *testing.T, snapshot *Snapshot) metadataLookup {
+	t.Helper()
+	gateway, err := snapshot.LLMGateway("local-litellm@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return metadataLookup{
+		"development-worker":  credentialMetadata("development-worker", gateway.Ref),
+		"development-planner": credentialMetadata("development-planner", gateway.Ref),
 	}
 }
 

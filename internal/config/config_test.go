@@ -76,6 +76,53 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	}
 }
 
+func TestRepositoryLocalLiteLLMWorkflowsPinRoleCredentials(t *testing.T) {
+	t.Parallel()
+
+	for _, root := range []string{repositoryConfigRoot, filepath.Join(repositoryConfigRoot, "e2e")} {
+		root := root
+		t.Run(root, func(t *testing.T) {
+			t.Parallel()
+			snapshot := mustLoad(t, root, MVPDescriptors())
+			for _, workflow := range snapshot.Workflows() {
+				workflowRef := workflow.Ref.Name + "@" + workflow.Ref.Version
+				for stageName, stage := range workflow.Stages {
+					assertLocalLiteLLMCredential(
+						t, workflowRef+" Stage "+stageName+" Planner",
+						stage.ExecutionConfig.Planner, "development-planner",
+					)
+					for logicalName, selection := range stage.ExecutionConfig.Agents {
+						selection := selection
+						assertLocalLiteLLMCredential(
+							t, workflowRef+" Stage "+stageName+" Agent "+logicalName,
+							&selection, "development-worker",
+						)
+					}
+				}
+			}
+		})
+	}
+}
+
+func assertLocalLiteLLMCredential(
+	t *testing.T,
+	consumer string,
+	selection *ResolvedConsumerExecutionConfig,
+	wantCredential string,
+) {
+	t.Helper()
+	if selection == nil || selection.LLMGateway == nil ||
+		selection.LLMGateway.Ref.GatewayID != "local-litellm" {
+		return
+	}
+	if selection.Credential == nil || selection.Credential.CredentialID != wantCredential {
+		t.Fatalf(
+			"%s selects local-litellm without role credential %q: %+v",
+			consumer, wantCredential, selection.Credential,
+		)
+	}
+}
+
 func TestRepositoryInstructionsDoNotExposePrivateWorkerProtocol(t *testing.T) {
 	t.Parallel()
 

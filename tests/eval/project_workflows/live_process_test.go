@@ -288,7 +288,6 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model, gatewayU
 	t.Helper()
 	source := filepath.Join(repositoryRoot, "configs")
 	gatewayUpdated := false
-	workflowUpdates := 0
 	err := filepath.WalkDir(source, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -335,22 +334,13 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model, gatewayU
 			}
 			data = []byte(strings.Join(lines, "\n"))
 		}
-		if strings.HasPrefix(relative, "workflows"+string(filepath.Separator)) {
-			const gatewaySelection = "      llmGateway: local-litellm@1\n"
-			const credentialSelection = gatewaySelection + "      credential: development-worker\n"
-			updated := strings.ReplaceAll(string(data), gatewaySelection, credentialSelection)
-			if updated != string(data) {
-				workflowUpdates++
-				data = []byte(updated)
-			}
-		}
 		return os.WriteFile(destination, data, 0o600)
 	})
 	if err != nil {
 		t.Fatalf("copy live evaluation configuration (%s)", safeErrorType(err))
 	}
-	if !gatewayUpdated || workflowUpdates == 0 {
-		t.Fatalf("live config updates = gateway:%t workflows:%d", gatewayUpdated, workflowUpdates)
+	if !gatewayUpdated {
+		t.Fatal("live configuration did not update the Gateway URL")
 	}
 }
 

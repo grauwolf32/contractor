@@ -722,11 +722,13 @@ assertion and, when present, must equal that value.
 The two LLM token variables are a development bootstrap only. A non-empty
 `CONTRACTOR_LLM_GATEWAY_TOKEN` creates the in-memory credential ID
 `development-worker`; `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` creates
-`development-planner` and defaults to the Worker token. Select those IDs in a
-Workflow or Run `executionConfig`. URL, model and limits never come from these
-environment variables and cannot override an immutable Run snapshot. Omit the
-credential selector for a Gateway that intentionally accepts unauthenticated
-requests.
+`development-planner` and defaults to the Worker token. The shipped local
+Workflow manifests select those IDs by role; custom Workflow or Run
+`executionConfig` must do the same explicitly when it uses the bootstrapped
+credentials. URL, model and limits never come from these environment variables
+and cannot override an immutable Run snapshot. Omit the credential selector
+for a Gateway that intentionally accepts unauthenticated requests. A selected
+but unavailable development credential rejects Run creation before execution.
 
 Managed Gateway credentials use a separate database-encryption key. Generate
 it once as an owner-only file and pass only its absolute path to Server:

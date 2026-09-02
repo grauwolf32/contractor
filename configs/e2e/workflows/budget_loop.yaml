@@ -18,6 +18,7 @@ spec:
   executionConfig:
     workers:
       llmGateway: local-litellm@1
+      credential: development-worker
 
   entryStage: analyze
   stages:

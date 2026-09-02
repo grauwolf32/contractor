@@ -108,7 +108,13 @@ Credential `null` is an explicit clear in this patch shape.
 For local development only, `CONTRACTOR_LLM_GATEWAY_TOKEN` and
 `CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN` bootstrap the fixed credential IDs
 `development-worker` and `development-planner` against `local-litellm@1`.
-They do not override the Gateway URL or model selected by configuration.
+The shipped `workflows/` manifests select these IDs explicitly and separately
+for Workers and modeled Planners. They do not override the Gateway URL or model
+selected by configuration. If the corresponding token is absent, Run creation
+fails while resolving the selected credential, before a Stage or allocation is
+started. Deployments using different credentials must override these
+reference-only selections in the Run `executionConfig` or publish their own
+Workflow versions.
 
 `examples/` contains copyable multi-Stage, bounded-retry, single-Worker
 `streamline@1`, and multi-Worker `router@1` Workflow manifests. They are
