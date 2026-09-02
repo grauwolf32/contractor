@@ -35,9 +35,9 @@ type routerWorkerCallArgs struct {
 }
 
 type workerCallOutput struct {
-	OK     bool                          `json:"ok"`
-	Result *contracts.StageContentResult `json:"result,omitempty"`
-	Error  *toolFailure                  `json:"error,omitempty"`
+	OK     bool                    `json:"ok"`
+	Result *contracts.WorkerResult `json:"result,omitempty"`
+	Error  *toolFailure            `json:"error,omitempty"`
 }
 
 type finishArgs struct {
@@ -281,7 +281,7 @@ func (p *streamlinePlanner) callWorker(
 			WorkerName: binding.logicalName, SubtaskID: safeSubtaskID(subtaskID),
 		},
 	)
-	result, err := p.invoker.Invoke(
+	completion, err := p.invoker.Invoke(
 		workerContext, binding.logicalName, planner.CloneWorkerHandle(binding.handle), request,
 	)
 	if err != nil {
@@ -293,6 +293,28 @@ func (p *streamlinePlanner) callWorker(
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
 		return workerFailure(failure)
 	}
+	if validation := planner.ValidateWorkerCompletion(completion, claim.Subtask.ID); validation != nil {
+		failure := validation.Failure
+		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = *persisted
+		}
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
+		return workerFailure(failure)
+	}
+	if completion.Failure != nil {
+		failure := planner.Failure{
+			Code: completion.Failure.Code, Message: completion.Failure.Message,
+			Retryable: completion.Failure.Retryable,
+		}
+		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
+		if persisted := p.failDispatch(ctx, state, identity, claim.CallID); persisted != nil {
+			failure = *persisted
+		}
+		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
+		return workerFailure(failure)
+	}
+	result := planner.CloneWorkerResult(*completion.Result)
 	if validation := p.validateWorkerResult(workerContext, result); validation != nil {
 		failure := validation.Failure
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
@@ -304,7 +326,7 @@ func (p *streamlinePlanner) callWorker(
 	}
 	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 	beforeCompletion := p.plan.Snapshot()
-	completedPlan, planErr := p.plan.CompleteDispatch(claim.CallID, result.Outcome)
+	completedPlan, planErr := p.plan.CompleteDispatch(claim.CallID, contracts.StageSucceeded)
 	if planErr != nil {
 		failure := failureFromPlanError(planErr)
 		state.recordTool(executeCurrentSubtaskToolName, safeArguments, false, time.Since(started), 0, &failure)
@@ -322,7 +344,7 @@ func (p *streamlinePlanner) callWorker(
 			return workerFailure(*failure)
 		}
 	}
-	cloned := planner.CloneStageResult(result)
+	cloned := planner.CloneWorkerResult(result)
 	encoded, _ := json.Marshal(cloned)
 	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
 	return workerCallOutput{OK: true, Result: &cloned}
@@ -400,18 +422,13 @@ func (p *streamlinePlanner) workerRequest(
 }
 
 func (p *streamlinePlanner) validateWorkerResult(
-	ctx context.Context, result contracts.StageContentResult,
+	ctx context.Context, result contracts.WorkerResult,
 ) *planner.Error {
-	if err := result.Validate(); err != nil {
-		return planner.NewError(
-			"invalid_worker_result", "Worker returned an invalid StageContentResult", false, err,
-		)
-	}
 	encoded, err := json.Marshal(result)
 	if err != nil || len(encoded) > maxStagePayloadBytes ||
-		len(result.Summary) > maxStageSummaryBytes || len(result.Artifacts) > maxStageArtifacts {
+		len(result.Result) > maxStageSummaryBytes || len(result.Artifacts) > maxStageArtifacts {
 		return planner.NewError(
-			"invalid_worker_result", "Worker returned an oversized StageContentResult", false, err,
+			"invalid_worker_result", "Worker returned an oversized WorkerResult", false, err,
 		)
 	}
 	for _, ref := range result.Artifacts {

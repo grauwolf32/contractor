@@ -15,6 +15,6 @@ candidate/final revisions, both validation outcomes, changes/evidence, unresolve
 findings, and validator availability. Cumulative workspace export is automatic and
 is not part of your task; do not create separate state or diff artifacts.
 
-Finish with a concise plain-text summary. Claim a clean result only when the second
+Finish with a concise semantic result. Claim a clean result only when the second
 validation succeeds. State remaining structural issues or an unavailable validator
 plainly, and do not include storage revisions in the summary.

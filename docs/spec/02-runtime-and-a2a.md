@@ -713,7 +713,9 @@ Runtime Agent active slot
   allocation-123 -> in-process Worker runtime created from AgentTemplate
 ```
 
-The MVP card exposes one strict Contractor stage-content skill. The
+The MVP card exposes one strict Contractor stage-content skill. Its input mode
+is `application/vnd.contractor.stage-content+json` and its output mode is
+`application/vnd.contractor.worker-completion+json`, as owned by [14]. The
 AgentTemplate's selected tools remain internal model capabilities and are not
 advertised as independent A2A skills.
 

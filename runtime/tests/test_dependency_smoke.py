@@ -9,7 +9,7 @@ from google.adk.sessions import InMemorySessionService
 
 from contractor_runtime.a2a_server import build_agent_card, build_worker_a2a_application
 from contractor_runtime.adk_runtime import GatewayLiteLlm
-from contractor_runtime.contracts import StageContentRequest, StageContentResult
+from contractor_runtime.contracts import StageContentRequest, WorkerCompletion, WorkerModelResult
 
 
 def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
@@ -27,7 +27,7 @@ def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
         name="smoke_worker",
         model=model,
         instruction="Return the requested result.",
-        output_schema=StageContentResult,
+        output_schema=WorkerModelResult,
     )
     runner = Runner(
         app_name="smoke",
@@ -54,8 +54,13 @@ def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
 class SmokeWorker:
     allocation_id = "allocation-smoke"
 
-    async def invoke(self, request: StageContentRequest) -> StageContentResult:
+    async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
         raise AssertionError(f"smoke Worker must not execute: {request!r}")
+
+    async def failure_completion(
+        self, code: str, message: str, *, retryable: bool = False
+    ) -> WorkerCompletion:
+        raise AssertionError(f"smoke Worker must not reject: {code}, {message}, {retryable}")
 
     def cancel_active(self) -> None:
         return None

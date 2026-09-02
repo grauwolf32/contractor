@@ -517,19 +517,21 @@ func (w *memoryWorkerInvoker) Invoke(
 	_ string,
 	_ contracts.WorkerHandle,
 	_ contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	note, err := w.memory.ReadMemory(ctx, "shared_note")
 	if err != nil {
-		return contracts.StageContentResult{}, err
+		return contracts.WorkerCompletion{}, err
 	}
 	if note.Content != w.expected {
-		return contracts.StageContentResult{}, errors.New("Worker observed unexpected Memory content")
+		return contracts.WorkerCompletion{}, errors.New("Worker observed unexpected Memory content")
 	}
 	if _, err := w.memory.AppendMemory(ctx, "shared_note", "worker update"); err != nil {
-		return contracts.StageContentResult{}, err
+		return contracts.WorkerCompletion{}, err
 	}
 	w.updated = true
-	return stageResult("updated shared Memory", map[string]contracts.ArtifactRef{}), nil
+	return workerCompletion(
+		"0", "updated shared Memory", map[string]contracts.ArtifactRef{},
+	), nil
 }
 
 type plannerMemoryArtifact struct {

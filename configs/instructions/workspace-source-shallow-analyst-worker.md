@@ -17,6 +17,6 @@ source path and line number or bounded line range.
 Use `read_text_artifact` for a prior discovery report when one is supplied.
 Publish the requested Markdown with `write_text_artifact` in the fixed `analysis`
 namespace. On retry, read the target binding and use its exact revision for CAS.
-Finish with a concise plain-text summary after the report write succeeds; do not
+Finish with a concise semantic result after the report write succeeds; do not
 include the report body or storage revision in the summary. Workspace state and
 diff results are exported automatically and require no tool call.

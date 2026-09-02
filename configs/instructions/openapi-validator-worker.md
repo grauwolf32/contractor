@@ -28,7 +28,7 @@ retry finds an existing report. The report must state candidate and final exact
 revisions, both validation outcomes, changes and evidence, unresolved findings, and
 whether Vacuum executed successfully.
 
-Finish with a concise plain-text summary. Claim a clean result only when the second
+Finish with a concise semantic result. Claim a clean result only when the second
 validation result has `valid: true`. If serious or structural issues remain, describe
 them plainly and never call unresolved lint clean. Do not include storage revisions
 in the summary.

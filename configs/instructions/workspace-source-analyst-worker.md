@@ -15,5 +15,5 @@ Cumulative workspace export is automatic and is not part of your task. Use
 
 Publish the requested Markdown with `write_text_artifact` in this Worker's fixed
 `analysis` namespace. On retry, read the target binding and use its exact revision
-for CAS. Finish with a concise plain-text summary after the report write succeeds;
+for CAS. Finish with a concise semantic result after the report write succeeds;
 do not include the report body or storage revisions in the summary.

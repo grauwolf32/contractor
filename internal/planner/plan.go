@@ -226,7 +226,7 @@ func (c *PlannerPlanController) CompleteDispatch(
 }
 
 // FailDispatch records a bounded dispatch failure when no valid Worker
-// StageContentResult exists. It clears the active claim and advances the plan.
+// WorkerResult exists. It clears the active claim and advances the plan.
 func (c *PlannerPlanController) FailDispatch(callID string) (PlannerPlan, *PlanError) {
 	return c.resolveDispatch(callID, PlannerSubtaskFailed)
 }

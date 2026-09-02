@@ -16,7 +16,7 @@ func TestRepositoryCodeAnalysisTemplatesHaveExactVersionedToolSurfaces(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if legacy.Ref.Digest != "sha256:c3fba16b47e501c33b5eac2f81b24256cea0eb296977b61e9247e350213ef4a2" {
+	if legacy.Ref.Digest != "sha256:028f889f98dbd3d7e9dc60f0983ac87ece683b89a901dc30dc24ab36fa134765" {
 		t.Fatalf("legacy workspace analyst digest = %q", legacy.Ref.Digest)
 	}
 
@@ -36,15 +36,15 @@ func TestRepositoryCodeAnalysisTemplatesHaveExactVersionedToolSurfaces(t *testin
 		actual             contracts.ResolvedAgentTemplate
 	}{
 		{
-			name: "shallow", templateDigest: "sha256:c2f485636261a1a8bf70fa527e41fc3f873efe4851531b04d74c9f0197403269",
+			name: "shallow", templateDigest: "sha256:eb976bd2399e11d96e865033c7d521e2061db5d7cdfc35fd8369a15b555e031c",
 			instructionsRef:    "instructions/workspace-source-shallow-analyst-worker.md",
-			instructionsDigest: "sha256:c0966cba9c5498730696db35cf653f8e33a30f458971845c059f0297527bf831",
+			instructionsDigest: "sha256:35b0da82b1519efb4b68b44cca6ee06a706105212b8fb9a214d5dd152d707cdb",
 			actual:             shallow,
 		},
 		{
-			name: "graph", templateDigest: "sha256:a5cf2ca077ae2b223f5e4f1dd1f123b3b66c0d28532c41ded630b30d75d19070",
+			name: "graph", templateDigest: "sha256:975c6ffab81ee5860232ad6dd4421b9b0f087dfafad53840e808f45aaf910242",
 			instructionsRef:    "instructions/workspace-source-graph-analyst-worker.md",
-			instructionsDigest: "sha256:8264d3672a0ee56614cb57680fdd62de7942b86083297db22beeff1ddb0b05b8",
+			instructionsDigest: "sha256:339e8d4d1a9cb40964d11929919f9f3215cc61567e04e3b9ac8bb2d0aaf54e95",
 			actual:             graph,
 		},
 	} {

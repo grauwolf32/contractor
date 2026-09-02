@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fakes.model import scripted_model, text_result, tool_call
+from fakes.model import json_result, scripted_model, tool_call
 from fakes.spec import allocation_spec
 from test_text_artifacts_toolset import MemoryArtifactClient
 
@@ -148,8 +148,8 @@ def test_http_caido_allocation_tools_finalize_release_and_reuse(tmp_path: Path) 
         assert service._context is not None and service._context.worker is not None
         result = await service._context.worker.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
-        assert result.artifacts["report"].revision == "revision-2"
+        assert result.result is not None
+        assert result.result.artifacts["report"].revision == "revision-2"
         assert [request.url.host for request in http_requests] == ["target.example"]
         assert caido_operations == ["RequestsByOffset", "CreateScope"]
         body = artifacts.bindings[
@@ -295,7 +295,12 @@ def worker_model() -> object:
                 call_id="write-report",
             ),
             tool_call("http_session_clear", {}, call_id="session-clear"),
-            text_result("Bounded HTTP and Caido analysis completed"),
+            json_result(
+                {
+                    "subtaskId": "0",
+                    "result": "Bounded HTTP and Caido analysis completed",
+                }
+            ),
         ]
     )
 

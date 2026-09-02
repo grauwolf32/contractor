@@ -177,7 +177,7 @@ func TestRepositoryOpenAPIInstructionsPinArtifactAndValidationRules(t *testing.T
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	checks := map[string][]string{
-		"instructions/dependency-discovery-planner.md": {"relative/path:line", "analysis/dependencies", "plain-text completion summary"},
+		"instructions/dependency-discovery-planner.md": {"relative/path:line", "analysis/dependencies", "semantic completion result"},
 		"instructions/project-discovery-planner.md":    {"relative/path:line", "analysis/project", "dependency_report"},
 		"instructions/openapi-builder-worker.md":       {"inputs/existing_openapi", "generic artifact writer", "evidence_files"},
 		"instructions/openapi-validator-worker.md":     {"exactly once more", "validation-report", "valid: true"},

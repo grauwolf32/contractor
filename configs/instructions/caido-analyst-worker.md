@@ -21,5 +21,5 @@ your fixed Namespace. Include declared scope, method, bounded evidence,
 assessment, limitations and cleanup notes. Do not copy credentials, cookies or
 complete sensitive exchanges into the report; cite exact artifact refs instead.
 
-Finish only after the `security/report` write succeeds. Return a concise plain-text
-summary and do not include storage revisions in it.
+Finish only after the `security/report` write succeeds. Return a concise semantic
+result and do not include storage revisions in it.

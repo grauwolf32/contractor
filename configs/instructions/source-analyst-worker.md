@@ -23,8 +23,8 @@ Publish the requested Markdown with `write_text_artifact` in this Worker's fixed
 `analysis` namespace. On a retry, first try `read_text_artifact` for the target
 binding; when it exists, pass its exact revision as `expected_revision` instead of
 attempting a create-only write. Do not put the report body in tool metrics, the
-final summary, or another artifact.
+final result, or another artifact.
 
-Finish with a concise plain-text summary after the durable write succeeds. On a
+Finish with a concise semantic result after the durable write succeeds. On a
 genuine failure, state the bounded reason plainly and never invent a revision or
 claim that an in-memory response is a durable report.

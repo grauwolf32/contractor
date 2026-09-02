@@ -18,7 +18,7 @@ from a2a.types import (
     TaskState,
 )
 from a2a.utils.constants import TransportProtocol
-from fakes.model import scripted_model, text_result
+from fakes.model import json_result, scripted_model
 from fakes.spec import allocation_spec
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Value
@@ -38,11 +38,15 @@ from contractor_runtime.state import RuntimeState
 SECRET = "recognizable-a2a-test-token"
 
 
+def model_result(result: str) -> object:
+    return json_result({"subtaskId": "0", "result": result})
+
+
 def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        model = scripted_model([text_result("done")])
+        model = scripted_model([model_result("done")])
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
@@ -72,12 +76,26 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
                 )
             ).create(card)
             result = await send(client, data_request(spec.allocation_id))
-            assert result["outcome"] == "succeeded"
-            assert result["summary"] == "done"
+            assert "failure" not in result
+            assert result["result"]["result"] == "done"
+            assert result["result"]["subtaskId"] == "0"
+            assert result["result"]["summarized"] is False
+            assert result["stateRevision"] > 0
             assert len(model.requests) == 1
 
             invalid = await send(client, text_request(spec.allocation_id))
-            assert invalid["error"]["code"] == "invalid_stage_content"
+            assert invalid["failure"]["code"] == "invalid_stage_content"
+            assert len(model.requests) == 1
+
+            wrong_media = await send(
+                client,
+                data_request(
+                    spec.allocation_id,
+                    message_id="wrong-media",
+                    media_type="application/json",
+                ),
+            )
+            assert wrong_media["failure"]["code"] == "invalid_stage_content"
             assert len(model.requests) == 1
 
             wrong_version = await send(
@@ -88,7 +106,7 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
                     api_version="contractor.dev/v999",
                 ),
             )
-            assert wrong_version["error"]["code"] == "invalid_stage_content"
+            assert wrong_version["failure"]["code"] == "invalid_stage_content"
             assert len(model.requests) == 1
 
             oversized = await http_client.post(
@@ -126,7 +144,7 @@ def test_concurrent_a2a_message_receives_worker_busy(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        model = scripted_model([text_result("first")], block=True)
+        model = scripted_model([model_result("first")], block=True)
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
@@ -146,11 +164,11 @@ def test_concurrent_a2a_message_receives_worker_busy(
             first = asyncio.create_task(send(client, data_request(spec.allocation_id)))
             await asyncio.wait_for(model.started.wait(), timeout=1)
             busy = await send(client, data_request(spec.allocation_id, message_id="second"))
-            assert busy["error"]["code"] == "worker_busy"
+            assert busy["failure"]["code"] == "worker_busy"
             assert len(model.requests) == 1
             model.release()
             completed = await first
-            assert completed["summary"] == "first"
+            assert completed["result"]["result"] == "first"
             await service.finalize(
                 FinalizeAllocationRequest(
                     apiVersion=API_VERSION,
@@ -168,7 +186,7 @@ def test_return_immediately_exposes_working_task_while_worker_continues(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
     async def scenario() -> None:
-        model = scripted_model([text_result("done")], block=True)
+        model = scripted_model([model_result("done")], block=True)
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
@@ -206,7 +224,7 @@ def test_return_immediately_exposes_working_task_while_worker_continues(
                 await asyncio.sleep(0.01)
             assert task.status.state == TaskState.TASK_STATE_COMPLETED
             result = result_from_message(task.status.message)
-            assert result["summary"] == "done"
+            assert result["result"]["result"] == "done"
             await client.close()
 
     asyncio.run(scenario())
@@ -246,6 +264,7 @@ async def send(client: object, request: SendMessageRequest) -> dict[str, object]
 
 def result_from_message(message: Message) -> dict[str, object]:
     assert len(message.parts) == 1 and message.parts[0].HasField("data")
+    assert message.parts[0].media_type == "application/vnd.contractor.worker-completion+json"
     value = MessageToDict(message.parts[0].data)
     assert isinstance(value, dict)
     return value
@@ -256,6 +275,7 @@ def data_request(
     *,
     message_id: str = "message-1",
     api_version: str = API_VERSION,
+    media_type: str = "application/vnd.contractor.stage-content+json",
 ) -> SendMessageRequest:
     payload = {
         "apiVersion": api_version,
@@ -270,7 +290,7 @@ def data_request(
         message=Message(
             role=Role.ROLE_USER,
             message_id=message_id,
-            parts=[Part(data=ParseDict(payload, Value()))],
+            parts=[Part(data=ParseDict(payload, Value()), media_type=media_type)],
         ),
     )
 

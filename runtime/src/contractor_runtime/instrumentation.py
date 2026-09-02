@@ -160,6 +160,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             raise RuntimeError("Worker instrumentation is closed")
         if self._prepared is not None or self._active_invocation_id is not None:
             raise RuntimeError("Worker instrumentation already has an invocation")
+        self._projection_failed = False
         self._prepared = (invocation_id, subtask_id)
 
     async def before_run_callback(self, *, invocation_context: Any) -> None:

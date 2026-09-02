@@ -30,11 +30,11 @@ evidence, normally in a triple-quoted description. Model deployable/operated uni
 entry points, stores, actors, and external systems—not helper functions, DTOs, or
 speculative infrastructure. For boundary-crossing relationships, include protocol,
 trust-zone crossing, and credential type when source proves them. Mark assumptions
-and justified omissions in DSL comments and the concise final summary.
+and justified omissions in DSL comments and the concise final result.
 
 Before success, compare the persisted model with both reports and verify all
 evidenced external interactions are represented or explicitly omitted for an
 evidence-based reason. Call `validate_likec4` once more. Missing or failed CLI
 execution is not a clean result. Finish only with `valid: true` and a durable latest
 `likec4/architecture` artifact with media type `text/vnd.likec4`. End with a concise
-plain-text summary and never paste the DSL or storage revisions into it.
+semantic result and never paste the DSL or storage revisions into it.

@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	stageContentMediaType = "application/vnd.contractor.stage-content+json"
-	maxAgentCardBytes     = 1 << 20
-	maxA2AResponseBytes   = 1 << 20
-	defaultPollInterval   = 100 * time.Millisecond
+	stageContentMediaType     = "application/vnd.contractor.stage-content+json"
+	workerCompletionMediaType = "application/vnd.contractor.worker-completion+json"
+	maxAgentCardBytes         = 1 << 20
+	maxA2AResponseBytes       = 1 << 20
+	defaultPollInterval       = 100 * time.Millisecond
 )
 
 type Options struct {
@@ -107,7 +108,7 @@ func sdkClientBuilder(client *http.Client) clientBuilder {
 			a2aclient.WithDefaultsDisabled(),
 			a2aclient.WithJSONRPCTransport(client),
 			a2aclient.WithConfig(a2aclient.Config{
-				AcceptedOutputModes: []string{stageContentMediaType},
+				AcceptedOutputModes: []string{workerCompletionMediaType},
 				PreferredTransports: []sdk.TransportProtocol{sdk.TransportProtocolJSONRPC},
 			}),
 		)
@@ -120,26 +121,26 @@ func (i *Invoker) Invoke(
 	binding string,
 	handle contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	if strings.TrimSpace(binding) == "" || strings.TrimSpace(handle.AllocationID) == "" {
-		return contracts.StageContentResult{}, planner.NewError(
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_worker_handle", "Worker binding and allocation identity are required", false, nil,
 		)
 	}
 	if err := request.Validate(); err != nil {
-		return contracts.StageContentResult{}, planner.NewError(
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_stage_content", "StageContentRequest violates its contract", false, err,
 		)
 	}
 	card, err := decodeCard(handle, i.requireHTTPS)
 	if err != nil {
-		return contracts.StageContentResult{}, err
+		return contracts.WorkerCompletion{}, err
 	}
 	builder := i.build
 	if i.tlsConfig != nil {
 		bound, bindErr := mtls.BindRuntimeAgentPrincipal(i.tlsConfig, handle.RuntimeAgentID)
 		if bindErr != nil {
-			return contracts.StageContentResult{}, planner.NewError(
+			return contracts.WorkerCompletion{}, planner.NewError(
 				"invalid_worker_handle", "Worker handle has no valid Runtime Agent principal", false, nil,
 			)
 		}
@@ -152,7 +153,7 @@ func (i *Invoker) Invoke(
 	}
 	client, buildErr := builder(ctx, card)
 	if buildErr != nil {
-		return contracts.StageContentResult{}, transportError(ctx, buildErr)
+		return contracts.WorkerCompletion{}, transportError(ctx, buildErr)
 	}
 	defer func() { _ = client.Destroy() }()
 
@@ -163,14 +164,21 @@ func (i *Invoker) Invoke(
 		Tenant:  handle.AllocationID,
 		Message: message,
 		Config: &sdk.SendMessageConfig{
-			AcceptedOutputModes: []string{stageContentMediaType},
+			AcceptedOutputModes: []string{workerCompletionMediaType},
 			ReturnImmediately:   true,
 		},
 	})
 	if sendErr != nil {
-		return contracts.StageContentResult{}, transportError(ctx, sendErr)
+		return contracts.WorkerCompletion{}, transportError(ctx, sendErr)
 	}
-	return i.resolve(ctx, client, handle.AllocationID, response)
+	completion, resolveErr := i.resolve(ctx, client, handle.AllocationID, response)
+	if resolveErr != nil {
+		return contracts.WorkerCompletion{}, resolveErr
+	}
+	if validation := planner.ValidateWorkerCompletion(completion, request.SubtaskID); validation != nil {
+		return contracts.WorkerCompletion{}, validation
+	}
+	return completion, nil
 }
 
 func (i *Invoker) resolve(
@@ -178,26 +186,54 @@ func (i *Invoker) resolve(
 	client protocolClient,
 	allocationID string,
 	response sdk.SendMessageResult,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
+	var taskID sdk.TaskID
+	var contextID string
 	for {
 		switch current := response.(type) {
 		case *sdk.Message:
+			if err := validateResultMessageCorrelation(current, "", ""); err != nil {
+				return contracts.WorkerCompletion{}, err
+			}
 			return decodeResultMessage(current)
 		case *sdk.Task:
+			if current == nil || current.ID == "" || current.ContextID == "" {
+				return contracts.WorkerCompletion{}, planner.NewError(
+					"invalid_a2a_response", "Worker returned an invalid A2A Task", false, nil,
+				)
+			}
+			if taskID == "" {
+				taskID = current.ID
+				contextID = current.ContextID
+			} else if current.ID != taskID || current.ContextID != contextID {
+				return contracts.WorkerCompletion{}, planner.NewError(
+					"invalid_a2a_response", "Worker changed A2A Task correlation while polling", false, nil,
+				)
+			}
 			message, wait, err := taskMessage(current)
 			if err != nil {
-				return contracts.StageContentResult{}, err
+				return contracts.WorkerCompletion{}, err
 			}
 			if message != nil {
+				if err := validateResultMessageCorrelation(message, current.ID, current.ContextID); err != nil {
+					return contracts.WorkerCompletion{}, err
+				}
 				result, err := decodeResultMessage(message)
 				if err != nil {
-					return contracts.StageContentResult{}, err
+					return contracts.WorkerCompletion{}, err
 				}
-				if current.Status.State == sdk.TaskStateFailed &&
-					result.Outcome != contracts.StageFailed {
-					return contracts.StageContentResult{}, planner.NewError(
+				if current.Status.State == sdk.TaskStateFailed && result.Failure == nil {
+					return contracts.WorkerCompletion{}, planner.NewError(
 						"invalid_a2a_response",
-						"Failed A2A Task carried a successful Contractor result",
+						"Failed A2A Task carried a successful Worker completion",
+						false,
+						nil,
+					)
+				}
+				if current.Status.State == sdk.TaskStateCompleted && result.Result == nil {
+					return contracts.WorkerCompletion{}, planner.NewError(
+						"invalid_a2a_response",
+						"Completed A2A Task carried a failed Worker completion",
 						false,
 						nil,
 					)
@@ -205,7 +241,7 @@ func (i *Invoker) resolve(
 				return result, nil
 			}
 			if !wait {
-				return contracts.StageContentResult{}, planner.NewError(
+				return contracts.WorkerCompletion{}, planner.NewError(
 					"invalid_a2a_response", "Terminal A2A Task has no Contractor result", false, nil,
 				)
 			}
@@ -213,23 +249,42 @@ func (i *Invoker) resolve(
 			select {
 			case <-ctx.Done():
 				timer.Stop()
-				return contracts.StageContentResult{}, transportError(ctx, ctx.Err())
+				return contracts.WorkerCompletion{}, transportError(ctx, ctx.Err())
 			case <-timer.C:
 			}
 			historyLength := 1
 			next, getErr := client.GetTask(ctx, &sdk.GetTaskRequest{
-				Tenant: allocationID, ID: current.ID, HistoryLength: &historyLength,
+				Tenant: allocationID, ID: taskID, HistoryLength: &historyLength,
 			})
 			if getErr != nil {
-				return contracts.StageContentResult{}, transportError(ctx, getErr)
+				return contracts.WorkerCompletion{}, transportError(ctx, getErr)
 			}
 			response = next
 		default:
-			return contracts.StageContentResult{}, planner.NewError(
+			return contracts.WorkerCompletion{}, planner.NewError(
 				"invalid_a2a_response", "Worker returned an unsupported A2A response", false, nil,
 			)
 		}
 	}
+}
+
+func validateResultMessageCorrelation(
+	message *sdk.Message,
+	taskID sdk.TaskID,
+	contextID string,
+) error {
+	if message == nil || message.TaskID == "" || message.ContextID == "" {
+		return planner.NewError(
+			"invalid_a2a_response", "Worker result message has no A2A correlation", false, nil,
+		)
+	}
+	if (taskID != "" && message.TaskID != taskID) ||
+		(contextID != "" && message.ContextID != contextID) {
+		return planner.NewError(
+			"invalid_a2a_response", "Worker result message has mismatched A2A correlation", false, nil,
+		)
+	}
+	return nil
 }
 
 func decodeCard(handle contracts.WorkerHandle, requireHTTPS bool) (*sdk.AgentCard, error) {
@@ -304,7 +359,7 @@ func normalizeEmptySecurityScopes(card map[string]any) {
 }
 
 func taskMessage(task *sdk.Task) (*sdk.Message, bool, error) {
-	if task == nil || task.ID == "" {
+	if task == nil || task.ID == "" || task.ContextID == "" {
 		return nil, false, planner.NewError(
 			"invalid_a2a_response", "Worker returned an invalid A2A Task", false, nil,
 		)
@@ -350,35 +405,35 @@ func taskMessage(task *sdk.Task) (*sdk.Message, bool, error) {
 	}
 }
 
-func decodeResultMessage(message *sdk.Message) (contracts.StageContentResult, error) {
+func decodeResultMessage(message *sdk.Message) (contracts.WorkerCompletion, error) {
 	if message == nil || message.Role != sdk.MessageRoleAgent || len(message.Parts) != 1 ||
 		message.Parts[0] == nil {
-		return contracts.StageContentResult{}, planner.NewError(
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker response must be one Agent DataPart", false, nil,
 		)
 	}
 	part := message.Parts[0]
-	if part.MediaType != "" && part.MediaType != stageContentMediaType {
-		return contracts.StageContentResult{}, planner.NewError(
+	if part.MediaType != workerCompletionMediaType {
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker response has an incompatible media type", false, nil,
 		)
 	}
 	data, ok := part.Content.(sdk.Data)
 	if !ok {
-		return contracts.StageContentResult{}, planner.NewError(
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker response must be one Agent DataPart", false, nil,
 		)
 	}
 	encoded, err := json.Marshal(data.Value)
 	if err != nil || len(encoded) == 0 || len(encoded) > maxA2AResponseBytes {
-		return contracts.StageContentResult{}, planner.NewError(
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"invalid_a2a_response", "Worker Contractor payload is invalid or oversized", false, err,
 		)
 	}
-	result, err := contracts.DecodeStrict[contracts.StageContentResult](encoded)
+	result, err := contracts.DecodeStrict[contracts.WorkerCompletion](encoded)
 	if err != nil {
-		return contracts.StageContentResult{}, planner.NewError(
-			"invalid_worker_result", "Worker returned an invalid StageContentResult", false, err,
+		return contracts.WorkerCompletion{}, planner.NewError(
+			"invalid_worker_result", "Worker returned an invalid WorkerCompletion", false, err,
 		)
 	}
 	return result, nil

@@ -15,4 +15,4 @@ relationship descriptions. Prefer a smaller accurate model to speculative detail
 
 Before finishing, compare the model with both reports, record justified omissions,
 and require a clean final validator result. Persist the latest model at
-`likec4/architecture` (`text/vnd.likec4`). End with a concise plain-text summary.
+`likec4/architecture` (`text/vnd.likec4`). End with a concise semantic result.

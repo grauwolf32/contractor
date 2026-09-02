@@ -71,7 +71,7 @@ acceptance_criteria:
     then: Both exact refs are trusted, versioned and visible before write fencing exactly as before.
 
 tests:
-  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_adk_runtime.py tests/test_a2a_server.py tests/test_workspace_export.py", covers: [A1, A2, A4]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_adk_runtime.py tests/test_a2a_server.py tests/test_workspace_auto_export.py", covers: [A1, A2, A4]}
   - {name: planner, command: "go test -race ./internal/planner/...", covers: [A1, A2, A3, A4]}
   - {name: configs, command: "go test ./internal/config/...", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

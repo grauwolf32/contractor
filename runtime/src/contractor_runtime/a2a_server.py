@@ -36,14 +36,12 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.types import Message as ASGIMessage
 
 from contractor_runtime.contracts import (
-    API_VERSION,
     StageContentRequest,
-    StageContentResult,
-    StageOutcome,
-    TerminationError,
+    WorkerCompletion,
 )
 
 STAGE_CONTENT_MEDIA_TYPE = "application/vnd.contractor.stage-content+json"
+WORKER_COMPLETION_MEDIA_TYPE = "application/vnd.contractor.worker-completion+json"
 MAX_A2A_REQUEST_BYTES = 1 << 20
 ALLOCATION_A2A_PATH = re.compile(
     r"^/private/v1/allocations/(?P<allocation>[A-Za-z0-9_-]+)/a2a(?P<suffix>/.*)?$"
@@ -53,7 +51,11 @@ ALLOCATION_A2A_PATH = re.compile(
 class InvocableWorker(Protocol):
     allocation_id: str
 
-    async def invoke(self, request: StageContentRequest) -> StageContentResult: ...
+    async def invoke(self, request: StageContentRequest) -> WorkerCompletion: ...
+
+    async def failure_completion(
+        self, code: str, message: str, *, retryable: bool = False
+    ) -> WorkerCompletion: ...
 
     def cancel_active(self) -> None: ...
 
@@ -94,7 +96,7 @@ def build_agent_card(
         },
         security_requirements=[SecurityRequirement(schemes={"mutualTLS": StringList(list=[])})],
         default_input_modes=[STAGE_CONTENT_MEDIA_TYPE],
-        default_output_modes=[STAGE_CONTENT_MEDIA_TYPE],
+        default_output_modes=[WORKER_COMPLETION_MEDIA_TYPE],
         skills=[
             AgentSkill(
                 id="contractor_stage_content",
@@ -102,7 +104,7 @@ def build_agent_card(
                 description="Execute one strict Contractor StageContentRequest.",
                 tags=["contractor", "stage"],
                 input_modes=[STAGE_CONTENT_MEDIA_TYPE],
-                output_modes=[STAGE_CONTENT_MEDIA_TYPE],
+                output_modes=[WORKER_COMPLETION_MEDIA_TYPE],
             )
         ],
     )
@@ -144,20 +146,20 @@ class ContractorAgentExecutor(AgentExecutor):
         else:
             await updater.start_work()
         if context.call_context.tenant != self._worker.allocation_id:
-            result = _failed_result(
+            result = await self._worker.failure_completion(
                 "allocation_route_mismatch", "A2A tenant does not name the active allocation"
             )
         else:
             try:
                 request = _stage_request(context)
             except (TypeError, ValueError, ValidationError):
-                result = _failed_result(
+                result = await self._worker.failure_completion(
                     "invalid_stage_content", "A2A message must contain one StageContentRequest"
                 )
             else:
                 result = await self._worker.invoke(request)
         message = _result_message(result, context)
-        if result.outcome is StageOutcome.FAILED:
+        if result.failure is not None:
             await updater.failed(message)
         else:
             await updater.complete(message)
@@ -212,30 +214,28 @@ def _stage_request(context: RequestContext) -> StageContentRequest:
     message = context.message
     if message is None or len(message.parts) != 1 or not message.parts[0].HasField("data"):
         raise ValueError("one DataPart is required")
-    value = MessageToDict(message.parts[0].data)
+    part = message.parts[0]
+    if part.media_type != STAGE_CONTENT_MEDIA_TYPE:
+        raise ValueError("StageContentRequest media type is invalid")
+    value = MessageToDict(part.data)
     if not isinstance(value, dict):
         raise TypeError("StageContentRequest DataPart must be an object")
     return StageContentRequest.model_validate(value)
 
 
-def _result_message(result: StageContentResult, context: RequestContext) -> Message:
+def _result_message(result: WorkerCompletion, context: RequestContext) -> Message:
     payload = result.model_dump(mode="json", by_alias=True, exclude_none=True)
     return Message(
         role=Role.ROLE_AGENT,
-        parts=[Part(data=ParseDict(payload, Value()))],
+        parts=[
+            Part(
+                data=ParseDict(payload, Value()),
+                media_type=WORKER_COMPLETION_MEDIA_TYPE,
+            )
+        ],
         message_id=uuid.uuid4().hex,
         task_id=context.task_id or "",
         context_id=context.context_id or "",
-    )
-
-
-def _failed_result(code: str, summary: str, *, retryable: bool = False) -> StageContentResult:
-    return StageContentResult(
-        apiVersion=API_VERSION,
-        outcome=StageOutcome.FAILED,
-        summary=summary,
-        artifacts={},
-        error=TerminationError(code=code, message=summary, retryable=retryable),
     )
 
 

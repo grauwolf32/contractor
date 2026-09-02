@@ -20,10 +20,10 @@ func TestRepositoryLikeC4SkillTemplateVersionBoundary(t *testing.T) {
 		selector, instructions, templateDigest, instructionsDigest string
 		skilled                                                    bool
 	}{
-		{"likec4_builder@1", "instructions/likec4-builder-worker.md", "sha256:7411be7001436673cef6be9597122944feaf4c46f819418993d13109e3121b98", "sha256:957cce33bac8613b0f2da73cb52d9f3daef96fd08eb8d33e6ffa57a1c400c9b6", false},
-		{"likec4_builder@2", "instructions/likec4-builder-worker-v2.md", "sha256:3991f22fe14b4f09c9066f9d35a0457f557571d5205eddc5dbd31c11677fea31", "sha256:c02e4cba7ee2a7adf4a80abc2f64d82cb98419dabbc041dc992462c7a7d99832", true},
-		{"likec4_validator@1", "instructions/likec4-validator-worker.md", "sha256:fed1135b0589de82a360f379983446c2b8d10b65eb1de10ed65c5d2f0bb87ce8", "sha256:7ddc7c81657a49a07adeb0ff9e96c682d8da8927d8d664dedc5f9d67f8ed02f3", false},
-		{"likec4_validator@2", "instructions/likec4-validator-worker-v2.md", "sha256:ab8352f1942d307f14a46c99166740bb853daa7ecd493cdadf045504c6c7e093", "sha256:fa1d61e80d968997afe86cea0b89f5a245772911832c31d4a4ced71b2f42be97", true},
+		{"likec4_builder@1", "instructions/likec4-builder-worker.md", "sha256:6e8d6b5837d97c310e930cd021df2e44acd2ea567f4880d1d20d3d6ad5f5948e", "sha256:f12c247c978e37c29ca02ce36222db777584c1e7a49bb8506eddd03f46d1a62d", false},
+		{"likec4_builder@2", "instructions/likec4-builder-worker-v2.md", "sha256:8a7596958f4d6b1c2575505cc9f0b498a59368f497b442dbbfdb2f59ef402741", "sha256:55a719de2b4f6e59103f28a62f25c899dd4c099b9a5c45e6a40003eb059a6001", true},
+		{"likec4_validator@1", "instructions/likec4-validator-worker.md", "sha256:3fdcc18d517775f4c9540274d35bb4d3faf2a25871dad363b7a12880f893196c", "sha256:a3ffcbb259405282f89a07e3a112c091cc825eb3af51291ecc2eb438070698dd", false},
+		{"likec4_validator@2", "instructions/likec4-validator-worker-v2.md", "sha256:e00544ffa566de62c9a7db61af73a1044c5d8d9e1d988f8d6be42c3a3bf4219c", "sha256:b6d46576790b9504980c2822676733b86b97848e58b7523108fd441f12e1cb28", true},
 	}
 	for _, test := range tests {
 		t.Run(test.selector, func(t *testing.T) {
@@ -134,8 +134,8 @@ func TestRepositoryLikeC4ConfigurationBytesRemainPinned(t *testing.T) {
 	expected := map[string]string{
 		"agent-templates/likec4_builder.yaml":          "30a014217d0c037812fc4a2edbd6b625ea2c21e3f5716d342f8d50ae67514c0f",
 		"agent-templates/likec4_validator.yaml":        "8cf2c3bc4db2568d43ecfdbf347d05316a186dea7f3103c15ada0686f62d7c97",
-		"instructions/likec4-builder-worker.md":        "957cce33bac8613b0f2da73cb52d9f3daef96fd08eb8d33e6ffa57a1c400c9b6",
-		"instructions/likec4-validator-worker.md":      "7ddc7c81657a49a07adeb0ff9e96c682d8da8927d8d664dedc5f9d67f8ed02f3",
+		"instructions/likec4-builder-worker.md":        "f12c247c978e37c29ca02ce36222db777584c1e7a49bb8506eddd03f46d1a62d",
+		"instructions/likec4-validator-worker.md":      "a3ffcbb259405282f89a07e3a112c091cc825eb3af51291ecc2eb438070698dd",
 		"workflows/likec4_from_source.yaml":            "b3fdf49c24c3d0454e2aeb6ec1377119a7999b371ad52e65e8aa62383dba4f1a",
 		"workflows/likec4_from_source_v2.yaml":         "04047c41a75692390f78c9aeb079f7206e819bc925deb2334efdb1c60867ee7c",
 		"workflows/likec4_from_source_streamline.yaml": "8c38bfb028a4386691221b78fc2221c5d1e25c689d340ebfaf790003f2a84a70",
@@ -160,13 +160,13 @@ func TestRepositoryLikeC4V2InstructionsKeepMandatoryProcedure(t *testing.T) {
 		"instructions/likec4-builder-worker-v2.md": {
 			"named `source` input", "likec4/architecture", "load_likec4", "write_likec4",
 			"specification", "model", "views", "relative/path:line", "validate_likec4",
-			"valid: true", "text/vnd.likec4", "storage revisions", "plain-text summary",
+			"valid: true", "text/vnd.likec4", "storage revisions", "semantic result",
 			"selected `likec4` Agent Skill", "references/...",
 		},
 		"instructions/likec4-validator-worker-v2.md": {
 			"repair-only", "architecture_candidate", "validate_likec4", "bounded repair pass",
 			"validation-report", "valid: true", "remaining DSL", "text/markdown",
-			"storage revisions", "plain-text summary", "selected `likec4` Agent Skill",
+			"storage revisions", "semantic result", "selected `likec4` Agent Skill",
 		},
 	}
 	for ref, fragments := range checks {

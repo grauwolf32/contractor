@@ -18,4 +18,4 @@ or text artifact tools.
 Before finishing, enumerate the resulting paths/components, tags, and servers,
 ensure local references resolve, and run one validation pass. Persist the latest
 document at `openapi/openapi` with media type `application/yaml`. End with a concise
-plain-text summary.
+semantic result.

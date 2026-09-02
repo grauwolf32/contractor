@@ -22,5 +22,5 @@ Write a Markdown report headed `# Project Structure and Runtime Inventory` to
 `analysis/project` with media type `text/markdown`. Include an overview, executable
 and service topology, inbound API surface, models, security controls, external
 systems, evidence index, and unresolved questions. Finish only after that durable
-write succeeds. Keep the plain-text completion summary concise and omit the report
+write succeeds. Keep the semantic completion result concise and omit the report
 body.

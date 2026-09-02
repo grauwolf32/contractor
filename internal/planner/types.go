@@ -69,7 +69,7 @@ type WorkerInvoker interface {
 		string,
 		contracts.WorkerHandle,
 		contracts.StageContentRequest,
-	) (contracts.StageContentResult, error)
+	) (contracts.WorkerCompletion, error)
 }
 
 type SessionIdentity struct {

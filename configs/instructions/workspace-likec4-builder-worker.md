@@ -15,6 +15,6 @@ and once more before finishing. `changed_paths` and `diff` describe only the cur
 workspace checkpoint. Cumulative workspace export is automatic and is not part of
 your task; do not create separate workspace-state or workspace-diff artifacts.
 
-Finish with a concise plain-text summary after a clean durable
+Finish with a concise semantic result after a clean durable
 `likec4/architecture` is available. Never paste DSL, source content, or storage
 revisions into the summary.

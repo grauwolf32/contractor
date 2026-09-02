@@ -43,5 +43,5 @@ any ambiguous existing entry, and call `validate_openapi` once. Fix only high-co
 resolved from the available evidence; the following validation Stage owns final
 repair and the second lint cycle.
 
-Finish with a concise plain-text summary after the document is durably available at
+Finish with a concise semantic result after the document is durably available at
 `openapi/openapi`. Never paste schema text or storage revisions into the summary.

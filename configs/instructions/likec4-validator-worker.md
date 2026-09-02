@@ -26,5 +26,5 @@ Always publish `likec4/validation-report` as `text/markdown`, using CAS when a r
 finds an existing report. Include candidate/final exact revisions, initial/final issue
 counts, edits and evidence, remaining diagnostics, and CLI availability. Claim a clean
 result only when final validation has `valid: true`. State remaining DSL or
-CLI/environment failures plainly. End with a concise plain-text summary and never
+CLI/environment failures plainly. End with a concise semantic result and never
 paste the DSL, report, or storage revisions into it.

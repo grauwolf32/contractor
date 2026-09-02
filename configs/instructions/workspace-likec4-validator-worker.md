@@ -14,6 +14,6 @@ candidate/final revisions, issue counts, evidence-backed edits, remaining
 diagnostics, and validator availability. Cumulative workspace export is automatic
 and is not part of your task; do not create separate state or diff artifacts.
 
-Finish with a concise plain-text summary. Claim a clean result only when final
+Finish with a concise semantic result. Claim a clean result only when final
 validation succeeds. State remaining DSL or validator/environment failures plainly
 and do not include storage revisions in the summary.

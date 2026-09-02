@@ -17,5 +17,5 @@ following task owns final repair. `changed_paths`/`diff` are checkpoint-relative
 cumulative workspace export is automatic and is not part of your task. Do not create
 separate workspace-state or workspace-diff artifacts.
 
-Finish with a concise plain-text summary after a durable `openapi/openapi` document
+Finish with a concise semantic result after a durable `openapi/openapi` document
 is available. Never paste source, schema text, or storage revisions into the summary.

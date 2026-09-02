@@ -14,5 +14,5 @@ current-origin server; never invent a host or use the trailing-slash `/`.
 Always write `openapi/validation-report` as Markdown. On clean second validation,
 ensure the final document remains at `openapi/openapi`. If Vacuum cannot execute or
 verified repair still leaves serious/structural issues, describe that plainly in the
-report and final summary. Never claim a clean result unless
+report and final result. Never claim a clean result unless
 `validate_openapi.valid` is true.

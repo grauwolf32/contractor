@@ -122,22 +122,112 @@ func TestInvokerRejectsInvalidEnvelopeAndFailedTaskSuccessMismatch(t *testing.T)
 
 	unknown := sdk.NewMessage(sdk.MessageRoleAgent, sdk.NewDataPart(map[string]any{
 		"apiVersion": contracts.APIVersion,
-		"outcome":    "succeeded", "summary": "done", "artifacts": map[string]any{},
+		"result": map[string]any{
+			"subtaskId": "0", "result": "done", "observations": map[string]any{
+				"profile": "lean@1", "tools": map[string]any{}, "truncated": false,
+			}, "artifacts": map[string]any{}, "summarized": false,
+		},
+		"invocationId": "worker-invocation-invalid", "stateRevision": 1,
 		"invented": true,
 	}))
+	unknown.Parts[0].MediaType = workerCompletionMediaType
 	_, err = decodeResultMessage(unknown)
 	assertPlannerCode(t, err, "invalid_worker_result")
 }
 
-func TestInvokerReturnsValidatedFailedCandidateFromFailedTask(t *testing.T) {
-	want := contracts.StageContentResult{
+func TestInvokerRejectsWorkerResultForAnotherSubtask(t *testing.T) {
+	completion := successResult()
+	completion.Result.SubtaskID = "1"
+	_, err := fakeInvoker(&fakeClient{response: resultMessage(completion)}).Invoke(
+		context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+		stageRequest(),
+	)
+	assertPlannerCode(t, err, "worker_result_subtask_mismatch")
+}
+
+func TestInvokerRejectsTaskCorrelationChangesWhilePolling(t *testing.T) {
+	initial := &sdk.Task{
+		ID: "task-1", ContextID: "context-1", Status: sdk.TaskStatus{State: sdk.TaskStateWorking},
+	}
+	for _, test := range []struct {
+		name string
+		next *sdk.Task
+	}{
+		{
+			name: "task id",
+			next: &sdk.Task{
+				ID: "task-2", ContextID: "context-1",
+				Status: sdk.TaskStatus{State: sdk.TaskStateCompleted, Message: resultMessage(successResult())},
+			},
+		},
+		{
+			name: "context id",
+			next: &sdk.Task{
+				ID: "task-1", ContextID: "context-2",
+				Status: sdk.TaskStatus{State: sdk.TaskStateCompleted, Message: resultMessage(successResult())},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			client := &fakeClient{response: initial, tasks: []*sdk.Task{test.next}}
+			_, err := fakeInvoker(client).Invoke(
+				context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+				stageRequest(),
+			)
+			assertPlannerCode(t, err, "invalid_a2a_response")
+			if client.getCalls != 1 {
+				t.Fatalf("GetTask calls = %d, want 1", client.getCalls)
+			}
+		})
+	}
+}
+
+func TestInvokerRejectsResultMessageCorrelationMismatch(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		message *sdk.Message
+	}{
+		{name: "missing", message: func() *sdk.Message {
+			message := resultMessage(successResult())
+			message.TaskID = ""
+			message.ContextID = ""
+			return message
+		}()},
+		{name: "task id", message: func() *sdk.Message {
+			message := resultMessage(successResult())
+			message.TaskID = "task-2"
+			return message
+		}()},
+		{name: "context id", message: func() *sdk.Message {
+			message := resultMessage(successResult())
+			message.ContextID = "context-2"
+			return message
+		}()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := sdk.SendMessageResult(test.message)
+			if test.name != "missing" {
+				response = &sdk.Task{
+					ID: "task-1", ContextID: "context-1",
+					Status: sdk.TaskStatus{State: sdk.TaskStateCompleted, Message: test.message},
+				}
+			}
+			_, err := fakeInvoker(&fakeClient{response: response}).Invoke(
+				context.Background(), "builder", workerHandle("https://runtime.example/a2a"),
+				stageRequest(),
+			)
+			assertPlannerCode(t, err, "invalid_a2a_response")
+		})
+	}
+}
+
+func TestInvokerReturnsValidatedWorkerFailureFromFailedTask(t *testing.T) {
+	want := contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,
-		Outcome:    contracts.StageFailed,
-		Summary:    "Worker could not build the report",
-		Artifacts:  map[string]contracts.ArtifactRef{},
-		Error: &contracts.TerminationError{
+		Failure: &contracts.WorkerFailure{
 			Code: "source_invalid", Message: "The source is invalid", Retryable: false,
 		},
+		InvocationID: "worker-invocation-failed", StateRevision: 9,
 	}
 	response := &sdk.Task{
 		ID: "task-1", ContextID: "context-1",
@@ -281,20 +371,32 @@ func stageRequest() contracts.StageContentRequest {
 	}
 }
 
-func successResult() contracts.StageContentResult {
+func successResult() contracts.WorkerCompletion {
 	revision := "result-r1"
-	return contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded, Summary: "done",
-		Artifacts: map[string]contracts.ArtifactRef{
-			"report": {Namespace: "builder", Name: "report", Revision: &revision},
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: "0", Result: "done",
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: map[string]contracts.ArtifactRef{
+				"report": {Namespace: "builder", Name: "report", Revision: &revision},
+			},
+			Summarized: false,
 		},
+		InvocationID: "worker-invocation-1", StateRevision: 7,
 	}
 }
 
-func resultMessage(result contracts.StageContentResult) *sdk.Message {
+func resultMessage(result contracts.WorkerCompletion) *sdk.Message {
 	part := sdk.NewDataPart(result)
-	part.MediaType = stageContentMediaType
-	return sdk.NewMessage(sdk.MessageRoleAgent, part)
+	part.MediaType = workerCompletionMediaType
+	message := sdk.NewMessage(sdk.MessageRoleAgent, part)
+	message.TaskID = "task-1"
+	message.ContextID = "context-1"
+	return message
 }
 
 func assertPlannerCode(t *testing.T, err error, code string) {

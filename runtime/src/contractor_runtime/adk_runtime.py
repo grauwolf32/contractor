@@ -21,6 +21,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools import FunctionTool
 from google.genai import types
+from pydantic import ValidationError
 from starlette.types import ASGIApp
 
 from contractor_runtime.a2a_server import (
@@ -39,9 +40,12 @@ from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
     StageContentRequest,
-    StageContentResult,
-    StageOutcome,
-    TerminationError,
+    ToolObservationCount,
+    WorkerCompletion,
+    WorkerFailure,
+    WorkerModelResult,
+    WorkerObservations,
+    WorkerResult,
 )
 from contractor_runtime.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.model_client import (
@@ -67,7 +71,6 @@ if TYPE_CHECKING:
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
 MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
-MAX_RESULT_SUMMARY_CHARS = 64 * 1024
 SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
@@ -298,9 +301,7 @@ class AdkWorkerRuntime:
             model=model,
             instruction=context.instruction,
             tools=adk_tools,
-            # The model owns task work and a human-readable summary only. Runtime
-            # projects that summary and invocation-local trusted tool observations
-            # into the private A2A response below.
+            output_schema=WorkerModelResult,
             generate_content_config=generation,
         )
         self._app = App(
@@ -342,7 +343,7 @@ class AdkWorkerRuntime:
     def a2a_application(self) -> ASGIApp:
         return self._a2a_application
 
-    async def invoke(self, request: StageContentRequest) -> StageContentResult:
+    async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
         span = _start_span(
             self._instrumentation,
             "contractor.worker.a2a_task",
@@ -363,17 +364,32 @@ class AdkWorkerRuntime:
             _record_worker_error(self._instrumentation, error_type)
             raise
         attributes = _aggregate_count_attributes(self._metrics.counters)
-        if result.error is not None:
-            attributes["error.type"] = result.error.code
-            _record_worker_error(self._instrumentation, result.error.code)
-        _end_span(span, outcome=result.outcome.value, attributes=attributes)
+        if result.failure is not None:
+            attributes["error.type"] = result.failure.code
+            _record_worker_error(self._instrumentation, result.failure.code)
+        _end_span(
+            span,
+            outcome="failed" if result.failure is not None else "succeeded",
+            attributes=attributes,
+        )
         return result
 
-    async def _invoke(self, request: StageContentRequest) -> StageContentResult:
+    async def failure_completion(
+        self, code: str, message: str, *, retryable: bool = False
+    ) -> WorkerCompletion:
+        """Create a bounded Runtime-owned failure for an A2A adapter rejection."""
+
+        return await self._untracked_failure_completion(code, message, retryable)
+
+    async def _invoke(self, request: StageContentRequest) -> WorkerCompletion:
         if not self._accepting:
-            return _failure("worker_draining", "Worker is no longer accepting A2A work", True)
+            return await self._untracked_failure_completion(
+                "worker_draining", "Worker is no longer accepting A2A work", True
+            )
         if self._invoke_lock.locked():
-            return _failure("worker_busy", "Worker already has an active A2A invocation", True)
+            return await self._untracked_failure_completion(
+                "worker_busy", "Worker already has an active A2A invocation", True
+            )
         await self._invoke_lock.acquire()
         self._active_task = asyncio.current_task()
         policy = self._context.model_policy
@@ -385,34 +401,42 @@ class AdkWorkerRuntime:
         )
         self._active_budget = budget
         model_errors_before = self._metrics.counters.get("llm_errors", 0)
-        invocation_id: str | None = None
+        invocation_id = f"worker-{uuid.uuid4().hex}"
         invocation_phase: InvocationPhase = "failed"
+        outcome: WorkerResult | WorkerFailure
+        state_snapshot: dict[str, Any] | None = None
         try:
             budget.start()
-            if not self._accepting:
-                return _failure("worker_draining", "Worker is no longer accepting A2A work", True)
-            encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode(
-                "utf-8"
+            self._plugin.prepare_invocation(
+                invocation_id=invocation_id,
+                subtask_id=request.subtask_id,
             )
-            if len(encoded_request) > MAX_STAGE_REQUEST_JSON_BYTES:
-                result = _failure(
-                    "stage_content_too_large", "StageContentRequest exceeds the Worker limit", False
+            if not self._accepting:
+                outcome = _failure(
+                    "worker_draining", "Worker is no longer accepting A2A work", True
                 )
                 exportable = False
             else:
-                invocation_id = f"worker-{uuid.uuid4().hex}"
-                self._plugin.prepare_invocation(
-                    invocation_id=invocation_id,
-                    subtask_id=request.subtask_id,
+                encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode(
+                    "utf-8"
                 )
-                result, exportable = await self._run_adk(request, invocation_id)
+                if len(encoded_request) > MAX_STAGE_REQUEST_JSON_BYTES:
+                    outcome = _failure(
+                        "stage_content_too_large",
+                        "StageContentRequest exceeds the Worker limit",
+                        False,
+                    )
+                    exportable = False
+                else:
+                    outcome, exportable = await self._run_adk(request, invocation_id)
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
-                    exported = await exporter.export(result)
+                    assert isinstance(outcome, WorkerResult)
+                    exported = await exporter.export(outcome)
                 except WorkspaceExportError as error:
                     self._metrics.record_workspace_export(error=error)
-                    result = _failure(
+                    outcome = _failure(
                         "workspace_export_failed",
                         f"Workspace export failed ({error.cause})",
                         error.retryable,
@@ -422,10 +446,9 @@ class AdkWorkerRuntime:
                         state_bytes=exported.state_bytes,
                         diff_bytes=exported.diff_bytes,
                     )
-                    result = exported.result
-            self._metrics.record_outcome(result.outcome.value)
-            invocation_phase = "succeeded" if result.outcome is StageOutcome.SUCCEEDED else "failed"
-            return result
+                    outcome = exported.result
+            invocation_phase = "succeeded" if isinstance(outcome, WorkerResult) else "failed"
+            self._metrics.record_outcome(invocation_phase)
         except asyncio.CancelledError:
             self._metrics.record_outcome("cancelled")
             invocation_phase = "cancelled"
@@ -433,17 +456,45 @@ class AdkWorkerRuntime:
         except Exception as error:
             if self._metrics.counters.get("llm_errors", 0) == model_errors_before:
                 await self._plugin.record_unhandled_model_error(error)
-            result = _failure("worker_execution_failed", "Worker execution failed", True)
-            self._metrics.record_outcome(result.outcome.value)
+            gateway_error = _gateway_model_error(error)
+            if gateway_error is not None:
+                outcome = _failure(
+                    "worker_gateway_unavailable", "Worker LLM Gateway request failed", True
+                )
+            else:
+                outcome = _failure("worker_execution_failed", "Worker execution failed", True)
+            self._metrics.record_outcome("failed")
             invocation_phase = "failed"
-            return result
         finally:
             try:
-                await self._finish_invocation_state(invocation_id, invocation_phase)
+                state_snapshot = await self._finish_invocation_state(
+                    invocation_id,
+                    request.subtask_id,
+                    invocation_phase,
+                )
             finally:
                 self._active_budget = None
                 self._active_task = None
                 self._invoke_lock.release()
+        if state_snapshot is None:
+            raise RuntimeError("Worker State did not produce a terminal revision")
+        if isinstance(outcome, WorkerResult):
+            outcome = outcome.model_copy(
+                update={
+                    "observations": _lean_observations(
+                        state_snapshot,
+                        invocation_id,
+                        projection_failed=self._plugin.projection_failed,
+                    )
+                }
+            )
+        return WorkerCompletion(
+            apiVersion=API_VERSION,
+            result=outcome if isinstance(outcome, WorkerResult) else None,
+            failure=outcome if isinstance(outcome, WorkerFailure) else None,
+            invocationId=invocation_id,
+            stateRevision=state_snapshot["stateRevision"],
+        )
 
     def cancel_active(self) -> None:
         task = self._active_task
@@ -460,7 +511,7 @@ class AdkWorkerRuntime:
         self,
         request: StageContentRequest,
         invocation_id: str,
-    ) -> tuple[StageContentResult, bool]:
+    ) -> tuple[WorkerResult | WorkerFailure, bool]:
         runner = self._runner
         if runner is None:
             return _failure(
@@ -505,31 +556,48 @@ class AdkWorkerRuntime:
         request: StageContentRequest,
         candidate: str | None,
         observed_refs: tuple[ArtifactRef, ...],
-    ) -> tuple[StageContentResult, bool]:
+    ) -> tuple[WorkerResult | WorkerFailure, bool]:
         if candidate is None:
             return _failure(
-                "worker_result_missing", "Worker returned no final summary", True
+                "worker_result_missing", "Worker returned no structured result", True
             ), False
         if len(candidate.encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
             return _failure(
-                "worker_result_too_large", "Worker final summary exceeds its limit", False
+                "worker_result_too_large", "Worker structured result exceeds its limit", False
+            ), False
+        try:
+            raw_candidate = json.loads(candidate)
+        except (json.JSONDecodeError, TypeError):
+            return _failure(
+                "worker_result_invalid", "Worker returned an invalid structured result", True
+            ), False
+        if (
+            isinstance(raw_candidate, dict)
+            and isinstance(raw_candidate.get("result"), str)
+            and len(raw_candidate["result"].encode("utf-8")) > 64 * 1024
+        ):
+            return _failure(
+                "worker_result_too_large", "Worker structured result exceeds its limit", False
+            ), False
+        try:
+            model_result = WorkerModelResult.model_validate(raw_candidate)
+        except ValidationError:
+            return _failure(
+                "worker_result_invalid", "Worker returned an invalid structured result", True
+            ), False
+        if model_result.subtask_id != request.subtask_id:
+            return _failure(
+                "worker_result_subtask_mismatch",
+                "Worker result does not match the requested subtask",
+                True,
             ), False
         wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
         gateway_token = (
             wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
         )
-        if gateway_token and gateway_token in candidate:
+        if gateway_token and gateway_token in model_result.result:
             return _failure(
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
-            ), False
-        summary = candidate.strip()
-        if not summary:
-            return _failure(
-                "worker_result_missing", "Worker returned no final summary", True
-            ), False
-        if len(summary) > MAX_RESULT_SUMMARY_CHARS:
-            return _failure(
-                "worker_result_too_large", "Worker final summary exceeds its limit", False
             ), False
         observed = {
             (ref.namespace, ref.name): ref for ref in _latest_observed_exact_refs(observed_refs)
@@ -540,7 +608,9 @@ class AdkWorkerRuntime:
         for slot, binding in request.result_artifacts.items():
             if slot in reserved_slots:
                 continue
-            if is_reserved_memory_binding(binding.namespace, binding.name):
+            if binding.namespace in {"inputs", "outputs", "skills"} or is_reserved_memory_binding(
+                binding.namespace, binding.name
+            ):
                 return _failure(
                     "invalid_worker_result_binding",
                     "Worker result binding is reserved by Runtime policy",
@@ -553,11 +623,14 @@ class AdkWorkerRuntime:
             return _failure(
                 "worker_result_too_large", "Worker result exceeds its limit", False
             ), False
-        result = StageContentResult(
-            apiVersion=API_VERSION,
-            outcome=StageOutcome.SUCCEEDED,
-            summary=summary,
+        result = WorkerResult(
+            subtaskId=request.subtask_id,
+            result=model_result.result,
+            observations=WorkerObservations(
+                profile="lean@1", tools={}, workspace=None, truncated=False
+            ),
             artifacts=artifacts,
+            summarized=False,
         )
         if len(result.model_dump_json(by_alias=True).encode("utf-8")) > MAX_STAGE_RESULT_JSON_BYTES:
             return _failure(
@@ -630,25 +703,50 @@ class AdkWorkerRuntime:
 
     async def _finish_invocation_state(
         self,
-        invocation_id: str | None,
+        invocation_id: str,
+        subtask_id: str,
         phase: InvocationPhase,
-    ) -> None:
-        async def finish() -> None:
-            snapshot = None
-            if invocation_id is not None:
-                snapshot = await self._plugin.complete_invocation(
+    ) -> dict[str, Any]:
+        async def finish() -> dict[str, Any]:
+            snapshot = await self._plugin.complete_invocation(
+                invocation_id=invocation_id,
+                phase=phase,
+            )
+            if snapshot is None:
+                metrics = _empty_invocation_metrics()
+                await self._worker_state.begin_invocation(
+                    invocation_id=invocation_id,
+                    subtask_id=subtask_id,
+                    metrics=metrics,
+                )
+                snapshot = await self._worker_state.complete_invocation(
                     invocation_id=invocation_id,
                     phase=phase,
+                    metrics=metrics,
                 )
             await self._sync_worker_state(snapshot)
+            return snapshot
 
         task = asyncio.create_task(finish(), name="worker-invocation-state-finalize")
         try:
-            await asyncio.shield(task)
+            return await asyncio.shield(task)
         except asyncio.CancelledError:
             with contextlib.suppress(Exception, asyncio.CancelledError):
                 await task
             raise
+
+    async def _untracked_failure_completion(
+        self, code: str, message: str, retryable: bool
+    ) -> WorkerCompletion:
+        self._metrics.record_outcome("failed")
+        snapshot = await self._worker_state.sync_metrics()
+        await self._sync_worker_state(snapshot)
+        return WorkerCompletion(
+            apiVersion=API_VERSION,
+            failure=_failure(code, message, retryable),
+            invocationId=f"worker-rejected-{uuid.uuid4().hex}",
+            stateRevision=snapshot["stateRevision"],
+        )
 
     async def _sync_worker_state(self, snapshot: dict[str, Any] | None = None) -> None:
         if snapshot is None:
@@ -707,6 +805,7 @@ def _task_prompt(request: StageContentRequest) -> str:
         for name, ref in sorted(request.artifacts.items())
     }
     return (
+        f"Subtask ID:\n{request.subtask_id}\n\n"
         f"Objective:\n{request.objective}\n\n"
         f"Task instructions:\n{request.instructions}\n\n"
         "String parameters:\n"
@@ -787,11 +886,64 @@ def _aggregate_count_attributes(counters: Mapping[str, int]) -> dict[str, int]:
     return result
 
 
-def _failure(code: str, summary: str, retryable: bool) -> StageContentResult:
-    return StageContentResult(
-        apiVersion=API_VERSION,
-        outcome=StageOutcome.FAILED,
-        summary=summary,
-        artifacts={},
-        error=TerminationError(code=code, message=summary, retryable=retryable),
+def _failure(code: str, message: str, retryable: bool) -> WorkerFailure:
+    return WorkerFailure(code=code, message=message, retryable=retryable)
+
+
+def _gateway_model_error(error: BaseException) -> GatewayModelError | None:
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, GatewayModelError):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _empty_invocation_metrics() -> dict[str, Any]:
+    return {
+        "modelCalls": 0,
+        "modelErrors": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "cachedInputTokens": 0,
+        "tokenUsageUnavailable": 0,
+        "toolCalls": 0,
+        "toolErrors": 0,
+        "tools": {},
+        "truncated": False,
+    }
+
+
+def _lean_observations(
+    snapshot: Mapping[str, Any],
+    invocation_id: str,
+    *,
+    projection_failed: bool,
+) -> WorkerObservations:
+    completed = snapshot.get("lastCompletedInvocation")
+    if not isinstance(completed, Mapping) or completed.get("invocationId") != invocation_id:
+        raise RuntimeError("Worker State completion correlation is invalid")
+    metrics = completed.get("metrics")
+    if not isinstance(metrics, Mapping):
+        raise RuntimeError("Worker invocation metrics are unavailable")
+    raw_tools = metrics.get("tools")
+    if not isinstance(raw_tools, Mapping):
+        raise RuntimeError("Worker invocation tool metrics are unavailable")
+    tools: dict[str, ToolObservationCount] = {}
+    for name in sorted(raw_tools):
+        aggregate = raw_tools[name]
+        if not isinstance(name, str) or not isinstance(aggregate, Mapping):
+            raise RuntimeError("Worker invocation tool metrics are invalid")
+        tools[name] = ToolObservationCount(
+            calls=aggregate.get("calls"),
+            failures=aggregate.get("failures"),
+        )
+    return WorkerObservations(
+        profile="lean@1",
+        tools=tools,
+        workspace=None,
+        truncated=bool(metrics.get("truncated")) or projection_failed,
     )

@@ -27,7 +27,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		},
 	}
 	sessions := &memorySessions{}
-	worker := &recordingWorker{result: candidate}
+	worker := &recordingWorker{result: workerCompletionFromCandidate(candidate)}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		"builder/report/result-r1": "application/json",
 	}}
@@ -196,7 +196,7 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 			mediaTypes: map[string]string{
 				"builder/memory.report/result-r1": "application/json",
 			},
-			wantCode: "result_contract_violation",
+			wantCode: "invalid_worker_result",
 		},
 	}
 	for _, test := range tests {
@@ -211,7 +211,7 @@ func TestPassthroughPlannerRejectsInvalidArtifactResults(t *testing.T) {
 			}
 			test.mutate(&candidate)
 			sessions := &memorySessions{}
-			worker := &recordingWorker{result: candidate}
+			worker := &recordingWorker{result: workerCompletionFromCandidate(candidate)}
 			inspector := &fakeInspector{mediaTypes: test.mediaTypes}
 			factory, _ := NewPassthroughFactory(sessions, worker, inspector)
 			instance, err := factory.Create(testInvocation())
@@ -257,6 +257,34 @@ func TestPassthroughPlannerRecordsTypedFailureAndDoesNotRetryInvocation(t *testi
 	if !errors.As(err, &plannerError) || plannerError.Code != "worker_input_required" ||
 		worker.calls != 1 {
 		t.Fatalf("recovery error/calls = (%v, %d)", err, worker.calls)
+	}
+}
+
+func TestPassthroughPlannerMapsWorkerFailureToFailedCandidate(t *testing.T) {
+	sessions := &memorySessions{}
+	worker := &recordingWorker{result: contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Failure: &contracts.WorkerFailure{
+			Code: "worker_budget_exhausted", Message: "Worker budget was exhausted", Retryable: true,
+		},
+		InvocationID: "worker-invocation-failed", StateRevision: 7,
+	}}
+	factory, _ := NewPassthroughFactory(sessions, worker, &fakeInspector{})
+	instance, _ := factory.Create(testInvocation())
+
+	result, err := instance.Run(context.Background())
+	if err != nil || result.Outcome != contracts.StageFailed || result.Error == nil ||
+		result.Error.Code != "worker_budget_exhausted" || !result.Error.Retryable {
+		t.Fatalf("Run = (%+v, %v)", result, err)
+	}
+	if sessions.completion == nil || sessions.completion.Result == nil ||
+		sessions.completion.Failure != nil {
+		t.Fatalf("Planner completion = %+v", sessions.completion)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok || report.ToolCalls[0].Outcome != contracts.ToolCallFailed ||
+		report.ToolCalls[0].Error == nil || report.ToolCalls[0].Error.Code != "worker_budget_exhausted" {
+		t.Fatalf("Planner report = (%+v, %t)", report, ok)
 	}
 }
 
@@ -390,7 +418,7 @@ type recordingWorker struct {
 	handle         contracts.WorkerHandle
 	request        contracts.StageContentRequest
 	deadline       time.Time
-	result         contracts.StageContentResult
+	result         contracts.WorkerCompletion
 	err            error
 	waitForContext bool
 }
@@ -400,15 +428,30 @@ func (w *recordingWorker) Invoke(
 	binding string,
 	handle contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	w.calls++
 	w.binding, w.handle, w.request = binding, handle, request
 	w.deadline, _ = ctx.Deadline()
 	if w.waitForContext {
 		<-ctx.Done()
-		return contracts.StageContentResult{}, ctx.Err()
+		return contracts.WorkerCompletion{}, ctx.Err()
 	}
 	return w.result, w.err
+}
+
+func workerCompletionFromCandidate(candidate contracts.StageContentResult) contracts.WorkerCompletion {
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: "0", Result: candidate.Summary,
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: candidate.Artifacts, Summarized: false,
+		},
+		InvocationID: "worker-invocation-1", StateRevision: 2,
+	}
 }
 
 type fakeInspector struct {

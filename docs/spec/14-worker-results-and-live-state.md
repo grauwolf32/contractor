@@ -95,6 +95,12 @@ class WorkerCompletion(BaseModel):
 control metadata for Server correlation and never enter a model-facing Planner
 tool result.
 
+The A2A request DataPart uses
+`application/vnd.contractor.stage-content+json`; the terminal response DataPart
+uses `application/vnd.contractor.worker-completion+json`. The Agent Card and
+each request advertise the latter as the accepted output mode. A missing or
+different response media type fails closed before payload decoding.
+
 `WorkerResult` has no outcome or error field. Receiving it means that the
 Worker model produced one valid semantic completion. Runtime/tool/provider,
 budget and contract failures use `WorkerFailure`; a Worker-facing `fail` tool

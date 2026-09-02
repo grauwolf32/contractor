@@ -142,7 +142,7 @@ func (p *passthroughPlanner) Run(
 		telemetry.PlannerSpanWorker,
 		telemetry.PlannerSpanAttributes{Operation: "a2a.invoke", WorkerName: p.binding},
 	)
-	result, err := p.invoker.Invoke(
+	workerCompletion, err := p.invoker.Invoke(
 		invokeContext, p.binding, cloneWorkerHandle(p.handle), cloneStageRequest(p.request),
 	)
 	invokeDurationMS = max(0, time.Since(invokeStarted).Milliseconds())
@@ -154,6 +154,22 @@ func (p *passthroughPlanner) Run(
 			ctx, started.Identity, NewErrorFromFailure(FailureFrom(err), err),
 		)
 	}
+	if validation := ValidateWorkerCompletion(workerCompletion, p.request.SubtaskID); validation != nil {
+		failure := FailureFrom(validation)
+		invokeFailure = &failure
+		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
+		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, validation)
+	}
+	result, err := StageCandidateFromWorkerCompletion(workerCompletion)
+	if err != nil {
+		validation := NewError(
+			"invalid_worker_result", "Worker completion cannot be mapped to a Stage candidate", false, err,
+		)
+		failure := FailureFrom(validation)
+		invokeFailure = &failure
+		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
+		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, validation)
+	}
 	if err := validateCandidate(
 		invokeContext, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.inspector,
 	); err != nil {
@@ -161,7 +177,16 @@ func (p *passthroughPlanner) Run(
 		workerSpan.End("rejected", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
 		return contracts.StageContentResult{}, p.fail(ctx, started.Identity, err)
 	}
-	workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
+	if workerCompletion.Failure != nil {
+		failure := Failure{
+			Code: workerCompletion.Failure.Code, Message: workerCompletion.Failure.Message,
+			Retryable: workerCompletion.Failure.Retryable,
+		}
+		invokeFailure = &failure
+		workerSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: failure.Code})
+	} else {
+		workerSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
+	}
 	completion := Completion{Result: pointerToResult(cloneStageResult(result))}
 	if err := p.recordCompletion(ctx, started.Identity, completion); err != nil {
 		return contracts.StageContentResult{}, sessionError("record completion", err)

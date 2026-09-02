@@ -59,10 +59,8 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
                 ),
                 json_result(
                     {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Used the selected skill",
-                        "artifacts": {},
+                        "subtaskId": "0",
+                        "result": "Used the selected skill",
                     }
                 ),
             ]
@@ -81,7 +79,8 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
+        assert result.result.result == "Used the selected skill"
         assert len(model.requests) == 4
         for request in model.requests:
             assert request["toolNames"] == sorted(EXACT_SKILL_TOOL_NAMES)

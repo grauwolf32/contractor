@@ -13,10 +13,9 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import (
-    API_VERSION,
     AllocationWorkspaceExportV2,
     ArtifactRef,
-    StageContentResult,
+    WorkerResult,
 )
 from contractor_runtime.projectfs.overlay import (
     WORKSPACE_OVERLAY_MEDIA_TYPE,
@@ -45,7 +44,7 @@ class WorkspaceExportError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class WorkspaceExportResult:
-    result: StageContentResult
+    result: WorkerResult
     state_bytes: int
     diff_bytes: int
     result_workspace_digest: str
@@ -73,7 +72,7 @@ class WorkspaceAutoExporter:
     def reserved_slots(self) -> frozenset[str]:
         return self._reserved_slots
 
-    async def export(self, result: StageContentResult) -> WorkspaceExportResult:
+    async def export(self, result: WorkerResult) -> WorkspaceExportResult:
         if self._reserved_slots & result.artifacts.keys():
             raise WorkspaceExportError("reserved_result_slot", retryable=False)
         try:
@@ -145,19 +144,18 @@ class WorkspaceAutoExporter:
 
     def _inject_and_validate(
         self,
-        result: StageContentResult,
+        result: WorkerResult,
         state_ref: ArtifactRef,
         diff_ref: ArtifactRef,
-    ) -> StageContentResult:
+    ) -> WorkerResult:
         artifacts = dict(result.artifacts)
         artifacts[self._state_slot] = state_ref
         artifacts[self._diff_slot] = diff_ref
         if len(artifacts) > MAX_EXPORTED_RESULT_ARTIFACTS:
             raise WorkspaceExportError("invalid_export_result", retryable=False)
-        final = StageContentResult.model_validate(
+        final = WorkerResult.model_validate(
             {
                 **result.model_dump(mode="python", by_alias=True, exclude_none=True),
-                "apiVersion": API_VERSION,
                 "artifacts": artifacts,
             }
         )

@@ -9,4 +9,4 @@ remain or when the direct LikeC4 CLI is unavailable/failed.
 Write `likec4/validation-report` as Markdown and keep the clean final model at
 `likec4/architecture`. State CLI/environment failures or remaining DSL errors plainly
 without claiming a clean result. Do not paste the architecture source into the report
-or final summary.
+or final result.

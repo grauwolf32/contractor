@@ -40,6 +40,7 @@ from contractor_runtime.contracts import (
     StageContentRequest,
     ToolsetRef,
     ToolsetSelection,
+    WorkerModelResult,
     WorkerRuntimeRef,
 )
 from contractor_runtime.factories import WorkerBuildContext
@@ -48,6 +49,10 @@ from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-adk-gateway-token"
+
+
+def model_result(result: str, *, subtask_id: str = "0", **extra: object) -> object:
+    return json_result({"subtaskId": subtask_id, "result": result, **extra})
 
 
 def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path: Path) -> None:
@@ -73,12 +78,12 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
                     },
                     call_id="write-1",
                 ),
-                text_result("Report created"),
+                model_result("Report created"),
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
         assert runtime._agent is not None
-        assert runtime._agent.output_schema is None
+        assert runtime._agent.output_schema is WorkerModelResult
         assert runtime._app.plugins == [runtime._plugin]
         assert runtime._agent.before_model_callback is None
         assert runtime._agent.after_model_callback is None
@@ -87,8 +92,21 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
-        assert result.artifacts["report"].revision == "write-r1"
+        assert result.result is not None
+        assert result.failure is None
+        assert result.result.result == "Report created"
+        assert result.result.subtask_id == "0"
+        assert result.result.artifacts["report"].revision == "write-r1"
+        assert result.result.summarized is False
+        assert result.result.observations.profile == "lean@1"
+        assert {
+            name: value.model_dump() for name, value in result.result.observations.tools.items()
+        } == {
+            "read_artifact": {"calls": 1, "failures": 0},
+            "write_artifact": {"calls": 1, "failures": 0},
+        }
+        assert result.state_revision > 1
+        assert result.invocation_id.startswith("worker-")
         assert client.calls == ["read_artifact", "write_artifact"]
         assert state.metrics.counters == {
             "input_tokens": 21,
@@ -114,6 +132,9 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         assert budget.exhausted is None
         assert all(request["maxOutputTokens"] == 4096 for request in model.requests)
         assert all(request["temperature"] == 0.1 for request in model.requests)
+        assert all(request["responseMimeType"] == "application/json" for request in model.requests)
+        assert all(request["hasResponseSchema"] is True for request in model.requests)
+        assert all("Subtask ID:\n0" in request["contentText"] for request in model.requests)
         assert all(
             request["toolNames"] == ["read_artifact", "write_artifact"]
             for request in model.requests
@@ -148,7 +169,7 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
                     {"namespace": "inputs", "name": "source", "revision": "input-r1"},
                     call_id="read-for-telemetry",
                 ),
-                text_result("Telemetry-safe result"),
+                model_result("Telemetry-safe result"),
             ]
         )
         instrumentation = RecordingInstrumentation()
@@ -162,7 +183,7 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
         assert [span.name for span in instrumentation.spans] == [
             "contractor.worker.a2a_task",
             "contractor.worker.model",
@@ -190,12 +211,17 @@ def test_adk_worker_emits_content_free_model_tool_and_a2a_hooks(tmp_path: Path) 
     asyncio.run(scenario())
 
 
-def test_adk_worker_treats_protocol_shaped_text_as_summary_and_blocks_secrets(
+def test_adk_worker_rejects_non_schema_results_and_blocks_secrets(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
-        shaped = '{"outcome":"succeeded","artifacts":{"report":{"revision":"guessed"}}}'
-        model = scripted_model([text_result(shaped)])
+        shaped = {
+            "subtaskId": "0",
+            "result": "guessed",
+            "outcome": "succeeded",
+            "artifacts": {"report": {"revision": "guessed"}},
+        }
+        model = scripted_model([json_result(shaped)])
         state = WorkerState()
         runtime = await create_runtime(
             tmp_path / "shaped",
@@ -204,21 +230,119 @@ def test_adk_worker_treats_protocol_shaped_text_as_summary_and_blocks_secrets(
             model,
         )
         result = await runtime.invoke(stage_request())
-        assert result.outcome.value == "succeeded"
-        assert result.summary == shaped
-        assert result.artifacts == {}
+        assert result.result is None
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_invalid"
         assert len(model.requests) == 1
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
-        secret_bearing = scripted_model([text_result(SECRET)])
+        secret_bearing = scripted_model([model_result(SECRET)])
         secret_state = WorkerState()
         secret_runtime = await create_runtime(tmp_path / "secret", secret_state, {}, secret_bearing)
         secret_result = await secret_runtime.invoke(stage_request())
-        assert secret_result.error is not None
-        assert secret_result.error.code == "unsafe_worker_result"
+        assert secret_result.failure is not None
+        assert secret_result.failure.code == "unsafe_worker_result"
         assert SECRET not in secret_result.model_dump_json(by_alias=True)
         assert SECRET not in repr(secret_state.metrics.snapshot())
         await secret_runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_code", "retryable"),
+    [
+        (
+            json_result({"subtaskId": "1", "result": "stale"}),
+            "worker_result_subtask_mismatch",
+            True,
+        ),
+        (json_result({"subtaskId": "0", "result": ""}), "worker_result_invalid", True),
+        (
+            json_result({"subtaskId": "0", "result": "x" * (64 * 1024 + 1)}),
+            "worker_result_too_large",
+            False,
+        ),
+    ],
+    ids=["subtask-mismatch", "empty-result", "oversized-result"],
+)
+def test_adk_worker_rejects_invalid_model_result_boundaries(
+    tmp_path: Path,
+    response: object,
+    expected_code: str,
+    retryable: bool,
+) -> None:
+    async def scenario() -> None:
+        runtime = await create_runtime(
+            tmp_path / expected_code,
+            WorkerState(),
+            {},
+            scripted_model([response]),
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == expected_code
+        assert completion.failure.retryable is retryable
+        assert completion.state_revision > 1
+        assert len(completion.model_dump_json(by_alias=True).encode("utf-8")) < 256 * 1024
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_maps_unhandled_model_error_to_safe_worker_failure(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, scripted_model([]))
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_execution_failed"
+        assert completion.failure.retryable is True
+        assert completion.invocation_id.startswith("worker-")
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["invocationId"] == completion.invocation_id
+        assert snapshot["lastCompletedInvocation"]["phase"] == "failed"
+        assert SECRET not in completion.model_dump_json(by_alias=True)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = scripted_model([])
+
+    async def gateway_failure(_model: object, _request: object, stream: bool = False) -> Any:
+        del stream
+        if False:
+            yield None
+        raise GatewayModelError("TimeoutError")
+
+    monkeypatch.setattr(type(model), "generate_content_async", gateway_failure)
+
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_gateway_unavailable"
+        assert completion.failure.retryable is True
+        assert "TimeoutError" not in completion.failure.message
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["invocationId"] == completion.invocation_id
+        assert snapshot["lastCompletedInvocation"]["phase"] == "failed"
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
@@ -231,7 +355,7 @@ def test_adk_worker_maps_only_declared_runtime_result_bindings(
         hidden_model = scripted_model(
             [
                 tool_call("ref_probe", {}, call_id="hidden-ref"),
-                text_result("Notebook update completed"),
+                model_result("Notebook update completed"),
             ]
         )
         first = await create_runtime(
@@ -241,15 +365,15 @@ def test_adk_worker_maps_only_declared_runtime_result_bindings(
             hidden_model,
         )
         hidden_result = await first.invoke(stage_request())
-        assert hidden_result.outcome.value == "succeeded"
-        assert hidden_result.artifacts == {}
+        assert hidden_result.result is not None
+        assert hidden_result.result.artifacts == {}
         await first.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
-        allowed = ArtifactRef(namespace="inputs", name="memory.workflow_input", revision="input-r1")
+        allowed = ArtifactRef(namespace="builder", name="report", revision="report-r1")
         allowed_model = scripted_model(
             [
                 tool_call("ref_probe", {}, call_id="allowed-ref"),
-                text_result("Purpose input selected"),
+                model_result("Purpose output selected"),
             ]
         )
         second = await create_runtime(
@@ -259,21 +383,17 @@ def test_adk_worker_maps_only_declared_runtime_result_bindings(
             allowed_model,
         )
         request = stage_request().model_copy(
-            update={
-                "result_artifacts": {
-                    "report": ArtifactRef(namespace="inputs", name="memory.workflow_input")
-                }
-            }
+            update={"result_artifacts": {"report": ArtifactRef(namespace="builder", name="report")}}
         )
         accepted = await second.invoke(request)
-        assert accepted.outcome.value == "succeeded"
-        assert accepted.artifacts["report"] == allowed
+        assert accepted.result is not None
+        assert accepted.result.artifacts["report"] == allowed
         await second.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
 
-def test_adk_worker_builds_result_from_plain_summary_and_trusted_artifacts(tmp_path: Path) -> None:
+def test_adk_worker_builds_typed_result_with_trusted_artifacts(tmp_path: Path) -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
         state = WorkerState()
@@ -291,19 +411,19 @@ def test_adk_worker_builds_result_from_plain_summary_and_trusted_artifacts(tmp_p
                     },
                     call_id="write-before-invalid-result",
                 ),
-                text_result("Report created"),
+                model_result("Report created"),
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
-        assert result.artifacts["report"].revision == "write-r1"
-        assert result.summary == "Report created"
+        assert result.result is not None
+        assert result.result.artifacts["report"].revision == "write-r1"
+        assert result.result.result == "Report created"
         assert len(model.requests) == 2
-        assert model.requests[1]["hasResponseSchema"] is False
-        assert all(request["hasResponseSchema"] is False for request in model.requests)
+        assert model.requests[1]["hasResponseSchema"] is True
+        assert all(request["hasResponseSchema"] is True for request in model.requests)
         for request in model.requests:
             model_context = request["contentText"] + repr(request["systemInstruction"])
             for forbidden in (
@@ -332,7 +452,7 @@ def test_adk_worker_does_not_select_artifact_from_failed_tool_call(tmp_path: Pat
         model = scripted_model(
             [
                 tool_call("ref_probe", {}, call_id="failed-ref"),
-                text_result("Could not update the report"),
+                model_result("Could not update the report"),
             ]
         )
         runtime = await create_runtime(
@@ -344,8 +464,8 @@ def test_adk_worker_does_not_select_artifact_from_failed_tool_call(tmp_path: Pat
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
-        assert result.artifacts == {}
+        assert result.result is not None
+        assert result.result.artifacts == {}
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -370,8 +490,8 @@ def test_adk_worker_does_not_reuse_artifact_observed_by_an_earlier_invocation(
                     },
                     call_id="first-write",
                 ),
-                text_result("First task completed"),
-                text_result("Second task completed without touching the result"),
+                model_result("First task completed"),
+                model_result("Second task completed without touching the result"),
             ]
         )
         runtime = await create_runtime(tmp_path, WorkerState(), tools, model)
@@ -379,15 +499,16 @@ def test_adk_worker_does_not_reuse_artifact_observed_by_an_earlier_invocation(
         first = await runtime.invoke(stage_request())
         second = await runtime.invoke(stage_request())
 
-        assert first.artifacts["report"].revision == "write-r1"
-        assert second.outcome.value == "succeeded"
-        assert second.artifacts == {}
+        assert first.result is not None
+        assert first.result.artifacts["report"].revision == "write-r1"
+        assert second.result is not None
+        assert second.result.artifacts == {}
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
 
-def test_adk_worker_plain_summary_needs_no_recovery_model_call(tmp_path: Path) -> None:
+def test_adk_worker_free_text_fails_without_recovery_model_call(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model([text_result("not-json")])
@@ -395,8 +516,8 @@ def test_adk_worker_plain_summary_needs_no_recovery_model_call(tmp_path: Path) -
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
-        assert result.summary == "not-json"
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_invalid"
         assert len(model.requests) == 1
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.metrics.worker_budget is not None
@@ -420,14 +541,7 @@ def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> No
         model = scripted_model(
             [
                 tool_call("load_optional", {"name": "candidate"}, call_id="load-1"),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Recovered from optional absence",
-                        "artifacts": {},
-                    }
-                ),
+                model_result("Recovered from optional absence"),
             ]
         )
         runtime = await create_runtime(
@@ -436,7 +550,7 @@ def test_adk_worker_can_recover_from_a_safe_tool_exception(tmp_path: Path) -> No
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
         assert len(model.requests) == 2
         session = await runtime._session_service.get_session(
             app_name=runtime._app_name,
@@ -457,7 +571,7 @@ def test_adk_worker_counts_unknown_model_tool_without_retaining_its_name(tmp_pat
         model = scripted_model(
             [
                 tool_call(model_authored_name, {"body": SECRET}, call_id="unknown-1"),
-                text_result("Recovered from an unknown tool"),
+                model_result("Recovered from an unknown tool"),
             ]
         )
         state = WorkerState()
@@ -472,7 +586,7 @@ def test_adk_worker_counts_unknown_model_tool_without_retaining_its_name(tmp_pat
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert set(report.metrics.tools) == {"unknown_tool"}
         assert report.metrics.tools["unknown_tool"].failed == 1
@@ -510,21 +624,14 @@ def test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding(
         model = scripted_model(
             [
                 tool_call("write_memory", raw_arguments, call_id="malformed-memory"),
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Handled bounded memory failure",
-                        "artifacts": {},
-                    }
-                ),
+                model_result("Handled bounded memory failure"),
             ]
         )
         runtime = await create_runtime(tmp_path, state, tools, model)
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
         assert client.calls == []
         assert state.metrics.counters["tool_calls"] == 1
         assert state.metrics.counters["tool_errors"] == 1
@@ -568,7 +675,7 @@ def test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding(
     asyncio.run(scenario())
 
 
-def test_adk_worker_does_not_start_a_serializer_when_final_text_is_missing(
+def test_adk_worker_does_not_start_a_serializer_when_structured_result_is_missing(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -595,8 +702,8 @@ def test_adk_worker_does_not_start_a_serializer_when_final_text_is_missing(
 
         result = await runtime.invoke(stage_request())
 
-        assert result.error is not None
-        assert result.error.code == "worker_result_missing"
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_missing"
         assert len(model.requests) == 2
         assert model.requests[0]["toolNames"] == ["read_artifact", "write_artifact"]
         assert model.requests[1]["toolNames"] == ["read_artifact", "write_artifact"]
@@ -608,7 +715,7 @@ def test_adk_worker_does_not_start_a_serializer_when_final_text_is_missing(
     asyncio.run(scenario())
 
 
-def test_adk_worker_missing_summary_fails_without_an_extra_model_turn(tmp_path: Path) -> None:
+def test_adk_worker_missing_result_fails_without_an_extra_model_turn(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model(
@@ -620,9 +727,9 @@ def test_adk_worker_missing_summary_fails_without_an_extra_model_turn(tmp_path: 
 
         result = await runtime.invoke(stage_request())
 
-        assert result.error is not None
-        assert result.error.code == "worker_result_missing"
-        assert result.error.retryable
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_missing"
+        assert result.failure.retryable
         assert len(model.requests) == 1
         assert model.requests[0]["toolNames"] == []
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
@@ -630,7 +737,7 @@ def test_adk_worker_missing_summary_fails_without_an_extra_model_turn(tmp_path: 
     asyncio.run(scenario())
 
 
-def test_adk_worker_missing_summary_does_not_exhaust_model_budget(tmp_path: Path) -> None:
+def test_adk_worker_missing_result_does_not_exhaust_model_budget(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model([thought_result("Task complete")])
@@ -638,9 +745,9 @@ def test_adk_worker_missing_summary_does_not_exhaust_model_budget(tmp_path: Path
 
         result = await runtime.invoke(stage_request())
 
-        assert result.error is not None
-        assert result.error.code == "worker_result_missing"
-        assert result.error.retryable
+        assert result.failure is not None
+        assert result.failure.code == "worker_result_missing"
+        assert result.failure.retryable
         assert len(model.requests) == 1
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.complete
@@ -675,8 +782,8 @@ def test_adk_worker_tool_budget_stops_before_extra_side_effect(tmp_path: Path) -
 
         result = await runtime.invoke(stage_request())
 
-        assert result.error is not None
-        assert result.error.code == "worker_budget_exhausted"
+        assert result.failure is not None
+        assert result.failure.code == "worker_budget_exhausted"
         assert client.calls == ["read_artifact"]
         assert len(model.requests) == 2
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
@@ -711,8 +818,8 @@ def test_adk_worker_token_budget_stops_before_response_tool_side_effect(
 
         result = await runtime.invoke(stage_request())
 
-        assert result.error is not None
-        assert result.error.code == "worker_budget_exhausted"
+        assert result.failure is not None
+        assert result.failure.code == "worker_budget_exhausted"
         assert client.calls == []
         assert len(model.requests) == 1
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
@@ -726,14 +833,7 @@ def test_adk_worker_token_budget_stops_before_response_tool_side_effect(
 
 def test_adk_worker_missing_token_usage_keeps_call_limits_effective(tmp_path: Path) -> None:
     async def scenario() -> None:
-        response = json_result(
-            {
-                "apiVersion": API_VERSION,
-                "outcome": "succeeded",
-                "summary": "Done without provider token usage",
-                "artifacts": {},
-            }
-        )
+        response = model_result("Done without provider token usage")
         response.usage_metadata = None
         state = WorkerState()
         model = scripted_model([response])
@@ -743,7 +843,7 @@ def test_adk_worker_missing_token_usage_keeps_call_limits_effective(tmp_path: Pa
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.metrics.worker_budget is not None
         assert report.metrics.worker_budget.observed_model_calls == 1
@@ -755,26 +855,15 @@ def test_adk_worker_missing_token_usage_keeps_call_limits_effective(tmp_path: Pa
     asyncio.run(scenario())
 
 
-def test_adk_worker_accepts_final_text_exactly_at_token_limit(tmp_path: Path) -> None:
+def test_adk_worker_accepts_structured_result_exactly_at_token_limit(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
-        model = scripted_model(
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Finished at the exact token ceiling",
-                        "artifacts": {},
-                    }
-                )
-            ]
-        )
+        model = scripted_model([model_result("Finished at the exact token ceiling")])
         runtime = await create_runtime(tmp_path, state, {}, model, max_total_tokens=10)
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome.value == "succeeded"
+        assert result.result is not None
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.metrics.worker_budget is not None
         assert report.metrics.worker_budget.observed_total_tokens == 10
@@ -787,16 +876,7 @@ def test_adk_worker_accepts_final_text_exactly_at_token_limit(tmp_path: Path) ->
 def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
     async def scenario() -> None:
         model = scripted_model(
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Too late",
-                        "artifacts": {},
-                    }
-                )
-            ],
+            [model_result("Too late")],
             block=True,
         )
         state = WorkerState()

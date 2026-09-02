@@ -537,15 +537,15 @@ func (w *fakeWorkerInvoker) Invoke(
 	binding string,
 	handle contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.calls = append(w.calls, workerInvocation{binding: binding, handle: handle, request: request})
 	result, ok := w.results[binding]
 	if !ok {
-		return contracts.StageContentResult{}, errors.New("unexpected Worker")
+		return contracts.WorkerCompletion{}, errors.New("unexpected Worker")
 	}
-	return result, nil
+	return routerWorkerCompletion(request.SubtaskID, result.Summary, result.Artifacts), nil
 }
 
 func (w *fakeWorkerInvoker) bindingCalls() []string {
@@ -639,6 +639,25 @@ func successfulResult(summary string) contracts.StageContentResult {
 	return contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
 		Summary: summary, Artifacts: map[string]contracts.ArtifactRef{},
+	}
+}
+
+func routerWorkerCompletion(
+	subtaskID string,
+	result string,
+	artifacts map[string]contracts.ArtifactRef,
+) contracts.WorkerCompletion {
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: subtaskID, Result: result,
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: artifacts, Summarized: false,
+		},
+		InvocationID: "worker-invocation-router", StateRevision: 2,
 	}
 }
 

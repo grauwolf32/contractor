@@ -234,6 +234,55 @@ func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
 	}
 }
 
+func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testing.T) {
+	model := &scriptedModel{steps: []modelStep{
+		addSubtaskStep("Analyze the source", "Return the bounded finding"),
+		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
+		functionStep(finishToolName, map[string]any{
+			"outcome": string(contracts.StageFailed), "summary": "analysis could not be completed",
+			"artifacts": map[string]any{},
+			"error": map[string]any{
+				"code": "insufficient_evidence", "message": "required evidence was unavailable",
+				"retryable": false,
+			},
+		}),
+	}}
+	workers := &fakeWorkerInvoker{completions: map[string]contracts.WorkerCompletion{
+		"builder": {
+			APIVersion: contracts.APIVersion,
+			Failure: &contracts.WorkerFailure{
+				Code: "worker_budget_exhausted", Message: "Worker budget was exhausted", Retryable: true,
+			},
+			InvocationID: "worker-failed-dispatch", StateRevision: 4,
+		},
+	}}
+	sessions := newFakeSessions()
+	instance, err := mustFactory(
+		t, sessions, workers, &fakeInspector{}, model, Limits{},
+	).Create(testInvocation("builder"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := instance.Run(t.Context())
+	if err != nil || result.Outcome != contracts.StageFailed || result.Error == nil ||
+		result.Error.Code != "insufficient_evidence" {
+		t.Fatalf("Run = (%+v, %v)", result, err)
+	}
+	if sessions.plan == nil || sessions.plan.Subtasks[0].Status != planner.PlannerSubtaskFailed {
+		t.Fatalf("failed Worker dispatch plan = %+v", sessions.plan)
+	}
+	report, _ := instance.(planner.ReportProvider).ExecutionReport()
+	found := false
+	for _, call := range report.ToolCalls {
+		if call.Tool == executeCurrentSubtaskToolName && call.Error != nil {
+			found = call.Error.Code == "worker_budget_exhausted"
+		}
+	}
+	if !found {
+		t.Fatalf("WorkerFailure was not recorded as a failed dispatch: %+v", report.ToolCalls)
+	}
+}
+
 func TestStreamlineRejectsInvalidFinishShapesThenAcceptsCorrection(t *testing.T) {
 	model := &scriptedModel{steps: []modelStep{
 		functionStep(finishToolName, map[string]any{
@@ -931,10 +980,11 @@ type workerInvocation struct {
 }
 
 type fakeWorkerInvoker struct {
-	mu       sync.Mutex
-	results  map[string]contracts.StageContentResult
-	failures map[string][]error
-	calls    []workerInvocation
+	mu          sync.Mutex
+	results     map[string]contracts.StageContentResult
+	completions map[string]contracts.WorkerCompletion
+	failures    map[string][]error
+	calls       []workerInvocation
 }
 
 func (w *fakeWorkerInvoker) Invoke(
@@ -942,20 +992,23 @@ func (w *fakeWorkerInvoker) Invoke(
 	binding string,
 	_ contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	deadline, _ := ctx.Deadline()
 	w.calls = append(w.calls, workerInvocation{binding: binding, request: request, deadline: deadline})
 	if failures := w.failures[binding]; len(failures) > 0 {
 		w.failures[binding] = failures[1:]
-		return contracts.StageContentResult{}, failures[0]
+		return contracts.WorkerCompletion{}, failures[0]
+	}
+	if completion, ok := w.completions[binding]; ok {
+		return planner.CloneWorkerCompletion(completion), nil
 	}
 	result, ok := w.results[binding]
 	if !ok {
-		return contracts.StageContentResult{}, errors.New("unexpected Worker")
+		return contracts.WorkerCompletion{}, errors.New("unexpected Worker")
 	}
-	return result, nil
+	return workerCompletion(request.SubtaskID, result.Summary, result.Artifacts), nil
 }
 
 func (w *fakeWorkerInvoker) bindingCalls() []string {
@@ -1050,6 +1103,25 @@ func stageResult(summary string, artifacts map[string]contracts.ArtifactRef) con
 	return contracts.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
 		Summary: summary, Artifacts: artifacts,
+	}
+}
+
+func workerCompletion(
+	subtaskID string,
+	result string,
+	artifacts map[string]contracts.ArtifactRef,
+) contracts.WorkerCompletion {
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: subtaskID, Result: result,
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: artifacts, Summarized: false,
+		},
+		InvocationID: "worker-invocation-1", StateRevision: 2,
 	}
 }
 

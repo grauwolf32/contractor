@@ -17,5 +17,5 @@ your fixed Namespace. Include scope, requests made, response evidence, findings,
 limitations and any untested hypothesis. Do not place cookies, authorization
 values or complete sensitive bodies in the report.
 
-Finish only after the report write succeeds. Return a concise plain-text summary
+Finish only after the report write succeeds. Return a concise semantic result
 and do not include storage revisions in it.

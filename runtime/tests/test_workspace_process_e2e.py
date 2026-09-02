@@ -57,9 +57,9 @@ def test_exact_source_edit_export_import_and_slot_reuse(tmp_path: Path, storage:
 
         first = await invoke(service, first_spec)
 
-        assert first.outcome.value == "succeeded"
-        assert set(first.artifacts) == {"workspace_state", "workspace_diff"}
-        state_ref = first.artifacts["workspace_state"]
+        assert first.result is not None
+        assert set(first.result.artifacts) == {"workspace_state", "workspace_diff"}
+        state_ref = first.result.artifacts["workspace_state"]
         assert state_ref.revision == "revision-1"
         assert b"-before" in artifacts.binding("workspace_diff").data
         assert b"+after" in artifacts.binding("workspace_diff").data
@@ -86,8 +86,8 @@ def test_exact_source_edit_export_import_and_slot_reuse(tmp_path: Path, storage:
         )
         second_spec = workspace_spec("allocation-second", "stage-second", state=state_ref)
         second = await invoke(service, second_spec)
-        assert second.outcome.value == "succeeded"
-        assert second.artifacts["workspace_state"].revision == "revision-2"
+        assert second.result is not None
+        assert second.result.artifacts["workspace_state"].revision == "revision-2"
         assert b"after again" in artifacts.binding("workspace_diff").data
         await terminate_and_release(service, second_spec.allocation_id)
 
@@ -99,7 +99,7 @@ def test_exact_source_edit_export_import_and_slot_reuse(tmp_path: Path, storage:
         )
         third_spec = workspace_spec("allocation-third", "stage-third")
         third = await invoke(service, third_spec)
-        assert third.outcome.value == "succeeded"
+        assert third.result is not None
         assert b"clean reuse" in artifacts.binding("workspace_diff").data
         assert b"after again" not in artifacts.binding("workspace_diff").data
         await terminate_and_release(service, third_spec.allocation_id)
@@ -140,13 +140,13 @@ def test_router_siblings_with_multiple_sources_are_isolated_until_exact_state_im
         assert await right._context.project_workspace.read_text("backend/app.py") == "before\n"  # type: ignore[union-attr]
 
         left_result = await left._context.worker.invoke(stage_request())  # type: ignore[union-attr]
-        assert left_result.outcome.value == "succeeded"
+        assert left_result.result is not None
         assert await left._context.project_workspace.read_text("backend/app.py") == "left-only\n"  # type: ignore[union-attr]
         assert await right._context.project_workspace.read_text("backend/app.py") == "before\n"  # type: ignore[union-attr]
 
         right_result = await right._context.worker.invoke(stage_request())  # type: ignore[union-attr]
-        assert right_result.outcome.value == "succeeded"
-        assert right_result.artifacts["workspace_state"].revision is not None
+        assert right_result.result is not None
+        assert right_result.result.artifacts["workspace_state"].revision is not None
         await terminate_and_release(left, left_spec.allocation_id)
         await terminate_and_release(right, right_spec.allocation_id)
         assert (await left_state.snapshot()).process_state is ProcessState.IDLE
@@ -161,11 +161,11 @@ def test_router_siblings_with_multiple_sources_are_isolated_until_exact_state_im
         imported_spec = workspace_spec(
             "allocation-imported",
             "stage-later",
-            state=left_result.artifacts["workspace_state"],
+            state=left_result.result.artifacts["workspace_state"],
             multiple_sources=True,
         )
         imported_result = await invoke(imported, imported_spec)
-        assert imported_result.outcome.value == "succeeded"
+        assert imported_result.result is not None
         await terminate_and_release(imported, imported_spec.allocation_id)
 
     asyncio.run(scenario())
@@ -311,10 +311,8 @@ def read_only_model(path: str, prefix: str) -> object:
 
 def success_result() -> dict[str, object]:
     return {
-        "apiVersion": API_VERSION,
-        "outcome": "succeeded",
-        "summary": "Workspace operation complete",
-        "artifacts": {},
+        "subtaskId": "0",
+        "result": "Workspace operation complete",
     }
 
 

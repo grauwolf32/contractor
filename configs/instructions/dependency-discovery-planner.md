@@ -26,4 +26,4 @@ The report must contain:
 
 Write the complete report to `analysis/dependencies` with media type
 `text/markdown`. Finish only after that durable write succeeds, using a concise
-plain-text completion summary rather than the report body.
+concise semantic completion result rather than the report body.

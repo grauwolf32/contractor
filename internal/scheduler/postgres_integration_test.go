@@ -711,10 +711,22 @@ func (i *postgresTestWorkerInvoker) Invoke(
 	_ context.Context,
 	_ string,
 	_ contracts.WorkerHandle,
-	_ contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+	request contracts.StageContentRequest,
+) (contracts.WorkerCompletion, error) {
 	i.calls++
-	return cloneStageResult(i.result), nil
+	result := cloneStageResult(i.result)
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: request.SubtaskID, Result: result.Summary,
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: result.Artifacts, Summarized: false,
+		},
+		InvocationID: "worker-postgres-test", StateRevision: 2,
+	}, nil
 }
 
 func testSchedulerRuntimeSettings() contracts.RuntimeSettings {

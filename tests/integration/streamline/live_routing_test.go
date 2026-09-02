@@ -207,27 +207,35 @@ func (w *liveRouterWorker) Invoke(
 	binding string,
 	_ contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	w.mu.Lock()
 	w.calls = append(w.calls, binding)
 	w.mu.Unlock()
 	if binding != "reviewer" {
-		return contracts.StageContentResult{}, planner.NewError(
+		return contracts.WorkerCompletion{}, planner.NewError(
 			"live_router_misroute", "Router selected a Worker that cannot perform review", false, nil,
 		)
 	}
 	input := request.Artifacts["source"]
 	if request.Parameters["mode"] != "live-routing" || input.Revision == nil ||
 		*input.Revision != "live-source-r1" {
-		return contracts.StageContentResult{}, errors.New("live Router omitted immutable Stage context")
+		return contracts.WorkerCompletion{}, errors.New("live Router omitted immutable Stage context")
 	}
 	revision := "live-review-r1"
-	return contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
-		Summary: "reviewer produced the exact reviewed copy",
-		Artifacts: map[string]contracts.ArtifactRef{
-			"reviewed": {Namespace: "review", Name: "copied", Revision: &revision},
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: request.SubtaskID, Result: "reviewer produced the exact reviewed copy",
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: map[string]contracts.ArtifactRef{
+				"reviewed": {Namespace: "review", Name: "copied", Revision: &revision},
+			},
+			Summarized: false,
 		},
+		InvocationID: "worker-live-router", StateRevision: 2,
 	}, nil
 }
 

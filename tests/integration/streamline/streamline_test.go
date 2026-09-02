@@ -245,29 +245,33 @@ func (w *workerInvoker) Invoke(
 	binding string,
 	_ contracts.WorkerHandle,
 	request contracts.StageContentRequest,
-) (contracts.StageContentResult, error) {
+) (contracts.WorkerCompletion, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.count++
 	if binding != "builder" {
-		return contracts.StageContentResult{}, errors.New("unknown Worker")
+		return contracts.WorkerCompletion{}, errors.New("unknown Worker")
 	}
 	if request.Parameters["mode"] != "strict-secret-value" {
-		return contracts.StageContentResult{}, errors.New("complete Stage parameters missing")
+		return contracts.WorkerCompletion{}, errors.New("complete Stage parameters missing")
 	}
 	switch w.count {
 	case 1:
 		if request.Objective != "subtask-sensitive-analysis" || request.Instructions != "write an exact draft" {
-			return contracts.StageContentResult{}, errors.New("stored first subtask missing")
+			return contracts.WorkerCompletion{}, errors.New("stored first subtask missing")
 		}
-		return successfulResult("draft ready", "draft", exactRef("analysis", "draft", "draft-r1")), nil
+		return successfulResult(
+			request.SubtaskID, "draft ready", "draft", exactRef("analysis", "draft", "draft-r1"),
+		), nil
 	case 2:
 		if request.Objective != "review draft" || request.Instructions != "write the final report" {
-			return contracts.StageContentResult{}, errors.New("stored second subtask missing")
+			return contracts.WorkerCompletion{}, errors.New("stored second subtask missing")
 		}
-		return successfulResult("report ready", "report", exactRef("review", "report", "report-r1")), nil
+		return successfulResult(
+			request.SubtaskID, "report ready", "report", exactRef("review", "report", "report-r1"),
+		), nil
 	default:
-		return contracts.StageContentResult{}, errors.New("unexpected Worker call")
+		return contracts.WorkerCompletion{}, errors.New("unexpected Worker call")
 	}
 }
 
@@ -333,11 +337,19 @@ func testInvocation() planner.Invocation {
 }
 
 func successfulResult(
-	summary, slot string, ref contracts.ArtifactRef,
-) contracts.StageContentResult {
-	return contracts.StageContentResult{
-		APIVersion: contracts.APIVersion, Outcome: contracts.StageSucceeded,
-		Summary: summary, Artifacts: map[string]contracts.ArtifactRef{slot: ref},
+	subtaskID, result, slot string, ref contracts.ArtifactRef,
+) contracts.WorkerCompletion {
+	return contracts.WorkerCompletion{
+		APIVersion: contracts.APIVersion,
+		Result: &contracts.WorkerResult{
+			SubtaskID: subtaskID, Result: result,
+			Observations: contracts.WorkerObservations{
+				Profile: contracts.WorkerObservationProfileLeanV1,
+				Tools:   map[string]contracts.ToolObservationCount{},
+			},
+			Artifacts: map[string]contracts.ArtifactRef{slot: ref}, Summarized: false,
+		},
+		InvocationID: "worker-integration", StateRevision: 2,
 	}
 }
 

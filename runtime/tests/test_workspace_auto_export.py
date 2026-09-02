@@ -29,9 +29,8 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     SandboxProfileRef,
     StageContentRequest,
-    StageContentResult,
-    StageOutcome,
-    TerminationError,
+    WorkerObservations,
+    WorkerResult,
     WorkerRuntimeRef,
 )
 from contractor_runtime.factories import WorkerBuildContext
@@ -49,9 +48,8 @@ from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.workspace import AllocationWorkspace
 
 
-@pytest.mark.parametrize("outcome", [StageOutcome.SUCCEEDED, StageOutcome.FAILED])
 def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
-    tmp_path: Path, outcome: StageOutcome
+    tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
         session = await overlay("complete")
@@ -59,7 +57,7 @@ def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
         exporter = make_exporter(session, client)
         await session.write_text("source.txt", "first result\n")
 
-        first = await exporter.export(stage_result(outcome))
+        first = await exporter.export(worker_result())
 
         assert set(first.result.artifacts) == {"workspace_state", "workspace_diff"}
         assert first.result.artifacts["workspace_state"].revision == "revision-1"
@@ -79,7 +77,7 @@ def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
         assert await session.changed_paths() == ()
 
         await session.write_text("source.txt", "second result\n")
-        second = await exporter.export(stage_result(outcome))
+        second = await exporter.export(worker_result())
 
         assert second.result.artifacts["workspace_state"].revision == "revision-2"
         assert second.result.artifacts["workspace_diff"].revision == "revision-2"
@@ -106,13 +104,13 @@ def test_partial_write_and_lost_response_never_advance_checkpoint(tmp_path: Path
         client.fail_before("workspace_diff")
 
         with pytest.raises(WorkspaceExportError) as partial:
-            await exporter.export(stage_result(StageOutcome.SUCCEEDED))
+            await exporter.export(worker_result())
         assert partial.value.retryable
         assert client.binding("workspace_state").revision == "revision-1"
         assert "workspace_diff" not in client.bindings
         assert await session.changed_paths() == ("source.txt",)
 
-        completed = await exporter.export(stage_result(StageOutcome.SUCCEEDED))
+        completed = await exporter.export(worker_result())
         assert completed.result.artifacts["workspace_state"].revision == "revision-1"
         assert completed.result.artifacts["workspace_diff"].revision == "revision-1"
         assert await session.changed_paths() == ()
@@ -120,12 +118,12 @@ def test_partial_write_and_lost_response_never_advance_checkpoint(tmp_path: Path
         await session.write_text("source.txt", "second result\n")
         client.fail_after("workspace_state")
         with pytest.raises(WorkspaceExportError):
-            await exporter.export(stage_result(StageOutcome.SUCCEEDED))
+            await exporter.export(worker_result())
         assert client.binding("workspace_state").revision == "revision-2"
         assert client.binding("workspace_diff").revision == "revision-1"
         assert await session.changed_paths() == ("source.txt",)
 
-        recovered = await exporter.export(stage_result(StageOutcome.SUCCEEDED))
+        recovered = await exporter.export(worker_result())
         assert recovered.result.artifacts["workspace_state"].revision == "revision-2"
         assert recovered.result.artifacts["workspace_diff"].revision == "revision-2"
         assert await session.changed_paths() == ()
@@ -138,7 +136,7 @@ def test_reserved_result_collision_is_rejected_without_artifact_io(tmp_path: Pat
         session = await overlay("collision")
         client = MemoryArtifactClient()
         exporter = make_exporter(session, client)
-        result = stage_result(StageOutcome.SUCCEEDED).model_copy(
+        result = worker_result().model_copy(
             update={
                 "artifacts": {
                     "workspace_state": ArtifactRef(
@@ -166,26 +164,15 @@ def test_adk_maps_partial_export_to_stable_retryable_failure(tmp_path: Path) -> 
             tmp_path,
             session,
             client,
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Model completed",
-                        "artifacts": {},
-                    }
-                )
-            ],
+            [structured_response("Model completed")],
         )
         await session.write_text("source.txt", "partial export\n")
 
         result = await runtime.invoke(stage_request())
 
-        assert result.outcome is StageOutcome.FAILED
-        assert result.error is not None
-        assert result.error.code == "workspace_export_failed"
-        assert result.error.retryable
-        assert result.artifacts == {}
+        assert result.failure is not None
+        assert result.failure.code == "workspace_export_failed"
+        assert result.failure.retryable
         assert set(client.bindings) == {"workspace_state"}
         assert await session.changed_paths() == ("source.txt",)
         assert runtime._metrics.counters["workspace_exports.failed"] == 1
@@ -195,7 +182,7 @@ def test_adk_maps_partial_export_to_stable_retryable_failure(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_adk_treats_protocol_shaped_text_as_summary_before_workspace_export(
+def test_adk_rejects_protocol_shaped_or_free_text_before_workspace_export(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -223,10 +210,10 @@ def test_adk_treats_protocol_shaped_text_as_summary_before_workspace_export(
         )
         await failed_session.write_text("source.txt", "useful partial state\n")
         failed = await failed_runtime.invoke(stage_request())
-        assert failed.error is None
-        assert '"outcome":"failed"' in failed.summary
-        assert set(failed.artifacts) == {"workspace_state", "workspace_diff"}
-        assert failed_runtime._metrics.counters["workspace_exports.succeeded"] == 1
+        assert failed.failure is not None
+        assert failed.failure.code == "worker_result_invalid"
+        assert failed_client.bindings == {}
+        assert await failed_session.changed_paths() == ("source.txt",)
         await failed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         malformed_session = await overlay("malformed")
@@ -239,10 +226,10 @@ def test_adk_treats_protocol_shaped_text_as_summary_before_workspace_export(
         )
         await malformed_session.write_text("source.txt", "must stay private\n")
         malformed = await malformed_runtime.invoke(stage_request())
-        assert malformed.error is None
-        assert malformed.summary == "ordinary summary"
-        assert set(malformed.artifacts) == {"workspace_state", "workspace_diff"}
-        assert await malformed_session.changed_paths() == ()
+        assert malformed.failure is not None
+        assert malformed.failure.code == "worker_result_invalid"
+        assert malformed_client.bindings == {}
+        assert await malformed_session.changed_paths() == ("source.txt",)
         await malformed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         reserved_session = await overlay("reserved")
@@ -269,10 +256,9 @@ def test_adk_treats_protocol_shaped_text_as_summary_before_workspace_export(
             ],
         )
         reserved = await reserved_runtime.invoke(stage_request())
-        assert reserved.error is None
-        assert '"revision":"invented"' in reserved.summary
-        assert reserved.artifacts["workspace_diff"].revision == "revision-1"
-        assert reserved.artifacts["workspace_state"].revision == "revision-1"
+        assert reserved.failure is not None
+        assert reserved.failure.code == "worker_result_invalid"
+        assert reserved_client.bindings == {}
         await reserved_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -289,16 +275,7 @@ def test_invocation_cancellation_during_export_writes_nothing_and_keeps_checkpoi
             tmp_path,
             session,
             client,
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Would export",
-                        "artifacts": {},
-                    }
-                )
-            ],
+            [structured_response("Would export")],
         )
         await session.write_text("source.txt", "cancelled result\n")
         invocation = asyncio.create_task(runtime.invoke(stage_request()))
@@ -318,18 +295,7 @@ def test_adk_factory_attaches_runtime_owned_exporter(tmp_path: Path) -> None:
         session = await overlay("factory")
         client = MemoryArtifactClient()
         state = WorkerState()
-        model = scripted_model(
-            [
-                json_result(
-                    {
-                        "apiVersion": API_VERSION,
-                        "outcome": "succeeded",
-                        "summary": "Factory result",
-                        "artifacts": {},
-                    }
-                )
-            ]
-        )
+        model = scripted_model([structured_response("Factory result")])
         factory = AdkWorkerRuntimeFactory(
             model_factory=lambda _: model,
             artifact_client_factory=lambda *_: client,  # type: ignore[arg-type,return-value]
@@ -339,7 +305,8 @@ def test_adk_factory_attaches_runtime_owned_exporter(tmp_path: Path) -> None:
 
         result = await runtime.invoke(stage_request())
 
-        assert set(result.artifacts) == {"workspace_state", "workspace_diff"}
+        assert result.result is not None
+        assert set(result.result.artifacts) == {"workspace_state", "workspace_diff"}
         assert runtime._workspace_exporter is not None
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
@@ -378,19 +345,20 @@ def make_exporter(
     )
 
 
-def stage_result(outcome: StageOutcome) -> StageContentResult:
-    error = None
-    if outcome is StageOutcome.FAILED:
-        error = TerminationError(
-            code="analysis_incomplete", message="Analysis is incomplete", retryable=True
-        )
-    return StageContentResult(
-        apiVersion=API_VERSION,
-        outcome=outcome,
-        summary="Worker completed gracefully",
+def worker_result() -> WorkerResult:
+    return WorkerResult(
+        subtaskId="0",
+        result="Worker completed gracefully",
+        observations=WorkerObservations(
+            profile="lean@1", tools={}, workspace=None, truncated=False
+        ),
         artifacts={},
-        error=error,
+        summarized=False,
     )
+
+
+def structured_response(result: str) -> object:
+    return json_result({"subtaskId": "0", "result": result})
 
 
 async def runtime_with_export(
