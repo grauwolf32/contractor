@@ -172,7 +172,10 @@ def built_in_factories(
     filesystem_toolset = FilesystemToolsetFactory()
     http_toolset = HTTPToolsetFactory(artifact_client_factory)
     caido_toolset = CaidoToolsetFactory(artifact_client_factory)
-    code_analysis_toolset = CodeAnalysisToolsetFactory()
+    code_analysis_toolset = CodeAnalysisToolsetFactory(
+        workspace_storage=workspace_settings.storage if workspace_settings is not None else None,
+        graph_probe_root=work_root if workspace_settings is not None else None,
+    )
     edit_files_toolset = EditFilesToolsetFactory()
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)

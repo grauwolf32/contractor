@@ -13,6 +13,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -32,6 +33,7 @@ from contractor_runtime.projectfs.storage import (
 from contractor_runtime.toolsets import code_analysis_languages as language_support
 from contractor_runtime.toolsets.code_analysis_languages import Language, SymbolRecord
 from contractor_runtime.toolsets.run_artifacts import ToolMetrics
+from contractor_runtime.toolsets.trailmark_host import probe_trailmark_child
 from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"
@@ -105,11 +107,40 @@ class CodeAnalysisToolsetFactory:
     requires_workspace = True
     workspace_access = "read"
 
+    def __init__(
+        self,
+        *,
+        workspace_storage: str | None = None,
+        graph_probe_root: Path | None = None,
+    ) -> None:
+        if workspace_storage not in {None, "local", "memory"}:
+            raise ValueError("unsupported code-analysis workspace storage")
+        if workspace_storage == "local" and graph_probe_root is None:
+            raise ValueError("local graph probing requires private scratch")
+        self._workspace_storage = workspace_storage
+        self._graph_probe_root = graph_probe_root
+        self._graph_probe_succeeded = False
+
+    @property
+    def graph_probe_succeeded(self) -> bool:
+        return self._graph_probe_succeeded
+
     async def probe(self) -> frozenset[str]:
+        self._graph_probe_succeeded = False
         if not dependency_versions_match(SHALLOW_PINNED_DEPENDENCIES):
             return frozenset()
         available = await asyncio.to_thread(language_support.probe_all_parsers)
-        return SHALLOW_TOOLS if available else frozenset()
+        if not available:
+            return frozenset()
+        if (
+            self._workspace_storage == "local"
+            and self._graph_probe_root is not None
+            and dependency_versions_match()
+        ):
+            self._graph_probe_succeeded = await probe_trailmark_child(self._graph_probe_root)
+        # V15-004 publishes the graph subset after it constructs every core
+        # operation. A positive V15-003 probe is deliberately internal only.
+        return SHALLOW_TOOLS
 
     async def create_selected(
         self,

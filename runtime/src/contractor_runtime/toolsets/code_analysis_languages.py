@@ -79,32 +79,62 @@ EXTENSION_LANGUAGES = MappingProxyType(
     }
 )
 
+# Reviewed extension table for the pinned Trailmark 0.5.0 parser registry.  It
+# intentionally lives in Contractor instead of consulting Trailmark internals
+# at runtime: changing that dependency requires an explicit compatibility
+# review and a new table.
+GRAPH_EXTENSION_LANGUAGES = MappingProxyType(
+    {
+        ".py": "python",
+        ".js": "javascript",
+        ".jsx": "javascript",
+        ".mjs": "javascript",
+        ".cjs": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".php": "php",
+        ".rb": "ruby",
+        ".c": "c",
+        ".cpp": "cpp",
+        ".cc": "cpp",
+        ".cxx": "cpp",
+        ".hpp": "cpp",
+        ".hh": "cpp",
+        ".hxx": "cpp",
+        ".cs": "c_sharp",
+        ".java": "java",
+        ".go": "go",
+        ".rs": "rust",
+        ".sol": "solidity",
+        ".cairo": "cairo",
+        ".circom": "circom",
+        ".hs": "haskell",
+        ".erl": "erlang",
+        ".masm": "masm",
+        ".swift": "swift",
+        ".m": "objc",
+        ".mm": "objc",
+        ".kt": "kotlin",
+        ".kts": "kotlin",
+        ".dart": "dart",
+        ".move": "move",
+        ".tact": "tact",
+        ".fc": "func",
+        ".func": "func",
+        ".sw": "sway",
+        ".rego": "rego",
+        ".proto": "proto",
+        ".thrift": "thrift",
+        ".graphql": "graphql",
+        ".gql": "graphql",
+        ".sql": "sql",
+    }
+)
+
 # Extensions recognized by the pinned graph engine but not by the shallow v1
 # surface. They are reported as unsupported instead of being mistaken for
 # ordinary non-source files.
-GRAPH_ONLY_SOURCE_EXTENSIONS = frozenset(
-    {
-        ".cairo",
-        ".circom",
-        ".dart",
-        ".erl",
-        ".fc",
-        ".gql",
-        ".graphql",
-        ".hrl",
-        ".m",
-        ".masm",
-        ".mm",
-        ".move",
-        ".proto",
-        ".rego",
-        ".sol",
-        ".sql",
-        ".sway",
-        ".tact",
-        ".thrift",
-    }
-)
+GRAPH_ONLY_SOURCE_EXTENSIONS = frozenset(GRAPH_EXTENSION_LANGUAGES) - frozenset(EXTENSION_LANGUAGES)
 
 
 @dataclass(frozen=True, slots=True)
