@@ -492,12 +492,8 @@ func stageRefArguments(
 
 func stageArtifact(value any, slot string) (map[string]any, bool) {
 	values := make([]map[string]any, 0)
-	walkJSON(value, func(object map[string]any) {
-		artifacts, ok := object["artifacts"].(map[string]any)
-		if !ok {
-			return
-		}
-		artifact, ok := artifacts[slot].(map[string]any)
+	collect := func(candidate any) {
+		artifact, ok := candidate.(map[string]any)
 		if !ok {
 			return
 		}
@@ -509,6 +505,15 @@ func stageArtifact(value any, slot string) (map[string]any, bool) {
 				"namespace": namespace, "name": name, "revision": revision,
 			})
 		}
+	}
+	walkJSON(value, func(object map[string]any) {
+		// Legacy prompts embedded the complete StageContentRequest under an
+		// `artifacts` field. Runtime-owned result projection now exposes only a
+		// model-facing map of named inputs, so accept that direct shape as well.
+		if artifacts, ok := object["artifacts"].(map[string]any); ok {
+			collect(artifacts[slot])
+		}
+		collect(object[slot])
 	})
 	if len(values) == 0 {
 		return nil, false

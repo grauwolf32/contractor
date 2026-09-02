@@ -602,12 +602,8 @@ func stageRefArguments(
 
 func stageArtifact(value any, slot string) (map[string]any, bool) {
 	values := make([]map[string]any, 0)
-	walkDomainJSON(value, func(object map[string]any) {
-		artifacts, ok := object["artifacts"].(map[string]any)
-		if !ok {
-			return
-		}
-		artifact, ok := artifacts[slot].(map[string]any)
+	collect := func(candidate any) {
+		artifact, ok := candidate.(map[string]any)
 		if !ok {
 			return
 		}
@@ -620,6 +616,14 @@ func stageArtifact(value any, slot string) (map[string]any, bool) {
 		values = append(values, map[string]any{
 			"namespace": namespace, "name": name, "revision": revision,
 		})
+	}
+	walkDomainJSON(value, func(object map[string]any) {
+		// Accept both the legacy StageContentRequest wrapper and the current
+		// model-facing map rendered below `Named input artifacts`.
+		if artifacts, ok := object["artifacts"].(map[string]any); ok {
+			collect(artifacts[slot])
+		}
+		collect(object[slot])
 	})
 	if len(values) == 0 {
 		return nil, false
