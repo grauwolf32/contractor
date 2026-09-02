@@ -3,8 +3,8 @@ id: V15-001
 title: Add code-analysis descriptors and workspace validation
 milestone: workspace-code-analysis-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 2702d2a5e58f140b746659fcac3e47f0de9ac1e2
 depends_on: [V14-003]
 languages: [go, python]
 
@@ -75,7 +75,7 @@ acceptance_criteria:
 
 tests:
   - {name: go-config, command: "go test ./internal/config", covers: [A1, A2, A4]}
-  - {name: runtime-contract, command: "cd runtime && uv run pytest -W error tests/test_factories.py tests/test_capabilities.py tests/test_settings.py", covers: [A3, A4]}
+  - {name: runtime-contract, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_settings.py tests/test_dependency_smoke.py", covers: [A3, A4]}
   - {name: config-gate, command: "make test-config", covers: [A1, A2, A4]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
 
