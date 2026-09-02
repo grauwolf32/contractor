@@ -6,6 +6,7 @@ import signal
 import struct
 import sys
 import time
+from pathlib import Path
 
 
 def read_request() -> dict[str, object]:
@@ -50,6 +51,15 @@ def success(request: dict[str, object]) -> None:
 
 def main() -> int:
     mode = sys.argv[1]
+    if mode == "exit-once-before-read":
+        marker = Path(sys.argv[2])
+        try:
+            descriptor = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            os.close(descriptor)
+            return 8
     request = read_request()
     if mode == "hang":
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
@@ -94,11 +104,24 @@ def main() -> int:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         success(request)
         time.sleep(60)
+    if mode == "stderr-flood":
+        for _ in range(512):
+            sys.stderr.buffer.write(b"x" * 4096)
+        sys.stderr.buffer.flush()
+        success(request)
+        time.sleep(60)
+    if mode == "exit-once-before-read":
+        success(request)
+        time.sleep(60)
     if mode == "hang-query":
         success(request)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         read_request()
         time.sleep(60)
+    if mode == "crash-query":
+        success(request)
+        read_request()
+        return 9
     raise SystemExit(3)
 
 

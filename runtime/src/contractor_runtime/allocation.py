@@ -909,6 +909,7 @@ class AllocationService:
                 ) from None
 
             context.worker = None
+            await self._stop_tools_or_exit(context, deadline)
             await self._stop_adapters_or_exit(context, deadline)
             if kind == "abort":
                 await self._discard_project_workspace_or_exit(context, deadline)
@@ -934,6 +935,7 @@ class AllocationService:
                 await self._state.fence_allocation(context.allocation_id)
                 return
             deadline = self._now() + timedelta(seconds=timeout_seconds)
+            await self._stop_tools_or_exit(context, deadline)
             await self._stop_adapters_or_exit(context, deadline)
             await self._discard_project_workspace_or_exit(context, deadline)
             await self._state.fence_allocation(context.allocation_id)
@@ -972,6 +974,7 @@ class AllocationService:
             ) from None
 
         context.worker = None
+        await self._stop_tools_or_exit(context, deadline)
         await self._stop_adapters_or_exit(context, deadline)
         await self._discard_project_workspace_or_exit(context, deadline)
         context.termination_kind = "lease"
@@ -981,6 +984,31 @@ class AllocationService:
             report=_build_report(context, self._now(), reason),
         )
         await self._state.fence_allocation(context.allocation_id)
+
+    async def _stop_tools_or_exit(
+        self,
+        context: _AllocationContext,
+        deadline: datetime,
+    ) -> None:
+        try:
+            await _await_before_deadline(
+                lambda: _close_tools(context.tools),
+                deadline=deadline,
+                now=self._now,
+            )
+        except asyncio.CancelledError:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise
+        except Exception:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise AllocationError(
+                "tool_cleanup_unconfirmed",
+                "allocation Toolset cleanup could not be guaranteed",
+                retryable=False,
+                status_code=503,
+            ) from None
 
     async def _stop_adapters_or_exit(
         self,

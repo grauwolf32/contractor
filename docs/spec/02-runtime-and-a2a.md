@@ -409,10 +409,12 @@ For one allocation the Runtime Agent:
 9. reports ready and handles the Worker's A2A Tasks itself;
 10. before each graceful terminal A2A result, performs any declared overlay
    auto export; on finalization or abort, rejects new Tasks, requests
-   cancellation of active work, bounded-flushes/destroys allocation adapters,
-   serializes the report and destroys the Worker runtime instance;
+   cancellation of active work, destroys the Worker runtime instance, closes
+   every selected Toolset, bounded-flushes/destroys allocation adapters and
+   serializes the report;
 11. after the terminal Stage outcome is committed, an idempotent private
-   release removes allocation State, tools, the WorkspaceSession and every
+   release confirms Toolset cleanup and removes allocation State, the
+   WorkspaceSession and every
    disposable local/memory/overlay file, loaded Skill objects, extracted
    allocation-local skill files, RuntimeSettings, access tokens and the profile
    workspace, but retains the allocation identity and cached report in

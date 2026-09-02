@@ -191,6 +191,7 @@ same semantic strength on every Runtime that advertises it:
 | candidate managed-text source files per snapshot | 20,000 |
 | aggregate source bytes parsed/materialized | 128 MiB |
 | one analyzed source file | 4 MiB |
+| compact cache entries retained for one digest | 20,000 files |
 | compact symbols retained for one digest | 100,000 |
 | ordinary result page | 200 items |
 | one model-visible result after JSON encoding | 256 KiB |
@@ -408,15 +409,16 @@ The parent enforces build/query deadlines, protocol bounds and the fixed child
 memory ceiling. A Runtime whose OS cannot install and verify that memory/process-
 group boundary omits graph operations during probe. A timeout, malformed frame,
 unexpected exit or memory-limit termination kills and reaps the complete child.
-A definitely-unprocessed read-only query may be replayed once after one clean
-rebuild; an operation that
+A definitely-unprocessed read-only operation may be replayed once after one
+clean child start/rebuild; an operation that
 already exceeded its deadline is not automatically repeated. The next model
 call may cause a fresh build. There is no mutation or external side effect to
 reconcile.
 
 On graceful Worker terminalization, Runtime closes the analysis session and
 reaps the child while retaining the ordinary project workspace for existing
-release semantics. Release removes the mirror and any residual bounded cache.
+release semantics. The later release idempotently confirms that teardown and
+removes any residual bounded state; ordinary success leaves no mirror or cache.
 Abort, lost lease, failed prepare and process shutdown cancel analysis, kill
 and reap the child, and remove the mirror before a slot can become reusable.
 Tool close is idempotent and composes with the allocation-wide bounded cleanup
@@ -447,6 +449,8 @@ The initial model-visible error vocabulary is:
   boundary prevented the requested graph result;
 - `code_analysis_engine_failed` — bounded Trailmark/child failure not covered
   by a more specific code;
+- `code_analysis_cancelled` — the invocation was cancelled while an off-loop
+  operation was being joined;
 - `code_analysis_closing` — allocation termination has begun.
 
 Invalid input, stale/not-found symbol and deterministic capacity failures are

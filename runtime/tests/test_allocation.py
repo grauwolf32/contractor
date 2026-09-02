@@ -248,6 +248,93 @@ def test_finalize_report_and_release_erase_context_and_workspace(
     asyncio.run(scenario())
 
 
+def test_finalize_closes_allocation_tools_before_return_and_release_does_not_repeat(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-terminal-tools")
+        await state.mark_registered()
+        tool = TrackingTool()
+        toolset = TrackingToolsetFactory(tool)
+        sandbox = LocalWorkdirFactory(tmp_path)
+        service = AllocationService(
+            state,
+            FactoryRegistry(
+                worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+                toolsets={toolset.ref: toolset},
+                sandbox_profiles={sandbox.ref: sandbox},
+            ),
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+        )
+        spec = make_spec(tools=["read_artifact"])
+        await service.prepare(spec)
+
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalize-tools",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        assert tool.close_calls == 1
+        assert service._context is not None and service._context.tools == {}
+
+        release = ReleaseAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId=spec.allocation_id,
+        )
+        await service.release(release)
+        assert tool.close_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_unconfirmed_terminal_tool_cleanup_fences_slot_and_requests_process_exit(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-failed-tool-cleanup")
+        await state.mark_registered()
+        tool = TrackingTool(fail=True)
+        toolset = TrackingToolsetFactory(tool)
+        sandbox = LocalWorkdirFactory(tmp_path)
+        exits: list[int] = []
+        service = AllocationService(
+            state,
+            FactoryRegistry(
+                worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+                toolsets={toolset.ref: toolset},
+                sandbox_profiles={sandbox.ref: sandbox},
+            ),
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+            force_exit=exits.append,
+        )
+        spec = make_spec(tools=["read_artifact"])
+        await service.prepare(spec)
+
+        with pytest.raises(AllocationError) as rejected:
+            await service.finalize(
+                FinalizeAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId=spec.allocation_id,
+                    finalizationId="finalize-failed-tools",
+                    deadline=NOW + timedelta(seconds=30),
+                )
+            )
+        assert rejected.value.code == "tool_cleanup_unconfirmed"
+        assert not rejected.value.retryable
+        assert tool.close_calls == 1
+        assert exits == [70]
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+    asyncio.run(scenario())
+
+
 def test_release_of_unknown_allocation_is_idempotent_only_when_slot_is_empty(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
@@ -545,6 +632,28 @@ def test_each_worker_budget_changes_policy_and_template_digest(field: str, value
 class FailingToolsetFactory(RunArtifactsToolsetFactory):
     async def create_selected(self, **_: object) -> dict[str, object]:
         raise RuntimeError("synthetic tool construction failure")
+
+
+class TrackingToolsetFactory(RunArtifactsToolsetFactory):
+    def __init__(self, tool: TrackingTool) -> None:
+        super().__init__()
+        self.tool = tool
+
+    async def create_selected(self, **_: object) -> dict[str, TrackingTool]:
+        return {self.tool.name: self.tool}
+
+
+class TrackingTool:
+    name = "read_artifact"
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        if self.fail:
+            raise RuntimeError("synthetic tool cleanup failure")
 
 
 class FailOnceSandbox(LocalWorkdirFactory):

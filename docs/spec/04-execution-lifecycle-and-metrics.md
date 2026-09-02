@@ -537,15 +537,16 @@ Finalization is part of the private control/lifecycle protocol, not an A2A Task:
 Workflow Scheduler
   -> Control Plane: finalize(finalization_id, allocations, deadline)
   -> Runtime Agent: mark allocation draining and reject new A2A Tasks
-  -> same process: flush one allocation-wide ExecutionReport and destroy Worker instance
+  -> same process: destroy Worker, close Toolsets, flush adapters and build one ExecutionReport
   -> Runtime Agent: return ExecutionReport plus RuntimeReport
   -> Workflow Scheduler: accept terminal StageResult
   -> Control Plane: release route, sandbox, lease and slot
 ```
 
 Worker finalization performs no model/tool calls and cannot mutate artifacts. It
-only serializes already accumulated data and destroys the in-process runtime
-instance. An active A2A Task is asked to cancel locally but finalization does not
+only serializes already accumulated data, destroys the in-process runtime
+instance and closes allocation-owned Toolsets before returning. An active A2A
+Task is asked to cancel locally but finalization does not
 wait for the A2A protocol to report a terminal state. The command is idempotent
 for `finalization_id`. Runtime Agent waits only until the supplied deadline; if
 it cannot guarantee that the Worker stopped, it exits its own process rather
@@ -583,7 +584,7 @@ Workflow Scheduler
   -> RunStore: record aborting, StageTermination, abort_id and deadline
   -> Control Plane: abort(abort_id, allocations, deadline)
   -> Runtime Agent: reject new A2A Tasks and request local Task cancellation
-  -> same process: flush bounded reports and destroy Worker instance
+  -> same process: destroy Worker, close Toolsets, flush adapters and build bounded reports
   -> Runtime Agent: return ExecutionReport plus RuntimeReport
   -> Workflow Scheduler: commit the cancelled/interrupted terminal state
   -> Control Plane: release route, sandbox, lease and slot
@@ -603,8 +604,9 @@ related telemetry but never change the StageTermination.
 
 The allocation remains reserved through `draining`/stopped state until
 StageExecution becomes terminal. Only then does two-phase release begin. The
-private Runtime request idempotently removes the SandboxProfile workspace,
-tools and secrets but leaves the old allocation identity `fenced`; after its
+private Runtime request idempotently confirms Toolset teardown, removes the
+SandboxProfile workspace and secrets, but leaves the old allocation identity
+`fenced`; after its
 successful response, Control Plane removes its route, grant and lease. A
 subsequent heartbeat `release` action confirms that authoritative edge and lets
 Runtime Agent clear its retained identity/report and become `idle`. A lost

@@ -1,0 +1,91 @@
+schema_version: "1.0"
+
+policy:
+  snapshot: >-
+    One serialized allocation session owns one immutable workspace digest per
+    call; edits invalidate every shallow and graph derivative before reuse.
+  child: >-
+    Trailmark is one bounded allocation-local process. Only a request proven
+    unwritten may be replayed once; every ambiguous fault kills and reaps it.
+  retention: >-
+    Source, paths, queries, opaque IDs and credentials are absent from retained
+    metrics, reports, logs and a released or reusable Runtime slot.
+
+cases:
+  - id: shallow_edit_snapshot
+    category: concurrency
+    acceptance: [A1, A2]
+    faults: [F01]
+    expected: Direct and overlay edits cannot alter an already captured shallow snapshot.
+    test: {source: runtime/tests/test_code_analysis_concurrency.py, symbol: test_edit_during_shallow_parse_keeps_each_call_on_one_snapshot}
+  - id: cancelled_parser
+    category: cancellation
+    acceptance: [A1, A4]
+    faults: [F02]
+    expected: Cancellation waits off-loop for Tree-sitter ownership and cannot repopulate closed state.
+    test: {source: runtime/tests/test_code_analysis_concurrency.py, symbol: test_cancelled_parse_keeps_owner_until_thread_finishes_and_cannot_repopulate_cache}
+  - id: compact_cache_bounds
+    category: capacity
+    acceptance: [A1]
+    faults: [F03]
+    expected: File entries and retained symbols have independent finite limits.
+    test: {source: runtime/tests/test_code_analysis_concurrency.py, symbol: test_compact_cache_has_independent_file_and_symbol_bounds}
+  - id: graph_edit_snapshot
+    category: concurrency
+    acceptance: [A2]
+    faults: [F04]
+    expected: Both graph-build and edit winner orders produce one digest and reject stale identity.
+    test: {source: runtime/tests/test_code_analysis_concurrency.py, symbol: test_graph_build_and_edit_have_deterministic_snapshot_winners}
+  - id: definitely_unprocessed_replay
+    category: protocol
+    acceptance: [A3]
+    faults: [F05]
+    expected: A known-dead pre-write child is restarted once and the read-only build is replayed once.
+    test: {source: runtime/tests/test_code_analysis_faults.py, symbol: test_definitely_unprocessed_read_only_build_gets_exactly_one_safe_replay}
+  - id: accepted_build_crash
+    category: protocol
+    acceptance: [A3]
+    faults: [F06]
+    expected: A crash after build acceptance is never replayed and leaves no child or mirror.
+    test: {source: runtime/tests/test_code_analysis_faults.py, symbol: test_crash_after_request_acceptance_is_never_replayed}
+  - id: accepted_query_crash
+    category: protocol
+    acceptance: [A3, A4]
+    faults: [F07]
+    expected: A crash after query acceptance is classified and fully cleaned.
+    test: {source: runtime/tests/test_code_analysis_faults.py, symbol: test_crash_after_query_acceptance_reaps_child_and_erases_mirror}
+  - id: stderr_flood
+    category: protocol
+    acceptance: [A1, A3, A5]
+    faults: [F08]
+    expected: Child stderr is continuously drained while only a content-free observation bit remains.
+    test: {source: runtime/tests/test_code_analysis_faults.py, symbol: test_stderr_flood_is_drained_but_never_retained_as_text}
+  - id: classified_fault_matrix
+    category: lifecycle
+    acceptance: [A3, A4]
+    faults: [F09, F10, F11, F12, F13, F14, F15, F16]
+    expected: Crash OOM malformed partial wrong-ID bad-result oversized and timeout failures are stable and reusable.
+    test: {source: runtime/tests/test_code_analysis_faults.py, symbol: test_fault_classification_is_stable_and_scratch_is_immediately_reusable}
+  - id: graceful_terminal_cleanup
+    category: lifecycle
+    acceptance: [A4]
+    faults: [F17]
+    expected: Terminalization closes tools exactly once before returning and release remains idempotent.
+    test: {source: runtime/tests/test_allocation.py, symbol: test_finalize_closes_allocation_tools_before_return_and_release_does_not_repeat}
+  - id: unconfirmed_terminal_cleanup
+    category: lifecycle
+    acceptance: [A4]
+    faults: [F18]
+    expected: Unconfirmed Toolset cleanup fences the slot and requests process termination.
+    test: {source: runtime/tests/test_allocation.py, symbol: test_unconfirmed_terminal_tool_cleanup_fences_slot_and_requests_process_exit}
+  - id: retained_surface
+    category: redaction
+    acceptance: [A5]
+    faults: [F19]
+    expected: Exact JSON and URL canaries are absent from retained state metrics reports errors logs and scratch.
+    test: {source: runtime/tests/test_code_analysis_redaction.py, symbol: test_code_analysis_retained_state_metrics_errors_and_scratch_are_content_free}
+
+gates:
+  - {id: matrix, command: make test-code-analysis-matrix}
+  - {id: runtime, command: make test-code-analysis-runtime}
+  - {id: hardening, command: make test-code-analysis-hardening}

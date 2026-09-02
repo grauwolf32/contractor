@@ -62,6 +62,10 @@ class _ChildResponseError(TrailmarkHostError):
     pass
 
 
+class _DefinitelyUnprocessed(RuntimeError):
+    """Internal signal raised only before any request bytes are handed off."""
+
+
 @dataclass(frozen=True, slots=True)
 class GraphCoverage:
     analyzed_files: int
@@ -250,11 +254,7 @@ class TrailmarkChildHost:
                     raise TrailmarkHostError("code_analysis_build_timeout", retryable=True)
                 result = await self._request_locked(
                     "build",
-                    {
-                        "snapshotDigest": mirror.snapshot_digest,
-                        "coverage": mirror.coverage.wire(),
-                        "symbolKey": encode_symbol_key(bytes(self._symbol_key)),
-                    },
+                    self._build_arguments(mirror),
                     timeout=remaining,
                     timeout_code="code_analysis_build_timeout",
                 )
@@ -550,7 +550,7 @@ class TrailmarkChildHost:
 
     def _require_running(self) -> None:
         self._require_open()
-        if self._process is None or self._mirror is None or self._process.returncode is not None:
+        if self._process is None or self._mirror is None:
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
 
     async def _start_locked(self, mirror: Path) -> None:
@@ -581,23 +581,35 @@ class TrailmarkChildHost:
         timeout: float,
         timeout_code: str,
     ) -> dict[str, Any]:
-        process = self._process
-        if process is None or process.stdin is None or process.stdout is None:
-            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
-        self._request_number += 1
-        request_id = f"r{self._request_number:x}-{uuid.uuid4().hex}"
-        request = {
-            "schemaVersion": SCHEMA_VERSION,
-            "requestId": request_id,
-            "operation": operation,
-            "arguments": dict(arguments),
-        }
-        payload = _encode_request(request)
+        deadline = asyncio.get_running_loop().time() + timeout
         try:
-            async with asyncio.timeout(timeout):
-                process.stdin.write(struct.pack(">I", len(payload)) + payload)
-                await process.stdin.drain()
-                response = await _read_response(process.stdout)
+            try:
+                return await self._request_once_locked(
+                    operation,
+                    arguments,
+                    timeout=timeout,
+                )
+            except _DefinitelyUnprocessed:
+                # The child was already known dead (or its stdin already
+                # closed) before write(). All operations are read-only, so one
+                # fresh child plus one replay is unambiguous. BrokenPipe after
+                # write is deliberately not eligible for this path.
+                await self._restart_for_safe_replay_locked(operation, deadline)
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError from None
+                try:
+                    return await self._request_once_locked(
+                        operation,
+                        arguments,
+                        timeout=remaining,
+                    )
+                except _DefinitelyUnprocessed:
+                    raise TrailmarkHostError(
+                        "code_analysis_engine_failed", retryable=True
+                    ) from None
+        except _ChildResponseError:
+            raise
         except TimeoutError:
             await self._stop_locked(remove_mirror=True)
             raise TrailmarkHostError(timeout_code, retryable=True) from None
@@ -611,17 +623,76 @@ class TrailmarkChildHost:
             await self._stop_locked(remove_mirror=True)
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
 
+    async def _request_once_locked(
+        self,
+        operation: str,
+        arguments: Mapping[str, Any],
+        *,
+        timeout: float,
+    ) -> dict[str, Any]:
+        process = self._process
+        if process is None or process.stdin is None or process.stdout is None:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        if process.returncode is not None or process.stdin.is_closing():
+            raise _DefinitelyUnprocessed
+        self._request_number += 1
+        request_id = f"r{self._request_number:x}-{uuid.uuid4().hex}"
+        request = {
+            "schemaVersion": SCHEMA_VERSION,
+            "requestId": request_id,
+            "operation": operation,
+            "arguments": dict(arguments),
+        }
+        payload = _encode_request(request)
+        async with asyncio.timeout(timeout):
+            process.stdin.write(struct.pack(">I", len(payload)) + payload)
+            await process.stdin.drain()
+            response = await _read_response(process.stdout)
+
         try:
             result = _validate_response(response, request_id)
         except _ChildResponseError:
             raise
         except TrailmarkHostError:
-            await self._stop_locked(remove_mirror=True)
             raise
         if result is None:
-            await self._stop_locked(remove_mirror=True)
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
         return result
+
+    async def _restart_for_safe_replay_locked(
+        self,
+        operation: str,
+        deadline: float,
+    ) -> None:
+        mirror = self._mirror
+        if mirror is None:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        try:
+            await self._stop_locked(remove_mirror=False)
+            if deadline <= asyncio.get_running_loop().time():
+                raise TimeoutError
+            await self._start_locked(mirror.path)
+            if operation == "build":
+                return
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise TimeoutError
+            rebuilt = await self._request_once_locked(
+                "build",
+                self._build_arguments(mirror),
+                timeout=remaining,
+            )
+            _build_result(rebuilt, mirror)
+        except BaseException:
+            await self._stop_locked(remove_mirror=True)
+            raise
+
+    def _build_arguments(self, mirror: _PreparedMirror) -> dict[str, Any]:
+        return {
+            "snapshotDigest": mirror.snapshot_digest,
+            "coverage": mirror.coverage.wire(),
+            "symbolKey": encode_symbol_key(bytes(self._symbol_key)),
+        }
 
     async def _stop_locked(self, *, remove_mirror: bool) -> None:
         process = self._process

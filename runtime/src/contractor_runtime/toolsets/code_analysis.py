@@ -11,6 +11,7 @@ import re
 import secrets
 import time
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -79,6 +80,7 @@ MAX_SOURCE_FILES = 20_000
 MAX_SOURCE_BYTES = 128 * 1024 * 1024
 MAX_SOURCE_FILE_BYTES = 4 * 1024 * 1024
 MAX_COMPACT_SYMBOLS = 100_000
+MAX_COMPACT_CACHE_FILES = 20_000
 MAX_PAGE_ITEMS = 200
 MAX_RESULT_BYTES = 256 * 1024
 MAX_QUERY_CHARS = 256
@@ -250,7 +252,7 @@ class _OperationResult:
 
 class _CodeAnalysisSession:
     def __init__(self, reader: WorkspaceReader, *, graph_scratch: Path | None = None) -> None:
-        self._reader = reader
+        self._reader: WorkspaceReader | None = reader
         self._lock = asyncio.Lock()
         self._cursor_key = bytearray(secrets.token_bytes(32))
         self._digest: str | None = None
@@ -274,8 +276,10 @@ class _CodeAnalysisSession:
                     await self._graph_host.close()
                 except TrailmarkHostError as error:
                     raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+                self._graph_host = None
             self._clear_derived_state()
             self._digest = None
+            self._reader = None
             self._cursor_key[:] = b"\x00" * len(self._cursor_key)
             self._closed = True
 
@@ -314,7 +318,11 @@ class _CodeAnalysisSession:
             files = {item.path: item for item in snapshot.files}
             matches = [item for item in symbols if _symbol_matches(item.name, normalized_symbol)]
             matches.sort(key=_symbol_sort_key)
-            rows = [_definition_row(item, files[item.path]) for item in matches]
+            rows = await _to_thread_cancellation_safe(
+                _definition_rows,
+                tuple(matches),
+                files,
+            )
             value = self._page(
                 rows,
                 offset=offset,
@@ -842,8 +850,11 @@ class _CodeAnalysisSession:
     async def _begin_call(self) -> tuple[WorkspaceSnapshot, int]:
         if self._closed or self._closing:
             raise CodeAnalysisError("code_analysis_closing", retryable=True)
+        reader = self._reader
+        if reader is None:
+            raise CodeAnalysisError("code_analysis_closing", retryable=True)
         try:
-            snapshot = await self._reader.snapshot()
+            snapshot = await reader.snapshot()
         except WorkspaceStorageError:
             raise CodeAnalysisError("code_analysis_engine_failed", retryable=True) from None
         except Exception:
@@ -907,15 +918,20 @@ class _CodeAnalysisSession:
                 break
             coverage.analyzed_files += 1
             coverage.analyzed_bytes += item.size
-            if needle is not None and needle not in item.text.casefold():
-                continue
+            if needle is not None:
+                contains = await _to_thread_cancellation_safe(
+                    _contains_casefold,
+                    item.text,
+                    needle,
+                )
+                if not contains:
+                    continue
             if time.monotonic() >= deadline:
                 coverage.reasons.add("deadline")
                 break
 
             remaining = MAX_COMPACT_SYMBOLS - seen_symbols
-            parsed, cache_hit = await asyncio.to_thread(
-                self._symbols_for_file,
+            parsed, cache_hit = await self._symbols_for_file(
                 item,
                 language,
                 remaining + 1,
@@ -938,7 +954,7 @@ class _CodeAnalysisSession:
             _ScanStats(cache_hits, cache_misses, cache_invalidations),
         )
 
-    def _symbols_for_file(
+    async def _symbols_for_file(
         self,
         item: WorkspaceTextFile,
         language: Language,
@@ -953,11 +969,15 @@ class _CodeAnalysisSession:
         try:
             parser = self._parsers.get(language)
             if parser is None:
-                parser = language_support.load_parser(language)
+                parser = await _to_thread_cancellation_safe(
+                    language_support.load_parser,
+                    language,
+                )
                 self._parsers[language] = parser
-            parsed = language_support.parse_symbols(
+            parsed = await _to_thread_cancellation_safe(
+                _parse_symbols_text,
                 parser,
-                item.text.encode("utf-8"),
+                item.text,
                 item.path,
                 language,
                 parse_limit,
@@ -966,6 +986,7 @@ class _CodeAnalysisSession:
             parsed = language_support.ParseResult((), True, False)
         if (
             not parsed.symbol_limit_reached
+            and len(self._file_cache) < MAX_COMPACT_CACHE_FILES
             and self._cached_symbols + len(parsed.symbols) <= MAX_COMPACT_SYMBOLS
         ):
             self._file_cache[item.path] = _CachedFile(parsed.symbols, parsed.parse_error)
@@ -1094,6 +1115,12 @@ class _BaseCodeAnalysisTool:
             duration_ms=_elapsed_ms(started_ns),
         )
 
+    def _cancelled(self, started_ns: int) -> None:
+        self._failure(
+            started_ns,
+            CodeAnalysisError("code_analysis_cancelled", retryable=True),
+        )
+
 
 class SearchDefinitionTool(_BaseCodeAnalysisTool):
     name = "search_def"
@@ -1112,6 +1139,9 @@ class SearchDefinitionTool(_BaseCodeAnalysisTool):
             result = await self._session.search_def(symbol, path, language, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1134,6 +1164,9 @@ class ListSymbolsTool(_BaseCodeAnalysisTool):
             result = await self._session.list_symbols(path, language, node_type, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1149,6 +1182,9 @@ class GraphSummaryTool(_BaseCodeAnalysisTool):
             result = await self._session.graph_summary()
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1169,6 +1205,9 @@ class FindSymbolTool(_BaseCodeAnalysisTool):
             result = await self._session.find_symbol(query, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1189,6 +1228,9 @@ class FindCallersTool(_BaseCodeAnalysisTool):
             result = await self._session.find_relationships(self.name, symbol_id, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1209,6 +1251,9 @@ class FindCalleesTool(_BaseCodeAnalysisTool):
             result = await self._session.find_relationships(self.name, symbol_id, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1235,6 +1280,9 @@ class PathsBetweenTool(_BaseCodeAnalysisTool):
             )
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1255,6 +1303,9 @@ class EntrypointPathsToTool(_BaseCodeAnalysisTool):
             result = await self._session.entrypoint_paths_to(symbol_id, max_depth, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1270,6 +1321,9 @@ class AttackSurfaceTool(_BaseCodeAnalysisTool):
             result = await self._session.attack_surface(cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1290,6 +1344,9 @@ class ComplexityHotspotsTool(_BaseCodeAnalysisTool):
             result = await self._session.complexity_hotspots(threshold, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1310,6 +1367,9 @@ class FunctionsThatRaiseTool(_BaseCodeAnalysisTool):
             result = await self._session.functions_that_raise(exception, cursor, limit)
             self._success(started_ns, result)
             return result.value
+        except asyncio.CancelledError:
+            self._cancelled(started_ns)
+            raise
         except Exception as error:
             self._failure(started_ns, error)
             raise
@@ -1488,6 +1548,33 @@ def _definition_row(item: SymbolRecord, file: WorkspaceTextFile) -> dict[str, An
     return row
 
 
+def _definition_rows(
+    symbols: tuple[SymbolRecord, ...],
+    files: Mapping[str, WorkspaceTextFile],
+) -> list[dict[str, Any]]:
+    return [_definition_row(item, files[item.path]) for item in symbols]
+
+
+def _contains_casefold(text: str, needle: str) -> bool:
+    return needle in text.casefold()
+
+
+def _parse_symbols_text(
+    parser: Parser,
+    text: str,
+    path: str,
+    language: Language,
+    limit: int,
+) -> language_support.ParseResult:
+    return language_support.parse_symbols(
+        parser,
+        text.encode("utf-8"),
+        path,
+        language,
+        limit,
+    )
+
+
 def _preview(text: str, start_byte: int, end_byte: int) -> str:
     source = text.encode("utf-8")
     selected = source[start_byte:end_byte].decode("utf-8", errors="strict")
@@ -1517,6 +1604,25 @@ def _unb64(value: str) -> bytes:
     if _b64(decoded) != value:
         raise ValueError
     return decoded
+
+
+async def _to_thread_cancellation_safe(function: Any, *arguments: Any) -> Any:
+    """Do not let cancelled CPU work mutate allocation state after lock release."""
+
+    task = asyncio.create_task(
+        asyncio.to_thread(function, *arguments),
+        name="code-analysis-cpu",
+    )
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        # Python cannot stop a thread which is already inside Tree-sitter. Keep
+        # the session owner locked until it really returns; the allocation-wide
+        # stop deadline will fence and terminate the Runtime if that cannot be
+        # confirmed in time.
+        with suppress(Exception):
+            await task
+        raise
 
 
 def _elapsed_ms(started_ns: int) -> int:
