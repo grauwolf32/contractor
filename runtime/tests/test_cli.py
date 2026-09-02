@@ -68,6 +68,28 @@ def test_shutdown_cancels_inflight_heartbeat_and_stops_listener(
     asyncio.run(scenario())
 
 
+def test_startup_orphan_cleanup_runs_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class CleanupObserved(Exception):
+        pass
+
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        cleanup_threads: list[int] = []
+
+        def observe_cleanup(_: Path) -> None:
+            cleanup_threads.append(threading.get_ident())
+            raise CleanupObserved
+
+        monkeypatch.setattr(runtime_cli, "cleanup_orphan_workdirs", observe_cleanup)
+        with pytest.raises(CleanupObserved):
+            await runtime_cli.serve(make_settings(tmp_path), install_signal_handlers=False)
+        assert cleanup_threads and cleanup_threads[0] != loop_thread
+
+    asyncio.run(scenario())
+
+
 def test_process_sigterm_during_real_mtls_heartbeat_exits_cleanly(tmp_path: Path) -> None:
     pki = generate_pki(tmp_path / "pki")
     heartbeat_started = threading.Event()

@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 import os
-from collections.abc import Callable, Mapping, MutableMapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -116,6 +116,7 @@ class _AllocationContext:
     termination_id: str | None = None
     terminal_response: AllocationFinalResponse | None = None
     release_prepared: bool = False
+    release_cleanup_task: asyncio.Task[None] | None = field(default=None, repr=False)
 
 
 class AllocationService:
@@ -470,18 +471,45 @@ class AllocationService:
             if context.runtime_settings is not None
             else 5
         )
-        deadline = self._now() + timedelta(seconds=timeout_seconds)
+        cleanup_task = context.release_cleanup_task
+        if cleanup_task is not None and cleanup_task.done():
+            try:
+                cleanup_task.result()
+            except (Exception, asyncio.CancelledError):
+                # The completed attempt may have made partial, idempotent
+                # progress. A retry gets a fresh outer deadline and resumes
+                # from the resources which remain in the context.
+                context.release_cleanup_task = None
+                cleanup_task = None
+            else:
+                return
+
+        if cleanup_task is None:
+            deadline = self._now() + timedelta(seconds=timeout_seconds)
+            cleanup_task = asyncio.create_task(
+                self._run_release_cleanup(context, deadline),
+                name=f"allocation-release-cleanup-{context.allocation_id}",
+            )
+            cleanup_task.add_done_callback(_consume_background_task)
+            context.release_cleanup_task = cleanup_task
+
         try:
-            await _close_tools(context.tools)
-            if context.project_workspace is not None:
-                await context.project_workspace.close()
-                assert self._factories.workspace_provider is not None
-                await self._factories.workspace_provider.cleanup(context.project_workspace.storage)
-            await context.sandbox.cleanup(context.workspace)
-            await context.adapter_host.rollback(deadline=deadline, now=self._now)
+            await asyncio.wait_for(asyncio.shield(cleanup_task), timeout=float(timeout_seconds))
         except asyncio.CancelledError:
+            await self._state.fence_allocation(context.allocation_id)
+            current = asyncio.current_task()
+            if cleanup_task.cancelled() and (current is None or not current.cancelling()):
+                context.release_cleanup_task = None
+                raise AllocationError(
+                    "allocation_cleanup_failed",
+                    "allocation cleanup failed (CancelledError)",
+                    retryable=True,
+                    status_code=503,
+                ) from None
             raise
         except Exception as error:
+            if cleanup_task.done():
+                context.release_cleanup_task = None
             await self._state.fence_allocation(context.allocation_id)
             raise AllocationError(
                 "allocation_cleanup_failed",
@@ -490,8 +518,19 @@ class AllocationService:
                 status_code=503,
             ) from None
 
+    async def _run_release_cleanup(
+        self,
+        context: _AllocationContext,
+        deadline: datetime,
+    ) -> None:
+        await _close_tools(context.tools)
+        if context.project_workspace is not None:
+            await self._cleanup_project_workspace(context.project_workspace)
+            context.project_workspace = None
+        await context.sandbox.cleanup(context.workspace)
+        await context.adapter_host.rollback(deadline=deadline, now=self._now)
+
         context.tools.clear()
-        context.project_workspace = None
         context.worker_state = None
         context.runtime_settings = None
         context.prepare_response = None
@@ -872,7 +911,7 @@ class AllocationService:
             context.worker = None
             await self._stop_adapters_or_exit(context, deadline)
             if kind == "abort":
-                await self._discard_project_workspace_or_exit(context)
+                await self._discard_project_workspace_or_exit(context, deadline)
             response = AllocationFinalResponse(
                 apiVersion=API_VERSION,
                 report=_build_report(context, self._now(), reason),
@@ -891,9 +930,12 @@ class AllocationService:
         if timeout_seconds <= 0:
             raise ValueError("Worker shutdown grace must be positive")
         if context.worker is None:
+            if context.release_cleanup_task is not None:
+                await self._state.fence_allocation(context.allocation_id)
+                return
             deadline = self._now() + timedelta(seconds=timeout_seconds)
             await self._stop_adapters_or_exit(context, deadline)
-            await self._discard_project_workspace_or_exit(context)
+            await self._discard_project_workspace_or_exit(context, deadline)
             await self._state.fence_allocation(context.allocation_id)
             return
 
@@ -931,7 +973,7 @@ class AllocationService:
 
         context.worker = None
         await self._stop_adapters_or_exit(context, deadline)
-        await self._discard_project_workspace_or_exit(context)
+        await self._discard_project_workspace_or_exit(context, deadline)
         context.termination_kind = "lease"
         context.termination_id = None
         context.terminal_response = AllocationFinalResponse(
@@ -961,16 +1003,20 @@ class AllocationService:
                 status_code=503,
             ) from None
 
-    async def _discard_project_workspace_or_exit(self, context: _AllocationContext) -> None:
+    async def _discard_project_workspace_or_exit(
+        self,
+        context: _AllocationContext,
+        deadline: datetime,
+    ) -> None:
         project_workspace = context.project_workspace
         if project_workspace is None:
             return
         try:
-            await project_workspace.close()
-            provider = self._factories.workspace_provider
-            if provider is None:
-                raise RuntimeError("project workspace provider is unavailable")
-            await provider.cleanup(project_workspace.storage)
+            await _await_before_deadline(
+                lambda: self._cleanup_project_workspace(project_workspace),
+                deadline=deadline,
+                now=self._now,
+            )
         except asyncio.CancelledError:
             await self._state.fence_allocation(context.allocation_id)
             self._force_exit(70)
@@ -986,6 +1032,16 @@ class AllocationService:
             ) from None
         context.project_workspace = None
 
+    async def _cleanup_project_workspace(
+        self,
+        project_workspace: DirectWorkspaceSession,
+    ) -> None:
+        await project_workspace.close()
+        provider = self._factories.workspace_provider
+        if provider is None:
+            raise RuntimeError("project workspace provider is unavailable")
+        await provider.cleanup(project_workspace.storage)
+
     async def _rollback_prepare(
         self,
         spec: AllocationSpec,
@@ -997,45 +1053,38 @@ class AllocationService:
         adapter_host: AllocationAdapterHost | None,
     ) -> None:
         failed = False
+        cancelled: asyncio.CancelledError | None = None
+        deadline = self._now() + timedelta(seconds=spec.runtime_settings.request_timeout_seconds)
+
+        async def attempt(operation: Callable[[], Awaitable[None]]) -> None:
+            nonlocal failed, cancelled
+            try:
+                await _await_before_deadline(operation, deadline=deadline, now=self._now)
+            except asyncio.CancelledError as error:
+                failed = True
+                cancelled = error
+            except Exception:
+                failed = True
+
         if worker is not None:
-            try:
-                deadline = self._now() + timedelta(seconds=1)
-                stop_task = asyncio.create_task(worker.abort(deadline))
-                done, _ = await asyncio.wait({stop_task}, timeout=1)
-                if not done:
-                    stop_task.cancel()
-                    stop_task.add_done_callback(_consume_background_task)
-                    raise TimeoutError
-                await stop_task
-            except Exception:
-                failed = True
-        try:
-            await _close_tools(tools)
-        except Exception:
-            failed = True
+            await attempt(lambda: worker.abort(deadline))
+        await attempt(lambda: _close_tools(tools))
         if project_workspace is not None:
-            try:
-                await project_workspace.close()
-                assert self._factories.workspace_provider is not None
-                await self._factories.workspace_provider.cleanup(project_workspace.storage)
-            except Exception:
-                failed = True
+            await attempt(lambda: self._cleanup_project_workspace(project_workspace))
         if workspace is not None:
-            try:
-                await sandbox.cleanup(workspace)
-            except Exception:
-                failed = True
+            await attempt(lambda: sandbox.cleanup(workspace))
         if adapter_host is not None:
-            try:
-                await adapter_host.rollback(
-                    deadline=self._now() + timedelta(seconds=1),
+            await attempt(
+                lambda: adapter_host.rollback(
+                    deadline=deadline,
                     now=self._now,
                 )
-            except Exception:
-                failed = True
+            )
         if failed:
             await self._state.fence_allocation(spec.allocation_id)
             self._force_exit(70)
+        if cancelled is not None:
+            raise cancelled
 
     def _require_context(self, allocation_id: str) -> _AllocationContext:
         if self._context is None or self._context.allocation_id != allocation_id:
@@ -1099,6 +1148,29 @@ async def _close_tools(tools: Mapping[str, ToolInstance]) -> None:
         await tools[name].close()
         if isinstance(tools, MutableMapping):
             del tools[name]
+
+
+async def _await_before_deadline(
+    operation: Callable[[], Awaitable[None]],
+    *,
+    deadline: datetime,
+    now: Callable[[], datetime],
+) -> None:
+    remaining = (deadline - now()).total_seconds()
+    if remaining <= 0:
+        raise TimeoutError
+    task = asyncio.create_task(operation())
+    try:
+        done, _ = await asyncio.wait({task}, timeout=remaining)
+    except asyncio.CancelledError:
+        task.cancel()
+        task.add_done_callback(_consume_background_task)
+        raise
+    if not done:
+        task.cancel()
+        task.add_done_callback(_consume_background_task)
+        raise TimeoutError
+    await task
 
 
 def _consume_background_task(task: asyncio.Task[Any]) -> None:

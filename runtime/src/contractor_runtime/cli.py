@@ -35,7 +35,7 @@ async def serve(
 ) -> None:
     runtime_state = state or RuntimeState()
     stop = stop_requested or asyncio.Event()
-    cleanup_orphan_workdirs(settings.work_root)
+    await asyncio.to_thread(cleanup_orphan_workdirs, settings.work_root)
     outgoing_tls = runtime_agent_client_context(
         ca_file=settings.ca_file,
         certificate_file=settings.certificate_file,

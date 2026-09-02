@@ -323,6 +323,78 @@ def test_cleanup_failure_fences_slot_until_idempotent_release_retry(
     asyncio.run(scenario())
 
 
+def test_release_timeout_retains_one_cleanup_task_and_keeps_loop_responsive(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-test")
+        await state.mark_registered()
+        sandbox = BlockingCleanupSandbox(tmp_path)
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            toolsets={"run-artifacts@1": RunArtifactsToolsetFactory()},
+            sandbox_profiles={"local-workdir@1": sandbox},
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+        )
+        spec = make_spec()
+        spec.runtime_settings.request_timeout_seconds = 1
+        await service.prepare(spec)
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="finalization-1",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        release = ReleaseAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId=spec.allocation_id,
+        )
+
+        first_release = asyncio.create_task(service.release(release))
+        await asyncio.wait_for(sandbox.cleanup_started.wait(), timeout=0.5)
+
+        # The cleanup is deliberately stuck, but unrelated Runtime state work
+        # must still be scheduled by the event loop.
+        heartbeat = await asyncio.wait_for(state.heartbeat(1, 0), timeout=0.1)
+        assert heartbeat.allocation_id == spec.allocation_id
+
+        with pytest.raises(AllocationError) as timed_out:
+            await first_release
+        assert timed_out.value.code == "allocation_cleanup_failed"
+        assert timed_out.value.retryable
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        context = service._context
+        assert context is not None
+        retained_task = context.release_cleanup_task
+        assert retained_task is not None
+        assert not retained_task.done()
+        assert sandbox.cleanup_attempts == 1
+
+        retry = asyncio.create_task(service.release(release))
+        await asyncio.sleep(0)
+        assert context.release_cleanup_task is retained_task
+        assert sandbox.cleanup_attempts == 1
+        sandbox.allow_cleanup.set()
+        await asyncio.wait_for(retry, timeout=0.5)
+        assert retained_task.done()
+        assert context.release_prepared
+        assert sandbox.cleanup_attempts == 1
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+        await service.confirm_release(spec.allocation_id)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
 def test_abort_adds_reason_and_forces_exit_if_worker_cannot_stop(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:
@@ -484,6 +556,20 @@ class FailOnceSandbox(LocalWorkdirFactory):
         if self.failures_remaining:
             self.failures_remaining -= 1
             raise OSError("synthetic cleanup failure")
+        await super().cleanup(workspace)
+
+
+class BlockingCleanupSandbox(LocalWorkdirFactory):
+    def __init__(self, root: Path) -> None:
+        super().__init__(root)
+        self.cleanup_started = asyncio.Event()
+        self.allow_cleanup = asyncio.Event()
+        self.cleanup_attempts = 0
+
+    async def cleanup(self, workspace: AllocationWorkspace) -> None:
+        self.cleanup_attempts += 1
+        self.cleanup_started.set()
+        await self.allow_cleanup.wait()
         await super().cleanup(workspace)
 
 

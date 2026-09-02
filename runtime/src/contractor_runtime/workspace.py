@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import uuid
 from dataclasses import dataclass
@@ -58,10 +59,7 @@ class LocalWorkdirFactory:
             raise ValueError("refusing to clean an unrecognized allocation workspace")
         if not path.exists() and not path.is_symlink():
             return
-        if path.is_symlink() or not path.is_dir():
-            path.unlink()
-            return
-        shutil.rmtree(path)
+        await asyncio.to_thread(_remove_workspace_path, path)
 
 
 def cleanup_orphan_workdirs(root: Path) -> None:
@@ -74,3 +72,12 @@ def cleanup_orphan_workdirs(root: Path) -> None:
             entry.unlink()
         else:
             shutil.rmtree(entry)
+
+
+def _remove_workspace_path(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    if path.is_symlink() or not path.is_dir():
+        path.unlink()
+        return
+    shutil.rmtree(path)

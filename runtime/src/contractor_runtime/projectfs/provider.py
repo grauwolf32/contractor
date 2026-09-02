@@ -106,7 +106,7 @@ class LocalWorkspaceProvider:
             marker.write_text(_marker_contents(path.name), encoding="ascii", newline="\n")
             marker.chmod(0o600)
         except BaseException:
-            shutil.rmtree(path, ignore_errors=True)
+            await asyncio.to_thread(shutil.rmtree, path, ignore_errors=True)
             raise
         return ProjectWorkspaceStorage(
             storage="local",
@@ -123,18 +123,13 @@ class LocalWorkspaceProvider:
         expected = f"{LOCAL_DIRECTORY_PREFIX}{storage.owner_token}"
         if path.parent != self._root or path.name != expected:
             raise ValueError("refusing to remove an unowned project workspace")
-        if not path.exists() and not path.is_symlink():
-            return
-        if not _is_owned_directory(path):
-            raise ValueError("refusing to remove an unowned project workspace")
-        shutil.rmtree(path)
+        await asyncio.to_thread(_remove_owned_local_workspace, path)
 
     async def _initialize(self) -> None:
         async with self._initialization_lock:
             if self._initialized:
                 return
-            _initialize_local_root(self._root)
-            cleanup_stale_local_workspaces(self._root)
+            await asyncio.to_thread(_initialize_and_cleanup_local_root, self._root)
             self._initialized = True
 
 
@@ -179,8 +174,7 @@ class MemoryWorkspaceProvider:
             or storage.root != expected
         ):
             raise ValueError("workspace storage belongs to another provider")
-        if storage.filesystem.exists(storage.root):
-            storage.filesystem.rm(storage.root, recursive=True)
+        await asyncio.to_thread(_remove_memory_workspace, storage)
 
 
 class _IsolatedMemoryFileSystem(MemoryFileSystem):
@@ -209,6 +203,23 @@ def cleanup_stale_local_workspaces(root: Path) -> None:
     for candidate in root.iterdir():
         if _is_owned_directory(candidate):
             shutil.rmtree(candidate)
+
+
+def _initialize_and_cleanup_local_root(root: Path) -> None:
+    cleanup_stale_local_workspaces(root)
+
+
+def _remove_owned_local_workspace(path: Path) -> None:
+    if not path.exists() and not path.is_symlink():
+        return
+    if not _is_owned_directory(path):
+        raise ValueError("refusing to remove an unowned project workspace")
+    shutil.rmtree(path)
+
+
+def _remove_memory_workspace(storage: ProjectWorkspaceStorage) -> None:
+    if storage.filesystem.exists(storage.root):
+        storage.filesystem.rm(storage.root, recursive=True)
 
 
 def _initialize_local_root(root: Path) -> None:

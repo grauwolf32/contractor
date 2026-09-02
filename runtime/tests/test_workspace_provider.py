@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import uuid
 from pathlib import Path
 
 import pytest
 
+import contractor_runtime.projectfs.provider as provider_module
+import contractor_runtime.workspace as workspace_module
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     MemoryWorkspaceProvider,
@@ -13,6 +16,7 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.projectfs.provider import LOCAL_DIRECTORY_PREFIX
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.workspace import LocalWorkdirFactory
 
 
 def test_local_provider_removes_only_marker_owned_immediate_stale_children(
@@ -112,6 +116,52 @@ def test_memory_provider_isolates_allocations_and_provider_instances() -> None:
         assert right.filesystem.exists(right.root)
         await first.cleanup(right)
         await second.cleanup(foreign)
+
+    asyncio.run(scenario())
+
+
+def test_recursive_local_cleanup_runs_off_the_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        loop_thread = threading.get_ident()
+        sandbox = LocalWorkdirFactory(tmp_path / "scratch")
+        scratch = await sandbox.prepare()
+        (scratch.path / "nested").mkdir()
+        (scratch.path / "nested" / "data.txt").write_text("data", encoding="utf-8")
+
+        provider = LocalWorkspaceProvider(local_settings(tmp_path / "projects"))
+        project = await provider.create("allocation-1")
+        project_path = Path(project.root)
+        (project_path / "data.txt").write_text("data", encoding="utf-8")
+
+        scratch_threads: list[int] = []
+        project_threads: list[int] = []
+        original_scratch_remove = workspace_module._remove_workspace_path
+        original_project_remove = provider_module._remove_owned_local_workspace
+
+        def tracked_scratch_remove(path: Path) -> None:
+            scratch_threads.append(threading.get_ident())
+            original_scratch_remove(path)
+
+        def tracked_project_remove(path: Path) -> None:
+            project_threads.append(threading.get_ident())
+            original_project_remove(path)
+
+        monkeypatch.setattr(workspace_module, "_remove_workspace_path", tracked_scratch_remove)
+        monkeypatch.setattr(
+            provider_module,
+            "_remove_owned_local_workspace",
+            tracked_project_remove,
+        )
+
+        await sandbox.cleanup(scratch)
+        await provider.cleanup(project)
+
+        assert scratch_threads and scratch_threads[0] != loop_thread
+        assert project_threads and project_threads[0] != loop_thread
+        assert not scratch.path.exists()
+        assert not project_path.exists()
 
     asyncio.run(scenario())
 
