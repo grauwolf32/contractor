@@ -4,7 +4,7 @@ title: Resolve and pin per-consumer execution configuration
 milestone: planner-routing-and-escalation
 priority: P0
 status: completed
-implementation_commit: "c7178d607962b3ee9d965fc191dbeff5191288fd"
+implementation_commit: "03e8d863cbe8468f35bead1b981ddcfdb038b9a2"
 depends_on: [V3-004, V3-005]
 languages: [go, python, yaml]
 
@@ -109,7 +109,9 @@ completion:
       variables now create only the explicit in-memory development-worker and
       development-planner credentials bound to exact local-litellm@1; E2E/live
       harnesses author temporary pinned Gateway manifests instead of overriding
-      them through environment state.
+      them through environment state. Shipped local Workflows now select the
+      two role-specific credential IDs explicitly, and staging harnesses no
+      longer rewrite every Planner and Worker Gateway to one Worker credential.
     - >-
       No SQL migration was necessary because WorkflowRun already persists the
       complete WorkflowSnapshot JSONB. Legacy snapshots lacking executionConfig
