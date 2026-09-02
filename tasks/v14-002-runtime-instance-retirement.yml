@@ -3,8 +3,8 @@ id: V14-002
 title: Retire allocation-free inactive Runtime process instances
 milestone: runtime-lifecycle-hardening
 priority: P1
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: 4d37d273306912ce5488d6f4f926770c95be132b
 depends_on: [V14-001]
 languages: [go]
 
