@@ -3,8 +3,8 @@ id: V14-001
 title: Fan out Runtime termination and drain every write-fenced Worker
 milestone: runtime-lifecycle-hardening
 priority: P0
-status: planned
-implementation_commit: null
+status: complete
+implementation_commit: e44c7f33a360049fbfbf41bcab860ebcb3b0a70e
 depends_on: [V6-002, V13-001]
 languages: [go, python]
 
