@@ -3,8 +3,8 @@ id: V17-001
 title: Add strict Worker semantic result and completion wire contracts
 milestone: worker-results-and-live-state
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: b939133f67fbe6f0c2dac13a7d6e318077753b4e
 depends_on: [V16-005]
 languages: [go, python, json]
 
