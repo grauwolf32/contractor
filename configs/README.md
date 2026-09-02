@@ -6,7 +6,11 @@ small artifact-copy fixture and the four-Stage `openapi-from-source@1` and
 `source-analysis@1` behavior. Explicit workspace-backed variants are:
 
 - `openapi-from-workspace@1`;
-- `likec4-from-workspace@1`.
+- `likec4-from-workspace@1`;
+- portable structural-analysis variants `openapi-from-workspace@2` and
+  `likec4-from-workspace@2`;
+- local graph-analysis variants `openapi-from-workspace@3` and
+  `likec4-from-workspace@3`.
 
 Each workspace variant hydrates the exact `inputs/source` ZIP below the private
 workspace root for every Stage, uses only bounded `filesystem@1` reads, and
@@ -15,6 +19,15 @@ results. A later Stage imports the exact prior state revision; no allocation
 workspace is shared or synchronized implicitly. The domain outputs are the same
 as the corresponding source workflow and both workspace results are additionally
 frozen as Workflow outputs.
+
+The `@2` variants use `workspace_source_analyst@2`, which adds only the
+portable `code-analysis@1` `search_def` and `list_symbols` operations. The `@3`
+variants use `workspace_source_graph_analyst@1` and select all eleven bounded
+structural operations. They therefore wait for a Runtime Agent whose positive
+capability includes the local Trailmark graph surface; there is no automatic
+downgrade to shallow analysis. Both choices affect only the two discovery
+Stages. Builder and validator versions, explicit reports, overlay handoffs,
+retries, execution configuration and frozen outputs remain identical to `@1`.
 
 The original LikeC4 identity remains available for reproducibility. Other
 project-sized variants are:
