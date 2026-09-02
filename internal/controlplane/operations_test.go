@@ -224,12 +224,18 @@ func TestOperationsSnapshotRetiresSupersededAgentAfterAllocationRelease(t *testi
 	if len(whileOwned.RuntimeAgents) != 2 {
 		t.Fatalf("superseded allocation owner disappeared before release: %+v", whileOwned.RuntimeAgents)
 	}
+	if _, retained := registry.agents[oldRegistration.InstanceID]; !retained {
+		t.Fatal("superseded allocation owner was removed from reconciliation state")
+	}
 	if err := registry.Release(reservations[0].Grant.AllocationID); err != nil {
 		t.Fatal(err)
 	}
 	released := registry.SnapshotOperations()
 	if len(released.RuntimeAgents) != 1 || released.RuntimeAgents[0].InstanceID != restarted.InstanceID {
 		t.Fatalf("released superseded agent remained current: %+v", released.RuntimeAgents)
+	}
+	if _, retained := registry.agents[oldRegistration.InstanceID]; retained {
+		t.Fatal("released superseded process remained in Registry memory")
 	}
 }
 

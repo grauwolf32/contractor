@@ -856,9 +856,82 @@ func TestLeaseUsesMonotonicClockNotWallClock(t *testing.T) {
 	clock.JumpWall(-48 * time.Hour)
 	clock.Advance(time.Minute)
 	registry.PollAllocationLosses()
-	snapshot, _ := registry.GetAgent("agent-1")
-	if !snapshot.LeaseExpired {
-		t.Fatal("monotonic deadline did not expire after one minute")
+	if _, err := registry.GetAgent("agent-1"); !errors.Is(err, ErrAgentNotFound) {
+		t.Fatalf("allocation-free expired process was not retired: %v", err)
+	}
+}
+
+func TestRuntimeRegistrationCapacityIgnoresRetiredProcessHistory(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	firstInstanceID := "retired-agent-00000"
+	for index := 0; index <= maximumOperationsItems; index++ {
+		instanceID := fmt.Sprintf("retired-agent-%05d", index)
+		if _, err := registry.Register(testRegistration(instanceID)); err != nil {
+			t.Fatalf("register process %d: %v", index, err)
+		}
+		clock.Advance(time.Minute)
+	}
+	if count := len(registry.agents); count != 1 {
+		t.Fatalf("retained process entries = %d, want 1", count)
+	}
+	operations := registry.SnapshotOperations()
+	if len(operations.RuntimeAgents) != 1 || operations.RuntimeAgents[0].InstanceID != "retired-agent-10000" {
+		t.Fatalf("current Runtime Agents = %+v", operations.RuntimeAgents)
+	}
+	response, err := registry.Heartbeat(heartbeat(firstInstanceID, 1, 0))
+	if err != nil || response.Action != contracts.ActionReregister {
+		t.Fatalf("retired process heartbeat = (%+v, %v)", response, err)
+	}
+}
+
+func TestExpiredAllocationOwnerIsRetainedUntilRelease(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	registerReady(t, registry, "expired-owner")
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-expired-owner", StageExecutionID: "stage-expired-owner",
+		Bindings: []BindingRequirement{testBinding(t, "builder", "builder", testTemplate(t))},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	allocationID := reservations[0].Grant.AllocationID
+	clock.Advance(time.Minute)
+	losses := registry.PollAllocationLosses()
+	if len(losses) != 1 || losses[0].AllocationID != allocationID {
+		t.Fatalf("allocation losses = %+v", losses)
+	}
+	if _, present := registry.agents["expired-owner"]; !present {
+		t.Fatal("expired process disappeared while it still owned an allocation")
+	}
+	if err := registry.Release(allocationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := registry.agents["expired-owner"]; present {
+		t.Fatal("expired process remained after authoritative release")
+	}
+}
+
+func TestAllocationFreeSupersededProcessIsRetiredImmediately(t *testing.T) {
+	registry := newTestRegistry(t, newTestClock())
+	oldRegistration := testRegistration("superseded-idle")
+	registerReadyWith(t, registry, oldRegistration)
+	replacement := testRegistration("replacement-idle")
+	replacement.ControlURL = oldRegistration.ControlURL
+	replacement.A2AURL = oldRegistration.A2AURL
+	if _, err := registry.Register(replacement); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := registry.agents[oldRegistration.InstanceID]; present {
+		t.Fatal("allocation-free superseded process remained in the live Registry")
+	}
+	if _, present := registry.agents[replacement.InstanceID]; !present {
+		t.Fatal("replacement process is absent")
+	}
+	response, err := registry.Heartbeat(heartbeat(oldRegistration.InstanceID, 3, 2))
+	if err != nil || response.Action != contracts.ActionReregister {
+		t.Fatalf("superseded process heartbeat = (%+v, %v)", response, err)
 	}
 }
 

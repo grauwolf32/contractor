@@ -197,6 +197,8 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 	if _, deleting := r.principalDeletions[principal.RuntimeAgentID]; deleting {
 		return AgentSnapshot{}, ErrRegistrationConflict
 	}
+	monotonicNow := r.monotonicNow()
+	r.expireAndRetireAgentsLocked(monotonicNow)
 	if existing, ok := r.agents[normalized.InstanceID]; ok {
 		if existing.identity != identity || existing.principal.RuntimeAgentID != principal.RuntimeAgentID {
 			return AgentSnapshot{}, ErrRegistrationConflict
@@ -216,7 +218,6 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
 		return snapshotAgent(existing), nil
 	}
-	monotonicNow := r.monotonicNow()
 	for _, existing := range r.agents {
 		if existing.principal.RuntimeAgentID != principal.RuntimeAgentID {
 			continue
@@ -244,11 +245,13 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		r.markAllocationLost(existing, LossRuntimeRestarted)
 		if existing.authoritativeAllocationID != nil {
 			entry.blockedByInstanceID = cloneString(&instanceID)
+			r.recordOperationsChangeLocked(OperationsRuntimeAgent, instanceID)
 		}
 	}
 	entry.reconciliationRequired = r.entryNeedsReconciliationLocked(entry)
 	r.agents[normalized.InstanceID] = entry
 	r.recordOperationsChangeLocked(OperationsRuntimeAgent, normalized.InstanceID)
+	r.retireInactiveAgentsLocked()
 	return snapshotAgent(entry), nil
 }
 
@@ -858,10 +861,13 @@ func (r *InMemoryRegistry) Release(allocationID string) error {
 		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == entry.registration.InstanceID {
 			candidate.blockedByInstanceID = nil
 			candidate.reconciliationRequired = r.entryNeedsReconciliationLocked(candidate)
+			r.recordOperationsChangeLocked(OperationsRuntimeAgent, candidate.registration.InstanceID)
 		}
 	}
 	r.recordOperationsChangeLocked(OperationsAllocation, allocationID)
-	r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+	if !r.retireInactiveAgentLocked(entry.registration.InstanceID) {
+		r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+	}
 	return nil
 }
 
@@ -905,9 +911,7 @@ func (r *InMemoryRegistry) PollAllocationLosses() []AllocationLoss {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := r.monotonicNow()
-	for _, entry := range r.agents {
-		r.expireEntry(entry, now)
-	}
+	r.expireAndRetireAgentsLocked(now)
 	result := append([]AllocationLoss(nil), r.pendingLosses...)
 	r.pendingLosses = nil
 	return result
@@ -1010,6 +1014,51 @@ func (r *InMemoryRegistry) entryNeedsReconciliationLocked(entry *agentEntry) boo
 	}
 	stored, ok := r.allocations[*entry.authoritativeAllocationID]
 	return ok && stored.reservation.Grant.WriteFenced
+}
+
+func (r *InMemoryRegistry) expireAndRetireAgentsLocked(monotonicNow time.Duration) {
+	for _, entry := range r.agents {
+		wasExpired := entry.leaseExpired
+		r.expireEntry(entry, monotonicNow)
+		if !wasExpired && entry.leaseExpired && entry.authoritativeAllocationID != nil {
+			r.recordOperationsChangeLocked(OperationsRuntimeAgent, entry.registration.InstanceID)
+		}
+	}
+	r.retireInactiveAgentsLocked()
+}
+
+func (r *InMemoryRegistry) retireInactiveAgentsLocked() {
+	blocked := make(map[string]struct{})
+	for _, entry := range r.agents {
+		if entry.blockedByInstanceID != nil {
+			blocked[*entry.blockedByInstanceID] = struct{}{}
+		}
+	}
+	for instanceID, entry := range r.agents {
+		if entry.authoritativeAllocationID != nil || !entry.leaseExpired && !entry.superseded {
+			continue
+		}
+		if _, requiredAsBlocker := blocked[instanceID]; requiredAsBlocker {
+			continue
+		}
+		delete(r.agents, instanceID)
+		r.recordOperationsChangeLocked(OperationsRuntimeAgent, instanceID)
+	}
+}
+
+func (r *InMemoryRegistry) retireInactiveAgentLocked(instanceID string) bool {
+	entry, ok := r.agents[instanceID]
+	if !ok || entry.authoritativeAllocationID != nil || !entry.leaseExpired && !entry.superseded {
+		return false
+	}
+	for _, candidate := range r.agents {
+		if candidate.blockedByInstanceID != nil && *candidate.blockedByInstanceID == instanceID {
+			return false
+		}
+	}
+	delete(r.agents, instanceID)
+	r.recordOperationsChangeLocked(OperationsRuntimeAgent, instanceID)
+	return true
 }
 
 func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
