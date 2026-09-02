@@ -3,8 +3,8 @@ id: V17-005
 title: Expose read-only allocation Worker State to Control Plane
 milestone: worker-results-and-live-state
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 0625ccecd470bd7adc13b484a34943ffad3779f9
 depends_on: [V17-004]
 languages: [go, python, json]
 
