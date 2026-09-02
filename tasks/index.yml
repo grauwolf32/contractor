@@ -336,8 +336,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V16-004
-  next_task: V16-005
+  completed_through: V16-005
+  next_task: null
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -418,7 +418,12 @@ current_checkpoint:
     V16-004 made the migrated trace Skill executable through the exact
     graph-aware workspace_taint_analyst@1 template and published the one-Stage
     overlay-exporting taint-trace-from-workspace@1 Workflow with pinned
-    instruction, tool, Skill and result-contract tests. V16-005 is next.
+    instruction, tool, Skill and result-contract tests. V16-005 added the real
+    PostgreSQL/mTLS/Server/local-Runtime/Trailmark process gate. It proves exact
+    annotation state/diff export, a visible authoritative fence plus recovery
+    after a lost release acknowledgement, clean same-slot reuse and retained
+    data redaction. The gate also found and fixed ADK JSON-Schema generation for
+    callable annotation tools before their first model call.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"

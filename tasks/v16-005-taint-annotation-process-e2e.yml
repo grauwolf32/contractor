@@ -3,8 +3,8 @@ id: V16-005
 title: Prove taint annotation artifacts cleanup and reuse end to end
 milestone: workspace-taint-annotations-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 6633a8fa93e0defa7c62a9f091c10d83efa04c34
 depends_on: [V16-003, V16-004]
 languages: [go, python, shell]
 
