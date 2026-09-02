@@ -209,7 +209,17 @@ func newPlacementFixture(
 			t.Fatal(err)
 		}
 	}
-	llmCredentials, err := credentials.NewStaticProvider(nil)
+	if selection.Credential == nil {
+		t.Fatal("test Worker has no credential")
+	}
+	llmCredentials, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
+		Metadata: workflowconfig.CredentialMetadata{
+			Ref:          *selection.Credential,
+			LLMGateway:   selection.LLMGateway.Ref,
+			Unrestricted: true,
+		},
+		Token: contracts.NewSecretString("placement-test-token"),
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}

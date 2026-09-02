@@ -18,6 +18,7 @@ import (
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
@@ -76,11 +77,26 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 	workers := &memoryWorkers{allocator: allocator, workflow: workflow, clock: clock, events: events}
 	resolver, _ := NewArtifactServiceResolver(artifactService)
 	transactions, _ := NewPostgresPersistence(pool)
+	workerSelection := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"]
+	if workerSelection.Credential == nil || workerSelection.LLMGateway == nil {
+		t.Fatal("test Worker has no complete credential route")
+	}
+	credentialProvider, err := credentials.NewStaticProvider([]credentials.StaticEntry{{
+		Metadata: workflowconfig.CredentialMetadata{
+			Ref:          *workerSelection.Credential,
+			LLMGateway:   workerSelection.LLMGateway.Ref,
+			Unrestricted: true,
+		},
+		Token: contracts.NewSecretString("scheduler-test-token"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	sequence := 0
 	scheduler, err := New(store, transactions, resolver, allocator, workers, planners, Options{
 		PollInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
-		RuntimeSettings: testSchedulerRuntimeSettings(), Clock: clock,
+		RuntimeSettings: testSchedulerRuntimeSettings(), Credentials: credentialProvider, Clock: clock,
 		NewID: func(prefix string) (string, error) {
 			sequence++
 			return prefix + strings.Repeat("x", sequence), nil
