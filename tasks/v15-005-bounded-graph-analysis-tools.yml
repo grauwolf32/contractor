@@ -3,8 +3,8 @@ id: V15-005
 title: Add bounded Trailmark graph analysis operations
 milestone: workspace-code-analysis-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: c1d9c46eea51aa85fbee26177277e7cfc3cd7a3d
 depends_on: [V15-004]
 languages: [python]
 
