@@ -308,6 +308,10 @@ idempotent release action.
   as allocation loss;
 - observed `draining` is valid only when Control Plane has issued finalization
   or abort for that allocation;
+- an authoritative allocation whose grant is write-fenced is never allowed to
+  continue Worker execution: every matching `allocated` heartbeat receives
+  `drain` until the Worker reports `draining`/`fenced` or the Runtime process
+  exits; this is the fail-safe when a private finalize/abort request is lost;
 - observed `fenced`, `idle` or another allocation while Control Plane still
   owns an active allocation makes that allocation lost and starts/resumes the
   bounded abort path;
@@ -357,6 +361,15 @@ Plane replicas are deferred together; they must not be approximated by sharing
 an unfenced `runtime_agents` table. Durable certificate principals and their
 label assignments under [07] are configuration records only; they never imply
 that a process is live, leased or eligible.
+
+The in-memory Registry is a current live/reconciliation index, not process
+history. A superseded or control-lease-expired process entry is retired from
+memory as soon as it owns no authoritative allocation. An entry that still
+owns an allocation remains until that allocation is reconciled and released.
+Registration performs the same expiry/retirement sweep before enforcing its
+bounded live-index capacity, so process-scoped IDs accumulated across Runtime
+restarts cannot permanently exhaust admission. Historical connection/audit
+data, if introduced, belongs in a separate bounded durable facility.
 
 ## Runtime Agent
 

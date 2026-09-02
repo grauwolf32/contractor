@@ -209,6 +209,11 @@ Runtime endpoints, the older process remains visible only while it owns an
 authoritative allocation that still requires reconciliation. After that
 allocation is released—or immediately when it owned none—it is retired from
 the current-state snapshot rather than shown indefinitely as a fenced slot.
+Control-lease-expired process entries follow the same rule. Retirement removes
+the full entry from the bounded in-memory live Registry, not merely from REST
+serialization; a new process-scoped UUID can therefore register after any
+number of historical restarts. Durable Runtime Agent principals remain visible
+through their separate configuration resource.
 
 ## Published LLM configuration
 

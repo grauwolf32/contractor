@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V14-002
+title: Retire allocation-free inactive Runtime process instances
+milestone: runtime-lifecycle-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V14-001]
+languages: [go]
+
+goal: >-
+  Keep the in-memory Runtime Agent Registry bounded by current live and
+  reconciliation ownership rather than all process UUIDs observed since Server
+  startup.
+
+context:
+  defect: >-
+    Registration rejects when len(agents) reaches 10,000. Superseded entries
+    without allocations are hidden from Operations but retained in the map,
+    and lease-expired idle entries are never removed. Runtime correctly creates
+    a new process-scoped UUID on every restart, so a long-lived Server can
+    permanently exhaust admission.
+  boundary: >-
+    The in-memory Registry is current state, not audit history. Durable
+    certificate principals and labels live in PostgreSQL and remain visible
+    independently of connected process instances.
+
+scope:
+  in:
+    - Retire an entry only when it has no authoritative allocation and is lease-expired or superseded.
+    - Retire allocation-free predecessors immediately on supersession and old owners after authoritative release.
+    - Expire and compact stale entries before enforcing registration capacity.
+    - Preserve entries that own allocations or are needed as restart blockers until release clears those relationships.
+    - Emit the normal Operations invalidation when a current entry is retired.
+  out:
+    - Stable Runtime instance IDs, durable heartbeat storage, connection audit history, or deleting durable Runtime principals.
+
+requirements:
+  - {id: R1, text: No process entry that still owns an allocation can be retired.}
+  - {id: R2, text: Historical process UUIDs cannot consume live registration capacity indefinitely.}
+  - {id: R3, text: Late heartbeats for retired IDs receive reregister and cannot revive released authority.}
+
+acceptance_criteria:
+  - id: A1
+    given: More than 10,000 sequential allocation-free Runtime restarts or expired idle instances.
+    when: A fresh valid Runtime registers.
+    then: Registration succeeds while the retained map remains bounded by current entries.
+  - id: A2
+    given: A superseded or expired process still owns an authoritative allocation.
+    when: compaction runs.
+    then: The entry and any restart blocker remain until exact release, after which both are safely retired or cleared.
+  - id: A3
+    given: An inactive process entry was retired.
+    when: Operations is fetched and the old process sends a heartbeat.
+    then: It is absent from current state and receives reregister without affecting a newer live process.
+
+tests:
+  - {name: registry, command: "go test -race ./internal/controlplane", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+
+decisions:
+  - >-
+    No in-memory tombstone is retained. UUID reuse is not authorization;
+    certificate principal binding and allocation identity remain authoritative.
+    Future connection history belongs to a separate durable bounded audit log.

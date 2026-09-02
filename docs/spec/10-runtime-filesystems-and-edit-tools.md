@@ -455,6 +455,18 @@ before Scheduler observes terminal A2A state and enters its write-fenced
   marker immediately below the exact configured `workRoot`. It never performs
   broad or marker-free recursive cleanup.
 
+Potentially blocking local filesystem removal never runs on the Runtime
+Agent's asyncio event-loop thread. Release owns one allocation-wide cleanup
+task covering Toolset close, project workspace disposal, scratch SandboxProfile
+cleanup and RuntimeAdapter rollback. The task is awaited under one finite
+cleanup deadline. If that deadline expires, the request returns a retryable
+cleanup failure and the slot remains fenced, while the still-owned task is
+retained; a later retry joins that exact task instead of starting a concurrent
+second removal of the same tree. No allocation can reuse the slot until the
+task completes and release is authoritatively acknowledged. Abort and lease
+loss use the same bounded non-blocking primitives and retain their fail-closed
+process-exit rule when teardown cannot be confirmed.
+
 ## Stable errors and telemetry
 
 Initial stable errors include:

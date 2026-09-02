@@ -557,6 +557,23 @@ until `release`. If the response is lost, repeating the same `finalization_id`
 returns that cached report even though the Worker has already exited; a
 different finalization ID for the same draining allocation is rejected.
 
+For a multi-Agent Stage, Control Plane establishes the write fence and
+authoritative terminal phase for every allocation before performing any
+outbound Runtime call. It then fans finalize or abort out concurrently. Every
+allocation receives an independent request timeout bounded by the same durable
+Stage deadline; one unreachable Runtime cannot consume another Runtime's
+opportunity to stop. One failure does not cancel sibling calls, and reports and
+errors are folded back in deterministic logical-Agent order.
+
+The write fence is also a mandatory liveness signal. While Control Plane still
+owns a write-fenced allocation, a matching `allocated` heartbeat receives
+`drain`, never `continue`. Thus a Runtime that did not receive the explicit
+finalize/abort call still stops its Worker through the existing reconciliation
+path (or exits if stop cannot be guaranteed). Terminal recovery need not reopen
+the Stage or invent a new semantic terminal operation: missing reports remain
+incomplete telemetry, while drain plus idempotent release eventually recovers
+the slot.
+
 ### Abort drain
 
 Abort uses a separate idempotent private control command:
@@ -603,6 +620,12 @@ releases. It retries each still-live allocation independently, so one member of
 a partially released multi-Agent Stage cannot hide another; a cleanup error is
 reported and retried but never prevents Scheduler from claiming an unrelated
 WorkflowRun.
+
+The corresponding outbound Runtime release calls are concurrent and use
+independent bounded request contexts. Registry authority is removed only for a
+member whose private Runtime cleanup was acknowledged; failed members remain
+fenced and independently retryable. The same fence-first fan-out rule applies
+to cleanup after partial batch preparation.
 
 Incremental per-A2A-Task report delivery is not required for the first slice.
 It may later reduce data loss from a hard Worker crash without changing the

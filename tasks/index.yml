@@ -239,6 +239,12 @@ milestones:
       Worker models receive only AgentTemplate behavior and Planner task data;
       Runtime privately and deterministically projects strict A2A results from
       invocation-local trusted artifact observations.
+  - id: runtime-lifecycle-hardening
+    exit_task: V14-003
+    outcome: >-
+      Multi-Runtime terminal control cannot strand healthy Workers, volatile
+      process-instance retention cannot exhaust admission, and allocation
+      filesystem teardown remains deadline-bounded without blocking asyncio.
 
 v8_v12_spec_review:
   reviewed_on: "2026-09-01"
@@ -991,3 +997,6 @@ tasks:
   - {id: V12-007, file: v12-007-http-caido-process-e2e.yml}
   - {id: V12-008, file: v12-008-http-caido-hardening.yml}
   - {id: V13-001, file: v13-001-runtime-owned-worker-result.yml}
+  - {id: V14-001, file: v14-001-concurrent-runtime-termination.yml}
+  - {id: V14-002, file: v14-002-runtime-instance-retirement.yml}
+  - {id: V14-003, file: v14-003-bounded-async-runtime-cleanup.yml}

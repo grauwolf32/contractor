@@ -1,0 +1,73 @@
+schema_version: "1.0"
+id: V14-003
+title: Bound Runtime cleanup without blocking the asyncio event loop
+milestone: runtime-lifecycle-hardening
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V14-001, V14-002, V11-012, V12-008]
+languages: [python]
+
+goal: >-
+  Keep heartbeat, watchdog and private HTTP processing responsive while large
+  allocation workspaces are erased, with one finite and retry-safe cleanup
+  operation per allocation.
+
+context:
+  defect: >-
+    Allocation release computes a deadline but applies it only to RuntimeAdapter
+    rollback. Tool, project-workspace and sandbox cleanup are unbounded, while
+    LocalWorkdirFactory and LocalWorkspaceProvider call shutil.rmtree directly
+    inside async methods. A large tree can block the entire Runtime event loop.
+  lifecycle: >-
+    Finalize/abort already remove the Worker before release. Cleanup failure
+    must keep the slot fenced. Retrying release is idempotent and must not run a
+    second recursive deletion concurrently with an operation that outlived its
+    request deadline.
+
+scope:
+  in:
+    - Move local recursive removal and equivalent provider cleanup off the event-loop thread with asyncio.to_thread.
+    - Cover Toolset close, project workspace disposal, scratch cleanup and RuntimeAdapter rollback with one allocation-wide finite cleanup deadline.
+    - Store and shield one cleanup task in allocation context so timeout returns promptly while retry joins the same task.
+    - Keep state fenced and reject slot reuse until cleanup completion and authoritative release acknowledgement.
+    - Apply bounded non-blocking removal to failed prepare, abort, lease-drain and stale-workspace startup paths where applicable.
+    - Preserve ownership-marker, immediate-child and symlink safety checks before any threaded recursive removal.
+  out:
+    - Remote workspace storage, cancellable filesystem syscalls, background garbage-collection service, or weakening cleanup confirmation.
+
+requirements:
+  - {id: R1, text: No recursive local deletion executes on the asyncio event-loop thread.}
+  - {id: R2, text: One allocation has at most one physical release-cleanup task; retries join rather than duplicate it.}
+  - {id: R3, text: Deadline expiry returns a safe retryable failure while heartbeat/watchdog tasks remain schedulable and the slot remains fenced.}
+  - {id: R4, text: Cleanup cannot escape a Runtime-owned root or make an unconfirmed slot reusable.}
+
+acceptance_criteria:
+  - id: A1
+    given: Recursive deletion is deliberately blocked longer than the cleanup deadline.
+    when: release runs alongside heartbeat and watchdog probes.
+    then: release returns the bounded cleanup error, probes continue to run, state remains fenced, and no second delete starts.
+  - id: A2
+    given: The retained deletion task later completes.
+    when: the same release is retried.
+    then: it joins or observes that completion, finishes remaining cleanup exactly once, and only heartbeat release confirmation makes the slot idle.
+  - id: A3
+    given: cancellation or failure during prepare, abort, lease drain or startup orphan cleanup.
+    when: teardown executes.
+    then: the event loop remains responsive and the existing fail-closed fence/process-exit and ownership rules hold.
+  - id: A4
+    given: local, memory and no-project-workspace allocations.
+    when: focused and full lifecycle suites run.
+    then: cleanup remains idempotent and leaves no retained content or secret in a reusable slot.
+
+tests:
+  - {name: allocation, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_lease_watchdog.py", covers: [A1, A2, A3, A4]}
+  - {name: workspace, command: "cd runtime && uv run pytest -W error tests/test_workspace_provider.py tests/test_projectfs_storage.py tests/test_projectfs_concurrency.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Timing out an await cannot cancel a running filesystem syscall. The cleanup
+    task is therefore shielded and retained as allocation authority; this
+    avoids duplicate rmtree races while still returning control to asyncio.

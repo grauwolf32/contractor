@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V14-001
+title: Fan out Runtime termination and drain every write-fenced Worker
+milestone: runtime-lifecycle-hardening
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V6-002, V13-001]
+languages: [go, python]
+
+goal: >-
+  Ensure one unreachable Runtime Agent cannot prevent sibling Workers in a
+  multi-Agent Stage from stopping or releasing, even when an explicit private
+  finalize/abort request is lost.
+
+context:
+  defect: >-
+    RuntimeBatchController currently calls Finalize, Abort and Release
+    sequentially with one context. The first unavailable Runtime can consume
+    the complete deadline. A later healthy Runtime then keeps an active Worker,
+    rejects release, and receives heartbeat continue forever because its grant
+    write fence is not treated as a drain request.
+  architecture: >-
+    Workflow Scheduler owns the durable finalizing/aborting transition. Control
+    Plane owns allocation grants and heartbeat reconciliation. Runtime Agent is
+    one process with one slot and already implements idempotent heartbeat drain,
+    fenced retention and release confirmation.
+
+scope:
+  in:
+    - Establish write fences and terminal/releasing phases for the complete batch before outbound calls.
+    - Execute FinalizeAll, AbortAll and ReleaseAll network calls concurrently without sibling cancellation.
+    - Give each member an independent finite request context bounded by the caller and durable Stage deadline.
+    - Collect reports and errors deterministically in reservation order; release Registry authority only after that member's Runtime acknowledgement.
+    - Apply the same fence-first independent cleanup behavior after partial PrepareAll failure.
+    - Make a matching allocated heartbeat return drain whenever its authoritative grant is write-fenced.
+    - Preserve terminal Stage outcome when reports are missing; recovery continues through drain plus existing per-allocation release retry.
+  out:
+    - Parallel Worker preparation, a new heartbeat action, post-terminal semantic retry, or making telemetry authoritative.
+
+requirements:
+  - {id: R1, text: One Runtime timeout never consumes a sibling Runtime's control-call budget or prevents its command from being sent.}
+  - {id: R2, text: No write-fenced allocation receives continue while its Runtime still reports the matching Worker allocated.}
+  - {id: R3, text: Batch errors never remove a grant whose Runtime cleanup was not acknowledged.}
+
+acceptance_criteria:
+  - id: A1
+    given: A two-allocation Stage whose first Runtime blocks through its request timeout and whose second Runtime is healthy.
+    when: FinalizeAll or AbortAll runs.
+    then: The healthy Runtime receives and completes its command, total latency is one timeout rather than their sum, and its report is retained.
+  - id: A2
+    given: The same ordering during terminal release or failed-prepare cleanup.
+    when: The first Runtime remains unavailable.
+    then: Every independently cleanable member is released and only failed grants remain for recovery.
+  - id: A3
+    given: A write-fenced grant whose explicit terminal command never reached an allocated Runtime.
+    when: Its next matching heartbeat is accepted.
+    then: Control Plane returns drain; Runtime stops or exits instead of continuing model/tool execution, and a later release can recover the slot.
+  - id: A4
+    given: Repeated registration or heartbeat reconciliation after fencing.
+    when: observed and authoritative allocation IDs still match.
+    then: The mandatory drain condition cannot be cleared back to continue before release.
+
+tests:
+  - {name: control-plane, command: "go test -race ./internal/controlplane", covers: [A1, A2, A3, A4]}
+  - {name: scheduler, command: "go test -race ./internal/scheduler", covers: [A1, A2]}
+  - {name: runtime-reconciliation, command: "cd runtime && uv run pytest -W error tests/test_control_client.py tests/test_lease_watchdog.py", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    A write fence is both Artifact mutation revocation and mandatory Worker
+    drain. No separate externally visible drain-request record is introduced.
+  - >-
+    Terminal recovery does not reopen finalization/abort solely to recover
+    optional metrics. Heartbeat drain is the cleanup authority after the
+    durable deadline, and missing telemetry stays explicitly incomplete.
