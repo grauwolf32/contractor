@@ -24,6 +24,7 @@ from contractor_runtime.state import RuntimeState
 from contractor_runtime.toolsets import code_analysis_languages, likec4, openapi
 from contractor_runtime.toolsets.code_analysis import (
     CODE_ANALYSIS_REF,
+    CORE_GRAPH_TOOLS,
     EXPORTED_TOOLS,
     GRAPH_TOOLS,
     SHALLOW_TOOLS,
@@ -66,6 +67,12 @@ def test_code_analysis_static_contract_and_shallow_factory_are_exact(
         "graph_summary",
         "paths_between",
     } == GRAPH_TOOLS
+    assert {
+        "find_callees",
+        "find_callers",
+        "find_symbol",
+        "graph_summary",
+    } == CORE_GRAPH_TOOLS
     assert EXPORTED_TOOLS == SHALLOW_TOOLS | GRAPH_TOOLS
     assert dependency_versions_match()
     factory = built_in_factories(tmp_path).toolsets[CODE_ANALYSIS_REF]
@@ -143,7 +150,8 @@ def test_workspace_capability_is_probed_frozen_and_registered(
         assert snapshot.workspace.modes == ("direct", "overlay")
         assert snapshot.workspace.limits.max_files == 123
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
-        assert toolsets[CODE_ANALYSIS_REF] == ("list_symbols", "search_def")
+        expected_code_tools = SHALLOW_TOOLS | (CORE_GRAPH_TOOLS if storage == "local" else set())
+        assert toolsets[CODE_ANALYSIS_REF] == tuple(sorted(expected_code_tools))
 
         registration = await RuntimeState(
             instance_id=f"workspace-{storage}", capabilities=snapshot

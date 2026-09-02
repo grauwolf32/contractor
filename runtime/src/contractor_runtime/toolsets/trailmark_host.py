@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 import shutil
 import signal
 import struct
@@ -18,6 +19,10 @@ from typing import Any
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.toolsets import code_analysis_languages as language_support
+from contractor_runtime.toolsets.code_analysis_ids import (
+    decode_symbol_id,
+    encode_symbol_key,
+)
 from contractor_runtime.toolsets.trailmark_child import (
     MAX_REQUEST_BYTES,
     MAX_RESPONSE_BYTES,
@@ -51,6 +56,10 @@ class TrailmarkHostError(RuntimeError):
         self.code = code
         self.retryable = retryable
         super().__init__(f"Code analysis child failed ({code})")
+
+
+class _ChildResponseError(TrailmarkHostError):
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +104,7 @@ class GraphBuildResult:
 
 @dataclass(frozen=True, slots=True)
 class GraphSymbolProjection:
+    symbol_id: str
     name: str
     kind: str
     path: str
@@ -107,6 +117,21 @@ class GraphSymbolProjection:
 class GraphSymbolPage:
     snapshot_digest: str
     items: tuple[GraphSymbolProjection, ...]
+    observed_total: int
+    truncated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class GraphRelationshipProjection:
+    symbol: GraphSymbolProjection
+    confidence: str
+
+
+@dataclass(frozen=True, slots=True)
+class GraphRelationshipPage:
+    snapshot_digest: str
+    items: tuple[GraphRelationshipProjection, ...]
+    observed_total: int
     truncated: bool
 
 
@@ -150,6 +175,7 @@ class TrailmarkChildHost:
         self._stderr_task: asyncio.Task[None] | None = None
         self._mirror: _PreparedMirror | None = None
         self._request_number = 0
+        self._symbol_key = bytearray(secrets.token_bytes(32))
         self._closed = False
         self._closing = False
         self._stderr_observed = False
@@ -188,6 +214,7 @@ class TrailmarkChildHost:
                     {
                         "snapshotDigest": mirror.snapshot_digest,
                         "coverage": mirror.coverage.wire(),
+                        "symbolKey": encode_symbol_key(bytes(self._symbol_key)),
                     },
                     timeout=remaining,
                     timeout_code="code_analysis_build_timeout",
@@ -232,10 +259,83 @@ class TrailmarkChildHost:
             )
             try:
                 assert self._mirror is not None
-                return _symbol_page(result, self._mirror.snapshot_digest)
+                return _symbol_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    expected_offset=0,
+                    expected_limit=limit,
+                )
             except TrailmarkHostError:
                 await self._stop_locked(remove_mirror=True)
                 raise
+
+    async def find_symbols(self, query: str, *, offset: int, limit: int) -> GraphSymbolPage:
+        async with self._lock:
+            self._require_running()
+            assert self._mirror is not None
+            result = await self._request_locked(
+                "find_symbol",
+                {"query": query, "offset": offset, "limit": limit},
+                timeout=self._query_timeout_seconds,
+                timeout_code="code_analysis_query_timeout",
+            )
+            try:
+                return _symbol_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    expected_offset=offset,
+                    expected_limit=limit,
+                )
+            except TrailmarkHostError:
+                await self._stop_locked(remove_mirror=True)
+                raise
+
+    async def relationships(
+        self,
+        operation: str,
+        symbol_id: str,
+        *,
+        offset: int,
+        limit: int,
+    ) -> GraphRelationshipPage:
+        if operation not in {"find_callers", "find_callees"}:
+            raise TrailmarkHostError("code_analysis_input_invalid")
+        async with self._lock:
+            self._require_running()
+            assert self._mirror is not None
+            self.validate_symbol_id(symbol_id, self._mirror.snapshot_digest)
+            result = await self._request_locked(
+                operation,
+                {"symbolId": symbol_id, "offset": offset, "limit": limit},
+                timeout=self._query_timeout_seconds,
+                timeout_code="code_analysis_query_timeout",
+            )
+            try:
+                return _relationship_page(
+                    result,
+                    self._mirror.snapshot_digest,
+                    bytes(self._symbol_key),
+                    expected_offset=offset,
+                    expected_limit=limit,
+                )
+            except TrailmarkHostError:
+                await self._stop_locked(remove_mirror=True)
+                raise
+
+    def validate_symbol_id(self, value: str, snapshot_digest: str) -> None:
+        try:
+            decoded = decode_symbol_id(bytes(self._symbol_key), value)
+        except ValueError:
+            raise TrailmarkHostError("code_analysis_symbol_not_found") from None
+        if decoded.snapshot_digest != snapshot_digest:
+            raise TrailmarkHostError("code_analysis_stale_symbol")
+
+    async def invalidate(self) -> None:
+        async with self._lock:
+            self._require_open()
+            await self._stop_locked(remove_mirror=True)
 
     async def close(self) -> None:
         async with self._lock:
@@ -249,6 +349,7 @@ class TrailmarkChildHost:
                 # or source-bearing cleanup cannot be confirmed.
                 raise
             else:
+                self._symbol_key[:] = b"\x00" * len(self._symbol_key)
                 self._closed = True
 
     def _require_open(self) -> None:
@@ -320,6 +421,8 @@ class TrailmarkChildHost:
 
         try:
             result = _validate_response(response, request_id)
+        except _ChildResponseError:
+            raise
         except TrailmarkHostError:
             await self._stop_locked(remove_mirror=True)
             raise
@@ -617,9 +720,18 @@ def _validate_response(value: object, request_id: str) -> dict[str, Any] | None:
     if value.get("ok") is False:
         if set(value) != {"schemaVersion", "requestId", "ok", "code", "retryable"}:
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
-        if not isinstance(value.get("code"), str) or not isinstance(value.get("retryable"), bool):
+        code = value.get("code")
+        retryable = value.get("retryable")
+        if not isinstance(code, str) or not isinstance(retryable, bool):
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
-        return None
+        if code not in {
+            "code_analysis_capacity_exceeded",
+            "code_analysis_input_invalid",
+            "code_analysis_stale_symbol",
+            "code_analysis_symbol_not_found",
+        }:
+            raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+        raise _ChildResponseError(code, retryable=retryable)
     raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
 
 
@@ -676,55 +788,152 @@ def _build_result(value: Mapping[str, Any], mirror: _PreparedMirror) -> GraphBui
     )
 
 
-def _symbol_page(value: Mapping[str, Any], expected_digest: str) -> GraphSymbolPage:
-    if set(value) != {"snapshotDigest", "items", "truncated"}:
+def _symbol_page(
+    value: Mapping[str, Any],
+    expected_digest: str,
+    symbol_key: bytes,
+    *,
+    expected_offset: int,
+    expected_limit: int,
+) -> GraphSymbolPage:
+    if set(value) != {"snapshotDigest", "items", "observedTotal", "truncated"}:
         raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
     digest = value.get("snapshotDigest")
     rows = value.get("items")
+    observed_total = value.get("observedTotal")
     truncated = value.get("truncated")
     if (
         digest != expected_digest
         or not isinstance(rows, list)
         or len(rows) > 200
+        or not isinstance(observed_total, int)
+        or isinstance(observed_total, bool)
+        or not 0 <= observed_total <= 2_147_483_647
+        or not 0 <= expected_offset <= observed_total
+        or len(rows) != min(expected_limit, observed_total - expected_offset)
         or not isinstance(truncated, bool)
+        or truncated != (expected_offset + len(rows) < observed_total)
     ):
         raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
     projected: list[GraphSymbolProjection] = []
     for row in rows:
+        projected.append(_symbol_projection(row, expected_digest, symbol_key))
+    return GraphSymbolPage(expected_digest, tuple(projected), observed_total, truncated)
+
+
+def _relationship_page(
+    value: Mapping[str, Any],
+    expected_digest: str,
+    symbol_key: bytes,
+    *,
+    expected_offset: int,
+    expected_limit: int,
+) -> GraphRelationshipPage:
+    if set(value) != {"snapshotDigest", "items", "observedTotal", "truncated"}:
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    if value.get("snapshotDigest") != expected_digest:
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    rows = value.get("items")
+    observed_total = value.get("observedTotal")
+    truncated = value.get("truncated")
+    if (
+        not isinstance(rows, list)
+        or len(rows) > 200
+        or not isinstance(observed_total, int)
+        or isinstance(observed_total, bool)
+        or not 0 <= observed_total <= 2_147_483_647
+        or not 0 <= expected_offset <= observed_total
+        or len(rows) != min(expected_limit, observed_total - expected_offset)
+        or not isinstance(truncated, bool)
+        or truncated != (expected_offset + len(rows) < observed_total)
+    ):
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    projected: list[GraphRelationshipProjection] = []
+    for row in rows:
         if not isinstance(row, dict) or set(row) != {
+            "symbolId",
             "name",
             "kind",
             "path",
             "line",
             "endLine",
             "column",
+            "confidence",
         }:
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
-        if (
-            not isinstance(row["name"], str)
-            or len(row["name"]) > 256
-            or not isinstance(row["kind"], str)
-            or not 1 <= len(row["kind"]) <= 64
-            or not isinstance(row["path"], str)
-            or not 1 <= len(row["path"]) <= 2048
-            or row["path"].startswith("/")
-            or ".." in PurePosixPath(row["path"]).parts
-            or any(
-                not isinstance(row[key], int) or isinstance(row[key], bool) or row[key] < 0
-                for key in ("line", "endLine", "column")
-            )
-            or row["line"] < 1
-            or row["endLine"] < 1
-        ):
+        confidence = row["confidence"]
+        if confidence not in {"certain", "inferred", "uncertain"}:
             raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
-        projected.append(
-            GraphSymbolProjection(
-                name=row["name"],
-                kind=row["kind"],
-                path=row["path"],
-                line=row["line"],
-                end_line=row["endLine"],
-                column=row["column"],
-            )
+        symbol = _symbol_projection(
+            {key: row[key] for key in row if key != "confidence"},
+            expected_digest,
+            symbol_key,
         )
-    return GraphSymbolPage(digest, tuple(projected), truncated)
+        projected.append(GraphRelationshipProjection(symbol, confidence))
+    return GraphRelationshipPage(expected_digest, tuple(projected), observed_total, truncated)
+
+
+def _symbol_projection(
+    row: object, expected_digest: str, symbol_key: bytes
+) -> GraphSymbolProjection:
+    if not isinstance(row, dict) or set(row) != {
+        "symbolId",
+        "name",
+        "kind",
+        "path",
+        "line",
+        "endLine",
+        "column",
+    }:
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    symbol_id = row["symbolId"]
+    try:
+        decoded = decode_symbol_id(symbol_key, symbol_id)
+    except (TypeError, ValueError):
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True) from None
+    if decoded.snapshot_digest != expected_digest:
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    if (
+        not _bounded_protocol_text(row["name"], 256, allow_empty=True)
+        or not _bounded_protocol_text(row["kind"], 64, allow_empty=False)
+        or not _valid_projection_path(row["path"])
+        or any(
+            not isinstance(row[key], int) or isinstance(row[key], bool) or row[key] < 0
+            for key in ("line", "endLine", "column")
+        )
+        or row["line"] < 1
+        or row["endLine"] < 1
+    ):
+        raise TrailmarkHostError("code_analysis_engine_failed", retryable=True)
+    return GraphSymbolProjection(
+        symbol_id=symbol_id,
+        name=row["name"],
+        kind=row["kind"],
+        path=row["path"],
+        line=row["line"],
+        end_line=row["endLine"],
+        column=row["column"],
+    )
+
+
+def _bounded_protocol_text(value: object, limit: int, *, allow_empty: bool) -> bool:
+    if not isinstance(value, str) or (not allow_empty and not value) or len(value) > limit:
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeError:
+        return False
+    return not any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)
+
+
+def _valid_projection_path(value: object) -> bool:
+    if not isinstance(value, str) or value.startswith("/"):
+        return False
+    try:
+        if not 1 <= len(value.encode("utf-8")) <= 4096:
+            return False
+        if normalize_project_path(value, allow_root=False) != value:
+            return False
+    except (ProjectPathError, UnicodeError):
+        return False
+    return True

@@ -13,6 +13,7 @@ from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.toolsets import code_analysis
 from contractor_runtime.toolsets.code_analysis import (
     CODE_ANALYSIS_REF,
+    CORE_GRAPH_TOOLS,
     SHALLOW_TOOLS,
     CodeAnalysisToolsetFactory,
 )
@@ -36,7 +37,7 @@ def test_reviewed_graph_language_table_matches_pinned_public_api() -> None:
     assert ".hrl" not in GRAPH_EXTENSION_LANGUAGES
 
 
-def test_local_probe_is_positive_but_graph_tools_are_not_advertised_yet(tmp_path: Path) -> None:
+def test_local_probe_atomically_advertises_the_complete_core_graph_subset(tmp_path: Path) -> None:
     async def scenario() -> None:
         factories = built_in_factories(
             tmp_path / "scratch",
@@ -46,7 +47,7 @@ def test_local_probe_is_positive_but_graph_tools_are_not_advertised_yet(tmp_path
         factory = factories.toolsets[CODE_ANALYSIS_REF]
         assert isinstance(factory, CodeAnalysisToolsetFactory)
         assert factory.graph_probe_succeeded is True
-        assert _tools(snapshot) == SHALLOW_TOOLS
+        assert _tools(snapshot) == SHALLOW_TOOLS | CORE_GRAPH_TOOLS
         assert not tuple((tmp_path / "scratch").glob("code-analysis-mirror-*"))
 
     asyncio.run(scenario())

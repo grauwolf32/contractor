@@ -31,27 +31,34 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceTextFile,
 )
 from contractor_runtime.toolsets import code_analysis_languages as language_support
+from contractor_runtime.toolsets.code_analysis_ids import MAX_SYMBOL_ID_BYTES
 from contractor_runtime.toolsets.code_analysis_languages import Language, SymbolRecord
 from contractor_runtime.toolsets.run_artifacts import ToolMetrics
-from contractor_runtime.toolsets.trailmark_host import probe_trailmark_child
+from contractor_runtime.toolsets.trailmark_host import (
+    GraphBuildResult,
+    GraphCoverage,
+    GraphRelationshipProjection,
+    GraphSymbolProjection,
+    TrailmarkChildHost,
+    TrailmarkHostError,
+    probe_trailmark_child,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"
 
 SHALLOW_TOOLS = frozenset({"list_symbols", "search_def"})
-GRAPH_TOOLS = frozenset(
+CORE_GRAPH_TOOLS = frozenset({"find_callees", "find_callers", "find_symbol", "graph_summary"})
+ADVANCED_GRAPH_TOOLS = frozenset(
     {
         "attack_surface",
         "complexity_hotspots",
         "entrypoint_paths_to",
-        "find_callees",
-        "find_callers",
-        "find_symbol",
         "functions_that_raise",
-        "graph_summary",
         "paths_between",
     }
 )
+GRAPH_TOOLS = CORE_GRAPH_TOOLS | ADVANCED_GRAPH_TOOLS
 EXPORTED_TOOLS = SHALLOW_TOOLS | GRAPH_TOOLS
 
 PINNED_DEPENDENCIES = MappingProxyType(
@@ -120,6 +127,7 @@ class CodeAnalysisToolsetFactory:
         self._workspace_storage = workspace_storage
         self._graph_probe_root = graph_probe_root
         self._graph_probe_succeeded = False
+        self._available_tools = SHALLOW_TOOLS
 
     @property
     def graph_probe_succeeded(self) -> bool:
@@ -127,20 +135,22 @@ class CodeAnalysisToolsetFactory:
 
     async def probe(self) -> frozenset[str]:
         self._graph_probe_succeeded = False
+        self._available_tools = frozenset()
         if not dependency_versions_match(SHALLOW_PINNED_DEPENDENCIES):
             return frozenset()
         available = await asyncio.to_thread(language_support.probe_all_parsers)
         if not available:
             return frozenset()
+        self._available_tools = SHALLOW_TOOLS
         if (
             self._workspace_storage == "local"
             and self._graph_probe_root is not None
             and dependency_versions_match()
         ):
             self._graph_probe_succeeded = await probe_trailmark_child(self._graph_probe_root)
-        # V15-004 publishes the graph subset after it constructs every core
-        # operation. A positive V15-003 probe is deliberately internal only.
-        return SHALLOW_TOOLS
+        if self._graph_probe_succeeded:
+            self._available_tools |= CORE_GRAPH_TOOLS
+        return self._available_tools
 
     async def create_selected(
         self,
@@ -155,8 +165,8 @@ class CodeAnalysisToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
-        del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
-        unavailable = sorted(set(selected) - SHALLOW_TOOLS)
+        del allocation_id, run_id, namespace, runtime_settings, adapter_handles
+        unavailable = sorted(set(selected) - self._available_tools)
         if unavailable:
             raise ValueError(f"unavailable selected code-analysis tools: {', '.join(unavailable)}")
         if project_workspace is None:
@@ -164,8 +174,16 @@ class CodeAnalysisToolsetFactory:
         metrics = getattr(state, "metrics", None)
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("code-analysis@1 requires State.metrics")
-        session = _CodeAnalysisSession(project_workspace)
+        graph_selected = bool(set(selected) & CORE_GRAPH_TOOLS)
+        session = _CodeAnalysisSession(
+            project_workspace,
+            graph_scratch=workspace.path if graph_selected else None,
+        )
         builders = {
+            "find_callees": lambda: FindCalleesTool(session, metrics),
+            "find_callers": lambda: FindCallersTool(session, metrics),
+            "find_symbol": lambda: FindSymbolTool(session, metrics),
+            "graph_summary": lambda: GraphSummaryTool(session, metrics),
             "list_symbols": lambda: ListSymbolsTool(session, metrics),
             "search_def": lambda: SearchDefinitionTool(session, metrics),
         }
@@ -223,7 +241,7 @@ class _OperationResult:
 
 
 class _CodeAnalysisSession:
-    def __init__(self, reader: WorkspaceReader) -> None:
+    def __init__(self, reader: WorkspaceReader, *, graph_scratch: Path | None = None) -> None:
         self._reader = reader
         self._lock = asyncio.Lock()
         self._cursor_key = bytearray(secrets.token_bytes(32))
@@ -231,16 +249,27 @@ class _CodeAnalysisSession:
         self._file_cache: dict[str, _CachedFile] = {}
         self._cached_symbols = 0
         self._parsers: dict[Language, Parser] = {}
+        self._graph_host = TrailmarkChildHost(graph_scratch) if graph_scratch is not None else None
+        self._graph_result: GraphBuildResult | None = None
+        self._graph_builds = 0
+        self._graph_rebuilds = 0
         self._closed = False
+        self._closing = False
 
     async def close(self) -> None:
         async with self._lock:
             if self._closed:
                 return
-            self._closed = True
+            self._closing = True
+            if self._graph_host is not None:
+                try:
+                    await self._graph_host.close()
+                except TrailmarkHostError as error:
+                    raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             self._clear_derived_state()
             self._digest = None
             self._cursor_key[:] = b"\x00" * len(self._cursor_key)
+            self._closed = True
 
     async def search_def(
         self,
@@ -335,8 +364,229 @@ class _CodeAnalysisSession:
             )
             return _OperationResult(value, _metric(value, coverage, stats))
 
+    async def graph_summary(self) -> _OperationResult:
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            graph = await self._ensure_graph(snapshot)
+            value = {
+                "nodeCount": graph.node_count,
+                "callEdgeCount": graph.call_edge_count,
+                "entrypointCount": graph.entrypoint_count,
+                "languages": list(graph.languages),
+                "coverage": graph.coverage.wire(),
+            }
+            return _OperationResult(
+                value,
+                self._graph_metric(
+                    count=graph.node_count,
+                    truncated=False,
+                    graph=graph,
+                    invalidations=invalidations,
+                ),
+            )
+
+    async def find_symbol(self, query: str, cursor: str, limit: int) -> _OperationResult:
+        normalized_query = _query_string(query)
+        resolved_limit = _limit(limit)
+        query_digest = _query_digest(
+            {"operation": "find_symbol", "query": normalized_query.casefold()}
+        )
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            offset = (
+                self._cursor_offset(
+                    cursor,
+                    snapshot.digest,
+                    "find_symbol",
+                    query_digest,
+                )
+                if cursor
+                else 0
+            )
+            graph = await self._ensure_graph(snapshot)
+            host = self._require_graph_host()
+            try:
+                page = await host.find_symbols(
+                    normalized_query,
+                    offset=offset,
+                    limit=resolved_limit,
+                )
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            rows = [_graph_symbol_row(item) for item in page.items]
+            value = self._graph_page(
+                rows,
+                observed_total=page.observed_total,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation="find_symbol",
+                query=query_digest,
+                coverage=graph.coverage,
+            )
+            return _OperationResult(
+                value,
+                self._graph_metric(
+                    count=len(value["items"]),
+                    truncated=bool(value["truncated"]),
+                    graph=graph,
+                    invalidations=invalidations,
+                ),
+            )
+
+    async def find_relationships(
+        self,
+        operation: str,
+        symbol_id: str,
+        cursor: str,
+        limit: int,
+    ) -> _OperationResult:
+        if operation not in {"find_callers", "find_callees"}:
+            raise CodeAnalysisError("code_analysis_input_invalid")
+        if (
+            not isinstance(symbol_id, str)
+            or not symbol_id
+            or not symbol_id.isascii()
+            or len(symbol_id) > MAX_SYMBOL_ID_BYTES
+        ):
+            raise CodeAnalysisError("code_analysis_symbol_not_found")
+        resolved_limit = _limit(limit)
+        query_digest = _query_digest({"operation": operation, "symbolId": symbol_id})
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            host = self._require_graph_host()
+            try:
+                host.validate_symbol_id(symbol_id, snapshot.digest)
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            offset = (
+                self._cursor_offset(
+                    cursor,
+                    snapshot.digest,
+                    operation,
+                    query_digest,
+                )
+                if cursor
+                else 0
+            )
+            graph = await self._ensure_graph(snapshot)
+            try:
+                page = await host.relationships(
+                    operation,
+                    symbol_id,
+                    offset=offset,
+                    limit=resolved_limit,
+                )
+            except TrailmarkHostError as error:
+                raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+            rows = [_graph_relationship_row(item) for item in page.items]
+            value = self._graph_page(
+                rows,
+                observed_total=page.observed_total,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation=operation,
+                query=query_digest,
+                coverage=graph.coverage,
+            )
+            return _OperationResult(
+                value,
+                self._graph_metric(
+                    count=len(value["items"]),
+                    truncated=bool(value["truncated"]),
+                    graph=graph,
+                    invalidations=invalidations,
+                ),
+            )
+
+    async def _ensure_graph(self, snapshot: WorkspaceSnapshot) -> GraphBuildResult:
+        host = self._require_graph_host()
+        if (
+            self._graph_result is not None
+            and self._graph_result.snapshot_digest == snapshot.digest
+            and host.pid is not None
+        ):
+            return self._graph_result
+        had_graph = self._graph_builds > 0
+        try:
+            result = await host.build(snapshot)
+        except TrailmarkHostError as error:
+            self._graph_result = None
+            raise CodeAnalysisError(error.code, retryable=error.retryable) from None
+        self._graph_builds += 1
+        self._graph_rebuilds += int(had_graph)
+        self._graph_result = result
+        return result
+
+    def _require_graph_host(self) -> TrailmarkChildHost:
+        if self._graph_host is None:
+            raise CodeAnalysisError("code_analysis_engine_failed")
+        return self._graph_host
+
+    def _graph_page(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        observed_total: int,
+        offset: int,
+        limit: int,
+        snapshot: str,
+        operation: str,
+        query: str,
+        coverage: GraphCoverage,
+    ) -> dict[str, Any]:
+        if offset > observed_total or len(rows) > limit or offset + len(rows) > observed_total:
+            raise CodeAnalysisError("code_analysis_engine_failed", retryable=True)
+        page = rows
+        while True:
+            next_offset = offset + len(page)
+            next_cursor = (
+                self._encode_cursor(snapshot, operation, query, next_offset)
+                if next_offset < observed_total
+                else None
+            )
+            result = {
+                "items": page,
+                "nextCursor": next_cursor,
+                "truncated": next_cursor is not None,
+                "observedTotal": observed_total,
+                "coverage": coverage.wire(),
+            }
+            if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
+                return result
+            if not page:
+                raise CodeAnalysisError("code_analysis_capacity_exceeded")
+            page = page[:-1]
+
+    def _graph_metric(
+        self,
+        *,
+        count: int,
+        truncated: bool,
+        graph: GraphBuildResult,
+        invalidations: int,
+    ) -> dict[str, Any]:
+        return {
+            "engine": "graph",
+            "count": count,
+            "truncated": truncated,
+            "analyzed_files": graph.coverage.analyzed_files,
+            "analyzed_bytes": graph.coverage.analyzed_bytes,
+            "nodes": graph.node_count,
+            "call_edges": graph.call_edge_count,
+            "entrypoints": graph.entrypoint_count,
+            "binary_files": graph.coverage.binary_files,
+            "unsupported_source_files": graph.coverage.unsupported_source_files,
+            "oversized_files": graph.coverage.oversized_files,
+            "parse_errors": graph.coverage.parse_errors,
+            "graph_builds": self._graph_builds,
+            "graph_rebuilds": self._graph_rebuilds,
+            "cache_invalidations": invalidations,
+        }
+
     async def _begin_call(self) -> tuple[WorkspaceSnapshot, int]:
-        if self._closed:
+        if self._closed or self._closing:
             raise CodeAnalysisError("code_analysis_closing", retryable=True)
         try:
             snapshot = await self._reader.snapshot()
@@ -346,6 +596,11 @@ class _CodeAnalysisSession:
             raise CodeAnalysisError("code_analysis_engine_failed", retryable=True) from None
         invalidations = int(self._digest is not None and self._digest != snapshot.digest)
         if self._digest != snapshot.digest:
+            if self._digest is not None and self._graph_host is not None:
+                try:
+                    await self._graph_host.invalidate()
+                except TrailmarkHostError as error:
+                    raise CodeAnalysisError(error.code, retryable=error.retryable) from None
             self._clear_derived_state()
             self._digest = snapshot.digest
         return snapshot, invalidations
@@ -553,6 +808,7 @@ class _CodeAnalysisSession:
         self._file_cache.clear()
         self._cached_symbols = 0
         self._parsers.clear()
+        self._graph_result = None
 
 
 class _BaseCodeAnalysisTool:
@@ -629,6 +885,81 @@ class ListSymbolsTool(_BaseCodeAnalysisTool):
             raise
 
 
+class GraphSummaryTool(_BaseCodeAnalysisTool):
+    name = "graph_summary"
+    description = "Report bounded structural graph counts for the current project workspace."
+
+    async def __call__(self) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.graph_summary()
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class FindSymbolTool(_BaseCodeAnalysisTool):
+    name = "find_symbol"
+    description = "Resolve a symbol name to every matching exact graph symbol ID."
+
+    async def __call__(
+        self,
+        query: str,
+        cursor: str = "",
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.find_symbol(query, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class FindCallersTool(_BaseCodeAnalysisTool):
+    name = "find_callers"
+    description = "List direct callers of one exact graph symbol ID."
+
+    async def __call__(
+        self,
+        symbol_id: str,
+        cursor: str = "",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.find_relationships(self.name, symbol_id, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class FindCalleesTool(_BaseCodeAnalysisTool):
+    name = "find_callees"
+    description = "List direct callees of one exact graph symbol ID."
+
+    async def __call__(
+        self,
+        symbol_id: str,
+        cursor: str = "",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.find_relationships(self.name, symbol_id, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
 def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) -> dict[str, Any]:
     return {
         "engine": "shallow",
@@ -645,6 +976,22 @@ def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) ->
         "cache_misses": stats.cache_misses,
         "cache_invalidations": stats.cache_invalidations,
     }
+
+
+def _graph_symbol_row(item: GraphSymbolProjection) -> dict[str, Any]:
+    return {
+        "symbolId": item.symbol_id,
+        "name": item.name,
+        "kind": item.kind,
+        "path": item.path,
+        "line": item.line,
+        "endLine": item.end_line,
+        "column": item.column,
+    }
+
+
+def _graph_relationship_row(item: GraphRelationshipProjection) -> dict[str, Any]:
+    return {**_graph_symbol_row(item.symbol), "confidence": item.confidence}
 
 
 def _query_string(value: str) -> str:

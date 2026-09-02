@@ -123,6 +123,40 @@ func TestReserveAllFindsCompleteSpecialistGeneralistAssignment(t *testing.T) {
 	}
 }
 
+func TestReserveAllContainsCodeAnalysisOperationSubsets(t *testing.T) {
+	clock := newTestClock()
+	registry := newTestRegistry(t, clock)
+	shallow := testRegistration("agent-a-shallow")
+	shallow.SupportedToolsets = append(shallow.SupportedToolsets, contracts.ToolsetCapability{
+		Ref: "code-analysis@1", Tools: []string{"list_symbols", "search_def"},
+	})
+	graph := testRegistration("agent-b-graph")
+	graph.SupportedToolsets = append(graph.SupportedToolsets, contracts.ToolsetCapability{
+		Ref: "code-analysis@1", Tools: []string{
+			"find_callees", "find_callers", "find_symbol", "graph_summary",
+			"list_symbols", "search_def",
+		},
+	})
+	registerReadyWith(t, registry, shallow)
+	registerReadyWith(t, registry, graph)
+
+	reservations, err := registry.ReserveAll(ReservationRequest{
+		RunID: "run-code-analysis", StageExecutionID: "stage-code-analysis",
+		Bindings: []BindingRequirement{
+			testBinding(t, "a-shallow", "shallow", codeAnalysisTemplate(t, "list_symbols")),
+			testBinding(t, "b-graph", "graph", codeAnalysisTemplate(t, "find_callers")),
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reservations) != 2 ||
+		reservations[0].Grant.RuntimeInstanceID != "agent-a-shallow" ||
+		reservations[1].Grant.RuntimeInstanceID != "agent-b-graph" {
+		t.Fatalf("code-analysis subset assignment = %+v", reservations)
+	}
+}
+
 func TestWorkspaceModeParticipatesInCompleteCompatibility(t *testing.T) {
 	t.Parallel()
 	template := testTemplate(t)
@@ -1081,6 +1115,16 @@ func likeC4ValidationTemplate(t *testing.T) contracts.ResolvedAgentTemplate {
 	template.Toolsets = append(template.Toolsets, contracts.ToolsetSelection{
 		Ref:   contracts.ToolsetRef{ToolsetID: "likec4", Version: "1"},
 		Tools: []string{"validate_likec4"},
+	})
+	return template
+}
+
+func codeAnalysisTemplate(t *testing.T, tool string) contracts.ResolvedAgentTemplate {
+	t.Helper()
+	template := testTemplate(t)
+	template.Toolsets = append(template.Toolsets, contracts.ToolsetSelection{
+		Ref:   contracts.ToolsetRef{ToolsetID: "code-analysis", Version: "1"},
+		Tools: []string{tool},
 	})
 	return template
 }

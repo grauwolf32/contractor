@@ -23,7 +23,8 @@ MAX_ADDRESS_SPACE_BYTES = 1024 * 1024 * 1024
 MAX_REQUEST_ID_CHARS = 64
 MAX_SYMBOLS_RESPONSE = 200
 MAX_NAME_CHARS = 256
-MAX_PATH_CHARS = 2048
+MAX_QUERY_CHARS = 256
+MAX_PATH_CHARS = 4096
 
 _COVERAGE_KEYS = {
     "analyzedFiles",
@@ -57,13 +58,17 @@ class _TrailmarkAdapter:
         self._coverage: dict[str, Any] | None = None
         self._languages: tuple[str, ...] = ()
         self._symbols: tuple[dict[str, Any], ...] = ()
-        self._incoming: dict[str, tuple[str, ...]] = {}
-        self._outgoing: dict[str, tuple[str, ...]] = {}
+        self._raw_ids: tuple[str, ...] = ()
+        self._nodes: dict[str, dict[str, Any]] = {}
+        self._name_index: dict[str, tuple[str, ...]] = {}
+        self._incoming: dict[str, tuple[tuple[str, str], ...]] = {}
+        self._outgoing: dict[str, tuple[tuple[str, str], ...]] = {}
+        self._symbol_key: bytes | None = None
 
     def build(self, arguments: object) -> dict[str, Any]:
         if self._graph is not None:
             raise _RequestError("invalid_state")
-        document = _object(arguments, {"snapshotDigest", "coverage"})
+        document = _object(arguments, {"snapshotDigest", "coverage", "symbolKey"})
         digest = document["snapshotDigest"]
         if not isinstance(digest, str) or not _valid_digest(digest):
             raise _RequestError("invalid_request")
@@ -75,6 +80,17 @@ class _TrailmarkAdapter:
         from trailmark.parse import detect_languages, parse_directory
         from trailmark.query.api import detect_entrypoints
 
+        from contractor_runtime.toolsets.code_analysis_ids import (
+            MAX_SYMBOL_INDEX,
+            decode_symbol_key,
+            encode_symbol_id,
+        )
+
+        try:
+            symbol_key = decode_symbol_key(document["symbolKey"])
+        except ValueError:
+            raise _RequestError("invalid_request") from None
+
         languages = tuple(sorted(set(detect_languages("."))))
         if languages:
             graph = parse_directory(".", language="auto")
@@ -83,9 +99,26 @@ class _TrailmarkAdapter:
             graph = CodeGraph(language="", root_path=".")
 
         mirror_root = Path.cwd().resolve()
+        if any(not isinstance(node_id, str) for node_id in graph.nodes):
+            raise _RequestError("code_analysis_engine_failed")
+        raw_ids = tuple(sorted(graph.nodes))
+        if len(raw_ids) > MAX_SYMBOL_INDEX + 1:
+            raise _RequestError("code_analysis_capacity_exceeded")
         symbols: list[dict[str, Any]] = []
-        for node_id, node in graph.nodes.items():
-            symbols.append(_project_node(node_id, node, mirror_root))
+        nodes: dict[str, dict[str, Any]] = {}
+        name_index: dict[str, set[str]] = {}
+        symbol_ids: set[str] = set()
+        for index, raw_id in enumerate(raw_ids):
+            node = graph.nodes[raw_id]
+            symbol_id = encode_symbol_id(symbol_key, digest, index, raw_id)
+            if symbol_id in symbol_ids:
+                raise _RequestError("code_analysis_engine_failed")
+            symbol_ids.add(symbol_id)
+            projection = _project_node(node, mirror_root, symbol_id)
+            nodes[raw_id] = projection
+            symbols.append(projection)
+            for key in _index_name_keys(raw_id, projection["name"]):
+                name_index.setdefault(key, set()).add(raw_id)
         symbols.sort(
             key=lambda item: (
                 item["path"],
@@ -96,21 +129,30 @@ class _TrailmarkAdapter:
             )
         )
 
-        incoming: dict[str, list[str]] = {}
-        outgoing: dict[str, list[str]] = {}
+        incoming: dict[str, list[tuple[str, str]]] = {}
+        outgoing: dict[str, list[tuple[str, str]]] = {}
         for edge in graph.edges:
+            if _enum_value(edge.kind) != "calls":
+                continue
             source = str(edge.source_id)
             target = str(edge.target_id)
-            outgoing.setdefault(source, []).append(target)
-            incoming.setdefault(target, []).append(source)
+            if source not in nodes or target not in nodes:
+                raise _RequestError("code_analysis_engine_failed")
+            confidence = _edge_confidence(edge.confidence)
+            outgoing.setdefault(source, []).append((target, confidence))
+            incoming.setdefault(target, []).append((source, confidence))
 
         self._graph = graph
         self._snapshot_digest = digest
         self._coverage = coverage
         self._languages = languages
         self._symbols = tuple(symbols)
+        self._raw_ids = raw_ids
+        self._nodes = nodes
+        self._name_index = {key: tuple(sorted(values)) for key, values in name_index.items()}
         self._incoming = {key: tuple(sorted(values)) for key, values in incoming.items()}
         self._outgoing = {key: tuple(sorted(values)) for key, values in outgoing.items()}
+        self._symbol_key = symbol_key
         return self.summary()
 
     def summary(self) -> dict[str, Any]:
@@ -144,7 +186,71 @@ class _TrailmarkAdapter:
         return {
             "snapshotDigest": self._snapshot_digest,
             "items": list(self._symbols[:limit]),
+            "observedTotal": len(self._symbols),
             "truncated": len(self._symbols) > limit,
+        }
+
+    def find_symbols(self, arguments: object) -> dict[str, Any]:
+        self._require_graph()
+        document = _object(arguments, {"query", "offset", "limit"})
+        query = _query(document["query"])
+        offset, limit = _page_arguments(document)
+        matched: set[str] = set()
+        for key in _query_name_keys(query):
+            matched.update(self._name_index.get(key, ()))
+        rows = [self._nodes[raw_id] for raw_id in matched]
+        rows.sort(key=_projection_sort_key)
+        return self._collection(rows, offset, limit)
+
+    def relationships(self, operation: str, arguments: object) -> dict[str, Any]:
+        self._require_graph()
+        document = _object(arguments, {"symbolId", "offset", "limit"})
+        symbol_id = document["symbolId"]
+        if not isinstance(symbol_id, str):
+            raise _RequestError("code_analysis_symbol_not_found")
+        offset, limit = _page_arguments(document)
+        raw_id = self._resolve_symbol_id(symbol_id)
+        selected = self._incoming if operation == "find_callers" else self._outgoing
+        rows: list[dict[str, Any]] = []
+        for related_id, confidence in selected.get(raw_id, ()):
+            row = dict(self._nodes[related_id])
+            row["confidence"] = confidence
+            rows.append(row)
+        rows.sort(key=_relationship_sort_key)
+        return self._collection(rows, offset, limit)
+
+    def _resolve_symbol_id(self, symbol_id: str) -> str:
+        assert self._symbol_key is not None
+        assert self._snapshot_digest is not None
+        from contractor_runtime.toolsets.code_analysis_ids import (
+            decode_symbol_id,
+            symbol_id_matches_upstream,
+        )
+
+        try:
+            decoded = decode_symbol_id(self._symbol_key, symbol_id)
+        except ValueError:
+            raise _RequestError("code_analysis_symbol_not_found") from None
+        if decoded.snapshot_digest != self._snapshot_digest:
+            raise _RequestError("code_analysis_stale_symbol")
+        try:
+            raw_id = self._raw_ids[decoded.index]
+        except IndexError:
+            raise _RequestError("code_analysis_symbol_not_found") from None
+        if not symbol_id_matches_upstream(self._symbol_key, decoded, raw_id):
+            raise _RequestError("code_analysis_symbol_not_found")
+        return raw_id
+
+    def _collection(self, rows: list[dict[str, Any]], offset: int, limit: int) -> dict[str, Any]:
+        if offset > len(rows):
+            raise _RequestError("code_analysis_input_invalid")
+        assert self._snapshot_digest is not None
+        page = rows[offset : offset + limit]
+        return {
+            "snapshotDigest": self._snapshot_digest,
+            "items": page,
+            "observedTotal": len(rows),
+            "truncated": offset + len(page) < len(rows),
         }
 
     def _require_graph(self) -> Any:
@@ -213,6 +319,10 @@ def _dispatch(adapter: _TrailmarkAdapter, operation: str, arguments: object) -> 
         return adapter.summary()
     if operation == "symbols":
         return adapter.symbols(arguments)
+    if operation == "find_symbol":
+        return adapter.find_symbols(arguments)
+    if operation in {"find_callers", "find_callees"}:
+        return adapter.relationships(operation, arguments)
     raise _RequestError("unsupported_operation")
 
 
@@ -280,13 +390,13 @@ def _object(value: object, keys: set[str]) -> dict[str, Any]:
     return value
 
 
-def _project_node(node_id: object, node: object, mirror_root: Path) -> dict[str, Any]:
-    del node_id
+def _project_node(node: object, mirror_root: Path, symbol_id: str) -> dict[str, Any]:
     location = getattr(node, "location", None)
     if location is None:
         raise _RequestError("unsafe_graph_projection")
     path = _relative_path(getattr(location, "file_path", None), mirror_root)
     return {
+        "symbolId": symbol_id,
         "name": _safe_text(getattr(node, "name", ""), MAX_NAME_CHARS),
         "kind": _safe_text(_enum_value(getattr(node, "kind", "")), 64),
         "path": path,
@@ -294,6 +404,75 @@ def _project_node(node_id: object, node: object, mirror_root: Path) -> dict[str,
         "endLine": _positive_line(getattr(location, "end_line", 1)),
         "column": _nonnegative_column(getattr(location, "start_col", 0)),
     }
+
+
+def _query(value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > MAX_QUERY_CHARS
+        or any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)
+    ):
+        raise _RequestError("code_analysis_input_invalid")
+    return value
+
+
+def _page_arguments(document: Mapping[str, Any]) -> tuple[int, int]:
+    offset = document["offset"]
+    limit = document["limit"]
+    if (
+        not isinstance(offset, int)
+        or isinstance(offset, bool)
+        or offset < 0
+        or not isinstance(limit, int)
+        or isinstance(limit, bool)
+        or not 1 <= limit <= MAX_SYMBOLS_RESPONSE
+    ):
+        raise _RequestError("code_analysis_input_invalid")
+    return offset, limit
+
+
+def _index_name_keys(identifier: str, name: str) -> set[str]:
+    folded_name = name.casefold()
+    folded_id = identifier.casefold()
+    qualified = _qualified_name(folded_id)
+    parts = qualified.split(".")
+    return {
+        folded_name,
+        folded_id,
+        *(".".join(parts[index:]) for index in range(len(parts))),
+    }
+
+
+def _query_name_keys(query: str) -> set[str]:
+    folded = query.casefold()
+    return {folded, _qualified_name(folded)}
+
+
+def _qualified_name(value: str) -> str:
+    return value.replace("::", ".").replace(":", ".").replace("#", ".")
+
+
+def _projection_sort_key(item: Mapping[str, Any]) -> tuple[object, ...]:
+    return (
+        item["path"],
+        item["line"],
+        item["column"],
+        item["name"],
+        item["kind"],
+        item["symbolId"],
+    )
+
+
+def _relationship_sort_key(item: Mapping[str, Any]) -> tuple[object, ...]:
+    return (*_projection_sort_key(item), item["confidence"])
+
+
+def _edge_confidence(value: object) -> str:
+    selected = _enum_value(value)
+    if selected not in {"certain", "inferred", "uncertain"}:
+        raise _RequestError("code_analysis_engine_failed")
+    return selected
 
 
 def _relative_path(value: object, mirror_root: Path) -> str:
@@ -307,7 +486,7 @@ def _relative_path(value: object, mirror_root: Path) -> str:
         relative = resolved.relative_to(mirror_root).as_posix()
     except ValueError:
         raise _RequestError("unsafe_graph_projection") from None
-    if not relative or relative == "." or len(relative) > MAX_PATH_CHARS:
+    if not relative or relative == "." or len(relative.encode("utf-8")) > MAX_PATH_CHARS:
         raise _RequestError("unsafe_graph_projection")
     return relative
 
@@ -380,7 +559,7 @@ def _write_frame(stream: Any, document: Mapping[str, Any]) -> None:
             "schemaVersion": SCHEMA_VERSION,
             "requestId": str(document.get("requestId", "unknown"))[:MAX_REQUEST_ID_CHARS],
             "ok": False,
-            "code": "response_too_large",
+            "code": "code_analysis_capacity_exceeded",
             "retryable": False,
         }
         payload = json.dumps(fallback, separators=(",", ":"), sort_keys=True).encode("utf-8")
