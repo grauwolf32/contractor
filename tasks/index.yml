@@ -311,8 +311,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V15-005
-  next_task: V15-006
+  completed_through: V15-006
+  next_task: V15-007
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -371,8 +371,12 @@ current_checkpoint:
     and exact operation-subset placement coverage. V15-005 completed the nine
     graph operations with allocation-local exact-ID paths, deterministic
     limit-plus-one traversal, bounded entrypoint/complexity/exception pages,
-    full local-only probe coverage and canonical signed cursors. V15-006 is the
-    next workspace code-analysis task.
+    full local-only probe coverage and canonical signed cursors. V15-006 made
+    shallow CPU work cancellation-safe, bounded cache entries independently,
+    added one pre-write-only child replay, terminal Toolset teardown before
+    adapter/workspace cleanup, stable cancellation metrics and executable
+    concurrency/fault/redaction coverage. V15-007 is the next workspace
+    code-analysis task.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"

@@ -3,10 +3,10 @@ id: V15-006
 title: Harden code-analysis invalidation, faults and cleanup
 milestone: workspace-code-analysis-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 7f9c876e83899321c3727975bc45c88b3311db57
 depends_on: [V15-002, V15-005]
-languages: [python]
+languages: [python, go, yaml, make]
 
 goal: >-
   Close allocation lifecycle, concurrency, resource and retained-data gaps for
