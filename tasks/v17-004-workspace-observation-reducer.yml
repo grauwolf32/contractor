@@ -3,8 +3,8 @@ id: V17-004
 title: Add deterministic workspace observations and lean Worker projection
 milestone: worker-results-and-live-state
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: e5cb3ecde70aadc0986c6b5aaa985890a85268e7
 depends_on: [V17-003]
 languages: [python]
 

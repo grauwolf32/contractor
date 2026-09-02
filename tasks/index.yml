@@ -438,8 +438,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V17-003
-  next_task: V17-004
+  completed_through: V17-004
+  next_task: V17-005
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -541,9 +541,13 @@ current_checkpoint:
     the exact two-field semantic schema, Runtime publishes correlated
     WorkerCompletion with trusted artifacts and lean observations, A2A rejects
     media/task/context/subtask mismatches, and Passthrough versus modeled
-    Planners preserve their distinct Stage-outcome ownership. V18-001 through
-    V18-003 separately plan optional one-shot terminal summarization. V17-004
-    is next.
+    Planners preserve their distinct Stage-outcome ownership. V17-004 is
+    complete: Runtime checkpoints the effective managed-text workspace, records
+    only successful model-visible filesystem interactions through reviewed
+    extractors, publishes bounded content-free State and produces an honest
+    lean workspace summary without treating analyzer scans as reads. V18-001
+    through V18-003 separately plan optional one-shot terminal summarization.
+    V17-005 is next.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
