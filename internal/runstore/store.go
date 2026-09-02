@@ -499,7 +499,12 @@ WITH candidate AS (
     WHERE (state IN ('running', 'cancelling')
        OR (state = 'initializing' AND state_reason_code = 'skill_initialization_pending'))
       AND (scheduler_claim_id IS NULL OR scheduler_claim_expires_at <= clock_timestamp())
-    ORDER BY CASE WHEN state = 'initializing' THEN 1 ELSE 0 END, created_at, run_id
+    ORDER BY CASE
+                 WHEN state = 'cancelling' THEN 0
+                 WHEN state = 'running' THEN 1
+                 ELSE 2
+             END,
+             updated_at, created_at, run_id
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )

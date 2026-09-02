@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-code-analysis-matrix test-code-analysis-runtime test-code-analysis-hardening test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-hardening test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-http-caido-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-code-analysis-matrix test-code-analysis-runtime test-code-analysis-hardening test-code-analysis-e2e test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-hardening test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-http-caido-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -27,6 +27,11 @@ test-code-analysis-runtime:
 
 test-code-analysis-hardening: test-code-analysis-matrix
 	cd runtime && uv run pytest -W error tests/test_code_analysis_concurrency.py tests/test_code_analysis_faults.py tests/test_code_analysis_redaction.py tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_code_analysis_child_lifecycle.py
+
+test-code-analysis-e2e: test-code-analysis-hardening
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses$$'
 
 test-contracts:
 	go test ./internal/contracts/...
@@ -180,7 +185,7 @@ test-faults:
 test-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
-	go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses)$$'
+	go test -tags=e2e -count=1 -timeout=14m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses)$$'
 
 test-capability-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
@@ -275,4 +280,4 @@ build:
 
 verify: lint test build ui-verify test-runtime-configuration-matrix test-shared-memory-matrix test-http-caido-matrix
 
-release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening
+release-verify: verify test-runtime-configuration-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e

@@ -462,6 +462,47 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	}
 }
 
+func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+
+	first := createTestRun(t, ctx, store, "run-capacity-waiting")
+	if _, err := store.TransitionRun(
+		ctx, first.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := store.ClaimRunnableRun(ctx, "claim-capacity-first", time.Minute)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("initial claim = (%+v, %v), want first Run", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, first.RunID, "claim-capacity-first"); err != nil {
+		t.Fatal(err)
+	}
+
+	second := createTestRun(t, ctx, store, "run-compatible-newer")
+	if _, err := store.TransitionRun(
+		ctx, second.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	// The older Run receives one more scheduling attempt. Releasing that claim
+	// after a deferred capacity result must move it behind the compatible Run.
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-capacity-retry", time.Minute)
+	if err != nil || claimed.RunID != first.RunID {
+		t.Fatalf("capacity retry claim = (%+v, %v), want older Run", claimed, err)
+	}
+	if err := store.ReleaseRunClaim(ctx, first.RunID, "claim-capacity-retry"); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err = store.ClaimRunnableRun(ctx, "claim-compatible", time.Minute)
+	if err != nil || claimed.RunID != second.RunID {
+		t.Fatalf("post-defer claim = (%+v, %v), want compatible newer Run", claimed, err)
+	}
+}
+
 func TestPostgresIntegrationRunSkillSnapshotGatesRunnableClaim(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

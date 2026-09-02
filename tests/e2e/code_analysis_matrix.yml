@@ -89,3 +89,4 @@ gates:
   - {id: matrix, command: make test-code-analysis-matrix}
   - {id: runtime, command: make test-code-analysis-runtime}
   - {id: hardening, command: make test-code-analysis-hardening}
+  - {id: e2e, command: make test-code-analysis-e2e}

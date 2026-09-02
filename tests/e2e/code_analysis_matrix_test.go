@@ -193,7 +193,7 @@ func validateCodeAnalysisMatrix(repositoryRoot string, matrix codeAnalysisMatrix
 		}
 	}
 
-	requiredGates := []string{"hardening", "matrix", "runtime"}
+	requiredGates := []string{"e2e", "hardening", "matrix", "runtime"}
 	seenGates := map[string]bool{}
 	for _, gate := range matrix.Gates {
 		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||

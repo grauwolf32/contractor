@@ -101,6 +101,12 @@ registered set. There is no silent graph-to-shallow fallback. A Stage requiring
 `find_callers` waits for compatible local capacity; a template selecting only
 `search_def` and `list_symbols` can run on either provider.
 
+Capacity deferral is fair across Runs. Releasing the Scheduler claim after an
+`insufficient capacity` result moves that Run behind already-runnable peers of
+the same priority. Thus an older graph Stage cannot monopolize polling while a
+newer shallow Stage could use an otherwise idle memory Runtime. Cancelling Runs
+retain priority over ordinary running and initialization work.
+
 ## AgentTemplate and workspace binding
 
 A shallow template can select:
