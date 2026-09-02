@@ -25,7 +25,10 @@ import (
 
 const maxRuntimeResponseBytes = 1 << 20
 
-var runtimePathIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var (
+	runtimePathIDPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	agentStateETagPattern = regexp.MustCompile(`^"contractor-agent-state-v1-[1-9][0-9]*"$`)
+)
 
 type RuntimeLifecycle interface {
 	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettingsV2) (contracts.WorkerHandle, error)
@@ -33,6 +36,30 @@ type RuntimeLifecycle interface {
 	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error)
 	Release(context.Context, Reservation) error
 }
+
+// WorkerStateReader is the framework-neutral live State dependency consumed
+// by Server-side Planner projections. Physical routing remains in WorkerHandle.
+type WorkerStateReader interface {
+	ReadWorkerState(context.Context, contracts.WorkerHandle, string) (WorkerStateReadResult, error)
+}
+
+type WorkerStateReadResult struct {
+	Snapshot    *contracts.AgentStateSnapshot
+	ETag        string
+	NotModified bool
+}
+
+type WorkerStateReadError struct {
+	StatusCode int
+	Code       string
+	Retryable  bool
+}
+
+func (e *WorkerStateReadError) Error() string {
+	return fmt.Sprintf("Runtime Agent Worker State read failed (%s)", e.Code)
+}
+
+var _ WorkerStateReader = (*RuntimeControlClient)(nil)
 
 type RuntimeAPIError struct {
 	StatusCode int
@@ -209,6 +236,103 @@ func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservat
 	return nil
 }
 
+func (c *RuntimeControlClient) ReadWorkerState(
+	ctx context.Context,
+	handle contracts.WorkerHandle,
+	ifNoneMatch string,
+) (WorkerStateReadResult, error) {
+	if ifNoneMatch != "" && !agentStateETagPattern.MatchString(ifNoneMatch) {
+		return WorkerStateReadResult{}, workerStateReadError(0, "worker_state_etag_invalid", false)
+	}
+	target, err := c.workerStateEndpoint(handle)
+	if err != nil {
+		return WorkerStateReadResult{}, workerStateReadError(0, "worker_state_endpoint_invalid", false)
+	}
+	headers := map[string]string{}
+	if ifNoneMatch != "" {
+		headers["If-None-Match"] = ifNoneMatch
+	}
+	response, err := c.doRequest(
+		ctx, http.MethodGet, target, nil, handle.RuntimeAgentID, headers,
+	)
+	if err != nil {
+		code := "worker_state_transport_failed"
+		if ctx.Err() != nil {
+			code = "worker_state_cancelled"
+		}
+		return WorkerStateReadResult{}, workerStateReadError(0, code, true)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusNotModified {
+		apiErr := decodeRuntimeError(response)
+		if typed, ok := apiErr.(*RuntimeAPIError); ok {
+			return WorkerStateReadResult{}, workerStateReadError(
+				typed.StatusCode, typed.Code, typed.Retryable,
+			)
+		}
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	if !oneHeaderValue(response, "Cache-Control", "private, no-cache") {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	etagValues := response.Header.Values("ETag")
+	if len(etagValues) != 1 || !agentStateETagPattern.MatchString(etagValues[0]) {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	etag := etagValues[0]
+	if response.StatusCode == http.StatusNotModified {
+		if ifNoneMatch == "" || etag != ifNoneMatch {
+			return WorkerStateReadResult{}, workerStateReadError(
+				response.StatusCode, "worker_state_response_invalid", false,
+			)
+		}
+		data, readErr := io.ReadAll(io.LimitReader(response.Body, 1))
+		if readErr != nil || len(data) != 0 {
+			return WorkerStateReadResult{}, workerStateReadError(
+				response.StatusCode, "worker_state_response_invalid", false,
+			)
+		}
+		return WorkerStateReadResult{ETag: etag, NotModified: true}, nil
+	}
+	if ifNoneMatch != "" && etag == ifNoneMatch {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	if err := requireJSONContentType(response); err != nil {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	data, err := readBoundedBody(response.Body, contracts.MaxAgentStateSnapshotBytes)
+	if err != nil {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	snapshot, err := contracts.DecodeStrict[contracts.AgentStateSnapshot](data)
+	if err != nil {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	expectedETag := fmt.Sprintf(
+		"\"contractor-agent-state-v1-%d\"", snapshot.State.StateRevision,
+	)
+	if etag != expectedETag {
+		return WorkerStateReadResult{}, workerStateReadError(
+			response.StatusCode, "worker_state_response_invalid", false,
+		)
+	}
+	return WorkerStateReadResult{Snapshot: &snapshot, ETag: etag}, nil
+}
+
 func (c *RuntimeControlClient) postJSON(
 	ctx context.Context,
 	baseURL string,
@@ -286,13 +410,33 @@ func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation 
 func (c *RuntimeControlClient) do(
 	ctx context.Context, target string, body []byte, runtimeAgentID string,
 ) (*http.Response, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(body))
+	return c.doRequest(ctx, http.MethodPost, target, body, runtimeAgentID, nil)
+}
+
+func (c *RuntimeControlClient) doRequest(
+	ctx context.Context,
+	method string,
+	target string,
+	body []byte,
+	runtimeAgentID string,
+	headers map[string]string,
+) (*http.Response, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, target, reader)
 	if err != nil {
 		return nil, errors.New("build Runtime Agent request")
 	}
-	request.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set(requestid.Header, requestid.Ensure(ctx))
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
 	client := c.client
 	if c.tlsConfig != nil {
 		bound, bindErr := mtls.BindRuntimeAgentPrincipal(c.tlsConfig, runtimeAgentID)
@@ -318,6 +462,42 @@ func (c *RuntimeControlClient) do(
 		return nil, fmt.Errorf("call Runtime Agent: %w", err)
 	}
 	return response, nil
+}
+
+func (c *RuntimeControlClient) workerStateEndpoint(handle contracts.WorkerHandle) (string, error) {
+	if !runtimePathIDPattern.MatchString(handle.AllocationID) {
+		return "", errors.New("allocation ID is not a safe URL path segment")
+	}
+	interfaces, ok := handle.AgentCard["supportedInterfaces"].([]any)
+	if !ok || len(interfaces) != 1 {
+		return "", errors.New("WorkerHandle has no exact A2A endpoint")
+	}
+	current, ok := interfaces[0].(map[string]any)
+	if !ok {
+		return "", errors.New("WorkerHandle has no exact A2A endpoint")
+	}
+	rawEndpoint, ok := current["url"].(string)
+	if !ok {
+		return "", errors.New("WorkerHandle has no exact A2A endpoint")
+	}
+	parsed, err := url.Parse(rawEndpoint)
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" ||
+		parsed.Fragment != "" || parsed.RawPath != "" {
+		return "", errors.New("WorkerHandle A2A endpoint is invalid")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", errors.New("WorkerHandle A2A endpoint scheme is invalid")
+	}
+	if c.requireHTTPS && parsed.Scheme != "https" {
+		return "", errors.New("WorkerHandle A2A endpoint must use HTTPS")
+	}
+	suffix := "/private/v1/allocations/" + handle.AllocationID + "/a2a"
+	if !strings.HasSuffix(parsed.Path, suffix) {
+		return "", errors.New("WorkerHandle A2A endpoint does not match allocation")
+	}
+	parsed.Path = strings.TrimSuffix(parsed.Path, suffix) +
+		"/private/v1/allocations/" + handle.AllocationID + "/agent-state"
+	return parsed.String(), nil
 }
 
 func (c *RuntimeControlClient) endpoint(baseURL, allocationID, operation string) (string, error) {
@@ -421,7 +601,10 @@ func runtimeSettingSecrets(settings contracts.RuntimeSettingsV2) []string {
 	return result
 }
 
-const stageContentMediaType = "application/vnd.contractor.stage-content+json"
+const (
+	stageContentMediaType     = "application/vnd.contractor.stage-content+json"
+	workerCompletionMediaType = "application/vnd.contractor.worker-completion+json"
+)
 
 func validateA2AAgentCard(card map[string]any, allocationID, registeredURL string) error {
 	interfaces, ok := card["supportedInterfaces"].([]any)
@@ -438,7 +621,7 @@ func validateA2AAgentCard(card map[string]any, allocationID, registeredURL strin
 		return errors.New("Runtime Agent returned an A2A Agent Card for another endpoint")
 	}
 	if !oneStringValue(card["defaultInputModes"], stageContentMediaType) ||
-		!oneStringValue(card["defaultOutputModes"], stageContentMediaType) {
+		!oneStringValue(card["defaultOutputModes"], workerCompletionMediaType) {
 		return errors.New("Runtime Agent returned incompatible A2A content modes")
 	}
 	skills, ok := card["skills"].([]any)
@@ -448,7 +631,7 @@ func validateA2AAgentCard(card map[string]any, allocationID, registeredURL strin
 	skill, ok := skills[0].(map[string]any)
 	if !ok || skill["id"] != "contractor_stage_content" ||
 		!oneStringValue(skill["inputModes"], stageContentMediaType) ||
-		!oneStringValue(skill["outputModes"], stageContentMediaType) {
+		!oneStringValue(skill["outputModes"], workerCompletionMediaType) {
 		return errors.New("Runtime Agent returned an incompatible A2A skill set")
 	}
 	securitySchemes, ok := card["securitySchemes"].(map[string]any)
@@ -538,14 +721,27 @@ func requireJSONContentType(response *http.Response) error {
 }
 
 func readBoundedRuntimeBody(body io.Reader) ([]byte, error) {
-	data, err := io.ReadAll(io.LimitReader(body, maxRuntimeResponseBytes+1))
+	return readBoundedBody(body, maxRuntimeResponseBytes)
+}
+
+func readBoundedBody(body io.Reader, limit int) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(body, int64(limit)+1))
 	if err != nil {
 		return nil, errors.New("read Runtime Agent response")
 	}
-	if len(data) > maxRuntimeResponseBytes {
+	if len(data) > limit {
 		return nil, errors.New("Runtime Agent response is too large")
 	}
 	return data, nil
+}
+
+func oneHeaderValue(response *http.Response, name, expected string) bool {
+	values := response.Header.Values(name)
+	return len(values) == 1 && values[0] == expected
+}
+
+func workerStateReadError(statusCode int, code string, retryable bool) error {
+	return &WorkerStateReadError{StatusCode: statusCode, Code: code, Retryable: retryable}
 }
 
 func ensureRuntimeJSONEOF(decoder *json.Decoder) error {

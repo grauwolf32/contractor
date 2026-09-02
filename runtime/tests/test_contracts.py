@@ -16,6 +16,7 @@ from contractor_runtime.contracts import (
     AgentRegistrationResponse,
     AgentRegistrationResponseV2,
     AgentRegistrationV2,
+    AgentStateSnapshot,
     AllocationFinalResponse,
     AllocationSpec,
     AllocationSpecV2,
@@ -84,6 +85,7 @@ PRIVATE_V2_INVALID_MODELS: dict[str, tuple[type[BaseModel], str]] = {
 }
 
 VALID_MODELS: dict[str, type[BaseModel]] = {
+    "agent-state-snapshot.json": AgentStateSnapshot,
     "agent-registration.json": AgentRegistration,
     "agent-registration-response.json": AgentRegistrationResponse,
     "agent-heartbeat.json": AgentHeartbeat,
@@ -106,6 +108,8 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
 }
 
 INVALID_MODELS: dict[str, type[BaseModel]] = {
+    "agent-state-zero-revision.json": AgentStateSnapshot,
+    "agent-state-echoed-allocation.json": AgentStateSnapshot,
     "agent-registration-idle-with-allocation.json": AgentRegistration,
     "agent-registration-oversized-software-version.json": AgentRegistration,
     "agent-heartbeat-missing-allocation.json": AgentHeartbeat,
@@ -123,6 +127,7 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
 }
 
 FIXTURE_SCHEMAS = {
+    "agent-state-snapshot": "agent-state.schema.json",
     "agent-registration": "agent-registration.schema.json",
     "agent-registration-response": "agent-registration-response.schema.json",
     "agent-heartbeat": "agent-heartbeat.schema.json",
@@ -143,6 +148,8 @@ FIXTURE_SCHEMAS = {
     "worker-completion-failure": "worker-completion.schema.json",
     "worker-completion-empty-observations": "worker-completion.schema.json",
     "agent-registration-idle-with-allocation": "agent-registration.schema.json",
+    "agent-state-zero-revision": "agent-state.schema.json",
+    "agent-state-echoed-allocation": "agent-state.schema.json",
     "agent-registration-oversized-software-version": "agent-registration.schema.json",
     "agent-heartbeat-missing-allocation": "agent-heartbeat.schema.json",
     "heartbeat-response-unknown-action": "agent-heartbeat.schema.json",
@@ -235,6 +242,39 @@ def test_worker_completion_rejects_nested_authority_and_inconsistent_observation
     for candidate in candidates:
         with pytest.raises(ValidationError):
             WorkerCompletion.model_validate(candidate)
+
+
+def test_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:
+    baseline = json.loads(
+        (FIXTURES / "valid" / "agent-state-snapshot.json").read_text(encoding="utf-8")
+    )
+    candidates: list[dict[str, Any]] = []
+
+    missing_counter = json.loads(json.dumps(baseline))
+    del missing_counter["state"]["currentInvocation"]["metrics"]["modelCalls"]
+    candidates.append(missing_counter)
+
+    unknown_workspace_fact = json.loads(json.dumps(baseline))
+    unknown_workspace_fact["state"]["lastCompletedInvocation"]["workspace"]["source"] = (
+        "recognizable-source-secret"
+    )
+    candidates.append(unknown_workspace_fact)
+
+    wrong_phase = json.loads(json.dumps(baseline))
+    wrong_phase["state"]["currentInvocation"]["phase"] = "succeeded"
+    candidates.append(wrong_phase)
+
+    missing_tool_flag = json.loads(json.dumps(baseline))
+    del missing_tool_flag["state"]["metrics"]["toolCalls"][0]["argumentsTruncated"]
+    candidates.append(missing_tool_flag)
+
+    oversized_duration = json.loads(json.dumps(baseline))
+    oversized_duration["state"]["metrics"]["toolCalls"][0]["durationMs"] = 2**64
+    candidates.append(oversized_duration)
+
+    for candidate in candidates:
+        with pytest.raises(ValidationError):
+            AgentStateSnapshot.model_validate_json(json.dumps(candidate))
 
 
 @pytest.mark.parametrize(("filename", "model"), PRIVATE_V2_VALID_MODELS.items())

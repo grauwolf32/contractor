@@ -38,6 +38,7 @@ from contractor_runtime.agent_skills.runtime import (
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     API_VERSION,
+    AgentStateSnapshot,
     ArtifactRef,
     StageContentRequest,
     ToolObservationCount,
@@ -344,6 +345,9 @@ class AdkWorkerRuntime:
     @property
     def a2a_application(self) -> ASGIApp:
         return self._a2a_application
+
+    async def agent_state_snapshot(self) -> AgentStateSnapshot:
+        return await self._worker_state.agent_state_snapshot()
 
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
         span = _start_span(

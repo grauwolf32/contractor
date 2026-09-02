@@ -52,14 +52,24 @@ def test_ca_valid_non_control_plane_peer_is_rejected_before_dispatch(tmp_path: P
     try:
         agent_context = client_context(pki, "agent_certificate", "agent_key")
         with pytest.raises((ssl.SSLError, OSError, http.client.HTTPException)):
-            request(port, agent_context, "POST", "/private/v1/allocations/a/prepare")
+            request(
+                port,
+                agent_context,
+                "GET",
+                "/private/v1/allocations/a/agent-state",
+                body=None,
+            )
         assert asyncio.run(state.snapshot()).route_dispatches == 0
 
         control_plane_context = client_context(
             pki, "control_plane_certificate", "control_plane_key"
         )
         status, body = request(
-            port, control_plane_context, "POST", "/private/v1/allocations/a/prepare"
+            port,
+            control_plane_context,
+            "GET",
+            "/private/v1/allocations/a/agent-state",
+            body=None,
         )
         assert status == 503
         assert b"allocation_service_unavailable" in body
@@ -71,10 +81,18 @@ def test_ca_valid_non_control_plane_peer_is_rejected_before_dispatch(tmp_path: P
     assert not failures
 
 
-def request(port: int, context: ssl.SSLContext, method: str, path: str) -> tuple[int, bytes]:
+def request(
+    port: int,
+    context: ssl.SSLContext,
+    method: str,
+    path: str,
+    *,
+    body: bytes | None = b"{}",
+) -> tuple[int, bytes]:
     connection = http.client.HTTPSConnection("localhost", port, context=context, timeout=2)
     try:
-        connection.request(method, path, body=b"{}", headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"} if body is not None else {}
+        connection.request(method, path, body=body, headers=headers)
         response = connection.getresponse()
         return response.status, response.read()
     finally:

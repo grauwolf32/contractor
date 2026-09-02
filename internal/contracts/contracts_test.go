@@ -14,6 +14,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) ([]byte, error){
+		"agent-state-snapshot.json":                 roundTrip[AgentStateSnapshot],
 		"agent-registration.json":                   roundTrip[AgentRegistration],
 		"agent-registration-response.json":          roundTrip[AgentRegistrationResponse],
 		"agent-heartbeat.json":                      roundTrip[AgentHeartbeat],
@@ -53,6 +54,8 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) error{
+		"agent-state-zero-revision.json":                      reject[AgentStateSnapshot],
+		"agent-state-echoed-allocation.json":                  reject[AgentStateSnapshot],
 		"agent-registration-idle-with-allocation.json":        reject[AgentRegistration],
 		"agent-registration-oversized-software-version.json":  reject[AgentRegistration],
 		"agent-heartbeat-missing-allocation.json":             reject[AgentHeartbeat],

@@ -9,12 +9,15 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any, Literal
 
-from contractor_runtime.contracts import API_VERSION
+from contractor_runtime.contracts import (
+    API_VERSION,
+    MAX_AGENT_STATE_SNAPSHOT_BYTES,
+    AgentStateSnapshot,
+)
 from contractor_runtime.metrics import MetricsState
 from contractor_runtime.observations import validate_workspace_observation
 
 WORKER_STATE_SCHEMA_VERSION = 1
-MAX_AGENT_STATE_SNAPSHOT_BYTES = 4 * 1024 * 1024
 _SUBTASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _INVOCATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _METRIC_IDENTIFIER = re.compile(r"^[a-z0-9_]{1,64}$")
@@ -156,6 +159,12 @@ class WorkerStateStore:
     async def encoded_snapshot_size(self) -> int:
         snapshot = await self.snapshot()
         return await asyncio.to_thread(_envelope_size, snapshot)
+
+    async def agent_state_snapshot(self) -> AgentStateSnapshot:
+        """Validate an immutable snapshot through the exact JSON wire boundary."""
+
+        snapshot = await self.snapshot()
+        return await asyncio.to_thread(_agent_state_snapshot, snapshot)
 
     async def _mutate(self, transform: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
         while True:
@@ -340,3 +349,13 @@ def _envelope_size(state: Mapping[str, Any]) -> int:
             allow_nan=False,
         ).encode("utf-8")
     )
+
+
+def _agent_state_snapshot(state: Mapping[str, Any]) -> AgentStateSnapshot:
+    encoded = json.dumps(
+        {"apiVersion": API_VERSION, "state": state},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return AgentStateSnapshot.model_validate_json(encoded)

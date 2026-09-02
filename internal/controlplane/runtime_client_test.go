@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -252,6 +253,134 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 	}
 	if err := validateWorkerHandleV2(handle, reservation, settings); err != nil {
 		t.Fatalf("low-entropy credential collided with a JSON key: %v", err)
+	}
+}
+
+func TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag(t *testing.T) {
+	fixture, err := os.ReadFile(filepath.Join(
+		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const etag = `"contractor-agent-state-v1-7"`
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		requests.Add(1)
+		if request.Method != http.MethodGet ||
+			request.URL.Path != "/private/v1/allocations/allocation_1/agent-state" {
+			t.Errorf("unexpected State request %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get("Content-Type") != "" || request.Header.Get("Accept") != "application/json" {
+			t.Errorf("State request headers = %+v", request.Header)
+		}
+		body, _ := io.ReadAll(request.Body)
+		if len(body) != 0 {
+			t.Errorf("State request body = %q", body)
+		}
+		w.Header().Set("Cache-Control", "private, no-cache")
+		w.Header().Set("ETag", etag)
+		if request.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture)
+	}))
+	defer server.Close()
+
+	client, _ := NewRuntimeControlClient(server.Client())
+	handle := stateWorkerHandle(server.URL, "allocation_1")
+	first, err := client.ReadWorkerState(context.Background(), handle, "")
+	if err != nil || first.Snapshot == nil || first.NotModified || first.ETag != etag ||
+		first.Snapshot.State.StateRevision != 7 {
+		t.Fatalf("first Worker State read = (%+v, %v)", first, err)
+	}
+	second, err := client.ReadWorkerState(context.Background(), handle, first.ETag)
+	if err != nil || second.Snapshot != nil || !second.NotModified || second.ETag != etag {
+		t.Fatalf("conditional Worker State read = (%+v, %v)", second, err)
+	}
+	if requests.Load() != 2 {
+		t.Fatalf("State request count = %d", requests.Load())
+	}
+}
+
+func TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe(t *testing.T) {
+	valid, err := os.ReadFile(filepath.Join(
+		"..", "..", "api", "testdata", "v1alpha1", "valid", "agent-state-snapshot.json",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name        string
+		status      int
+		etag        string
+		cache       string
+		body        []byte
+		conditional string
+		wantCode    string
+	}{
+		{name: "oversized", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, cache: "private, no-cache", body: bytes.Repeat([]byte("x"), contracts.MaxAgentStateSnapshotBytes+1), wantCode: "worker_state_response_invalid"},
+		{name: "wrong etag", status: http.StatusOK, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", body: valid, wantCode: "worker_state_response_invalid"},
+		{name: "missing cache policy", status: http.StatusOK, etag: `"contractor-agent-state-v1-7"`, body: valid, wantCode: "worker_state_response_invalid"},
+		{name: "false not modified", status: http.StatusNotModified, etag: `"contractor-agent-state-v1-8"`, cache: "private, no-cache", conditional: `"contractor-agent-state-v1-7"`, wantCode: "worker_state_response_invalid"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if test.cache != "" {
+					w.Header().Set("Cache-Control", test.cache)
+				}
+				if test.etag != "" {
+					w.Header().Set("ETag", test.etag)
+				}
+				if test.status == http.StatusOK {
+					w.Header().Set("Content-Type", "application/json")
+				}
+				w.WriteHeader(test.status)
+				_, _ = w.Write(test.body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			_, readErr := client.ReadWorkerState(
+				context.Background(), stateWorkerHandle(server.URL, "allocation_1"), test.conditional,
+			)
+			var typed *WorkerStateReadError
+			if !errors.As(readErr, &typed) || typed.Code != test.wantCode ||
+				strings.Contains(readErr.Error(), server.URL) {
+				t.Fatalf("Worker State failure = %#v", readErr)
+			}
+		})
+	}
+
+	client, _ := NewRuntimeControlClient(&http.Client{})
+	_, err = client.ReadWorkerState(
+		context.Background(), stateWorkerHandle("http://127.0.0.1:1", "allocation_1"), "",
+	)
+	var typed *WorkerStateReadError
+	if !errors.As(err, &typed) || typed.Code != "worker_state_transport_failed" ||
+		strings.Contains(err.Error(), "127.0.0.1") {
+		t.Fatalf("safe transport failure = %#v", err)
+	}
+}
+
+func TestRuntimeControlClientRejectsMismatchedWorkerStateEndpointBeforeRequest(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer server.Close()
+	handle := stateWorkerHandle(server.URL, "allocation_1")
+	interfaces := handle.AgentCard["supportedInterfaces"].([]any)
+	interfaces[0].(map[string]any)["url"] = server.URL + "/unrelated/allocation_1/a2a"
+	client, _ := NewRuntimeControlClient(server.Client())
+
+	_, err := client.ReadWorkerState(context.Background(), handle, "")
+	var typed *WorkerStateReadError
+	if !errors.As(err, &typed) || typed.Code != "worker_state_endpoint_invalid" ||
+		requests.Load() != 0 || strings.Contains(err.Error(), server.URL) {
+		t.Fatalf("mismatched Worker State endpoint = (%#v, requests %d)", err, requests.Load())
 	}
 }
 
@@ -728,10 +857,10 @@ func testAgentCard(name, allocationID, endpoint string) map[string]any {
 			"tenant": allocationID,
 		}},
 		"defaultInputModes":  []any{stageContentMediaType},
-		"defaultOutputModes": []any{stageContentMediaType},
+		"defaultOutputModes": []any{workerCompletionMediaType},
 		"skills": []any{map[string]any{
 			"id": "contractor_stage_content", "inputModes": []any{stageContentMediaType},
-			"outputModes": []any{stageContentMediaType},
+			"outputModes": []any{workerCompletionMediaType},
 		}},
 		"securitySchemes": map[string]any{
 			"mutualTLS": map[string]any{"mtlsSecurityScheme": map[string]any{}},
@@ -744,6 +873,16 @@ func testAgentCard(name, allocationID, endpoint string) map[string]any {
 
 func stringsHasSuffix(value, suffix string) bool {
 	return len(value) >= len(suffix) && value[len(value)-len(suffix):] == suffix
+}
+
+func stateWorkerHandle(baseURL, allocationID string) contracts.WorkerHandle {
+	return contracts.WorkerHandle{
+		AllocationID: allocationID,
+		AgentCard: testAgentCard(
+			"worker", allocationID,
+			strings.TrimRight(baseURL, "/")+"/private/v1/allocations/"+allocationID+"/a2a",
+		),
+	}
 }
 
 func (r *recordingRuntime) String() string {

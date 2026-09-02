@@ -23,6 +23,7 @@ from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     AbortAllocationRequest,
+    AgentStateSnapshot,
     AllocationFinalReport,
     AllocationFinalResponse,
     AllocationSpec,
@@ -181,6 +182,36 @@ class AllocationService:
             ):
                 return None
             return getattr(context.worker, "a2a_application", None)
+
+    async def agent_state_snapshot(self, allocation_id: str) -> AgentStateSnapshot:
+        """Return only the exact active Worker's Contractor-owned State."""
+
+        async with self._lock:
+            context = self._require_context(allocation_id)
+            state = await self._state.snapshot()
+            worker = context.worker
+            if (
+                worker is None
+                or state.process_state is not ProcessState.ALLOCATED
+                or state.allocation_id != allocation_id
+            ):
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=409,
+                )
+            try:
+                return await worker.agent_state_snapshot()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=503,
+                ) from None
 
     async def prepare(self, spec: AllocationSpec) -> PrepareAllocationResponse:
         async with self._lock:

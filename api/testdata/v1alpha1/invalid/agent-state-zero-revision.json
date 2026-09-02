@@ -1,0 +1,16 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "state": {
+    "schemaVersion": 1,
+    "stateRevision": 0,
+    "metrics": {
+      "counters": {},
+      "toolCalls": [],
+      "errors": [],
+      "finalOutcome": null,
+      "truncated": false
+    },
+    "currentInvocation": null,
+    "lastCompletedInvocation": null
+  }
+}

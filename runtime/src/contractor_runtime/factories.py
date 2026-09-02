@@ -19,6 +19,7 @@ from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory, ModelFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
+    AgentStateSnapshot,
     AllocationWorkspaceExportV2,
     ResolvedModelPolicy,
     ResolvedSkill,
@@ -54,6 +55,8 @@ if TYPE_CHECKING:
 class WorkerRuntime(Protocol):
     @property
     def agent_card(self) -> Mapping[str, Any]: ...
+
+    async def agent_state_snapshot(self) -> AgentStateSnapshot: ...
 
     async def finalize(self, deadline: datetime) -> None: ...
 
@@ -252,11 +255,15 @@ class StubWorkerRuntime:
             "defaultOutputModes": ["application/json"],
             "skills": [],
         }
+        self._worker_state = context.state
         self.stopped = False
 
     @property
     def agent_card(self) -> Mapping[str, Any]:
         return dict(self._agent_card)
+
+    async def agent_state_snapshot(self) -> AgentStateSnapshot:
+        return await self._worker_state.agent_state_snapshot()
 
     async def finalize(self, deadline: datetime) -> None:
         self.stopped = True

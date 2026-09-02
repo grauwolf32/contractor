@@ -24,6 +24,7 @@ from uvicorn.protocols.http.h11_impl import H11Protocol
 from contractor_runtime.a2a_server import AllocationA2AGateway
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.contracts import (
+    MAX_AGENT_STATE_SNAPSHOT_BYTES,
     AbortAllocationRequest,
     FinalizeAllocationRequest,
     PrepareAllocationRequestV2,
@@ -188,6 +189,66 @@ def create_app(
     async def release(request: Request) -> Response:
         return await lifecycle_call(request, ReleaseAllocationRequest, "release")
 
+    async def agent_state(request: Request) -> Response:
+        await runtime_state.record_route_dispatch()
+        if request.method != "GET":
+            return Response(status_code=405, headers={"Allow": "GET"})
+        if _agent_state_request_has_body(request):
+            return JSONResponse(
+                {
+                    "code": "invalid_request",
+                    "message": "Agent State request must not contain a body",
+                    "retryable": False,
+                    "requestId": request.state.request_id,
+                },
+                status_code=422,
+                headers={"Cache-Control": "no-store"},
+            )
+        if allocation_service is None:
+            return await lifecycle_unavailable_without_dispatch(request)
+        try:
+            snapshot = await allocation_service.agent_state_snapshot(
+                request.path_params["allocation_id"]
+            )
+            encoded_text = await asyncio.to_thread(
+                snapshot.model_dump_json,
+                by_alias=True,
+            )
+            encoded = encoded_text.encode("utf-8")
+            if len(encoded) > MAX_AGENT_STATE_SNAPSHOT_BYTES:
+                raise AllocationError(
+                    "agent_state_unavailable",
+                    "allocation Worker State is unavailable",
+                    retryable=True,
+                    status_code=503,
+                )
+            etag = f'"contractor-agent-state-v1-{snapshot.state.state_revision}"'
+            headers = {
+                "Cache-Control": "private, no-cache",
+                "ETag": etag,
+            }
+            if request.headers.getlist("if-none-match") == [etag]:
+                return Response(status_code=304, headers=headers)
+            return Response(content=encoded, media_type="application/json", headers=headers)
+        except AllocationError as error:
+            return JSONResponse(
+                {**error.payload(), "requestId": request.state.request_id},
+                status_code=error.status_code,
+                headers={"Cache-Control": "no-store"},
+            )
+        except Exception as error:
+            request.state.error_type = type(error).__name__
+            return JSONResponse(
+                {
+                    "code": "internal_error",
+                    "message": "Agent State snapshot could not be processed",
+                    "retryable": True,
+                    "requestId": request.state.request_id,
+                },
+                status_code=500,
+                headers={"Cache-Control": "no-store"},
+            )
+
     async def lifecycle_call[RequestModel: BaseModel](
         request: Request,
         model: type[RequestModel],
@@ -282,6 +343,11 @@ def create_app(
                 release,
                 methods=["POST"],
             ),
+            Route(
+                "/private/v1/allocations/{allocation_id}/agent-state",
+                agent_state,
+                methods=["GET"],
+            ),
         ]
     )
     if allocation_service is not None:
@@ -303,6 +369,20 @@ def _request_id(scope: Scope) -> str:
     if len(values) == 1 and REQUEST_ID_PATTERN.fullmatch(values[0]) is not None:
         return values[0]
     return f"request_{uuid.uuid4().hex}"
+
+
+def _agent_state_request_has_body(request: Request) -> bool:
+    if request.headers.getlist("transfer-encoding"):
+        return True
+    lengths = request.headers.getlist("content-length")
+    if not lengths:
+        return False
+    if len(lengths) != 1:
+        return True
+    try:
+        return int(lengths[0]) != 0
+    except ValueError:
+        return True
 
 
 async def _decode_request[RequestModel: BaseModel](

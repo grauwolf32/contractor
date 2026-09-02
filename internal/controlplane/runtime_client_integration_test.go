@@ -139,9 +139,22 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 	if handle.AllocationID != reservation.Grant.AllocationID || handle.AgentTemplateRef != reservation.AgentTemplate.Ref {
 		t.Fatalf("unexpected cross-language WorkerHandle: %+v", handle)
 	}
+	stateRead, err := client.ReadWorkerState(ctx, handle, "")
+	if err != nil || stateRead.Snapshot == nil || stateRead.NotModified ||
+		stateRead.Snapshot.State.StateRevision == 0 {
+		t.Fatalf("cross-language Worker State read = (%+v, %v)", stateRead, err)
+	}
+	unchanged, err := client.ReadWorkerState(ctx, handle, stateRead.ETag)
+	if err != nil || unchanged.Snapshot != nil || !unchanged.NotModified ||
+		unchanged.ETag != stateRead.ETag {
+		t.Fatalf("cross-language Worker State revalidation = (%+v, %v)", unchanged, err)
+	}
 	report, err := client.Finalize(ctx, reservation, "finalization_integration", time.Now().Add(10*time.Second))
 	if err != nil || !report.Worker.Complete || !report.Runtime.Complete {
 		t.Fatalf("cross-language finalize = (%+v, %v)", report, err)
+	}
+	if _, err := client.ReadWorkerState(ctx, handle, ""); err == nil {
+		t.Fatal("terminal Runtime exposed destroyed Worker State")
 	}
 	if err := client.Release(ctx, reservation); err != nil {
 		t.Fatalf("cross-language release: %v", err)
