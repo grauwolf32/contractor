@@ -3,8 +3,8 @@ id: V15-007
 title: Add explicit shallow and graph analysis Workflow variants
 milestone: workspace-code-analysis-port
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 7c83b9b40363651ed1c063cf56385c720b87bd5f
 depends_on: [V15-005]
 languages: [yaml, markdown, go]
 
