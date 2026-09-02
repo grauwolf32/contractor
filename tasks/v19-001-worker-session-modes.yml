@@ -1,0 +1,123 @@
+schema_version: "1.0"
+id: V19-001
+title: Add Stage-selected isolated and shared Worker sessions
+milestone: worker-session-modes
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V18-003]
+languages: [go, python, yaml, json]
+
+goal: >-
+  Let every Workflow Stage select one immutable allocation-scoped Worker
+  session mode, defaulting new authoring to isolated, while preserving explicit
+  shared conversations and carrying bounded eligible ADK State only within the
+  same allocation.
+
+context:
+  authoring_contract: >-
+    Stage session accepts exactly isolated or shared. Omission in newly loaded
+    Workflow YAML resolves to isolated before the immutable Run snapshot is
+    created. Every new resolved Stage and AllocationSpec contains the explicit
+    effective value; Planner tools and StageContentRequest never select or
+    change it.
+  runtime_contract: >-
+    One allocation continues to own its prepared Worker, Runner, model, tools,
+    workspace and allocation-local InMemorySessionService. Shared reuses one
+    lazily created ADK session. Isolated lazily creates a fresh ADK session for
+    every admitted Worker invocation, carries eligible State after the prior
+    invocation finishes and carries no prior conversation events.
+  identity_contract: >-
+    allocationId, A2A task/context IDs, Contractor invocationId and ADK
+    sessionId are distinct identity domains. Runtime generates opaque session
+    IDs; equality with allocationId or invocationId is never observable
+    contract behavior.
+  compatibility_contract: >-
+    Persisted Workflow and Stage snapshots created before the field existed
+    decode as shared at that legacy snapshot boundary, preserving their prior
+    prompts. New authoring omission means isolated. AllocationSpec never uses
+    absence to distinguish these cases and mixed Server/Runtime binaries are
+    unsupported during the required drain-and-lockstep upgrade.
+
+scope:
+  in:
+    - Add a closed WorkerSessionMode enum and optional Stage YAML session field; reject null, empty, unknown and non-scalar values, and resolve omission to isolated.
+    - Store the explicit mode in ResolvedStage, immutable Workflow/Stage snapshots and public Workflow read models without adding a Planner-specific override.
+    - Decode genuinely pre-feature persisted Workflow/Stage snapshots as shared while rejecting explicit empty or unknown values and preserving snapshot equality checks.
+    - Carry the mode through Scheduler binding requirements, Control Plane reservations/replay identity and a mandatory Go/Python AllocationSpec session field.
+    - Extend the authoritative allocation JSON Schema and strict shared fixtures so missing or unknown AllocationSpec modes fail before Worker construction.
+    - Keep adk@1 as one generic Worker runtime and replace its Worker-wide session ID assumption with one allocation-local lifecycle helper; do not add adk-isolated@1 or another behavior-specific runtime ref.
+    - Create sessions lazily only after an invocation passes A2A validation, accepting/draining checks and the single-invocation lock; rejected invalid, stale, draining or busy work creates no session.
+    - In shared mode, create at most one session and reuse it for all sequential invocations until allocation release, retaining its State and events.
+    - In isolated mode, create a new opaque session ID per admitted invocation, pass it explicitly to Runner and State synchronization, and delete that session before releasing the invocation lock.
+    - Bound the combined eligible non-contractor ADK State to 4 MiB encoded and deep-copy ordinary session State; exclude temp-prefixed State and events, leave bounded ADK app/user State inside the allocation-local service, and rehydrate the contractor subtree only from canonical WorkerStateStore.
+    - Preserve State already committed by ADK on success, modeled failure, budget failure and cancellation; make State snapshot plus session deletion part of the existing shielded invocation finalizer.
+    - Fail closed and stop accepting subsequent work if session creation, bounded State extraction or deletion leaves lifecycle ownership ambiguous; keep finalize/abort/release deadline-bounded and idempotent.
+    - Delete every active session, carried State value and app/user service State before slot reuse, and prove no session event, State or identifier crosses an allocation or Stage boundary.
+    - Update focused specifications and upgrade documentation with the default, legacy boundary, identity model, State filter and lockstep rollout procedure.
+  out:
+    - Per-invocation session-mode overrides, Planner-selected resets, raw session IDs in A2A or public APIs, a new behavior-specific runtime factory, cross-allocation State transfer, ADK event compaction, stateflow@1 implementation or durable Planner State.
+
+deliverables:
+  - {path: internal/config, description: Stage authoring, isolated default, resolved snapshots and legacy decode boundary.}
+  - {path: internal/scheduler, description: Immutable Stage-mode projection into every logical Worker requirement.}
+  - {path: internal/controlplane, description: Reservation replay identity and exact allocation transport.}
+  - {path: internal/contracts, description: Closed mandatory AllocationSpec Worker session mode.}
+  - {path: api/v1alpha1, description: Strict allocation schema and shared Go/Python fixtures.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Explicit resolved Stage session mode in Workflow read models.}
+  - {path: runtime/src/contractor_runtime/session_lifecycle.py, description: Allocation-local lazy shared/isolated ADK session owner and bounded State carrier.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Explicit per-invocation session use and shielded lifecycle integration.}
+  - {path: docs/spec, description: Promoted Workflow, allocation, Runtime and cleanup contract.}
+  - {path: docs/development.md, description: Drain-and-lockstep upgrade and focused verification commands.}
+
+requirements:
+  - {id: R1, text: New Workflow omission always resolves to isolated before Run creation, while explicit shared or isolated is pinned unchanged for every retry and escalation of that Stage.}
+  - {id: R2, text: Isolated invocations inherit zero prior ADK events; shared invocations retain the existing sequential conversation until allocation release.}
+  - {id: R3, text: Eligible ADK State may cross only an invocation boundary inside one allocation, remains bounded and deeply copied, and never replaces canonical Contractor State.}
+  - {id: R4, text: Session replacement and cleanup are serialized with Worker invocation lifecycle, cancellation-safe and complete before another invocation or slot reuse.}
+  - {id: R5, text: Planner and StageContentRequest schemas remain byte-for-byte session-control-free, and no external consumer may supply or infer an ADK session ID.}
+
+acceptance_criteria:
+  - id: A1
+    given: Workflow stages with omitted, isolated, shared, null, empty and unknown session values plus persisted pre-feature snapshots.
+    when: Configuration is loaded, Runs and StageExecutions are snapshotted, public read models are rendered and old snapshots are decoded.
+    then: New omission becomes explicit isolated, valid explicit values remain exact, invalid authoring fails, and only genuinely legacy snapshots preserve shared behavior.
+  - id: A2
+    given: Two sequential valid A2A subtasks on one isolated allocation where the first writes ordinary, temp, app, user and contractor State.
+    when: The second subtask runs through the same prepared Worker and SessionService.
+    then: It has a new opaque session ID and no first-session events, sees bounded ordinary/app/user State, sees no temp State, and receives contractor State rehydrated from the latest WorkerStateStore revision.
+  - id: A3
+    given: The equivalent two sequential subtasks on one shared allocation.
+    when: Both complete successfully or the first ends in a modeled failure.
+    then: Runner uses one session ID, the second sees the retained event history and State, and allocation release deletes the session exactly once.
+  - id: A4
+    given: Invalid payload, wrong tenant, concurrent busy request, draining, model/tool/budget failure, cancellation and injected session-service create/snapshot/delete failures.
+    when: Runtime processes or rejects the requests and then finalizes or aborts the allocation.
+    then: Rejections create no session, admitted work reaches one shielded terminal State revision, ambiguous cleanup fences further work, deadlines remain bounded and the slot is reusable only after complete cleanup.
+  - id: A5
+    given: Streamline and Router process fixtures with default-isolated and explicit-shared Stages followed by a second Stage allocation.
+    when: Requests cross the real Scheduler, Control Plane, private allocation API and Runtime A2A path.
+    then: AllocationSpec always carries the pinned mode, both Runtime modes match their event/State semantics, and no prior session data appears in the next Stage or reused Runtime slot.
+
+tests:
+  - {name: config-and-scheduler, command: "go test -race ./internal/config/... ./internal/scheduler/... ./internal/controlplane/... ./internal/httpapi/public/...", covers: [A1, A5]}
+  - {name: wire-contracts, command: "make verify-wire-contracts && make test-wire-cross-language", covers: [A1, A5]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_a2a_server.py tests/test_adk_runtime.py tests/test_allocation.py", covers: [A2, A3, A4]}
+  - {name: process, command: "make test-worker-session-modes-e2e", covers: [A2, A3, A4, A5]}
+  - {name: aggregate, command: "make release-verify", covers: [A1, A2, A3, A4, A5]}
+
+decisions:
+  - >-
+    Session policy belongs to immutable Stage/allocation configuration. Planner
+    controls task content only and receives no reset or session-selection tool.
+  - >-
+    The lifecycle helper chooses whether to return the active shared session or
+    call ADK create_session with a new ID. create_session itself never replaces
+    an existing ID.
+  - >-
+    Both modes create lazily after admission. This avoids sessions for rejected
+    requests and preserves rejection metrics through canonical WorkerStateStore,
+    which is injected when the first real session is created.
+  - >-
+    The generic adk@1 implementation gains both modes in one lockstep rollout;
+    mode names do not become RuntimeFactory refs or placement labels.

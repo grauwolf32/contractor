@@ -79,6 +79,18 @@ fixed_decisions:
       Separate exact tool-free ModelPolicy over the same pinned Worker Gateway
       route, bounded model-visible transcript, Runtime-owned summarized flag and
       separately attributable metrics. ADK continuing compaction is deferred.
+  worker_sessions:
+    authoring: >-
+      Each Stage selects isolated or shared; new authoring omission resolves to
+      isolated before Run snapshotting, and old snapshots without the field
+      retain their pre-feature shared behavior only at the legacy decode boundary.
+    transport: >-
+      Scheduler and Control Plane pin one explicit mode into every AllocationSpec.
+      Planner and StageContentRequest carry neither the mode nor a session ID.
+    runtime: >-
+      One generic adk@1 Worker keeps allocation-owned Runner/resources. Isolated
+      uses one lazily created session per invocation with bounded State but no
+      event carry; shared lazily creates and reuses one session until release.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -332,6 +344,12 @@ milestones:
       An AgentTemplate may opt into one bounded tool-free terminal summarizer at
       a deterministic soft-token boundary without changing disabled behavior,
       trusted observations/artifacts, lifecycle ownership or slot cleanup.
+  - id: worker-session-modes
+    exit_task: V19-001
+    outcome: >-
+      Every Stage pins isolated-by-default or explicit shared Worker-session
+      semantics into its allocations, with conversation isolation, bounded
+      allocation-local State handoff and cancellation-safe cleanup.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-02"
@@ -1432,3 +1450,4 @@ tasks:
   - {id: V18-001, file: v18-001-worker-summarizer-config.yml}
   - {id: V18-002, file: v18-002-terminal-worker-summarizer.yml}
   - {id: V18-003, file: v18-003-worker-summarizer-release-gate.yml}
+  - {id: V19-001, file: v19-001-worker-session-modes.yml}
