@@ -166,15 +166,17 @@ class _TaintAnnotationSession:
         self._writer: WorkspaceWriter | None = writer
         self._lock = asyncio.Lock()
         self._closed = False
+        self._closing = False
 
     async def close(self) -> None:
+        self._closing = True
         async with self._lock:
             self._closed = True
             self._writer = None
 
     async def annotate(self, request: _AnnotationRequest) -> dict[str, Any]:
         async with self._lock:
-            if self._closed or self._writer is None:
+            if self._closing or self._closed or self._writer is None:
                 raise TaintAnnotationError("taint_annotation_closing")
             writer = self._writer
             try:
@@ -258,9 +260,10 @@ class _BaseAnnotationTool:
         self._record_failure(error, time.perf_counter_ns())
         return error
 
-    async def _invoke(self, request: _AnnotationRequest) -> dict[str, Any]:
+    async def _invoke(self, request_factory: Callable[[], _AnnotationRequest]) -> dict[str, Any]:
         started = time.perf_counter_ns()
         try:
+            request = request_factory()
             result = await self._session.annotate(request)
             self._metrics.record_tool_call(
                 self.name,
@@ -303,18 +306,18 @@ class AnnotateTraceTool(_BaseAnnotationTool):
         calls: str = "",
         definition_line: int = 0,
     ) -> dict[str, Any]:
-        normalized_path = _path(path)
-        normalized_symbol = _symbol(symbol)
-        normalized_target = _token(target)
-        normalized_args = _args(args)
-        normalized_calls = _calls(calls)
-        body = f"target={normalized_target}"
-        if normalized_args:
-            body += f" args={normalized_args}"
-        if normalized_calls:
-            body += f" calls={normalized_calls}"
-        return await self._invoke(
-            _request(
+        def build_request() -> _AnnotationRequest:
+            normalized_path = _path(path)
+            normalized_symbol = _symbol(symbol)
+            normalized_target = _token(target)
+            normalized_args = _args(args)
+            normalized_calls = _calls(calls)
+            body = f"target={normalized_target}"
+            if normalized_args:
+                body += f" args={normalized_args}"
+            if normalized_calls:
+                body += f" calls={normalized_calls}"
+            return _request(
                 normalized_path,
                 normalized_symbol,
                 "trace",
@@ -322,7 +325,8 @@ class AnnotateTraceTool(_BaseAnnotationTool):
                 normalized_target,
                 definition_line,
             )
-        )
+
+        return await self._invoke(build_request)
 
 
 class AnnotateValidateTool(_BaseAnnotationTool):
@@ -338,20 +342,19 @@ class AnnotateValidateTool(_BaseAnnotationTool):
         kind: str,
         definition_line: int = 0,
     ) -> dict[str, Any]:
-        normalized_path = _path(path)
-        normalized_symbol = _symbol(symbol)
-        normalized_arg = _argument_token(arg)
-        normalized_kind = _token(kind)
-        return await self._invoke(
-            _request(
-                normalized_path,
-                normalized_symbol,
+        def build_request() -> _AnnotationRequest:
+            normalized_arg = _argument_token(arg)
+            normalized_kind = _token(kind)
+            return _request(
+                _path(path),
+                _symbol(symbol),
                 "validate",
                 f"arg={normalized_arg} kind={normalized_kind}",
                 f"{normalized_arg}:{normalized_kind}",
                 definition_line,
             )
-        )
+
+        return await self._invoke(build_request)
 
 
 class AnnotateSinkTool(_BaseAnnotationTool):
@@ -367,20 +370,19 @@ class AnnotateSinkTool(_BaseAnnotationTool):
         arg: str = "unknown",
         definition_line: int = 0,
     ) -> dict[str, Any]:
-        normalized_path = _path(path)
-        normalized_symbol = _symbol(symbol)
-        normalized_kind = _token(kind)
-        normalized_arg = _argument_token(arg)
-        return await self._invoke(
-            _request(
-                normalized_path,
-                normalized_symbol,
+        def build_request() -> _AnnotationRequest:
+            normalized_kind = _token(kind)
+            normalized_arg = _argument_token(arg)
+            return _request(
+                _path(path),
+                _symbol(symbol),
                 "sink",
                 f"kind={normalized_kind} arg={normalized_arg}",
                 f"{normalized_kind}:{normalized_arg}",
                 definition_line,
             )
-        )
+
+        return await self._invoke(build_request)
 
 
 def _request(
@@ -430,7 +432,12 @@ def _plan_mutation(
     indent = source_line[: len(source_line) - len(source_line.lstrip(" \t"))]
     marker = _COMMENT_MARKERS.get(language, "//")
     line = f"{indent}{marker} @{request.kind} {request.body}"
-    if len(line.encode("utf-8")) > MAX_ANNOTATION_BYTES:
+    encoded_line = line.encode("utf-8")
+    newline = _newline_style(source).encode("ascii")
+    if (
+        len(encoded_line) > MAX_ANNOTATION_BYTES
+        or len(source.encode("utf-8")) + len(encoded_line) + len(newline) > MAX_SOURCE_FILE_BYTES
+    ):
         raise TaintAnnotationError("taint_annotation_capacity_exceeded")
     return _MutationPlan(target, source, line, marker, indent)
 

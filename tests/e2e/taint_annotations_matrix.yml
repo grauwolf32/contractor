@@ -1,0 +1,86 @@
+schema_version: "1.0"
+
+policy:
+  mutation: >-
+    One allocation session serializes annotation calls and commits through the
+    WorkspaceWriter atomic update boundary without overwriting another Toolset.
+  lifecycle: >-
+    Cancellation joins parser work; close rejects queued calls and no source or
+    writer reference survives terminal allocation cleanup.
+  retention: >-
+    Metrics, reports, errors and logs retain only closed operation metadata and
+    never caller paths, values, source, annotations, parser errors or credentials.
+
+cases:
+  - id: raw_and_semantic_validation
+    category: validation
+    acceptance: [A3]
+    faults: [F01]
+    expected: Unknown fields wrong types and invalid scalar syntax map to the closed input-invalid code without mutation.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_raw_argument_shape_is_rejected_before_binding}
+  - id: structural_resolution
+    category: resolution
+    acceptance: [A3]
+    faults: [F02, F03]
+    expected: Missing and duplicate declarations fail deterministically while a line selector resolves only an exact structural target.
+    test: {source: runtime/tests/test_taint_annotations.py, symbol: test_structural_resolution_rejects_calls_noncallables_and_ambiguity}
+  - id: malformed_adjacent_block
+    category: resolution
+    acceptance: [A3]
+    faults: [F04]
+    expected: A malformed same-kind adjacent annotation is a conflict and leaves source bytes unchanged.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_manual_malformed_annotation_blocks_conflict_without_mutation}
+  - id: exact_capacity_boundaries
+    category: capacity
+    acceptance: [A3]
+    faults: [F05, F06, F07]
+    expected: Exact scalar list line annotation and resulting-file boundaries are accepted or rejected at their specified edge.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_exact_scalar_list_line_and_resulting_file_limits}
+  - id: serialized_annotations
+    category: concurrency
+    acceptance: [A2]
+    faults: [F08]
+    expected: Simultaneous annotation calls commit as one stable serial order with neither successful line lost.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_simultaneous_annotations_have_one_stable_serial_order}
+  - id: cross_toolset_atomic_compare
+    category: concurrency
+    acceptance: [A2]
+    faults: [F09]
+    expected: An edit-files winner is preserved and the stale annotation returns retryable workspace-changed.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_real_workspace_cross_toolset_race_preserves_the_edit_winner}
+  - id: response_loss_replay
+    category: concurrency
+    acceptance: [A2]
+    faults: [F10]
+    expected: Exact replay is a no-op while a conflicting trace body cannot silently replace committed state.
+    test: {source: runtime/tests/test_taint_annotations.py, symbol: test_canonical_order_replay_and_trace_target_conflict}
+  - id: cancellation_and_close
+    category: lifecycle
+    acceptance: [A1, A3]
+    faults: [F11, F12]
+    expected: Cancellation joins delayed parsing and idempotent close rejects queued mutation before releasing the writer.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_cancelled_parse_is_joined_and_close_prevents_queued_mutation}
+  - id: terminal_allocation_cleanup
+    category: lifecycle
+    acceptance: [A1]
+    faults: [F13]
+    expected: Terminalization closes selected Toolsets before release and a repeated release cannot run cleanup twice.
+    test: {source: runtime/tests/test_allocation.py, symbol: test_finalize_closes_allocation_tools_before_return_and_release_does_not_repeat}
+  - id: retained_surface_redaction
+    category: redaction
+    acceptance: [A3]
+    faults: [F14]
+    expected: Parser and storage faults expose stable codes while metrics reports errors logs and closed sessions contain no canary.
+    test: {source: runtime/tests/test_taint_annotations_hardening.py, symbol: test_raw_argument_validation_and_unexpected_failures_are_closed_and_redacted}
+  - id: matrix_self_validation
+    category: validation
+    acceptance: [A4]
+    faults: []
+    expected: Strict decoding and completeness checks reject missing acceptance fault gate and test-owner coverage.
+    test: {source: tests/e2e/taint_annotations_matrix_test.go, symbol: TestTaintAnnotationHardeningMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-taint-annotations-matrix}
+  - {id: runtime, command: make test-taint-annotations-runtime}
+  - {id: hardening, command: make test-taint-annotations-hardening}
+  - {id: e2e, command: make test-taint-annotations-e2e}
