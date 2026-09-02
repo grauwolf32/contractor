@@ -1,9 +1,38 @@
-"""Static contract shared by the staged code-analysis implementation."""
+"""Bounded structural code analysis over one immutable workspace snapshot."""
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import re
+import secrets
+import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError, version
 from types import MappingProxyType
+from typing import Any
+
+import jcs
+from tree_sitter import Parser
+
+from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
+from contractor_runtime.projectfs.storage import (
+    WorkspaceReader,
+    WorkspaceSnapshot,
+    WorkspaceStorageError,
+    WorkspaceTextFile,
+)
+from contractor_runtime.toolsets import code_analysis_languages as language_support
+from contractor_runtime.toolsets.code_analysis_languages import Language, SymbolRecord
+from contractor_runtime.toolsets.run_artifacts import ToolMetrics
+from contractor_runtime.workspace import AllocationWorkspace
 
 CODE_ANALYSIS_REF = "code-analysis@1"
 
@@ -30,12 +59,684 @@ PINNED_DEPENDENCIES = MappingProxyType(
         "tree-sitter-language-pack": "1.14.3",
     }
 )
+SHALLOW_PINNED_DEPENDENCIES = MappingProxyType(
+    {name: PINNED_DEPENDENCIES[name] for name in ("tree-sitter", "tree-sitter-language-pack")}
+)
+
+MAX_SOURCE_FILES = 20_000
+MAX_SOURCE_BYTES = 128 * 1024 * 1024
+MAX_SOURCE_FILE_BYTES = 4 * 1024 * 1024
+MAX_COMPACT_SYMBOLS = 100_000
+MAX_PAGE_ITEMS = 200
+MAX_RESULT_BYTES = 256 * 1024
+MAX_QUERY_CHARS = 256
+MAX_SCAN_SECONDS = 10.0
+MAX_CURSOR_BYTES = 2048
+MAX_PREVIEW_LINES = 12
+MAX_PREVIEW_BYTES = 4096
+
+_NODE_TYPE_PATTERN = re.compile(r"[a-z][a-z0-9_]*\Z")
 
 
-def dependency_versions_match() -> bool:
-    """Return whether the reviewed parser and graph distributions are installed."""
+def dependency_versions_match(
+    required: Mapping[str, str] = PINNED_DEPENDENCIES,
+) -> bool:
+    """Return whether the requested reviewed distributions are installed exactly."""
 
     try:
-        return all(version(name) == expected for name, expected in PINNED_DEPENDENCIES.items())
+        return all(version(name) == expected for name, expected in required.items())
     except PackageNotFoundError:
         return False
+
+
+class CodeAnalysisError(RuntimeError):
+    """Stable model-facing failure without source, query, or physical path detail."""
+
+    def __init__(self, code: str, *, retryable: bool = False) -> None:
+        self.code = code
+        self.retryable = retryable
+        super().__init__(f"Code analysis operation failed ({code})")
+
+
+class CodeAnalysisToolsetFactory:
+    ref = CODE_ANALYSIS_REF
+    exported_tools = EXPORTED_TOOLS
+    infrastructure_channels = MappingProxyType({})
+    requires_workspace = True
+    workspace_access = "read"
+
+    async def probe(self) -> frozenset[str]:
+        if not dependency_versions_match(SHALLOW_PINNED_DEPENDENCIES):
+            return frozenset()
+        available = await asyncio.to_thread(language_support.probe_all_parsers)
+        return SHALLOW_TOOLS if available else frozenset()
+
+    async def create_selected(
+        self,
+        *,
+        selected: Sequence[str],
+        allocation_id: str,
+        run_id: str,
+        namespace: str,
+        runtime_settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+        state: Any,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: WorkspaceReader | None = None,
+    ) -> Mapping[str, Any]:
+        del allocation_id, run_id, namespace, runtime_settings, workspace, adapter_handles
+        unavailable = sorted(set(selected) - SHALLOW_TOOLS)
+        if unavailable:
+            raise ValueError(f"unavailable selected code-analysis tools: {', '.join(unavailable)}")
+        if project_workspace is None:
+            raise CodeAnalysisError("workspace_required")
+        metrics = getattr(state, "metrics", None)
+        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
+            raise TypeError("code-analysis@1 requires State.metrics")
+        session = _CodeAnalysisSession(project_workspace)
+        builders = {
+            "list_symbols": lambda: ListSymbolsTool(session, metrics),
+            "search_def": lambda: SearchDefinitionTool(session, metrics),
+        }
+        return {name: builders[name]() for name in selected}
+
+
+@dataclass(slots=True)
+class _Coverage:
+    analyzed_files: int = 0
+    analyzed_bytes: int = 0
+    binary_files: int = 0
+    unsupported_source_files: int = 0
+    oversized_files: int = 0
+    parse_errors: int = 0
+    reasons: set[str] = field(default_factory=set)
+
+    def wire(self) -> dict[str, Any]:
+        return {
+            "analyzedFiles": self.analyzed_files,
+            "analyzedBytes": self.analyzed_bytes,
+            "binaryFiles": self.binary_files,
+            "unsupportedSourceFiles": self.unsupported_source_files,
+            "oversizedFiles": self.oversized_files,
+            "parseErrors": self.parse_errors,
+            "incomplete": bool(self.reasons),
+            "reasons": sorted(self.reasons),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class _Cursor:
+    snapshot: str
+    operation: str
+    query: str
+    offset: int
+
+
+@dataclass(frozen=True, slots=True)
+class _CachedFile:
+    symbols: tuple[SymbolRecord, ...]
+    parse_error: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _ScanStats:
+    cache_hits: int
+    cache_misses: int
+    cache_invalidations: int
+
+
+@dataclass(frozen=True, slots=True)
+class _OperationResult:
+    value: dict[str, Any]
+    metric: dict[str, Any]
+
+
+class _CodeAnalysisSession:
+    def __init__(self, reader: WorkspaceReader) -> None:
+        self._reader = reader
+        self._lock = asyncio.Lock()
+        self._cursor_key = bytearray(secrets.token_bytes(32))
+        self._digest: str | None = None
+        self._file_cache: dict[str, _CachedFile] = {}
+        self._cached_symbols = 0
+        self._parsers: dict[Language, Parser] = {}
+        self._closed = False
+
+    async def close(self) -> None:
+        async with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            self._clear_derived_state()
+            self._digest = None
+            self._cursor_key[:] = b"\x00" * len(self._cursor_key)
+
+    async def search_def(
+        self,
+        symbol: str,
+        path: str,
+        language: str,
+        cursor: str,
+        limit: int,
+    ) -> _OperationResult:
+        normalized_symbol = _query_string(symbol)
+        normalized_path = _path(path)
+        selected_language = _language(language)
+        resolved_limit = _limit(limit)
+        query = _query_digest(
+            {
+                "operation": "search_def",
+                "symbol": normalized_symbol,
+                "path": normalized_path,
+                "language": selected_language.value if selected_language else "",
+            }
+        )
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            offset = (
+                self._cursor_offset(cursor, snapshot.digest, "search_def", query) if cursor else 0
+            )
+            symbols, coverage, stats = await self._scan(
+                snapshot,
+                normalized_path,
+                selected_language,
+                search_symbol=normalized_symbol,
+                cache_invalidations=invalidations,
+            )
+            files = {item.path: item for item in snapshot.files}
+            matches = [item for item in symbols if _symbol_matches(item.name, normalized_symbol)]
+            matches.sort(key=_symbol_sort_key)
+            rows = [_definition_row(item, files[item.path]) for item in matches]
+            value = self._page(
+                rows,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation="search_def",
+                query=query,
+                coverage=coverage,
+            )
+            return _OperationResult(value, _metric(value, coverage, stats))
+
+    async def list_symbols(
+        self,
+        path: str,
+        language: str,
+        node_type: str,
+        cursor: str,
+        limit: int,
+    ) -> _OperationResult:
+        normalized_path = _path(path)
+        selected_language = _language(language)
+        normalized_node_type = _node_type(node_type)
+        resolved_limit = _limit(limit)
+        query = _query_digest(
+            {
+                "operation": "list_symbols",
+                "path": normalized_path,
+                "language": selected_language.value if selected_language else "",
+                "nodeType": normalized_node_type,
+            }
+        )
+        async with self._lock:
+            snapshot, invalidations = await self._begin_call()
+            offset = (
+                self._cursor_offset(cursor, snapshot.digest, "list_symbols", query) if cursor else 0
+            )
+            symbols, coverage, stats = await self._scan(
+                snapshot,
+                normalized_path,
+                selected_language,
+                search_symbol=None,
+                cache_invalidations=invalidations,
+            )
+            if normalized_node_type:
+                symbols = tuple(item for item in symbols if item.node_type == normalized_node_type)
+            rows = [_symbol_row(item) for item in sorted(symbols, key=_symbol_sort_key)]
+            value = self._page(
+                rows,
+                offset=offset,
+                limit=resolved_limit,
+                snapshot=snapshot.digest,
+                operation="list_symbols",
+                query=query,
+                coverage=coverage,
+            )
+            return _OperationResult(value, _metric(value, coverage, stats))
+
+    async def _begin_call(self) -> tuple[WorkspaceSnapshot, int]:
+        if self._closed:
+            raise CodeAnalysisError("code_analysis_closing", retryable=True)
+        try:
+            snapshot = await self._reader.snapshot()
+        except WorkspaceStorageError:
+            raise CodeAnalysisError("code_analysis_engine_failed", retryable=True) from None
+        except Exception:
+            raise CodeAnalysisError("code_analysis_engine_failed", retryable=True) from None
+        invalidations = int(self._digest is not None and self._digest != snapshot.digest)
+        if self._digest != snapshot.digest:
+            self._clear_derived_state()
+            self._digest = snapshot.digest
+        return snapshot, invalidations
+
+    async def _scan(
+        self,
+        snapshot: WorkspaceSnapshot,
+        path: str,
+        selected_language: Language | None,
+        *,
+        search_symbol: str | None,
+        cache_invalidations: int,
+    ) -> tuple[tuple[SymbolRecord, ...], _Coverage, _ScanStats]:
+        if path and not _snapshot_has_path(snapshot, path):
+            raise CodeAnalysisError("code_analysis_input_invalid")
+        coverage = _Coverage(
+            binary_files=sum(1 for item in snapshot.binary_paths if _under_path(item, path))
+        )
+        candidates: list[tuple[WorkspaceTextFile, Language]] = []
+        for item in sorted(snapshot.files, key=lambda value: value.path):
+            if not _under_path(item.path, path):
+                continue
+            language = language_support.detect_language(item.path)
+            if language is None:
+                if language_support.graph_only_source(item.path):
+                    coverage.unsupported_source_files += 1
+                continue
+            if selected_language is not None and language is not selected_language:
+                continue
+            candidates.append((item, language))
+        if len(candidates) > MAX_SOURCE_FILES:
+            candidates = candidates[:MAX_SOURCE_FILES]
+            coverage.reasons.add("file_limit")
+
+        deadline = time.monotonic() + MAX_SCAN_SECONDS
+        needle = _bare_name(search_symbol).casefold() if search_symbol is not None else None
+        symbols: list[SymbolRecord] = []
+        seen_symbols = 0
+        cache_hits = 0
+        cache_misses = 0
+        for item, language in candidates:
+            if time.monotonic() >= deadline:
+                coverage.reasons.add("deadline")
+                break
+            if item.size > MAX_SOURCE_FILE_BYTES:
+                coverage.oversized_files += 1
+                continue
+            if coverage.analyzed_bytes + item.size > MAX_SOURCE_BYTES:
+                coverage.reasons.add("byte_limit")
+                break
+            coverage.analyzed_files += 1
+            coverage.analyzed_bytes += item.size
+            if needle is not None and needle not in item.text.casefold():
+                continue
+            if time.monotonic() >= deadline:
+                coverage.reasons.add("deadline")
+                break
+
+            remaining = MAX_COMPACT_SYMBOLS - seen_symbols
+            parsed, cache_hit = await asyncio.to_thread(
+                self._symbols_for_file,
+                item,
+                language,
+                remaining + 1,
+            )
+            cache_hits += int(cache_hit)
+            cache_misses += int(not cache_hit)
+            coverage.parse_errors += int(parsed.parse_error)
+            if parsed.parse_error:
+                coverage.reasons.add("parse_errors")
+            admitted = parsed.symbols[:remaining]
+            symbols.extend(admitted)
+            seen_symbols += len(admitted)
+            if parsed.symbol_limit_reached or len(parsed.symbols) > remaining:
+                coverage.reasons.add("symbol_limit")
+                break
+
+        return (
+            tuple(symbols),
+            coverage,
+            _ScanStats(cache_hits, cache_misses, cache_invalidations),
+        )
+
+    def _symbols_for_file(
+        self,
+        item: WorkspaceTextFile,
+        language: Language,
+        parse_limit: int,
+    ) -> tuple[language_support.ParseResult, bool]:
+        cached = self._file_cache.get(item.path)
+        if cached is not None:
+            return (
+                language_support.ParseResult(cached.symbols, cached.parse_error, False),
+                True,
+            )
+        try:
+            parser = self._parsers.get(language)
+            if parser is None:
+                parser = language_support.load_parser(language)
+                self._parsers[language] = parser
+            parsed = language_support.parse_symbols(
+                parser,
+                item.text.encode("utf-8"),
+                item.path,
+                language,
+                parse_limit,
+            )
+        except Exception:
+            parsed = language_support.ParseResult((), True, False)
+        if (
+            not parsed.symbol_limit_reached
+            and self._cached_symbols + len(parsed.symbols) <= MAX_COMPACT_SYMBOLS
+        ):
+            self._file_cache[item.path] = _CachedFile(parsed.symbols, parsed.parse_error)
+            self._cached_symbols += len(parsed.symbols)
+        return parsed, False
+
+    def _page(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        offset: int,
+        limit: int,
+        snapshot: str,
+        operation: str,
+        query: str,
+        coverage: _Coverage,
+    ) -> dict[str, Any]:
+        if offset > len(rows):
+            raise CodeAnalysisError("code_analysis_cursor_invalid")
+        page = rows[offset : offset + limit]
+        while True:
+            next_offset = offset + len(page)
+            next_cursor = (
+                self._encode_cursor(snapshot, operation, query, next_offset)
+                if next_offset < len(rows)
+                else None
+            )
+            result = {
+                "items": page,
+                "nextCursor": next_cursor,
+                "truncated": next_cursor is not None,
+                "observedTotal": len(rows),
+                "coverage": coverage.wire(),
+            }
+            if len(jcs.canonicalize(result)) <= MAX_RESULT_BYTES:
+                return result
+            if not page:
+                raise CodeAnalysisError("code_analysis_capacity_exceeded")
+            page = page[:-1]
+
+    def _cursor_offset(
+        self,
+        value: str,
+        snapshot: str,
+        operation: str,
+        query: str,
+    ) -> int:
+        cursor = self._decode_cursor(value)
+        if cursor.operation != operation or cursor.query != query:
+            raise CodeAnalysisError("code_analysis_cursor_invalid")
+        if cursor.snapshot != snapshot:
+            raise CodeAnalysisError("code_analysis_workspace_changed", retryable=True)
+        return cursor.offset
+
+    def _encode_cursor(self, snapshot: str, operation: str, query: str, offset: int) -> str:
+        body = jcs.canonicalize(
+            {"snapshot": snapshot, "operation": operation, "query": query, "offset": offset}
+        )
+        signature = hmac.digest(bytes(self._cursor_key), body, "sha256")
+        return f"{_b64(body)}.{_b64(signature)}"
+
+    def _decode_cursor(self, value: str) -> _Cursor:
+        if not isinstance(value, str) or not value or len(value) > MAX_CURSOR_BYTES:
+            raise CodeAnalysisError("code_analysis_cursor_invalid")
+        try:
+            encoded_body, encoded_signature = value.split(".", 1)
+            body = _unb64(encoded_body)
+            signature = _unb64(encoded_signature)
+            expected = hmac.digest(bytes(self._cursor_key), body, "sha256")
+            if not hmac.compare_digest(signature, expected):
+                raise ValueError
+            document = json.loads(body)
+            if jcs.canonicalize(document) != body or set(document) != {
+                "snapshot",
+                "operation",
+                "query",
+                "offset",
+            }:
+                raise ValueError
+            if (
+                not isinstance(document["snapshot"], str)
+                or not isinstance(document["operation"], str)
+                or not isinstance(document["query"], str)
+                or not isinstance(document["offset"], int)
+                or isinstance(document["offset"], bool)
+                or document["offset"] < 0
+            ):
+                raise ValueError
+            return _Cursor(**document)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            raise CodeAnalysisError("code_analysis_cursor_invalid") from None
+
+    def _clear_derived_state(self) -> None:
+        self._file_cache.clear()
+        self._cached_symbols = 0
+        self._parsers.clear()
+
+
+class _BaseCodeAnalysisTool:
+    name: str
+    description: str
+
+    def __init__(self, session: _CodeAnalysisSession, metrics: ToolMetrics) -> None:
+        self._session = session
+        self._metrics = metrics
+        self.__name__ = self.name
+        self.__doc__ = self.description
+
+    async def close(self) -> None:
+        await self._session.close()
+
+    def _success(self, started_ns: int, result: _OperationResult) -> None:
+        self._metrics.record_tool_call(
+            self.name,
+            arguments={},
+            result=result.metric,
+            duration_ms=_elapsed_ms(started_ns),
+        )
+
+    def _failure(self, started_ns: int, error: Exception) -> None:
+        self._metrics.record_tool_call(
+            self.name,
+            arguments={},
+            error=error,
+            duration_ms=_elapsed_ms(started_ns),
+        )
+
+
+class SearchDefinitionTool(_BaseCodeAnalysisTool):
+    name = "search_def"
+    description = "Find structural symbol definitions in the current project workspace."
+
+    async def __call__(
+        self,
+        symbol: str,
+        path: str = "",
+        language: str = "",
+        cursor: str = "",
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.search_def(symbol, path, language, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+class ListSymbolsTool(_BaseCodeAnalysisTool):
+    name = "list_symbols"
+    description = "List structural symbol definitions in the current project workspace."
+
+    async def __call__(
+        self,
+        path: str = "",
+        language: str = "",
+        node_type: str = "",
+        cursor: str = "",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            result = await self._session.list_symbols(path, language, node_type, cursor, limit)
+            self._success(started_ns, result)
+            return result.value
+        except Exception as error:
+            self._failure(started_ns, error)
+            raise
+
+
+def _metric(value: Mapping[str, Any], coverage: _Coverage, stats: _ScanStats) -> dict[str, Any]:
+    return {
+        "engine": "shallow",
+        "count": len(value["items"]),
+        "truncated": bool(value["truncated"]),
+        "analyzed_files": coverage.analyzed_files,
+        "analyzed_bytes": coverage.analyzed_bytes,
+        "symbols": int(value["observedTotal"]),
+        "binary_files": coverage.binary_files,
+        "unsupported_source_files": coverage.unsupported_source_files,
+        "oversized_files": coverage.oversized_files,
+        "parse_errors": coverage.parse_errors,
+        "cache_hits": stats.cache_hits,
+        "cache_misses": stats.cache_misses,
+        "cache_invalidations": stats.cache_invalidations,
+    }
+
+
+def _query_string(value: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or not value.strip()
+        or len(value) > MAX_QUERY_CHARS
+        or any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)
+    ):
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _path(value: str) -> str:
+    if not isinstance(value, str):
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    try:
+        return normalize_project_path(value, allow_root=True)
+    except ProjectPathError:
+        raise CodeAnalysisError("code_analysis_input_invalid") from None
+
+
+def _language(value: str) -> Language | None:
+    if not isinstance(value, str):
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    if not value:
+        return None
+    try:
+        return Language(value)
+    except ValueError:
+        raise CodeAnalysisError("code_analysis_input_invalid") from None
+
+
+def _node_type(value: str) -> str:
+    if not isinstance(value, str):
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    if not value:
+        return ""
+    if len(value) > MAX_QUERY_CHARS or _NODE_TYPE_PATTERN.fullmatch(value) is None:
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _limit(value: int) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= MAX_PAGE_ITEMS:
+        raise CodeAnalysisError("code_analysis_input_invalid")
+    return value
+
+
+def _snapshot_has_path(snapshot: WorkspaceSnapshot, path: str) -> bool:
+    return (
+        path in snapshot.directories
+        or path in snapshot.binary_paths
+        or any(item.path == path for item in snapshot.files)
+    )
+
+
+def _under_path(candidate: str, root: str) -> bool:
+    return not root or candidate == root or candidate.startswith(root + "/")
+
+
+def _bare_name(value: str | None) -> str:
+    if value is None:
+        return ""
+    return value.replace("::", ".").replace("#", ".").rsplit(".", 1)[-1]
+
+
+def _symbol_matches(extracted: str, query: str) -> bool:
+    return _bare_name(extracted).casefold() == _bare_name(query).casefold()
+
+
+def _symbol_sort_key(item: SymbolRecord) -> tuple[str, int, int, str, str]:
+    return item.path, item.line, item.column, item.name, item.node_type
+
+
+def _symbol_row(item: SymbolRecord) -> dict[str, Any]:
+    return {
+        "name": item.name,
+        "path": item.path,
+        "line": item.line,
+        "endLine": item.end_line,
+        "column": item.column,
+        "nodeType": item.node_type,
+        "language": item.language,
+    }
+
+
+def _definition_row(item: SymbolRecord, file: WorkspaceTextFile) -> dict[str, Any]:
+    row = _symbol_row(item)
+    preview = _preview(file.text, item.start_byte, item.end_byte)
+    if preview:
+        row["preview"] = preview
+    return row
+
+
+def _preview(text: str, start_byte: int, end_byte: int) -> str:
+    source = text.encode("utf-8")
+    selected = source[start_byte:end_byte].decode("utf-8", errors="strict")
+    selected = "\n".join(selected.splitlines()[:MAX_PREVIEW_LINES])
+    encoded = selected.encode("utf-8")
+    if len(encoded) <= MAX_PREVIEW_BYTES:
+        return selected
+    return _utf8_prefix(encoded, MAX_PREVIEW_BYTES)
+
+
+def _utf8_prefix(value: bytes, maximum: int) -> str:
+    return value[:maximum].decode("utf-8", errors="ignore")
+
+
+def _query_digest(document: Mapping[str, Any]) -> str:
+    return "sha256:" + hashlib.sha256(jcs.canonicalize(dict(document))).hexdigest()
+
+
+def _b64(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _unb64(value: str) -> bytes:
+    if not value or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        raise ValueError
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _elapsed_ms(started_ns: int) -> int:
+    return max(0, (time.perf_counter_ns() - started_ns) // 1_000_000)

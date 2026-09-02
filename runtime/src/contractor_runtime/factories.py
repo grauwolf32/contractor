@@ -27,6 +27,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.caido import CaidoToolsetFactory
+from contractor_runtime.toolsets.code_analysis import CodeAnalysisToolsetFactory
 from contractor_runtime.toolsets.edit_files import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http_tools import HTTPToolsetFactory
@@ -171,6 +172,7 @@ def built_in_factories(
     filesystem_toolset = FilesystemToolsetFactory()
     http_toolset = HTTPToolsetFactory(artifact_client_factory)
     caido_toolset = CaidoToolsetFactory(artifact_client_factory)
+    code_analysis_toolset = CodeAnalysisToolsetFactory()
     edit_files_toolset = EditFilesToolsetFactory()
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
@@ -197,6 +199,7 @@ def built_in_factories(
         toolsets={
             artifact_toolset.ref: artifact_toolset,
             caido_toolset.ref: caido_toolset,
+            code_analysis_toolset.ref: code_analysis_toolset,
             edit_files_toolset.ref: edit_files_toolset,
             filesystem_toolset.ref: filesystem_toolset,
             http_toolset.ref: http_toolset,

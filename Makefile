@@ -1,4 +1,4 @@
-.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-hardening test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-http-caido-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
+.PHONY: fmt lint test-go test-runtime test-runtime-hardening test-code-analysis-runtime test-contracts verify-wire-contracts test-wire-cross-language test-memory-contracts test-agent-skill-contract test-agent-skills-matrix test-agent-skills-runtime-hardening test-agent-skills-races test-agent-skills-mvp test-agent-skills-hardening test-migrated-agent-skills test-migrated-agent-skills-analysis test-migrated-agent-skills-live test-shared-memory-matrix test-shared-memory-faults test-shared-memory-hardening test-runtime-wire-v2 test-runtime-principals test-runtime-label-placement test-runtime-configuration-matrix test-runtime-configuration-hardening test-runtime-configuration-e2e test-http-caido-matrix test-http-caido-runtime test-http-caido-architecture test-http-caido-hardening test-config verify-public-api test-postgres test-runtime-config-postgres test-runtime-credentials test-litellm-contract test-mtls test-control-integration test-artifact-integration test-lease-integration test-streamline test-faults test-e2e test-capability-e2e test-runtime-labels-e2e test-shared-memory-e2e test-http-caido-e2e test-project-workflows test-project-workflows-live test-live-routing test-ui-stack ui-install ui-browser-install ui-generate ui-generate-check ui-format ui-lint ui-typecheck ui-test ui-build ui-verify run-local test build verify release-verify
 
 fmt:
 	gofmt -w cmd internal tests
@@ -18,6 +18,9 @@ test-runtime:
 
 test-runtime-hardening:
 	cd runtime && uv run pytest -W error tests
+
+test-code-analysis-runtime:
+	cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py tests/test_capabilities.py
 
 test-contracts:
 	go test ./internal/contracts/...

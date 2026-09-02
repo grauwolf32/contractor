@@ -21,7 +21,7 @@ from contractor_runtime.factories import (
 )
 from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.state import RuntimeState
-from contractor_runtime.toolsets import likec4, openapi
+from contractor_runtime.toolsets import code_analysis_languages, likec4, openapi
 from contractor_runtime.toolsets.code_analysis import (
     CODE_ANALYSIS_REF,
     EXPORTED_TOOLS,
@@ -48,13 +48,10 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
         ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
         for ref, factory in factories.items()
     }
-    expected = dict(fixture["toolsets"])
-    assert expected.pop(CODE_ANALYSIS_REF) == {}
-    assert actual == expected
-    assert CODE_ANALYSIS_REF not in factories
+    assert actual == fixture["toolsets"]
 
 
-def test_code_analysis_static_contract_is_exact_but_not_advertised_yet(
+def test_code_analysis_static_contract_and_shallow_factory_are_exact(
     tmp_path: Path,
 ) -> None:
     assert {"list_symbols", "search_def"} == SHALLOW_TOOLS
@@ -71,7 +68,11 @@ def test_code_analysis_static_contract_is_exact_but_not_advertised_yet(
     } == GRAPH_TOOLS
     assert EXPORTED_TOOLS == SHALLOW_TOOLS | GRAPH_TOOLS
     assert dependency_versions_match()
-    assert CODE_ANALYSIS_REF not in built_in_factories(tmp_path).toolsets
+    factory = built_in_factories(tmp_path).toolsets[CODE_ANALYSIS_REF]
+    assert factory.exported_tools == EXPORTED_TOOLS
+    assert factory.infrastructure_channels == {}
+    assert factory.requires_workspace is True  # type: ignore[attr-defined]
+    assert factory.workspace_access == "read"  # type: ignore[attr-defined]
 
 
 def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
@@ -100,6 +101,7 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         )
         assert snapshot.workspace is None
         toolsets = {item.ref: item.tools for item in snapshot.toolsets}
+        assert CODE_ANALYSIS_REF not in toolsets
         assert "write_likec4" in toolsets["likec4@1"]
         assert "validate_likec4" not in toolsets["likec4@1"]
         assert "upsert_openapi_path" in toolsets["openapi@1"]
@@ -140,6 +142,8 @@ def test_workspace_capability_is_probed_frozen_and_registered(
         assert snapshot.workspace.storage == storage
         assert snapshot.workspace.modes == ("direct", "overlay")
         assert snapshot.workspace.limits.max_files == 123
+        toolsets = {item.ref: item.tools for item in snapshot.toolsets}
+        assert toolsets[CODE_ANALYSIS_REF] == ("list_symbols", "search_def")
 
         registration = await RuntimeState(
             instance_id=f"workspace-{storage}", capabilities=snapshot
@@ -151,6 +155,33 @@ def test_workspace_capability_is_probed_frozen_and_registered(
         assert str(tmp_path / "project-workspaces") not in registration.model_dump_json(
             by_alias=True
         )
+
+    asyncio.run(scenario())
+
+
+def test_broken_code_analysis_parser_probe_omits_only_that_toolset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(code_analysis_languages, "probe_all_parsers", lambda: False)
+
+    async def scenario() -> None:
+        factories = built_in_factories(
+            tmp_path / "sandbox",
+            workspace_settings=WorkspaceSettings(
+                storage="memory",
+                limits=WorkspaceLimits(
+                    max_files=100,
+                    max_expanded_bytes=4096,
+                    max_managed_text_bytes=2048,
+                    max_file_bytes=1024,
+                ),
+            ),
+        )
+        snapshot = await discover_capabilities(factories)
+        toolsets = {item.ref: item.tools for item in snapshot.toolsets}
+        assert CODE_ANALYSIS_REF not in toolsets
+        assert "filesystem@1" in toolsets
 
     asyncio.run(scenario())
 
