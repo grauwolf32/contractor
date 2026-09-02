@@ -311,8 +311,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V15-001
-  next_task: V15-002
+  completed_through: V15-002
+  next_task: V15-003
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -358,7 +358,10 @@ current_checkpoint:
     V15-001 added the exact code-analysis@1 Server descriptor, strict workspace
     publication rule and pinned parser/Trailmark dependency contract while
     deliberately keeping the unimplemented Toolset out of Runtime capability
-    registration. V15-002 is the next workspace code-analysis task.
+    registration. V15-002 added the portable 19-language Tree-sitter shallow
+    surface with signed pagination, exact-snapshot cache invalidation, bounded
+    coverage and content-free metrics on local/memory direct/overlay
+    workspaces. V15-003 is the next workspace code-analysis task.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"

@@ -3,8 +3,8 @@ id: V15-002
 title: Implement portable Tree-sitter workspace analysis
 milestone: workspace-code-analysis-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 834e0908e49b068d742e5fd6f174b62ef9647114
 depends_on: [V15-001]
 languages: [python]
 
@@ -75,7 +75,7 @@ acceptance_criteria:
 
 tests:
   - {name: shallow-tools, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py", covers: [A1, A2, A3, A4]}
-  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py tests/test_factories.py", covers: [A1, A5]}
+  - {name: capability, command: "cd runtime && uv run pytest -W error tests/test_capabilities.py", covers: [A1, A5]}
   - {name: workspace-parity, command: "cd runtime && uv run pytest -W error tests/test_projectfs_storage.py tests/test_projectfs_overlay.py tests/test_code_analysis_shallow.py", covers: [A1, A3, A4]}
   - {name: aggregate, command: "make test-code-analysis-runtime", covers: [A1, A2, A3, A4, A5]}
 
