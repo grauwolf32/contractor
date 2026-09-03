@@ -771,8 +771,9 @@ resolves the Workflow defaults plus the request's reference-only
 exact LLMGatewayConfig and the pinned credential from the trusted
 Server secret store, then delivers their values over the private mTLS control
 channel. When executionConfig deliberately omits the Worker Gateway, Control
-Plane may instead complete it from pinned Run labels or allocation-time Agent
-labels; those higher infrastructure layers may also override an explicitly
+Plane may instead complete it from pinned Run-selected Runtime labels or
+allocation-time Agent Runtime labels; those higher infrastructure layers may
+also override an explicitly
 selected physical route without changing ModelPolicy. The exact merge, adapter
 and secret lifecycle rules are owned by
 [07](07-runtime-labels-and-infrastructure-config.md). `LLM Gateway` is the

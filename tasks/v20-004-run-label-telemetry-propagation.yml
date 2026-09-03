@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V20-004
+title: Propagate Run metadata labels into Planner and Worker traces
+milestone: run-metadata-labels
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V20-002, V8-014, V17-001]
+languages: [go, python, json, yaml]
+
+goal: >-
+  Correlate Planner and Worker traces with immutable Run/eval metadata while
+  keeping labels out of model context, ADK State, tools, semantic results,
+  configuration resolution and metric dimensions.
+
+context:
+  server_boundary: >-
+    Planner execution already runs on Server and reads the authoritative Run.
+    It attaches metadata labels only to its invocation root trace. Control
+    Plane copies the same bounded map into every AllocationSpec as the required
+    explicit runMetadataLabels object.
+  runtime_boundary: >-
+    Runtime validates runMetadataLabels before Worker construction and gives an
+    immutable copy only to allocation telemetry. Worker/allocation invocation
+    root spans use contractor.run.label.<key> attributes; model/tool child spans
+    inherit trace correlation without requiring the map on every metric/event.
+  cardinality: >-
+    eval.id, eval.case and run_id are high-cardinality. They are permitted on
+    traces but never automatically become Prometheus/OTel metric dimensions or
+    process-wide Resource attributes.
+
+scope:
+  in:
+    - Add mandatory runMetadataLabels to Go/Python AllocationSpec DTOs, authoritative JSON Schema and valid/hostile cross-language fixtures; empty Runs send an explicit empty object.
+    - Copy the immutable map from WorkflowRun through Scheduler requirements and Control Plane reservations without using it for candidate matching or RuntimeConfig resolution.
+    - Include the complete map in reservation/allocation replay fingerprinting so a telemetry-misattributed altered replay fails before Worker construction.
+    - Attach namespaced attributes to Planner invocation root traces from the Server-owned Run value, never from model or Runtime reports.
+    - Give allocation telemetry adapters a deep immutable metadata copy and attach it to Worker/allocation invocation root spans only.
+    - Preserve dots in validated keys after the contractor.run.label. prefix so eval.id and eval.leg remain directly queryable in OTLP/Langfuse-compatible backends.
+    - Prove labels are absent from WorkerBuildContext model instructions, StageContentRequest, ADK session State, tool arguments, artifacts, WorkerCompletion and semantic result text.
+    - Keep exporter delivery bounded and best-effort; failed label export cannot fail a Stage or delay release.
+    - Add content/cardinality assertions showing no metadata-label keys are registered as metric dimensions or Runtime process Resource attributes.
+  out:
+    - Exporter-specific eval dashboards, an LLM judge, Server-side metrics aggregation, prompt templating from labels or label-driven Worker behavior.
+
+deliverables:
+  - {path: internal/contracts, description: Strict AllocationSpec runMetadataLabels wire contract.}
+  - {path: api/v1alpha1, description: Shared required empty/non-empty and hostile label-map fixtures.}
+  - {path: internal/scheduler, description: Authoritative Run-to-allocation propagation and Planner trace attributes.}
+  - {path: internal/controlplane, description: Replay-bound opaque label forwarding with no placement semantics.}
+  - {path: runtime/src/contractor_runtime, description: Strict decode and telemetry-only immutable label projection.}
+  - {path: internal/telemetry, description: Bounded Planner trace attribute helper with no metric dimensions.}
+
+requirements:
+  - {id: R1, text: Server and Runtime emit exactly the immutable labels stored on the Run and no participant can overwrite them from an execution report.}
+  - {id: R2, text: Labels reach telemetry only and cannot affect model-visible or semantic execution inputs.}
+  - {id: R3, text: Empty/non-empty maps are strict replay identity while telemetry failure remains outcome-neutral and deadline-bounded.}
+  - {id: R4, text: High-cardinality metadata is never a metric dimension or process-wide Runtime Resource attribute.}
+
+acceptance_criteria:
+  - id: A1
+    given: A labeled streamline Run using Server and Runtime OTLP capture endpoints.
+    when: Planner and Worker each complete an invocation.
+    then: Their root traces contain exact purpose/eval.id/eval.leg/eval.case attributes correlated to the Run, with no duplicate or altered values.
+  - id: A2
+    given: The same AgentTemplate and task are run once labeled and once unlabeled against a recording deterministic Gateway.
+    when: Model requests, State, tool inputs and completions are compared.
+    then: They are semantically identical apart from ordinary generated IDs/timing, and no label key or value appears in model-visible payloads.
+  - id: A3
+    given: Missing, malformed, over-limit or replay-mismatched runMetadataLabels on the private prepare path.
+    when: Runtime receives AllocationSpec.
+    then: Preparation fails closed before workspace/Worker creation and the slot remains safely reusable.
+  - id: A4
+    given: A slow, unavailable or rejecting telemetry collector.
+    when: Labeled Planner/Worker execution finalizes and releases.
+    then: Existing telemetry bounds apply, semantic outcome is unchanged, cleanup completes and no high-cardinality metric series is created.
+
+tests:
+  - {name: wire, command: "make verify-wire-contracts && make test-wire-cross-language", covers: [A3]}
+  - {name: go, command: "go test -race ./internal/scheduler/... ./internal/controlplane/... ./internal/telemetry/...", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_allocation.py tests/test_otlp_adapter.py tests/test_adk_runtime.py", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Runtime receives the map because Worker traces originate there, but it
+    treats labels as opaque telemetry baggage rather than infrastructure or
+    Worker configuration.
+  - >-
+    Root-span attributes provide backend filtering without multiplying every
+    metrics time series or exposing labels to the model loop.

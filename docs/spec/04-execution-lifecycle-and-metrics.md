@@ -436,6 +436,12 @@ cannot claim or replace them. Endpoint credentials and resolved secret-bearing
 RuntimeSettings remain absent. The owning pinning and merge contract is
 [07](07-runtime-labels-and-infrastructure-config.md).
 
+The envelope may additionally copy the WorkflowRun's immutable metadata labels
+as trusted correlation metadata under [16](16-run-metadata-labels.md). These
+labels describe the Run, are not accepted from Runtime reports and are not
+metric dimensions. Planner and Worker trace exporters may attach the bounded
+map without exposing it to either model.
+
 ### Meaning and capture rules
 
 - `complete` describes report completeness, not execution success.

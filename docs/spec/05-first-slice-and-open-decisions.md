@@ -317,8 +317,9 @@ Workflow graph, Planner/Worker or artifact semantics. It must demonstrate:
   transaction and survives later rebinding;
 - Runtime registration reports immutable `otlp-http@1` and `http-proxy@1`
   adapter capabilities after bounded local probes;
-- Control Plane overlays pinned Run labels on the default and allocation-time
-  Agent labels on both, rejects same-layer typed conflicts, performs complete
+- Control Plane overlays pinned Run-selected Runtime labels on the default and
+  allocation-time Agent Runtime labels on both, rejects same-layer typed
+  conflicts, performs complete
   capability placement and sends no unresolved label string as Runtime
   behavior;
 - a `debug` Run emits content-free bounded Worker telemetry to its pinned OTLP
@@ -331,7 +332,7 @@ Workflow graph, Planner/Worker or artifact semantics. It must demonstrate:
   restart, affects the next defined resolution boundary and leaves an active
   allocation unchanged;
 - Operations/API/UI create and inspect safe config versions/bindings, assign
-  Agent labels, select Run labels and never return credentials;
+  Agent Runtime labels, select Run Runtime labels and never return credentials;
 - a process-level end-to-end test proves old/new binding pinning, heterogeneous
   adapter placement, secret redaction, bounded exporter failure and complete
   release/slot reuse.

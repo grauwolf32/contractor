@@ -61,8 +61,8 @@ RuntimeConfig gains one atomic Worker field:
 
 The field follows existing atomic label merge rules. A higher layer replaces
 the complete value or clears it with JSON `null`; fields from two configs are
-never mixed. Default plus Run labels are resolved first and immutable Runtime
-Agent labels remain the highest layer.
+never mixed. Default plus Run-selected Runtime labels are resolved first and
+immutable Runtime Agent labels remain the highest layer.
 
 `endpoint` is an absolute `http` or `https` origin without userinfo, query or
 fragment. Runtime appends exactly `/graphql`; a deployment may include a fixed

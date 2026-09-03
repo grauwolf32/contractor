@@ -528,7 +528,7 @@ It also contains no LLM Gateway token or other RuntimeSettings secret.
 
 ```text
 Workflow Scheduler selects a ready Stage and resolves its AgentTemplates
-  -> Control Plane resolves pinned default/Run labels plus candidate Agent labels
+  -> Control Plane resolves pinned default/Run-selected Runtime labels plus candidate Agent Runtime labels
   -> Control Plane matches every template/adapter requirement against frozen capability snapshots
   -> Control Plane atomically selects a complete set of free Runtime Agents
   -> Runtime Agents reserve their slots and accept AllocationSpecs

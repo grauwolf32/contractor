@@ -92,6 +92,26 @@ fixed_decisions:
       One generic adk@1 Worker keeps allocation-owned Runner/resources. Isolated
       uses one lazily created session per invocation with bounded State but no
       event carry; shared lazily creates and reuses one session until release.
+  run_metadata_labels:
+    public_contract: >-
+      The former top-level labels infrastructure-selector array is renamed
+      runtimeLabels in one strict Server/UI cutover. labels becomes an
+      independent bounded string map describing one concrete WorkflowRun.
+    lifecycle: >-
+      Metadata labels are immutable, owner-scoped, included in the Run-create
+      idempotency digest and stored atomically with the Run. They never affect
+      Workflow semantics, scheduling, placement, authorization, budgets,
+      RuntimeConfig resolution, tools or artifacts.
+    observability: >-
+      Server propagates the bounded map to Planner root traces and through
+      AllocationSpec to Worker root traces. Runtime treats it as opaque
+      telemetry metadata, never model/State/tool input or high-cardinality
+      metric dimensions.
+    evaluation: >-
+      purpose=eval plus eval.name/id/leg/fixture/case/sample is a client-owned
+      convention. One sample is one ordinary isolated WorkflowRun and exact
+      conjunctive Run-list filters recover its eval group without an eval-only
+      Scheduler path.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -351,6 +371,13 @@ milestones:
       Every Stage pins isolated-by-default or explicit shared Worker-session
       semantics into its allocations, with conversation isolation, bounded
       allocation-local State handoff and cancellation-safe cleanup.
+  - id: run-metadata-labels
+    exit_task: V20-006
+    outcome: >-
+      Every WorkflowRun may carry immutable queryable metadata labels that
+      correlate eval groups and A/B legs across public API, UI and
+      Planner/Worker traces without affecting execution or RuntimeConfig
+      selection.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-02"
@@ -1325,6 +1352,76 @@ planning_review:
       time and spend, but policy tuning across larger repositories needs a
       broader future evaluation matrix.
 
+run_metadata_labels_planning_review:
+  reviewed_on: "2026-09-04"
+  verdict: ready_to_implement_in_dependency_order
+  agreed_contract:
+    - >-
+      Existing Run infrastructure selectors move from labels to runtimeLabels
+      in a hard lockstep cutover with no type-based compatibility alias.
+    - >-
+      WorkflowRun metadata labels are a maximum-32 immutable string map,
+      atomically durable, owner-scoped and part of canonical idempotency.
+    - >-
+      Exact repeated selectors use AND semantics; rich selector languages and
+      post-create mutation are deferred.
+    - >-
+      Planner and Worker root traces receive the labels, but prompts, ADK
+      State, tools, results, RuntimeConfig, placement and metric dimensions do
+      not.
+    - >-
+      purpose=eval and eval.name/id/leg/fixture/case/sample are a client-owned
+      convention. Each sample remains one ordinary WorkflowRun.
+  dependency_review:
+    - >-
+      V20-001 first frees the public labels name while leaving all V8
+      infrastructure semantics and durable snapshots untouched.
+    - >-
+      V20-002 owns strict validation, idempotent atomic persistence and read
+      models; V20-003 adds only indexed list selection on that durable base.
+    - >-
+      V20-004 independently extends the strict private wire and telemetry after
+      storage exists. V20-005 consumes only the completed public create/query
+      API. V20-006 joins both paths in one production-process release gate.
+    - >-
+      The graph is acyclic and does not depend on unfinished V19 because Run
+      metadata neither observes nor changes Worker session mode.
+  review_findings:
+    - >-
+      Runtime and metadata labels must remain different domain types even
+      though both are attached during Run creation; otherwise eval metadata
+      could accidentally enter infrastructure merge or capability placement.
+    - >-
+      Labels repeat on create/list/detail but not every lifecycle event. Events
+      retain runId correlation, avoiding bounded-but-multiplicative stream
+      payload growth.
+    - >-
+      Runtime uses per-execution span attributes rather than process Resource
+      attributes because one long-lived process serves different labeled Runs.
+    - >-
+      Normalized relational storage plus an exact key/value index supports
+      owner/state/cursor conjunctions without scanning JSON for all historical
+      Runs.
+    - >-
+      The end-to-end gate is eval-substrate verification, not the eval runner;
+      suite definitions, scoring, pass@N aggregation and result envelopes are a
+      later separately planned increment.
+  accepted_risks:
+    - >-
+      The public field rename intentionally invalidates old request bodies and
+      pre-cutover browser drafts. A drained lockstep upgrade is acceptable at
+      the current pre-stable API stage.
+    - >-
+      Metadata values are declared telemetry-visible safe strings. Server
+      cannot reliably detect a secret pasted by a caller and does not promise
+      to redact an already accepted arbitrary value.
+    - >-
+      Version 1 cannot add or correct a label after Run creation; a caller must
+      create a new Run, preserving experimental provenance.
+    - >-
+      Exact AND filtering is deliberately less expressive than Kubernetes-like
+      selectors, but covers eval grouping while keeping query cost bounded.
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}
@@ -1474,3 +1571,9 @@ tasks:
   - {id: V18-002, file: v18-002-terminal-worker-summarizer.yml}
   - {id: V18-003, file: v18-003-worker-summarizer-release-gate.yml}
   - {id: V19-001, file: v19-001-worker-session-modes.yml}
+  - {id: V20-001, file: v20-001-runtime-label-api-rename.yml}
+  - {id: V20-002, file: v20-002-run-metadata-label-storage.yml}
+  - {id: V20-003, file: v20-003-run-metadata-label-query.yml}
+  - {id: V20-004, file: v20-004-run-label-telemetry-propagation.yml}
+  - {id: V20-005, file: v20-005-run-metadata-label-ui.yml}
+  - {id: V20-006, file: v20-006-run-metadata-label-release-gate.yml}

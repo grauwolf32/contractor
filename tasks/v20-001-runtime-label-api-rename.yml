@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V20-001
+title: Rename Run-selected infrastructure labels to runtimeLabels
+milestone: run-metadata-labels
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V8-015]
+languages: [go, typescript, yaml, json]
+
+goal: >-
+  Free the public labels field for ordinary WorkflowRun metadata by atomically
+  renaming the existing Run-selected RuntimeConfig label array to
+  runtimeLabels across Server, generated contracts, UI and tests.
+
+context:
+  collision: >-
+    The current POST /v1/runs labels array selects infrastructure bindings such
+    as debug and caido. V20 introduces an unrelated key/value metadata map for
+    grouping Runs. Overloading one JSON field by value type would make OpenAPI,
+    client validation and operator language ambiguous.
+  cutover: >-
+    This is a strict lockstep contract cutover. The old labels array is not an
+    alias and is rejected once the new Server is deployed. Server, bundled UI
+    and automation examples update together; deployments drain active clients
+    before replacement. Existing durable RuntimeConfig snapshots and database
+    runtime_labels columns keep their meaning and do not require data rewrite.
+
+scope:
+  in:
+    - Rename only the top-level Run-create and Run read-model infrastructure array from labels to runtimeLabels in the committed public OpenAPI document.
+    - Update Go request/response DTOs, normalization, canonical request projection, errors and API tests while retaining the existing internal RuntimeLabels domain name and exact pinning behavior.
+    - Update generated TypeScript types, API adapters, Run drafts, Runtime-label picker, detail views, fixtures and browser tests to submit/read runtimeLabels.
+    - Keep nested RuntimeConfiguration provenance label collections and Operations label-binding/Runtime-Agent label APIs unchanged where their resource context is already unambiguous.
+    - Reject the legacy top-level labels array rather than accepting two spellings, silently interpreting by JSON type or copying values between domains.
+    - Document the lockstep upgrade boundary and clear any in-memory browser draft/idempotency state created against the old request shape on reload.
+    - Add a repository assertion that no public top-level WorkflowRun infrastructure selector remains named labels.
+  out:
+    - WorkflowRun metadata-label storage, label filtering, AllocationSpec propagation, telemetry attributes, eval orchestration or changes to RuntimeConfig merge semantics.
+
+deliverables:
+  - {path: api/openapi/contractor-public-v1.yaml, description: Unambiguous runtimeLabels Run request and response fields.}
+  - {path: internal/httpapi/public, description: Strict renamed DTOs and unchanged infrastructure pinning semantics.}
+  - {path: ui/src/api/generated/public.ts, description: Regenerated public client types.}
+  - {path: ui/src/routes/workflows/run-form.tsx, description: Renamed Runtime-label selection request.}
+  - {path: ui/src/routes/runs, description: Renamed Runtime-label read projections.}
+  - {path: docs, description: Lockstep public-contract upgrade note and reviewed terminology.}
+
+requirements:
+  - {id: R1, text: runtimeLabels remains a sorted unique bounded array with the exact V8 default/pinning/idempotency semantics.}
+  - {id: R2, text: No decoder accepts a top-level labels array after cutover, and type-based overloading is forbidden.}
+  - {id: R3, text: The rename neither mutates old Run snapshots nor changes allocation-time Agent Runtime labels.}
+
+acceptance_criteria:
+  - id: A1
+    given: A valid Run request selecting debug and caido.
+    when: It uses runtimeLabels and is replayed with the same idempotency key.
+    then: One Run pins the same exact RuntimeConfig snapshots as before and exact replay returns it without resolving mutable bindings again.
+  - id: A2
+    given: The equivalent request uses the former top-level labels array.
+    when: Server decodes it after the lockstep cutover.
+    then: It returns a bounded 400 unknown/type error and creates no Run or artifact fork.
+  - id: A3
+    given: The separately built UI selects zero or several active Runtime labels.
+    when: Its canonical draft is submitted and the Run pages are refreshed.
+    then: Requests and read models use only runtimeLabels while pinned default/Run/Agent configuration provenance remains unchanged.
+  - id: A4
+    given: Public OpenAPI and generated client artifacts.
+    when: Contract verification runs.
+    then: No top-level WorkflowRun labels array exists and unrelated label-binding fields retain their established schemas.
+
+tests:
+  - {name: public-contract, command: "make verify-public-api", covers: [A1, A2, A4]}
+  - {name: server, command: "go test -race ./internal/httpapi/public/... ./internal/runstore/... ./internal/runtimeconfig/...", covers: [A1, A2, A4]}
+  - {name: ui, command: "cd ui && corepack pnpm typecheck && corepack pnpm test --run && corepack pnpm build", covers: [A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    The public break is intentional and happens before metadata labels are
+    introduced. A temporary release where labels is absent is buildable and
+    simpler than a union-typed compatibility field.
+  - >-
+    This renames API vocabulary, not infrastructure persistence or provenance;
+    internal names that already say RuntimeLabels remain accurate.

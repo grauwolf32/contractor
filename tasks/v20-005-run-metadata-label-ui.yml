@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V20-005
+title: Add Run metadata label authoring and filtering to the UI
+milestone: run-metadata-labels
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V20-003]
+languages: [typescript, html, css]
+
+goal: >-
+  Let a user attach bounded immutable metadata labels to one Run and recover
+  eval groups and A/B legs from the standalone frontend without confusing them
+  with infrastructure Runtime-label selection.
+
+context:
+  separation: >-
+    Runtime labels remain a checkbox/config-preview section backed by
+    runtimeLabels. Metadata labels are a generic string key/value editor backed
+    by labels. The UI calls the same public API as automation and never invents
+    a browser-only tag store.
+  eval_convention: >-
+    The UI may offer shortcuts for purpose=eval, eval.name, eval.id and eval.leg,
+    but submits an ordinary generic map. Server remains unaware of eval
+    semantics. eval.fixture/case/sample values remain editable/visible when
+    supplied by automation.
+  immutability: >-
+    Labels are editable only before Run creation. Detail pages describe them as
+    immutable and telemetry-visible. Changing any draft pair changes the
+    canonical request identity and therefore obtains a fresh idempotency key.
+
+scope:
+  in:
+    - Regenerate public types and extend the canonical Run draft with deterministic metadata-label ordering independent of sorted runtimeLabels.
+    - Add an accessible bounded key/value editor with add/remove, duplicate/reserved/shape/count/value validation matching Server rules and an explicit no-secrets warning.
+    - Keep infrastructure Runtime labels in their existing separate fieldset and rename all ambiguous user-facing copy to Runtime labels or Run metadata labels.
+    - Render complete immutable metadata-label chips/table on Run create response, list and detail while retaining pinned RuntimeConfiguration in its own panel.
+    - Add exact label filters to the Runs page, serialize repeated label query parameters safely and combine them with current state/cursor filters.
+    - Add convenient eval name/id/leg inputs or presets that populate the same generic exact selectors without hiding their resulting pairs.
+    - Reset pagination when any selector changes and retain the active filter set across next-page navigation/refetch.
+    - Ensure WebSocket notifications remain refetch hints keyed by runId; events do not need to duplicate labels.
+    - Add responsive accessible component tests, API adapter tests and browser coverage for ordinary, eval A/B and invalid drafts.
+  out:
+    - Post-creation label mutation, saved filter collections, eval scoring/report UI, OR/regex query builders, RuntimeConfig creation changes or authorization from labels.
+
+deliverables:
+  - {path: ui/src/run-drafts, description: Canonical independent runtimeLabels array and metadata labels map.}
+  - {path: ui/src/routes/workflows/run-form.tsx, description: Bounded metadata key/value authoring and no-secrets guidance.}
+  - {path: ui/src/routes/runs, description: Immutable display plus exact conjunctive filters and eval shortcuts.}
+  - {path: ui/src/api/runs.ts, description: Repeated encoded label-selector transport.}
+  - {path: ui/e2e, description: Browser Run creation/filter/detail separation proof.}
+
+requirements:
+  - {id: R1, text: UI always presents runtimeLabels and labels as different concepts and request fields.}
+  - {id: R2, text: Client validation is helpful but Server responses remain authoritative and are decoded defensively.}
+  - {id: R3, text: Label draft changes never reuse an idempotency key derived for different metadata.}
+  - {id: R4, text: Labels never enter URLs except explicit percent-encoded list filters and are never placed in browser secret storage.}
+
+acceptance_criteria:
+  - id: A1
+    given: A user selects debug Runtime configuration and adds eval metadata labels.
+    when: They review and submit the Run form.
+    then: runtimeLabels contains debug, labels contains only the key/value map, the canonical draft is stable across key-entry order and the resulting detail displays both in separate sections.
+  - id: A2
+    given: Duplicate, malformed, reserved, empty, overlong or over-count metadata inputs.
+    when: The user attempts submission.
+    then: Accessible field errors identify the exact problem and no request is sent; a hostile Server response still fails closed.
+  - id: A3
+    given: Runs for legs a and b share one eval.id among unrelated Runs.
+    when: The Runs page filters by eval.id and optionally eval.leg while paging/refetching.
+    then: It shows exactly the expected group/leg, preserves selectors and never conflates labels with Runtime configuration chips.
+  - id: A4
+    given: A submitted draft is edited by changing one metadata-label value after a response-loss state.
+    when: It is submitted again.
+    then: The unchanged exact retry can reuse its key, while the changed draft receives a new idempotency key.
+
+tests:
+  - {name: unit, command: "cd ui && corepack pnpm typecheck && corepack pnpm test --run", covers: [A1, A2, A3, A4]}
+  - {name: build, command: "cd ui && corepack pnpm build", covers: [A1, A3]}
+  - {name: browser, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-ui-stack", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Eval shortcuts are UI affordances over generic labels, never another API
+    resource or a hard-coded Scheduler mode.

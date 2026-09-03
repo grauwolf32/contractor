@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V20-003
+title: Add exact owner-scoped Run label filtering
+milestone: run-metadata-labels
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V20-002]
+languages: [go, sql, yaml]
+
+goal: >-
+  Let API clients recover all Runs belonging to an eval invocation or another
+  metadata group through bounded indexed exact-match conjunctions that compose
+  with existing state and keyset pagination.
+
+context:
+  query_contract: >-
+    GET /v1/runs accepts a repeated label=key=value parameter. The first equals
+    sign separates the validated key from the opaque decoded value; remaining
+    equals signs belong to the value. At most 32 selectors are accepted and all
+    distinct selectors are combined with logical AND.
+  normalization: >-
+    Repeated identical pairs deduplicate. Two different values required for
+    the same key form a valid but unsatisfiable conjunction and return an empty
+    page without broadening the query. Version 1 has no OR, existence,
+    inequality, prefix, regex or set grammar.
+  pagination: >-
+    Filtering remains owner-scoped and composes with optional Run state plus
+    the existing newest-first createdAt/runId keyset cursor. Joining several
+    label rows must not duplicate Runs or alter cursor stability.
+
+scope:
+  in:
+    - Extend the public OpenAPI listRuns query with repeatable exact label selectors and documented URL encoding.
+    - Parse and validate selector count, first-equals shape and the same key/value bounds used at creation; reject empty/malformed selectors and unsupported syntax.
+    - Extend ListRunsParams with a deterministic immutable selector collection independent of RuntimeLabels.
+    - Implement relational-division/EXISTS semantics using the exact metadata-label index, owner predicate and existing state/cursor limits without loading all historical Runs.
+    - Load each selected Run's complete label map in the bounded list projection without N+1 queries or one output row per matched label.
+    - Preserve stable pagination under concurrent insertion and prove a foreign owner's matching labels never affect counts, cursors or returned values.
+    - Add API client support for repeated selectors while leaving an unfiltered call byte-compatible apart from the newly present labels map.
+  out:
+    - Full-text search, OR groups, mutable saved searches, server-side eval aggregation, result scoring or queue ordering.
+
+deliverables:
+  - {path: internal/runstore/types.go, description: Bounded exact metadata-label selector query value.}
+  - {path: internal/runstore/store.go, description: Indexed owner/state/cursor conjunctive filtering.}
+  - {path: internal/httpapi/public/run_handlers.go, description: Strict repeated-selector parsing and error mapping.}
+  - {path: api/openapi/contractor-public-v1.yaml, description: Repeatable label query contract.}
+  - {path: ui/src/api/runs.ts, description: Typed exact-selector transport for later UI use.}
+
+requirements:
+  - {id: R1, text: Every selector must match the same Run; matching different Runs or different owners cannot satisfy a conjunction.}
+  - {id: R2, text: Query cost is bounded by selector/page limits and index-backed database work rather than total Run history deserialization.}
+  - {id: R3, text: Existing state and keyset cursor semantics remain authoritative and stable.}
+
+acceptance_criteria:
+  - id: A1
+    given: A/B Runs sharing purpose=eval and eval.id but carrying different eval.leg values among unrelated Runs.
+    when: The owner filters by eval.id alone and then by eval.id plus each leg.
+    then: The first query returns the complete eval group and each conjunction returns only its exact leg in stable newest-first order.
+  - id: A2
+    given: More matching Runs than one page and concurrent newer Run creation.
+    when: Every page is followed through its existing cursor.
+    then: No pre-existing matching Run is duplicated or skipped and non-matching labels do not alter cursor behavior.
+  - id: A3
+    given: Identical duplicates, contradictory same-key values, malformed keys/values, missing equals and more than 32 selectors.
+    when: The endpoint is queried.
+    then: Duplicates normalize, contradictions return an empty page, and malformed or over-limit requests return bounded 400 responses without querying broadly.
+  - id: A4
+    given: Two owners use the same eval.id and case labels.
+    when: Each lists Runs through bearer and browser-session authentication.
+    then: Each sees only its own complete label maps and pagination reveals no foreign identity or count.
+
+tests:
+  - {name: query-unit, command: "go test -race ./internal/httpapi/public/... ./internal/runstore/...", covers: [A1, A2, A3, A4]}
+  - {name: postgres-query, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -count=1 ./internal/runstore/...", covers: [A1, A2, A4]}
+  - {name: contract, command: "make verify-public-api", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    Exact AND filtering is sufficient for eval grouping and keeps query cost,
+    indexing and public syntax reviewable. Rich selector languages remain a
+    later API version.

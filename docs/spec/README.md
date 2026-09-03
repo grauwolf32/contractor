@@ -39,7 +39,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
 | [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility and published execution configuration selection |
-| [07](07-runtime-labels-and-infrastructure-config.md) | Run/Agent labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
+| [07](07-runtime-labels-and-infrastructure-config.md) | Run-selected/Agent Runtime labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
 | [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
 | [09](09-agent-skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
 | [10](10-runtime-filesystems-and-edit-tools.md) | Run-artifact workspaces, Runtime local/memory storage, overlay export and filesystem/Edit tools |
@@ -48,6 +48,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [13](13-taint-annotations.md) | Structured, atomic `@trace`/`@validate`/`@sink` workspace annotations |
 | [14](14-worker-results-and-live-state.md) | Typed Worker results, deterministic observations, volatile Worker State and explicit Planner projections |
 | [15](15-worker-summarization.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
+| [16](16-run-metadata-labels.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -60,7 +61,7 @@ Workflow
   -> Workflow Scheduler validates immutable parameters and forks exact UserScope inputs and selected owner skills into RunArtifactSpace
   -> selects a ready Stage
   -> resolve its AgentTemplate bindings
-  -> Control Plane resolves pinned default/Run labels plus Agent labels and prepares compatible Worker allocations
+  -> Control Plane resolves pinned default/Run-selected Runtime labels plus Agent Runtime labels and prepares compatible Worker allocations
   -> PlannerFactory creates the selected Stage-local Planner
   -> Planner tools talk through WorkerInvoker/A2A to allocated Runtime Agents acting as Workers
   -> Runtime validates one typed semantic Worker result and attaches deterministic observations
@@ -93,6 +94,7 @@ The boundaries are deliberately narrow:
 | Control Plane | Capacity and allocation lifecycle |
 | Runtime Agent | One process and one slot: control client, A2A Server and one in-process Worker runtime while allocated |
 | Runtime label | Control Plane alias selecting an immutable typed infrastructure config for a Run or Runtime Agent |
+| Run metadata label | Immutable queryable key/value metadata that groups Runs without changing execution |
 | Runtime adapter | Allocation-scoped Runtime code configured by Control Plane without adding model-visible tools |
 | ArtifactStore | One physical artifact service, registry and blob boundary |
 | Agent Skill | Owner UserScope guidance artifact selected by AgentTemplate and pinned/forked per Run |

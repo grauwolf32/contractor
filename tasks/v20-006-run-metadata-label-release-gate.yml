@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V20-006
+title: Prove Run metadata label isolation and eval correlation end to end
+milestone: run-metadata-labels
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V20-004, V20-005]
+languages: [go, python, typescript, sql, yaml]
+
+goal: >-
+  Close the Run metadata-label increment with a production-process eval A/B
+  scenario, hostile boundary matrix and retained-data review proving that
+  labels remain searchable telemetry metadata and never execution control.
+
+context:
+  process_boundary: >-
+    The gate uses real PostgreSQL migrations, Go Server/Scheduler/Control Plane,
+    mTLS, a Python Runtime Agent, deterministic recording model/OTLP endpoints
+    and the public API. It does not instantiate Worker or Planner classes
+    in-process and does not add an eval-only Scheduler path.
+  scenario: >-
+    Prepare one exact source Artifact revision, then create at least two fresh
+    WorkflowRuns sharing purpose=eval, eval.name, eval.id, fixture and case but
+    using eval.leg=a/b and distinct sample values. At least one Run also selects
+    a real debug runtimeLabels binding so both label domains cross the same
+    request without collision.
+  retained_surfaces: >-
+    Database rows, public responses, events, logs, execution reports, Worker
+    State, artifacts, Gateway recordings and telemetry captures are reviewed
+    for exact provenance, absence of model injection and absence of secrets.
+
+scope:
+  in:
+    - Add a named hardening matrix mapping every metadata-label invariant and failure boundary to executable tests; fail if referenced tests disappear.
+    - Add a PostgreSQL/mTLS process test that creates unlabeled plus A/B-labeled Runs, executes them through ordinary scheduling and verifies identical capability/placement semantics.
+    - Query the complete eval.id group and each leg through owner/state/cursor filters and prove a second owner cannot observe labels or infer match counts.
+    - Capture Planner and Worker root spans and assert exact metadata attributes while the deterministic Gateway proves label keys/values never enter model requests.
+    - Prove runtimeLabels still pins debug infrastructure independently and metadata labels never appear in RuntimeConfig merge inputs or capability requirements.
+    - Exercise exact idempotency replay, changed-label conflict, all malformed/boundary cases, private AllocationSpec mismatch, exporter failure, cancellation, release and same-slot reuse.
+    - Verify ordinary Runs with an empty map retain their prior API, execution and bounded-output behavior apart from the explicit new read field.
+    - Scan retained logs/errors/events/reports/State/artifacts for injected canary label secrets and document that accepted labels are telemetry-visible rather than secret-redacted.
+    - Add Make targets and include the matrix/process gate in release-verify; run a final cross-document and public/private schema review.
+  out:
+    - A general eval runner, eval result envelope/scorers, Server queue concurrency, Langfuse dashboard provisioning, mutable tags or production retention policy implementation.
+
+deliverables:
+  - {path: tests/e2e/run_metadata_labels_matrix_test.go, description: Executable invariant and hostile-case ownership matrix.}
+  - {path: tests/e2e/run_metadata_labels_process_test.go, description: Real public-to-Runtime A/B label and telemetry scenario.}
+  - {path: Makefile, description: Focused metadata-label process/hardening/release targets.}
+  - {path: docs/spec, description: Final terminology, lifecycle, observability and UI consistency review.}
+  - {path: docs/development.md, description: Lockstep cutover and focused verification commands.}
+
+requirements:
+  - {id: R1, text: Labeled and unlabeled Runs use the same production lifecycle; only durable discovery/read models and trace attributes differ.}
+  - {id: R2, text: Both label domains coexist without type/name collision or cross-domain behavior.}
+  - {id: R3, text: Every malformed, replay, owner-isolation and telemetry failure remains bounded and leaves execution/slot ownership unambiguous.}
+  - {id: R4, text: Every completed task records its full last implementation commit and the release gate is reproducible from a clean checkout.}
+
+acceptance_criteria:
+  - id: A1
+    given: A single eval.id containing A/B samples over one exact source revision.
+    when: All Runs finish through the real stack and are queried by group and leg.
+    then: Every Run is independently isolated, filters return the correct stable sets, results retain exact Workflow/input provenance and no eval-specific execution branch exists.
+  - id: A2
+    given: debug is selected through runtimeLabels while eval.* pairs are supplied through labels.
+    when: Planner/Worker traces and effective Runtime configuration are inspected.
+    then: Debug config controls telemetry infrastructure, eval pairs annotate both trace roots, and neither domain changes the other's validation or provenance.
+  - id: A3
+    given: Hostile public/private label shapes, response-loss replay, owner collision, telemetry failure and cancellation.
+    when: The complete matrix executes.
+    then: Failure codes, transaction rollback, private fail-closed behavior, release recovery and slot reuse match the specification with no leaked foreign labels or canary secret.
+  - id: A4
+    given: The repository after the increment.
+    when: Public/private schemas, task graph, docs links, LikeC4 and release verification run.
+    then: Contracts are consistent, all tests are indexed, the graph is acyclic and no legacy top-level Run labels array remains.
+
+tests:
+  - {name: matrix, command: "go test -count=1 ./tests/e2e -run '^TestRunMetadataLabelsHardeningMatrixIsComplete$'", covers: [A3, A4]}
+  - {name: process, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-run-metadata-labels-e2e", covers: [A1, A2, A3]}
+  - {name: ui-stack, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-ui-stack", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make release-verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    This gate proves the substrate needed by a future eval runner but does not
+    implement suite orchestration or scoring; each sample is already an
+    ordinary production WorkflowRun.

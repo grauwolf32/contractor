@@ -127,8 +127,11 @@ The first useful user surface supports:
 - selecting published ModelPolicy, LLMGatewayConfig and credential refs when a
   Run execution override is desired, and showing any Workflow-pinned
   ExecutionConfig escalation profiles;
-- selecting zero or more active Runtime labels such as `debug` or `caido` for
+- selecting zero or more active `runtimeLabels` such as `debug` or `caido` for
   the concrete Run and showing their exact pinned RuntimeConfig refs;
+- attaching bounded immutable key/value metadata labels to a Run, displaying
+  them separately from Runtime configuration and filtering Runs by exact label
+  conjunctions;
 - creating an idempotent WorkflowRun and cancelling a non-terminal Run;
 - listing Runs and showing their durable lifecycle;
 - showing ordered Stages, attempts, retry/escalation decisions, effective
@@ -604,7 +607,8 @@ Runtime Agent label assignments under the contract in
 [07](07-runtime-labels-and-infrastructure-config.md). These resources are not
 part of the six YAML configuration subtrees and have no disabled state.
 
-The Run form submits only label names. The successful Run response and detail
+The Run form submits Runtime label names only through `runtimeLabels`. The
+successful Run response and detail
 surface show the exact pinned binding revision, RuntimeConfig ref/digest and
 safe adapter refs. They never expose resolved secret headers, proxy passwords,
 tokens or allocation RuntimeSettings. Rebinding a label uses an idempotency key
@@ -622,6 +626,19 @@ Startup labels seed only an unseen certificate-derived principal, so the UI has
 one set to explain rather than separate declared/managed/effective views. A
 busy agent retains its active allocation snapshot; the page makes clear that
 the changed labels apply to a future allocation.
+
+## WorkflowRun metadata labels
+
+Run-create, list and detail expose the separate immutable `labels` map owned by
+[16](16-run-metadata-labels.md). Its key/value editor and exact filters never
+share controls with RuntimeConfig selection. Conventional `eval.*` shortcuts
+are presentation over the generic label query and do not create an eval-only
+Server execution path.
+
+Planner and Worker traces may carry these labels as bounded attributes. The UI
+therefore treats their values as telemetry-visible safe metadata and warns
+against secrets. It does not use labels as authorization, scheduling or Run
+success signals.
 
 ## API boundary
 

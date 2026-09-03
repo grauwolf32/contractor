@@ -32,9 +32,9 @@ complete allocation-scoped `RuntimeSettings` snapshot.
 This boundary deliberately keeps infrastructure knowledge on the Server:
 
 ```text
-Agent labels + pinned Run labels
+Agent Runtime labels + pinned Run-selected Runtime labels
   -> Control Plane starts with the pinned default RuntimeConfig
-  -> resolves exact Run-label and Agent-label RuntimeConfig versions
+  -> resolves exact Run-selected and Agent RuntimeConfig versions
   -> validates and merges typed non-secret settings
   -> selects a Runtime Agent supporting the required adapter versions
   -> resolves referenced secrets just in time
@@ -53,11 +53,11 @@ to behavior.
 
 | Concept | Meaning |
 |---|---|
-| Runtime label | A bounded name such as `debug` or `caido` selected on a Run or assigned to a Runtime Agent |
+| Runtime label | A bounded name such as `debug` or `caido` selected through `runtimeLabels` on a Run or assigned to a Runtime Agent |
 | Default binding | The reserved `default` binding used as the base for every Run, including a Run with no labels |
 | RuntimeConfig | One immutable versioned typed non-secret infrastructure configuration stored by Server |
 | Label binding | The mutable, revisioned Control Plane pointer from one label to one exact RuntimeConfig version |
-| Run label snapshot | Exact label-binding/config versions pinned when the WorkflowRun is created |
+| Run Runtime-label snapshot | Exact label-binding/config versions pinned when the WorkflowRun is created |
 | Agent label set | The authoritative durable labels assigned to one stable Runtime Agent principal |
 | ResolvedRuntimeConfig | The merged, non-secret, exact configuration and provenance for one consumer/allocation |
 | RuntimeSettings | The secret-bearing wire snapshot created for one allocation after placement |
@@ -68,8 +68,10 @@ The model has one label set on each subject. It has no `declaredLabels`,
 only seed a previously unseen Runtime Agent principal; after that first
 registration the Control Plane database is authoritative.
 
-Labels are configuration selection, not authorization roles, scheduling
-scores, arbitrary user tags or Workflow graph conditions. All valid Runtime
+Runtime labels are configuration selection, not authorization roles,
+scheduling scores, arbitrary user tags or Workflow graph conditions.
+Independent immutable WorkflowRun metadata labels are owned by
+[16](16-run-metadata-labels.md). All valid Runtime
 Agent certificates have the same Runtime role eligibility under [02]; access
 to one allocation's settings, A2A route and Artifact scope remains bound to
 that allocation's authenticated principal and instance grant.
@@ -403,22 +405,23 @@ therefore belong to one atomic `spec.worker.caido` RuntimeConfig field under
 [11](11-http-and-caido-tools.md). A label can retarget that client, but cannot
 make `caido@1` model-visible when AgentTemplate omitted it.
 
-## Run labels and pinning
+## Runtime labels selected by a Run
 
-`POST /v1/runs` accepts one optional top-level array:
+`POST /v1/runs` accepts one optional top-level `runtimeLabels` array:
 
 ```json
-{"workflow":"likec4-from-source@1","labels":["caido","debug"],"parameters":{},"artifacts":{}}
+{"workflow":"likec4-from-source@1","runtimeLabels":["caido","debug"],"labels":{"purpose":"eval"},"parameters":{},"artifacts":{}}
 ```
 
-Run labels are immutable. During Run creation Server first pins the `default`
-binding and then resolves every selected label binding to its exact
+Run-selected Runtime labels are immutable. During Run creation Server first
+pins the `default` binding and then resolves every selected label binding to its exact
 RuntimeConfig ref. It validates the Run-level configuration, pins every
 binding revision/config digest and non-secret credential ref, and stores that
 snapshot in the same transaction as the Run. The canonical idempotency digest
-includes the sorted explicit label list; the pinned default is a resolved
-dependency rather than caller input. Exact replay returns the existing Run
-before consulting current bindings, including `default`.
+includes the sorted explicit `runtimeLabels` list independently of the
+metadata-label map defined by [16]; the pinned default is a resolved dependency
+rather than caller input. Exact replay returns the existing Run before
+consulting current bindings, including `default`.
 
 Run creation locks the default and selected binding rows in lexical order in
 the same PostgreSQL transaction that stores the Run snapshot. Binding rebind
@@ -435,26 +438,26 @@ Rebinding `debug` after Run creation has these effects:
 - an active allocation is unchanged;
 - no Workflow, AgentTemplate or Runtime Agent restart is required.
 
-The Server applies the pinned default plus Run-label `planner.telemetry`
-settings to Planner invocations, with a Run-label block replacing the default
+The Server applies the pinned default plus Run-selected Runtime-label
+`planner.telemetry` settings to Planner invocations, with that block replacing the default
 block. Agent labels can never configure Planner, because Planner runs in Server
 and no physical Worker placement is part of its model-client contract.
 
-Workflow definitions carry no runtime labels in `v1alpha1`. A caller chooses
-labels for one concrete Run. If a future product needs Workflow-recommended
-labels, that requires an explicit default/override contract rather than making
+Workflow definitions carry no Runtime labels in `v1alpha1`. A caller chooses
+`runtimeLabels` for one concrete Run. If a future product needs
+Workflow-recommended Runtime labels, that requires an explicit default/override contract rather than making
 an infrastructure alias part of Workflow semantics.
 
 ## Resolution and merge rules
 
-Run-label settings are resolved and pinned at Run creation. Agent-label
+Run-selected Runtime-label settings are resolved and pinned at Run creation. Agent-label
 settings are read at allocation time because the physical principal is selected
 only then. Control Plane builds a candidate configuration in explicit layers;
 a higher layer replaces only the typed leaves it supplies:
 
 1. the exact `default` RuntimeConfig pinned by the Run;
 2. the Workflow's resolved Worker executionConfig defaults;
-3. all exact RuntimeConfigs pinned by the Run's explicit labels;
+3. all exact RuntimeConfigs pinned by the Run's explicit `runtimeLabels`;
 4. the Run-request executionConfig override;
 5. the already pinned escalation executionConfig patch for an escalated
    attempt, when present;
@@ -500,11 +503,11 @@ principal even when the Run did not select the same label. Thus an Agent-wide
 not enable Planner telemetry because Agent labels consume only `spec.worker`.
 
 There is no ordering or hidden priority among multiple labels within the same
-Run-label layer or within the same Agent-label layer. Same-layer configurations
+Run-selected Runtime-label layer or within the same Agent-label layer. Same-layer configurations
 may populate different merge units. The same exact normalized value in one
 unit deduplicates. Different same-layer values in one unit are a deterministic
 `runtime_config_conflict`; lexicographic label order never chooses a winner.
-An Agent label replacing a Run-label/default value is not a conflict because
+An Agent label replacing a Run-selected Runtime-label/default value is not a conflict because
 the cross-layer precedence is explicit. Diagnostics report only safe paths and
 label/config refs, not endpoint userinfo, headers or secret values.
 
@@ -513,7 +516,7 @@ Planner model access. Its Worker Gateway/credential fields participate only in
 the explicit infrastructure layers above, so an Agent label may override those
 physical connection settings but cannot change the selected model policy. Run
 initialization may store an incomplete optional Worker Gateway route; each
-placement candidate must complete it from the default, pinned Run labels,
+placement candidate must complete it from the default, pinned Run-selected Runtime labels,
 executionConfig and that principal's Agent labels. Model-backed Planner routes
 remain complete and pinned at Run creation.
 
@@ -541,7 +544,7 @@ state. For example an Agent `direct-network` config may clear an inherited
 `worker.httpProxy` because the Agent layer has higher priority; removing the
 label on the next allocation restores the lower Run/default block.
 
-A conflict between explicit Run labels rejects Run creation. A malformed or
+A conflict between explicit Run-selected Runtime labels rejects Run creation. A malformed or
 conflicting Agent label set is rejected by the label-assignment mutation. A
 same-layer Agent conflict cannot be hidden by a lower Run/default value.
 Cross-layer replacement follows the precedence above and is valid. Operations
@@ -553,7 +556,7 @@ configuration or adapter requirements.
 Agent labels may change while the process is busy, but allocation resolution
 has one durable linearization point before any Runtime prepare request. Control
 Plane first reads candidate principal label-set revisions and the current
-binding revisions for those Agent labels; default/Run-label refs already come
+binding revisions for those Agent labels; default/Run-selected Runtime-label refs already come
 from the immutable Run snapshot. It then computes a complete compatible
 matching. After reserving the complete slot set in memory, it locks the relevant
 Agent-label binding rows in lexical order and selected principal rows by
@@ -576,7 +579,7 @@ contains:
 
 ```text
 ResolvedRuntimeConfigProvenance
-  sorted Run labels and pinned binding revisions
+  sorted Run-selected Runtime labels and pinned binding revisions
   pinned default binding revision
   sorted Agent labels and allocation-time binding revisions
   exact RuntimeConfig refs and digests
@@ -640,7 +643,7 @@ They do not contact an OTLP endpoint, proxy, LLM Gateway or credential service.
 The snapshot remains immutable for `instance_id`; changing adapter code or
 local dependencies requires a Runtime Agent restart.
 
-For each candidate slot, Control Plane first resolves Run plus Agent labels and
+For each candidate slot, Control Plane first resolves Run-selected plus Agent Runtime labels and
 derives the required adapter set. Capability-aware placement from [02] then
 requires set containment in addition to the AgentTemplate's runtime, sandbox
 and selected Toolset tools. Extra adapter capabilities do not activate an
@@ -659,7 +662,7 @@ The failure mapping is deterministic:
 
 | Failure | Boundary result |
 |---|---|
-| Unknown label, Run-label conflict or invalid referenced config at Run creation | Public validation/conflict error; no Run is created |
+| Unknown Runtime label, Run-selected Runtime-label conflict or invalid referenced config at Run creation | Public validation/conflict error; no Run is created |
 | Agent-label conflict or non-Agent-applicable assignment | Operations mutation is rejected atomically |
 | Label/binding revision changes during reservation | Unprepared batch is released and placement retries the same StageExecution |
 | No live candidate supports the resolved adapter set | Temporary insufficient compatible capacity; Stage remains `preparing` until its existing deadline/cancellation bound |
@@ -843,8 +846,9 @@ and stores that MAC only in the internal idempotency record. Same key/body
 returns the original safe result; same key with different body conflicts. The
 MAC is never returned, logged or used as a credential.
 
-`POST /v1/runs` adds `labels`, a sorted-unique array in the canonical request;
-responses expose both explicit labels and the pinned default/label config refs.
+`POST /v1/runs` adds `runtimeLabels`, a sorted-unique array in the canonical
+request; responses expose both explicit Runtime labels and the pinned
+default/label config refs. The independent `labels` map belongs to [16].
 Run detail exposes final Agent-label/config provenance only after an allocation
 snapshot commits. The public `StageAttempt.runtimeConfiguration` is omitted
 before that boundary. Once present, its per-logical-Worker entries contain
@@ -862,10 +866,10 @@ errors. Error bodies remain bounded and secret-free.
 
 1. Runtime Agent never interprets a label name or stores deployment topology.
 2. One label binding always names one exact immutable RuntimeConfig version.
-3. Default and Run labels are pinned at Run creation; Agent labels are resolved
+3. Default and Run-selected Runtime labels are pinned at Run creation; Agent labels are resolved
    at allocation; an active RuntimeSettings snapshot never mutates.
 4. Multiple labels in the same layer conflict on different values for one
-   merge unit; Agent-label units explicitly override Run-label/default units.
+   merge unit; Agent-label units explicitly override Run-selected Runtime-label/default units.
 5. ExecutionConfig alone selects ModelPolicy and budgets. Labels can affect
    physical Worker connection settings but never those semantic limits.
 6. Labels configure adapters and already selected tools; they never add a
