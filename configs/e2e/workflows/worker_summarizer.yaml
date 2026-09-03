@@ -1,0 +1,58 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: worker-summarizer
+  version: "1"
+
+spec:
+  parameters:
+    mode:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: summarize
+  stages:
+    summarize:
+      objective: Exercise the deterministic terminal Worker summarizer boundary
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: summarizer_enabled_worker@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          result:
+            required: true
+            mediaTypes: [text/plain]
+            from: {namespace: builder, name: result}
+      workflowOutputs:
+        result: result
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

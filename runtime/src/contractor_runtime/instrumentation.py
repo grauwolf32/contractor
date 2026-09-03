@@ -23,6 +23,7 @@ from contractor_runtime.observations import (
     WorkspaceObservationSource,
     WorkspaceToolObservation,
 )
+from contractor_runtime.token_usage import project_token_usage
 from contractor_runtime.worker_state import InvocationPhase, WorkerStateStore
 
 _SAFE_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
@@ -68,25 +69,18 @@ class InvocationMetricsReducer:
         self.model_calls = _saturating_add(self.model_calls, 1)
 
     def record_model_usage(self, usage: Any | None) -> None:
-        prompt = getattr(usage, "prompt_token_count", None) if usage is not None else None
-        self.latest_prompt_tokens = prompt if isinstance(prompt, int) and prompt >= 0 else None
-        if usage is None:
+        projected = project_token_usage(usage)
+        self.latest_prompt_tokens = projected.prompt_tokens
+        if projected.total_unavailable:
             self.token_usage_unavailable = _saturating_add(self.token_usage_unavailable, 1)
-            return
-        observed = False
-        for attribute, field_name in (
-            ("prompt_token_count", "input_tokens"),
-            ("candidates_token_count", "output_tokens"),
-            ("total_token_count", "total_tokens"),
-            ("cached_content_token_count", "cached_input_tokens"),
+        for value, field_name in (
+            (projected.prompt_tokens, "input_tokens"),
+            (projected.output_tokens, "output_tokens"),
+            (projected.total_tokens, "total_tokens"),
+            (projected.cached_input_tokens, "cached_input_tokens"),
         ):
-            value = getattr(usage, attribute, None)
-            if isinstance(value, int) and value >= 0:
+            if value is not None:
                 setattr(self, field_name, _saturating_add(getattr(self, field_name), value))
-                if attribute == "total_token_count":
-                    observed = True
-        if not observed:
-            self.token_usage_unavailable = _saturating_add(self.token_usage_unavailable, 1)
 
     def record_model_error(self) -> None:
         self.model_errors = _saturating_add(self.model_errors, 1)

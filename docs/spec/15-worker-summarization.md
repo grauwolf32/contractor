@@ -90,11 +90,16 @@ It does not describe model context capacity and does not replace the normal
 Worker policy's hard cumulative `maxTotalTokens`.
 
 Missing provider usage never invents a token estimate and therefore cannot
-trigger the affected rule. The context rule observes the last completed
-provider prompt, not an exact tokenization of the prospective prompt after new
-tool results. Its ratio and output reserve are a deterministic pre-emptive
-boundary, not a guarantee that every provider will accept the next request.
-Independent model/tool/hard-token budgets remain mandatory.
+trigger the affected rule. A zero-valued total produced by an adapter for an
+omitted provider `usage` object is also unavailable. Non-negative counters are
+internally inconsistent when `prompt + completion > total` or cached input
+exceeds prompt input; Runtime drops that response's token counters closed,
+increments `tokenUsageUnavailable`, and lets independent model/tool-call
+limits continue to bound execution. The context rule observes the last
+completed valid provider prompt, not an exact tokenization of the prospective
+prompt after new tool results. Its ratio and output reserve are a deterministic
+pre-emptive boundary, not a guarantee that every provider will accept the next
+request. Independent model/tool/hard-token budgets remain mandatory.
 
 The trigger is checked at a safe boundary:
 

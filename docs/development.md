@@ -2,7 +2,7 @@
 
 ## Implementation checkpoint
 
-As of 2026-09-01, implementation tasks through `V8-016` are complete. The
+As of 2026-09-03, implementation tasks through `V18-003` are complete. The
 repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 
 - durable Run cancellation and bounded `aborting` cleanup;
@@ -76,6 +76,10 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
   replay, PostgreSQL/CAS races, mTLS impersonation, adapter/lease/release
   failures, secret retention, browser operation and reuse of two disjoint
   specialist Runtime slots.
+- an optional fixed `terminal@1` Worker summarizer with separate one-call
+  ModelPolicy/accounting, cumulative and derived context-window triggers,
+  bounded redacted transcript projection, safe cancellation/failure behavior,
+  normalized provider usage, and a real PostgreSQL/mTLS release gate.
 
 The first-slice and initial project-workflow milestones are complete. The
 authoritative checkpoint is
@@ -664,6 +668,26 @@ CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-gateway-token' \
 CONTRACTOR_LIVE_LLM_MODEL='worker-model' \
   uv run pytest tests/test_live_gateway.py
 ```
+
+The same opt-in module can evaluate the fixed `terminal@1` summarizer contract
+against LM Studio through LiteLLM. This is a dialect/quality check, not a
+release dependency:
+
+```shell
+cd runtime
+CONTRACTOR_LIVE_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-gateway-token' \
+CONTRACTOR_LIVE_LLM_MODEL='qwen/qwen3.8-27b' \
+  uv run pytest -v tests/test_live_gateway.py \
+    -k live_terminal_summarizer_returns_one_strict_worker_result
+```
+
+A pass means the Gateway/model accepts ADK structured output, preserves the
+exact subtask ID and returns one non-empty `WorkerModelResult` in one logical
+call. Provider usage may either be present or be explicitly counted as
+unavailable. Schema rejection, free text, a changed subtask ID, a second call,
+or a Gateway timeout is a failed evaluation. The deterministic release proof
+remains `make test-worker-summarizer-e2e`; it never contacts LM Studio.
 
 ## Manual local stack
 

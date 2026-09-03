@@ -1,0 +1,124 @@
+schema_version: "1.0"
+
+policy:
+  strategy: >-
+    terminal@1 is an optional one-shot terminal strategy. It never resumes the
+    normal Worker loop and is never inferred for an AgentTemplate that omits it.
+  accounting: >-
+    Normal Worker and summarizer usage are independently bounded and reported;
+    one logical call cannot hide provider retries.
+  retention: >-
+    The bounded redacted transcript exists only for the live summarizer request.
+    State, reports, logs and durable execution records retain only typed results
+    and content-free counters.
+
+cases:
+  - id: production_boundaries_and_reuse
+    category: process
+    acceptance: [A1, A2, A3, A4]
+    faults: [F01, F02]
+    expected: Real PostgreSQL mTLS Server and Runtime processes prove cumulative/context triggers, disabled and normal-final paths, safe failures, cancellation, retention and slot reuse.
+    test: {source: tests/e2e/worker_summarizer_test.go, symbol: TestWorkerSummarizerProductionBoundaries}
+  - id: safe_soft_trigger_boundary
+    category: trigger
+    acceptance: [A1]
+    faults: [F03]
+    expected: Cumulative and context thresholds unwind only after the selected tool finishes and permit exactly one terminal summary.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary}
+  - id: valid_normal_result_wins
+    category: result
+    acceptance: [A2]
+    faults: [F04]
+    expected: A valid normal Worker result at a soft boundary is returned unchanged and starts no summarizer.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_keeps_a_valid_normal_result_at_the_soft_boundary}
+  - id: missing_provider_usage
+    category: usage
+    acceptance: [A2]
+    faults: [F05]
+    expected: Missing provider usage is counted but cannot be guessed into a token-based summary trigger.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_does_not_guess_missing_usage_for_summarization}
+  - id: inconsistent_provider_usage
+    category: usage
+    acceptance: [A2, A3]
+    faults: []
+    expected: Contradictory prompt, completion and total counters are marked unavailable and cannot cause a false soft trigger.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_does_not_trigger_from_inconsistent_provider_usage}
+  - id: invalid_summary_result
+    category: result
+    acceptance: [A3]
+    faults: [F06]
+    expected: Invalid structured summary output produces one safe retryable failure and never starts a repair or normal-loop retry.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure}
+  - id: provider_timeout
+    category: isolation
+    acceptance: [A3, A4]
+    faults: [F07]
+    expected: A secret-bearing provider timeout collapses to one bounded gateway_unavailable summary failure.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure}
+  - id: independent_summary_budget
+    category: usage
+    acceptance: [A3]
+    faults: [F08]
+    expected: Reported usage above the summarizer policy total budget fails after its sole call without changing normal Worker accounting.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_terminal_summarizer_enforces_its_independent_total_budget}
+  - id: cancellation_during_summary
+    category: lifecycle
+    acceptance: [A3]
+    faults: [F09]
+    expected: Abort cancels an in-flight terminal summary and records exactly one cancelled attempt.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_abort_cancels_terminal_summarizer_and_records_one_failed_attempt}
+  - id: lifecycle_does_not_invent_work
+    category: lifecycle
+    acceptance: [A2, A3]
+    faults: [F10]
+    expected: Finalize and abort of an idle Worker never start either a normal model call or a summarizer call.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_finalize_and_abort_never_start_an_idle_terminal_summarizer}
+  - id: transcript_grouping_and_redaction
+    category: retention
+    acceptance: [A4]
+    faults: [F11, F12]
+    expected: Only complete model-visible call/response groups survive; thought, credential and host-path values are removed.
+    test: {source: runtime/tests/test_worker_summarizer.py, symbol: test_transcript_keeps_only_complete_groups_and_redacts_forbidden_values}
+  - id: transcript_size_and_recency
+    category: retention
+    acceptance: [A4]
+    faults: [F13]
+    expected: The summary document is at most 512 KiB and retains the newest complete groups in chronological order.
+    test: {source: runtime/tests/test_worker_summarizer.py, symbol: test_summarizer_document_is_bounded_and_prefers_newest_complete_groups}
+  - id: immutable_configuration_digest
+    category: configuration
+    acceptance: [A1, A2]
+    faults: [F14]
+    expected: Exact summary policy and normalized thresholds participate in immutable AgentTemplate resolution and digesting.
+    test: {source: internal/config/summarizer_test.go, symbol: TestWorkerSummarizerDigestCoversExactPolicyAndThresholds}
+  - id: strict_allocation_wire
+    category: configuration
+    acceptance: [A2, A4]
+    faults: [F15]
+    expected: Allocation validation rejects missing bounds, invalid thresholds, tool budgets and non-one-shot summary policies.
+    test: {source: internal/contracts/contracts_test.go, symbol: TestAllocationSpecRequiresValidWorkerSummarizer}
+  - id: no_hidden_gateway_retry
+    category: isolation
+    acceptance: [A1, A3]
+    faults: [F16]
+    expected: Gateway construction disables provider-library retries so one policy call is one physical request.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_gateway_model_disables_hidden_provider_retries}
+  - id: closed_state_and_metrics
+    category: usage
+    acceptance: [A1, A4]
+    faults: []
+    expected: Worker State and terminal report expose one closed summary phase and bounded usage aggregate without content.
+    test: {source: runtime/tests/test_worker_state.py, symbol: test_state_records_one_closed_terminal_summarizer_attempt}
+  - id: matrix_self_validation
+    category: validation
+    acceptance: [A4]
+    faults: []
+    expected: Strict validation rejects missing acceptance, fault, category, owner and release-gate coverage.
+    test: {source: tests/e2e/worker_summarizer_matrix_test.go, symbol: TestWorkerSummarizerHardeningMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-worker-summarizer-matrix}
+  - {id: runtime, command: make test-worker-summarizer-runtime}
+  - {id: hardening, command: make test-worker-summarizer-hardening}
+  - {id: e2e, command: make test-worker-summarizer-e2e}
+  - {id: release, command: make release-verify}

@@ -1,0 +1,59 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: worker-summarizer-context
+  version: "1"
+
+spec:
+  parameters:
+    mode:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    result:
+      required: true
+      mediaTypes: [text/plain]
+
+  executionConfig:
+    workers:
+      modelPolicy: summarizer_context_worker@1
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: summarize
+  stages:
+    summarize:
+      objective: Exercise the derived context-window terminal summarizer boundary
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: summarizer_enabled_worker@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          result:
+            required: true
+            mediaTypes: [text/plain]
+            from: {namespace: builder, name: result}
+      workflowOutputs:
+        result: result
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

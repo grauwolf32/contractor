@@ -23,6 +23,7 @@ from contractor_runtime.adk_runtime import (
     AdkWorkerRuntimeFactory,
     GatewayLiteLlm,
     GatewayModelError,
+    gateway_model,
 )
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
@@ -1021,6 +1022,53 @@ def test_adk_worker_does_not_guess_missing_usage_for_summarization(tmp_path: Pat
     asyncio.run(scenario())
 
 
+def test_adk_worker_does_not_trigger_from_inconsistent_provider_usage(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        first = tool_call("probe", {}, call_id="inconsistent-usage-probe")
+        assert first.usage_metadata is not None
+        first.usage_metadata.prompt_token_count = 7168
+        first.usage_metadata.candidates_token_count = 3
+        first.usage_metadata.total_token_count = 100
+        state = WorkerState()
+        normal_model = scripted_model([first, model_result("Completed normally")])
+        summary_model = scripted_model([model_result("Must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            max_output_tokens=1024,
+            context_window_tokens=8192,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.summarized is False
+        assert len(normal_model.requests) == 2
+        assert summary_model.requests == []
+        snapshot = await state.snapshot()
+        invocation = snapshot["lastCompletedInvocation"]
+        assert invocation["metrics"]["totalTokens"] == 10
+        assert invocation["metrics"]["tokenUsageUnavailable"] == 1
+        assert invocation["summarizer"]["phase"] == "not_requested"
+        budget = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.worker_budget
+        assert budget is not None
+        assert budget.observed_total_tokens == 10
+        assert budget.token_usage_unavailable == 1
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
 def test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure(
     tmp_path: Path,
 ) -> None:
@@ -1060,6 +1108,121 @@ def test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure(
         assert report_summary.failed == 1
         assert report_summary.failure_codes == {"result_invalid": 1}
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
+    tmp_path: Path,
+) -> None:
+    class TimeoutSummaryModel(LiteLlm):
+        async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
+            del stream
+            if False:
+                yield None
+            raise GatewayModelError("TimeoutError")
+
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="timeout-probe")])
+        summary_model = TimeoutSummaryModel(
+            model="openai/worker-summary-model",
+            api_base="https://gateway.invalid/v1",
+            api_key=SECRET,
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.attempts == 1
+        assert summary.failed == 1
+        assert summary.model_calls == 1
+        assert summary.token_usage_unavailable == 1
+        assert summary.failure_codes == {"gateway_unavailable": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_terminal_summarizer_enforces_its_independent_total_budget(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="budget-probe")])
+        summary_response = model_result("Summary beyond its own budget")
+        assert summary_response.usage_metadata is not None
+        summary_response.usage_metadata.total_token_count = 11
+        summary_model = scripted_model([summary_response], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            summary_max_total_tokens=10,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.model_calls == 1
+        assert summary.total_tokens == 11
+        assert summary.failure_codes == {"budget_exhausted": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_finalize_and_abort_never_start_an_idle_terminal_summarizer(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        for index, operation in enumerate(("finalize", "abort")):
+            normal_model = scripted_model([])
+            summary_model = scripted_model(
+                [model_result("Must not run")], model="worker-summary-model"
+            )
+            runtime = await create_runtime(
+                tmp_path / operation,
+                WorkerState(),
+                {},
+                normal_model,
+                summary_model=summary_model,
+                cumulative_budget=10,
+            )
+            deadline = datetime.now(UTC) + timedelta(seconds=1)
+            if index == 0:
+                await runtime.finalize(deadline)
+            else:
+                await runtime.abort(deadline)
+            assert normal_model.requests == []
+            assert summary_model.requests == []
 
     asyncio.run(scenario())
 
@@ -1162,6 +1325,14 @@ def test_gateway_adapter_discards_secret_bearing_provider_exception(
     model.clear_credentials()
 
 
+def test_gateway_model_disables_hidden_provider_retries(tmp_path: Path) -> None:
+    model = gateway_model(build_context(tmp_path, WorkerState(), {}))
+
+    assert isinstance(model, GatewayLiteLlm)
+    assert model._additional_args["num_retries"] == 0
+    model.clear_credentials()
+
+
 async def create_runtime(
     tmp_path: Path,
     state: WorkerState,
@@ -1175,6 +1346,7 @@ async def create_runtime(
     instrumentation: RuntimeInstrumentation | None = None,
     project_workspace: Any = None,
     summary_model: object | None = None,
+    summary_max_total_tokens: int | None = None,
     cumulative_budget: int | None = None,
     context_window_tokens: int = 131_072,
     context_window_ratio: float = 0.9,
@@ -1213,6 +1385,7 @@ async def create_runtime(
             contextWindowTokens=131_072,
             maxOutputTokens=2048,
             maxModelCalls=1,
+            maxTotalTokens=summary_max_total_tokens,
             temperature=0.0,
         )
         context = replace(

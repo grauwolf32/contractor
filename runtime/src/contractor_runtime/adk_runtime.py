@@ -74,6 +74,7 @@ from contractor_runtime.summarizer import (
     TranscriptRecorder,
     build_summarizer_prompt,
 )
+from contractor_runtime.token_usage import project_token_usage
 from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
 from contractor_runtime.worker_state import InvocationPhase, WorkerStateStore
 
@@ -148,14 +149,13 @@ class _InvocationBudget:
         self._sync()
 
     def after_model_response(self, usage: Any | None) -> None:
-        prompt = getattr(usage, "prompt_token_count", None) if usage is not None else None
-        self.latest_prompt_tokens = prompt if isinstance(prompt, int) and prompt >= 0 else None
-        total = getattr(usage, "total_token_count", None) if usage is not None else None
-        if not isinstance(total, int) or total < 0:
+        projected = project_token_usage(usage)
+        self.latest_prompt_tokens = projected.prompt_tokens
+        if projected.total_tokens is None:
             self.token_usage_unavailable += 1
             self._sync()
             return
-        self.total_tokens += total
+        self.total_tokens += projected.total_tokens
         self._sync()
         if self.total_tokens > self.max_total_tokens:
             raise WorkerBudgetExceeded("total_tokens", self.max_total_tokens, self.total_tokens)

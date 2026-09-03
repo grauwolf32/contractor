@@ -22,6 +22,7 @@ from contractor_runtime.contracts import (
     WorkerBudgetMetrics,
     WorkerSummarizerMetrics,
 )
+from contractor_runtime.token_usage import project_token_usage
 
 MAX_METRIC_TOOL_CALLS = 1000
 MAX_METRIC_ERRORS = 100
@@ -284,14 +285,14 @@ class MetricsState:
         self._increment("llm_calls")
 
     def record_model_usage(self, usage: Any) -> None:
-        for attribute, counter in (
-            ("prompt_token_count", "input_tokens"),
-            ("candidates_token_count", "output_tokens"),
-            ("total_token_count", "total_tokens"),
-            ("cached_content_token_count", "cached_input_tokens"),
+        projected = project_token_usage(usage)
+        for value, counter in (
+            (projected.prompt_tokens, "input_tokens"),
+            (projected.output_tokens, "output_tokens"),
+            (projected.total_tokens, "total_tokens"),
+            (projected.cached_input_tokens, "cached_input_tokens"),
         ):
-            value = getattr(usage, attribute, None)
-            if isinstance(value, int) and value >= 0:
+            if value is not None:
                 self._increment(counter, value)
 
     def record_model_error(self, error: Exception) -> None:

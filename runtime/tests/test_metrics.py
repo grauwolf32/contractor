@@ -156,15 +156,15 @@ def test_allocation_counters_saturate_at_the_state_wire_limit() -> None:
         SimpleNamespace(
             prompt_token_count=MAX_METRIC_COUNTER + 10,
             candidates_token_count=MAX_METRIC_COUNTER + 20,
-            total_token_count=MAX_METRIC_COUNTER + 30,
-            cached_content_token_count=MAX_METRIC_COUNTER + 40,
+            total_token_count=2 * MAX_METRIC_COUNTER + 30,
+            cached_content_token_count=MAX_METRIC_COUNTER + 5,
         )
     )
     state.record_model_usage(
         SimpleNamespace(
             prompt_token_count=1,
             candidates_token_count=1,
-            total_token_count=1,
+            total_token_count=2,
             cached_content_token_count=1,
         )
     )

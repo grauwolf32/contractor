@@ -30,12 +30,12 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
 )
+from contractor_runtime.token_usage import project_token_usage
 
 MAX_SUMMARIZER_INPUT_BYTES = 512 * 1024
 _MAX_PROJECTED_TEXT_BYTES = 64 * 1024
 _MAX_PROJECTED_ITEMS = 128
 _MAX_PROJECTED_DEPTH = 6
-_MAX_UINT64 = 2**64 - 1
 _SENSITIVE_KEY = re.compile(
     r"(?:api[_-]?key|authorization|cookie|credential|password|proxy[_-]?authorization|secret|token)",
     re.IGNORECASE,
@@ -476,21 +476,13 @@ def _redact_known_values(value: str, secrets: tuple[str, ...]) -> str:
 
 
 def _usage_projection(usage: Any | None) -> SummarizerUsage:
-    values: dict[str, int] = {}
-    for source, target in (
-        ("prompt_token_count", "input_tokens"),
-        ("candidates_token_count", "output_tokens"),
-        ("total_token_count", "total_tokens"),
-    ):
-        candidate = getattr(usage, source, None) if usage is not None else None
-        values[target] = (
-            min(candidate, _MAX_UINT64) if isinstance(candidate, int) and candidate >= 0 else 0
-        )
-    total = getattr(usage, "total_token_count", None) if usage is not None else None
+    projected = project_token_usage(usage)
     return SummarizerUsage(
         model_calls=1,
-        token_usage_unavailable=0 if isinstance(total, int) and total >= 0 else 1,
-        **values,
+        input_tokens=projected.prompt_tokens or 0,
+        output_tokens=projected.output_tokens or 0,
+        total_tokens=projected.total_tokens or 0,
+        token_usage_unavailable=int(projected.total_unavailable),
     )
 
 

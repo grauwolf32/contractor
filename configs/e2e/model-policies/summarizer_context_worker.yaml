@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: summarizer_context_worker
+  version: "1"
+
+spec:
+  model: worker-model
+  contextWindowTokens: 8192
+  maxOutputTokens: 1024
+  maxModelCalls: 8
+  maxToolCalls: 16
+  maxTotalTokens: 32768
+  temperature: 0.1

@@ -24,6 +24,10 @@ def gateway_client_options(context: WorkerBuildContext) -> dict[str, Any]:
         result: dict[str, Any] = {
             "api_base": settings.llm_gateway_url,
             "timeout": timeout,
+            # A Worker/summarizer model call is the retry boundary. Hidden
+            # provider retries would duplicate an accepted request without
+            # consuming another explicit ModelPolicy call.
+            "num_retries": 0,
         }
         if token_value:
             result["api_key"] = token_value
