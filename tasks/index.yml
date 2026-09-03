@@ -456,8 +456,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V17-006
-  next_task: V17-007
+  completed_through: V17-007
+  next_task: V18-001
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -571,9 +571,13 @@ current_checkpoint:
     correlated Worker State projections, with operation-specific logical
     Worker enums, conditional invocation-local caching, completion-bound
     opaque cursors and content-free durable facts. Projection failures remain
-    advisory and cannot rewrite a completed Worker result or subtask. V18-001
-    through V18-003 separately plan optional one-shot terminal summarization.
-    V17-007 is next.
+    advisory and cannot rewrite a completed Worker result or subtask. V17-007
+    is complete: the strict offline requirement/fault matrix and real
+    PostgreSQL/mTLS process gate now prove typed results, every Planner State
+    projection, terminal cleanup, same-process slot reuse and retained-surface
+    redaction for Streamline and Router. The full release gate passes with 688
+    Python tests (1 skipped), 120 UI tests and every process scenario. V18-001
+    through V18-003 next implement optional one-shot terminal summarization.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
