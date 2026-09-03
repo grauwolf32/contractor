@@ -50,6 +50,7 @@ def test_worker_build_context_does_not_expose_agent_template() -> None:
     fields = WorkerBuildContext.__dataclass_fields__
 
     assert "agent_template" not in fields
+    assert "run_metadata_labels" not in fields
     assert {"description", "instruction", "card_version"} <= fields.keys()
 
 
@@ -86,6 +87,11 @@ def test_prepare_is_single_slot_idempotent_and_constructs_only_selected_tools(
         changed_policy.model_policy.ref.digest = _model_policy_digest(changed_policy.model_policy)
         with pytest.raises(AllocationError, match="differs from the active allocation"):
             await service.prepare(changed_policy)
+
+        changed_labels = make_spec()
+        changed_labels.run_metadata_labels["purpose"] = "eval"
+        with pytest.raises(AllocationError, match="differs from the active allocation"):
+            await service.prepare(changed_labels)
 
     asyncio.run(scenario())
 
@@ -141,6 +147,25 @@ def test_bad_digest_and_unsupported_ref_leave_no_residue(
         assert missing.value.code == "unsupported_worker_runtime"
         assert await service.snapshot() is None
         assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+def test_mutated_run_metadata_labels_fail_before_resource_creation(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        spec = make_spec()
+        spec.run_metadata_labels = {"Eval.ID": "invalid"}
+
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(spec)
+        assert failure.value.code == "invalid_run_metadata_labels"
+        assert not failure.value.retryable
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert list(tmp_path.iterdir()) == []
 
     asyncio.run(scenario())
 
@@ -592,6 +617,7 @@ def make_spec(
         stageExecutionId="stage-execution-1",
         logicalAgentName="builder",
         namespace="builder",
+        runMetadataLabels={},
         leaseExpiresAt=NOW + timedelta(seconds=60),
         agentTemplate=template,
         resolvedSkills=[],

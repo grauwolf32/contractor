@@ -36,6 +36,7 @@ from contractor_runtime.contracts import (
     RuntimeSettingsV2,
     TerminationError,
     WorkerHandle,
+    normalize_run_metadata_labels,
 )
 from contractor_runtime.digests import (
     TemplateDigestMismatch,
@@ -602,6 +603,15 @@ class AllocationService:
 
     def _validate_spec(self, spec: AllocationSpec) -> None:
         capabilities = self._capabilities or self._state.capabilities
+        try:
+            normalize_run_metadata_labels(spec.run_metadata_labels)
+        except (TypeError, ValueError, AttributeError, UnicodeError):
+            raise AllocationError(
+                "invalid_run_metadata_labels",
+                "allocation Run metadata labels are invalid",
+                retryable=False,
+                status_code=422,
+            ) from None
         if spec.namespace in RESERVED_NAMESPACES:
             raise AllocationError(
                 "invalid_agent_namespace",

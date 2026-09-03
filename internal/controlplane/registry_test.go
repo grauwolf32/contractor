@@ -484,15 +484,27 @@ func TestReservationFingerprintPinsExactResolvedSkillsManifest(t *testing.T) {
 	}}
 	request := ReservationRequest{
 		RunID: "run-skill", StageExecutionID: "stage-skill",
-		Bindings: []BindingRequirement{binding},
+		RunMetadataLabels: contracts.RunMetadataLabels{"purpose": "eval", "eval.id": "eval_01"},
+		Bindings:          []BindingRequirement{binding},
 	}
 	first, err := registry.ReserveAll(request)
 	if err != nil {
 		t.Fatal(err)
 	}
+	first[0].RunMetadataLabels["eval.id"] = "caller-mutated"
 	replayed, err := registry.ReserveAll(request)
-	if err != nil || replayed[0].Grant.AllocationID != first[0].Grant.AllocationID {
+	if err != nil || replayed[0].Grant.AllocationID != first[0].Grant.AllocationID ||
+		replayed[0].RunMetadataLabels["eval.id"] != "eval_01" {
 		t.Fatalf("exact Skill manifest did not replay: (%+v, %v)", replayed, err)
+	}
+	changedLabels := request
+	changedLabels.RunMetadataLabels = request.RunMetadataLabels.Clone()
+	changedLabels.RunMetadataLabels["eval.id"] = "eval_02"
+	if _, err := registry.ReserveAll(changedLabels); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("substituted Run metadata label replay error = %v", err)
+	}
+	if replayed[0].RunMetadataLabels["eval.id"] != "eval_01" {
+		t.Fatalf("stored reservation aliases caller labels: %v", replayed[0].RunMetadataLabels)
 	}
 
 	changed := request

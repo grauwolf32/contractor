@@ -103,6 +103,7 @@ def allocation_spec(
         stageExecutionId="stage-execution-1",
         logicalAgentName="builder",
         namespace="builder",
+        runMetadataLabels={},
         leaseExpiresAt=datetime.now(UTC) + timedelta(minutes=5),
         agentTemplate=template,
         resolvedSkills=skills,

@@ -34,6 +34,10 @@ SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 NATIVE_SKILL_TOOL_NAMES = frozenset({"list_skills", "load_skill", "load_skill_resource"})
 WORKER_SUBTASK_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 WORKER_FAILURE_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+RUN_METADATA_LABEL_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+MAX_RUN_METADATA_LABELS = 32
+MAX_RUN_METADATA_LABEL_KEY_BYTES = 63
+MAX_RUN_METADATA_LABEL_VALUE_BYTES = 256
 MAX_WORKER_RESULT_BYTES = 64 * 1024
 MAX_WORKER_FAILURE_MESSAGE_BYTES = 4 * 1024
 MAX_WORKER_RESULT_ARTIFACTS = 128
@@ -132,6 +136,32 @@ def _require_aware_datetime(field: str, value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field} must include an offset")
     return value
+
+
+def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError("runMetadataLabels must be an object")
+    if len(value) > MAX_RUN_METADATA_LABELS:
+        raise ValueError("runMetadataLabels exceed 32 entries")
+    if any(not isinstance(key, str) for key in value):
+        raise ValueError("runMetadataLabels contain an invalid key")
+    result: dict[str, str] = {}
+    for key in sorted(value):
+        label_value = value[key]
+        if (
+            not key
+            or len(key.encode("utf-8")) > MAX_RUN_METADATA_LABEL_KEY_BYTES
+            or RUN_METADATA_LABEL_KEY_PATTERN.fullmatch(key) is None
+            or key.startswith("contractor.")
+        ):
+            raise ValueError("runMetadataLabels contain an invalid key")
+        if not isinstance(label_value, str):
+            raise ValueError("runMetadataLabels contain an invalid value")
+        encoded = label_value.encode("utf-8")
+        if not encoded or len(encoded) > MAX_RUN_METADATA_LABEL_VALUE_BYTES or "\0" in label_value:
+            raise ValueError("runMetadataLabels contain an invalid value")
+        result[key] = label_value
+    return result
 
 
 class WireModel(BaseModel):
@@ -526,11 +556,17 @@ class AllocationSpec(VersionedWireModel):
     stage_execution_id: str
     logical_agent_name: str
     namespace: str
+    run_metadata_labels: dict[str, str]
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
     resolved_skills: list[ResolvedSkill] = Field(max_length=32)
     model_policy: ResolvedModelPolicy
     runtime_settings: RuntimeSettings
+
+    @field_validator("run_metadata_labels")
+    @classmethod
+    def validate_run_metadata_labels(cls, value: dict[str, str]) -> dict[str, str]:
+        return normalize_run_metadata_labels(value)
 
     @model_validator(mode="after")
     def validate_spec(self) -> Self:

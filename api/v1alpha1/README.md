@@ -24,6 +24,11 @@ Runtime validates its own digest and uses it without mutating or re-signing the
 AgentTemplate. `RuntimeSettings.llmGatewayToken` may be the empty string for an
 explicitly unauthenticated Gateway.
 
+Every `AllocationSpec` also carries a required `runMetadataLabels` object. An
+unlabeled Run sends `{}`. Server and Runtime validate the shared 32-entry,
+key-shape and UTF-8 byte bounds; Runtime exposes a detached immutable copy only
+to allocation telemetry, never to Worker instructions, ADK State or tools.
+
 `AllocationSpec.agentTemplate.summarizer`, when present, pins one separately
 digested tool-free ModelPolicy and a normalized context-window trigger. It is part
 of the AgentTemplate digest and uses the same allocation `RuntimeSettings`

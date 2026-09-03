@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -155,6 +156,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}))
 	defer server.Close()
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
+	reservation.RunMetadataLabels = contracts.RunMetadataLabels{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+	}
 	skillRevision := "run-review-1"
 	reservation.ResolvedSkills = []contracts.ResolvedSkill{{
 		Name: "review",
@@ -193,6 +197,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		t.Fatalf("handle/request = (%+v, %+v)", handle, received.Spec)
 	}
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
+		!reflect.DeepEqual(received.Spec.RunMetadataLabels, reservation.RunMetadataLabels) ||
 		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
 		received.Spec.AgentTemplate.Summarizer == nil ||
 		received.Spec.AgentTemplate.Summarizer.ModelPolicy.Ref != template.Summarizer.ModelPolicy.Ref ||

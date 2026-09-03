@@ -82,7 +82,8 @@ func (*OTLPHTTPPlannerAdapterFactory) Create(
 	result := &otlpHTTPPlannerTelemetry{
 		endpoint: settings.Endpoint, headers: settings.Headers,
 		flushTimeout: settings.FlushTimeout, resource: settings.Resource.clone(),
-		client: client, ownedTransport: true, traceID: traceID,
+		runMetadataLabels: settings.RunMetadataLabels.Clone(),
+		client:            client, ownedTransport: true, traceID: traceID,
 		secretValues: secrets, spans: make([]*tracev1.Span, 0, 32),
 	}
 	result.pendingBytes = proto.Size(result.resourceProto())
@@ -90,20 +91,21 @@ func (*OTLPHTTPPlannerAdapterFactory) Create(
 }
 
 type otlpHTTPPlannerTelemetry struct {
-	mu             sync.Mutex
-	flushMu        sync.Mutex
-	endpoint       string
-	headers        map[string]contracts.SecretString
-	flushTimeout   time.Duration
-	resource       PlannerResource
-	client         *http.Client
-	ownedTransport bool
-	traceID        []byte
-	secretValues   []string
-	spans          []*tracev1.Span
-	pendingBytes   int
-	queueOverflow  bool
-	closed         bool
+	mu                sync.Mutex
+	flushMu           sync.Mutex
+	endpoint          string
+	headers           map[string]contracts.SecretString
+	flushTimeout      time.Duration
+	resource          PlannerResource
+	runMetadataLabels contracts.RunMetadataLabels
+	client            *http.Client
+	ownedTransport    bool
+	traceID           []byte
+	secretValues      []string
+	spans             []*tracev1.Span
+	pendingBytes      int
+	queueOverflow     bool
+	closed            bool
 }
 
 type otlpPlannerInstrumentation struct{ owner *otlpHTTPPlannerTelemetry }
@@ -164,8 +166,14 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	}
 	traceID := append([]byte(nil), o.traceID...)
 	secrets := append([]string(nil), o.secretValues...)
+	metadataLabels := o.runMetadataLabels.Clone()
 	o.mu.Unlock()
 	values := plannerAttributeValues(attributes, secrets)
+	if name == PlannerSpanInvocation {
+		for key, value := range plannerRunMetadataLabelAttributes(metadataLabels, secrets) {
+			values[key] = value
+		}
+	}
 	values["outcome"] = outcome
 	values["duration.ms"] = max(int64(0), finishedAt.Sub(startedAt).Milliseconds())
 	status := tracev1.Status_STATUS_CODE_OK
@@ -307,6 +315,7 @@ func (o *otlpHTTPPlannerTelemetry) Close() {
 	o.traceID = nil
 	o.spans = nil
 	o.resource = PlannerResource{}
+	o.runMetadataLabels = nil
 	client := o.client
 	owned := o.ownedTransport
 	o.client = nil
@@ -408,6 +417,29 @@ func safePlannerString(value string, secrets []string) string {
 	return value
 }
 
+func plannerRunMetadataLabelAttributes(
+	labels contracts.RunMetadataLabels,
+	secrets []string,
+) map[string]any {
+	result := make(map[string]any, len(labels))
+	for key, value := range labels {
+		if contracts.ValidateRunMetadataLabel(key, value) != nil {
+			continue
+		}
+		secret := false
+		for _, candidate := range secrets {
+			if candidate != "" && strings.Contains(value, candidate) {
+				secret = true
+				break
+			}
+		}
+		if !secret {
+			result["contractor.run.label."+key] = value
+		}
+	}
+	return result
+}
+
 func boundedStrings(values []string, maximum int) []string {
 	values = sortedUnique(values)
 	if len(values) > maximum {
@@ -458,6 +490,9 @@ func validatePlannerAdapterSettings(settings PlannerAdapterSettings) error {
 	if settings.Resource.RunID == "" || settings.Resource.StageExecutionID == "" ||
 		settings.Resource.PlannerRef == "" || len(settings.Headers) > 32 {
 		return errors.New("Planner telemetry settings are incomplete")
+	}
+	if err := settings.RunMetadataLabels.Validate(); err != nil {
+		return errors.New("Planner telemetry Run metadata labels are invalid")
 	}
 	seenHeaders := make(map[string]struct{}, len(settings.Headers))
 	totalHeaderBytes := 0

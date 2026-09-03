@@ -1,24 +1,21 @@
 package runstore
 
 import (
-	"regexp"
 	"sort"
-	"strings"
-	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
-	MaxRunMetadataLabels     = 32
-	MaxRunMetadataLabelKey   = 63
-	MaxRunMetadataLabelValue = 256
+	MaxRunMetadataLabels     = contracts.MaxRunMetadataLabels
+	MaxRunMetadataLabelKey   = contracts.MaxRunMetadataLabelKey
+	MaxRunMetadataLabelValue = contracts.MaxRunMetadataLabelValue
 )
-
-var runMetadataLabelKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
 
 // RunMetadataLabels is immutable descriptive metadata attached to one
 // WorkflowRun. Callers must clone it at repository boundaries because Go maps
 // themselves are mutable reference values.
-type RunMetadataLabels map[string]string
+type RunMetadataLabels = contracts.RunMetadataLabels
 
 type RunMetadataLabelSelector struct {
 	Key   string
@@ -28,15 +25,9 @@ type RunMetadataLabelSelector struct {
 // NormalizeRunMetadataLabels validates and clones a caller-owned map. Nil and
 // an empty map have the same canonical non-nil representation.
 func NormalizeRunMetadataLabels(source map[string]string) (RunMetadataLabels, error) {
-	if len(source) > MaxRunMetadataLabels {
-		return nil, invalidf("Run metadata labels exceed %d entries", MaxRunMetadataLabels)
-	}
-	result := make(RunMetadataLabels, len(source))
-	for key, value := range source {
-		if err := validateRunMetadataLabel(key, value); err != nil {
-			return nil, err
-		}
-		result[key] = value
+	result, err := contracts.NormalizeRunMetadataLabels(source)
+	if err != nil {
+		return nil, invalidf("Run metadata labels are invalid: %v", err)
 	}
 	return result, nil
 }
@@ -72,38 +63,8 @@ func NormalizeRunMetadataLabelSelectors(
 }
 
 func validateRunMetadataLabel(key, value string) error {
-	if !utf8.ValidString(key) || len(key) == 0 || len(key) > MaxRunMetadataLabelKey ||
-		!runMetadataLabelKeyPattern.MatchString(key) {
-		return invalidf("Run metadata label key %q is invalid", key)
-	}
-	if strings.HasPrefix(key, "contractor.") {
-		return invalidf("Run metadata label key %q uses the reserved contractor. namespace", key)
-	}
-	if !utf8.ValidString(value) || len(value) == 0 || len(value) > MaxRunMetadataLabelValue ||
-		strings.ContainsRune(value, '\x00') {
-		return invalidf("Run metadata label %q value must contain 1 to %d database-safe UTF-8 bytes", key, MaxRunMetadataLabelValue)
+	if err := contracts.ValidateRunMetadataLabel(key, value); err != nil {
+		return invalidf("Run metadata label is invalid: %v", err)
 	}
 	return nil
-}
-
-func (labels RunMetadataLabels) Validate() error {
-	_, err := NormalizeRunMetadataLabels(labels)
-	return err
-}
-
-func (labels RunMetadataLabels) Clone() RunMetadataLabels {
-	result := make(RunMetadataLabels, len(labels))
-	for key, value := range labels {
-		result[key] = value
-	}
-	return result
-}
-
-func (labels RunMetadataLabels) SortedKeys() []string {
-	result := make([]string, 0, len(labels))
-	for key := range labels {
-		result = append(result, key)
-	}
-	sort.Strings(result)
-	return result
 }

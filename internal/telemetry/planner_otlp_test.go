@@ -43,12 +43,17 @@ func TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	metadataLabels := contracts.RunMetadataLabels{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+		"eval.case": "case_1", "eval.note": "left = right/β",
+	}
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
 		Endpoint: collector.URL + "/v1/traces",
 		Headers: map[string]contracts.SecretString{
 			"x-contractor-token": contracts.NewSecretString(headerSecret),
 		},
-		FlushTimeout: time.Second,
+		FlushTimeout:      time.Second,
+		RunMetadataLabels: metadataLabels,
 		Resource: PlannerResource{
 			RunID: "run-safe", StageExecutionID: "stage-safe", PlannerRef: "router@1",
 			ModelAlias:     "qwen/qwen3.8-27b",
@@ -62,6 +67,7 @@ func TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	metadataLabels["eval.id"] = "changed-after-create"
 	defer adapter.Close()
 	instrumentation := adapter.Instrumentation()
 	spans := []struct {
@@ -120,6 +126,11 @@ func TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection(t *testing.T) {
 			t.Errorf("resource %s = %#v, want %q", key, resource[key], expected)
 		}
 	}
+	for key := range resource {
+		if strings.HasPrefix(key, "contractor.run.label.") {
+			t.Fatalf("Run metadata label %q was exported as a Resource attribute", key)
+		}
+	}
 	gotSpans := decoded.ResourceSpans[0].ScopeSpans[0].Spans
 	if len(gotSpans) != len(spans)+1 {
 		t.Fatalf("span count = %d, want %d", len(gotSpans), len(spans)+1)
@@ -127,6 +138,23 @@ func TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection(t *testing.T) {
 	if gotSpans[len(gotSpans)-1].Name != string(PlannerSpanError) ||
 		keyValueMap(gotSpans[len(gotSpans)-1].Attributes)["outcome"] != "failed" {
 		t.Fatalf("unknown span was not reduced to safe error: %+v", gotSpans[len(gotSpans)-1])
+	}
+	invocationAttributes := keyValueMap(gotSpans[0].Attributes)
+	for key, expected := range map[string]string{
+		"contractor.run.label.purpose":   "eval",
+		"contractor.run.label.eval.id":   "eval_01",
+		"contractor.run.label.eval.leg":  "a",
+		"contractor.run.label.eval.case": "case_1",
+		"contractor.run.label.eval.note": "left = right/β",
+	} {
+		if invocationAttributes[key] != expected {
+			t.Errorf("invocation attribute %s = %#v, want %q", key, invocationAttributes[key], expected)
+		}
+		for _, span := range gotSpans[1:] {
+			if _, present := keyValueMap(span.Attributes)[key]; present {
+				t.Errorf("non-invocation span %q contains Run metadata label %s", span.Name, key)
+			}
+		}
 	}
 }
 
@@ -169,6 +197,31 @@ func TestPlannerOTLPHTTPIsBoundedAndFlushFailureIsSupplementary(t *testing.T) {
 	}
 }
 
+func TestPlannerTelemetryRequiresExplicitValidRunMetadataLabels(t *testing.T) {
+	registry, err := NewBuiltinPlannerAdapterRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, labels := range map[string]contracts.RunMetadataLabels{
+		"missing":  nil,
+		"reserved": {"contractor.internal": "value"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			adapter, createErr := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
+				Endpoint: "https://telemetry.example/v1/traces",
+				Headers:  map[string]contracts.SecretString{}, FlushTimeout: time.Second,
+				Resource: PlannerResource{
+					RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "streamline@1",
+				},
+				RunMetadataLabels: labels,
+			})
+			if createErr == nil || adapter != nil {
+				t.Fatalf("invalid Planner metadata labels = (%v, %v)", adapter, createErr)
+			}
+		})
+	}
+}
+
 func TestPlannerOTLPHTTPHangingBackendHonorsCallerDeadline(t *testing.T) {
 	collector := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		<-time.After(time.Second)
@@ -198,7 +251,8 @@ func newPlannerTestAdapter(t *testing.T, endpoint string) PlannerTelemetry {
 	}
 	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
 		Endpoint: endpoint, Headers: map[string]contracts.SecretString{}, FlushTimeout: time.Second,
-		Resource: PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "passthrough@1"},
+		RunMetadataLabels: contracts.RunMetadataLabels{},
+		Resource:          PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "passthrough@1"},
 	})
 	if err != nil {
 		t.Fatal(err)

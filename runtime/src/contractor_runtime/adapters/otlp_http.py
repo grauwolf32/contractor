@@ -8,6 +8,7 @@ import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 
 import httpx
 from google.protobuf.message import DecodeError
@@ -33,7 +34,13 @@ from contractor_runtime.adapters.instrumentation import (
     ScalarAttribute,
     TelemetryAttribute,
 )
-from contractor_runtime.contracts import RuntimeAdapterRef, TelemetrySettingsV2
+from contractor_runtime.contracts import (
+    MAX_RUN_METADATA_LABEL_VALUE_BYTES,
+    MAX_RUN_METADATA_LABELS,
+    RUN_METADATA_LABEL_KEY_PATTERN,
+    RuntimeAdapterRef,
+    TelemetrySettingsV2,
+)
 
 MAX_PENDING_SPANS = 2048
 MAX_PENDING_BYTES = 2 * 1024 * 1024
@@ -44,6 +51,7 @@ MAX_SEQUENCE_VALUES = 65
 MAX_ATTRIBUTE_KEY_BYTES = 128
 MAX_SPAN_NAME_BYTES = 128
 MAX_RESPONSE_BYTES = 64 * 1024
+RUN_METADATA_LABEL_ATTRIBUTE_PREFIX = "contractor.run.label."
 
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
 _ALLOWED_SPAN_NAMES = frozenset(
@@ -143,6 +151,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         resource_attributes: Mapping[str, TelemetryAttribute],
         *,
         secret_values: Sequence[str],
+        run_metadata_labels: Mapping[str, str] | None = None,
         wall_time_ns: Callable[[], int] = time.time_ns,
         monotonic_ns: Callable[[], int] = time.perf_counter_ns,
         max_pending_spans: int = MAX_PENDING_SPANS,
@@ -154,6 +163,10 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self.monotonic_ns = monotonic_ns
         self._max_pending_spans = max_pending_spans
         self._max_pending_bytes = max_pending_bytes
+        self._trace_id = os.urandom(16)
+        self._run_metadata_attributes = MappingProxyType(
+            _run_metadata_attributes(run_metadata_labels or {}, self._secret_values)
+        )
         self._resource = Resource(
             attributes=_key_values(
                 resource_attributes,
@@ -194,9 +207,14 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             return
         try:
             safe_attributes = _safe_attributes(attributes, self._secret_values)
+            if name == "contractor.worker.a2a_task":
+                safe_attributes.update(self._run_metadata_attributes)
             outcome = safe_attributes.get("outcome", "failed")
+            allowed_keys = _ALLOWED_SPAN_ATTRIBUTES
+            if name == "contractor.worker.a2a_task":
+                allowed_keys = allowed_keys | frozenset(self._run_metadata_attributes)
             span = Span(
-                trace_id=os.urandom(16),
+                trace_id=self._trace_id,
                 span_id=os.urandom(8),
                 name=_truncate_utf8(name, MAX_SPAN_NAME_BYTES),
                 kind=Span.SPAN_KIND_INTERNAL,
@@ -204,7 +222,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
                 end_time_unix_nano=max(started_unix_ns, finished_unix_ns),
                 attributes=_key_values(
                     safe_attributes,
-                    allowed_keys=_ALLOWED_SPAN_ATTRIBUTES,
+                    allowed_keys=allowed_keys,
                     secrets=self._secret_values,
                 ),
                 status=Status(
@@ -246,6 +264,8 @@ class OTLPInstrumentation(RuntimeInstrumentation):
     def close(self) -> None:
         self.clear()
         self._secret_values = ()
+        self._trace_id = b""
+        self._run_metadata_attributes = MappingProxyType({})
         self._closed = True
 
     @property
@@ -331,6 +351,7 @@ class OTLPHTTPAdapter:
             self.metrics,
             resource_attributes,
             secret_values=secret_values,
+            run_metadata_labels=context.run_metadata_labels,
         )
         self.handles = AdapterHandles(instrumentation=self._instrumentation)
         self._endpoint = settings.endpoint
@@ -417,6 +438,30 @@ def _safe_attributes(
         selected = _safe_attribute_value(key, value, secrets)
         if selected is not None:
             result[key] = selected
+    return result
+
+
+def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) -> dict[str, str]:
+    if len(source) > MAX_RUN_METADATA_LABELS:
+        return {}
+    result: dict[str, str] = {}
+    for key, value in source.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            return {}
+        attribute_key = RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + key
+        if (
+            not key
+            or len(attribute_key.encode("utf-8")) > MAX_ATTRIBUTE_KEY_BYTES
+            or RUN_METADATA_LABEL_KEY_PATTERN.fullmatch(key) is None
+            or key.startswith("contractor.")
+            or not value
+            or "\0" in value
+            or len(value.encode("utf-8")) > MAX_RUN_METADATA_LABEL_VALUE_BYTES
+        ):
+            return {}
+        if any(secret and secret in value for secret in secrets):
+            continue
+        result[attribute_key] = value
     return result
 
 

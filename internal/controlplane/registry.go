@@ -377,6 +377,10 @@ func (r *InMemoryRegistry) reserveAll(
 	if err != nil {
 		return nil, err
 	}
+	runMetadataLabels, err := contracts.NormalizeRunMetadataLabels(request.RunMetadataLabels)
+	if err != nil {
+		return nil, fmt.Errorf("%w: Run metadata labels are invalid", ErrInvalidRequest)
+	}
 	if provisional {
 		if err := validateCandidateEdges(normalizedBindings, edges); err != nil {
 			return nil, err
@@ -456,6 +460,7 @@ func (r *InMemoryRegistry) reserveAll(
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			Workspace:                 contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
+			RunMetadataLabels:         runMetadataLabels.Clone(),
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
 		}
@@ -1131,6 +1136,10 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			return "", nil, fmt.Errorf("%w: Run RuntimeConfig snapshot is invalid", ErrInvalidRequest)
 		}
 	}
+	metadataLabels, err := contracts.NormalizeRunMetadataLabels(request.RunMetadataLabels)
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: Run metadata labels are invalid", ErrInvalidRequest)
+	}
 	bindings := make([]BindingRequirement, len(request.Bindings))
 	seen := make(map[string]struct{}, len(request.Bindings))
 	for index, binding := range request.Bindings {
@@ -1181,11 +1190,18 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })
 	encoded, err := json.Marshal(struct {
-		RunID            string
-		StageExecutionID string
-		Bindings         []BindingRequirement
-		RuntimeConfig    *runtimeconfig.RunSnapshot
-	}{request.RunID, request.StageExecutionID, bindings, cloneRunSnapshot(request.RuntimeConfig)})
+		RunID             string
+		StageExecutionID  string
+		RunMetadataLabels contracts.RunMetadataLabels
+		Bindings          []BindingRequirement
+		RuntimeConfig     *runtimeconfig.RunSnapshot
+	}{
+		RunID:             request.RunID,
+		StageExecutionID:  request.StageExecutionID,
+		RunMetadataLabels: metadataLabels,
+		Bindings:          bindings,
+		RuntimeConfig:     cloneRunSnapshot(request.RuntimeConfig),
+	})
 	if err != nil {
 		return "", nil, fmt.Errorf("encode reservation request: %w", err)
 	}
@@ -1483,6 +1499,7 @@ func cloneReservation(source Reservation) Reservation {
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	result.Workspace = contracts.CloneAllocationWorkspaceSpecV2(source.Workspace)
+	result.RunMetadataLabels = source.RunMetadataLabels.Clone()
 	if source.ResolvedRuntimeConfig != nil {
 		resolved := source.ResolvedRuntimeConfig.Clone()
 		result.ResolvedRuntimeConfig = &resolved

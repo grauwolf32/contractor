@@ -85,6 +85,46 @@ def test_prepare_rejects_legacy_request_before_lifecycle_dispatch() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "labels",
+    [None, {"Eval.ID": "eval_01"}, {"purpose": ""}],
+)
+def test_prepare_rejects_invalid_run_metadata_labels_before_dispatch(
+    labels: object,
+) -> None:
+    calls = 0
+
+    class NoDispatchAllocationService:
+        async def prepare(self, _: object) -> object:
+            nonlocal calls
+            calls += 1
+            raise AssertionError("invalid metadata labels reached allocation preparation")
+
+        async def active_a2a_application(self, _: str) -> object:
+            raise AssertionError("unexpected A2A dispatch")
+
+    request = PrepareAllocationRequestV2(
+        apiVersion=API_VERSION,
+        spec=allocation_spec(),
+    ).model_dump(mode="json", by_alias=True)
+    if labels is None:
+        del request["spec"]["runMetadataLabels"]
+    else:
+        request["spec"]["runMetadataLabels"] = labels
+    with TestClient(
+        create_app(
+            allocation_service=NoDispatchAllocationService(),  # type: ignore[arg-type]
+            require_verified_peer=False,
+        )
+    ) as client:
+        response = client.post(
+            "/private/v1/allocations/allocation-1/prepare",
+            json=request,
+        )
+    assert response.status_code == 422
+    assert calls == 0
+
+
 def test_internal_failure_is_correlated_and_does_not_log_injected_secret(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

@@ -674,6 +674,7 @@ type AllocationSpecV2 struct {
 	StageExecutionID                string                            `json:"stageExecutionId"`
 	LogicalAgentName                string                            `json:"logicalAgentName"`
 	Namespace                       string                            `json:"namespace"`
+	RunMetadataLabels               RunMetadataLabels                 `json:"runMetadataLabels"`
 	LeaseExpiresAt                  time.Time                         `json:"leaseExpiresAt"`
 	AgentTemplate                   ResolvedAgentTemplate             `json:"agentTemplate"`
 	ResolvedSkills                  []ResolvedSkill                   `json:"resolvedSkills"`
@@ -698,6 +699,9 @@ func (s AllocationSpecV2) Validate() error {
 	}
 	if strings.Contains(s.Namespace, "/") || s.LeaseExpiresAt.IsZero() {
 		return invalidf("allocation namespace or lease is invalid")
+	}
+	if err := s.RunMetadataLabels.Validate(); err != nil {
+		return err
 	}
 	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
 		return err

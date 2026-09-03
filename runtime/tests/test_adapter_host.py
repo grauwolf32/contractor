@@ -99,8 +99,19 @@ def test_hanging_flush_is_metrics_only_and_replayed_lifecycle_is_idempotent(
             tmp_path,
             runtime_adapters={"otlp-http@1": telemetry},
         )
-        spec = configured_spec(telemetry=True)
+        source_labels = {"purpose": "eval", "eval.id": "eval_01"}
+        spec = configured_spec(telemetry=True).model_copy(
+            update={"run_metadata_labels": source_labels}
+        )
         await service.prepare(spec)
+        source_labels["eval.id"] = "changed"
+        assert len(telemetry.contexts) == 1
+        assert dict(telemetry.contexts[0].run_metadata_labels) == {
+            "purpose": "eval",
+            "eval.id": "eval_01",
+        }
+        with pytest.raises(TypeError):
+            telemetry.contexts[0].run_metadata_labels["eval.id"] = "changed"  # type: ignore[index]
         snapshot = await service.snapshot()
         assert snapshot is not None
         assert snapshot.runtime_adapter_refs == ("otlp-http@1",)
@@ -160,8 +171,13 @@ def test_handles_are_injected_explicitly_and_erased_on_confirmed_lease_loss(
             toolset=toolset,
             runtime=runtime,
         )
-        spec = configured_spec(proxy_targets=["llm-gateway", "tool-http"])
+        spec = configured_spec(proxy_targets=["llm-gateway", "tool-http"]).model_copy(
+            update={"run_metadata_labels": {"purpose": "eval", "eval.id": "eval_01"}}
+        )
         await service.prepare(spec)
+
+        assert len(proxy.contexts) == 1
+        assert dict(proxy.contexts[0].run_metadata_labels) == {}
 
         assert toolset.handles is not None
         assert toolset.handles.tool_http is tool_handle
@@ -505,6 +521,7 @@ class FakeAdapterFactory:
         self._prepare_error = prepare_error
         self._close_error = close_error
         self._hang_flush = hang_flush
+        self.contexts: list[RuntimeAdapterBuildContext] = []
 
     async def probe(self) -> bool:
         return True
@@ -514,7 +531,8 @@ class FakeAdapterFactory:
         context: RuntimeAdapterBuildContext,
         settings: object,
     ) -> FakeAdapter:
-        del context, settings
+        self.contexts.append(context)
+        del settings
         self._events.append(f"create:{self.ref}")
         if self._prepare_error is not None:
             raise self._prepare_error

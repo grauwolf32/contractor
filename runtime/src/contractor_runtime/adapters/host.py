@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
+from types import MappingProxyType
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -108,6 +109,7 @@ class RuntimeAdapterBuildContext:
     runtime_config_digests: tuple[str, ...]
     run_labels: tuple[str, ...]
     agent_labels: tuple[str, ...]
+    run_metadata_labels: Mapping[str, str]
     runtime_adapter_refs: tuple[str, ...]
     private_bypass_hosts: tuple[str, ...]
 
@@ -248,6 +250,8 @@ class AllocationAdapterHost:
         selected = _selected_settings(spec.runtime_settings)
         hosted: dict[RuntimeAdapterRef, _HostedAdapter] = {}
         handles = EMPTY_ADAPTER_HANDLES
+        empty_metadata_labels: Mapping[str, str] = MappingProxyType({})
+        run_metadata_labels: Mapping[str, str] = MappingProxyType(dict(spec.run_metadata_labels))
         context = RuntimeAdapterBuildContext(
             allocation_id=spec.allocation_id,
             run_id=spec.run_id,
@@ -262,6 +266,7 @@ class AllocationAdapterHost:
             agent_labels=tuple(
                 item.label for item in spec.resolved_runtime_config_provenance.agent_labels
             ),
+            run_metadata_labels=empty_metadata_labels,
             runtime_adapter_refs=tuple(spec.resolved_runtime_config_provenance.runtime_adapters),
             private_bypass_hosts=_private_bypass_hosts(
                 spec.runtime_settings,
@@ -281,7 +286,17 @@ class AllocationAdapterHost:
                     construction_unconfirmed = True
                     raise AdapterFactoryError(retryable=True)
                 create_task = asyncio.create_task(
-                    factory.create(context, settings),
+                    factory.create(
+                        (
+                            replace(
+                                context,
+                                run_metadata_labels=run_metadata_labels,
+                            )
+                            if isinstance(settings, TelemetrySettingsV2)
+                            else context
+                        ),
+                        settings,
+                    ),
                     name=f"adapter-create-{ref}-{spec.allocation_id}",
                 )
                 try:

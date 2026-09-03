@@ -110,8 +110,9 @@ func TestPrivateV2AllocationSpecComposesValidatedSettingsAndProvenance(t *testin
 	value := AllocationSpecV2{
 		APIVersion: active.APIVersion, AllocationID: active.AllocationID, RunID: active.RunID,
 		StageExecutionID: active.StageExecutionID, LogicalAgentName: active.LogicalAgentName,
-		Namespace: active.Namespace, LeaseExpiresAt: active.LeaseExpiresAt,
-		AgentTemplate: active.AgentTemplate, ResolvedSkills: active.ResolvedSkills,
+		Namespace: active.Namespace, RunMetadataLabels: active.RunMetadataLabels.Clone(),
+		LeaseExpiresAt: active.LeaseExpiresAt,
+		AgentTemplate:  active.AgentTemplate, ResolvedSkills: active.ResolvedSkills,
 		ModelPolicy:     active.ModelPolicy,
 		RuntimeSettings: settings, ResolvedRuntimeConfigProvenance: provenance,
 	}
@@ -122,8 +123,20 @@ func TestPrivateV2AllocationSpecComposesValidatedSettingsAndProvenance(t *testin
 	if _, err := DecodePrivateV2Strict[AllocationSpecV2](canonical); err != nil {
 		t.Fatalf("round-trip AllocationSpecV2: %v", err)
 	}
+	missingLabels := value
+	missingLabels.RunMetadataLabels = nil
+	missingCanonical, err := MarshalPrivateV2Canonical(missingLabels)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodePrivateV2Strict[AllocationSpecV2](missingCanonical); err == nil {
+		t.Fatal("AllocationSpecV2 accepted missing runMetadataLabels")
+	}
 	if !bytes.Contains(canonical, []byte(`"resolvedSkills":[]`)) {
 		t.Fatalf("private allocation omitted mandatory empty resolvedSkills: %s", canonical)
+	}
+	if !bytes.Contains(canonical, []byte(`"runMetadataLabels":{"eval.id":"eval_01","purpose":"eval"}`)) {
+		t.Fatalf("private allocation omitted canonical Run metadata labels: %s", canonical)
 	}
 	formatted := fmt.Sprintf("%v %+v %#v", value.RuntimeSettings, value.RuntimeSettings, value.RuntimeSettings)
 	for _, secret := range []string{"gateway-secret", "telemetry-secret", "proxy-bearer-secret", "caido-bearer-secret"} {

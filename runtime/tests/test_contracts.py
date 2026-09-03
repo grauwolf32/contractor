@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -498,6 +499,59 @@ def test_all_golden_files_have_an_assigned_model() -> None:
     invalid_files = {path.name for path in (FIXTURES / "invalid").glob("*.json")}
     assert valid_files == VALID_MODELS.keys()
     assert invalid_files == INVALID_MODELS.keys()
+
+
+def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> None:
+    cases = json.loads((FIXTURES / "run-metadata-label-cases.json").read_text())
+    baseline = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schemas = {
+        path.name: json.loads(path.read_text(encoding="utf-8"))
+        for path in schema_root.glob("*.schema.json")
+    }
+    registry = Registry().with_resources(
+        [(schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()]
+    )
+    validator = Draft202012Validator(schemas["allocation.schema.json"], registry=registry)
+
+    for case in cases["valid"]:
+        candidate = json.loads(json.dumps(baseline))
+        candidate["runMetadataLabels"] = case["value"]
+        allocation = AllocationSpec.model_validate_json(json.dumps(candidate))
+        assert allocation.run_metadata_labels == dict(sorted(case["value"].items()))
+        assert not list(validator.iter_errors(candidate)), case["name"]
+
+    for case in cases["invalid"]:
+        candidate = json.loads(json.dumps(baseline))
+        if case.get("omit"):
+            candidate.pop("runMetadataLabels")
+        else:
+            candidate["runMetadataLabels"] = case["value"]
+        with pytest.raises(ValidationError):
+            AllocationSpec.model_validate_json(json.dumps(candidate))
+        assert list(validator.iter_errors(candidate)), case["name"]
+
+    source = {"eval.id": "eval_01"}
+    candidate = json.loads(json.dumps(baseline))
+    candidate["runMetadataLabels"] = source
+    candidate["leaseExpiresAt"] = datetime.fromisoformat(
+        candidate["leaseExpiresAt"].replace("Z", "+00:00")
+    )
+    allocation = AllocationSpec.model_validate(candidate)
+    source["eval.id"] = "changed"
+    assert allocation.run_metadata_labels == {"eval.id": "eval_01"}
+
+
+def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
+    assert "run_metadata_labels" in AllocationSpec.model_fields
+    for model in (
+        StageContentRequest,
+        StageContentResult,
+        WorkerCompletion,
+        AgentStateSnapshot,
+        RuntimeReportV2,
+    ):
+        assert "run_metadata_labels" not in model.model_fields
 
 
 def test_schema_files_are_json_objects() -> None:

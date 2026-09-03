@@ -134,7 +134,7 @@ func passthroughTestTelemetry(
 	}
 	adapter, err := registry.Create(telemetry.PlannerAdapterOTLPHTTP, telemetry.PlannerAdapterSettings{
 		Endpoint: collector.URL + "/v1/traces", Headers: map[string]contracts.SecretString{},
-		FlushTimeout: time.Second,
+		FlushTimeout: time.Second, RunMetadataLabels: contracts.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
 			PlannerRef: PassthroughRef,

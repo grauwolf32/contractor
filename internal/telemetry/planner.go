@@ -84,10 +84,11 @@ func (r PlannerResource) clone() PlannerResource {
 }
 
 type PlannerAdapterSettings struct {
-	Endpoint     string
-	Headers      map[string]contracts.SecretString
-	FlushTimeout time.Duration
-	Resource     PlannerResource
+	Endpoint          string
+	Headers           map[string]contracts.SecretString
+	FlushTimeout      time.Duration
+	Resource          PlannerResource
+	RunMetadataLabels contracts.RunMetadataLabels
 }
 
 func (s PlannerAdapterSettings) clone() PlannerAdapterSettings {
@@ -97,6 +98,7 @@ func (s PlannerAdapterSettings) clone() PlannerAdapterSettings {
 		result.Headers[name] = value
 	}
 	result.Resource = s.Resource.clone()
+	result.RunMetadataLabels = s.RunMetadataLabels.Clone()
 	return result
 }
 
@@ -162,6 +164,9 @@ func (r *PlannerAdapterRegistry) Create(
 	factory, ok := r.factories[ref]
 	if !ok {
 		return nil, errors.New("Planner telemetry adapter is unavailable")
+	}
+	if err := settings.RunMetadataLabels.Validate(); err != nil {
+		return nil, errors.New("Planner telemetry Run metadata labels are invalid")
 	}
 	return factory.Create(settings.clone())
 }

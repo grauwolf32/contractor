@@ -159,17 +159,18 @@ type WorkerExecutionSettings struct {
 }
 
 type AllocationSpec struct {
-	APIVersion       string                `json:"apiVersion"`
-	AllocationID     string                `json:"allocationId"`
-	RunID            string                `json:"runId"`
-	StageExecutionID string                `json:"stageExecutionId"`
-	LogicalAgentName string                `json:"logicalAgentName"`
-	Namespace        string                `json:"namespace"`
-	LeaseExpiresAt   time.Time             `json:"leaseExpiresAt"`
-	AgentTemplate    ResolvedAgentTemplate `json:"agentTemplate"`
-	ResolvedSkills   []ResolvedSkill       `json:"resolvedSkills"`
-	ModelPolicy      ResolvedModelPolicy   `json:"modelPolicy"`
-	RuntimeSettings  RuntimeSettings       `json:"runtimeSettings"`
+	APIVersion        string                `json:"apiVersion"`
+	AllocationID      string                `json:"allocationId"`
+	RunID             string                `json:"runId"`
+	StageExecutionID  string                `json:"stageExecutionId"`
+	LogicalAgentName  string                `json:"logicalAgentName"`
+	Namespace         string                `json:"namespace"`
+	RunMetadataLabels RunMetadataLabels     `json:"runMetadataLabels"`
+	LeaseExpiresAt    time.Time             `json:"leaseExpiresAt"`
+	AgentTemplate     ResolvedAgentTemplate `json:"agentTemplate"`
+	ResolvedSkills    []ResolvedSkill       `json:"resolvedSkills"`
+	ModelPolicy       ResolvedModelPolicy   `json:"modelPolicy"`
+	RuntimeSettings   RuntimeSettings       `json:"runtimeSettings"`
 }
 
 func (s AllocationSpec) Validate() error {
@@ -187,6 +188,9 @@ func (s AllocationSpec) Validate() error {
 	}
 	if strings.Contains(s.Namespace, "/") {
 		return invalidf("namespace must not contain slash")
+	}
+	if err := s.RunMetadataLabels.Validate(); err != nil {
+		return err
 	}
 	if s.LeaseExpiresAt.IsZero() {
 		return invalidf("leaseExpiresAt must not be zero")

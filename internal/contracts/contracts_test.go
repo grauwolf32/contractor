@@ -84,6 +84,69 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 	}
 }
 
+func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
+	t.Parallel()
+
+	type labelCase struct {
+		Name  string          `json:"name"`
+		Value json.RawMessage `json:"value"`
+		Omit  bool            `json:"omit"`
+	}
+	var cases struct {
+		Valid   []labelCase `json:"valid"`
+		Invalid []labelCase `json:"invalid"`
+	}
+	path := filepath.Join("..", "..", "api", "testdata", "v1alpha1", "run-metadata-label-cases.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	var baseline map[string]json.RawMessage
+	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec.json"), &baseline); err != nil {
+		t.Fatal(err)
+	}
+	decode := func(candidate labelCase) error {
+		copy := make(map[string]json.RawMessage, len(baseline))
+		for key, value := range baseline {
+			copy[key] = append(json.RawMessage(nil), value...)
+		}
+		if candidate.Omit {
+			delete(copy, "runMetadataLabels")
+		} else {
+			copy["runMetadataLabels"] = candidate.Value
+		}
+		encoded, marshalErr := json.Marshal(copy)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		_, decodeErr := DecodeStrict[AllocationSpec](encoded)
+		return decodeErr
+	}
+	for _, candidate := range cases.Valid {
+		if err := decode(candidate); err != nil {
+			t.Errorf("valid case %q failed: %v", candidate.Name, err)
+		}
+	}
+	for _, candidate := range cases.Invalid {
+		if err := decode(candidate); err == nil {
+			t.Errorf("invalid case %q was accepted", candidate.Name)
+		}
+	}
+
+	source := map[string]string{"eval.id": "eval_01"}
+	normalized, err := NormalizeRunMetadataLabels(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source["eval.id"] = "changed"
+	if normalized["eval.id"] != "eval_01" || normalized.Clone() == nil {
+		t.Fatalf("normalized labels alias source or lost explicit empty semantics: %v", normalized)
+	}
+}
+
 func TestAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
 	t.Parallel()
 

@@ -1150,7 +1150,7 @@ func (s *Scheduler) newPlannerTelemetry(
 	created, err := s.options.PlannerTelemetry.Create(configuration.Adapter, telemetry.PlannerAdapterSettings{
 		Endpoint: configuration.Endpoint, Headers: headers,
 		FlushTimeout: time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
-		Resource:     resource,
+		Resource:     resource, RunMetadataLabels: run.MetadataLabels.Clone(),
 	})
 	for name := range headers {
 		delete(headers, name)
@@ -1376,7 +1376,8 @@ func (s *Scheduler) liveOrNewReservations(
 		if lost {
 			reservations, reserveErr := s.reserveAll(ctx, controlplane.ReservationRequest{
 				RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-				Bindings: requirements, RuntimeConfig: &run.RuntimeConfig,
+				RunMetadataLabels: run.MetadataLabels.Clone(),
+				Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
 			})
 			if reserveErr != nil {
 				return nil, false, errControlPlaneAllocationLost
@@ -1386,7 +1387,8 @@ func (s *Scheduler) liveOrNewReservations(
 	}
 	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		Bindings: requirements, RuntimeConfig: &run.RuntimeConfig,
+		RunMetadataLabels: run.MetadataLabels.Clone(),
+		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
 	})
 	if err != nil {
 		return nil, false, err
@@ -1469,7 +1471,8 @@ func verifyReservations(
 		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
 			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
 			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() ||
-			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) {
+			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) ||
+			!equalRunMetadataLabels(reservation.RunMetadataLabels, run.MetadataLabels) {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}
 		if reservation.ResolvedRuntimeConfig == nil {
@@ -1512,6 +1515,19 @@ func verifyReservations(
 		return fmt.Errorf("durable allocation set is incomplete")
 	}
 	return nil
+}
+
+func equalRunMetadataLabels(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		other, present := right[key]
+		if !present || other != value {
+			return false
+		}
+	}
+	return true
 }
 
 func samePersistedRuntimeConfiguration(
@@ -2262,7 +2278,8 @@ func (s *Scheduler) existingLiveReservations(
 	}
 	reservations, err := s.reserveAll(ctx, controlplane.ReservationRequest{
 		RunID: run.RunID, StageExecutionID: execution.StageExecutionID,
-		Bindings: requirements, RuntimeConfig: &run.RuntimeConfig,
+		RunMetadataLabels: run.MetadataLabels.Clone(),
+		Bindings:          requirements, RuntimeConfig: &run.RuntimeConfig,
 	})
 	if err != nil || verifyReservations(run, workflow, execution, recorded, reservations) != nil {
 		return nil

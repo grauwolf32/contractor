@@ -327,6 +327,7 @@ def adapter_context(
         runtime_config_digests=("sha256:" + "a" * 64,),
         run_labels=("caido",),
         agent_labels=(),
+        run_metadata_labels=MappingProxyType({}),
         runtime_adapter_refs=("http-proxy@1",),
         private_bypass_hosts=private_bypass_hosts,
     )

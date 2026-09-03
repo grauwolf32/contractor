@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import httpx
@@ -126,12 +127,14 @@ def test_otlp_protobuf_is_bounded_content_free_and_header_scoped() -> None:
     assert resource["contractor.run.id"] == "run-1"
     assert resource["contractor.run.labels"] == ["debug"]
     assert resource["contractor.agent.labels"] == ["site-a"]
+    assert not any(key.startswith("contractor.run.label.") for key in resource)
     spans = decoded.resource_spans[0].scope_spans[0].spans
     assert [span.name for span in spans] == [
         "contractor.worker.model",
         "contractor.worker.tool",
         "contractor.worker.a2a_task",
     ]
+    assert len({span.trace_id for span in spans}) == 1
     model_attributes = _attributes(spans[0].attributes)
     assert len(model_attributes["model.alias"].encode()) <= MAX_STRING_ATTRIBUTE_BYTES
     assert model_attributes["tokens.total"] == 18
@@ -145,6 +148,16 @@ def test_otlp_protobuf_is_bounded_content_free_and_header_scoped() -> None:
         "tokens.total",
     }
     assert all(len(span.attributes) <= MAX_SPAN_ATTRIBUTES for span in spans)
+    task_attributes = _attributes(spans[2].attributes)
+    assert task_attributes["contractor.run.label.purpose"] == "eval"
+    assert task_attributes["contractor.run.label.eval.id"] == "eval_01"
+    assert task_attributes["contractor.run.label.eval.leg"] == "a"
+    assert task_attributes["contractor.run.label.eval.case"] == "case_1"
+    assert task_attributes["contractor.run.label.eval.note"] == "left = right/β"
+    for span in spans[:2]:
+        assert not any(
+            key.startswith("contractor.run.label.") for key in _attributes(span.attributes)
+        )
 
 
 @pytest.mark.parametrize("failure", ["disconnect", "partial", "status"])
@@ -332,6 +345,15 @@ def adapter_context() -> RuntimeAdapterBuildContext:
         runtime_config_digests=("sha256:" + "a" * 64,),
         run_labels=("debug",),
         agent_labels=("site-a",),
+        run_metadata_labels=MappingProxyType(
+            {
+                "purpose": "eval",
+                "eval.id": "eval_01",
+                "eval.leg": "a",
+                "eval.case": "case_1",
+                "eval.note": "left = right/β",
+            }
+        ),
         runtime_adapter_refs=("otlp-http@1",),
         private_bypass_hosts=("artifact.example",),
     )

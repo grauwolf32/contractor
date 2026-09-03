@@ -560,6 +560,9 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			snapshot.RuntimeCredentialIDs = []string{"planner-otel"}
 			harness.store.run.RuntimeConfig = snapshot
 			harness.store.run.RuntimeLabels = []string{"debug"}
+			harness.store.run.MetadataLabels = runstore.RunMetadataLabels{
+				"purpose": "eval", "eval.id": "metadata-eval-id-canary", "eval.leg": "a",
+			}
 
 			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
 			resolved, err := fallbackResolvedWorkerConfig(selection)
@@ -596,14 +599,27 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			if len(bodies) != 1 || header != headerSecret ||
 				bytes.Contains(bodies[0], []byte(headerSecret)) ||
 				bytes.Contains(bodies[0], []byte(agentRef.Name)) ||
-				!bytes.Contains(bodies[0], []byte(debugRef.Name+"@"+debugRef.Version)) {
+				!bytes.Contains(bodies[0], []byte(debugRef.Name+"@"+debugRef.Version)) ||
+				!bytes.Contains(bodies[0], []byte("contractor.run.label.eval.id")) ||
+				!bytes.Contains(bodies[0], []byte("metadata-eval-id-canary")) {
 				t.Fatalf("Planner OTLP selection leaked or missed provenance: requests=%d header=%q body=%q", len(bodies), header, bodies)
 			}
 			if recordingRegistry.creates != 1 || len(recordingRegistry.resources) != 1 ||
+				len(recordingRegistry.metadataLabels) != 1 ||
+				!equalRunMetadataLabels(
+					recordingRegistry.metadataLabels[0], harness.store.run.MetadataLabels,
+				) ||
 				len(recordingRegistry.resources[0].RunLabels) != 1 ||
 				recordingRegistry.resources[0].RunLabels[0] != "debug" ||
 				stringSliceContains(recordingRegistry.resources[0].RuntimeConfigRefs, "agent-caido@1") {
 				t.Fatalf("Planner registry inputs = creates:%d resources:%+v", recordingRegistry.creates, recordingRegistry.resources)
+			}
+			if len(harness.workers.preparedReservations) != 1 ||
+				len(harness.workers.preparedReservations[0]) != 1 || !equalRunMetadataLabels(
+				harness.workers.preparedReservations[0][0].RunMetadataLabels,
+				harness.store.run.MetadataLabels,
+			) {
+				t.Fatalf("allocation metadata labels = %+v", harness.workers.preparedReservations)
 			}
 			if len(harness.store.plannerReports) != 1 {
 				t.Fatalf("Planner reports = %+v", harness.store.plannerReports)
@@ -611,6 +627,7 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			report := harness.store.plannerReports[0].Report
 			encodedReport, encodeErr := json.Marshal(report)
 			if encodeErr != nil || bytes.Contains(encodedReport, []byte(headerSecret)) ||
+				bytes.Contains(encodedReport, []byte("metadata-eval-id-canary")) ||
 				bytes.Contains(encodedReport, []byte(collector.URL)) ||
 				bytes.Contains(encodedReport, []byte(agentRef.Name)) ||
 				strings.Contains(safeLogs.String(), headerSecret) || strings.Contains(safeLogs.String(), collector.URL) {
@@ -2238,6 +2255,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
 		AgentTemplate: binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
+		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 	}
@@ -2318,20 +2336,21 @@ func (a *memoryAllocator) PollAllocationLosses() []controlplane.AllocationLoss {
 }
 
 type memoryWorkers struct {
-	allocator        *memoryAllocator
-	workflow         workflowconfig.ResolvedWorkflow
-	clock            staticClock
-	events           *eventRecorder
-	prepareCalls     int
-	finalizeCalls    int
-	abortCalls       int
-	releaseCalls     int
-	preparedSettings []map[string]contracts.WorkerExecutionSettingsV2
-	prepareError     error
-	abortError       error
-	releaseError     error
-	releaseErrors    map[string]error
-	releasedBatches  []int
+	allocator            *memoryAllocator
+	workflow             workflowconfig.ResolvedWorkflow
+	clock                staticClock
+	events               *eventRecorder
+	prepareCalls         int
+	finalizeCalls        int
+	abortCalls           int
+	releaseCalls         int
+	preparedSettings     []map[string]contracts.WorkerExecutionSettingsV2
+	preparedReservations [][]controlplane.Reservation
+	prepareError         error
+	abortError           error
+	releaseError         error
+	releaseErrors        map[string]error
+	releasedBatches      []int
 }
 
 func (w *memoryWorkers) PrepareAll(
@@ -2340,6 +2359,11 @@ func (w *memoryWorkers) PrepareAll(
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
 	w.preparedSettings = append(w.preparedSettings, settings)
+	batch := append([]controlplane.Reservation(nil), reservations...)
+	for index := range batch {
+		batch[index].RunMetadataLabels = batch[index].RunMetadataLabels.Clone()
+	}
+	w.preparedReservations = append(w.preparedReservations, batch)
 	w.events.add("prepare")
 	if w.prepareError != nil {
 		return nil, w.prepareError
@@ -2508,9 +2532,10 @@ func (f runtimeCredentialResolverFunc) UsePlaintext(
 }
 
 type recordingPlannerTelemetryRegistry struct {
-	inner     *telemetry.PlannerAdapterRegistry
-	creates   int
-	resources []telemetry.PlannerResource
+	inner          *telemetry.PlannerAdapterRegistry
+	creates        int
+	resources      []telemetry.PlannerResource
+	metadataLabels []contracts.RunMetadataLabels
 }
 
 func (r *recordingPlannerTelemetryRegistry) Create(
@@ -2519,6 +2544,7 @@ func (r *recordingPlannerTelemetryRegistry) Create(
 ) (telemetry.PlannerTelemetry, error) {
 	r.creates++
 	r.resources = append(r.resources, settings.Resource)
+	r.metadataLabels = append(r.metadataLabels, settings.RunMetadataLabels.Clone())
 	return r.inner.Create(ref, settings)
 }
 

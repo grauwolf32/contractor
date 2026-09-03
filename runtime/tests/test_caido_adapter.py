@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable
+from types import MappingProxyType
 
 import httpx
 import pytest
@@ -196,6 +197,7 @@ def adapter_context() -> RuntimeAdapterBuildContext:
         runtime_config_digests=("sha256:" + "a" * 64,),
         run_labels=("caido",),
         agent_labels=(),
+        run_metadata_labels=MappingProxyType({}),
         runtime_adapter_refs=("caido-graphql@1",),
         private_bypass_hosts=("127.0.0.1", "localhost"),
     )

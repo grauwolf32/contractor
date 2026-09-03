@@ -190,10 +190,27 @@
         "packageDigest": {"$ref": "common.schema.json#/$defs/digest"}
       }
     },
+    "runMetadataLabels": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": {
+        "allOf": [
+          {"minLength": 1, "maxLength": 63},
+          {"pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
+          {"not": {"pattern": "^contractor\\."}}
+        ]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "pattern": "^[^\\u0000]+$"
+      }
+    },
     "allocationSpec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "leaseExpiresAt", "agentTemplate", "resolvedSkills", "modelPolicy", "runtimeSettings"],
+      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "runMetadataLabels", "leaseExpiresAt", "agentTemplate", "resolvedSkills", "modelPolicy", "runtimeSettings"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
         "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
@@ -201,6 +218,7 @@
         "stageExecutionId": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "logicalAgentName": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "runMetadataLabels": {"$ref": "#/$defs/runMetadataLabels"},
         "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},
         "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},
         "resolvedSkills": {
