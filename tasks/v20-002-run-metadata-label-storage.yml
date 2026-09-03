@@ -3,8 +3,8 @@ id: V20-002
 title: Persist immutable WorkflowRun metadata labels
 milestone: run-metadata-labels
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 8e91fe72500ea232cb50fe5de60165d4d8bc8e72
 depends_on: [V20-001]
 languages: [go, sql, yaml, json]
 
