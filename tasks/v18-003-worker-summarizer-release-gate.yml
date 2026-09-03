@@ -3,8 +3,8 @@ id: V18-003
 title: Harden and process-test optional terminal Worker summarization
 milestone: terminal-worker-summarization
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: cec515c325321108e9cf2706af2753b9476ff223
 depends_on: [V18-002]
 languages: [go, python, yaml]
 
@@ -34,8 +34,9 @@ scope:
     - Quality/F1 threshold, event compaction, alternative Gateway routing, UI editing or automatic enablement of existing AgentTemplates.
 
 deliverables:
-  - {path: tests/integration/worker_summarizer, description: Production-boundary deterministic process scenario.}
-  - {path: tests/matrices/worker_summarizer.yml, description: Strict invariant and fault ownership.}
+  - {path: tests/e2e/worker_summarizer_test.go, description: Production-boundary deterministic process scenario.}
+  - {path: tests/e2e/worker_summarizer_matrix.yml, description: Strict invariant and fault ownership.}
+  - {path: runtime/src/contractor_runtime/token_usage.py, description: One validated provider-usage projection shared by budgets and metrics.}
   - {path: Makefile, description: Focused/release verification targets.}
   - {path: docs/development.md, description: Optional live-model evaluation command and expected diagnostics.}
 
@@ -73,3 +74,11 @@ decisions:
     Correctness is proven with an offline scripted Gateway. Live-model behavior
     is an opt-in evaluation because it cannot be deterministic or required for
     repository release.
+  - >-
+    A zero provider total is normalized as unavailable because OpenAI-compatible
+    transports use it when usage is omitted. Arithmetically inconsistent usage
+    is dropped closed instead of triggering or inflating a soft budget.
+  - >-
+    Direct Gateway calls disable transport retries. One ModelPolicy call is the
+    observable retry and accounting boundary for both the normal Worker and its
+    terminal summarizer.
