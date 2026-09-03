@@ -347,7 +347,7 @@ describe("Workflow routes", () => {
             {
               runId: "run_openapi",
               state: "running",
-              labels: ["caido", "debug"],
+              runtimeLabels: ["caido", "debug"],
               runtimeConfiguration: labeledRuntimeConfiguration,
             },
             { status: 202 },
@@ -358,7 +358,7 @@ describe("Workflow routes", () => {
             runId: "run_openapi",
             workflow: "openapi-from-source@1",
             state: "running",
-            labels: ["caido", "debug"],
+            runtimeLabels: ["caido", "debug"],
             runtimeConfiguration: labeledRuntimeConfiguration,
             attempts: [],
             transitions: [],
@@ -441,7 +441,7 @@ describe("Workflow routes", () => {
     );
     expect(posts[0]?.body).toEqual({
       workflow: "openapi-from-source@1",
-      labels: ["caido", "debug"],
+      runtimeLabels: ["caido", "debug"],
       parameters: { objective: "Build public API" },
       artifacts: {
         source: {
@@ -549,7 +549,7 @@ describe("Workflow routes", () => {
             {
               runId: "run_changed",
               state: "running",
-              labels: [],
+              runtimeLabels: [],
               runtimeConfiguration: pinnedRuntimeConfiguration,
             },
             { status: 202 },

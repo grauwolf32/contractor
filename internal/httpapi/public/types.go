@@ -174,21 +174,21 @@ var errInvalidRequest = errors.New("invalid public API request")
 
 type createRunRequest struct {
 	Workflow        string                           `json:"workflow"`
-	Labels          runLabels                        `json:"labels,omitempty"`
+	RuntimeLabels   runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
 	Parameters      map[string]string                `json:"parameters"`
 	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
 	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
 }
 
-type runLabels []string
+type runRuntimeLabels []string
 
-func (l *runLabels) UnmarshalJSON(data []byte) error {
+func (l *runRuntimeLabels) UnmarshalJSON(data []byte) error {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return errors.New("labels must be an array")
+		return errors.New("runtimeLabels must be an array")
 	}
 	var value []string
 	if err := json.Unmarshal(data, &value); err != nil || value == nil {
-		return errors.New("labels must be an array")
+		return errors.New("runtimeLabels must be an array")
 	}
 	*l = value
 	return nil
@@ -197,7 +197,7 @@ func (l *runLabels) UnmarshalJSON(data []byte) error {
 type createRunResponse struct {
 	RunID                string                    `json:"runId"`
 	State                runstore.WorkflowRunState `json:"state"`
-	Labels               []string                  `json:"labels"`
+	RuntimeLabels        []string                  `json:"runtimeLabels"`
 	RuntimeConfiguration runRuntimeConfigResponse  `json:"runtimeConfiguration"`
 }
 
@@ -231,7 +231,7 @@ type runStatusResponse struct {
 	RunID                  string                            `json:"runId"`
 	Workflow               string                            `json:"workflow"`
 	State                  runstore.WorkflowRunState         `json:"state"`
-	Labels                 []string                          `json:"labels"`
+	RuntimeLabels          []string                          `json:"runtimeLabels"`
 	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`
 	Cancellation           *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
 	Parameters             map[string]string                 `json:"parameters,omitempty"`

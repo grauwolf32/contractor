@@ -253,7 +253,7 @@ func createEmptyWorkflowRun(
 		"workflow": workflow, "parameters": map[string]string{}, "artifacts": map[string]artifactRef{},
 	}
 	if len(labels) != 0 {
-		requestBody["labels"] = labels
+		requestBody["runtimeLabels"] = labels
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
@@ -271,7 +271,7 @@ func createEmptyWorkflowRun(
 	var payload struct {
 		RunID                string          `json:"runId"`
 		State                string          `json:"state"`
-		Labels               []string        `json:"labels"`
+		RuntimeLabels        []string        `json:"runtimeLabels"`
 		RuntimeConfiguration json.RawMessage `json:"runtimeConfiguration"`
 	}
 	decodeResponse(t, response, &payload)

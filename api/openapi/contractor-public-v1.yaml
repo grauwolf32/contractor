@@ -166,7 +166,7 @@ paths:
               example:
                 runId: run_example
                 state: running
-                labels: []
+                runtimeLabels: []
                 runtimeConfiguration:
                   default:
                     label: default
@@ -2220,12 +2220,12 @@ components:
     RunStatus:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, labels, runtimeConfiguration, attempts, transitions, outputs]
+      required: [runId, workflow, state, runtimeLabels, runtimeConfiguration, attempts, transitions, outputs]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
-        labels:
+        runtimeLabels:
           type: array
           maxItems: 32
           uniqueItems: true
@@ -2271,11 +2271,11 @@ components:
     CreateRunResponse:
       type: object
       additionalProperties: false
-      required: [runId, state, labels, runtimeConfiguration]
+      required: [runId, state, runtimeLabels, runtimeConfiguration]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
-        labels:
+        runtimeLabels:
           type: array
           maxItems: 32
           uniqueItems: true
@@ -2328,7 +2328,7 @@ components:
       required: [workflow]
       properties:
         workflow: {$ref: '#/components/schemas/Selector'}
-        labels:
+        runtimeLabels:
           type: array
           maxItems: 32
           uniqueItems: true

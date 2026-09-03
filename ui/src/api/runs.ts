@@ -143,12 +143,12 @@ export async function getRun(
     throw invalidRunResponse(result.response.status);
   }
   if (
-    !Array.isArray(run.labels) ||
-    run.labels.some(
+    !Array.isArray(run.runtimeLabels) ||
+    run.runtimeLabels.some(
       (label, index) =>
         typeof label !== "string" ||
         label === "default" ||
-        (index > 0 && run.labels[index - 1]! >= label),
+        (index > 0 && run.runtimeLabels[index - 1]! >= label),
     )
   ) {
     throw invalidRunResponse(result.response.status);
@@ -157,7 +157,7 @@ export async function getRun(
     runId: run.runId,
     workflow: run.workflow,
     state: run.state,
-    labels: [...run.labels],
+    runtimeLabels: [...run.runtimeLabels],
     runtimeConfiguration: safeRunRuntimeConfiguration(run.runtimeConfiguration),
     ...(run.cancellation === undefined
       ? {}

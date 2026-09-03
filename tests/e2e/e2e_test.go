@@ -48,7 +48,7 @@ type runStatus struct {
 	RunID                  string                 `json:"runId"`
 	Workflow               string                 `json:"workflow"`
 	State                  string                 `json:"state"`
-	Labels                 []string               `json:"labels"`
+	RuntimeLabels          []string               `json:"runtimeLabels"`
 	RuntimeConfiguration   json.RawMessage        `json:"runtimeConfiguration"`
 	Cancellation           json.RawMessage        `json:"cancellation,omitempty"`
 	Parameters             map[string]string      `json:"parameters,omitempty"`
@@ -320,7 +320,7 @@ func createWorkflowRunWithParameters(
 	var payload struct {
 		RunID                string          `json:"runId"`
 		State                string          `json:"state"`
-		Labels               []string        `json:"labels"`
+		RuntimeLabels        []string        `json:"runtimeLabels"`
 		RuntimeConfiguration json.RawMessage `json:"runtimeConfiguration"`
 	}
 	decodeResponse(t, response, &payload)

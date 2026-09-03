@@ -397,14 +397,21 @@ curl --fail --silent --show-error \
   'http://127.0.0.1:8080/v1/operations/runtime-labels?limit=50' | jq .
 ```
 
-A Run label such as `debug` may require `otlp-http@1` even when neither Agent
+A Run-selected Runtime label such as `debug` may require `otlp-http@1` even when neither Agent
 is named or labeled `debug`; placement selects any capable idle candidate. An
 Agent label is the highest physical Worker layer and can replace that Run's
 endpoint/credential on its next allocation. Rebinding a label while work is
-active changes only future Runs (for Run labels) or future allocations (for
-Agent labels). `make test-runtime-labels-e2e` proves these rules with real
+active changes only future Runs (for Run-selected Runtime labels) or future
+allocations (for Agent Runtime labels). `make test-runtime-labels-e2e` proves
+these rules with real
 Server, PostgreSQL, two uniquely certified Runtime processes, OTLP protobuf,
 authenticated proxying, exporter failure and complete slot reuse.
+
+The public Run field is `runtimeLabels`. The former top-level `labels` array is
+not a compatibility alias: upgrade Server, bundled UI and automation clients
+together after draining request traffic, and discard any unsubmitted browser
+draft created against the old shape. Existing Run rows and active allocation
+snapshots keep their pinned Runtime configuration and require no data rewrite.
 
 ## Runtime-configuration hardening and release gate
 

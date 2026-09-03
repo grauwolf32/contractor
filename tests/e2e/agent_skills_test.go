@@ -552,7 +552,7 @@ func createAgentSkillWorkflowRun(
 		"artifacts": inputs,
 	}
 	if labels != nil {
-		requestBody["labels"] = labels
+		requestBody["runtimeLabels"] = labels
 	}
 	body, err := json.Marshal(requestBody)
 	if err != nil {
@@ -570,7 +570,7 @@ func createAgentSkillWorkflowRun(
 	var result struct {
 		RunID                string          `json:"runId"`
 		State                string          `json:"state"`
-		Labels               json.RawMessage `json:"labels"`
+		RuntimeLabels        json.RawMessage `json:"runtimeLabels"`
 		RuntimeConfiguration json.RawMessage `json:"runtimeConfiguration"`
 	}
 	decodeResponse(t, response, &result)

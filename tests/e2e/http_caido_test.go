@@ -390,7 +390,7 @@ func createHTTPCaidoRun(
 			"objective": "Collect bounded evidence and publish one report",
 			"target":    target, "authorization_scope": "single test-owned loopback target",
 		},
-		"artifacts": map[string]artifactRef{}, "labels": labels,
+		"artifacts": map[string]artifactRef{}, "runtimeLabels": labels,
 	}
 	headers := map[string]string{"Idempotency-Key": idempotencyKey}
 	data := operations.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)

@@ -171,7 +171,9 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   const [parameters, setParameters] = useState<
     Record<string, string | undefined>
   >({});
-  const [labels, setLabels] = useState<string[]>([]);
+  const [selectedRuntimeLabels, setSelectedRuntimeLabels] = useState<string[]>(
+    [],
+  );
   const [artifactSelections, setArtifactSelections] = useState<
     Record<string, string>
   >({});
@@ -268,7 +270,12 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   );
   const currentValidation = validateRunDraft(
     workflow,
-    { labels, parameters, artifacts: artifactSelections, overrides },
+    {
+      runtimeLabels: selectedRuntimeLabels,
+      parameters,
+      artifacts: artifactSelections,
+      overrides,
+    },
     artifactMap,
   );
   const mutation = useMutation({
@@ -312,7 +319,12 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     mutation.reset();
     const validation = validateRunDraft(
       workflow,
-      { labels, parameters, artifacts: artifactSelections, overrides },
+      {
+        runtimeLabels: selectedRuntimeLabels,
+        parameters,
+        artifacts: artifactSelections,
+        overrides,
+      },
       artifactMap,
     );
     setValidationErrors(validation.errors);
@@ -378,15 +390,15 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
               <label className="runtime-label-option" key={binding.label}>
                 <input
                   type="checkbox"
-                  checked={labels.includes(binding.label)}
+                  checked={selectedRuntimeLabels.includes(binding.label)}
                   onChange={(event) => {
-                    setLabels((current) =>
+                    setSelectedRuntimeLabels((current) =>
                       (event.target.checked
                         ? [...current, binding.label]
                         : current.filter((label) => label !== binding.label)
                       ).sort(),
                     );
-                    clearError("labels");
+                    clearError("runtimeLabels");
                   }}
                 />
                 <span>
@@ -397,9 +409,9 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
             ))}
           </div>
         )}
-        {validationErrors.labels === undefined ? null : (
+        {validationErrors.runtimeLabels === undefined ? null : (
           <p className="field-error" role="alert">
-            {validationErrors.labels}
+            {validationErrors.runtimeLabels}
           </p>
         )}
         {runtimeLabelInventory.hasNextPage ? (

@@ -431,8 +431,8 @@ func createTaintAnnotationsRun(
 			"target": target, "objective": "Trace the selected request flow",
 			"context": "Use only evidence in the supplied workspace",
 		},
-		"artifacts": map[string]artifactRef{"source": source},
-		"labels":    []string{"taint-debug"},
+		"artifacts":     map[string]artifactRef{"source": source},
+		"runtimeLabels": []string{"taint-debug"},
 	})
 	if err != nil {
 		t.Fatal(err)

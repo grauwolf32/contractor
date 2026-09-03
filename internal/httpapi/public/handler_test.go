@@ -475,7 +475,8 @@ func TestArtifactUploadIsBoundedBeforeRepository(t *testing.T) {
 func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	requests := []string{
-		`{"workflow":"artifact-copy@1","labels":null,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
+		`{"workflow":"artifact-copy@1","runtimeLabels":null,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
+		`{"workflow":"artifact-copy@1","labels":[],"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","parameters":{"objective":42},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`,
 		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{},"extra":true}`,
 		`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{}}`,
@@ -596,7 +597,7 @@ func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T)
 		return result, nil
 	}
 	requestBody := func(labels string) []byte {
-		return []byte(`{"workflow":"artifact-copy@1","labels":` + labels +
+		return []byte(`{"workflow":"artifact-copy@1","runtimeLabels":` + labels +
 			`,"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	}
 	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody(`["trace","debug"]`)))
@@ -608,7 +609,7 @@ func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T)
 	}
 	var created createRunResponse
 	if err := json.Unmarshal(firstResponse.Body.Bytes(), &created); err != nil ||
-		strings.Join(created.Labels, ",") != "debug,trace" ||
+		strings.Join(created.RuntimeLabels, ",") != "debug,trace" ||
 		created.RuntimeConfiguration.Labels[0].BindingRevision != "7" {
 		t.Fatalf("labeled Run response = (%+v, %v)", created, err)
 	}
@@ -642,7 +643,7 @@ func TestCreateRunRejectsMalformedAndUnknownLabels(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			fixture := newHandlerFixture(t)
-			body := []byte(`{"workflow":"artifact-copy@1","labels":` + test.labels +
+			body := []byte(`{"workflow":"artifact-copy@1","runtimeLabels":` + test.labels +
 				`,"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 			request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 			request.Header.Set(idempotencyKeyHeader, "invalid-label-"+test.name)
@@ -822,13 +823,13 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 		)
 	}
 	ordered, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", Labels: runLabels{"debug", "trace"},
+		Workflow: "empty@1", RuntimeLabels: runRuntimeLabels{"debug", "trace"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	reversed, err := createRunRequestDigest(createRunRequest{
-		Workflow: "empty@1", Labels: runLabels{"trace", "debug"},
+		Workflow: "empty@1", RuntimeLabels: runRuntimeLabels{"trace", "debug"},
 	})
 	if err != nil || reversed != ordered || reversed == omitted {
 		t.Fatalf("label request digests = ordered:%q reversed:%q omitted:%q error:%v", ordered, reversed, omitted, err)

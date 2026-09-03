@@ -368,12 +368,12 @@ function RunRuntimeConfiguration({ run }: { run: RunStatus }) {
           <span className="eyebrow">Pinned at Run creation</span>
           <strong>Runtime infrastructure configuration</strong>
         </span>
-        <span>{run.labels.length} explicit labels</span>
+        <span>{run.runtimeLabels.length} explicit Runtime labels</span>
       </summary>
       <div className="run-runtime-configuration-body">
         <p className="muted-copy">
-          Default and explicit Run labels below are immutable for this Run.
-          Later label rebinding cannot change these exact refs.
+          Default and explicit Runtime labels below are immutable for this Run.
+          Later Runtime-label rebinding cannot change these exact refs.
         </p>
         <div className="runtime-provenance-grid">
           {entries.map((pin) => (

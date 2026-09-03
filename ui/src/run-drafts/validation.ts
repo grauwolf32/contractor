@@ -16,7 +16,7 @@ export interface ExecutionOverrideDraft {
 }
 
 export interface RunDraftValues {
-  labels: string[];
+  runtimeLabels: string[];
   parameters: Record<string, string | undefined>;
   artifacts: Record<string, string>;
   overrides: ExecutionOverrideDraft;
@@ -71,13 +71,14 @@ export function validateRunDraft(
   artifacts: ReadonlyMap<string, ArtifactMetadata>,
 ): RunDraftValidation {
   const errors: Record<string, string> = {};
-  const labels = [...values.labels].sort();
+  const runtimeLabels = [...values.runtimeLabels].sort();
   if (
-    labels.length > 32 ||
-    labels.includes("default") ||
-    new Set(labels).size !== labels.length
+    runtimeLabels.length > 32 ||
+    runtimeLabels.includes("default") ||
+    new Set(runtimeLabels).size !== runtimeLabels.length
   ) {
-    errors.labels = "Runtime labels must be a unique set without default.";
+    errors.runtimeLabels =
+      "Runtime labels must be a unique set without default.";
   }
   const parameters: Record<string, string> = {};
   for (const [name, slot] of Object.entries(workflow.parameters).sort()) {
@@ -127,7 +128,7 @@ export function validateRunDraft(
     errors,
     request: {
       workflow: `${workflow.ref.name}@${workflow.ref.version}`,
-      labels,
+      runtimeLabels,
       parameters,
       artifacts: inputRefs,
       ...(Object.keys(executionConfig).length === 0 ? {} : { executionConfig }),

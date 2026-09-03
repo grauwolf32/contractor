@@ -1140,7 +1140,7 @@ export interface components {
             runId: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
-            labels: components["schemas"]["ConfigId"][];
+            runtimeLabels: components["schemas"]["ConfigId"][];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
             cancellation?: components["schemas"]["Cancellation"];
             parameters?: {
@@ -1183,7 +1183,7 @@ export interface components {
         CreateRunResponse: {
             runId: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];
-            labels: components["schemas"]["ConfigId"][];
+            runtimeLabels: components["schemas"]["ConfigId"][];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
         };
         CancelRunRequest: {
@@ -1214,7 +1214,7 @@ export interface components {
         };
         CreateRunRequest: {
             workflow: components["schemas"]["Selector"];
-            labels?: components["schemas"]["ConfigId"][];
+            runtimeLabels?: components["schemas"]["ConfigId"][];
             parameters?: {
                 [key: string]: string;
             } | null;
@@ -2213,7 +2213,7 @@ export interface operations {
                      * @example {
                      *       "runId": "run_example",
                      *       "state": "running",
-                     *       "labels": [],
+                     *       "runtimeLabels": [],
                      *       "runtimeConfiguration": {
                      *         "default": {
                      *           "label": "default",

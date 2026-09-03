@@ -44,7 +44,7 @@ describe("Run draft validation", () => {
     const result = validateRunDraft(
       workflow,
       {
-        labels: [],
+        runtimeLabels: [],
         parameters: {},
         artifacts: { source: key },
         overrides: emptyExecutionOverrides(),
@@ -63,7 +63,7 @@ describe("Run draft validation", () => {
     const result = validateRunDraft(
       workflow,
       {
-        labels: ["debug"],
+        runtimeLabels: ["debug"],
         parameters: { objective: "Build OpenAPI" },
         artifacts: { source: key },
         overrides: emptyExecutionOverrides(),
@@ -73,7 +73,7 @@ describe("Run draft validation", () => {
     expect(result.errors).toEqual({});
     expect(result.request).toEqual({
       workflow: "openapi-from-source@1",
-      labels: ["debug"],
+      runtimeLabels: ["debug"],
       parameters: { objective: "Build OpenAPI" },
       artifacts: { source: source.artifact },
     });
@@ -89,7 +89,7 @@ describe("Run draft validation", () => {
     const result = validateRunDraft(
       workflow,
       {
-        labels: [],
+        runtimeLabels: [],
         parameters: { objective: "Build OpenAPI", note: "" },
         artifacts: { source: key },
         overrides,

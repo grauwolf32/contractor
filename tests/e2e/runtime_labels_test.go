@@ -64,7 +64,7 @@ type pinnedRuntimeConfig struct {
 type createdLabeledRun struct {
 	RunID                string   `json:"runId"`
 	State                string   `json:"state"`
-	Labels               []string `json:"labels"`
+	RuntimeLabels        []string `json:"runtimeLabels"`
 	RuntimeConfiguration struct {
 		Default pinnedRuntimeConfig   `json:"default"`
 		Labels  []pinnedRuntimeConfig `json:"labels"`
@@ -707,7 +707,7 @@ func (o *runtimeOperations) createRun(
 		"artifacts": map[string]artifactRef{"source": input},
 	}
 	if labels != nil {
-		body["labels"] = labels
+		body["runtimeLabels"] = labels
 	}
 	headers := map[string]string{"Idempotency-Key": idempotencyKey}
 	data := o.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)

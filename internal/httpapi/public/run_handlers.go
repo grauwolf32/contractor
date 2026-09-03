@@ -114,12 +114,12 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	normalizedLabels, err := runtimeconfig.NormalizeRunLabels([]string(request.Labels))
+	normalizedLabels, err := runtimeconfig.NormalizeRunLabels([]string(request.RuntimeLabels))
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	request.Labels = runLabels(normalizedLabels)
+	request.RuntimeLabels = runRuntimeLabels(normalizedLabels)
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -181,7 +181,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 				return catalogErr
 			}
 			runtimeConfig, pinErr := runs.PinRuntimeLabels(
-				r.Context(), []string(request.Labels), h.dependencies.Credentials,
+				r.Context(), []string(request.RuntimeLabels), h.dependencies.Credentials,
 			)
 			if pinErr != nil {
 				return pinErr
@@ -284,7 +284,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 	return createRunResponse{
 		RunID: run.RunID, State: run.State,
-		Labels:               append([]string{}, run.RuntimeLabels...),
+		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 	}
 }
@@ -305,7 +305,7 @@ func requireIdempotencyKey(r *http.Request) (string, error) {
 }
 
 func createRunRequestDigest(request createRunRequest) (string, error) {
-	labels, err := runtimeconfig.NormalizeRunLabels([]string(request.Labels))
+	labels, err := runtimeconfig.NormalizeRunLabels([]string(request.RuntimeLabels))
 	if err != nil {
 		return "", err
 	}
@@ -321,10 +321,10 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 		"workflow": request.Workflow, "parameters": parameters, "artifacts": artifactRefs,
 		"executionConfig": request.ExecutionConfig.CanonicalValue(),
 	}
-	// Preserve the pre-label digest for the empty set so response-loss replay of
+	// Preserve the pre-Runtime-label digest for the empty set so response-loss replay of
 	// Runs created before migration 000018 remains exact after upgrade.
 	if len(labels) != 0 {
-		canonical["labels"] = labels
+		canonical["runtimeLabels"] = labels
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -567,7 +567,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State: run.State, Labels: append([]string{}, run.RuntimeLabels...),
+		State: run.State, RuntimeLabels: append([]string{}, run.RuntimeLabels...),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,
 		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,

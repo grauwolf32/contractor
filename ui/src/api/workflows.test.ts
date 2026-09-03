@@ -90,7 +90,7 @@ describe("Workflow API", () => {
           {
             runId: "run_example",
             state: "running",
-            labels: [],
+            runtimeLabels: [],
             runtimeConfiguration: {
               default: {
                 label: "default",
@@ -123,7 +123,7 @@ describe("Workflow API", () => {
     await expect(createRun(api, request, "draft-exact-1")).resolves.toEqual({
       runId: "run_example",
       state: "running",
-      labels: [],
+      runtimeLabels: [],
       runtimeConfiguration: {
         default: {
           label: "default",

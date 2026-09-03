@@ -150,12 +150,12 @@ export async function createRun(
     throw invalidRunResponse(result.response.status);
   }
   if (
-    !Array.isArray(response.labels) ||
-    response.labels.some(
+    !Array.isArray(response.runtimeLabels) ||
+    response.runtimeLabels.some(
       (label, index) =>
         !CONFIG_ID_PATTERN.test(label) ||
         label === "default" ||
-        (index > 0 && response.labels[index - 1]! >= label),
+        (index > 0 && response.runtimeLabels[index - 1]! >= label),
     )
   ) {
     throw invalidRunResponse(result.response.status);
@@ -163,7 +163,7 @@ export async function createRun(
   return {
     runId: response.runId,
     state: response.state,
-    labels: [...response.labels],
+    runtimeLabels: [...response.runtimeLabels],
     runtimeConfiguration: safeRunRuntimeConfiguration(
       response.runtimeConfiguration,
     ),
