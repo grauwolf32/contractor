@@ -51,23 +51,53 @@ type liveArtifactRef struct {
 	Revision  *string `json:"revision,omitempty"`
 }
 
+type liveRunCreateResponse struct {
+	RunID                string            `json:"runId"`
+	State                string            `json:"state"`
+	RuntimeLabels        []string          `json:"runtimeLabels"`
+	Labels               map[string]string `json:"labels"`
+	RuntimeConfiguration json.RawMessage   `json:"runtimeConfiguration"`
+}
+
 type liveRunStatus struct {
-	RunID        string                     `json:"runId"`
-	Workflow     string                     `json:"workflow"`
-	State        string                     `json:"state"`
-	Cancellation json.RawMessage            `json:"cancellation,omitempty"`
-	Attempts     []liveRunAttempt           `json:"attempts"`
-	Outputs      map[string]liveArtifactRef `json:"outputs"`
+	RunID                  string                     `json:"runId"`
+	Workflow               string                     `json:"workflow"`
+	State                  string                     `json:"state"`
+	RuntimeLabels          []string                   `json:"runtimeLabels"`
+	Labels                 map[string]string          `json:"labels"`
+	RuntimeConfiguration   json.RawMessage            `json:"runtimeConfiguration"`
+	Cancellation           json.RawMessage            `json:"cancellation,omitempty"`
+	Parameters             map[string]string          `json:"parameters,omitempty"`
+	Inputs                 map[string]liveArtifactRef `json:"inputs,omitempty"`
+	Attempts               []liveRunAttempt           `json:"attempts"`
+	Transitions            []json.RawMessage          `json:"transitions"`
+	Outputs                map[string]liveArtifactRef `json:"outputs"`
+	EventCursor            json.RawMessage            `json:"eventCursor,omitempty"`
+	ActiveStageExecutionID *string                    `json:"activeStageExecutionId,omitempty"`
+	CreatedAt              json.RawMessage            `json:"createdAt,omitempty"`
+	UpdatedAt              json.RawMessage            `json:"updatedAt,omitempty"`
+	StartedAt              json.RawMessage            `json:"startedAt,omitempty"`
+	FinishedAt             json.RawMessage            `json:"finishedAt,omitempty"`
 }
 
 type liveRunAttempt struct {
-	StageExecutionID string                        `json:"stageExecutionId"`
-	Stage            string                        `json:"stage"`
-	Attempt          int                           `json:"attempt"`
-	State            string                        `json:"state"`
-	Result           *contracts.StageContentResult `json:"result,omitempty"`
-	Termination      *runstore.StageTermination    `json:"termination,omitempty"`
-	Metrics          *telemetry.Summary            `json:"metrics,omitempty"`
+	StageExecutionID     string                        `json:"stageExecutionId"`
+	Stage                string                        `json:"stage"`
+	Objective            string                        `json:"objective,omitempty"`
+	Attempt              int                           `json:"attempt"`
+	PreviousExecutionID  *string                       `json:"previousExecutionId,omitempty"`
+	ExecutionConfig      json.RawMessage               `json:"executionConfig"`
+	State                string                        `json:"state"`
+	Result               *contracts.StageContentResult `json:"result,omitempty"`
+	Termination          *runstore.StageTermination    `json:"termination,omitempty"`
+	Metrics              *telemetry.Summary            `json:"metrics,omitempty"`
+	Diagnostics          json.RawMessage               `json:"diagnostics,omitempty"`
+	Plan                 json.RawMessage               `json:"plan,omitempty"`
+	RuntimeConfiguration json.RawMessage               `json:"runtimeConfiguration,omitempty"`
+	CreatedAt            json.RawMessage               `json:"createdAt,omitempty"`
+	UpdatedAt            json.RawMessage               `json:"updatedAt,omitempty"`
+	PlannerStartedAt     json.RawMessage               `json:"plannerStartedAt,omitempty"`
+	TerminalAt           json.RawMessage               `json:"terminalAt,omitempty"`
 }
 
 type liveAttemptEvidence struct {
@@ -476,10 +506,7 @@ func createLiveRun(stack *liveStack, workflow string, source liveArtifactRef) (s
 	if response.StatusCode != http.StatusAccepted {
 		return "", fmt.Errorf("Run creation returned status %d", response.StatusCode)
 	}
-	var payload struct {
-		RunID string `json:"runId"`
-		State string `json:"state"`
-	}
+	var payload liveRunCreateResponse
 	if err := decodeLiveResponse(response.Body, &payload); err != nil ||
 		payload.RunID == "" || payload.State != string(runstore.RunRunning) {
 		return "", errors.New("Run creation response is invalid")

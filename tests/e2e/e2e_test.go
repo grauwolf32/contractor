@@ -44,11 +44,20 @@ type artifactRef struct {
 	Revision  *string `json:"revision,omitempty"`
 }
 
+type runCreateResponse struct {
+	RunID                string            `json:"runId"`
+	State                string            `json:"state"`
+	RuntimeLabels        []string          `json:"runtimeLabels"`
+	Labels               map[string]string `json:"labels"`
+	RuntimeConfiguration json.RawMessage   `json:"runtimeConfiguration"`
+}
+
 type runStatus struct {
 	RunID                  string                 `json:"runId"`
 	Workflow               string                 `json:"workflow"`
 	State                  string                 `json:"state"`
 	RuntimeLabels          []string               `json:"runtimeLabels"`
+	Labels                 map[string]string      `json:"labels"`
 	RuntimeConfiguration   json.RawMessage        `json:"runtimeConfiguration"`
 	Cancellation           json.RawMessage        `json:"cancellation,omitempty"`
 	Parameters             map[string]string      `json:"parameters,omitempty"`
@@ -317,12 +326,7 @@ func createWorkflowRunWithParameters(
 	request.Header.Set("Idempotency-Key", idempotencyKey)
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
-	var payload struct {
-		RunID                string          `json:"runId"`
-		State                string          `json:"state"`
-		RuntimeLabels        []string        `json:"runtimeLabels"`
-		RuntimeConfiguration json.RawMessage `json:"runtimeConfiguration"`
-	}
+	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
 	if payload.RunID == "" || payload.State != "running" {
 		t.Fatalf("create Run response = %+v", payload)

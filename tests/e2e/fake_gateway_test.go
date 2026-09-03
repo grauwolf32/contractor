@@ -3,9 +3,11 @@
 package e2e
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +22,7 @@ type fakeGateway struct {
 
 	mu       sync.Mutex
 	calls    int
+	bodies   [][]byte
 	failures []string
 }
 
@@ -62,6 +65,16 @@ func (g *fakeGateway) Failures() []string {
 	return append([]string(nil), g.failures...)
 }
 
+func (g *fakeGateway) Payloads() [][]byte {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	result := make([][]byte, len(g.bodies))
+	for index := range g.bodies {
+		result[index] = append([]byte(nil), g.bodies[index]...)
+	}
+	return result
+}
+
 func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/chat/completions") {
 		g.fail(w, http.StatusNotFound, "unsupported fake gateway endpoint")
@@ -72,7 +85,12 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, "invalid OpenAI request")
+		return
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
 	var request map[string]any
 	if err := decoder.Decode(&request); err != nil {
@@ -80,6 +98,7 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.mu.Lock()
+	g.bodies = append(g.bodies, append([]byte(nil), body...))
 	nextCall := g.calls + 1
 	g.mu.Unlock()
 	expectedTools := append([]string(nil), g.copyTools...)

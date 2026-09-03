@@ -207,6 +207,26 @@ not infer permissions, execution success or A/B comparability from a label.
 | Allocation label-map mismatch or invalid bounds | Private protocol invariant failure before Worker construction |
 | Telemetry exporter failure | Bounded best-effort telemetry failure; semantic Run outcome is unchanged |
 
+## Conformance gate
+
+The executable ownership matrix is
+`tests/e2e/run_metadata_labels_matrix.yml`. It binds public validation,
+transactional storage, idempotency, indexed owner-scoped querying, private-wire
+validation, placement independence, Planner/Worker telemetry, lifecycle
+recovery and both UI surfaces to named tests. Matrix validation is part of the
+database-independent repository verification, so deleting or renaming an
+owning test fails before the production-process gate is run.
+
+The production-process scenario creates an unlabeled baseline, labeled A/B
+Runs over one exact input revision and a final unlabeled reuse Run through the
+ordinary Go Server/Scheduler, PostgreSQL, mTLS Python Runtime and public API. A
+real `debug` Runtime label configures Planner and Worker OTLP while `eval.*`
+metadata only annotates the two trace roots. Deterministic model and collector
+fixtures prove that metadata does not enter model requests, process Resource
+attributes or retained execution payloads, and that exporter failure neither
+changes the result nor prevents reuse of the same Runtime slot. A second Server
+identity over the same database proves owner-scoped list and detail behavior.
+
 ## Invariants
 
 1. `runtimeLabels` configure infrastructure; `labels` describe one Run.

@@ -567,12 +567,7 @@ func createAgentSkillWorkflowRun(
 	request.Header.Set("Idempotency-Key", idempotencyKey)
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
-	var result struct {
-		RunID                string          `json:"runId"`
-		State                string          `json:"state"`
-		RuntimeLabels        json.RawMessage `json:"runtimeLabels"`
-		RuntimeConfiguration json.RawMessage `json:"runtimeConfiguration"`
-	}
+	var result runCreateResponse
 	decodeResponse(t, response, &result)
 	if result.RunID == "" || result.State != string(runstore.RunInitializing) {
 		t.Fatalf("create Agent Skill Run = %+v", result)

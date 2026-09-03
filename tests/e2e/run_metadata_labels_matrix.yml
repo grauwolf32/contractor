@@ -1,0 +1,145 @@
+schema_version: "1.0"
+
+policy:
+  execution_inertness: >-
+    WorkflowRun metadata labels are immutable discovery and trace correlation
+    data. They never select Runtime configuration, placement, capabilities,
+    authorization, prompts, tools, State, budgets or semantic results.
+  isolation: >-
+    Public reads and exact conjunctive selectors are owner-scoped. The private
+    copy is replay-bound to one allocation and is accepted only as bounded
+    telemetry input before Worker construction.
+  retained_surfaces: >-
+    Accepted values are explicitly telemetry-visible and therefore are not
+    secrets. Model requests, execution reports, Planner events, Worker State,
+    artifacts, process logs and Runtime process Resource attributes do not
+    retain them.
+
+cases:
+  - id: public_shape_and_transaction_boundary
+    category: validation
+    acceptance: [A3]
+    faults: [F01]
+    expected: Null, legacy arrays, non-string values, malformed or reserved keys and every bound violation fail before a Run transaction or input fork.
+    test: {source: internal/httpapi/public/handler_test.go, kind: go_test, name: TestCreateRunMetadataLabelsAreStrictBeforeTransaction}
+  - id: canonical_map_validation
+    category: validation
+    acceptance: [A3, A4]
+    faults: [F02]
+    expected: Canonical ordering is deterministic, returned maps are detached and key/value/count boundaries have one shared closed implementation.
+    test: {source: internal/runstore/metadata_labels_test.go, kind: go_test, name: TestRunMetadataLabelsRejectInvalidBoundsAndShapes}
+  - id: atomic_immutable_storage
+    category: persistence
+    acceptance: [A1, A3]
+    faults: [F03]
+    expected: Run and labels commit atomically, project completely and cannot be updated, deleted or inserted after creation.
+    test: {source: internal/runstore/postgres_integration_test.go, kind: go_test, name: TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected}
+  - id: bounded_indexed_migration
+    category: persistence
+    acceptance: [A4]
+    faults: [F04]
+    expected: The migration owns relational bounds, exact lookup indexes, immutable triggers and cascade lifecycle without a legacy labels array.
+    test: {source: internal/persistence/postgres/migrate_test.go, kind: go_test, name: TestWorkflowRunMetadataLabelMigrationIsBoundedIndexedAndImmutable}
+  - id: response_loss_and_changed_body
+    category: idempotency
+    acceptance: [A3]
+    faults: [F05]
+    expected: Exact response-loss replay returns one original Run while any changed metadata key or value conflicts without another mutation.
+    test: {source: internal/httpapi/public/handler_test.go, kind: go_test, name: TestCreateRunMetadataLabelsRoundTripAndIdempotency}
+  - id: exact_owned_query_and_cursor
+    category: query
+    acceptance: [A1, A3]
+    faults: [F06, F07]
+    expected: Repeated exact selectors are conjunctive, compose with state and stable cursors, and reveal neither foreign Runs nor foreign match counts.
+    test: {source: internal/runstore/postgres_integration_test.go, kind: go_test, name: TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable}
+  - id: shared_private_wire_cases
+    category: private_wire
+    acceptance: [A2, A3]
+    faults: [F08]
+    expected: Go schema fixtures and strict Python models accept the same canonical empty/non-empty maps and reject every hostile shape.
+    test: {source: runtime/tests/test_contracts.py, kind: pytest, name: test_shared_allocation_run_metadata_label_cases_match_model_and_schema}
+  - id: runtime_prepare_fail_closed
+    category: private_wire
+    acceptance: [A3]
+    faults: [F09]
+    expected: A mutated or invalid private map fails before adapters, workspace, Worker and allocation resources are created.
+    test: {source: runtime/tests/test_allocation.py, kind: pytest, name: test_mutated_run_metadata_labels_fail_before_resource_creation}
+  - id: allocation_replay_identity
+    category: placement
+    acceptance: [A2, A3]
+    faults: [F10]
+    expected: Reservation replay fingerprints the exact metadata map, returns a detached copy and rejects any changed map before allocation preparation.
+    test: {source: internal/controlplane/registry_test.go, kind: go_test, name: TestReservationFingerprintPinsExactResolvedSkillsManifest}
+  - id: scheduler_config_independence
+    category: placement
+    acceptance: [A2]
+    faults: [F11]
+    expected: Scheduler sources labels from the durable Run and does not let them alter pinned Planner or Worker Runtime configuration.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence}
+  - id: planner_root_projection
+    category: telemetry
+    acceptance: [A2, A3]
+    faults: [F12]
+    expected: Planner exports exact namespaced attributes on its invocation root only, with no Resource, child-span, metric or content projection.
+    test: {source: internal/telemetry/planner_otlp_test.go, kind: go_test, name: TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection}
+  - id: worker_model_state_result_exclusion
+    category: runtime_isolation
+    acceptance: [A2, A3]
+    faults: [F13]
+    expected: Runtime exposes the map only to telemetry input and excludes it from all model, State, tool, workspace and completion contracts.
+    test: {source: runtime/tests/test_contracts.py, kind: pytest, name: test_run_metadata_labels_exist_only_on_allocation_telemetry_input}
+  - id: worker_otlp_bounds_and_resource_scope
+    category: telemetry
+    acceptance: [A2, A3]
+    faults: [F14]
+    expected: Worker OTLP is bounded and content-free; labels occur only on execution roots, never process Resource attributes or children.
+    test: {source: runtime/tests/test_otlp_adapter.py, kind: pytest, name: test_otlp_protobuf_is_bounded_content_free_and_header_scoped}
+  - id: exporter_failure_is_supplementary
+    category: lifecycle
+    acceptance: [A2, A3]
+    faults: [F15]
+    expected: Slow or failed telemetry flush changes only bounded adapter metrics and cannot change Worker result or prevent release.
+    test: {source: runtime/tests/test_otlp_adapter.py, kind: pytest, name: test_slow_collector_flush_timeout_does_not_change_worker_result_or_release}
+  - id: cancellation_wins_without_late_result
+    category: lifecycle
+    acceptance: [A3]
+    faults: [F16]
+    expected: Cancellation interrupts Planner, fences active work and cannot be reversed by a late result carrying trace metadata.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestSchedulerCancelInterruptsPlannerAndIgnoresLateCandidate}
+  - id: terminal_release_recovery
+    category: lifecycle
+    acceptance: [A3]
+    faults: [F17]
+    expected: A terminal cleanup failure does not block unrelated claims and recovery retries every remaining live allocation until reusable.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations}
+  - id: ui_authoring_validation_and_domain_split
+    category: ui
+    acceptance: [A1, A2, A3]
+    faults: [F18]
+    expected: The form rejects duplicate, reserved and invalid metadata independently from Runtime-label selection before issuing a request.
+    test: {source: ui/src/routes/workflows/workflows.test.tsx, kind: test_title, name: blocks duplicate and reserved Run metadata labels before mutation}
+  - id: ui_exact_filter_pagination
+    category: ui
+    acceptance: [A1, A3]
+    faults: []
+    expected: Exact eval selectors survive paging/refetch, reset stale cursors after edits and remain distinct from Runtime configuration chips.
+    test: {source: ui/src/routes/runs/runs.test.tsx, kind: test_title, name: keeps exact metadata selectors across paging and resets the cursor when they change}
+  - id: real_process_ab_and_retention
+    category: process
+    acceptance: [A1, A2, A3, A4]
+    faults: [F19, F20]
+    expected: Real PostgreSQL, Go Server, mTLS Python Runtime, model and OTLP fixtures prove explicit empty maps, A/B discovery, exact provenance, foreign-owner isolation, exporter failure, no model/log/retained-execution leakage and same-slot reuse.
+    test: {source: tests/e2e/run_metadata_labels_process_test.go, kind: go_test, name: TestRunMetadataLabelsAcrossProcesses}
+  - id: matrix_self_validation
+    category: matrix
+    acceptance: [A4]
+    faults: []
+    expected: Strict decoding rejects missing acceptance, fault, category, owner and gate coverage as well as renamed or duplicate test owners.
+    test: {source: tests/e2e/run_metadata_labels_matrix_test.go, kind: go_test, name: TestRunMetadataLabelsHardeningMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-run-metadata-labels-matrix}
+  - {id: hardening, command: make test-run-metadata-labels-hardening}
+  - {id: process, command: make test-run-metadata-labels-e2e}
+  - {id: ui, command: make test-ui-stack}
+  - {id: release, command: make release-verify}

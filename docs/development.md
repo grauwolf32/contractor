@@ -459,6 +459,57 @@ benchmark and no dependency on a real LM Studio, Langfuse, Caido or cloud
 service. These are deferred product/deployment features, not gaps hidden by
 the hardening gate.
 
+## WorkflowRun metadata-label release gate
+
+Run metadata labels have their own strict, executable ownership matrix:
+
+```shell
+make test-run-metadata-labels-matrix
+```
+
+The matrix maps every accepted contract boundary to a named Go, Python or
+TypeScript test: public validation, atomic immutable storage, canonical
+idempotency, indexed owner-scoped queries, private AllocationSpec validation,
+placement/configuration independence, Planner and Worker trace projection,
+cancellation/release and the standalone UI. Renaming or deleting an owner
+therefore fails `make verify`; the YAML is not a prose-only checklist.
+
+The focused deterministic language-level gate is:
+
+```shell
+make test-run-metadata-labels-hardening
+```
+
+To cross real process and trust boundaries, provide PostgreSQL and run:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-run-metadata-labels-e2e
+```
+
+This starts the production Go Server and Scheduler, a certificate-distinct
+Python Runtime Agent, an isolated migrated schema, and deterministic external
+model/OTLP fixtures. It executes one unlabeled baseline, two ordinary A/B Runs
+with a shared `eval.id`, and a final reuse Run over the same exact source
+revision. The scenario verifies exact owner/state/cursor filters, response-loss
+replay, a value containing `=`, independent `debug` Runtime configuration,
+trace-root attributes, failed-export neutrality, artifact/result provenance,
+foreign-owner isolation, retained-surface exclusion and cleanup of the single
+Runtime slot.
+
+Label values are expected to be visible in Run APIs and execution-root
+telemetry. The test canaries prove absence from model requests, Worker State,
+artifacts, reports, Planner events, child spans, process Resource attributes
+and process logs; they do not turn labels into a supported secret store. Run
+credentials and source fragments must still never be supplied as labels.
+
+`make test-e2e` includes this process scenario, and `make release-verify`
+combines it with the existing real-browser stack. The process test requires the
+locked `runtime/.venv`; its target runs `uv sync --locked` first. Only the
+external LLM-compatible and OTLP endpoints are fakes—Run creation, PostgreSQL,
+mTLS, scheduling, allocation, Artifact API and Runtime lifecycle are production
+implementations.
+
 ## Complete browser stack gate
 
 `make test-ui-stack` builds and starts the production Go Server, production

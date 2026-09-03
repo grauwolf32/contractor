@@ -437,10 +437,7 @@ func createProjectRun(
 	request.Header.Set("Idempotency-Key", "project-e2e-"+strings.TrimSuffix(workflow, "@1"))
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
-	var payload struct {
-		RunID string `json:"runId"`
-		State string `json:"state"`
-	}
+	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
 	if payload.RunID == "" || payload.State != "running" {
 		t.Fatalf("create %s Run response = %+v", workflow, payload)
