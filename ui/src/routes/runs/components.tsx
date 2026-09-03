@@ -459,17 +459,23 @@ export function StageAttemptView({
   runId,
   attempt,
   active,
+  focused,
   projection,
   transitions,
 }: {
   runId: string;
   attempt: StageAttempt;
   active: boolean;
+  focused: boolean;
   projection: PlannerProjection;
   transitions: StageTransition[];
 }) {
   return (
-    <details className="run-attempt" open={active}>
+    <details
+      className="run-attempt"
+      id={`attempt-${attempt.stageExecutionId}`}
+      open={active || focused}
+    >
       <summary>
         <span>
           <code>{attempt.stage}</code>

@@ -194,6 +194,7 @@ async function uploadArtifact(
     payload?: Buffer;
   },
 ) {
+  await page.locator("details.artifact-create-disclosure > summary").click();
   const form = page.locator("form.artifact-form");
   await form.getByLabel("Namespace", { exact: true }).fill("projects");
   await form.getByLabel("Name", { exact: true }).fill(input.name);
@@ -478,7 +479,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.getByRole("link", { name: "Operations" }).click();
   await expect(page.getByText(/Operations events: live/)).toBeVisible();
-  await page.getByRole("link", { name: "Runtime Agents" }).click();
+  await page.getByRole("link", { name: "Runtime Agents", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Runtime Agents" }),
   ).toBeVisible();
@@ -514,7 +515,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto(`/runs/${streamlineRunID}`);
   await expect(
-    page.locator(".run-metadata").getByText("succeeded", { exact: true }),
+    page.locator(".run-triage").getByText("succeeded", { exact: true }),
   ).toBeVisible({
     timeout: 45_000,
   });
@@ -522,7 +523,13 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(streamlineAttempt).toHaveCount(1);
   await openDetails(streamlineAttempt);
   await expect(streamlineAttempt.getByText("Reports complete")).toBeVisible();
-  await page.getByRole("link", { name: /result.*outputs\/result/ }).click();
+  const streamlineOutput = page
+    .locator("details.run-output-preview")
+    .filter({ hasText: "outputs/result@" });
+  await streamlineOutput.locator("summary").click();
+  await streamlineOutput
+    .getByRole("link", { name: /^Open outputs\/result@/ })
+    .click();
   const streamlineDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download exact revision" }).click();
   const streamlineDownload = await streamlineDownloadPromise;
@@ -541,7 +548,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   );
   try {
     await expect(
-      page.locator(".run-metadata").getByText("succeeded", { exact: true }),
+      page.locator(".run-triage").getByText("succeeded", { exact: true }),
     ).toBeVisible({
       timeout: 180_000,
     });
@@ -580,7 +587,13 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(
     validationAttempt.getByText("openapi_validate", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: /openapi.*outputs\/openapi/ }).click();
+  const openAPIOutput = page
+    .locator("details.run-output-preview")
+    .filter({ hasText: "outputs/openapi@" });
+  await openAPIOutput.locator("summary").click();
+  await openAPIOutput
+    .getByRole("link", { name: /^Open outputs\/openapi@/ })
+    .click();
   const openAPIDownloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download exact revision" }).click();
   const openAPIDownload = await openAPIDownloadPromise;

@@ -26,6 +26,7 @@ export function ArtifactListRoute() {
   ]);
   const [filterError, setFilterError] = useState<string | null>(null);
   const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const cursor = cursors.at(-1);
   const query = useQuery({
     queryKey: queryKeys.artifacts.list(namespace, cursor),
@@ -69,12 +70,23 @@ export function ArtifactListRoute() {
         </button>
       </header>
 
-      <ArtifactWriteForm
-        onWritten={(result) => {
-          setWritten(result);
-          setCursors([undefined]);
-        }}
-      />
+      <details
+        className="artifact-create-disclosure"
+        open={uploadOpen}
+        onToggle={(event) => setUploadOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <span>Upload Artifact</span>
+          <small>{uploadOpen ? "Close form" : "Create a new binding"}</small>
+        </summary>
+        <ArtifactWriteForm
+          onWritten={(result) => {
+            setWritten(result);
+            setCursors([undefined]);
+            setUploadOpen(false);
+          }}
+        />
+      </details>
       {written === null ? null : (
         <div className="notice notice-success" role="status">
           <strong>Artifact revision stored.</strong>
@@ -126,7 +138,7 @@ export function ArtifactListRoute() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table>
+            <table className="responsive-table">
               <thead>
                 <tr>
                   <th>Binding</th>
@@ -139,19 +151,21 @@ export function ArtifactListRoute() {
               <tbody>
                 {query.data.items.map((item) => (
                   <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
-                    <td>
+                    <td data-label="Binding">
                       <Link
                         to={`/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.namespace}/{item.artifact.name}
                       </Link>
                     </td>
-                    <td>
+                    <td data-label="Current revision">
                       <code>{item.artifact.revision}</code>
                     </td>
-                    <td>{item.mediaType}</td>
-                    <td>{formatBytes(item.size)}</td>
-                    <td>{formatTimestamp(item.createdAt)}</td>
+                    <td data-label="Media type">{item.mediaType}</td>
+                    <td data-label="Size">{formatBytes(item.size)}</td>
+                    <td data-label="Created">
+                      {formatTimestamp(item.createdAt)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

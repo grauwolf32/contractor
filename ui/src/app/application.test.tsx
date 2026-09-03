@@ -62,6 +62,8 @@ describe("application session shell", () => {
         name: "Open the control workspace",
       }),
     ).toBeInTheDocument();
+    const username = screen.getByLabelText("Username") as HTMLInputElement;
+    expect(() => new RegExp(username.pattern, "v")).not.toThrow();
   });
 
   it("renders guarded navigation from an authoritative session", async () => {
@@ -111,9 +113,7 @@ describe("application session shell", () => {
     await user.type(screen.getByLabelText("Password"), "a-long-local-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe("/workflows"),
-    );
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
     expect(api.login).toHaveBeenCalledWith({
       username: "owner",
       password: "a-long-local-password",

@@ -1,6 +1,7 @@
-import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
+import { createBrowserRouter, type RouteObject } from "react-router";
 
 import { AuthenticatedRoute } from "../routes/guard";
+import { HomeRoute } from "../routes/home";
 import { LoginRoute } from "../routes/login";
 import { ArtifactDetailRoute } from "../routes/artifacts/detail";
 import { ArtifactListRoute } from "../routes/artifacts/list";
@@ -31,7 +32,7 @@ export function applicationRoutes(): RouteObject[] {
         {
           element: <ApplicationShell />,
           children: [
-            { index: true, element: <Navigate to="/workflows" replace /> },
+            { index: true, element: <HomeRoute /> },
             {
               path: "/workflows",
               element: <WorkflowListRoute />,

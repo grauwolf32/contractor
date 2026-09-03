@@ -462,7 +462,7 @@ describe("Workflow routes", () => {
       await screen.findByRole("heading", { name: "run_openapi" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Authoritative aggregate")).toBeInTheDocument();
-    expect(screen.getByText("binding revision 7")).toBeInTheDocument();
+    expect(await screen.findByText("binding revision 7")).toBeInTheDocument();
   });
 
   it("blocks a mutation while required declared fields are missing", async () => {

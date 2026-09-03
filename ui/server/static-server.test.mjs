@@ -21,6 +21,10 @@ async function fixture(t) {
     "<!doctype html><title>UI</title>",
   );
   await writeFile(join(distDir, "assets", "app-12345678.js"), "export {};");
+  await writeFile(
+    join(distDir, "assets", "likec4.worker-12345678.js"),
+    "export {};",
+  );
   const server = await createStaticServer({ distDir, runtimeConfig });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -96,6 +100,10 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     csp,
     /connect-src 'self' http:\/\/127\.0\.0\.1:8080 ws:\/\/127\.0\.0\.1:8080/,
   );
+  assert.match(csp, /script-src 'self'/);
+  assert.doesNotMatch(csp, /unsafe-eval/);
+  assert.match(csp, /style-src 'self' 'unsafe-inline'/);
+  assert.match(csp, /worker-src 'self'/);
   assert.equal(response.headers.get("x-content-type-options"), "nosniff");
   assert.equal(response.headers.get("x-frame-options"), "DENY");
 });
@@ -120,6 +128,18 @@ test("runtime config, health and hashed assets have distinct cache policy", asyn
     "public, max-age=31536000, immutable",
   );
   assert.match(assetResponse.headers.get("content-type"), /javascript/);
+  assert.doesNotMatch(
+    assetResponse.headers.get("content-security-policy"),
+    /unsafe-eval/,
+  );
+
+  const workerResponse = await fetch(
+    `${origin}/assets/likec4.worker-12345678.js`,
+  );
+  assert.equal(workerResponse.status, 200);
+  const workerCSP = workerResponse.headers.get("content-security-policy");
+  assert.match(workerCSP, /script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'/);
+  assert.match(workerCSP, /connect-src 'none'/);
 
   const headResponse = await fetch(`${origin}/operations`, { method: "HEAD" });
   assert.equal(headResponse.status, 200);

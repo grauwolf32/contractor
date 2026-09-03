@@ -139,6 +139,7 @@ describe("Artifact routes", () => {
       await screen.findByRole("link", { name: "projects/existing" }),
     ).toBeInTheDocument();
 
+    await user.click(screen.getByText("Create a new binding"));
     await user.type(screen.getByLabelText("Name"), "source");
     const fileInput = screen.getByLabelText(/Local file/);
     await user.upload(
@@ -193,6 +194,7 @@ describe("Artifact routes", () => {
     renderArtifactApplication(api, "/artifacts");
     await screen.findByText("No Artifact bindings found.");
     const user = userEvent.setup();
+    await user.click(screen.getByText("Create a new binding"));
     await user.type(screen.getByLabelText("Name"), "source");
     await user.upload(
       screen.getByLabelText(/Local file/),
@@ -219,7 +221,7 @@ describe("Artifact routes", () => {
         name: "architecture",
         revision: "revision-2",
       },
-      mediaType: "text/vnd.likec4",
+      mediaType: "text/plain",
       size: preview.length,
       current: false,
       frozen: false,
@@ -271,7 +273,7 @@ describe("Artifact routes", () => {
         if (url.pathname.endsWith("/projects/architecture")) {
           return apiResponse(preview, {
             headers: {
-              "content-type": "text/vnd.likec4",
+              "content-type": "text/plain",
               "content-length": String(preview.length),
             },
           });
@@ -290,7 +292,7 @@ describe("Artifact routes", () => {
     expect(screen.getByText("Run run-example")).toBeInTheDocument();
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Load text preview" }));
+    await user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(await screen.findByText(preview)).toBeInTheDocument();
     expect(document.querySelector("script")).toBeNull();
     expect(
@@ -333,7 +335,7 @@ describe("Artifact routes", () => {
     );
     renderArtifactApplication(api, "/artifacts/projects/source");
     const previewButton = await screen.findByRole("button", {
-      name: "Load text preview",
+      name: "Load preview",
     });
     expect(previewButton).toBeDisabled();
     expect(

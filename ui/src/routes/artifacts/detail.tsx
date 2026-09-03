@@ -5,7 +5,6 @@ import { Link, useParams, useSearchParams } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
-  canPreviewArtifact,
   downloadArtifact,
   getArtifactLineage,
   getArtifactMetadata,
@@ -23,6 +22,7 @@ import {
   formatBytes,
   formatTimestamp,
 } from "./common";
+import { ArtifactPreviewPanel } from "./preview";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -42,9 +42,6 @@ function triggerDownload(downloaded: DownloadedArtifact): void {
 function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
   const api = usePublicAPI();
   const [, setSearchParams] = useSearchParams();
-  const preview = useMutation({
-    mutationFn: () => previewArtifact(api, metadata),
-  });
   const download = useMutation({
     mutationFn: () => downloadArtifact(api, metadata),
     onSuccess: triggerDownload,
@@ -52,40 +49,13 @@ function ArtifactActions({ metadata }: { metadata: ArtifactMetadata }) {
 
   return (
     <div className="artifact-actions-grid">
-      <div className="panel">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Safe rendering</p>
-            <h3>Preview</h3>
-          </div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={!canPreviewArtifact(metadata) || preview.isPending}
-            onClick={() => preview.mutate()}
-          >
-            {preview.isPending ? "Loading…" : "Load text preview"}
-          </button>
-        </div>
-        {canPreviewArtifact(metadata) ? (
-          <p className="muted-copy">
-            Preview is capped at 256 KiB and rendered as escaped UTF-8 text.
-          </p>
-        ) : (
-          <div className="compact-empty">
-            Inline preview is unavailable for this media type or size. The
-            original bytes are still downloadable.
-          </div>
-        )}
-        {preview.error === null ? null : <ErrorNotice error={preview.error} />}
-        {preview.data === undefined ? null : (
-          <pre className="artifact-preview" tabIndex={0}>
-            {preview.data}
-          </pre>
-        )}
-      </div>
+      <ArtifactPreviewPanel
+        metadata={metadata}
+        unavailableCopy="Inline preview is unavailable for this media type or size. The original bytes are still downloadable."
+        loadPreview={() => previewArtifact(api, metadata)}
+      />
 
-      <div className="panel">
+      <div className="panel artifact-download-panel">
         <p className="eyebrow">Original bytes</p>
         <h3>Download</h3>
         <p className="muted-copy">

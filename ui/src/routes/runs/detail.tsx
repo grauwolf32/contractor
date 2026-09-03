@@ -18,8 +18,179 @@ import {
   StageAttemptView,
   StateBadge,
 } from "./components";
-import { RunArtifactLibrary } from "./artifacts";
+import { RunArtifactLibrary, RunOutputGallery } from "./artifacts";
 import { useLiveRunProjection } from "./live";
+import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
+
+function compactMetric(value: number): string {
+  if (value < 1_000) {
+    return String(value);
+  }
+  if (value < 1_000_000) {
+    return `${Number((value / 1_000).toFixed(1))}K`;
+  }
+  return `${Number((value / 1_000_000).toFixed(1))}M`;
+}
+
+function triageTitle(run: RunStatus, triage: RunTriage): string {
+  const stage = triage.stage === undefined ? "" : ` in ${triage.stage}`;
+  switch (run.state) {
+    case "failed":
+      return `Run failed${stage}`;
+    case "succeeded":
+      return "Run completed successfully";
+    case "cancelled":
+      return "Run was cancelled";
+    case "cancelling":
+      return "Cancellation is in progress";
+    case "initializing":
+      return "Run is initializing";
+    case "running":
+      return triage.stage === undefined
+        ? "Run is in progress"
+        : `Running ${triage.stage}`;
+  }
+}
+
+function triageDescription(run: RunStatus, triage: RunTriage): string {
+  if (triage.issue !== undefined) {
+    return triage.issue.message;
+  }
+  switch (run.state) {
+    case "failed":
+      return "No normalized terminal cause was reported. Inspect the focused attempt for the authoritative terminal record.";
+    case "succeeded":
+      return triage.outputCount === 0
+        ? "All scheduled work completed; this Run has no frozen outputs."
+        : `${triage.outputCount} frozen output${triage.outputCount === 1 ? " is" : "s are"} ready to inspect.`;
+    case "cancelled":
+      return "Scheduler cleanup completed and the Run is terminal.";
+    case "cancelling":
+      return "Scheduler is aborting and draining active work.";
+    case "initializing":
+      return "The immutable Run snapshot exists; no Stage attempt has started yet.";
+    case "running":
+      return "The latest REST snapshot remains authoritative while live Planner facts update below.";
+  }
+}
+
+function RunTriageSummary({
+  run,
+  triage,
+}: {
+  run: RunStatus;
+  triage: RunTriage;
+}) {
+  const attemptAnchor =
+    triage.stageExecutionId === undefined
+      ? undefined
+      : `#attempt-${triage.stageExecutionId}`;
+  return (
+    <section
+      className={`panel run-triage run-triage-${run.state}`}
+      aria-labelledby="run-triage-title"
+    >
+      <div className="run-triage-heading">
+        <div>
+          <p className="eyebrow">Run triage</p>
+          <h3 id="run-triage-title">{triageTitle(run, triage)}</h3>
+        </div>
+        <StateBadge state={run.state} />
+      </div>
+      {triage.issue === undefined ? (
+        <p className="run-triage-description">
+          {triageDescription(run, triage)}
+        </p>
+      ) : (
+        <div className="run-triage-issue">
+          <div>
+            <span>
+              {triage.issue.source === "cancellation"
+                ? "Lifecycle reason"
+                : "Primary cause"}
+            </span>
+            <code>{triage.issue.code}</code>
+            <strong>
+              {triage.issue.source === "cancellation"
+                ? "user requested"
+                : triage.issue.retryable === undefined
+                  ? "retryability unknown"
+                  : triage.issue.retryable
+                    ? "retryable"
+                    : "not retryable"}
+            </strong>
+          </div>
+          <p>{triageDescription(run, triage)}</p>
+          {triage.issue.participant === undefined ? null : (
+            <small>
+              Reported by {triage.issue.participant}
+              {triage.issue.logicalAgent === undefined
+                ? ""
+                : ` ${triage.issue.logicalAgent}`}
+            </small>
+          )}
+        </div>
+      )}
+      <dl className="run-triage-facts">
+        <div>
+          <dt>Duration</dt>
+          <dd>{formatRunDuration(triage.durationMs)}</dd>
+          <small>from REST timestamps</small>
+        </div>
+        <div>
+          <dt>Attempts</dt>
+          <dd>{triage.attemptCount}</dd>
+          <small>ordered Stage history</small>
+        </div>
+        <div>
+          <dt>Total tokens</dt>
+          <dd title={triage.metrics?.totalTokens.toLocaleString()}>
+            {triage.metrics === undefined
+              ? "—"
+              : compactMetric(triage.metrics.totalTokens)}
+          </dd>
+          <small>
+            {triage.metrics === undefined
+              ? "not reported"
+              : `${triage.metrics.modelCalls} model call${triage.metrics.modelCalls === 1 ? "" : "s"}${triage.metrics.incomplete ? " · partial" : ""}`}
+          </small>
+        </div>
+        <div>
+          <dt>Tool calls</dt>
+          <dd>
+            {triage.metrics === undefined
+              ? "—"
+              : compactMetric(triage.metrics.toolCalls)}
+          </dd>
+          <small>
+            {triage.metrics === undefined
+              ? "not reported"
+              : `${triage.metrics.errorCount} reported error${triage.metrics.errorCount === 1 ? "" : "s"}`}
+          </small>
+        </div>
+        <div>
+          <dt>Outputs</dt>
+          <dd>{triage.outputCount}</dd>
+          <small>frozen bindings</small>
+        </div>
+      </dl>
+      {attemptAnchor === undefined && triage.outputCount === 0 ? null : (
+        <nav className="run-triage-actions" aria-label="Run triage shortcuts">
+          {attemptAnchor === undefined ? null : (
+            <a className="triage-action" href={attemptAnchor}>
+              Inspect focused attempt
+            </a>
+          )}
+          {triage.outputCount === 0 ? null : (
+            <a className="triage-action" href="#run-outputs">
+              Preview outputs
+            </a>
+          )}
+        </nav>
+      )}
+    </section>
+  );
+}
 
 function CancellationControl({ run }: { run: RunStatus }) {
   const api = usePublicAPI();
@@ -132,12 +303,6 @@ function RunTimestamps({ run }: { run: RunStatus }) {
           <code>{run.workflow}</code>
         </dd>
       </div>
-      <div>
-        <dt>State</dt>
-        <dd>
-          <StateBadge state={run.state} />
-        </dd>
-      </div>
       {values.map(([label, value]) =>
         value === undefined ? null : (
           <div key={label}>
@@ -187,24 +352,6 @@ function RunBindings({ run }: { run: RunStatus }) {
           </div>
         )}
       </DefinitionList>
-      <DefinitionList title="Frozen Workflow outputs">
-        {Object.entries(run.outputs).length === 0 ? (
-          <div className="compact-empty">No frozen outputs yet.</div>
-        ) : (
-          <div className="artifact-ref-list">
-            {Object.entries(run.outputs)
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([slot, artifact]) => (
-                <RunArtifactRef
-                  key={slot}
-                  runId={run.runId}
-                  slot={slot}
-                  artifact={artifact}
-                />
-              ))}
-          </div>
-        )}
-      </DefinitionList>
     </div>
   );
 }
@@ -215,50 +362,58 @@ function RunRuntimeConfiguration({ run }: { run: RunStatus }) {
     ...run.runtimeConfiguration.labels,
   ];
   return (
-    <section className="panel run-runtime-configuration">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Pinned at Run creation</p>
-          <h3>Runtime infrastructure configuration</h3>
-          <p className="muted-copy">
-            Default and explicit Run labels below are immutable for this Run.
-            Later label rebinding cannot change these exact refs.
-          </p>
-        </div>
+    <details className="panel run-runtime-configuration">
+      <summary>
+        <span>
+          <span className="eyebrow">Pinned at Run creation</span>
+          <strong>Runtime infrastructure configuration</strong>
+        </span>
         <span>{run.labels.length} explicit labels</span>
+      </summary>
+      <div className="run-runtime-configuration-body">
+        <p className="muted-copy">
+          Default and explicit Run labels below are immutable for this Run.
+          Later label rebinding cannot change these exact refs.
+        </p>
+        <div className="runtime-provenance-grid">
+          {entries.map((pin) => (
+            <article
+              className={
+                pin.label === "default" ? "runtime-default-pin" : undefined
+              }
+              key={`${pin.label}:${pin.bindingRevision}`}
+            >
+              <strong>
+                {pin.label}
+                {pin.label === "default" ? " · always applied" : ""}
+              </strong>
+              <span>binding revision {pin.bindingRevision}</span>
+              <code>
+                {pin.config.name}@{pin.config.version}
+              </code>
+              <code title={pin.config.digest}>
+                {pin.config.digest.slice(0, 18)}…
+              </code>
+            </article>
+          ))}
+        </div>
+        <p className="muted-copy">
+          Agent-label overrides become knowable only after Scheduler commits an
+          allocation snapshot; they are never inferred from current Operations
+          state.
+        </p>
       </div>
-      <div className="runtime-provenance-grid">
-        {entries.map((pin) => (
-          <article
-            className={
-              pin.label === "default" ? "runtime-default-pin" : undefined
-            }
-            key={`${pin.label}:${pin.bindingRevision}`}
-          >
-            <strong>
-              {pin.label}
-              {pin.label === "default" ? " · always applied" : ""}
-            </strong>
-            <span>binding revision {pin.bindingRevision}</span>
-            <code>
-              {pin.config.name}@{pin.config.version}
-            </code>
-            <code title={pin.config.digest}>
-              {pin.config.digest.slice(0, 18)}…
-            </code>
-          </article>
-        ))}
-      </div>
-      <p className="muted-copy">
-        Agent-label overrides become knowable only after Scheduler commits an
-        allocation snapshot; they are never inferred from current Operations
-        state.
-      </p>
-    </section>
+    </details>
   );
 }
 
-function LiveAttempts({ run }: { run: RunStatus }) {
+function LiveAttempts({
+  run,
+  focusStageExecutionId,
+}: {
+  run: RunStatus;
+  focusStageExecutionId: string | undefined;
+}) {
   const live = useLiveRunProjection(run);
   return (
     <>
@@ -275,7 +430,7 @@ function LiveAttempts({ run }: { run: RunStatus }) {
           <p>Manual refresh remains available and authoritative.</p>
         </div>
       )}
-      <section className="run-attempts">
+      <section className="run-attempts" id="run-attempts">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Scheduler history</p>
@@ -296,6 +451,7 @@ function LiveAttempts({ run }: { run: RunStatus }) {
               runId={run.runId}
               attempt={attempt}
               active={run.activeStageExecutionId === attempt.stageExecutionId}
+              focused={focusStageExecutionId === attempt.stageExecutionId}
               projection={live.planners[attempt.stageExecutionId] ?? {}}
               transitions={run.transitions.filter(
                 (transition) =>
@@ -317,8 +473,10 @@ function LoadedRunDetail({
   snapshotVersion: number;
 }) {
   const liveKey = `${run.eventCursor?.generation ?? "none"}:${run.eventCursor?.sequence ?? "none"}`;
+  const triage = deriveRunTriage(run);
   return (
     <>
+      <RunTriageSummary run={run} triage={triage} />
       <RunTimestamps run={run} />
       {run.cancellation === undefined ? null : (
         <div className="notice notice-warning cancellation-record">
@@ -335,9 +493,15 @@ function LoadedRunDetail({
           )}
         </div>
       )}
-      <RunRuntimeConfiguration run={run} />
       <RunBindings run={run} />
-      <LiveAttempts key={`${liveKey}:${snapshotVersion}`} run={run} />
+      <RunOutputGallery runId={run.runId} outputs={run.outputs} />
+      <LiveAttempts
+        key={`${liveKey}:${snapshotVersion}`}
+        run={run}
+        focusStageExecutionId={triage.stageExecutionId}
+      />
+
+      <RunRuntimeConfiguration run={run} />
 
       <RunArtifactLibrary runId={run.runId} />
       <CancellationControl run={run} />

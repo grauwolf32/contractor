@@ -5,7 +5,6 @@ import { Link, useParams, useSearchParams } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
   ARTIFACT_REVISION_PATTERN,
-  canPreviewArtifact,
   type ArtifactMetadata,
   type DownloadedArtifact,
 } from "../../api/artifacts";
@@ -26,6 +25,7 @@ import {
   formatBytes,
   formatTimestamp,
 } from "../artifacts/common";
+import { ArtifactPreviewPanel } from "../artifacts/preview";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -40,6 +40,112 @@ function triggerDownload(downloaded: DownloadedArtifact): void {
     anchor.remove();
     URL.revokeObjectURL(objectURL);
   }
+}
+
+function RunOutputPreview({
+  runId,
+  slot,
+  artifact,
+}: {
+  runId: string;
+  slot: string;
+  artifact: ArtifactMetadata["artifact"];
+}) {
+  const api = usePublicAPI();
+  const [requested, setRequested] = useState(false);
+  const metadata = useQuery({
+    queryKey: queryKeys.runs.artifactMetadata(
+      runId,
+      artifact.namespace,
+      artifact.name,
+      artifact.revision,
+    ),
+    queryFn: () =>
+      getRunArtifactMetadata(api, {
+        runId,
+        namespace: artifact.namespace,
+        name: artifact.name,
+        revision: artifact.revision,
+      }),
+    enabled: requested,
+  });
+  const detailPath = `/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`;
+
+  return (
+    <details
+      className="run-output-preview"
+      onToggle={(event) => {
+        if (event.currentTarget.open) {
+          setRequested(true);
+        }
+      }}
+    >
+      <summary>
+        <span>
+          <strong>{slot}</strong>
+          <code>
+            {artifact.namespace}/{artifact.name}@{artifact.revision}
+          </code>
+        </span>
+        <span>Preview on demand</span>
+      </summary>
+      <div className="run-output-preview-body">
+        <Link className="run-output-detail-link" to={detailPath}>
+          Open {artifact.namespace}/{artifact.name}@{artifact.revision} details
+          →
+        </Link>
+        {!requested || metadata.isPending ? (
+          <p className="loading-copy">Loading exact output metadata…</p>
+        ) : metadata.error !== null ? (
+          <ErrorNotice error={metadata.error} />
+        ) : (
+          <ArtifactPreviewPanel
+            metadata={metadata.data}
+            unavailableCopy="Inline preview is unavailable; exact original bytes remain available from artifact details."
+            loadPreview={() => previewRunArtifact(api, runId, metadata.data)}
+          />
+        )}
+      </div>
+    </details>
+  );
+}
+
+export function RunOutputGallery({
+  runId,
+  outputs,
+}: {
+  runId: string;
+  outputs: Record<string, ArtifactMetadata["artifact"]>;
+}) {
+  const entries = Object.entries(outputs).sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  if (entries.length === 0) {
+    return null;
+  }
+  return (
+    <section className="run-output-gallery" id="run-outputs">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Frozen Workflow outputs</p>
+          <h3>Inspect results without leaving the Run</h3>
+        </div>
+        <span>
+          {entries.length} output{entries.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div className="run-output-list">
+        {entries.map(([slot, artifact]) => (
+          <RunOutputPreview
+            key={slot}
+            runId={runId}
+            slot={slot}
+            artifact={artifact}
+          />
+        ))}
+      </div>
+    </section>
+  );
 }
 
 export function RunArtifactLibrary({ runId }: { runId: string }) {
@@ -74,7 +180,7 @@ export function RunArtifactLibrary({ runId }: { runId: string }) {
   }
 
   return (
-    <div className="panel run-artifact-library">
+    <div className="panel run-artifact-library" id="run-artifacts">
       <div className="section-heading">
         <div>
           <p className="eyebrow">RunScope</p>
@@ -169,48 +275,18 @@ function RunArtifactActions({
   metadata: ArtifactMetadata;
 }) {
   const api = usePublicAPI();
-  const preview = useMutation({
-    mutationFn: () => previewRunArtifact(api, runId, metadata),
-  });
   const download = useMutation({
     mutationFn: () => downloadRunArtifact(api, runId, metadata),
     onSuccess: triggerDownload,
   });
   return (
     <div className="artifact-actions-grid run-artifact-actions">
-      <div className="panel">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Safe rendering</p>
-            <h3>Preview</h3>
-          </div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={!canPreviewArtifact(metadata) || preview.isPending}
-            onClick={() => preview.mutate()}
-          >
-            {preview.isPending ? "Loading…" : "Load text preview"}
-          </button>
-        </div>
-        {canPreviewArtifact(metadata) ? (
-          <p className="muted-copy">
-            Preview is capped at 256 KiB and rendered as escaped UTF-8 text.
-          </p>
-        ) : (
-          <div className="compact-empty">
-            Inline preview is unavailable; exact original bytes remain
-            downloadable.
-          </div>
-        )}
-        {preview.error === null ? null : <ErrorNotice error={preview.error} />}
-        {preview.data === undefined ? null : (
-          <pre className="artifact-preview" tabIndex={0}>
-            {preview.data}
-          </pre>
-        )}
-      </div>
-      <div className="panel">
+      <ArtifactPreviewPanel
+        metadata={metadata}
+        unavailableCopy="Inline preview is unavailable; exact original bytes remain downloadable."
+        loadPreview={() => previewRunArtifact(api, runId, metadata)}
+      />
+      <div className="panel artifact-download-panel">
         <p className="eyebrow">Original bytes</p>
         <h3>Download</h3>
         <p className="muted-copy">

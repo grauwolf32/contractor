@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -296,6 +296,34 @@ describe("Run routes", () => {
     expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
   });
 
+  it("honors a deep-linked Run state filter", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/runs") {
+          requests.push(url);
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+
+    renderRunApplication(api, "/runs?state=failed");
+
+    expect(
+      await screen.findByText("No Runs match this view."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("State")).toHaveValue("failed");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.searchParams.get("state")).toBe("failed");
+  });
+
   it("shows a global task and advances only its nested typed Planner projection", async () => {
     let currentRun = runFixture();
     let detailReads = 0;
@@ -430,7 +458,7 @@ describe("Run routes", () => {
     await waitFor(() => expect(detailReads).toBeGreaterThan(1));
     expect(await screen.findByText("cancelling")).toBeInTheDocument();
     expect(
-      view.container.querySelector(".run-metadata .state-succeeded"),
+      view.container.querySelector(".run-triage .state-succeeded"),
     ).toBeNull();
   });
 
@@ -503,6 +531,106 @@ describe("Run routes", () => {
     expect(cancellationBody).toEqual({
       reason: "Stop after the current review",
     });
+  });
+
+  it("surfaces the primary terminal cause and focuses its failed attempt", async () => {
+    const failedRun = runFixture({
+      state: "failed",
+      eventCursor: undefined,
+      activeStageExecutionId: undefined,
+      attempts: [
+        {
+          ...runFixture().attempts[0]!,
+          state: "failed",
+          result: {
+            apiVersion: "contractor/v1alpha1",
+            outcome: "failed",
+            summary: "Planner could not start.",
+            artifacts: {},
+            error: {
+              code: "planner_gateway_unavailable",
+              message: "The configured Planner gateway is unavailable.",
+              retryable: true,
+            },
+          },
+          diagnostics: {
+            items: [
+              {
+                participant: "planner",
+                code: "planner_gateway_unavailable",
+                message: "The configured Planner gateway is unavailable.",
+                retryable: true,
+              },
+            ],
+            truncated: false,
+          },
+          metrics: {
+            reportsComplete: true,
+            modelCalls: 2,
+            inputTokens: 900,
+            outputTokens: 300,
+            totalTokens: 1200,
+            toolCalls: 1,
+            toolFailures: 0,
+            errorCount: 1,
+            truncated: false,
+          },
+          terminalAt: "2026-08-31T12:00:34Z",
+          updatedAt: "2026-08-31T12:00:34Z",
+        },
+      ],
+      updatedAt: "2026-08-31T12:00:34Z",
+      finishedAt: "2026-08-31T12:00:34Z",
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) {
+          return shared;
+        }
+        if (new URL(request.url).pathname === "/v1/runs/run-router") {
+          return apiResponse(failedRun);
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+
+    const view = renderRunApplication(api, "/runs/run-router");
+    const heading = await screen.findByRole("heading", {
+      name: "Run failed in analysis",
+    });
+    const triage = heading.closest(".run-triage");
+    expect(triage).not.toBeNull();
+    expect(
+      within(triage as HTMLElement).getByText("planner_gateway_unavailable"),
+    ).toBeInTheDocument();
+    expect(
+      within(triage as HTMLElement).getByText(
+        "The configured Planner gateway is unavailable.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(triage as HTMLElement).getByText("retryable"),
+    ).toBeInTheDocument();
+    expect(within(triage as HTMLElement).getByText("34s")).toBeInTheDocument();
+    expect(within(triage as HTMLElement).getByText("1.2K")).toBeInTheDocument();
+    expect(
+      within(triage as HTMLElement).getByRole("link", {
+        name: "Inspect focused attempt",
+      }),
+    ).toHaveAttribute("href", "#attempt-stage-router-1");
+    expect(
+      view.container.querySelector<HTMLDetailsElement>(
+        "#attempt-stage-router-1",
+      )?.open,
+    ).toBe(true);
+    expect(
+      view.container.querySelector<HTMLDetailsElement>(
+        ".run-runtime-configuration",
+      )?.open,
+    ).toBe(false);
   });
 
   it("renders terminal attempts, escalation, safe metrics, and frozen outputs", async () => {
@@ -655,6 +783,22 @@ describe("Run routes", () => {
             page: { hasMore: false },
           });
         }
+        if (
+          url.pathname ===
+          "/v1/runs/run-router/artifacts/outputs/report/metadata"
+        ) {
+          return apiResponse({
+            artifact: output,
+            mediaType: "text/plain",
+            size: 12,
+            current: true,
+            frozen: true,
+            createdAt: "2026-08-31T12:05:00Z",
+          });
+        }
+        if (url.pathname === "/v1/runs/run-router/artifacts/outputs/report") {
+          return byteResponse("safe report\n", "text/plain");
+        }
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
@@ -699,6 +843,14 @@ describe("Run routes", () => {
     expect(
       screen.queryByRole("button", { name: "Request cancellation" }),
     ).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Preview on demand"));
+    await user.click(
+      await screen.findByRole("button", { name: "Load preview" }),
+    );
+    expect(
+      await screen.findByText("safe report", { selector: "pre" }),
+    ).toBeInTheDocument();
     expect(view.container.textContent).not.toMatch(/prompt|tool arguments/i);
   });
 
@@ -773,7 +925,7 @@ describe("Run routes", () => {
       screen.queryByRole("heading", { name: /Upload/ }),
     ).not.toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Load text preview" }));
+    await user.click(screen.getByRole("button", { name: "Load preview" }));
     expect(
       await screen.findByText("safe report", { selector: "pre" }),
     ).toBeInTheDocument();

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
@@ -14,7 +14,10 @@ import { StateBadge } from "./components";
 
 export function RunListRoute() {
   const api = usePublicAPI();
-  const [state, setState] = useState<WorkflowRunState | undefined>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedState = searchParams.get("state");
+  const state = RUN_STATES.find((candidate) => candidate === requestedState) as
+    WorkflowRunState | undefined;
   const [cursors, setCursors] = useState<Array<string | undefined>>([
     undefined,
   ]);
@@ -61,7 +64,13 @@ export function RunListRoute() {
               value={state ?? ""}
               onChange={(event) => {
                 const selected = event.target.value as WorkflowRunState | "";
-                setState(selected === "" ? undefined : selected);
+                const next = new URLSearchParams(searchParams);
+                if (selected === "") {
+                  next.delete("state");
+                } else {
+                  next.set("state", selected);
+                }
+                setSearchParams(next, { replace: true });
                 setCursors([undefined]);
               }}
             >
@@ -87,7 +96,7 @@ export function RunListRoute() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table>
+            <table className="responsive-table">
               <thead>
                 <tr>
                   <th>Run</th>
@@ -101,20 +110,24 @@ export function RunListRoute() {
               <tbody>
                 {query.data.items.map((run) => (
                   <tr key={run.runId}>
-                    <td>
+                    <td data-label="Run">
                       <Link to={`/runs/${encodeURIComponent(run.runId)}`}>
                         {run.runId}
                       </Link>
                     </td>
-                    <td>
+                    <td data-label="Workflow">
                       <code>{run.workflow}</code>
                     </td>
-                    <td>
+                    <td data-label="State">
                       <StateBadge state={run.state} />
                     </td>
-                    <td>{formatTimestamp(run.createdAt)}</td>
-                    <td>{formatTimestamp(run.updatedAt)}</td>
-                    <td>
+                    <td data-label="Created">
+                      {formatTimestamp(run.createdAt)}
+                    </td>
+                    <td data-label="Updated">
+                      {formatTimestamp(run.updatedAt)}
+                    </td>
+                    <td data-label="Finished">
                       {run.finishedAt === undefined
                         ? "—"
                         : formatTimestamp(run.finishedAt)}

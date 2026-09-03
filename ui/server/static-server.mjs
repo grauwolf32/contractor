@@ -23,6 +23,7 @@ const CLIENT_ROUTE_PATTERNS = [
 ];
 const API_PREFIXES = ["/v1", "/api", "/private"];
 const HASHED_ASSET = /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/;
+const LIKEC4_WORKER_ASSET = /^\/assets\/likec4\.worker-[A-Za-z0-9_-]{8,}\.js$/;
 const ASSET_PATH = /^\/assets\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9._-]+$/;
 const MAXIMUM_REQUEST_TARGET_BYTES = 4096;
 
@@ -58,7 +59,8 @@ function securityHeaders(apiBaseUrl) {
       "form-action 'self'",
       "object-src 'none'",
       "script-src 'self'",
-      "style-src 'self'",
+      "worker-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",
       `connect-src ${[...connectSources].join(" ")}`,
@@ -70,6 +72,20 @@ function securityHeaders(apiBaseUrl) {
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
+  };
+}
+
+function likeC4WorkerHeaders(baseHeaders) {
+  return {
+    ...baseHeaders,
+    // hpcc-js Graphviz generates small WASM binding functions at runtime.
+    // Keep that capability isolated to this bundled Worker: Artifact code has
+    // no DOM access and the Worker cannot make network requests.
+    "Content-Security-Policy": [
+      "default-src 'none'",
+      "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'",
+      "connect-src 'none'",
+    ].join("; "),
   };
 }
 
@@ -261,7 +277,9 @@ export async function createStaticServer({ distDir, runtimeConfig }) {
           response,
           200,
           {
-            ...baseHeaders,
+            ...(LIKEC4_WORKER_ASSET.test(path)
+              ? likeC4WorkerHeaders(baseHeaders)
+              : baseHeaders),
             "Cache-Control": HASHED_ASSET.test(path)
               ? "public, max-age=31536000, immutable"
               : "no-cache",

@@ -12,22 +12,30 @@ export const MEDIA_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/;
 
 const PREVIEW_MEDIA_TYPES = new Set([
   "application/json",
+  "application/vnd.oai.openapi",
+  "application/vnd.oai.openapi+json",
+  "application/vnd.oai.openapi+yaml",
   "application/yaml",
   "application/x-yaml",
   "text/markdown",
   "text/plain",
   "text/vnd.likec4",
+  "text/x-markdown",
   "text/yaml",
 ]);
 
 const EXTENSIONS = new Map([
   ["application/json", ".json"],
+  ["application/vnd.oai.openapi", ".yaml"],
+  ["application/vnd.oai.openapi+json", ".json"],
+  ["application/vnd.oai.openapi+yaml", ".yaml"],
   ["application/yaml", ".yaml"],
   ["application/x-yaml", ".yaml"],
   ["application/zip", ".zip"],
   ["text/markdown", ".md"],
   ["text/plain", ".txt"],
   ["text/vnd.likec4", ".c4"],
+  ["text/x-markdown", ".md"],
   ["text/yaml", ".yaml"],
 ]);
 

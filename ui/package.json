@@ -23,19 +23,26 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@likec4/core": "1.56.0",
+    "@likec4/diagram": "1.56.0",
+    "@likec4/language-services": "1.56.0",
+    "@scalar/api-reference-react": "0.9.66",
     "@tanstack/react-query": "5.102.8",
     "openapi-fetch": "0.17.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-router": "8.3.1"
+    "react-markdown": "10.1.0",
+    "react-router": "8.3.1",
+    "remark-gfm": "4.0.1",
+    "yaml": "2.8.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.6",
-    "@playwright/test": "1.62.1",
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",

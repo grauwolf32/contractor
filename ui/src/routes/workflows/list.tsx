@@ -60,7 +60,7 @@ export function WorkflowListRoute() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table>
+            <table className="responsive-table">
               <thead>
                 <tr>
                   <th>Exact Workflow</th>
@@ -73,19 +73,23 @@ export function WorkflowListRoute() {
               <tbody>
                 {query.data.items.map((workflow) => (
                   <tr key={`${workflow.ref.name}@${workflow.ref.version}`}>
-                    <td>
+                    <td data-label="Workflow">
                       <Link
                         to={`/workflows/${encodeURIComponent(workflow.ref.name)}/${encodeURIComponent(workflow.ref.version)}`}
                       >
                         {workflow.ref.name}@{workflow.ref.version}
                       </Link>
                     </td>
-                    <td>
+                    <td data-label="Entry stage">
                       <code>{workflow.entryStage}</code>
                     </td>
-                    <td>{slotSummary(workflow.parameters)}</td>
-                    <td>{slotSummary(workflow.inputs)}</td>
-                    <td>{slotSummary(workflow.outputs)}</td>
+                    <td data-label="Parameters">
+                      {slotSummary(workflow.parameters)}
+                    </td>
+                    <td data-label="Inputs">{slotSummary(workflow.inputs)}</td>
+                    <td data-label="Outputs">
+                      {slotSummary(workflow.outputs)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

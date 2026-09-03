@@ -5,6 +5,7 @@ import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
 
 const navigation = [
+  { to: "/", label: "Home", end: true },
   { to: "/workflows", label: "Workflows" },
   { to: "/artifacts", label: "Artifacts" },
   { to: "/runs", label: "Runs" },
@@ -41,6 +42,7 @@ export function ApplicationShell() {
             <NavLink
               key={item.to}
               to={item.to}
+              end={"end" in item ? item.end : false}
               className={({ isActive }) => (isActive ? "active" : undefined)}
             >
               {item.label}

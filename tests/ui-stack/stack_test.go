@@ -301,10 +301,10 @@ func TestBrowserOperationsStack(t *testing.T) {
 		t, filepath.Join(repositoryRoot, "ui"), playwrightEnvironment,
 		"corepack", "pnpm", "exec", "playwright", "test",
 	)
-	tracePath := singleFileNamed(t, playwrightOutput, "trace.zip")
+	tracePaths := filesNamed(t, playwrightOutput, "trace.zip")
 
 	stack.assertCredentialLifecycle()
-	stack.assertSecretBoundaries(evidencePath, tracePath, screenshotPath)
+	stack.assertSecretBoundaries(evidencePath, tracePaths, screenshotPath)
 	calls, completedStages, gatewayFailures := modelGateway.snapshot()
 	if calls != 34 || completedStages != 4 || len(gatewayFailures) != 0 {
 		t.Fatalf("model Gateway calls/stages/failures = %d/%d/%v, want 34/4/none", calls, completedStages, gatewayFailures)
@@ -315,7 +315,7 @@ func TestBrowserOperationsStack(t *testing.T) {
 	}
 }
 
-func singleFileNamed(t *testing.T, root, name string) string {
+func filesNamed(t *testing.T, root, name string) []string {
 	t.Helper()
 	var matches []string
 	if err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -329,10 +329,11 @@ func singleFileNamed(t *testing.T, root, name string) string {
 	}); err != nil {
 		t.Fatalf("find %s in %s: %v", name, root, err)
 	}
-	if len(matches) != 1 {
-		t.Fatalf("found %d files named %s in %s, want one", len(matches), name, root)
+	if len(matches) == 0 {
+		t.Fatalf("found no files named %s in %s", name, root)
 	}
-	return matches[0]
+	sort.Strings(matches)
+	return matches
 }
 
 func (s *uiStack) serverCommand(masterKeyFile, bindingsFile string) (string, []string) {
@@ -559,7 +560,7 @@ func (s *uiStack) assertCredentialLifecycle() {
 	}
 }
 
-func (s *uiStack) assertSecretBoundaries(evidencePath, tracePath, screenshotPath string) {
+func (s *uiStack) assertSecretBoundaries(evidencePath string, tracePaths []string, screenshotPath string) {
 	s.t.Helper()
 	s.processMu.Lock()
 	processes := append([]*childProcess(nil), s.processes...)
@@ -570,7 +571,9 @@ func (s *uiStack) assertSecretBoundaries(evidencePath, tracePath, screenshotPath
 		}
 	}
 	assertEvidenceHasNoSecrets(s.t, evidencePath, s.secrets)
-	assertZipHasNoSecrets(s.t, tracePath, s.secrets)
+	for _, tracePath := range tracePaths {
+		assertZipHasNoSecrets(s.t, tracePath, s.secrets)
+	}
 	if data, err := os.ReadFile(screenshotPath); err != nil || containsAny(string(data), s.secrets) {
 		s.t.Fatalf("screenshot binary secret scan failed or matched: %v", err)
 	}
@@ -592,6 +595,29 @@ func (s *uiStack) assertSecretBoundaries(evidencePath, tracePath, screenshotPath
 
 func (s *uiStack) close() {
 	if s.t.Failed() {
+		calls, completedStages, failures := s.modelGateway.snapshot()
+		s.t.Logf("model Gateway failure diagnostics: calls=%d completed_stages=%d failures=%v",
+			calls, completedStages, failures)
+		diagnosticContext, cancelDiagnostics := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancelDiagnostics()
+		rows, err := s.pool.Query(diagnosticContext, `
+SELECT r.run_id, r.state, r.state_reason_code, r.state_reason_message,
+       COALESCE(e.state, ''), COALESCE(e.state_reason_code, ''), COALESCE(e.state_reason_message, '')
+FROM workflow_runs r
+LEFT JOIN stage_executions e ON e.run_id = r.run_id
+ORDER BY r.created_at, e.created_at`)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var runID, runState, runCode, runMessage, stageState, stageCode, stageMessage string
+				if scanErr := rows.Scan(
+					&runID, &runState, &runCode, &runMessage, &stageState, &stageCode, &stageMessage,
+				); scanErr == nil {
+					s.t.Logf("Run failure diagnostics: run=%s state=%s code=%s message=%s stage=%s stage_code=%s stage_message=%s",
+						runID, runState, runCode, runMessage, stageState, stageCode, stageMessage)
+				}
+			}
+		}
 		s.processMu.Lock()
 		processes := append([]*childProcess(nil), s.processes...)
 		s.processMu.Unlock()

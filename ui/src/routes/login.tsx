@@ -14,7 +14,7 @@ function safeDestination(state: unknown): string {
   ) {
     return state.from;
   }
-  return "/workflows";
+  return "/";
 }
 
 export function LoginRoute() {
@@ -76,7 +76,7 @@ export function LoginRoute() {
             <input
               name="username"
               autoComplete="username"
-              pattern="[A-Za-z0-9][A-Za-z0-9_.-]*"
+              pattern={"[A-Za-z0-9][A-Za-z0-9_.\\-]*"}
               minLength={1}
               maxLength={64}
               required
