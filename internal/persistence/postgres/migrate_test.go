@@ -128,6 +128,37 @@ func TestCaidoRuntimeCredentialMigrationExtendsBothClosedKinds(t *testing.T) {
 	}
 }
 
+func TestWorkflowRunMetadataLabelMigrationIsBoundedIndexedAndImmutable(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var labels migration
+	for _, item := range items {
+		if item.name == "000024_workflow_run_metadata_labels.sql" {
+			labels = item
+			break
+		}
+	}
+	if labels.name == "" {
+		t.Fatal("WorkflowRun metadata-label migration is not embedded")
+	}
+	contents := string(labels.contents)
+	for _, required := range []string{
+		"PRIMARY KEY (run_id, label_key)",
+		"UNIQUE (run_id, ordinal)",
+		"ordinal BETWEEN 1 AND 32",
+		"workflow_run_metadata_labels_exact_idx",
+		"contractor_protect_workflow_run_metadata_label_immutable",
+		"ON DELETE CASCADE",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("WorkflowRun metadata-label migration does not contain %q", required)
+		}
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

@@ -85,7 +85,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatalf("PUT source = %d: %s", putResponse.Code, putResponse.Body.String())
 	}
 
-	createBody := []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	createBody := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"eval_postgres","eval.leg":"a"},"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	create := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(createBody))
 	create.Header.Set(idempotencyKeyHeader, "postgres-create-run")
 	createResponse := httptest.NewRecorder()
@@ -94,7 +94,8 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		t.Fatalf("POST Run = %d: %s", createResponse.Code, createResponse.Body.String())
 	}
 	storedRun, err := runs.GetRun(ctx, "run-public")
-	if err != nil || storedRun.State != runstore.RunRunning || storedRun.OwnerID != "user-1" || len(storedRun.WorkflowSnapshot) == 0 {
+	if err != nil || storedRun.State != runstore.RunRunning || storedRun.OwnerID != "user-1" ||
+		len(storedRun.WorkflowSnapshot) == 0 || storedRun.MetadataLabels["eval.id"] != "eval_postgres" {
 		t.Fatalf("stored Run = (%+v, %v)", storedRun, err)
 	}
 	nextRunID = "run-duplicate-must-not-exist"
@@ -109,7 +110,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	if _, err := runs.GetRun(ctx, nextRunID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("response-loss retry created another Run: %v", err)
 	}
-	differentBody := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"different"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	differentBody := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"eval_postgres","eval.leg":"b"},"parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	reused := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(differentBody))
 	reused.Header.Set(idempotencyKeyHeader, "postgres-create-run")
 	reusedResponse := httptest.NewRecorder()

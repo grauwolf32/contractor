@@ -91,6 +91,7 @@ describe("Workflow API", () => {
             runId: "run_example",
             state: "running",
             runtimeLabels: [],
+            labels: {},
             runtimeConfiguration: {
               default: {
                 label: "default",
@@ -124,6 +125,7 @@ describe("Workflow API", () => {
       runId: "run_example",
       state: "running",
       runtimeLabels: [],
+      labels: {},
       runtimeConfiguration: {
         default: {
           label: "default",

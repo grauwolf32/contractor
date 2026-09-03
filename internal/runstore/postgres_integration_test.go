@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -336,6 +337,68 @@ SET candidate_stage_result = jsonb_set(candidate_stage_result, '{summary}', '"re
 WHERE stage_execution_id = 'stage-lifecycle'`)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("candidate rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+}
+
+func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+
+	params := testRunParams("run-metadata-labels")
+	params.MetadataLabels = RunMetadataLabels{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+	}
+	created, err := store.CreateRun(ctx, params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(created.MetadataLabels, params.MetadataLabels) {
+		t.Fatalf("created metadata labels = %v, want %v", created.MetadataLabels, params.MetadataLabels)
+	}
+	params.MetadataLabels["purpose"] = "mutated-by-caller"
+	loaded, err := store.GetRun(ctx, created.RunID)
+	if err != nil || loaded.MetadataLabels["purpose"] != "eval" {
+		t.Fatalf("stored metadata labels = (%v, %v)", loaded.MetadataLabels, err)
+	}
+	page, err := store.ListRuns(ctx, ListRunsParams{OwnerID: params.OwnerID, Limit: 10})
+	if err != nil || len(page) != 1 || page[0].MetadataLabels["eval.id"] != "eval_01" {
+		t.Fatalf("listed metadata labels = (%+v, %v)", page, err)
+	}
+
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_run_metadata_labels SET label_value = 'b'
+WHERE run_id = $1 AND label_key = 'eval.leg'`, created.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("direct metadata-label update SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+DELETE FROM workflow_run_metadata_labels
+WHERE run_id = $1 AND label_key = 'eval.leg'`, created.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("direct metadata-label delete SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
+VALUES ($1, 4, 'eval.id', 'different')`, created.RunID)
+	if persistencepostgres.SQLState(err) != "23505" {
+		t.Fatalf("duplicate metadata-label SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
+VALUES ($1, 33, 'extra', 'value')`, created.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("metadata-label count bound SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	if _, err := pool.Exec(ctx, `DELETE FROM workflow_runs WHERE run_id = $1`, created.RunID); err != nil {
+		t.Fatalf("parent retention delete: %v", err)
+	}
+	var remaining int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM workflow_run_metadata_labels WHERE run_id = $1`, created.RunID).Scan(&remaining); err != nil || remaining != 0 {
+		t.Fatalf("retained metadata-label rows = %d, error = %v", remaining, err)
 	}
 }
 

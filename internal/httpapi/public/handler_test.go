@@ -498,6 +498,108 @@ func TestCreateRunStrictValidationOccursBeforeTransaction(t *testing.T) {
 	}
 }
 
+func TestCreateRunMetadataLabelsAreStrictBeforeTransaction(t *testing.T) {
+	tooMany := make([]string, 0, runstore.MaxRunMetadataLabels+1)
+	for index := 0; index <= runstore.MaxRunMetadataLabels; index++ {
+		tooMany = append(tooMany, `"key`+strings.Repeat("x", index+1)+`":"value"`)
+	}
+	invalidUTF8 := append(
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"`), 0xff,
+	)
+	invalidUTF8 = append(invalidUTF8, []byte(`"},"parameters":{},"artifacts":{}}`)...)
+	requests := [][]byte{
+		[]byte(`{"workflow":"artifact-copy@1","labels":null,"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":[],"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":"eval","parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":1},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","purpose":"debug"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"contractor.internal":"value"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"Upper":"value"},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":""},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{` + strings.Join(tooMany, ",") + `},"parameters":{},"artifacts":{}}`),
+		invalidUTF8,
+	}
+	for _, body := range requests {
+		fixture := newHandlerFixture(t)
+		request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid metadata labels status = %d, body %s, request %q", response.Code, response.Body.String(), body)
+		}
+		assertErrorCode(t, response, "invalid_request")
+		if fixture.unit.calls != 0 || len(fixture.runs.runs) != 0 {
+			t.Fatalf("invalid metadata labels entered transaction %d times or created %d Runs", fixture.unit.calls, len(fixture.runs.runs))
+		}
+	}
+}
+
+func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("source")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.sample":"2","eval.id":"eval_01"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	create := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
+	create.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("create labeled Run = %d %s", created.Code, created.Body.String())
+	}
+	var createModel createRunResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &createModel); err != nil ||
+		createModel.Labels["eval.id"] != "eval_01" || len(createModel.Labels) != 3 {
+		t.Fatalf("create metadata labels = (%+v, %v)", createModel.Labels, err)
+	}
+
+	listRequest := authenticatedRequest(http.MethodGet, "/v1/runs", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, listRequest)
+	var page runPageResponse
+	if listed.Code != http.StatusOK {
+		t.Fatalf("list labeled Run = %d %s", listed.Code, listed.Body.String())
+	}
+	if err := json.Unmarshal(listed.Body.Bytes(), &page); err != nil || len(page.Items) != 1 ||
+		page.Items[0].Labels["eval.sample"] != "2" {
+		t.Fatalf("listed metadata labels = (%+v, %v)", page.Items, err)
+	}
+
+	detailRequest := authenticatedRequest(http.MethodGet, "/v1/runs/run_fixed", bytes.NewReader(nil))
+	detailed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(detailed, detailRequest)
+	var detail runStatusResponse
+	if detailed.Code != http.StatusOK {
+		t.Fatalf("detail labeled Run = %d %s", detailed.Code, detailed.Body.String())
+	}
+	if err := json.Unmarshal(detailed.Body.Bytes(), &detail); err != nil || detail.Labels["purpose"] != "eval" {
+		t.Fatalf("detail metadata labels = (%+v, %v)", detail.Labels, err)
+	}
+
+	retryBody := []byte(`{"workflow":"artifact-copy@1","labels":{"eval.id":"eval_01","eval.sample":"2","purpose":"eval"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(retryBody))
+	retry.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
+	replayed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replayed, retry)
+	if replayed.Code != http.StatusAccepted || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() {
+		t.Fatalf("metadata label replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+
+	changedBody := bytes.Replace(body, []byte(`"eval_01"`), []byte(`"eval_02"`), 1)
+	changed := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(changedBody))
+	changed.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
+	conflict := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(conflict, changed)
+	if conflict.Code != http.StatusConflict || len(fixture.runs.runs) != 1 || fixture.unit.calls != 1 {
+		t.Fatalf("changed metadata label replay = %d transactions=%d body=%s", conflict.Code, fixture.unit.calls, conflict.Body.String())
+	}
+}
+
 func TestCreateRunForksInputAndReturnsRunning(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	user, _ := fixture.artifacts.User("user-1")
@@ -809,6 +911,12 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 	if err != nil || explicit != omitted {
 		t.Fatalf("semantic request digests = omitted:%q explicit:%q error:%v", omitted, explicit, err)
 	}
+	explicitLabels, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", Labels: runMetadataLabels{},
+	})
+	if err != nil || explicitLabels != omitted {
+		t.Fatalf("empty metadata label digest = %q, omitted = %q, error = %v", explicitLabels, omitted, err)
+	}
 	var emptyExecutionConfig config.ExecutionConfigPatch
 	if err := json.Unmarshal([]byte(`{"stages":{}}`), &emptyExecutionConfig); err != nil {
 		t.Fatal(err)
@@ -833,6 +941,18 @@ func TestCreateRunDigestNormalizesEquivalentEmptyMappings(t *testing.T) {
 	})
 	if err != nil || reversed != ordered || reversed == omitted {
 		t.Fatalf("label request digests = ordered:%q reversed:%q omitted:%q error:%v", ordered, reversed, omitted, err)
+	}
+	metadataOrdered, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", Labels: runMetadataLabels{"purpose": "eval", "eval.leg": "a"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadataReversed, err := createRunRequestDigest(createRunRequest{
+		Workflow: "empty@1", Labels: runMetadataLabels{"eval.leg": "a", "purpose": "eval"},
+	})
+	if err != nil || metadataReversed != metadataOrdered || metadataReversed == omitted {
+		t.Fatalf("metadata label digests = ordered:%q reversed:%q omitted:%q error:%v", metadataOrdered, metadataReversed, omitted, err)
 	}
 }
 

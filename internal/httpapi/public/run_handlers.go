@@ -88,7 +88,7 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 		items = append(items, runSummaryResponse{
 			RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
 			State: run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
-			FinishedAt: run.FinishedAt,
+			Labels: run.MetadataLabels.Clone(), FinishedAt: run.FinishedAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, runPageResponse{Items: items, Page: page})
@@ -120,6 +120,12 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	request.RuntimeLabels = runRuntimeLabels(normalizedLabels)
+	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	request.Labels = runMetadataLabels(metadataLabels)
 	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -205,6 +211,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 						WorkflowSchemaVersion: contracts.APIVersion,
 						WorkflowSnapshot:      workflowSnapshot,
 						Parameters:            cloneParameters(request.Parameters),
+						MetadataLabels:        metadataLabels,
 						RuntimeConfig:         runtimeConfig,
 					},
 					IdempotencyKey: idempotencyKey,
@@ -285,6 +292,7 @@ func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 	return createRunResponse{
 		RunID: run.RunID, State: run.State,
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
+		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 	}
 }
@@ -325,6 +333,13 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 	// Runs created before migration 000018 remains exact after upgrade.
 	if len(labels) != 0 {
 		canonical["runtimeLabels"] = labels
+	}
+	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
+	if err != nil {
+		return "", err
+	}
+	if len(metadataLabels) != 0 {
+		canonical["labels"] = metadataLabels
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -568,6 +583,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
 		State: run.State, RuntimeLabels: append([]string{}, run.RuntimeLabels...),
+		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,
 		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,

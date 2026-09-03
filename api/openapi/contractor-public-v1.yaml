@@ -167,6 +167,7 @@ paths:
                 runId: run_example
                 state: running
                 runtimeLabels: []
+                labels: {}
                 runtimeConfiguration:
                   default:
                     label: default
@@ -1524,6 +1525,21 @@ components:
       minLength: 1
       maxLength: 128
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+    RunMetadataLabels:
+      type: object
+      maxProperties: 32
+      propertyNames:
+        allOf:
+          - type: string
+            minLength: 1
+            maxLength: 63
+            pattern: '^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$'
+          - not: {pattern: '^contractor\.'}
+      additionalProperties:
+        type: string
+        minLength: 1
+        maxLength: 256
+        description: Opaque UTF-8 value bounded by the Server to 256 encoded bytes.
     RuntimeInfrastructureId:
       type: string
       minLength: 1
@@ -2220,7 +2236,7 @@ components:
     RunStatus:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, runtimeLabels, runtimeConfiguration, attempts, transitions, outputs]
+      required: [runId, workflow, state, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
@@ -2230,6 +2246,7 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
+        labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         runtimeConfiguration: {$ref: '#/components/schemas/RunRuntimeConfiguration'}
         cancellation: {$ref: '#/components/schemas/Cancellation'}
         parameters:
@@ -2253,11 +2270,12 @@ components:
     RunSummary:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, createdAt, updatedAt]
+      required: [runId, workflow, state, labels, createdAt, updatedAt]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
+        labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
         finishedAt: {type: string, format: date-time}
@@ -2271,7 +2289,7 @@ components:
     CreateRunResponse:
       type: object
       additionalProperties: false
-      required: [runId, state, runtimeLabels, runtimeConfiguration]
+      required: [runId, state, runtimeLabels, labels, runtimeConfiguration]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
@@ -2280,6 +2298,7 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
+        labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         runtimeConfiguration: {$ref: '#/components/schemas/RunRuntimeConfiguration'}
     CancelRunRequest:
       type: object
@@ -2333,6 +2352,7 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
+        labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         parameters:
           type: [object, 'null']
           additionalProperties: {type: string}

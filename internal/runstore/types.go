@@ -53,6 +53,7 @@ type WorkflowRun struct {
 	WorkflowSchemaVersion     string
 	WorkflowSnapshot          json.RawMessage
 	Parameters                map[string]string
+	MetadataLabels            RunMetadataLabels
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
 	SkillSnapshot             []contracts.RunSkillSnapshot
@@ -73,6 +74,7 @@ type WorkflowRunSummary struct {
 	RunID           string
 	WorkflowName    string
 	WorkflowVersion string
+	MetadataLabels  RunMetadataLabels
 	State           WorkflowRunState
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -114,6 +116,7 @@ type CreateRunParams struct {
 	WorkflowSchemaVersion string
 	WorkflowSnapshot      json.RawMessage
 	Parameters            map[string]string
+	MetadataLabels        RunMetadataLabels
 	RuntimeConfig         runtimeconfig.RunSnapshot
 }
 

@@ -16,6 +16,7 @@ import {
   safeRunRuntimeConfiguration,
   safeStageRuntimeConfiguration,
 } from "./runtime-configuration";
+import { safeRunMetadataLabels } from "./run-metadata-labels";
 
 export const RUN_PAGE_SIZE = 50;
 export const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
@@ -158,6 +159,7 @@ export async function getRun(
     workflow: run.workflow,
     state: run.state,
     runtimeLabels: [...run.runtimeLabels],
+    labels: safeRunMetadataLabels(run.labels),
     runtimeConfiguration: safeRunRuntimeConfiguration(run.runtimeConfiguration),
     ...(run.cancellation === undefined
       ? {}

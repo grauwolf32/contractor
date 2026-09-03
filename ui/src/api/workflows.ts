@@ -3,6 +3,7 @@ import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
 import { safeConfigurationPage, safeCredentialPage } from "./safe-resources";
 import { safeRunRuntimeConfiguration } from "./runtime-configuration";
+import { safeRunMetadataLabels } from "./run-metadata-labels";
 
 export const WORKFLOW_PAGE_SIZE = 50;
 export const REFERENCE_PAGE_SIZE = 50;
@@ -164,6 +165,7 @@ export async function createRun(
     runId: response.runId,
     state: response.state,
     runtimeLabels: [...response.runtimeLabels],
+    labels: safeRunMetadataLabels(response.labels),
     runtimeConfiguration: safeRunRuntimeConfiguration(
       response.runtimeConfiguration,
     ),

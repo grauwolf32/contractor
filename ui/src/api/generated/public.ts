@@ -708,6 +708,9 @@ export interface components {
         ResourceId: string;
         AuditActor: string;
         ConfigId: string;
+        RunMetadataLabels: {
+            [key: string]: string;
+        };
         RuntimeInfrastructureId: string;
         RuntimeCredentialId: string;
         RuntimeConfigVersion: string;
@@ -1141,6 +1144,7 @@ export interface components {
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
             runtimeLabels: components["schemas"]["ConfigId"][];
+            labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
             cancellation?: components["schemas"]["Cancellation"];
             parameters?: {
@@ -1169,6 +1173,7 @@ export interface components {
             runId: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
+            labels: components["schemas"]["RunMetadataLabels"];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1184,6 +1189,7 @@ export interface components {
             runId: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];
             runtimeLabels: components["schemas"]["ConfigId"][];
+            labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
         };
         CancelRunRequest: {
@@ -1215,6 +1221,7 @@ export interface components {
         CreateRunRequest: {
             workflow: components["schemas"]["Selector"];
             runtimeLabels?: components["schemas"]["ConfigId"][];
+            labels?: components["schemas"]["RunMetadataLabels"];
             parameters?: {
                 [key: string]: string;
             } | null;
@@ -2214,6 +2221,7 @@ export interface operations {
                      *       "runId": "run_example",
                      *       "state": "running",
                      *       "runtimeLabels": [],
+                     *       "labels": {},
                      *       "runtimeConfiguration": {
                      *         "default": {
                      *           "label": "default",

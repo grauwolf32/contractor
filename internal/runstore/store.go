@@ -169,6 +169,7 @@ func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (
 	if err := validateCreateRun(params); err != nil {
 		return WorkflowRun{}, err
 	}
+	metadataLabels, _ := NormalizeRunMetadataLabels(params.MetadataLabels)
 	parameters := params.Parameters
 	if parameters == nil {
 		parameters = map[string]string{}
@@ -182,18 +183,32 @@ func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode RuntimeConfig snapshot: %w", err)
 	}
 	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
+	encodedMetadataLabels, err := json.Marshal(metadataLabels)
+	if err != nil {
+		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode metadata labels: %w", err)
+	}
 
 	row := s.db.QueryRow(ctx, `
+WITH inserted_run AS (
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot,
     state, state_reason_code, state_reason_message
 ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, 'initializing', 'created', '')
-RETURNING `+workflowRunColumns,
+RETURNING *
+), inserted_labels AS (
+    INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
+    SELECT inserted_run.run_id,
+           row_number() OVER (ORDER BY entry.key), entry.key, entry.value
+    FROM inserted_run
+    CROSS JOIN LATERAL jsonb_each_text($10::jsonb) AS entry
+)
+SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
+FROM inserted_run`,
 		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		runtimeLabels, encodedRuntimeConfig,
+		runtimeLabels, encodedRuntimeConfig, encodedMetadataLabels,
 	)
 	result, err := scanWorkflowRun(row)
 	if err != nil {
@@ -202,6 +217,7 @@ RETURNING `+workflowRunColumns,
 		}
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, err)
 	}
+	result.MetadataLabels = metadataLabels
 	return result, nil
 }
 
@@ -216,6 +232,7 @@ func (s *PostgresStore) CreateRunIdempotent(
 	if err := validateCreateRun(params.CreateRunParams); err != nil {
 		return WorkflowRun{}, false, err
 	}
+	metadataLabels, _ := NormalizeRunMetadataLabels(params.MetadataLabels)
 	if err := validateIdempotencyKey(params.IdempotencyKey); err != nil {
 		return WorkflowRun{}, false, err
 	}
@@ -235,7 +252,12 @@ func (s *PostgresStore) CreateRunIdempotent(
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode RuntimeConfig snapshot: %w", err)
 	}
 	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
+	encodedMetadataLabels, err := json.Marshal(metadataLabels)
+	if err != nil {
+		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode metadata labels: %w", err)
+	}
 	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
+WITH inserted_run AS (
 INSERT INTO workflow_runs (
     run_id, owner_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
@@ -244,12 +266,23 @@ INSERT INTO workflow_runs (
     state, state_reason_code, state_reason_message
 ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10, $11, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
-RETURNING `+workflowRunColumns,
+RETURNING *
+), inserted_labels AS (
+    INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
+    SELECT inserted_run.run_id,
+           row_number() OVER (ORDER BY entry.key), entry.key, entry.value
+    FROM inserted_run
+    CROSS JOIN LATERAL jsonb_each_text($12::jsonb) AS entry
+)
+SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
+FROM inserted_run`,
 		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
 		runtimeLabels, encodedRuntimeConfig, params.IdempotencyKey, params.RequestDigest,
+		encodedMetadataLabels,
 	))
 	if err == nil {
+		result.MetadataLabels = metadataLabels
 		return result, true, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -333,6 +366,10 @@ func (s *PostgresStore) GetRun(ctx context.Context, runID string) (WorkflowRun, 
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("get WorkflowRun %q: %w", runID, err)
 	}
+	result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
+	if err != nil {
+		return WorkflowRun{}, fmt.Errorf("get WorkflowRun %q metadata labels: %w", runID, err)
+	}
 	return result, nil
 }
 
@@ -366,13 +403,27 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		state = &value
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT run_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
-FROM workflow_runs
-WHERE owner_id = $1
-  AND ($2::text IS NULL OR state = $2)
-  AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
-ORDER BY created_at DESC, run_id DESC
-LIMIT $5`, params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit)
+WITH page AS (
+    SELECT run_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
+    FROM workflow_runs
+    WHERE owner_id = $1
+      AND ($2::text IS NULL OR state = $2)
+      AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
+    ORDER BY created_at DESC, run_id DESC
+    LIMIT $5
+)
+SELECT page.run_id, page.workflow_name, page.workflow_version, page.state,
+       page.created_at, page.updated_at, page.finished_at,
+       COALESCE(
+           jsonb_object_agg(labels.label_key, labels.label_value ORDER BY labels.label_key)
+               FILTER (WHERE labels.label_key IS NOT NULL),
+           '{}'::jsonb
+       )
+FROM page
+LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
+GROUP BY page.run_id, page.workflow_name, page.workflow_version, page.state,
+         page.created_at, page.updated_at, page.finished_at
+ORDER BY page.created_at DESC, page.run_id DESC`, params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list WorkflowRuns for owner: %w", err)
 	}
@@ -381,13 +432,20 @@ LIMIT $5`, params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, pa
 	for rows.Next() {
 		var run WorkflowRunSummary
 		var state string
+		var encodedLabels []byte
 		if scanErr := rows.Scan(
 			&run.RunID, &run.WorkflowName, &run.WorkflowVersion, &state,
-			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt,
+			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt, &encodedLabels,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan WorkflowRun summary page: %w", scanErr)
 		}
 		run.State = WorkflowRunState(state)
+		if decodeErr := json.Unmarshal(encodedLabels, &run.MetadataLabels); decodeErr != nil {
+			return nil, fmt.Errorf("decode WorkflowRun summary metadata labels: %w", decodeErr)
+		}
+		if validateErr := run.MetadataLabels.Validate(); validateErr != nil {
+			return nil, fmt.Errorf("validate WorkflowRun summary metadata labels: %w", validateErr)
+		}
 		result = append(result, run)
 	}
 	if err := rows.Err(); err != nil {
@@ -433,6 +491,10 @@ RETURNING `+workflowRunColumns,
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("transition WorkflowRun %q from %s to %s: %w", runID, expected, next, err)
 	}
+	result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
+	if err != nil {
+		return WorkflowRun{}, fmt.Errorf("load transitioned WorkflowRun %q metadata labels: %w", runID, err)
+	}
 	return result, nil
 }
 
@@ -466,6 +528,10 @@ RETURNING `+workflowRunColumns,
 		runID, contracts.APIVersion, encoded, cancellation.Reason,
 	))
 	if err == nil {
+		result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, runID)
+		if err != nil {
+			return WorkflowRun{}, fmt.Errorf("load cancelled WorkflowRun %q metadata labels: %w", runID, err)
+		}
 		return result, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -522,6 +588,10 @@ RETURNING `+prefixedWorkflowRunColumns("run"), claimID, microseconds,
 	}
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("claim runnable WorkflowRun: %w", err)
+	}
+	result.MetadataLabels, err = s.loadRunMetadataLabels(ctx, result.RunID)
+	if err != nil {
+		return WorkflowRun{}, fmt.Errorf("load claimed WorkflowRun metadata labels: %w", err)
 	}
 	return result, nil
 }
@@ -597,10 +667,45 @@ func validateCreateRun(params CreateRunParams) error {
 			return invalidf("parameter name is required")
 		}
 	}
+	if _, err := NormalizeRunMetadataLabels(params.MetadataLabels); err != nil {
+		return err
+	}
 	if err := params.RuntimeConfig.Validate(); err != nil {
 		return invalidf("RuntimeConfig snapshot is invalid: %v", err)
 	}
 	return nil
+}
+
+func (s *PostgresStore) loadRunMetadataLabels(
+	ctx context.Context, runID string,
+) (RunMetadataLabels, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT label_key, label_value
+FROM workflow_run_metadata_labels
+WHERE run_id = $1
+ORDER BY ordinal`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(RunMetadataLabels)
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		if _, duplicate := result[key]; duplicate {
+			return nil, fmt.Errorf("duplicate persisted Run metadata label %q", key)
+		}
+		result[key] = value
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := result.Validate(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func validateIdempotencyKey(value string) error {

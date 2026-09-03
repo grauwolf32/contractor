@@ -25,6 +25,7 @@ function runFixture(): RunStatus {
     workflow: "review@1",
     state: "running",
     runtimeLabels: [],
+    labels: {},
     runtimeConfiguration: {
       default: {
         label: "default",

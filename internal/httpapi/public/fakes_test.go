@@ -525,7 +525,8 @@ func (f *fakeRunStore) ListRuns(
 		}
 		result = append(result, runstore.WorkflowRunSummary{
 			RunID: run.RunID, WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
-			State: run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			MetadataLabels: run.MetadataLabels.Clone(),
+			State:          run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			FinishedAt: run.FinishedAt,
 		})
 	}
@@ -549,12 +550,13 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		RunID: params.RunID, OwnerID: params.OwnerID,
 		WorkflowName: params.WorkflowName, WorkflowVersion: params.WorkflowVersion,
 		WorkflowSchemaVersion: params.WorkflowSchemaVersion, WorkflowSnapshot: params.WorkflowSnapshot,
-		Parameters:    params.Parameters,
-		RuntimeLabels: params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
+		Parameters:     cloneParameters(params.Parameters),
+		MetadataLabels: params.MetadataLabels.Clone(),
+		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
 		State: runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
-	f.runs[params.RunID] = run
-	return run, nil
+	f.runs[params.RunID] = cloneFakeWorkflowRun(run)
+	return cloneFakeWorkflowRun(run), nil
 }
 
 func (f *fakeRunStore) CreateRunIdempotent(
@@ -614,7 +616,14 @@ func (f *fakeRunStore) GetRun(_ context.Context, runID string) (runstore.Workflo
 	if !ok {
 		return runstore.WorkflowRun{}, runstore.ErrNotFound
 	}
-	return run, nil
+	return cloneFakeWorkflowRun(run), nil
+}
+
+func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
+	run.MetadataLabels = run.MetadataLabels.Clone()
+	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
+	run.Parameters = cloneParameters(run.Parameters)
+	return run
 }
 
 func (f *fakeRunStore) TransitionRun(

@@ -55,6 +55,7 @@ describe("Run API", () => {
             workflow: "workflow@1",
             state: "running",
             runtimeLabels: [],
+            labels: {},
             runtimeConfiguration: {
               default: {
                 label: "default",

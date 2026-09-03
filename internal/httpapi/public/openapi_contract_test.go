@@ -148,6 +148,33 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	assertClosedObjectSchemas(t, source, "$")
 	assertSafePublicSchemaFields(t, source, "$")
 	assertExamplesContainNoSecrets(t, source, "$")
+
+	labels := document.Components.Schemas["RunMetadataLabels"]
+	if labels == nil || labels.Value == nil {
+		t.Fatal("public API has no RunMetadataLabels schema")
+	}
+	if err := labels.Value.VisitJSON(map[string]any{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+	}, openapi3.EnableJSONSchema2020()); err != nil {
+		t.Fatalf("RunMetadataLabels schema rejected a valid map: %v", err)
+	}
+	tooManyLabels := make(map[string]any)
+	for index := 0; index <= runstore.MaxRunMetadataLabels; index++ {
+		tooManyLabels[fmt.Sprintf("key%d", index)] = "value"
+	}
+	for _, invalid := range []any{
+		nil,
+		[]any{},
+		map[string]any{"Upper": "value"},
+		map[string]any{"contractor.internal": "value"},
+		map[string]any{"purpose": ""},
+		map[string]any{"purpose": 1},
+		tooManyLabels,
+	} {
+		if err := labels.Value.VisitJSON(invalid, openapi3.EnableJSONSchema2020()); err == nil {
+			t.Fatalf("RunMetadataLabels schema accepted invalid value %#v", invalid)
+		}
+	}
 }
 
 func TestPublicEventSchemaIsClosedAndExamplesValidate(t *testing.T) {

@@ -8,8 +8,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"time"
+	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
@@ -175,6 +178,7 @@ var errInvalidRequest = errors.New("invalid public API request")
 type createRunRequest struct {
 	Workflow        string                           `json:"workflow"`
 	RuntimeLabels   runRuntimeLabels                 `json:"runtimeLabels,omitempty"`
+	Labels          runMetadataLabels                `json:"labels,omitempty"`
 	Parameters      map[string]string                `json:"parameters"`
 	Artifacts       map[string]contracts.ArtifactRef `json:"artifacts"`
 	ExecutionConfig config.ExecutionConfigPatch      `json:"executionConfig"`
@@ -194,11 +198,57 @@ func (l *runRuntimeLabels) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type runMetadataLabels map[string]string
+
+func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
+	if !utf8.Valid(data) {
+		return errors.New("labels must contain valid UTF-8")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return errors.New("labels must be an object of strings")
+	}
+	result := make(map[string]string)
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return errors.New("labels must be an object of strings")
+		}
+		key, ok := token.(string)
+		if !ok {
+			return errors.New("labels must have string keys")
+		}
+		if _, duplicate := result[key]; duplicate {
+			return fmt.Errorf("labels contains duplicate key %q", key)
+		}
+		var value string
+		if err := decoder.Decode(&value); err != nil {
+			return fmt.Errorf("label %q must have a string value", key)
+		}
+		result[key] = value
+	}
+	closing, err := decoder.Token()
+	if err != nil || closing != json.Delim('}') {
+		return errors.New("labels must be an object of strings")
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return errors.New("labels must contain one object")
+	}
+	normalized, err := runstore.NormalizeRunMetadataLabels(result)
+	if err != nil {
+		return err
+	}
+	*l = runMetadataLabels(normalized)
+	return nil
+}
+
 type createRunResponse struct {
-	RunID                string                    `json:"runId"`
-	State                runstore.WorkflowRunState `json:"state"`
-	RuntimeLabels        []string                  `json:"runtimeLabels"`
-	RuntimeConfiguration runRuntimeConfigResponse  `json:"runtimeConfiguration"`
+	RunID                string                     `json:"runId"`
+	State                runstore.WorkflowRunState  `json:"state"`
+	RuntimeLabels        []string                   `json:"runtimeLabels"`
+	Labels               runstore.RunMetadataLabels `json:"labels"`
+	RuntimeConfiguration runRuntimeConfigResponse   `json:"runtimeConfiguration"`
 }
 
 type cancelRunRequest struct {
@@ -232,6 +282,7 @@ type runStatusResponse struct {
 	Workflow               string                            `json:"workflow"`
 	State                  runstore.WorkflowRunState         `json:"state"`
 	RuntimeLabels          []string                          `json:"runtimeLabels"`
+	Labels                 runstore.RunMetadataLabels        `json:"labels"`
 	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`
 	Cancellation           *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
 	Parameters             map[string]string                 `json:"parameters,omitempty"`
@@ -296,12 +347,13 @@ type eventCursorResponse struct {
 }
 
 type runSummaryResponse struct {
-	RunID      string                    `json:"runId"`
-	Workflow   string                    `json:"workflow"`
-	State      runstore.WorkflowRunState `json:"state"`
-	CreatedAt  time.Time                 `json:"createdAt"`
-	UpdatedAt  time.Time                 `json:"updatedAt"`
-	FinishedAt *time.Time                `json:"finishedAt,omitempty"`
+	RunID      string                     `json:"runId"`
+	Workflow   string                     `json:"workflow"`
+	State      runstore.WorkflowRunState  `json:"state"`
+	Labels     runstore.RunMetadataLabels `json:"labels"`
+	CreatedAt  time.Time                  `json:"createdAt"`
+	UpdatedAt  time.Time                  `json:"updatedAt"`
+	FinishedAt *time.Time                 `json:"finishedAt,omitempty"`
 }
 
 type runPageResponse struct {

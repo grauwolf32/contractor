@@ -83,6 +83,7 @@ function runFixture(overrides: RunOverrides = {}): RunStatus {
     workflow: "router-analysis@1",
     state: "running",
     runtimeLabels: [],
+    labels: {},
     runtimeConfiguration: {
       default: {
         label: "default",
