@@ -45,6 +45,7 @@ def allocation_spec(
     policy = ResolvedModelPolicy(
         ref=ModelPolicyRef(policyId="worker", version="1", digest="sha256:" + "0" * 64),
         model="worker-model",
+        contextWindowTokens=131_072 if summarizer else None,
         maxOutputTokens=4096,
         maxModelCalls=8,
         maxToolCalls=16,
@@ -61,16 +62,16 @@ def allocation_spec(
                 digest="sha256:" + "0" * 64,
             ),
             model="worker-summarizer-model",
+            contextWindowTokens=131_072,
             maxOutputTokens=2048,
             maxModelCalls=1,
-            maxTotalTokens=8192,
             temperature=0.1,
         )
         summarizer_policy.ref.digest = _model_policy_digest(summarizer_policy)
         summarizer_config = WorkerSummarizerConfig(
             modelPolicy=summarizer_policy,
-            softTotalTokens=20_000,
-            softPromptTokens=12_000,
+            contextWindowRatio=0.9,
+            cumulativeBudget=20_000,
         )
     template = ResolvedAgentTemplate(
         ref=AgentTemplateRef(

@@ -116,10 +116,13 @@ def thought_result(text: str = "Task complete") -> LlmResponse:
     )
 
 
-def scripted_model(responses: Sequence[LlmResponse], *, block: bool = False) -> ScriptedLlm:
-    return ScriptedLlm(
-        model="deterministic-fake", responses=list(responses), block_first_call=block
-    )
+def scripted_model(
+    responses: Sequence[LlmResponse],
+    *,
+    block: bool = False,
+    model: str = "deterministic-fake",
+) -> ScriptedLlm:
+    return ScriptedLlm(model=model, responses=list(responses), block_first_call=block)
 
 
 def _with_usage(response: LlmResponse) -> LlmResponse:

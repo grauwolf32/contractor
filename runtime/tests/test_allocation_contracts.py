@@ -18,8 +18,10 @@ def test_optional_summarizer_round_trips_on_both_allocation_contracts() -> None:
     raw = (FIXTURES / "allocation-spec-summarizer.json").read_text(encoding="utf-8")
     legacy = AllocationSpec.model_validate_json(raw)
     assert legacy.agent_template.summarizer is not None
-    assert legacy.agent_template.summarizer.soft_total_tokens == 20_000
-    assert legacy.agent_template.summarizer.soft_prompt_tokens == 12_000
+    assert legacy.agent_template.summarizer.cumulative_budget == 20_000
+    assert legacy.agent_template.summarizer.context_window_ratio == 0.9
+    assert legacy.agent_template.model_policy.context_window_tokens == 131_072
+    assert legacy.agent_template.summarizer.model_policy.context_window_tokens == 131_072
     verify_template_digests(legacy.agent_template)
 
     current = allocation_spec(summarizer=True)
@@ -41,15 +43,13 @@ def test_omitted_summarizer_is_absent_and_behaviorally_disabled() -> None:
 @pytest.mark.parametrize(
     "mutation",
     [
-        lambda value: (
-            value.pop("softTotalTokens"),
-            value.pop("softPromptTokens"),
-        ),
-        lambda value: value.__setitem__("softTotalTokens", 0),
-        lambda value: value.__setitem__("softPromptTokens", -1),
-        lambda value: value.__setitem__("softTotalTokens", 32_768),
+        lambda value: value.pop("contextWindowRatio"),
+        lambda value: value.__setitem__("cumulativeBudget", 0),
+        lambda value: value.__setitem__("contextWindowRatio", 0),
+        lambda value: value.__setitem__("contextWindowRatio", 1),
+        lambda value: value.__setitem__("cumulativeBudget", 32_768),
         lambda value: value["modelPolicy"].pop("maxOutputTokens"),
-        lambda value: value["modelPolicy"].pop("maxTotalTokens"),
+        lambda value: value["modelPolicy"].pop("contextWindowTokens"),
         lambda value: value["modelPolicy"].__setitem__("maxModelCalls", 2),
         lambda value: value["modelPolicy"].__setitem__("maxToolCalls", 1),
         lambda value: value["modelPolicy"].__setitem__("maxWorkerCalls", 1),
@@ -73,6 +73,14 @@ def test_effective_worker_budget_must_remain_above_soft_total_threshold() -> Non
         AllocationSpecV2.model_validate(candidate)
 
 
+def test_summarized_effective_worker_requires_context_window_metadata() -> None:
+    allocation = allocation_spec(summarizer=True)
+    candidate = allocation.model_dump(by_alias=True, exclude_none=True)
+    candidate["modelPolicy"].pop("contextWindowTokens")
+    with pytest.raises(ValidationError, match="effective Worker modelPolicy"):
+        AllocationSpecV2.model_validate(candidate)
+
+
 def test_summarizer_policy_and_thresholds_are_covered_by_template_digests() -> None:
     allocation = allocation_spec(summarizer=True)
     template = allocation.agent_template
@@ -80,7 +88,7 @@ def test_summarizer_policy_and_thresholds_are_covered_by_template_digests() -> N
 
     changed_threshold = template.model_copy(deep=True)
     assert changed_threshold.summarizer is not None
-    changed_threshold.summarizer.soft_prompt_tokens += 1
+    changed_threshold.summarizer.context_window_ratio = 0.85
     with pytest.raises(TemplateDigestMismatch, match="AgentTemplate"):
         verify_template_digests(changed_threshold)
 

@@ -25,11 +25,21 @@ AgentTemplate. `RuntimeSettings.llmGatewayToken` may be the empty string for an
 explicitly unauthenticated Gateway.
 
 `AllocationSpec.agentTemplate.summarizer`, when present, pins one separately
-digested tool-free ModelPolicy and positive soft-token thresholds. It is part
+digested tool-free ModelPolicy and a normalized context-window trigger. It is part
 of the AgentTemplate digest and uses the same allocation `RuntimeSettings`
-Gateway route and credential as the effective Worker. Its `softTotalTokens`
+Gateway route and credential as the effective Worker. Its `cumulativeBudget`
 must remain below both the template-default and effective Worker
-`maxTotalTokens`; omission is the only disabled representation.
+`maxTotalTokens`; it measures cumulative provider-reported total tokens across
+one normal Worker invocation. `contextWindowRatio` is required on the resolved
+wire (authoring omission defaults to `0.9`) and combines with the effective
+Worker ModelPolicy's required `contextWindowTokens` and `maxOutputTokens` to
+derive the prompt boundary. Omission of the complete summarizer block is the
+only disabled representation.
+
+`AgentStateSnapshot.state.schemaVersion` is `2`: invocation metrics include a
+required nullable `latestPromptTokens`, and every current/completed invocation
+contains a closed summarizer phase/usage record. The HTTP ETag's existing
+`contractor-agent-state-v1-*` prefix versions cache semantics independently.
 
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
 manifest after YAML-to-JSON conversion. `llm-gateway-config.schema.json`

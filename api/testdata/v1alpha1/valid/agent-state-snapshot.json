@@ -1,7 +1,7 @@
 {
   "apiVersion": "contractor/v1alpha1",
   "state": {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "stateRevision": 7,
     "metrics": {
       "counters": {
@@ -45,10 +45,19 @@
         "totalTokens": 100,
         "cachedInputTokens": 0,
         "tokenUsageUnavailable": 0,
+        "latestPromptTokens": 80,
         "toolCalls": 0,
         "toolErrors": 0,
         "tools": {},
         "truncated": false
+      },
+      "summarizer": {
+        "phase": "not_requested",
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 0
       },
       "workspace": {
         "workspaceDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -70,10 +79,19 @@
         "totalTokens": 20,
         "cachedInputTokens": 0,
         "tokenUsageUnavailable": 0,
+        "latestPromptTokens": 16,
         "toolCalls": 1,
         "toolErrors": 0,
         "tools": {"read_file": {"calls": 1, "failures": 0}},
         "truncated": false
+      },
+      "summarizer": {
+        "phase": "disabled",
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 0
       },
       "workspace": {
         "workspaceDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",

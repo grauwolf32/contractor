@@ -1484,6 +1484,7 @@ export interface components {
         };
         ModelPolicyBody: {
             model: string;
+            contextWindowTokens?: number;
             maxOutputTokens?: number;
             maxModelCalls?: number;
             maxToolCalls?: number;
@@ -1510,8 +1511,8 @@ export interface components {
         };
         WorkerSummarizerConfigBody: {
             modelPolicy: components["schemas"]["ModelPolicyRef"];
-            softTotalTokens?: number;
-            softPromptTokens?: number;
+            cumulativeBudget?: number;
+            contextWindowRatio: number;
         };
         AgentTemplateBody: {
             description: string;

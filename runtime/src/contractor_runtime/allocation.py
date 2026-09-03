@@ -297,6 +297,7 @@ class AllocationService:
                         state=worker_state,
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
+                        summarizer=spec.agent_template.summarizer,
                         adapter_handles=adapter_host.handles.for_worker(),
                         resolved_skills=tuple(spec.resolved_skills),
                         project_workspace=project_workspace,

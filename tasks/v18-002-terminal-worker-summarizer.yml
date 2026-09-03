@@ -18,8 +18,10 @@ context:
     After a normal model response and all of its selected tool calls complete,
     accept an already valid WorkerModelResult normally. Otherwise, before the
     next normal model call, request summarization when cumulative provider
-    total tokens reaches softTotalTokens or the newest provider prompt count
-    reaches softPromptTokens. Missing usage does not trigger an estimate.
+    total tokens reaches optional cumulativeBudget or the newest provider prompt
+    count reaches min(floor(contextWindowTokens * contextWindowRatio),
+    contextWindowTokens - maxOutputTokens). Missing usage does not trigger an
+    estimate.
   coordinator: >-
     WorkerInstrumentationPlugin records an internal request but never performs
     nested LLM work in a callback. AdkWorkerRuntime unwinds the normal Runner,
@@ -55,7 +57,7 @@ requirements:
 
 acceptance_criteria:
   - id: A1
-    given: A tool response crosses a configured soft total/prompt threshold without a final result.
+    given: A tool response crosses the optional cumulative budget or derived context-window boundary without a final result.
     when: ADK would start its next model call.
     then: That normal call does not start; one tool-free summarizer returns a typed WorkerResult with summarized=true.
   - id: A2

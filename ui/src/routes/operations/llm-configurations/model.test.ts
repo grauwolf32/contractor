@@ -27,6 +27,12 @@ describe("Operations configuration validation", () => {
     ).toContain(
       "Temperature must be a finite number greater than or equal to zero.",
     );
+    expect(
+      validateModelPolicy(
+        { ...worker, contextWindowTokens: worker.maxOutputTokens },
+        "worker",
+      ),
+    ).toContain("Maximum output tokens must be below the context window.");
   });
 
   it("mirrors the inference and LiteLLM management URL boundaries", () => {

@@ -16,27 +16,29 @@ goal: >-
 context:
   authoring_shape: >-
     AgentTemplate spec.summarizer is optional. When present it contains exact
-    modelPolicy plus at least one positive softTotalTokens or softPromptTokens.
+    modelPolicy, an optional contextWindowRatio defaulting to 0.9, and an
+    optional positive cumulativeBudget.
     It uses the Worker's already pinned LLM Gateway/credential but its own model
     alias and limits. Runtime labels cannot enable or change it.
   consumer_rules: >-
-    A summarizer ModelPolicy requires maxOutputTokens, maxTotalTokens and exact
-    maxModelCalls=1, and permits no maxToolCalls/maxWorkerCalls. Runtime will
-    make exactly zero or one call. SoftTotalTokens must be below the normal
-    Worker's maxTotalTokens; comparable soft prompt bounds must be positive
-    and structurally safe.
+    A summarizer ModelPolicy requires contextWindowTokens, maxOutputTokens and
+    exact maxModelCalls=1, and permits no maxToolCalls/maxWorkerCalls. Its
+    maxTotalTokens is optional. A summarized Worker policy also requires
+    contextWindowTokens. Runtime will make exactly zero or one summary call;
+    cumulativeBudget, when present, must be below the normal Worker's hard
+    maxTotalTokens.
 
 scope:
   in:
     - Add the closed optional AgentTemplate summarizer schema to Go/Python/config/OpenAPI DTOs and normalize omission consistently.
     - Resolve its exact ModelPolicy, validate tool-free consumer compatibility and include ref/body in template digest, WorkflowRun dependency snapshot and AllocationSpec.
-    - Reject empty blocks, unknown/duplicate fields, missing both thresholds, non-positive values, softTotalTokens at/above the Worker hard total, maxModelCalls other than exactly one and policies containing tool/worker limits.
+    - Normalize omitted contextWindowRatio to 0.9 and reject unknown/duplicate fields, non-finite or out-of-range ratios, invalid context/output metadata, cumulativeBudget at/above the Worker hard total, maxModelCalls other than exactly one and policies containing tool/worker limits.
     - Keep the summarizer Gateway/credential identical to the effective Worker route and retain separate trusted ModelPolicy provenance for metrics.
     - Ensure executionConfig cannot override only summarizer policy and Runtime/Run labels cannot enable/disable semantic behavior.
     - Extend strict Go/Python allocation fixtures, digest tests, config inspection and Runtime digest verification without invoking a summarizer yet.
     - Add one disabled and one enabled example ModelPolicy/AgentTemplate used only by later deterministic E2E fixtures; do not alter existing workflow versions implicitly.
   out:
-    - Trigger/runtime calls, a separate Gateway/credential, UI fields, ADK event compaction or provider context estimation.
+    - Trigger/runtime calls, a separate Gateway/credential, UI mutation of AgentTemplate summarizer settings, ADK event compaction or provider context estimation.
 
 deliverables:
   - {path: internal/config, description: Authoring, resolution, digest and consumer validation.}

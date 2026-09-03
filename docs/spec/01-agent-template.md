@@ -41,6 +41,7 @@ class ModelPolicyRef(BaseModel):
 class ModelPolicy(BaseModel):
     ref: ModelPolicyRef
     model: str
+    context_window_tokens: int | None = None
     max_output_tokens: int | None = None
     max_model_calls: int | None = None
     max_tool_calls: int | None = None
@@ -76,8 +77,8 @@ class SandboxProfileRef(BaseModel):
 
 class WorkerSummarizerConfig(BaseModel):
     model_policy: ModelPolicyRef
-    soft_total_tokens: int | None = None
-    soft_prompt_tokens: int | None = None
+    context_window_ratio: float = 0.9
+    cumulative_budget: int | None = None
 
 
 class AgentTemplate(BaseModel):
@@ -240,12 +241,17 @@ spec:
 `model` is a mandatory non-empty opaque Gateway alias; Contractor does not
 parse it as a provider/model pair. Every other field is structurally optional:
 a policy omits a limit or parameter that its intended consumer does not use.
-Every present numeric limit is a positive integer. `maxOutputTokens` caps one
-model response; `maxModelCalls`, `maxToolCalls`, `maxWorkerCalls`, and
+Every present numeric limit is a positive integer. `contextWindowTokens` pins
+the model route's advertised input-plus-output context capacity;
+`maxOutputTokens` caps one model response and must be smaller than that capacity
+when both are present; `maxModelCalls`, `maxToolCalls`, `maxWorkerCalls`, and
 `maxTotalTokens` are cumulative across one complete Planner or Worker
 invocation. `maxModelCalls` is bounded by 1,000, `maxToolCalls` and
 `maxWorkerCalls` by 10,000, and `maxTotalTokens` by 100,000,000. These maxima
 reject configuration mistakes and are not recommended operating values.
+`contextWindowTokens` is likewise bounded by 100,000,000. Contractor treats it
+as pinned operator metadata and does not ask the provider to discover it at
+Runtime.
 
 Optional in the shared schema does not mean unbounded by default. Each model
 consumer declares the fields it requires and configuration resolution fails
@@ -256,9 +262,14 @@ before Run execution if the selected policy is incompatible:
   AgentTemplate exposes any model-visible Contractor tool or Agent Skill and
   does not use
   `maxWorkerCalls`;
-- an optional Worker summarizer requires `maxOutputTokens` and
-  `maxTotalTokens`, requires `maxModelCalls: 1`, permits neither
-  `maxToolCalls` nor `maxWorkerCalls`, and is invoked at most once;
+- a Worker whose AgentTemplate enables terminal summarization additionally
+  requires `contextWindowTokens` so Runtime can derive its soft context
+  boundary;
+- an optional Worker summarizer policy requires `contextWindowTokens` and
+  `maxOutputTokens`, requires `maxModelCalls: 1`, permits neither
+  `maxToolCalls` nor `maxWorkerCalls`, and is invoked at most once. Its
+  `maxTotalTokens` remains optional and, when present, is checked against the
+  provider usage of that single call;
 - a `streamline@1` or `router@1` Planner requires `maxOutputTokens`,
   `maxModelCalls`, `maxWorkerCalls` and `maxTotalTokens`; it does not use
   `maxToolCalls` in the first UI/configuration slice;
@@ -285,7 +296,7 @@ inventing a default. When present, it is a finite JSON number greater than or
 equal to zero. Gateway remains responsible for whether that value and the
 per-response output limit are supported by the selected route.
 
-The `spec` object contains only `model` and the six optional portable fields
+The `spec` object contains only `model` and the seven optional portable fields
 shown by the model above; arbitrary provider-specific parameters are invalid.
 ModelPolicy contains no URL, token, retry policy, request timeout, Stage
 deadline, organization quota, or pricing configuration. Those concerns remain
@@ -568,9 +579,9 @@ configuration-root-relative `ref` and
 exact instruction `digest`; their full text is carried beside the manifest but
 need not be duplicated inside it. A non-empty `skills` set appears as sorted
 logical `{namespace,name}` refs with no revision; the property is omitted for
-the empty set. An optional summarizer appears with its exact ModelPolicy ref and
-normalized soft limits. Every model, toolset and sandbox reference appears in its
-normalized exact form. The computed AgentTemplate digest itself is the only
+the empty set. An optional summarizer appears with its exact ModelPolicy ref,
+normalized context-window ratio and optional cumulative budget. Every model,
+toolset and sandbox reference appears in its normalized exact form. The computed AgentTemplate digest itself is the only
 AgentTemplate field excluded from the input.
 
 The manifest is serialized with the JSON Canonicalization Scheme from

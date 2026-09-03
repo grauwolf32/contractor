@@ -49,14 +49,15 @@ type ResolvedInstructions struct {
 }
 
 type ResolvedModelPolicy struct {
-	Ref             ModelPolicyRef `json:"ref"`
-	Model           string         `json:"model"`
-	MaxOutputTokens int            `json:"maxOutputTokens,omitempty"`
-	MaxModelCalls   int            `json:"maxModelCalls,omitempty"`
-	MaxToolCalls    int            `json:"maxToolCalls,omitempty"`
-	MaxWorkerCalls  int            `json:"maxWorkerCalls,omitempty"`
-	MaxTotalTokens  int            `json:"maxTotalTokens,omitempty"`
-	Temperature     *float64       `json:"temperature,omitempty"`
+	Ref                 ModelPolicyRef `json:"ref"`
+	Model               string         `json:"model"`
+	ContextWindowTokens int            `json:"contextWindowTokens,omitempty"`
+	MaxOutputTokens     int            `json:"maxOutputTokens,omitempty"`
+	MaxModelCalls       int            `json:"maxModelCalls,omitempty"`
+	MaxToolCalls        int            `json:"maxToolCalls,omitempty"`
+	MaxWorkerCalls      int            `json:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens      int            `json:"maxTotalTokens,omitempty"`
+	Temperature         *float64       `json:"temperature,omitempty"`
 }
 
 func (p ResolvedModelPolicy) Validate() error { return validateModelPolicy(p) }
@@ -92,10 +93,12 @@ func (p ResolvedModelPolicy) ValidateForPlanner() error {
 }
 
 const (
-	MaxWorkerModelCalls   = 1_000
-	MaxWorkerToolCalls    = 10_000
-	MaxPlannerWorkerCalls = 10_000
-	MaxWorkerTotalTokens  = 100_000_000
+	MaxWorkerModelCalls                       = 1_000
+	MaxWorkerToolCalls                        = 10_000
+	MaxPlannerWorkerCalls                     = 10_000
+	MaxWorkerTotalTokens                      = 100_000_000
+	MaxModelContextTokens                     = 100_000_000
+	DefaultWorkerSummarizerContextWindowRatio = 0.9
 )
 
 var nativeSkillToolNames = map[string]struct{}{
@@ -114,12 +117,12 @@ type ToolsetSelection struct {
 
 // WorkerSummarizerConfig is an immutable, template-owned terminal
 // summarization policy. Its ModelPolicy is resolved before a Run is accepted;
-// the optional thresholds remain pointers so strict wire decoding can
-// distinguish omission from an explicitly invalid zero.
+// the normalized context ratio is always present while the optional cumulative
+// budget remains a pointer so strict decoding distinguishes omission from zero.
 type WorkerSummarizerConfig struct {
-	ModelPolicy      ResolvedModelPolicy `json:"modelPolicy"`
-	SoftTotalTokens  *int                `json:"softTotalTokens,omitempty"`
-	SoftPromptTokens *int                `json:"softPromptTokens,omitempty"`
+	ModelPolicy        ResolvedModelPolicy `json:"modelPolicy"`
+	ContextWindowRatio float64             `json:"contextWindowRatio"`
+	CumulativeBudget   *int                `json:"cumulativeBudget,omitempty"`
 }
 
 func (c WorkerSummarizerConfig) Validate(workerPolicy ResolvedModelPolicy) error {
@@ -399,6 +402,9 @@ func validateModelPolicy(policy ResolvedModelPolicy) error {
 	if strings.TrimSpace(policy.Model) == "" {
 		return invalidf("modelPolicy model is required")
 	}
+	if policy.ContextWindowTokens < 0 || policy.ContextWindowTokens > MaxModelContextTokens {
+		return invalidf("modelPolicy contextWindowTokens must be between 1 and %d when present", MaxModelContextTokens)
+	}
 	if policy.MaxOutputTokens < 0 {
 		return invalidf("modelPolicy maxOutputTokens must be positive when present")
 	}
@@ -413,6 +419,9 @@ func validateModelPolicy(policy ResolvedModelPolicy) error {
 	}
 	if policy.MaxTotalTokens < 0 || policy.MaxTotalTokens > MaxWorkerTotalTokens {
 		return invalidf("modelPolicy maxTotalTokens must be between 1 and %d when present", MaxWorkerTotalTokens)
+	}
+	if policy.ContextWindowTokens > 0 && policy.MaxOutputTokens >= policy.ContextWindowTokens {
+		return invalidf("modelPolicy maxOutputTokens must be below contextWindowTokens")
 	}
 	if policy.Temperature != nil {
 		temperature := *policy.Temperature
@@ -452,11 +461,11 @@ func validateWorkerSummarizerModelPolicy(policy ResolvedModelPolicy) error {
 	if policy.MaxOutputTokens <= 0 {
 		return invalidf("Worker summarizer modelPolicy requires maxOutputTokens")
 	}
+	if policy.ContextWindowTokens <= 0 {
+		return invalidf("Worker summarizer modelPolicy requires contextWindowTokens")
+	}
 	if policy.MaxModelCalls != 1 {
 		return invalidf("Worker summarizer modelPolicy requires maxModelCalls=1")
-	}
-	if policy.MaxTotalTokens <= 0 {
-		return invalidf("Worker summarizer modelPolicy requires maxTotalTokens")
 	}
 	if policy.MaxToolCalls != 0 {
 		return invalidf("Worker summarizer modelPolicy must omit maxToolCalls")
@@ -474,20 +483,20 @@ func validateWorkerSummarizerConfig(
 	if err := validateWorkerSummarizerModelPolicy(config.ModelPolicy); err != nil {
 		return err
 	}
-	if config.SoftTotalTokens == nil && config.SoftPromptTokens == nil {
-		return invalidf("Worker summarizer requires softTotalTokens or softPromptTokens")
+	if workerPolicy.ContextWindowTokens <= 0 {
+		return invalidf("summarized Worker modelPolicy requires contextWindowTokens")
 	}
-	if config.SoftTotalTokens != nil {
-		if *config.SoftTotalTokens <= 0 || *config.SoftTotalTokens > MaxWorkerTotalTokens {
-			return invalidf("Worker summarizer softTotalTokens must be between 1 and %d", MaxWorkerTotalTokens)
-		}
-		if workerPolicy.MaxTotalTokens <= 0 || *config.SoftTotalTokens >= workerPolicy.MaxTotalTokens {
-			return invalidf("Worker summarizer softTotalTokens must be below Worker maxTotalTokens")
-		}
+	if config.ContextWindowRatio <= 0 || config.ContextWindowRatio >= 1 ||
+		math.IsNaN(config.ContextWindowRatio) || math.IsInf(config.ContextWindowRatio, 0) {
+		return invalidf("Worker summarizer contextWindowRatio must be finite and between 0 and 1")
 	}
-	if config.SoftPromptTokens != nil &&
-		(*config.SoftPromptTokens <= 0 || *config.SoftPromptTokens > MaxWorkerTotalTokens) {
-		return invalidf("Worker summarizer softPromptTokens must be between 1 and %d", MaxWorkerTotalTokens)
+	if config.CumulativeBudget != nil {
+		if *config.CumulativeBudget <= 0 || *config.CumulativeBudget > MaxWorkerTotalTokens {
+			return invalidf("Worker summarizer cumulativeBudget must be between 1 and %d", MaxWorkerTotalTokens)
+		}
+		if workerPolicy.MaxTotalTokens <= 0 || *config.CumulativeBudget >= workerPolicy.MaxTotalTokens {
+			return invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
+		}
 	}
 	return nil
 }

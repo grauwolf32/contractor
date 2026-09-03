@@ -37,7 +37,7 @@ def assert_complete_state(state: dict[str, object]) -> None:
         "currentInvocation",
         "lastCompletedInvocation",
     }
-    assert state["schemaVersion"] == 1
+    assert state["schemaVersion"] == 2
     assert type(state["stateRevision"]) is int
     assert state["stateRevision"] > 0
     assert len(encoded_envelope(state)) <= MAX_AGENT_STATE_SNAPSHOT_BYTES
@@ -88,6 +88,14 @@ def test_state_tracks_sequential_invocations_with_immutable_snapshots() -> None:
             "subtaskId": "0",
             "phase": "succeeded",
             "metrics": first_metrics.snapshot(),
+            "summarizer": {
+                "phase": "disabled",
+                "modelCalls": 0,
+                "inputTokens": 0,
+                "outputTokens": 0,
+                "totalTokens": 0,
+                "tokenUsageUnavailable": 0,
+            },
             "workspace": None,
         }
 
@@ -221,3 +229,52 @@ def test_snapshot_race_returns_only_complete_revisions_under_asyncio_debug() -> 
         assert all(values == sorted(values) for values in observed)
 
     asyncio.run(scenario(), debug=True)
+
+
+def test_state_records_one_closed_terminal_summarizer_attempt() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        metrics = empty_invocation_metrics()
+        begun = await state.begin_invocation(
+            invocation_id="worker-summary",
+            subtask_id="2.1",
+            metrics=metrics,
+            summarizer_enabled=True,
+        )
+        assert begun["currentInvocation"]["summarizer"]["phase"] == "not_requested"
+
+        requested = await state.request_summarization(invocation_id="worker-summary")
+        request_revision = requested["currentInvocation"]["summarizer"]["requestStateRevision"]
+        assert request_revision == begun["stateRevision"]
+
+        finished = await state.complete_summarization(
+            invocation_id="worker-summary",
+            succeeded=True,
+            model_calls=1,
+            input_tokens=80,
+            output_tokens=20,
+            total_tokens=100,
+            token_usage_unavailable=0,
+        )
+        assert finished["currentInvocation"]["summarizer"] == {
+            "phase": "succeeded",
+            "requestStateRevision": request_revision,
+            "modelCalls": 1,
+            "inputTokens": 80,
+            "outputTokens": 20,
+            "totalTokens": 100,
+            "tokenUsageUnavailable": 0,
+        }
+        with pytest.raises(WorkerStateError, match="not requested"):
+            await state.complete_summarization(
+                invocation_id="worker-summary",
+                succeeded=False,
+                model_calls=0,
+                input_tokens=0,
+                output_tokens=0,
+                total_tokens=0,
+                token_usage_unavailable=0,
+                failure_code="duplicate",
+            )
+
+    asyncio.run(scenario())

@@ -181,6 +181,7 @@ func TestManagerRejectsInvalidPublicationBeforeFilesystemChange(t *testing.T) {
 		{Kind: ConfigurationAgentTemplates, Name: "worker", Version: "2", IdempotencyKey: "readonly"},
 		{Kind: ConfigurationModelPolicies, Name: "../escape", Version: "1", IdempotencyKey: "escape", ModelPolicy: &ModelPolicyPublication{Model: "m"}},
 		{Kind: ConfigurationModelPolicies, Name: "zero", Version: "1", IdempotencyKey: "zero", ModelPolicy: &ModelPolicyPublication{Model: "m", MaxModelCalls: intPointer(0)}},
+		{Kind: ConfigurationModelPolicies, Name: "no-output-reserve", Version: "1", IdempotencyKey: "no-output-reserve", ModelPolicy: &ModelPolicyPublication{Model: "m", ContextWindowTokens: intPointer(4096), MaxOutputTokens: intPointer(4096)}},
 		{Kind: ConfigurationModelPolicies, Name: "hot", Version: "1", IdempotencyKey: "hot", ModelPolicy: &ModelPolicyPublication{Model: "m", Temperature: floatPointer(-0.1)}},
 		{Kind: ConfigurationModelPolicies, Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Version: "1", IdempotencyKey: "long-name", ModelPolicy: &ModelPolicyPublication{Model: "m"}},
 	}
@@ -316,8 +317,9 @@ func validPolicyPublication(key string) PublicationRequest {
 		Kind: ConfigurationModelPolicies, Name: "ui-worker", Version: "2",
 		IdempotencyKey: key,
 		ModelPolicy: &ModelPolicyPublication{
-			Model: "qwen/new-model", MaxOutputTokens: intPointer(4096),
-			MaxModelCalls: intPointer(8), MaxToolCalls: intPointer(16),
+			Model: "qwen/new-model", ContextWindowTokens: intPointer(131_072),
+			MaxOutputTokens: intPointer(4096),
+			MaxModelCalls:   intPointer(8), MaxToolCalls: intPointer(16),
 			MaxTotalTokens: intPointer(32768), Temperature: floatPointer(0.2),
 		},
 	}

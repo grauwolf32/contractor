@@ -120,6 +120,7 @@
         "totalTokens",
         "cachedInputTokens",
         "tokenUsageUnavailable",
+        "latestPromptTokens",
         "toolCalls",
         "toolErrors",
         "tools",
@@ -133,6 +134,12 @@
         "totalTokens": {"$ref": "#/$defs/uint64"},
         "cachedInputTokens": {"$ref": "#/$defs/uint64"},
         "tokenUsageUnavailable": {"$ref": "#/$defs/uint64"},
+        "latestPromptTokens": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/uint64"}
+          ]
+        },
         "toolCalls": {"$ref": "#/$defs/uint64"},
         "toolErrors": {"$ref": "#/$defs/uint64"},
         "tools": {
@@ -143,6 +150,45 @@
         },
         "truncated": {"type": "boolean"}
       }
+    },
+    "summarizerState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "modelCalls",
+        "inputTokens",
+        "outputTokens",
+        "totalTokens",
+        "tokenUsageUnavailable"
+      ],
+      "properties": {
+        "phase": {"enum": ["disabled", "not_requested", "requested", "succeeded", "failed"]},
+        "requestStateRevision": {"$ref": "#/$defs/positiveUint64"},
+        "modelCalls": {"type": "integer", "minimum": 0, "maximum": 1},
+        "inputTokens": {"$ref": "#/$defs/uint64"},
+        "outputTokens": {"$ref": "#/$defs/uint64"},
+        "totalTokens": {"$ref": "#/$defs/uint64"},
+        "tokenUsageUnavailable": {"type": "integer", "minimum": 0, "maximum": 1},
+        "failureCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"phase": {"enum": ["requested", "succeeded", "failed"]}}},
+          "then": {"required": ["requestStateRevision"]},
+          "else": {"not": {"required": ["requestStateRevision"]}}
+        },
+        {
+          "if": {"properties": {"phase": {"const": "failed"}}},
+          "then": {"required": ["failureCode"]},
+          "else": {"not": {"required": ["failureCode"]}}
+        }
+      ]
     },
     "workspacePath": {
       "type": "string",
@@ -205,7 +251,7 @@
     "invocation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["invocationId", "subtaskId", "phase", "metrics", "workspace"],
+      "required": ["invocationId", "subtaskId", "phase", "metrics", "summarizer", "workspace"],
       "properties": {
         "invocationId": {"type": "string", "minLength": 1, "maxLength": 128},
         "subtaskId": {
@@ -216,13 +262,26 @@
         },
         "phase": {"enum": ["running", "succeeded", "failed", "cancelled"]},
         "metrics": {"$ref": "#/$defs/invocationMetrics"},
+        "summarizer": {"$ref": "#/$defs/summarizerState"},
         "workspace": {
           "oneOf": [
             {"type": "null"},
             {"$ref": "#/$defs/workspaceObservation"}
           ]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"phase": {"not": {"const": "running"}}}},
+          "then": {
+            "properties": {
+              "summarizer": {
+                "properties": {"phase": {"not": {"const": "requested"}}}
+              }
+            }
+          }
+        }
+      ]
     },
     "runningInvocation": {
       "allOf": [
@@ -247,7 +306,7 @@
         "lastCompletedInvocation"
       ],
       "properties": {
-        "schemaVersion": {"const": 1},
+        "schemaVersion": {"const": 2},
         "stateRevision": {"$ref": "#/$defs/positiveUint64"},
         "metrics": {"$ref": "#/$defs/allocationMetrics"},
         "currentInvocation": {

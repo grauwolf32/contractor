@@ -34,6 +34,7 @@ export function validateModelPolicy(
     errors.push("Model alias must contain 1–256 non-whitespace characters.");
   }
   const fields = [
+    ["Context window tokens", value.contextWindowTokens, 100_000_000],
     ["Maximum output tokens", value.maxOutputTokens, Number.MAX_SAFE_INTEGER],
     ["Maximum model calls", value.maxModelCalls, 1_000],
     ["Maximum tool calls", value.maxToolCalls, 10_000],
@@ -46,6 +47,13 @@ export function validateModelPolicy(
         `${label} must be a positive integer no greater than ${maximum.toLocaleString()}.`,
       );
     }
+  }
+  if (
+    value.contextWindowTokens !== undefined &&
+    value.maxOutputTokens !== undefined &&
+    value.maxOutputTokens >= value.contextWindowTokens
+  ) {
+    errors.push("Maximum output tokens must be below the context window.");
   }
   if (
     value.temperature !== undefined &&

@@ -13,8 +13,8 @@ spec:
   modelPolicy: worker@1
   summarizer:
     modelPolicy: terminal_summarizer@1
-    softTotalTokens: 20000
-    softPromptTokens: 12000
+    contextWindowRatio: 0.9
+    cumulativeBudget: 20000
   toolsets:
     - ref: text-artifacts@1
       tools: [write_text_artifact]

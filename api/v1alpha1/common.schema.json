@@ -69,6 +69,7 @@
       "properties": {
         "ref": {"$ref": "#/$defs/modelPolicyRef"},
         "model": {"type": "string", "minLength": 1},
+        "contextWindowTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
         "maxOutputTokens": {"type": "integer", "minimum": 1},
         "maxModelCalls": {"type": "integer", "minimum": 1, "maximum": 1000},
         "maxToolCalls": {"type": "integer", "minimum": 1, "maximum": 10000},
@@ -80,14 +81,13 @@
     "workerSummarizerConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modelPolicy"],
-      "minProperties": 2,
+      "required": ["modelPolicy", "contextWindowRatio"],
       "properties": {
         "modelPolicy": {
           "allOf": [
             {"$ref": "#/$defs/resolvedModelPolicy"},
             {
-              "required": ["maxOutputTokens", "maxModelCalls", "maxTotalTokens"],
+              "required": ["contextWindowTokens", "maxOutputTokens", "maxModelCalls"],
               "properties": {"maxModelCalls": {"const": 1}},
               "not": {
                 "anyOf": [
@@ -98,8 +98,8 @@
             }
           ]
         },
-        "softTotalTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
-        "softPromptTokens": {"type": "integer", "minimum": 1, "maximum": 100000000}
+        "cumulativeBudget": {"type": "integer", "minimum": 1, "maximum": 100000000},
+        "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
       }
     },
     "toolsetRef": {

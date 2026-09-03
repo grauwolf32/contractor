@@ -253,13 +253,14 @@ type modelPolicyDocument struct {
 }
 
 type modelPolicySpecSource struct {
-	Model           string   `yaml:"model"`
-	MaxOutputTokens *int     `yaml:"maxOutputTokens,omitempty"`
-	MaxModelCalls   *int     `yaml:"maxModelCalls,omitempty"`
-	MaxToolCalls    *int     `yaml:"maxToolCalls,omitempty"`
-	MaxWorkerCalls  *int     `yaml:"maxWorkerCalls,omitempty"`
-	MaxTotalTokens  *int     `yaml:"maxTotalTokens,omitempty"`
-	Temperature     *float64 `yaml:"temperature,omitempty"`
+	Model               string   `yaml:"model"`
+	ContextWindowTokens *int     `yaml:"contextWindowTokens,omitempty"`
+	MaxOutputTokens     *int     `yaml:"maxOutputTokens,omitempty"`
+	MaxModelCalls       *int     `yaml:"maxModelCalls,omitempty"`
+	MaxToolCalls        *int     `yaml:"maxToolCalls,omitempty"`
+	MaxWorkerCalls      *int     `yaml:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens      *int     `yaml:"maxTotalTokens,omitempty"`
+	Temperature         *float64 `yaml:"temperature,omitempty"`
 }
 
 type llmGatewayConfigDocument struct {
@@ -313,9 +314,9 @@ type agentTemplateSpecSource struct {
 }
 
 type workerSummarizerSource struct {
-	ModelPolicy      string `yaml:"modelPolicy"`
-	SoftTotalTokens  *int   `yaml:"softTotalTokens,omitempty"`
-	SoftPromptTokens *int   `yaml:"softPromptTokens,omitempty"`
+	ModelPolicy        string   `yaml:"modelPolicy"`
+	ContextWindowRatio *float64 `yaml:"contextWindowRatio,omitempty"`
+	CumulativeBudget   *int     `yaml:"cumulativeBudget,omitempty"`
 }
 
 type artifactRefSource struct {

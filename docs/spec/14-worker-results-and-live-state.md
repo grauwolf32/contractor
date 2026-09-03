@@ -303,7 +303,7 @@ the only State surface exported by Runtime:
 
 ```python
 class ContractorWorkerState(BaseModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     state_revision: int
     metrics: AllocationMetricsState
     current_invocation: InvocationState | None
@@ -317,6 +317,14 @@ or cancellation it is atomically closed and becomes
 `last_completed_invocation`. Beginning the next invocation does not mutate the
 previous completed snapshot; completing it replaces that one-slot history.
 Allocation-wide metrics continue across sequential invocations.
+
+State schema version 2 adds the nullable most-recent provider prompt-token
+count to invocation metrics and a required closed summarizer section. That
+section is `disabled` when the pinned AgentTemplate has no summarizer, otherwise
+it moves monotonically through `not_requested -> requested -> succeeded|failed`.
+It retains only the request-causing state revision, one-call numeric usage and
+a stable failure code; it never retains the summary prompt or result. The
+endpoint ETag format remains its independently versioned `v1` cache contract.
 
 Every committed mutation increments `state_revision`. Snapshot reads take an
 immutable deep copy under the same lock; JSON encoding happens after releasing

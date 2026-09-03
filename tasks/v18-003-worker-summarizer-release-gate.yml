@@ -22,7 +22,7 @@ context:
 
 scope:
   in:
-    - Add a real PostgreSQL/mTLS Server plus Runtime process scenario for disabled, soft-total, soft-prompt and valid-normal-at-boundary cases.
+    - Add a real PostgreSQL/mTLS Server plus Runtime process scenario for disabled, cumulative-budget, derived context-window and valid-normal-at-boundary cases.
     - Prove exactly one summarizer request, no tools in its schema/request, same pinned Gateway credential and distinct trusted ModelPolicy attribution.
     - Exercise missing/inconsistent usage, transcript truncation boundaries, cancellation during normal unwind and summarizer call, invalid structured output, provider timeout and hard budget exhaustion.
     - Prove finalize/abort/release never call the summarizer and one failed/cancelled summarizer cannot block another Run or clean slot reuse.

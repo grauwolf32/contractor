@@ -7,6 +7,7 @@ metadata:
 
 spec:
   model: worker-model
+  contextWindowTokens: 131072
   maxOutputTokens: 4096
   maxModelCalls: 8
   maxToolCalls: 16

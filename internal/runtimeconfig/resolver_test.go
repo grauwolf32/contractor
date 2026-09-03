@@ -281,8 +281,8 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 			Ref: contracts.ModelPolicyRef{
 				PolicyID: "terminal-summarizer", Version: "1", Digest: testDigest("8"),
 			},
-			Model: "summary-model", MaxOutputTokens: 1024, MaxModelCalls: 1,
-			MaxTotalTokens: 4096,
+			Model: "summary-model", ContextWindowTokens: 8192,
+			MaxOutputTokens: 1024, MaxModelCalls: 1,
 		}
 		input.SummarizerModelPolicy = &summarizer
 		input.Default.Spec.Worker.LLMGateway.Credential = credentialField("agent-key")

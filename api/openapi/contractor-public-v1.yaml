@@ -2613,6 +2613,7 @@ components:
       required: [model]
       properties:
         model: {type: string, minLength: 1, maxLength: 256}
+        contextWindowTokens: {type: integer, minimum: 1, maximum: 100000000}
         maxOutputTokens: {type: integer, minimum: 1, maximum: 9007199254740991}
         maxModelCalls: {type: integer, minimum: 1, maximum: 1000}
         maxToolCalls: {type: integer, minimum: 1, maximum: 10000}
@@ -2649,12 +2650,11 @@ components:
     WorkerSummarizerConfigBody:
       type: object
       additionalProperties: false
-      required: [modelPolicy]
-      minProperties: 2
+      required: [modelPolicy, contextWindowRatio]
       properties:
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
-        softTotalTokens: {type: integer, minimum: 1, maximum: 100000000}
-        softPromptTokens: {type: integer, minimum: 1, maximum: 100000000}
+        cumulativeBudget: {type: integer, minimum: 1, maximum: 100000000}
+        contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
     AgentTemplateBody:
       type: object
       additionalProperties: false

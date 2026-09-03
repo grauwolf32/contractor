@@ -144,6 +144,10 @@ func validateModelPolicySpec(spec *modelPolicySpecSource) error {
 	if strings.TrimSpace(spec.Model) == "" {
 		return fmt.Errorf("spec.model must not be empty or whitespace-only")
 	}
+	if spec.ContextWindowTokens != nil &&
+		(*spec.ContextWindowTokens <= 0 || *spec.ContextWindowTokens > contracts.MaxModelContextTokens) {
+		return fmt.Errorf("spec.contextWindowTokens must be between 1 and %d when present", contracts.MaxModelContextTokens)
+	}
 	if spec.MaxOutputTokens != nil && *spec.MaxOutputTokens <= 0 {
 		return fmt.Errorf("spec.maxOutputTokens must be positive when present")
 	}
@@ -161,6 +165,10 @@ func validateModelPolicySpec(spec *modelPolicySpecSource) error {
 	}
 	if spec.MaxTotalTokens != nil && (*spec.MaxTotalTokens <= 0 || *spec.MaxTotalTokens > contracts.MaxWorkerTotalTokens) {
 		return fmt.Errorf("spec.maxTotalTokens must be between 1 and %d when present", contracts.MaxWorkerTotalTokens)
+	}
+	if spec.ContextWindowTokens != nil && spec.MaxOutputTokens != nil &&
+		*spec.MaxOutputTokens >= *spec.ContextWindowTokens {
+		return fmt.Errorf("spec.maxOutputTokens must be below contextWindowTokens")
 	}
 	if spec.Temperature != nil && (math.IsNaN(*spec.Temperature) || math.IsInf(*spec.Temperature, 0) || *spec.Temperature < 0) {
 		return fmt.Errorf("spec.temperature must be finite and non-negative")

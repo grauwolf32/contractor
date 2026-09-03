@@ -344,6 +344,7 @@ class ResolvedInstructions(WireModel):
 class ResolvedModelPolicy(WireModel):
     ref: ModelPolicyRef
     model: str
+    context_window_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
     max_output_tokens: int | None = Field(default=None, gt=0)
     max_model_calls: int | None = Field(default=None, gt=0, le=1000)
     max_tool_calls: int | None = Field(default=None, gt=0, le=10_000)
@@ -356,6 +357,12 @@ class ResolvedModelPolicy(WireModel):
         _require_text("model", self.model)
         if self.temperature is not None and not math.isfinite(self.temperature):
             raise ValueError("temperature must be finite")
+        if (
+            self.context_window_tokens is not None
+            and self.max_output_tokens is not None
+            and self.max_output_tokens >= self.context_window_tokens
+        ):
+            raise ValueError("maxOutputTokens must be below contextWindowTokens")
         return self
 
 
@@ -372,9 +379,9 @@ def _require_worker_policy(policy: ResolvedModelPolicy, *, has_tools: bool) -> N
 
 def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
     if (
-        policy.max_output_tokens is None
+        policy.context_window_tokens is None
+        or policy.max_output_tokens is None
         or policy.max_model_calls != 1
-        or policy.max_total_tokens is None
         or policy.max_tool_calls is not None
         or policy.max_worker_calls is not None
     ):
@@ -418,14 +425,14 @@ class ToolsetSelection(WireModel):
 
 class WorkerSummarizerConfig(WireModel):
     model_policy: ResolvedModelPolicy
-    soft_total_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
-    soft_prompt_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
+    cumulative_budget: int | None = Field(default=None, gt=0, le=100_000_000)
+    context_window_ratio: float = Field(gt=0, lt=1)
 
     @model_validator(mode="after")
     def validate_summarizer(self) -> Self:
         _require_worker_summarizer_policy(self.model_policy)
-        if self.soft_total_tokens is None and self.soft_prompt_tokens is None:
-            raise ValueError("Worker summarizer requires a soft token threshold")
+        if not math.isfinite(self.context_window_ratio):
+            raise ValueError("Worker summarizer contextWindowRatio must be finite")
         return self
 
 
@@ -468,13 +475,15 @@ class ResolvedAgentTemplate(WireModel):
         _require_worker_policy(self.model_policy, has_tools=bool(visible or self.skills))
         if self.summarizer is not None:
             _require_worker_summarizer_policy(self.summarizer.model_policy)
+            if self.model_policy.context_window_tokens is None:
+                raise ValueError("summarized Worker modelPolicy requires contextWindowTokens")
             if (
-                self.summarizer.soft_total_tokens is not None
+                self.summarizer.cumulative_budget is not None
                 and self.model_policy.max_total_tokens is not None
-                and self.summarizer.soft_total_tokens >= self.model_policy.max_total_tokens
+                and self.summarizer.cumulative_budget >= self.model_policy.max_total_tokens
             ):
                 raise ValueError(
-                    "Worker summarizer softTotalTokens must be below Worker maxTotalTokens"
+                    "Worker summarizer cumulativeBudget must be below Worker maxTotalTokens"
                 )
         return self
 
@@ -550,14 +559,19 @@ class AllocationSpec(VersionedWireModel):
         )
         if (
             self.agent_template.summarizer is not None
-            and self.agent_template.summarizer.soft_total_tokens is not None
+            and self.agent_template.summarizer.cumulative_budget is not None
             and self.model_policy.max_total_tokens is not None
-            and self.agent_template.summarizer.soft_total_tokens
+            and self.agent_template.summarizer.cumulative_budget
             >= self.model_policy.max_total_tokens
         ):
             raise ValueError(
-                "Worker summarizer softTotalTokens must be below effective Worker maxTotalTokens"
+                "Worker summarizer cumulativeBudget must be below effective Worker maxTotalTokens"
             )
+        if (
+            self.agent_template.summarizer is not None
+            and self.model_policy.context_window_tokens is None
+        ):
+            raise ValueError("summarized effective Worker modelPolicy requires contextWindowTokens")
         return self
 
 
@@ -674,6 +688,35 @@ class WorkerBudgetMetrics(WireModel):
         return self
 
 
+class WorkerSummarizerMetrics(WireModel):
+    attempts: int = Field(gt=0, le=MAX_UINT64)
+    succeeded: int = Field(ge=0, le=MAX_UINT64)
+    failed: int = Field(ge=0, le=MAX_UINT64)
+    model_calls: int = Field(ge=0, le=MAX_UINT64)
+    input_tokens: int = Field(ge=0, le=MAX_UINT64)
+    output_tokens: int = Field(ge=0, le=MAX_UINT64)
+    total_tokens: int = Field(ge=0, le=MAX_UINT64)
+    token_usage_unavailable: int = Field(ge=0, le=MAX_UINT64)
+    failure_codes: dict[str, int] = Field(default_factory=dict, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_aggregate(self) -> Self:
+        if self.succeeded + self.failed != self.attempts:
+            raise ValueError("Worker summarizer terminal counts are inconsistent")
+        if self.model_calls > self.attempts:
+            raise ValueError("Worker summarizer model calls exceed attempts")
+        if self.token_usage_unavailable > self.model_calls:
+            raise ValueError("Worker summarizer missing-usage count exceeds model calls")
+        failure_total = 0
+        for code, count in self.failure_codes.items():
+            if WORKER_FAILURE_CODE_PATTERN.fullmatch(code) is None or count <= 0:
+                raise ValueError("Worker summarizer failure aggregate is invalid")
+            failure_total += count
+        if failure_total != self.failed:
+            raise ValueError("Worker summarizer failure aggregate is inconsistent")
+        return self
+
+
 class ExecutionMetrics(WireModel):
     duration_ms: int | None = Field(default=None, ge=0)
     model_calls: int | None = Field(default=None, ge=0)
@@ -682,6 +725,7 @@ class ExecutionMetrics(WireModel):
     total_tokens: int | None = Field(default=None, ge=0)
     tools: dict[str, ToolMetrics] = Field(default_factory=dict)
     worker_budget: WorkerBudgetMetrics | None = None
+    summarizer: WorkerSummarizerMetrics | None = None
 
     @field_validator("tools")
     @classmethod
@@ -1081,6 +1125,7 @@ class WorkerStateInvocationMetrics(WireModel):
     total_tokens: int = Field(ge=0, le=MAX_UINT64)
     cached_input_tokens: int = Field(ge=0, le=MAX_UINT64)
     token_usage_unavailable: int = Field(ge=0, le=MAX_UINT64)
+    latest_prompt_tokens: int | None = Field(ge=0, le=MAX_UINT64)
     tool_calls: int = Field(ge=0, le=MAX_UINT64)
     tool_errors: int = Field(ge=0, le=MAX_UINT64)
     tools: dict[str, WorkerStateInvocationToolMetrics] = Field(max_length=256)
@@ -1101,6 +1146,46 @@ class WorkerStateInvocationMetrics(WireModel):
             detailed_calls != self.tool_calls or detailed_failures != self.tool_errors
         ):
             raise ValueError("complete Worker State invocation tool detail is inconsistent")
+        return self
+
+
+class WorkerStateSummarizer(WireModel):
+    phase: Literal["disabled", "not_requested", "requested", "succeeded", "failed"]
+    request_state_revision: int | None = Field(
+        default=None, gt=0, le=MAX_UINT64, exclude_if=lambda value: value is None
+    )
+    model_calls: int = Field(ge=0, le=1)
+    input_tokens: int = Field(ge=0, le=MAX_UINT64)
+    output_tokens: int = Field(ge=0, le=MAX_UINT64)
+    total_tokens: int = Field(ge=0, le=MAX_UINT64)
+    token_usage_unavailable: int = Field(ge=0, le=1)
+    failure_code: str | None = Field(
+        default=None,
+        pattern=WORKER_FAILURE_CODE_PATTERN.pattern,
+        exclude_if=lambda value: value is None,
+    )
+
+    @model_validator(mode="after")
+    def validate_state(self) -> Self:
+        requested = self.phase in {"requested", "succeeded", "failed"}
+        if requested != (self.request_state_revision is not None):
+            raise ValueError("Worker summarizer request revision is inconsistent")
+        if self.phase in {"disabled", "not_requested", "requested"} and any(
+            (
+                self.model_calls,
+                self.input_tokens,
+                self.output_tokens,
+                self.total_tokens,
+                self.token_usage_unavailable,
+            )
+        ):
+            raise ValueError("inactive Worker summarizer has usage")
+        if self.phase == "succeeded" and self.model_calls != 1:
+            raise ValueError("successful Worker summarizer requires one model call")
+        if self.token_usage_unavailable > self.model_calls:
+            raise ValueError("Worker summarizer missing usage exceeds model calls")
+        if (self.phase == "failed") != (self.failure_code is not None):
+            raise ValueError("Worker summarizer failure code is inconsistent")
         return self
 
 
@@ -1195,6 +1280,7 @@ class WorkerInvocationState(WireModel):
     subtask_id: str = Field(pattern=WORKER_SUBTASK_ID_PATTERN.pattern)
     phase: Literal["running", "succeeded", "failed", "cancelled"]
     metrics: WorkerStateInvocationMetrics
+    summarizer: WorkerStateSummarizer
     workspace: WorkerStateWorkspaceObservation | None
 
     @model_validator(mode="after")
@@ -1206,6 +1292,8 @@ class WorkerInvocationState(WireModel):
         ):
             raise ValueError("Worker State invocationId is invalid")
         _require_worker_subtask_id(self.subtask_id)
+        if self.phase != "running" and self.summarizer.phase == "requested":
+            raise ValueError("terminal Worker invocation has pending summarization")
         return self
 
 
@@ -1255,7 +1343,7 @@ class WorkerAllocationMetricsState(WireModel):
 
 
 class ContractorWorkerState(WireModel):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     state_revision: int = Field(gt=0, le=MAX_UINT64)
     metrics: WorkerAllocationMetricsState
     current_invocation: WorkerInvocationState | None

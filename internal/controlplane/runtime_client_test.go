@@ -105,18 +105,18 @@ func runtimePrincipalFromCertificate(t *testing.T, path string) string {
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	template := testTemplate(t)
 	template.Skills = []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "review"}}
-	softTotalTokens := template.ModelPolicy.MaxTotalTokens - 1
-	softPromptTokens := 2048
+	template.ModelPolicy.ContextWindowTokens = 131_072
+	cumulativeBudget := template.ModelPolicy.MaxTotalTokens - 1
 	template.Summarizer = &contracts.WorkerSummarizerConfig{
 		ModelPolicy: contracts.ResolvedModelPolicy{
 			Ref: contracts.ModelPolicyRef{
 				PolicyID: "terminal-summarizer", Version: "1",
 				Digest: "sha256:" + strings.Repeat("f", 64),
 			},
-			Model: "worker-summarizer-model", MaxOutputTokens: 1024,
-			MaxModelCalls: 1, MaxTotalTokens: 4096,
+			Model: "worker-summarizer-model", ContextWindowTokens: 131_072,
+			MaxOutputTokens: 1024, MaxModelCalls: 1,
 		},
-		SoftTotalTokens: &softTotalTokens, SoftPromptTokens: &softPromptTokens,
+		ContextWindowRatio: 0.9, CumulativeBudget: &cumulativeBudget,
 	}
 	effectivePolicy := template.ModelPolicy
 	effectivePolicy.Ref = contracts.ModelPolicyRef{
@@ -196,10 +196,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
 		received.Spec.AgentTemplate.Summarizer == nil ||
 		received.Spec.AgentTemplate.Summarizer.ModelPolicy.Ref != template.Summarizer.ModelPolicy.Ref ||
-		received.Spec.AgentTemplate.Summarizer.SoftTotalTokens == nil ||
-		*received.Spec.AgentTemplate.Summarizer.SoftTotalTokens != softTotalTokens ||
-		received.Spec.AgentTemplate.Summarizer.SoftPromptTokens == nil ||
-		*received.Spec.AgentTemplate.Summarizer.SoftPromptTokens != softPromptTokens ||
+		received.Spec.AgentTemplate.Summarizer.CumulativeBudget == nil ||
+		*received.Spec.AgentTemplate.Summarizer.CumulativeBudget != cumulativeBudget ||
+		received.Spec.AgentTemplate.Summarizer.ContextWindowRatio != 0.9 ||
 		len(received.Spec.ResolvedSkills) != 1 ||
 		received.Spec.ResolvedSkills[0].Artifact.Revision == nil ||
 		*received.Spec.ResolvedSkills[0].Artifact.Revision != skillRevision ||

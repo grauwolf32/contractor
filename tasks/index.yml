@@ -74,7 +74,8 @@ fixed_decisions:
   worker_summarization:
     mode: >-
       Optional AgentTemplate-selected one-shot terminal summarizer at a
-      deterministic provider-reported soft-token boundary; omission disables it.
+      deterministic provider-reported context-window boundary with an optional
+      cumulative spending budget; omission disables it.
     isolation: >-
       Separate exact tool-free ModelPolicy over the same pinned Worker Gateway
       route, bounded model-visible transcript, Runtime-owned summarized flag and

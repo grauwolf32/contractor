@@ -116,9 +116,12 @@ func (l *loader) resolveWorkerSummarizer(
 		return nil, fmt.Errorf("modelPolicy selects unknown ModelPolicy %q", selector)
 	}
 	result := &contracts.WorkerSummarizerConfig{
-		ModelPolicy:      cloneModelPolicy(policy),
-		SoftTotalTokens:  cloneInt(source.SoftTotalTokens),
-		SoftPromptTokens: cloneInt(source.SoftPromptTokens),
+		ModelPolicy:        cloneModelPolicy(policy),
+		ContextWindowRatio: contracts.DefaultWorkerSummarizerContextWindowRatio,
+		CumulativeBudget:   cloneInt(source.CumulativeBudget),
+	}
+	if source.ContextWindowRatio != nil {
+		result.ContextWindowRatio = *source.ContextWindowRatio
 	}
 	if err := result.Validate(workerPolicy); err != nil {
 		return nil, err

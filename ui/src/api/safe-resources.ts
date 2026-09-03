@@ -34,6 +34,9 @@ function gatewayRef(value: components["schemas"]["LLMGatewayConfigRef"]) {
 function modelPolicyBody(value: components["schemas"]["ModelPolicyBody"]) {
   return {
     model: value.model,
+    ...(value.contextWindowTokens === undefined
+      ? {}
+      : { contextWindowTokens: value.contextWindowTokens }),
     ...(value.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: value.maxOutputTokens }),
@@ -143,6 +146,17 @@ export function safeConfigurationResource(
             digest: body.instructions.digest,
           },
           modelPolicy: modelPolicyRef(body.modelPolicy),
+          ...(body.summarizer === undefined
+            ? {}
+            : {
+                summarizer: {
+                  modelPolicy: modelPolicyRef(body.summarizer.modelPolicy),
+                  contextWindowRatio: body.summarizer.contextWindowRatio,
+                  ...(body.summarizer.cumulativeBudget === undefined
+                    ? {}
+                    : { cumulativeBudget: body.summarizer.cumulativeBudget }),
+                },
+              }),
           toolsets: body.toolsets.map((selection) => ({
             ref: selection.ref,
             tools: [...selection.tools],

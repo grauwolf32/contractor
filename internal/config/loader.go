@@ -335,7 +335,7 @@ func (l *loader) loadModelPolicies() error {
 		}
 		policy := contracts.ResolvedModelPolicy{
 			Ref:   contracts.ModelPolicyRef{PolicyID: selector.ID, Version: selector.Version},
-			Model: document.Spec.Model, MaxOutputTokens: optionalIntValue(document.Spec.MaxOutputTokens),
+			Model: document.Spec.Model, ContextWindowTokens: optionalIntValue(document.Spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(document.Spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(document.Spec.MaxModelCalls), MaxToolCalls: optionalIntValue(document.Spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(document.Spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(document.Spec.MaxTotalTokens),
 			Temperature: cloneFloat(document.Spec.Temperature),

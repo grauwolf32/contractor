@@ -36,6 +36,27 @@
         "exhausted": {"enum": ["model_calls", "tool_calls", "total_tokens"]}
       }
     },
+    "workerSummarizerMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempts", "succeeded", "failed", "modelCalls", "inputTokens", "outputTokens", "totalTokens", "tokenUsageUnavailable", "failureCodes"],
+      "properties": {
+        "attempts": {"type": "integer", "minimum": 1},
+        "succeeded": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "modelCalls": {"type": "integer", "minimum": 0},
+        "inputTokens": {"type": "integer", "minimum": 0},
+        "outputTokens": {"type": "integer", "minimum": 0},
+        "totalTokens": {"type": "integer", "minimum": 0},
+        "tokenUsageUnavailable": {"type": "integer", "minimum": 0},
+        "failureCodes": {
+          "type": "object",
+          "maxProperties": 64,
+          "propertyNames": {"minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
     "executionMetrics": {
       "type": "object",
       "additionalProperties": false,
@@ -47,6 +68,7 @@
         "outputTokens": {"type": "integer", "minimum": 0},
         "totalTokens": {"type": "integer", "minimum": 0},
         "workerBudget": {"$ref": "#/$defs/workerBudgetMetrics"},
+        "summarizer": {"$ref": "#/$defs/workerSummarizerMetrics"},
         "tools": {
           "type": "object",
           "additionalProperties": {"$ref": "#/$defs/toolMetrics"}

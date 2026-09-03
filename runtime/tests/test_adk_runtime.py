@@ -42,6 +42,7 @@ from contractor_runtime.contracts import (
     ToolsetSelection,
     WorkerModelResult,
     WorkerRuntimeRef,
+    WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
@@ -873,6 +874,244 @@ def test_adk_worker_accepts_structured_result_exactly_at_token_limit(tmp_path: P
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "trigger",
+    ["cumulative-budget", "context-window"],
+)
+def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
+    tmp_path: Path,
+    trigger: str,
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        first_response = tool_call(
+            "read_artifact",
+            {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+            call_id="read-before-summary",
+        )
+        expected_prompt_tokens = 7
+        expected_normal_total = 10
+        if trigger == "context-window":
+            assert first_response.usage_metadata is not None
+            # min(floor(8192 * .9), 8192 - 1024) == 7168.
+            first_response.usage_metadata.prompt_token_count = 7168
+            first_response.usage_metadata.total_token_count = 7171
+            expected_prompt_tokens = 7168
+            expected_normal_total = 7171
+        normal_model = scripted_model([first_response])
+        summary_model = scripted_model(
+            [model_result("Bounded terminal summary")],
+            model="worker-summary-model",
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            normal_model,
+            summary_model=summary_model,
+            max_output_tokens=1024,
+            context_window_tokens=8192,
+            cumulative_budget=10 if trigger == "cumulative-budget" else None,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Bounded terminal summary"
+        assert completion.result.summarized is True
+        assert completion.result.observations.tools["read_artifact"].calls == 1
+        assert len(normal_model.requests) == 1
+        assert len(summary_model.requests) == 1
+        summary_request = summary_model.requests[0]
+        assert summary_request["model"] == "worker-summary-model"
+        assert summary_request["maxOutputTokens"] == 2048
+        assert summary_request["temperature"] == 0.0
+        assert summary_request["toolNames"] == []
+        assert summary_request["hasResponseSchema"] is True
+        assert "read_artifact" in summary_request["contentText"]
+        assert SECRET not in summary_request["contentText"]
+        assert client.calls == ["read_artifact"]
+
+        snapshot = await state.snapshot()
+        finished = snapshot["lastCompletedInvocation"]
+        assert finished["summarizer"]["phase"] == "succeeded"
+        assert finished["summarizer"]["modelCalls"] == 1
+        assert finished["summarizer"]["totalTokens"] == 10
+        assert finished["metrics"]["modelCalls"] == 1
+        assert finished["metrics"]["latestPromptTokens"] == expected_prompt_tokens
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.model_calls == 1
+        assert report.metrics.total_tokens == expected_normal_total
+        assert report.metrics.summarizer is not None
+        assert report.metrics.summarizer.attempts == 1
+        assert report.metrics.summarizer.succeeded == 1
+        assert report.metrics.summarizer.model_calls == 1
+        assert report.metrics.summarizer.total_tokens == 10
+        assert report.metrics.summarizer.failure_codes == {}
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_keeps_a_valid_normal_result_at_the_soft_boundary(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        normal_model = scripted_model([model_result("Normal result wins")])
+        summary_model = scripted_model([model_result("Must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Normal result wins"
+        assert completion.result.summarized is False
+        assert len(normal_model.requests) == 1
+        assert summary_model.requests == []
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["summarizer"]["phase"] == "not_requested"
+        assert (
+            state.metrics.build_report(report_id="worker-report", duration_ms=1).metrics.summarizer
+            is None
+        )
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_does_not_guess_missing_usage_for_summarization(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        first = tool_call("probe", {}, call_id="missing-usage-probe")
+        first.usage_metadata = None
+        state = WorkerState()
+        normal_model = scripted_model([first, model_result("Completed normally")])
+        summary_model = scripted_model([model_result("Must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=1,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.summarized is False
+        assert len(normal_model.requests) == 2
+        assert summary_model.requests == []
+        snapshot = await state.snapshot()
+        assert snapshot["lastCompletedInvocation"]["metrics"]["latestPromptTokens"] == 7
+        assert snapshot["lastCompletedInvocation"]["metrics"]["tokenUsageUnavailable"] == 1
+        assert snapshot["lastCompletedInvocation"]["summarizer"]["phase"] == "not_requested"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="probe-1")])
+        summary_model = scripted_model([text_result("not structured")])
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.failure is not None
+        assert completion.failure.code == "worker_summarization_failed"
+        assert completion.failure.retryable is True
+        assert "result_invalid" in completion.failure.message
+        assert len(normal_model.requests) == 1
+        assert len(summary_model.requests) == 1
+        snapshot = await state.snapshot()
+        summary = snapshot["lastCompletedInvocation"]["summarizer"]
+        assert summary["phase"] == "failed"
+        assert summary["failureCode"] == "result_invalid"
+        report_summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert report_summary is not None
+        assert report_summary.attempts == 1
+        assert report_summary.failed == 1
+        assert report_summary.failure_codes == {"result_invalid": 1}
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_abort_cancels_terminal_summarizer_and_records_one_failed_attempt(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        normal_model = scripted_model([tool_call("probe", {}, call_id="probe-before-abort")])
+        summary_model = scripted_model(
+            [model_result("Too late")],
+            block=True,
+            model="worker-summary-model",
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(summary_model.started.wait(), timeout=1)
+
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+        with pytest.raises(asyncio.CancelledError):
+            await invocation
+        assert len(normal_model.requests) == 1
+        assert len(summary_model.requests) == 1
+        snapshot = await state.snapshot()
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["phase"] == "cancelled"
+        assert completed["summarizer"]["phase"] == "failed"
+        assert completed["summarizer"]["failureCode"] == "cancelled"
+        summary = state.metrics.build_report(
+            report_id="worker-report", duration_ms=1
+        ).metrics.summarizer
+        assert summary is not None
+        assert summary.attempts == 1
+        assert summary.failed == 1
+        assert summary.model_calls == 1
+        assert summary.failure_codes == {"cancelled": 1}
+
+    asyncio.run(scenario())
+
+
 def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
     async def scenario() -> None:
         model = scripted_model(
@@ -929,11 +1168,16 @@ async def create_runtime(
     tools: dict[str, object],
     model: object,
     *,
+    max_output_tokens: int = 4096,
     max_model_calls: int = 8,
     max_tool_calls: int = 16,
     max_total_tokens: int = 32768,
     instrumentation: RuntimeInstrumentation | None = None,
     project_workspace: Any = None,
+    summary_model: object | None = None,
+    cumulative_budget: int | None = None,
+    context_window_tokens: int = 131_072,
+    context_window_ratio: float = 0.9,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
@@ -948,13 +1192,46 @@ async def create_runtime(
         context,
         model_policy=context.model_policy.model_copy(
             update={
+                "context_window_tokens": (
+                    context_window_tokens if summary_model is not None else None
+                ),
+                "max_output_tokens": max_output_tokens,
                 "max_model_calls": max_model_calls,
                 "max_tool_calls": max_tool_calls,
                 "max_total_tokens": max_total_tokens,
             }
         ),
     )
-    factory = AdkWorkerRuntimeFactory(lambda _: model)  # type: ignore[arg-type,return-value]
+    if summary_model is not None:
+        summary_policy = ResolvedModelPolicy(
+            ref=ModelPolicyRef(
+                policyId="worker_summarizer",
+                version="1",
+                digest="sha256:" + "9" * 64,
+            ),
+            model="worker-summary-model",
+            contextWindowTokens=131_072,
+            maxOutputTokens=2048,
+            maxModelCalls=1,
+            temperature=0.0,
+        )
+        context = replace(
+            context,
+            summarizer=WorkerSummarizerConfig(
+                modelPolicy=summary_policy,
+                contextWindowRatio=context_window_ratio,
+                cumulativeBudget=cumulative_budget,
+            ),
+        )
+
+    def select_model(build: WorkerBuildContext) -> object:
+        if build.model_policy.model == "worker-summary-model":
+            if summary_model is None:
+                raise RuntimeError("summary model was not supplied")
+            return summary_model
+        return model
+
+    factory = AdkWorkerRuntimeFactory(select_model)  # type: ignore[arg-type]
     runtime = await factory.create(context)
     assert isinstance(runtime, AdkWorkerRuntime)
     return runtime

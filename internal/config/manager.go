@@ -39,13 +39,14 @@ var configurationSubtrees = []string{
 // managed configuration publisher. Pointer fields distinguish omission from
 // an explicitly invalid zero value.
 type ModelPolicyPublication struct {
-	Model           string   `json:"model"`
-	MaxOutputTokens *int     `json:"maxOutputTokens,omitempty"`
-	MaxModelCalls   *int     `json:"maxModelCalls,omitempty"`
-	MaxToolCalls    *int     `json:"maxToolCalls,omitempty"`
-	MaxWorkerCalls  *int     `json:"maxWorkerCalls,omitempty"`
-	MaxTotalTokens  *int     `json:"maxTotalTokens,omitempty"`
-	Temperature     *float64 `json:"temperature,omitempty"`
+	Model               string   `json:"model"`
+	ContextWindowTokens *int     `json:"contextWindowTokens,omitempty"`
+	MaxOutputTokens     *int     `json:"maxOutputTokens,omitempty"`
+	MaxModelCalls       *int     `json:"maxModelCalls,omitempty"`
+	MaxToolCalls        *int     `json:"maxToolCalls,omitempty"`
+	MaxWorkerCalls      *int     `json:"maxWorkerCalls,omitempty"`
+	MaxTotalTokens      *int     `json:"maxTotalTokens,omitempty"`
+	Temperature         *float64 `json:"temperature,omitempty"`
 }
 
 type CredentialManagerPublication struct {
@@ -296,20 +297,21 @@ func preparePublication(request PublicationRequest) (publicationCandidate, error
 			return publicationCandidate{}, fmt.Errorf("%w: model exceeds 256 characters", ErrInvalidPublication)
 		}
 		spec := modelPolicySpecSource{
-			Model:           request.ModelPolicy.Model,
-			MaxOutputTokens: cloneInt(request.ModelPolicy.MaxOutputTokens),
-			MaxModelCalls:   cloneInt(request.ModelPolicy.MaxModelCalls),
-			MaxToolCalls:    cloneInt(request.ModelPolicy.MaxToolCalls),
-			MaxWorkerCalls:  cloneInt(request.ModelPolicy.MaxWorkerCalls),
-			MaxTotalTokens:  cloneInt(request.ModelPolicy.MaxTotalTokens),
-			Temperature:     cloneFloat(request.ModelPolicy.Temperature),
+			Model:               request.ModelPolicy.Model,
+			ContextWindowTokens: cloneInt(request.ModelPolicy.ContextWindowTokens),
+			MaxOutputTokens:     cloneInt(request.ModelPolicy.MaxOutputTokens),
+			MaxModelCalls:       cloneInt(request.ModelPolicy.MaxModelCalls),
+			MaxToolCalls:        cloneInt(request.ModelPolicy.MaxToolCalls),
+			MaxWorkerCalls:      cloneInt(request.ModelPolicy.MaxWorkerCalls),
+			MaxTotalTokens:      cloneInt(request.ModelPolicy.MaxTotalTokens),
+			Temperature:         cloneFloat(request.ModelPolicy.Temperature),
 		}
 		if err := validateModelPolicySpec(&spec); err != nil {
 			return publicationCandidate{}, fmt.Errorf("%w: %v", ErrInvalidPublication, err)
 		}
 		policy := contracts.ResolvedModelPolicy{
 			Ref:   contracts.ModelPolicyRef{PolicyID: selector.ID, Version: selector.Version},
-			Model: spec.Model, MaxOutputTokens: optionalIntValue(spec.MaxOutputTokens),
+			Model: spec.Model, ContextWindowTokens: optionalIntValue(spec.ContextWindowTokens), MaxOutputTokens: optionalIntValue(spec.MaxOutputTokens),
 			MaxModelCalls: optionalIntValue(spec.MaxModelCalls), MaxToolCalls: optionalIntValue(spec.MaxToolCalls),
 			MaxWorkerCalls: optionalIntValue(spec.MaxWorkerCalls), MaxTotalTokens: optionalIntValue(spec.MaxTotalTokens),
 			Temperature: cloneFloat(spec.Temperature),

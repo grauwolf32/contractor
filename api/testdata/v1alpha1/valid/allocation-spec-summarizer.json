@@ -10,7 +10,7 @@
     "ref": {
       "templateId": "summarizer_enabled_worker",
       "version": "1",
-      "digest": "sha256:600ac762e9c5cb321324d47debbc35172ff6b9f30a14a79fb7ee4fef3067f5fc"
+      "digest": "sha256:10c32aaa7f78adc3c42e0041e11d4b738e4bb5e769ae2da1a7fe1158dfd56c05"
     },
     "description": "Builds the requested artifact with terminal summarization",
     "runtime": {"runtimeId": "adk", "version": "1"},
@@ -23,9 +23,10 @@
       "ref": {
         "policyId": "worker",
         "version": "1",
-        "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101"
+        "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c"
       },
       "model": "worker-model",
+      "contextWindowTokens": 131072,
       "maxOutputTokens": 4096,
       "maxModelCalls": 8,
       "maxToolCalls": 16,
@@ -37,16 +38,16 @@
         "ref": {
           "policyId": "terminal_summarizer",
           "version": "1",
-          "digest": "sha256:c647b932e3be52d014dc76282fe618546c7d51e8956aa809b03418929052bbc5"
+          "digest": "sha256:55788bce43cad4ff515823b933910cd347a66efdb42641db7b7f09f1eb855970"
         },
         "model": "worker-summarizer-model",
+        "contextWindowTokens": 131072,
         "maxOutputTokens": 2048,
         "maxModelCalls": 1,
-        "maxTotalTokens": 8192,
         "temperature": 0.1
       },
-      "softTotalTokens": 20000,
-      "softPromptTokens": 12000
+      "cumulativeBudget": 20000,
+      "contextWindowRatio": 0.9
     },
     "toolsets": [
       {
@@ -61,9 +62,10 @@
     "ref": {
       "policyId": "worker",
       "version": "1",
-      "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101"
+      "digest": "sha256:78460f8520d0ab876b164e4876fe2cfb9a2b8b54326ede4572c00614de6faf5c"
     },
     "model": "worker-model",
+    "contextWindowTokens": 131072,
     "maxOutputTokens": 4096,
     "maxModelCalls": 8,
     "maxToolCalls": 16,

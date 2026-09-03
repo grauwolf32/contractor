@@ -24,6 +24,7 @@ from contractor_runtime.contracts import (
     ResolvedModelPolicy,
     ResolvedSkill,
     RuntimeSettings,
+    WorkerSummarizerConfig,
 )
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
 from contractor_runtime.settings import WorkspaceSettings
@@ -86,6 +87,7 @@ class WorkerBuildContext:
     state: Any
     a2a_base_url: str
     runtime_settings: RuntimeSettings = field(repr=False)
+    summarizer: WorkerSummarizerConfig | None = None
     adapter_handles: AdapterHandles = field(
         default=EMPTY_ADAPTER_HANDLES,
         repr=False,

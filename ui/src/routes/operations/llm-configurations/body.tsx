@@ -46,6 +46,7 @@ function present(value: number | undefined): string {
 function ModelPolicyView({ body }: { body: ModelPolicyBody }) {
   const fields = [
     ["Model alias", body.model],
+    ["Context window tokens", present(body.contextWindowTokens)],
     ["Maximum output tokens", present(body.maxOutputTokens)],
     ["Maximum model calls", present(body.maxModelCalls)],
     ["Maximum tool calls", present(body.maxToolCalls)],

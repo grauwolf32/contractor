@@ -37,6 +37,15 @@ class InvocationBudget(Protocol):
 
     def after_model_response(self, usage: Any | None) -> None: ...
 
+    def should_summarize(self) -> bool: ...
+
+
+class WorkerSummarizationRequested(RuntimeError):
+    """Content-free control signal used to unwind the normal ADK Runner."""
+
+    def __init__(self) -> None:
+        super().__init__("Worker terminal summarization requested")
+
 
 @dataclass(slots=True)
 class InvocationMetricsReducer:
@@ -49,6 +58,7 @@ class InvocationMetricsReducer:
     total_tokens: int = 0
     cached_input_tokens: int = 0
     token_usage_unavailable: int = 0
+    latest_prompt_tokens: int | None = None
     tool_calls: int = 0
     tool_errors: int = 0
     tools: dict[str, dict[str, int]] = field(default_factory=dict)
@@ -58,6 +68,8 @@ class InvocationMetricsReducer:
         self.model_calls = _saturating_add(self.model_calls, 1)
 
     def record_model_usage(self, usage: Any | None) -> None:
+        prompt = getattr(usage, "prompt_token_count", None) if usage is not None else None
+        self.latest_prompt_tokens = prompt if isinstance(prompt, int) and prompt >= 0 else None
         if usage is None:
             self.token_usage_unavailable = _saturating_add(self.token_usage_unavailable, 1)
             return
@@ -104,6 +116,7 @@ class InvocationMetricsReducer:
             "totalTokens": self.total_tokens,
             "cachedInputTokens": self.cached_input_tokens,
             "tokenUsageUnavailable": self.token_usage_unavailable,
+            "latestPromptTokens": self.latest_prompt_tokens,
             "toolCalls": self.tool_calls,
             "toolErrors": self.tool_errors,
             "tools": {name: dict(values) for name, values in sorted(self.tools.items())},
@@ -144,6 +157,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         model_alias: str,
         observe_artifacts: Callable[[Any, int], None],
         workspace_observation_source: WorkspaceObservationSource | None = None,
+        summarizer_enabled: bool = False,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
@@ -153,6 +167,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._model_alias = model_alias
         self._observe_artifacts = observe_artifacts
         self._workspace_observation_source = workspace_observation_source
+        self._summarizer_enabled = summarizer_enabled
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
         self._active_invocation_id: str | None = None
@@ -201,6 +216,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 subtask_id=prepared[1],
                 metrics=self._invocation_metrics.snapshot(),
                 workspace=self._workspace_snapshot(),
+                summarizer_enabled=self._summarizer_enabled,
             )
             _install_session_snapshot(invocation_context, snapshot)
 
@@ -210,6 +226,14 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if not self._is_active(callback_context.invocation_id):
                 return
             budget = self._budget()
+            if budget is not None and budget.should_summarize():
+                if self._pending_tools:
+                    raise RuntimeError("Worker model call overlapped unfinished tools")
+                snapshot = await self._state.request_summarization(
+                    invocation_id=callback_context.invocation_id
+                )
+                _install_session_snapshot(callback_context, snapshot)
+                raise WorkerSummarizationRequested()
             if budget is not None:
                 budget.before_model_call()
             reducer = self._require_reducer()

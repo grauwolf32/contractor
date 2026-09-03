@@ -7,7 +7,7 @@ metadata:
 
 spec:
   model: worker-summarizer-model
+  contextWindowTokens: 131072
   maxOutputTokens: 2048
   maxModelCalls: 1
-  maxTotalTokens: 8192
   temperature: 0.1

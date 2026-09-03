@@ -203,6 +203,48 @@ func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	}
 }
 
+func TestExecutionReportValidatesWorkerSummarizerMetrics(t *testing.T) {
+	t.Parallel()
+
+	valid := WorkerSummarizerMetrics{
+		Attempts: 2, Succeeded: 1, Failed: 1, ModelCalls: 2,
+		InputTokens: 10, OutputTokens: 4, TotalTokens: 14,
+		FailureCodes: map[string]uint64{"gateway_unavailable": 1},
+	}
+	report := ExecutionReport{
+		ReportID: "worker-summary", Complete: true,
+		Metrics:   ExecutionMetrics{Tools: map[string]ToolMetrics{}, Summarizer: &valid},
+		ToolCalls: []ToolCallRecord{}, Errors: []ExecutionError{},
+	}
+	if err := report.Validate(); err != nil {
+		t.Fatalf("valid Worker summarizer metrics were rejected: %v", err)
+	}
+
+	tests := map[string]func(*WorkerSummarizerMetrics){
+		"zero attempts":        func(value *WorkerSummarizerMetrics) { value.Attempts = 0 },
+		"terminal mismatch":    func(value *WorkerSummarizerMetrics) { value.Failed = 0 },
+		"too many calls":       func(value *WorkerSummarizerMetrics) { value.ModelCalls = 3 },
+		"missing usage excess": func(value *WorkerSummarizerMetrics) { value.TokenUsageUnavailable = 3 },
+		"nil failure map":      func(value *WorkerSummarizerMetrics) { value.FailureCodes = nil },
+		"failure mismatch":     func(value *WorkerSummarizerMetrics) { value.FailureCodes = map[string]uint64{} },
+		"invalid failure code": func(value *WorkerSummarizerMetrics) {
+			value.FailureCodes = map[string]uint64{"bad-code": 1}
+		},
+	}
+	for name, mutate := range tests {
+		name, mutate := name, mutate
+		t.Run(name, func(t *testing.T) {
+			candidate := valid
+			candidate.FailureCodes = map[string]uint64{"gateway_unavailable": 1}
+			mutate(&candidate)
+			report.Metrics.Summarizer = &candidate
+			if err := report.Validate(); err == nil {
+				t.Fatal("inconsistent Worker summarizer metrics were accepted")
+			}
+		})
+	}
+}
+
 func TestMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingReport(t *testing.T) {
 	t.Parallel()
 
@@ -297,24 +339,26 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 		t.Fatal(err)
 	}
 	tests := map[string]func(map[string]any){
-		"missing thresholds": func(summarizer map[string]any) {
-			delete(summarizer, "softTotalTokens")
-			delete(summarizer, "softPromptTokens")
+		"missing context ratio": func(summarizer map[string]any) {
+			delete(summarizer, "contextWindowRatio")
 		},
 		"zero total threshold": func(summarizer map[string]any) {
-			summarizer["softTotalTokens"] = float64(0)
+			summarizer["cumulativeBudget"] = float64(0)
 		},
 		"total threshold reaches Worker hard bound": func(summarizer map[string]any) {
-			summarizer["softTotalTokens"] = float64(32768)
+			summarizer["cumulativeBudget"] = float64(32768)
 		},
-		"zero prompt threshold": func(summarizer map[string]any) {
-			summarizer["softPromptTokens"] = float64(0)
+		"zero context ratio": func(summarizer map[string]any) {
+			summarizer["contextWindowRatio"] = float64(0)
+		},
+		"unit context ratio": func(summarizer map[string]any) {
+			summarizer["contextWindowRatio"] = float64(1)
 		},
 		"missing output budget": func(summarizer map[string]any) {
 			delete(summarizer["modelPolicy"].(map[string]any), "maxOutputTokens")
 		},
-		"missing total budget": func(summarizer map[string]any) {
-			delete(summarizer["modelPolicy"].(map[string]any), "maxTotalTokens")
+		"missing summary context window": func(summarizer map[string]any) {
+			delete(summarizer["modelPolicy"].(map[string]any), "contextWindowTokens")
 		},
 		"more than one model call": func(summarizer map[string]any) {
 			summarizer["modelPolicy"].(map[string]any)["maxModelCalls"] = float64(2)
@@ -347,7 +391,16 @@ func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	effectiveBound["modelPolicy"].(map[string]any)["maxTotalTokens"] = float64(20000)
 	encoded, _ = json.Marshal(effectiveBound)
 	if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
-		t.Fatal("summarizer soft total at effective Worker hard bound was accepted")
+		t.Fatal("summarizer cumulative budget at effective Worker hard bound was accepted")
+	}
+
+	encoded, _ = json.Marshal(baseline)
+	var missingWorkerContext map[string]any
+	_ = json.Unmarshal(encoded, &missingWorkerContext)
+	delete(missingWorkerContext["modelPolicy"].(map[string]any), "contextWindowTokens")
+	encoded, _ = json.Marshal(missingWorkerContext)
+	if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+		t.Fatal("summarized effective Worker without context window was accepted")
 	}
 }
 

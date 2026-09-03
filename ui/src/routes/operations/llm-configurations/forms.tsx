@@ -123,6 +123,7 @@ function cloneIdentityErrors(
 
 interface ModelDraft {
   model: string;
+  contextWindowTokens: string;
   maxOutputTokens: string;
   maxModelCalls: string;
   maxToolCalls: string;
@@ -135,6 +136,7 @@ function modelDraft(source: ModelPolicyBody): ModelDraft {
   const text = (value: number | undefined) => value?.toString() ?? "";
   return {
     model: source.model,
+    contextWindowTokens: text(source.contextWindowTokens),
     maxOutputTokens: text(source.maxOutputTokens),
     maxModelCalls: text(source.maxModelCalls),
     maxToolCalls: text(source.maxToolCalls),
@@ -160,6 +162,7 @@ function modelBody(draft: ModelDraft): ModelPolicyBody {
   };
   return {
     model: draft.model,
+    ...optional("contextWindowTokens", draft.contextWindowTokens),
     ...optional("maxOutputTokens", draft.maxOutputTokens),
     ...optional("maxModelCalls", draft.maxModelCalls),
     ...optional("maxToolCalls", draft.maxToolCalls),
@@ -312,6 +315,13 @@ export function ModelPolicyPublicationForm({
             onChange={(event) => change("model", event.target.value)}
           />
         </label>
+        <NumberDraftField
+          label="Context window tokens"
+          name="contextWindowTokens"
+          value={draft.contextWindowTokens}
+          maximum={100_000_000}
+          onChange={change}
+        />
         <NumberDraftField
           label="Maximum output tokens"
           name="maxOutputTokens"

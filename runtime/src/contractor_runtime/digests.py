@@ -123,10 +123,9 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
         summarizer: dict[str, Any] = {
             "modelPolicy": _resolved_model_policy_value(template.summarizer.model_policy)
         }
-        if template.summarizer.soft_total_tokens is not None:
-            summarizer["softTotalTokens"] = template.summarizer.soft_total_tokens
-        if template.summarizer.soft_prompt_tokens is not None:
-            summarizer["softPromptTokens"] = template.summarizer.soft_prompt_tokens
+        if template.summarizer.cumulative_budget is not None:
+            summarizer["cumulativeBudget"] = template.summarizer.cumulative_budget
+        summarizer["contextWindowRatio"] = template.summarizer.context_window_ratio
         manifest["spec"]["summarizer"] = summarizer
     return _digest_jcs(manifest)
 
@@ -153,6 +152,7 @@ def _digest_jcs(value: Any) -> str:
 
 def _add_policy_limits(target: dict[str, Any], policy: ResolvedModelPolicy) -> None:
     for name, value in (
+        ("contextWindowTokens", policy.context_window_tokens),
         ("maxOutputTokens", policy.max_output_tokens),
         ("maxModelCalls", policy.max_model_calls),
         ("maxToolCalls", policy.max_tool_calls),

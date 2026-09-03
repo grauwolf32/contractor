@@ -1544,8 +1544,7 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 	if source.Summarizer != nil {
 		summarizer := *source.Summarizer
 		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
-		summarizer.SoftTotalTokens = cloneIntPointer(source.Summarizer.SoftTotalTokens)
-		summarizer.SoftPromptTokens = cloneIntPointer(source.Summarizer.SoftPromptTokens)
+		summarizer.CumulativeBudget = cloneIntPointer(source.Summarizer.CumulativeBudget)
 		result.Summarizer = &summarizer
 	}
 	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))

@@ -20,6 +20,7 @@ from contractor_runtime.contracts import (
     ToolCallRecord,
     ToolMetrics,
     WorkerBudgetMetrics,
+    WorkerSummarizerMetrics,
 )
 
 MAX_METRIC_TOOL_CALLS = 1000
@@ -87,6 +88,7 @@ class MetricsState:
     _tool_metrics: dict[str, dict[str, int]] = field(default_factory=dict)
     _next_call_number: int = 1
     _worker_budget: WorkerBudgetMetrics | None = None
+    _summarizer: WorkerSummarizerMetrics | None = None
     _tool_correlation_outcomes: dict[str, bool] = field(default_factory=dict, repr=False)
 
     def start_worker_budget(
@@ -133,6 +135,70 @@ class MetricsState:
                 message=f"Worker invocation budget exhausted ({normalized})",
                 retryable=True,
             )
+        )
+
+    def record_summarizer_attempt(
+        self,
+        *,
+        succeeded: bool,
+        model_calls: int,
+        input_tokens: int,
+        output_tokens: int,
+        total_tokens: int,
+        token_usage_unavailable: int,
+        failure_code: str | None = None,
+    ) -> None:
+        if model_calls not in {0, 1} or token_usage_unavailable not in {0, 1}:
+            raise ValueError("summarizer call counters are invalid")
+        if token_usage_unavailable > model_calls:
+            raise ValueError("summarizer missing usage exceeds model calls")
+        counters = (input_tokens, output_tokens, total_tokens)
+        if any(type(value) is not int or value < 0 for value in counters):
+            raise ValueError("summarizer token counters are invalid")
+        if succeeded:
+            if model_calls != 1 or failure_code is not None:
+                raise ValueError("successful summarizer attempt is invalid")
+        elif (
+            not isinstance(failure_code, str)
+            or re.fullmatch(r"[a-z][a-z0-9_]{0,63}", failure_code) is None
+        ):
+            raise ValueError("summarizer failure code is invalid")
+
+        current = self._summarizer
+        attempts = (current.attempts if current is not None else 0) + 1
+        succeeded_count = (current.succeeded if current is not None else 0) + int(succeeded)
+        failed_count = (current.failed if current is not None else 0) + int(not succeeded)
+        failure_codes = dict(current.failure_codes) if current is not None else {}
+        if failure_code is not None:
+            failure_codes[failure_code] = min(
+                MAX_METRIC_COUNTER, failure_codes.get(failure_code, 0) + 1
+            )
+        self._summarizer = WorkerSummarizerMetrics(
+            attempts=min(MAX_METRIC_COUNTER, attempts),
+            succeeded=min(MAX_METRIC_COUNTER, succeeded_count),
+            failed=min(MAX_METRIC_COUNTER, failed_count),
+            modelCalls=min(
+                MAX_METRIC_COUNTER,
+                (current.model_calls if current is not None else 0) + model_calls,
+            ),
+            inputTokens=min(
+                MAX_METRIC_COUNTER,
+                (current.input_tokens if current is not None else 0) + input_tokens,
+            ),
+            outputTokens=min(
+                MAX_METRIC_COUNTER,
+                (current.output_tokens if current is not None else 0) + output_tokens,
+            ),
+            totalTokens=min(
+                MAX_METRIC_COUNTER,
+                (current.total_tokens if current is not None else 0) + total_tokens,
+            ),
+            tokenUsageUnavailable=min(
+                MAX_METRIC_COUNTER,
+                (current.token_usage_unavailable if current is not None else 0)
+                + token_usage_unavailable,
+            ),
+            failureCodes=failure_codes,
         )
 
     def record_tool_call(
@@ -340,6 +406,7 @@ class MetricsState:
             totalTokens=self.counters.get("total_tokens"),
             tools=tools,
             workerBudget=self._worker_budget,
+            summarizer=self._summarizer,
         )
         tool_calls = list(self.tool_calls)
         report = ExecutionReport(

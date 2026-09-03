@@ -32,14 +32,27 @@ type WorkerBudgetMetrics struct {
 	Exhausted             *string `json:"exhausted,omitempty"`
 }
 
+type WorkerSummarizerMetrics struct {
+	Attempts              uint64            `json:"attempts"`
+	Succeeded             uint64            `json:"succeeded"`
+	Failed                uint64            `json:"failed"`
+	ModelCalls            uint64            `json:"modelCalls"`
+	InputTokens           uint64            `json:"inputTokens"`
+	OutputTokens          uint64            `json:"outputTokens"`
+	TotalTokens           uint64            `json:"totalTokens"`
+	TokenUsageUnavailable uint64            `json:"tokenUsageUnavailable"`
+	FailureCodes          map[string]uint64 `json:"failureCodes"`
+}
+
 type ExecutionMetrics struct {
-	DurationMS   *int64                 `json:"durationMs,omitempty"`
-	ModelCalls   *int64                 `json:"modelCalls,omitempty"`
-	InputTokens  *int64                 `json:"inputTokens,omitempty"`
-	OutputTokens *int64                 `json:"outputTokens,omitempty"`
-	TotalTokens  *int64                 `json:"totalTokens,omitempty"`
-	Tools        map[string]ToolMetrics `json:"tools"`
-	WorkerBudget *WorkerBudgetMetrics   `json:"workerBudget,omitempty"`
+	DurationMS   *int64                   `json:"durationMs,omitempty"`
+	ModelCalls   *int64                   `json:"modelCalls,omitempty"`
+	InputTokens  *int64                   `json:"inputTokens,omitempty"`
+	OutputTokens *int64                   `json:"outputTokens,omitempty"`
+	TotalTokens  *int64                   `json:"totalTokens,omitempty"`
+	Tools        map[string]ToolMetrics   `json:"tools"`
+	WorkerBudget *WorkerBudgetMetrics     `json:"workerBudget,omitempty"`
+	Summarizer   *WorkerSummarizerMetrics `json:"summarizer,omitempty"`
 }
 
 type ToolCallOutcome string
@@ -218,6 +231,27 @@ func (r ExecutionReport) Validate() error {
 			}
 		}
 	}
+	if summarizer := r.Metrics.Summarizer; summarizer != nil {
+		if summarizer.Attempts == 0 || summarizer.Succeeded > summarizer.Attempts ||
+			summarizer.Failed > summarizer.Attempts ||
+			^uint64(0)-summarizer.Succeeded < summarizer.Failed ||
+			summarizer.Succeeded+summarizer.Failed != summarizer.Attempts ||
+			summarizer.ModelCalls > summarizer.Attempts ||
+			summarizer.TokenUsageUnavailable > summarizer.ModelCalls ||
+			summarizer.FailureCodes == nil || len(summarizer.FailureCodes) > 64 {
+			return invalidf("worker summarizer metrics are inconsistent")
+		}
+		var failures uint64
+		for code, count := range summarizer.FailureCodes {
+			if !validWorkerFailureCode(code) || count == 0 || ^uint64(0)-failures < count {
+				return invalidf("worker summarizer failure metrics are invalid")
+			}
+			failures += count
+		}
+		if failures != summarizer.Failed {
+			return invalidf("worker summarizer failure metrics are inconsistent")
+		}
+	}
 	for index, call := range r.ToolCalls {
 		if err := validateOpaqueID("tool call ID", call.CallID); err != nil {
 			return err
@@ -267,6 +301,10 @@ func (r ExecutionReport) Validate() error {
 		return invalidf("execution report exceeds 1 MiB")
 	}
 	return nil
+}
+
+func validWorkerFailureCode(value string) bool {
+	return workerFailureCode.MatchString(value)
 }
 
 func (e ExecutionError) Validate() error {

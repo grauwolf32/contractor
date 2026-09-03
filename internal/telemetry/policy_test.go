@@ -127,6 +127,31 @@ func TestMetricsPolicyPreservesAndClonesWorkerBudget(t *testing.T) {
 	}
 }
 
+func TestMetricsPolicyPreservesAndClonesWorkerSummarizer(t *testing.T) {
+	report := contracts.ExecutionReport{
+		ReportID: "worker-summary", Complete: true,
+		Metrics: contracts.ExecutionMetrics{
+			Tools: map[string]contracts.ToolMetrics{},
+			Summarizer: &contracts.WorkerSummarizerMetrics{
+				Attempts: 1, Failed: 1, ModelCalls: 1, TokenUsageUnavailable: 1,
+				FailureCodes: map[string]uint64{"gateway_unavailable": 1},
+			},
+		},
+		ToolCalls: []contracts.ToolCallRecord{}, Errors: []contracts.ExecutionError{},
+	}
+	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report.Metrics.Summarizer.Attempts = 99
+	report.Metrics.Summarizer.FailureCodes["gateway_unavailable"] = 99
+	if normalized.Metrics.Summarizer == nil ||
+		normalized.Metrics.Summarizer.Attempts != 1 ||
+		normalized.Metrics.Summarizer.FailureCodes["gateway_unavailable"] != 1 {
+		t.Fatalf("normalized Worker summarizer was aliased: %+v", normalized.Metrics.Summarizer)
+	}
+}
+
 func TestAllocationPolicyRedactsRuntimeAndSummaryExposesOnlyAggregates(t *testing.T) {
 	modelCalls, toolCalls, toolFailures := int64(3), int64(4), int64(1)
 	stopReason := "gateway returned " + recognizableSecret

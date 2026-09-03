@@ -61,4 +61,42 @@ describe("safe public resource projections", () => {
     });
     expect(JSON.stringify(projected)).not.toMatch(/CANARY/);
   });
+
+  it("retains only the resolved terminal summarizer configuration", () => {
+    const policy = { policyId: "summary", version: "1", digest };
+    const wire = {
+      ref: {
+        kind: "agent-templates",
+        name: "worker",
+        version: "1",
+        digest,
+      },
+      source: "operator",
+      body: {
+        description: "Worker",
+        runtime: "adk@1",
+        instructions: { ref: "instructions/worker.md", digest },
+        modelPolicy: { policyId: "worker", version: "1", digest },
+        summarizer: {
+          modelPolicy: policy,
+          contextWindowRatio: 0.9,
+          cumulativeBudget: 20_000,
+          credential: "SUMMARIZER_CANARY",
+        },
+        toolsets: [],
+        sandboxProfile: "local-workdir@1",
+      },
+    } as ConfigurationResource;
+
+    const projected = safeConfigurationResource(wire);
+
+    expect(projected.body).toMatchObject({
+      summarizer: {
+        modelPolicy: policy,
+        contextWindowRatio: 0.9,
+        cumulativeBudget: 20_000,
+      },
+    });
+    expect(JSON.stringify(projected)).not.toMatch(/CANARY/);
+  });
 });

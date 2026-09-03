@@ -107,12 +107,10 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 		summarizer := map[string]any{
 			"modelPolicy": resolvedModelPolicyCanonicalValue(template.Summarizer.ModelPolicy),
 		}
-		if template.Summarizer.SoftTotalTokens != nil {
-			summarizer["softTotalTokens"] = *template.Summarizer.SoftTotalTokens
+		if template.Summarizer.CumulativeBudget != nil {
+			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget
 		}
-		if template.Summarizer.SoftPromptTokens != nil {
-			summarizer["softPromptTokens"] = *template.Summarizer.SoftPromptTokens
-		}
+		summarizer["contextWindowRatio"] = template.Summarizer.ContextWindowRatio
 		spec["summarizer"] = summarizer
 	}
 
@@ -146,11 +144,12 @@ func resolvedModelPolicyCanonicalValue(policy contracts.ResolvedModelPolicy) map
 
 func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelPolicy) {
 	for name, value := range map[string]int{
-		"maxOutputTokens": policy.MaxOutputTokens,
-		"maxModelCalls":   policy.MaxModelCalls,
-		"maxToolCalls":    policy.MaxToolCalls,
-		"maxWorkerCalls":  policy.MaxWorkerCalls,
-		"maxTotalTokens":  policy.MaxTotalTokens,
+		"contextWindowTokens": policy.ContextWindowTokens,
+		"maxOutputTokens":     policy.MaxOutputTokens,
+		"maxModelCalls":       policy.MaxModelCalls,
+		"maxToolCalls":        policy.MaxToolCalls,
+		"maxWorkerCalls":      policy.MaxWorkerCalls,
+		"maxTotalTokens":      policy.MaxTotalTokens,
 	} {
 		if value != 0 {
 			target[name] = value

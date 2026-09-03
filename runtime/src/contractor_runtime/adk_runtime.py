@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import math
 import re
 import uuid
 from collections.abc import AsyncGenerator, Callable, Mapping
@@ -40,6 +41,7 @@ from contractor_runtime.contracts import (
     API_VERSION,
     AgentStateSnapshot,
     ArtifactRef,
+    ResolvedModelPolicy,
     StageContentRequest,
     ToolObservationCount,
     WorkerCompletion,
@@ -47,8 +49,12 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
     WorkerResult,
+    WorkerSummarizerConfig,
 )
-from contractor_runtime.instrumentation import WorkerInstrumentationPlugin
+from contractor_runtime.instrumentation import (
+    WorkerInstrumentationPlugin,
+    WorkerSummarizationRequested,
+)
 from contractor_runtime.model_client import (
     clear_gateway_client_options,
     gateway_client_options,
@@ -60,6 +66,13 @@ from contractor_runtime.projectfs import (
     OverlayWorkspaceSession,
     WorkspaceAutoExporter,
     WorkspaceExportError,
+)
+from contractor_runtime.summarizer import (
+    SummarizerFailure,
+    SummarizerUsage,
+    TerminalSummarizer,
+    TranscriptRecorder,
+    build_summarizer_prompt,
 )
 from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
 from contractor_runtime.worker_state import InvocationPhase, WorkerStateStore
@@ -104,10 +117,13 @@ class _InvocationBudget:
     max_tool_calls: int
     max_total_tokens: int
     metrics: Any
+    cumulative_budget: int | None = None
+    summary_prompt_boundary: int | None = None
     model_calls: int = 0
     tool_calls: int = 0
     total_tokens: int = 0
     token_usage_unavailable: int = 0
+    latest_prompt_tokens: int | None = None
 
     def start(self) -> None:
         self.metrics.start_worker_budget(
@@ -132,6 +148,8 @@ class _InvocationBudget:
         self._sync()
 
     def after_model_response(self, usage: Any | None) -> None:
+        prompt = getattr(usage, "prompt_token_count", None) if usage is not None else None
+        self.latest_prompt_tokens = prompt if isinstance(prompt, int) and prompt >= 0 else None
         total = getattr(usage, "total_token_count", None) if usage is not None else None
         if not isinstance(total, int) or total < 0:
             self.token_usage_unavailable += 1
@@ -145,6 +163,15 @@ class _InvocationBudget:
     def _require_token_capacity(self) -> None:
         if self.total_tokens >= self.max_total_tokens:
             raise WorkerBudgetExceeded("total_tokens", self.max_total_tokens, self.total_tokens)
+
+    def should_summarize(self) -> bool:
+        return (
+            self.cumulative_budget is not None and self.total_tokens >= self.cumulative_budget
+        ) or (
+            self.summary_prompt_boundary is not None
+            and self.latest_prompt_tokens is not None
+            and self.latest_prompt_tokens >= self.summary_prompt_boundary
+        )
 
     def _sync(self) -> None:
         self.metrics.observe_worker_budget(
@@ -232,6 +259,7 @@ class AdkWorkerRuntimeFactory:
             runtime = AdkWorkerRuntime(
                 context,
                 self._model_factory(context),
+                model_factory=self._model_factory,
                 workspace_exporter=workspace_exporter,
             )
             await runtime.start()
@@ -255,11 +283,13 @@ class AdkWorkerRuntime:
         context: WorkerBuildContext,
         model: BaseLlm,
         *,
+        model_factory: ModelFactory = gateway_model,
         workspace_exporter: WorkspaceAutoExporter | None = None,
     ) -> None:
         self.allocation_id = context.allocation_id
         self._context = context
         self._model: BaseLlm | None = model
+        self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
         self._session_service = InMemorySessionService()
@@ -297,6 +327,7 @@ class AdkWorkerRuntime:
             model_alias=policy.model,
             observe_artifacts=self._observe_tool_artifacts,
             workspace_observation_source=context.project_workspace,
+            summarizer_enabled=context.summarizer is not None,
         )
         self._agent = LlmAgent(
             name="contractor_worker",
@@ -404,6 +435,12 @@ class AdkWorkerRuntime:
             max_tool_calls=policy.max_tool_calls,
             max_total_tokens=policy.max_total_tokens,
             metrics=self._metrics,
+            cumulative_budget=(
+                self._context.summarizer.cumulative_budget
+                if self._context.summarizer is not None
+                else None
+            ),
+            summary_prompt_boundary=_summary_prompt_boundary(policy, self._context.summarizer),
         )
         self._active_budget = budget
         model_errors_before = self._metrics.counters.get("llm_errors", 0)
@@ -524,6 +561,12 @@ class AdkWorkerRuntime:
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
         prompt = _task_prompt(request)
+        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
+        gateway_token = (
+            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
+        )
+        summary_secrets = _summarizer_secrets(self._context, gateway_token)
+        transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         candidate: str | None = None
         try:
@@ -534,10 +577,19 @@ class AdkWorkerRuntime:
                     invocation_id=invocation_id,
                     new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
                 ):
+                    transcript.record(event)
                     text = _candidate_text(event)
                     if text is not None:
                         candidate = text
             except Exception as error:
+                if _worker_summarization_request(error) is not None:
+                    return await self._run_terminal_summarizer(
+                        request=request,
+                        invocation_id=invocation_id,
+                        transcript=transcript,
+                        observed_refs=tuple(self._invocation_observed_refs),
+                        secrets=summary_secrets,
+                    )
                 budget_error = _worker_budget_error(error)
                 if budget_error is None:
                     raise
@@ -556,6 +608,121 @@ class AdkWorkerRuntime:
         finally:
             self._invocation_observed_refs.clear()
             _clear_artifact_observation_logs(self._context.tools)
+
+    async def _run_terminal_summarizer(
+        self,
+        *,
+        request: StageContentRequest,
+        invocation_id: str,
+        transcript: TranscriptRecorder,
+        observed_refs: tuple[ArtifactRef, ...],
+        secrets: tuple[str, ...],
+    ) -> tuple[WorkerResult | WorkerFailure, bool]:
+        config = self._context.summarizer
+        if config is None:
+            raise RuntimeError("Worker summarization was requested while disabled")
+        usage = SummarizerUsage()
+        summarizer: TerminalSummarizer | None = None
+        try:
+            groups = transcript.finish()
+            live_state = await self._worker_state.snapshot()
+            observations = _lean_observations(
+                live_state,
+                invocation_id,
+                projection_failed=self._plugin.projection_failed,
+            )
+            prompt = build_summarizer_prompt(
+                request,
+                observations,
+                groups,
+                transcript_truncated=transcript.truncated,
+                secrets=secrets,
+            )
+            summary_context = replace(
+                self._context,
+                model_policy=config.model_policy,
+                summarizer=None,
+                tools={},
+                resolved_skills=(),
+                agent_skills=None,
+                project_workspace=None,
+                workspace_export=None,
+            )
+            summary_model = self._model_factory(summary_context)
+            if summary_model is self._model:
+                raise SummarizerFailure("model_not_isolated")
+            summarizer = TerminalSummarizer(model=summary_model, policy=config.model_policy)
+            candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)
+            usage = summarizer.usage
+            result, exportable = self._build_runtime_result(request, candidate, observed_refs)
+            if not isinstance(result, WorkerResult):
+                failure_code = _summarizer_result_failure_code(result.code)
+                await self._complete_summarizer_attempt(
+                    invocation_id=invocation_id,
+                    succeeded=False,
+                    usage=usage,
+                    failure_code=failure_code,
+                )
+                return _summarizer_failure(failure_code), False
+            await self._complete_summarizer_attempt(
+                invocation_id=invocation_id,
+                succeeded=True,
+                usage=usage,
+            )
+            return result.model_copy(update={"summarized": True}), exportable
+        except asyncio.CancelledError:
+            usage = summarizer.usage if summarizer is not None else usage
+            await _await_safely(
+                self._complete_summarizer_attempt(
+                    invocation_id=invocation_id,
+                    succeeded=False,
+                    usage=usage,
+                    failure_code="cancelled",
+                )
+            )
+            raise
+        except SummarizerFailure as error:
+            usage = summarizer.usage if summarizer is not None else usage
+            failure_code = error.code
+        except Exception:
+            usage = summarizer.usage if summarizer is not None else usage
+            failure_code = "runtime_failed"
+
+        await self._complete_summarizer_attempt(
+            invocation_id=invocation_id,
+            succeeded=False,
+            usage=usage,
+            failure_code=failure_code,
+        )
+        return _summarizer_failure(failure_code), False
+
+    async def _complete_summarizer_attempt(
+        self,
+        *,
+        invocation_id: str,
+        succeeded: bool,
+        usage: SummarizerUsage,
+        failure_code: str | None = None,
+    ) -> None:
+        await self._worker_state.complete_summarization(
+            invocation_id=invocation_id,
+            succeeded=succeeded,
+            model_calls=usage.model_calls,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
+            token_usage_unavailable=usage.token_usage_unavailable,
+            failure_code=failure_code,
+        )
+        self._metrics.record_summarizer_attempt(
+            succeeded=succeeded,
+            model_calls=usage.model_calls,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
+            token_usage_unavailable=usage.token_usage_unavailable,
+            failure_code=failure_code,
+        )
 
     def _build_runtime_result(
         self,
@@ -724,6 +891,7 @@ class AdkWorkerRuntime:
                     invocation_id=invocation_id,
                     subtask_id=subtask_id,
                     metrics=metrics,
+                    summarizer_enabled=self._context.summarizer is not None,
                 )
                 snapshot = await self._worker_state.complete_invocation(
                     invocation_id=invocation_id,
@@ -821,6 +989,34 @@ def _task_prompt(request: StageContentRequest) -> str:
     )
 
 
+def _summary_prompt_boundary(
+    policy: ResolvedModelPolicy,
+    config: WorkerSummarizerConfig | None,
+) -> int | None:
+    """Derive the normal-loop prompt boundary from pinned model metadata."""
+
+    if config is None:
+        return None
+    if policy.context_window_tokens is None or policy.max_output_tokens is None:
+        raise RuntimeError("summarized Worker policy has no context-window metadata")
+    ratio_boundary = math.floor(policy.context_window_tokens * config.context_window_ratio)
+    output_safe_boundary = policy.context_window_tokens - policy.max_output_tokens
+    return min(ratio_boundary, output_safe_boundary)
+
+
+def _summarizer_secrets(context: WorkerBuildContext, gateway_token: str) -> tuple[str, ...]:
+    """Return allocation-private values that must not enter summarizer input."""
+
+    candidates = (
+        gateway_token,
+        str(context.workspace.path),
+        str(context.workspace.root),
+    )
+    # Replacing '/' would destroy every path-like value rather than protect a
+    # useful host path, so only non-root concrete paths are admitted.
+    return tuple(dict.fromkeys(value for value in candidates if len(value) > 1))
+
+
 def _start_span(
     instrumentation: RuntimeInstrumentation | None,
     name: str,
@@ -868,6 +1064,21 @@ def _worker_budget_error(error: BaseException) -> WorkerBudgetExceeded | None:
     return None
 
 
+def _worker_summarization_request(
+    error: BaseException,
+) -> WorkerSummarizationRequested | None:
+    """Find the Runtime control signal through ADK callback wrappers."""
+
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, WorkerSummarizationRequested):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
 def _record_worker_error(
     instrumentation: RuntimeInstrumentation | None,
     error_type: str,
@@ -896,6 +1107,35 @@ def _failure(code: str, message: str, retryable: bool) -> WorkerFailure:
     return WorkerFailure(code=code, message=message, retryable=retryable)
 
 
+def _summarizer_failure(cause: str) -> WorkerFailure:
+    return _failure(
+        "worker_summarization_failed",
+        f"Worker terminal summarization failed ({cause})",
+        True,
+    )
+
+
+def _summarizer_result_failure_code(code: str) -> str:
+    return {
+        "worker_result_missing": "result_missing",
+        "worker_result_invalid": "result_invalid",
+        "worker_result_subtask_mismatch": "result_subtask_mismatch",
+        "worker_result_too_large": "result_too_large",
+        "unsafe_worker_result": "unsafe_result",
+        "invalid_worker_result_binding": "invalid_result_binding",
+    }.get(code, "result_rejected")
+
+
+async def _await_safely(awaitable: Any) -> Any:
+    task = asyncio.create_task(awaitable, name="worker-summarizer-state-finalize")
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            await task
+        return None
+
+
 def _gateway_model_error(error: BaseException) -> GatewayModelError | None:
     current: BaseException | None = error
     seen: set[int] = set()
@@ -916,6 +1156,7 @@ def _empty_invocation_metrics() -> dict[str, Any]:
         "totalTokens": 0,
         "cachedInputTokens": 0,
         "tokenUsageUnavailable": 0,
+        "latestPromptTokens": None,
         "toolCalls": 0,
         "toolErrors": 0,
         "tools": {},
@@ -929,10 +1170,12 @@ def _lean_observations(
     *,
     projection_failed: bool,
 ) -> WorkerObservations:
-    completed = snapshot.get("lastCompletedInvocation")
-    if not isinstance(completed, Mapping) or completed.get("invocationId") != invocation_id:
-        raise RuntimeError("Worker State completion correlation is invalid")
-    metrics = completed.get("metrics")
+    invocation = snapshot.get("currentInvocation")
+    if not isinstance(invocation, Mapping) or invocation.get("invocationId") != invocation_id:
+        invocation = snapshot.get("lastCompletedInvocation")
+    if not isinstance(invocation, Mapping) or invocation.get("invocationId") != invocation_id:
+        raise RuntimeError("Worker State invocation correlation is invalid")
+    metrics = invocation.get("metrics")
     if not isinstance(metrics, Mapping):
         raise RuntimeError("Worker invocation metrics are unavailable")
     raw_tools = metrics.get("tools")
@@ -947,7 +1190,7 @@ def _lean_observations(
             calls=aggregate.get("calls"),
             failures=aggregate.get("failures"),
         )
-    workspace, workspace_truncated = lean_workspace_summary(completed.get("workspace"))
+    workspace, workspace_truncated = lean_workspace_summary(invocation.get("workspace"))
     return WorkerObservations(
         profile="lean@1",
         tools=tools,

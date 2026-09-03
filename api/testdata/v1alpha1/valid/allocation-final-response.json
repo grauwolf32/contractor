@@ -11,6 +11,17 @@
       "metrics": {
         "durationMs": 1000,
         "modelCalls": 1,
+        "summarizer": {
+          "attempts": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "modelCalls": 1,
+          "inputTokens": 24,
+          "outputTokens": 8,
+          "totalTokens": 32,
+          "tokenUsageUnavailable": 0,
+          "failureCodes": {}
+        },
         "tools": {}
       },
       "toolCalls": [],

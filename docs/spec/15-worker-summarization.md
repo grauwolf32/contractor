@@ -29,25 +29,34 @@ An `adk@1` AgentTemplate may contain one optional block:
 spec:
   summarizer:
     modelPolicy: worker-summarizer@1
-    softTotalTokens: 220000
-    softPromptTokens: 100000
+    contextWindowRatio: 0.9
+    cumulativeBudget: 220000
 ```
 
 Omission disables summarization. The object is closed and contains:
 
 - mandatory exact `modelPolicy` selector;
-- at least one of `softTotalTokens` or `softPromptTokens`;
-- positive soft limits lower than the corresponding hard Worker bound when the
-  comparison exists.
+- optional `contextWindowRatio`, defaulted to `0.9` during resolution and
+  required in the normalized AllocationSpec, strictly between zero and one;
+- optional positive `cumulativeBudget`, lower than the normal Worker's hard
+  `maxTotalTokens`.
+
+The block has fixed `terminal@1` semantics in this API version. It is not a
+generic bag of compaction options and will not be silently reinterpreted as a
+continuing strategy. When a second strategy is implemented, authoring will gain
+an explicit strategy/version discriminator and a strategy-specific closed
+schema.
 
 The summarizer uses the same pinned Worker LLMGatewayConfig and credential as
 the normal Worker but its own exact ModelPolicy/model alias. That policy is a
-tool-free Worker summarizer policy: it requires `maxOutputTokens` and
-`maxTotalTokens`, requires `maxModelCalls: 1`, and permits no
-`maxToolCalls`/`maxWorkerCalls`. Runtime also enforces this one-call bound;
-larger or missing `maxModelCalls` is a configuration error. ExecutionConfig
-override of only the summarizer model or use of a different
-Gateway/credential is deferred.
+tool-free Worker summarizer policy: it requires `contextWindowTokens`,
+`maxOutputTokens` and `maxModelCalls: 1`, and permits no
+`maxToolCalls`/`maxWorkerCalls`. `maxTotalTokens` is optional because the call
+count is already one; when supplied, Runtime checks it against reported usage
+after that call. Runtime also enforces the one-call bound; larger or missing
+`maxModelCalls` is a configuration error. Multiple AgentTemplates may reuse one
+exact common summarizer ModelPolicy. ExecutionConfig override of only the
+summarizer model or use of a different Gateway/credential is deferred.
 
 The resolved summarizer block and exact ModelPolicy are included in the
 AgentTemplate digest, immutable Run snapshot and AllocationSpec. Runtime
@@ -57,15 +66,35 @@ change its policy/soft limits.
 
 ## Trigger semantics
 
-Runtime evaluates soft limits only from non-negative provider usage already
-observed on completed normal Worker responses:
+An enabled normal Worker ModelPolicy must pin `contextWindowTokens`. Runtime
+derives one prompt boundary from the effective Worker policy and resolved
+summarizer configuration:
 
-- `softTotalTokens` compares cumulative normal-loop total tokens;
-- `softPromptTokens` compares the most recent normal-loop prompt token count.
+```text
+context_boundary = min(
+  floor(contextWindowTokens * contextWindowRatio),
+  contextWindowTokens - maxOutputTokens,
+)
+```
+
+The second term reserves the configured maximum normal response. Configuration
+is invalid when `maxOutputTokens >= contextWindowTokens`. Runtime requests
+summarization when the most recent completed normal response reports
+`prompt_token_count >= context_boundary`.
+
+The optional `cumulativeBudget` independently compares the sum of
+provider-reported `total_token_count` across all completed normal-loop model
+calls in this A2A invocation. It is a soft cumulative spending boundary which
+can stop a long sequence of individually small calls before its expensive tail.
+It does not describe model context capacity and does not replace the normal
+Worker policy's hard cumulative `maxTotalTokens`.
 
 Missing provider usage never invents a token estimate and therefore cannot
-trigger a token-based summarization rule. Independent model/tool/hard-token
-budgets remain mandatory.
+trigger the affected rule. The context rule observes the last completed
+provider prompt, not an exact tokenization of the prospective prompt after new
+tool results. Its ratio and output reserve are a deterministic pre-emptive
+boundary, not a guarantee that every provider will accept the next request.
+Independent model/tool/hard-token budgets remain mandatory.
 
 The trigger is checked at a safe boundary:
 
@@ -73,8 +102,9 @@ The trigger is checked at a safe boundary:
 2. every tool call selected by that response either completes or fails;
 3. if the response already contains a valid `WorkerModelResult`, Runtime uses
    it normally with `summarized: false`;
-4. otherwise, before starting another normal model call, reaching either soft
-   threshold requests terminal summarization.
+4. otherwise, before starting another normal model call, reaching either the
+   derived context boundary or optional cumulative budget requests terminal
+   summarization.
 
 No in-flight tool is cancelled merely because a completed response crossed a
 soft threshold. No new normal tool or model call starts after the request.
@@ -144,10 +174,11 @@ durable Stage content remains Planner-owned.
 
 `ExecutionMetrics` gains a separate optional summarizer aggregate so normal
 Worker usage and terminal summarization cost can be evaluated independently.
-The aggregate contains attempted/succeeded, model calls, provider-reported
-input/output/total tokens, missing-usage count and a stable failure code. It
-contains no transcript/result text or endpoint/model-provider body. The trusted
-Server envelope supplies exact ModelPolicy and Gateway attribution.
+The aggregate contains attempt/success/failure counts, model calls,
+provider-reported input/output/total tokens, missing-usage count and bounded
+stable failure-code counts. It contains no transcript/result text or
+endpoint/model-provider body. The immutable AllocationSpec supplies exact
+summarizer ModelPolicy and Gateway attribution.
 
 Summarization is semantic work and therefore occurs only inside the active A2A
 invocation while allocation writes are allowed. It never runs during
@@ -158,6 +189,9 @@ bounded abort semantics apply.
 ## Deliberately deferred
 
 - ADK `EventsCompactionConfig` and continuing after compaction;
+- rolling, hierarchical, extractive and artifact-backed summarization
+  strategies; their introduction requires an explicit discriminator rather
+  than changing `terminal@1` semantics;
 - summarizer retries, tool access or model-authored observations;
 - a separate summarizer Gateway/credential or executionConfig override;
 - estimated-token triggers when provider usage is absent;

@@ -17,7 +17,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.metrics import MetricsState
 from contractor_runtime.observations import validate_workspace_observation
 
-WORKER_STATE_SCHEMA_VERSION = 1
+WORKER_STATE_SCHEMA_VERSION = 2
 _SUBTASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _INVOCATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _METRIC_IDENTIFIER = re.compile(r"^[a-z0-9_]{1,64}$")
@@ -35,7 +35,18 @@ _INVOCATION_COUNTER_FIELDS = (
     "toolCalls",
     "toolErrors",
 )
-_INVOCATION_METRIC_FIELDS = frozenset((*_INVOCATION_COUNTER_FIELDS, "tools", "truncated"))
+_INVOCATION_METRIC_FIELDS = frozenset(
+    (*_INVOCATION_COUNTER_FIELDS, "latestPromptTokens", "tools", "truncated")
+)
+_SUMMARIZER_COUNTER_FIELDS = (
+    "modelCalls",
+    "inputTokens",
+    "outputTokens",
+    "totalTokens",
+    "tokenUsageUnavailable",
+)
+_SUMMARIZER_PHASES = frozenset({"disabled", "not_requested", "requested", "succeeded", "failed"})
+_FAILURE_CODE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 
 InvocationPhase = Literal["running", "succeeded", "failed", "cancelled"]
 
@@ -79,11 +90,14 @@ class WorkerStateStore:
         subtask_id: str,
         metrics: Mapping[str, Any],
         workspace: Mapping[str, Any] | None = None,
+        summarizer_enabled: bool = False,
     ) -> dict[str, Any]:
         _require_identifier("invocationId", invocation_id, _INVOCATION_ID)
         _require_identifier("subtaskId", subtask_id, _SUBTASK_ID)
         invocation_metrics = _invocation_metrics_copy(metrics)
         invocation_workspace = _workspace_observation_copy(workspace)
+        if type(summarizer_enabled) is not bool:
+            raise WorkerStateError("Worker summarizer enabled flag is invalid")
 
         def mutate(state: dict[str, Any]) -> None:
             if state["currentInvocation"] is not None:
@@ -93,8 +107,56 @@ class WorkerStateStore:
                 "subtaskId": subtask_id,
                 "phase": "running",
                 "metrics": invocation_metrics,
+                "summarizer": _empty_summarizer(enabled=summarizer_enabled),
                 "workspace": invocation_workspace,
             }
+
+        return await self._mutate(mutate)
+
+    async def request_summarization(self, *, invocation_id: str) -> dict[str, Any]:
+        def mutate(state: dict[str, Any]) -> None:
+            current = _matching_current(state, invocation_id)
+            summarizer = current["summarizer"]
+            if summarizer["phase"] != "not_requested":
+                raise WorkerStateError("Worker summarizer cannot be requested in this phase")
+            summarizer["phase"] = "requested"
+            # The preceding revision is the complete normal-loop checkpoint
+            # that deterministically caused this request.
+            summarizer["requestStateRevision"] = state["stateRevision"]
+
+        return await self._mutate(mutate)
+
+    async def complete_summarization(
+        self,
+        *,
+        invocation_id: str,
+        succeeded: bool,
+        model_calls: int,
+        input_tokens: int,
+        output_tokens: int,
+        total_tokens: int,
+        token_usage_unavailable: int,
+        failure_code: str | None = None,
+    ) -> dict[str, Any]:
+        summary = _summarizer_usage_copy(
+            succeeded=succeeded,
+            model_calls=model_calls,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            token_usage_unavailable=token_usage_unavailable,
+            failure_code=failure_code,
+        )
+
+        def mutate(state: dict[str, Any]) -> None:
+            current = _matching_current(state, invocation_id)
+            summarizer = current["summarizer"]
+            if summarizer["phase"] != "requested":
+                raise WorkerStateError("Worker summarizer completion is not requested")
+            request_revision = summarizer["requestStateRevision"]
+            summarizer.clear()
+            summarizer.update(summary)
+            summarizer["requestStateRevision"] = request_revision
 
         return await self._mutate(mutate)
 
@@ -219,6 +281,12 @@ def _invocation_metrics_copy(value: Mapping[str, Any]) -> dict[str, Any]:
         if type(counter) is not int or not 0 <= counter <= _MAX_UINT64:
             raise WorkerStateError(f"Worker invocation metric {field} is invalid")
         result[field] = counter
+    latest_prompt = value.get("latestPromptTokens")
+    if latest_prompt is not None and (
+        type(latest_prompt) is not int or not 0 <= latest_prompt <= _MAX_UINT64
+    ):
+        raise WorkerStateError("Worker invocation latest prompt tokens are invalid")
+    result["latestPromptTokens"] = latest_prompt
     tools = value.get("tools")
     if not isinstance(tools, Mapping) or len(tools) > _MAX_INVOCATION_TOOL_NAMES:
         raise WorkerStateError("Worker invocation tool metrics are invalid")
@@ -254,6 +322,52 @@ def _invocation_metrics_copy(value: Mapping[str, Any]) -> dict[str, Any]:
     result["tools"] = projected_tools
     result["truncated"] = truncated
     return result
+
+
+def _empty_summarizer(*, enabled: bool) -> dict[str, Any]:
+    return {
+        "phase": "not_requested" if enabled else "disabled",
+        "modelCalls": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalTokens": 0,
+        "tokenUsageUnavailable": 0,
+    }
+
+
+def _summarizer_usage_copy(
+    *,
+    succeeded: bool,
+    model_calls: int,
+    input_tokens: int,
+    output_tokens: int,
+    total_tokens: int,
+    token_usage_unavailable: int,
+    failure_code: str | None,
+) -> dict[str, Any]:
+    if type(succeeded) is not bool:
+        raise WorkerStateError("Worker summarizer outcome is invalid")
+    values = {
+        "modelCalls": model_calls,
+        "inputTokens": input_tokens,
+        "outputTokens": output_tokens,
+        "totalTokens": total_tokens,
+        "tokenUsageUnavailable": token_usage_unavailable,
+    }
+    for field in _SUMMARIZER_COUNTER_FIELDS:
+        value = values[field]
+        maximum = 1 if field in {"modelCalls", "tokenUsageUnavailable"} else _MAX_UINT64
+        if type(value) is not int or not 0 <= value <= maximum:
+            raise WorkerStateError(f"Worker summarizer metric {field} is invalid")
+    if token_usage_unavailable > model_calls:
+        raise WorkerStateError("Worker summarizer missing usage exceeds model calls")
+    if succeeded:
+        if model_calls != 1 or failure_code is not None:
+            raise WorkerStateError("successful Worker summarizer outcome is invalid")
+        return {"phase": "succeeded", **values}
+    if not isinstance(failure_code, str) or _FAILURE_CODE.fullmatch(failure_code) is None:
+        raise WorkerStateError("Worker summarizer failure code is invalid")
+    return {"phase": "failed", **values, "failureCode": failure_code}
 
 
 def _workspace_observation_copy(value: Mapping[str, Any] | None) -> dict[str, Any] | None:

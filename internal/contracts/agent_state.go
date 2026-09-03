@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	WorkerStateSchemaVersion    = 1
+	WorkerStateSchemaVersion    = 2
 	MaxAgentStateSnapshotBytes  = 4 * 1024 * 1024
 	maxStateWorkspacePaths      = 10_000
 	maxStateWorkspacePathBytes  = 2 * 1024 * 1024
@@ -77,6 +77,7 @@ type WorkerInvocationState struct {
 	SubtaskID    string                      `json:"subtaskId"`
 	Phase        string                      `json:"phase"`
 	Metrics      WorkerStateInvocationMetric `json:"metrics"`
+	Summarizer   WorkerStateSummarizer       `json:"summarizer"`
 	Workspace    *WorkerStateWorkspace       `json:"workspace"`
 	workspaceSet bool
 }
@@ -89,10 +90,22 @@ type WorkerStateInvocationMetric struct {
 	TotalTokens           uint64                                     `json:"totalTokens"`
 	CachedInputTokens     uint64                                     `json:"cachedInputTokens"`
 	TokenUsageUnavailable uint64                                     `json:"tokenUsageUnavailable"`
+	LatestPromptTokens    *uint64                                    `json:"latestPromptTokens"`
 	ToolCalls             uint64                                     `json:"toolCalls"`
 	ToolErrors            uint64                                     `json:"toolErrors"`
 	Tools                 map[string]WorkerStateInvocationToolMetric `json:"tools"`
 	Truncated             bool                                       `json:"truncated"`
+}
+
+type WorkerStateSummarizer struct {
+	Phase                 string  `json:"phase"`
+	RequestStateRevision  *uint64 `json:"requestStateRevision,omitempty"`
+	ModelCalls            uint64  `json:"modelCalls"`
+	InputTokens           uint64  `json:"inputTokens"`
+	OutputTokens          uint64  `json:"outputTokens"`
+	TotalTokens           uint64  `json:"totalTokens"`
+	TokenUsageUnavailable uint64  `json:"tokenUsageUnavailable"`
+	FailureCode           *string `json:"failureCode,omitempty"`
 }
 
 type WorkerStateInvocationToolMetric struct {
@@ -157,6 +170,33 @@ func (s ContractorWorkerState) validate() error {
 		if s.LastCompletedInvocation.Phase == "running" {
 			return invalidf("last completed Worker invocation must be terminal")
 		}
+	}
+	return nil
+}
+
+func (s WorkerStateSummarizer) validate() error {
+	requested := s.Phase == "requested" || s.Phase == "succeeded" || s.Phase == "failed"
+	if s.Phase != "disabled" && s.Phase != "not_requested" && !requested {
+		return invalidf("Worker State summarizer phase is invalid")
+	}
+	if requested != (s.RequestStateRevision != nil) ||
+		(s.RequestStateRevision != nil && *s.RequestStateRevision == 0) ||
+		s.ModelCalls > 1 || s.TokenUsageUnavailable > s.ModelCalls {
+		return invalidf("Worker State summarizer request or usage is inconsistent")
+	}
+	if (s.Phase == "disabled" || s.Phase == "not_requested" || s.Phase == "requested") &&
+		(s.ModelCalls != 0 || s.InputTokens != 0 || s.OutputTokens != 0 ||
+			s.TotalTokens != 0 || s.TokenUsageUnavailable != 0) {
+		return invalidf("inactive Worker State summarizer has usage")
+	}
+	if s.Phase == "succeeded" && s.ModelCalls != 1 {
+		return invalidf("successful Worker State summarizer requires one model call")
+	}
+	if (s.Phase == "failed") != (s.FailureCode != nil) {
+		return invalidf("Worker State summarizer failure code is inconsistent")
+	}
+	if s.FailureCode != nil && !validWorkerFailureCode(*s.FailureCode) {
+		return invalidf("Worker State summarizer failure code is invalid")
 	}
 	return nil
 }
@@ -266,6 +306,12 @@ func (s WorkerInvocationState) validate() error {
 	}
 	if err := s.Metrics.validate(); err != nil {
 		return err
+	}
+	if err := s.Summarizer.validate(); err != nil {
+		return err
+	}
+	if s.Phase != "running" && s.Summarizer.Phase == "requested" {
+		return invalidf("terminal Worker State invocation has pending summarization")
 	}
 	if s.Workspace != nil {
 		return s.Workspace.validate()
@@ -489,19 +535,21 @@ func (s *WorkerInvocationState) UnmarshalJSON(data []byte) error {
 		SubtaskID    string                      `json:"subtaskId"`
 		Phase        string                      `json:"phase"`
 		Metrics      WorkerStateInvocationMetric `json:"metrics"`
+		Summarizer   *WorkerStateSummarizer      `json:"summarizer"`
 		Workspace    json.RawMessage             `json:"workspace"`
 	}
 	var wire wireState
 	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
 		return err
 	}
-	if wire.Workspace == nil {
-		return invalidf("Worker State invocation workspace is missing")
+	if wire.Workspace == nil || wire.Summarizer == nil {
+		return invalidf("Worker State invocation summarizer or workspace is missing")
 	}
 	s.InvocationID = wire.InvocationID
 	s.SubtaskID = wire.SubtaskID
 	s.Phase = wire.Phase
 	s.Metrics = wire.Metrics
+	s.Summarizer = *wire.Summarizer
 	s.workspaceSet = true
 	if !bytes.Equal(wire.Workspace, []byte("null")) {
 		var workspace WorkerStateWorkspace
@@ -517,7 +565,7 @@ func (s *WorkerStateInvocationMetric) UnmarshalJSON(data []byte) error {
 	if err := requireAgentStateFields(
 		data,
 		"modelCalls", "modelErrors", "inputTokens", "outputTokens", "totalTokens",
-		"cachedInputTokens", "tokenUsageUnavailable", "toolCalls", "toolErrors", "tools",
+		"cachedInputTokens", "tokenUsageUnavailable", "latestPromptTokens", "toolCalls", "toolErrors", "tools",
 		"truncated",
 	); err != nil {
 		return err
@@ -528,6 +576,22 @@ func (s *WorkerStateInvocationMetric) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*s = WorkerStateInvocationMetric(wire)
+	return nil
+}
+
+func (s *WorkerStateSummarizer) UnmarshalJSON(data []byte) error {
+	if err := requireAgentStateFields(
+		data, "phase", "modelCalls", "inputTokens", "outputTokens", "totalTokens",
+		"tokenUsageUnavailable",
+	); err != nil {
+		return err
+	}
+	type plain WorkerStateSummarizer
+	var wire plain
+	if err := decodeStrictAgentStateJSON(data, &wire); err != nil {
+		return err
+	}
+	*s = WorkerStateSummarizer(wire)
 	return nil
 }
 

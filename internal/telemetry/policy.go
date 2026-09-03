@@ -90,6 +90,7 @@ func (p Policy) NormalizeExecutionReport(
 	result := source
 	result.Metrics.Tools = cloneToolMetrics(source.Metrics.Tools)
 	result.Metrics.WorkerBudget = cloneWorkerBudget(source.Metrics.WorkerBudget)
+	result.Metrics.Summarizer = cloneWorkerSummarizer(source.Metrics.Summarizer)
 	if result.Metrics.Tools == nil {
 		result.Metrics.Tools = map[string]contracts.ToolMetrics{}
 	}
@@ -143,6 +144,20 @@ func (p Policy) NormalizeExecutionReport(
 		return contracts.ExecutionReport{}, fmt.Errorf("normalize execution report: %w", err)
 	}
 	return result, nil
+}
+
+func cloneWorkerSummarizer(
+	source *contracts.WorkerSummarizerMetrics,
+) *contracts.WorkerSummarizerMetrics {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.FailureCodes = make(map[string]uint64, len(source.FailureCodes))
+	for code, count := range source.FailureCodes {
+		result.FailureCodes[code] = count
+	}
+	return &result
 }
 
 func (p Policy) normalizeError(source contracts.ExecutionError) contracts.ExecutionError {
