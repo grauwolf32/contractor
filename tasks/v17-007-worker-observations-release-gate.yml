@@ -23,24 +23,28 @@ context:
     V13 removed an unreliable result serializer but made every arbitrary final
     text a success. This gate must prove the new structured semantic boundary
     without reintroducing lifecycle prompts or a second repair model call.
+  planner_state_tools: >-
+    get_worker_tool_usage and the workspace projections are Planner tools.
+    A modeled Worker binding only gives Streamline/Router a logical target for
+    those tools; the Worker-facing toolset never contains State projections.
 
 scope:
   in:
     - Add one PostgreSQL/mTLS real-process scenario covering request subtask IDs, ADK schema+tools, WorkerCompletion A2A, exact artifact selection and explicit Planner finish.
     - Exercise complete and truncated workspace coverage, repeated reads, grep/edit observations and all four Streamline/Router State projection tools.
-    - Force wrong subtask output, malformed structured output, stale lastCompleted replacement, endpoint timeout/oversize/304, Runtime loss and query after drain.
+    - Deterministically cover wrong subtask output, malformed structured output, stale lastCompleted replacement, endpoint timeout/oversize/304, Runtime loss and query after drain through the focused hardening suites and executable fault matrix.
     - Prove one Runtime read failure cannot invalidate the prior WorkerResult and Scheduler still reaches a bounded terminal state according to Planner policy.
     - Prove final report metrics equal plugin State aggregates, remain complete when possible and do not double count across sequential invocations.
     - Release and reuse every Runtime slot; assert State, ETag cache, observation paths, model/session data and clients are absent before the next allocation.
-    - Scan PostgreSQL except approved Artifact blobs, Server/Runtime logs, A2A errors, public API, Planner facts, final reports and OTLP for prompt/source/secret/endpoint/path canaries outside explicitly live Planner results.
+    - Scan durable Planner facts/reports and public Operations for Worker-State path canaries. Worker terminal reports retain only their separately governed bounded/redacted tool-call projection; live State paths and cursors must not leak into Planner or public surfaces.
     - Add an executable V17 requirement/fault matrix whose validator rejects missing or duplicate named test owners.
     - Compose the new gate into make release-verify without requiring an external LLM.
   out:
     - Summarizer behavior, public State UI, external LM Studio quality evaluation or long-term observation analytics.
 
 deliverables:
-  - {path: tests/integration/worker_observations, description: Real process, PostgreSQL and mTLS scenario.}
-  - {path: tests/matrices/worker_observations.yml, description: Strict V17 invariant/fault ownership matrix.}
+  - {path: tests/e2e/routing_escalation_test.go, description: Extended real Server, PostgreSQL, mTLS and reusable Runtime process scenario.}
+  - {path: tests/e2e/worker_observations_matrix.yml, description: Strict V17 invariant/fault ownership matrix.}
   - {path: Makefile, description: Focused and aggregate release targets.}
 
 requirements:
@@ -77,3 +81,8 @@ decisions:
     Live-model quality/F1 experiments are valuable but not a deterministic
     correctness gate. The release scenario uses a scripted compatible Gateway;
     LM Studio remains an opt-in evaluation target.
+  - >-
+    The observation process case extends the existing routing/escalation
+    harness so one authoritative boundary test covers old routing behavior and
+    the new Streamline/Router State projections without duplicating process,
+    certificate and database orchestration.

@@ -1,0 +1,78 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: worker-observations-router
+  version: "1"
+
+spec:
+  parameters:
+    scenario:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+
+  outputs:
+    builder_report:
+      required: true
+      mediaTypes: [text/markdown]
+    reviewer_report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    planner:
+      modelPolicy: observation_planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: observe
+  stages:
+    observe:
+      objective: WORKER_OBSERVATIONS_ROUTER inspect two private Worker views
+      instructions:
+        ref: instructions/worker-observations-planner.md
+      planner: router@1
+      agents:
+        builder:
+          template: observation_builder@1
+        reviewer:
+          template: observation_reviewer@1
+          namespace: review
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+        workspace:
+          mode: direct
+          sources:
+            - artifact: source
+              target: ""
+      result:
+        artifacts:
+          builder_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: builder, name: report}
+          reviewer_report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: review, name: report}
+      workflowOutputs:
+        builder_report: builder_report
+        reviewer_report: reviewer_report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

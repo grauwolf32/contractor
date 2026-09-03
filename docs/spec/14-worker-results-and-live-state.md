@@ -419,8 +419,11 @@ Router exposes the same names with mandatory `worker_name`, constrained in each
 schema to logical bindings for which that projection is valid. Streamline has
 no `worker_name` parameter. Passthrough has no model-facing Planner tools.
 Workspace tools are present only when the immutable Stage/Agent binding has a
-workspace and at least one selected workspace-observing tool; tool usage is
-available for every modeled Worker binding.
+workspace and at least one selected workspace-observing tool. The Planner
+toolset includes `get_worker_tool_usage` for every modeled Worker binding; this
+does not add that tool to the Worker toolset. A Worker never invokes State
+projections and remains unaware of Planner, AgentTemplate and Runtime endpoint
+details.
 
 The tools always select the newest `WorkerCompletion` already returned for
 that logical Worker; the model cannot select allocation, invocation, state

@@ -172,7 +172,9 @@ func (g *modelGateway) nextStreamline(
 		return nil, "", "", errors.New("streamline request has no model")
 	}
 	scenario := ""
-	wantTools := []string{"add_subtask", "execute_current_subtask", "finish", "list_subtasks"}
+	wantTools := []string{
+		"add_subtask", "execute_current_subtask", "finish", "get_worker_tool_usage", "list_subtasks",
+	}
 	if model == "planner-model" && strings.Contains(payload, streamlineGlobalMarker) {
 		scenario = "streamline-planner"
 	} else if model == "worker-model" && strings.Contains(payload, streamlineWorkerMarker) {
@@ -242,16 +244,12 @@ func (g *modelGateway) nextStreamline(
 			"data_base64": data, "expected_revision": nil,
 		}), "tool_calls", model, nil
 	case 3:
-		artifact, found := lastExactArtifact(request, "builder", "copied")
+		_, found := lastExactArtifact(request, "builder", "copied")
 		if !found {
 			return nil, "", "", errors.New("streamline Worker did not observe output revision")
 		}
-		result, _ := json.Marshal(map[string]any{
-			"apiVersion": "contractor/v1alpha1", "outcome": "succeeded",
-			"summary":   "streamline Worker copied the source",
-			"artifacts": map[string]any{"copied": artifact},
-		})
-		return map[string]any{"role": "assistant", "content": string(result)}, "stop", model, nil
+		message, err := workerModelResultMessage(request, "streamline Worker copied the source")
+		return message, "stop", model, err
 	default:
 		return nil, "", "", errors.New("streamline Worker exceeded its script")
 	}
@@ -291,21 +289,18 @@ func (g *modelGateway) nextDomain(
 			step.tool, arguments,
 		)
 	} else {
-		artifacts := make(map[string]any, len(step.artifacts))
-		for slot, binding := range step.artifacts {
-			artifact, found := lastExactArtifact(request, binding.namespace, binding.name)
+		for _, binding := range step.artifacts {
+			_, found := lastExactArtifact(request, binding.namespace, binding.name)
 			if !found {
 				return nil, "", "", fmt.Errorf(
 					"%s final result has not observed %s/%s", stage.name, binding.namespace, binding.name,
 				)
 			}
-			artifacts[slot] = artifact
 		}
-		result, _ := json.Marshal(map[string]any{
-			"apiVersion": "contractor/v1alpha1", "outcome": "succeeded",
-			"summary": step.summary, "artifacts": artifacts,
-		})
-		message = map[string]any{"role": "assistant", "content": string(result)}
+		message, err = workerModelResultMessage(request, step.summary)
+		if err != nil {
+			return nil, "", "", err
+		}
 		finishReason = "stop"
 	}
 	g.domainStep++
@@ -542,6 +537,72 @@ func toolCallMessage(id, name string, arguments map[string]any) map[string]any {
 			"function": map[string]any{"name": name, "arguments": string(encoded)},
 		}},
 	}
+}
+
+func workerModelResultMessage(request map[string]any, result string) (map[string]any, error) {
+	const marker = "Subtask ID:\n"
+	var subtaskID string
+	conflicting := false
+	var visit func(any)
+	visit = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			for _, child := range typed {
+				visit(child)
+			}
+		case []any:
+			for _, child := range typed {
+				visit(child)
+			}
+		case string:
+			index := strings.Index(typed, marker)
+			if index < 0 {
+				return
+			}
+			candidate := typed[index+len(marker):]
+			if end := strings.Index(candidate, "\n\n"); end >= 0 {
+				candidate = candidate[:end]
+			}
+			candidate = strings.TrimSpace(candidate)
+			if !validWorkerSubtaskID(candidate) {
+				return
+			}
+			if subtaskID != "" && subtaskID != candidate {
+				conflicting = true
+			} else {
+				subtaskID = candidate
+			}
+		}
+	}
+	visit(request)
+	if conflicting {
+		return nil, errors.New("Worker request contains conflicting Runtime-rendered subtask IDs")
+	}
+	if subtaskID == "" {
+		return nil, errors.New("Worker request has no valid Runtime-rendered subtask ID")
+	}
+	encoded, err := json.Marshal(map[string]any{"subtaskId": subtaskID, "result": result})
+	if err != nil {
+		return nil, fmt.Errorf("encode WorkerModelResult: %w", err)
+	}
+	return map[string]any{"role": "assistant", "content": string(encoded)}, nil
+}
+
+func validWorkerSubtaskID(value string) bool {
+	if len(value) == 0 || len(value) > 128 {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z' ||
+			character >= '0' && character <= '9' {
+			continue
+		}
+		if index == 0 || !strings.ContainsRune("._:-", rune(character)) {
+			return false
+		}
+	}
+	return true
 }
 
 func requestToolNames(request map[string]any) ([]string, error) {

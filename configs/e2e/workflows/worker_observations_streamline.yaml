@@ -1,0 +1,67 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: worker-observations-streamline
+  version: "1"
+
+spec:
+  parameters:
+    scenario:
+      required: true
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+
+  outputs:
+    report:
+      required: true
+      mediaTypes: [text/markdown]
+
+  executionConfig:
+    planner:
+      modelPolicy: observation_planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: observe
+  stages:
+    observe:
+      objective: WORKER_OBSERVATIONS_STREAMLINE inspect one private workspace
+      instructions:
+        ref: instructions/worker-observations-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: observation_builder@1
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+        workspace:
+          mode: direct
+          sources:
+            - artifact: source
+              target: ""
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: builder, name: report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

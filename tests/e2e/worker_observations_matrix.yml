@@ -1,0 +1,118 @@
+schema_version: "1.0"
+
+policy:
+  result_boundary: >-
+    The Worker model returns only strict WorkerModelResult; Runtime owns
+    correlation, observations and exact result artifact selection.
+  live_state: >-
+    Full Contractor State remains allocation-private and volatile. Planner sees
+    only fixed projections correlated to its newest completed dispatch.
+  retention: >-
+    Detailed State paths and opaque cursors are removed before durable Planner
+    facts, public surfaces and slot reuse; terminal Worker reports remain the
+    authoritative bounded metrics record.
+
+cases:
+  - id: real_process_profiles_and_reuse
+    category: process
+    acceptance: [A1, A3]
+    faults: []
+    expected: Real PostgreSQL mTLS Streamline and two-Worker Router paths expose all projections, exact artifacts, terminal reports and fresh reused slots.
+    test: {source: tests/e2e/routing_escalation_test.go, symbol: TestRoutingAndEscalationProductionBoundaries}
+  - id: strict_model_result
+    category: result
+    acceptance: [A2]
+    faults: [F01]
+    expected: Unknown fields malformed JSON and secret-bearing results fail at the Runtime model boundary.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_rejects_non_schema_results_and_blocks_secrets}
+  - id: result_size_and_subtask_boundaries
+    category: result
+    acceptance: [A2]
+    faults: [F02]
+    expected: Empty oversized and wrong-subtask model results map to closed typed failures.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_rejects_invalid_model_result_boundaries}
+  - id: no_result_repair_call
+    category: result
+    acceptance: [A2]
+    faults: [F03]
+    expected: Free text fails without an implicit serializer or second model call.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_free_text_fails_without_recovery_model_call}
+  - id: a2a_subtask_correlation
+    category: correlation
+    acceptance: [A2]
+    faults: [F04]
+    expected: A valid WorkerCompletion for another subtask is rejected by the Planner A2A boundary.
+    test: {source: internal/planner/a2a/client_test.go, symbol: TestInvokerRejectsWorkerResultForAnotherSubtask}
+  - id: observation_failure_and_reset
+    category: observation
+    acceptance: [A2, A3]
+    faults: [F05]
+    expected: Extractor failure is advisory and a sequential invocation starts with fresh workspace observations.
+    test: {source: runtime/tests/test_filesystem_observations.py, symbol: test_extractor_failure_is_non_fatal_and_sequential_invocations_reset}
+  - id: shared_state_size_bound
+    category: observation
+    acceptance: [A2]
+    faults: [F06]
+    expected: Oversized optional detail is deterministically truncated while mandatory State remains valid.
+    test: {source: runtime/tests/test_observations.py, symbol: test_worker_state_shared_envelope_trims_optional_workspace_detail}
+  - id: endpoint_lifecycle
+    category: lifecycle
+    acceptance: [A2, A3]
+    faults: [F07]
+    expected: The State endpoint is read-only and unavailable after Worker State destruction.
+    test: {source: runtime/tests/test_agent_state_endpoint.py, symbol: test_agent_state_endpoint_is_read_only_and_lifecycle_bound}
+  - id: endpoint_revision_races
+    category: transport
+    acceptance: [A2]
+    faults: [F08]
+    expected: Concurrent mutation and snapshot reads remain revision-consistent and do not block callbacks.
+    test: {source: runtime/tests/test_agent_state_endpoint.py, symbol: test_agent_state_snapshot_races_remain_revision_consistent_and_nonblocking}
+  - id: client_failure_bounds
+    category: transport
+    acceptance: [A2]
+    faults: [F09, F10]
+    expected: Timeout oversize invalid cache metadata and false 304 responses normalize to bounded safe errors.
+    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestRuntimeControlClientWorkerStateFailuresAreBoundedAndSafe}
+  - id: etag_revalidation
+    category: transport
+    acceptance: [A1]
+    faults: [F11]
+    expected: A valid snapshot and matching 304 cross the authenticated Runtime client boundary without changing identity.
+    test: {source: internal/controlplane/runtime_client_test.go, symbol: TestRuntimeControlClientReadsWorkerStateAndRevalidatesETag}
+  - id: stale_state_and_cursor
+    category: planner
+    acceptance: [A2]
+    faults: [F12, F13]
+    expected: Replaced completion incomplete workspace and cursor misuse fail closed without exposing another dispatch.
+    test: {source: internal/planner/stateview/service_test.go, symbol: TestServiceRejectsStaleStateIncompleteCoverageAndCursorMisuse}
+  - id: advisory_state_failure
+    category: planner
+    acceptance: [A2]
+    faults: [F14]
+    expected: A State read failure cannot rewrite an already completed Worker subtask or its result.
+    test: {source: internal/planner/streamline/state_tools_test.go, symbol: TestStateProjectionFailureDoesNotRewriteCompletedSubtask}
+  - id: closed_projection_codes
+    category: planner
+    acceptance: [A2]
+    faults: [F15]
+    expected: Planner projections expose only the closed retryability-aware State error vocabulary.
+    test: {source: internal/planner/streamline/state_tools_test.go, symbol: TestStateProjectionFailureUsesClosedCodes}
+  - id: durable_planner_redaction
+    category: retention
+    acceptance: [A4]
+    faults: [F16]
+    expected: State paths cursors provider text and Memory content reduce to bounded content-free Planner event facts.
+    test: {source: internal/planner/session/service_test.go, symbol: TestADKSessionPersistsOnlyBoundedRedactedEventFacts}
+  - id: matrix_self_validation
+    category: validation
+    acceptance: [A4]
+    faults: []
+    expected: Strict validation rejects missing acceptance fault owner and gate coverage as well as duplicate owners.
+    test: {source: tests/e2e/worker_observations_matrix_test.go, symbol: TestWorkerObservationsHardeningMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-worker-observations-matrix}
+  - {id: runtime, command: make test-worker-observations-runtime}
+  - {id: hardening, command: make test-worker-observations-hardening}
+  - {id: e2e, command: make test-worker-observations-e2e}
+  - {id: release, command: make release-verify}

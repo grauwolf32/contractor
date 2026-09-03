@@ -203,7 +203,7 @@ func (g *scriptedGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Tools []any `json:"tools"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Tools) != 4 {
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil || len(request.Tools) != 5 {
 		g.t.Errorf("gateway tool request = (%+v, %v)", request, err)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return

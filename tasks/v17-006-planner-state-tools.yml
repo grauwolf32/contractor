@@ -31,7 +31,7 @@ scope:
     - Add a StageExecution-local Planner StateProjectionService over WorkerStateReader with no dependency on HTTP or ADK types.
     - Record/replace the hidden newest-completion selector only after a valid WorkerCompletion; clear it during Planner cleanup and never persist physical identity in Planner facts.
     - Generate exact Streamline schemas without worker_name and Router schemas with a required enum restricted per operation to eligible immutable logical bindings.
-    - Expose workspace functions only for bindings with Stage workspace plus a selected workspace-observing tool; expose tool usage for every modeled Worker binding.
+    - Expose workspace functions in the Planner toolset only for bindings with Stage workspace plus a selected workspace-observing tool; expose the Planner-side tool-usage projection for every modeled Worker binding without adding it to any Worker toolset.
     - Implement get_workspace_coverage with scoped/discovered/read/matched/modified exact-or-lower-bound counts and explicit scope/detail completeness.
     - Implement list_read_files ordered by first observation ordinal and list_unread_files as lexical complete checkpoint scope minus read paths; reject unread queries when either input set is incomplete.
     - Implement get_worker_tool_usage with sorted per-tool calls/failures plus bounded invocation model/token counts; never return arguments, results, prompts or errors.

@@ -408,7 +408,7 @@ func copyHTTPHeaders(destination, source http.Header) {
 func writeHTTPAnalysisE2EWorkflow(t *testing.T, configRoot string) {
 	t.Helper()
 	instructions := `Delegate the complete bounded HTTP objective to the explorer exactly once.
-Return the Worker's exact report ArtifactRef and do not repeat requests.
+Finish from the Worker's semantic result and do not repeat requests.
 `
 	workflow := `apiVersion: contractor/v1alpha1
 kind: Workflow
@@ -437,7 +437,10 @@ spec:
         explorer: {template: http_explorer@1, namespace: http}
       result:
         artifacts:
-          report: {required: true, mediaTypes: [text/markdown]}
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: http, name: report}
       workflowOutputs: {report: report}
       on:
         succeeded: {succeed: {}}

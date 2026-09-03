@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -112,18 +113,17 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			"data_base64": data, "expected_revision": nil,
 		})
 	case 3:
-		artifact, ok := lastExactArtifact(request, "builder", "copied")
+		_, ok := lastExactArtifact(request, "builder", "copied")
 		if !ok {
 			g.fail(w, http.StatusBadRequest, "write_artifact exact result was not returned to the model")
 			return
 		}
-		result, _ := json.Marshal(map[string]any{
-			"apiVersion": "contractor/v1alpha1",
-			"outcome":    "succeeded",
-			"summary":    "Source artifact copied byte-for-byte",
-			"artifacts":  map[string]any{"copied": artifact},
-		})
-		message = map[string]any{"role": "assistant", "content": string(result)}
+		finalMessage, err := workerModelResultMessage(request, "Source artifact copied byte-for-byte")
+		if err != nil {
+			g.fail(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		message = finalMessage
 	default:
 		message = toolCallMessage(fmt.Sprintf("bounded-read-%d", call), "read_artifact", map[string]any{
 			"namespace": "inputs", "name": "source", "revision": nil,
@@ -144,6 +144,85 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10,
 		},
 	})
+}
+
+// workerModelResultMessage mirrors the only model-facing Worker result schema.
+// The requested subtask ID is deliberately copied from the Runtime-rendered task
+// prompt so process fixtures exercise the same correlation check as a real model.
+func workerModelResultMessage(request map[string]any, result string) (map[string]any, error) {
+	subtaskID, err := workerRequestSubtaskID(request)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"subtaskId": subtaskID,
+		"result":    result,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode WorkerModelResult: %w", err)
+	}
+	return map[string]any{"role": "assistant", "content": string(encoded)}, nil
+}
+
+func workerRequestSubtaskID(request map[string]any) (string, error) {
+	const marker = "Subtask ID:\n"
+	var found string
+	conflicting := false
+	var visit func(any)
+	visit = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			for _, child := range typed {
+				visit(child)
+			}
+		case []any:
+			for _, child := range typed {
+				visit(child)
+			}
+		case string:
+			index := strings.Index(typed, marker)
+			if index < 0 {
+				return
+			}
+			candidate := typed[index+len(marker):]
+			if end := strings.Index(candidate, "\n\n"); end >= 0 {
+				candidate = candidate[:end]
+			}
+			candidate = strings.TrimSpace(candidate)
+			if validFixtureSubtaskID(candidate) {
+				if found != "" && found != candidate {
+					conflicting = true
+				} else {
+					found = candidate
+				}
+			}
+		}
+	}
+	visit(request)
+	if conflicting {
+		return "", errors.New("Worker request contains conflicting Runtime-rendered subtask IDs")
+	}
+	if found == "" {
+		return "", errors.New("Worker request has no valid Runtime-rendered subtask ID")
+	}
+	return found, nil
+}
+
+func validFixtureSubtaskID(value string) bool {
+	if len(value) == 0 || len(value) > 128 {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if character >= 'A' && character <= 'Z' || character >= 'a' && character <= 'z' ||
+			character >= '0' && character <= '9' {
+			continue
+		}
+		if index == 0 || !strings.ContainsRune("._:-", rune(character)) {
+			return false
+		}
+	}
+	return true
 }
 
 func (g *fakeGateway) fail(w http.ResponseWriter, status int, message string) {

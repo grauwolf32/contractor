@@ -3,6 +3,8 @@
 package e2e
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +35,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -102,11 +105,15 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
 	runtimes := make([]*childProcess, 0, 2)
 	runtimeURLs := make([]string, 0, 2)
+	runtimeInstanceIDs := make([]string, 0, 2)
+	knownRuntimeIDs := map[string]bool{}
 	workRoots := make([]string, 0, 2)
+	workspaceRoots := make([]string, 0, 2)
 	for index := range agentPaths {
 		runtimeAddress := freeAddress(t)
 		runtimeBaseURL := "https://" + runtimeAddress
 		workRoot := filepath.Join(temporaryRoot, fmt.Sprintf("runtime-work-%d", index+1))
+		workspaceRoot := filepath.Join(temporaryRoot, fmt.Sprintf("runtime-workspace-%d", index+1))
 		process := startProcess(
 			t, fmt.Sprintf("Python Runtime Agent %d", index+1), filepath.Join(repositoryRoot, "runtime"),
 			map[string]string{"PYTHONUNBUFFERED": "1"},
@@ -119,14 +126,35 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 			"--private-key-file", agentPaths[index].PrivateKey,
 			"--listen", runtimeAddress,
 			"--work-root", workRoot,
+			"--workspace-storage", "local",
+			"--workspace-work-root", workspaceRoot,
 			"--request-timeout-seconds", "10",
 			"--shutdown-grace-seconds", "5",
+			"--heartbeat-interval-seconds", "1",
+			"--confirmed-lease-seconds", "12",
 		)
 		waitForHTTP(t, ctx, process, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
 		waitForProcessLog(t, ctx, process, "runtime agent registered")
 		runtimes = append(runtimes, process)
 		runtimeURLs = append(runtimeURLs, runtimeBaseURL)
 		workRoots = append(workRoots, workRoot)
+		workspaceRoots = append(workspaceRoots, workspaceRoot)
+		agents, _ := waitForObservedRuntimeAgents(
+			t, ctx, server, runtimes, publicClient, publicBaseURL,
+			func(items []observedRuntimeAgent) bool { return len(items) == index+1 },
+		)
+		instanceID := ""
+		for _, agent := range agents {
+			if !knownRuntimeIDs[agent.InstanceID] {
+				instanceID = agent.InstanceID
+				break
+			}
+		}
+		if instanceID == "" {
+			t.Fatalf("cannot identify newly registered Runtime %d: %+v", index+1, agents)
+		}
+		knownRuntimeIDs[instanceID] = true
+		runtimeInstanceIDs = append(runtimeInstanceIDs, instanceID)
 	}
 
 	pool, err := pgxpool.New(ctx, isolateURL)
@@ -196,6 +224,10 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 				modelName, got, want, gateway.Observations(), gateway.Failures())
 		}
 	}
+	runWorkerObservationsProcessGate(
+		t, ctx, pool, store, gateway, server, runtimes, controlClient,
+		publicClient, publicBaseURL, runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
+	)
 	if failures := gateway.Failures(); len(failures) != 0 {
 		t.Fatalf("routing Gateway validation failures: %v", failures)
 	}
@@ -209,6 +241,319 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 		for _, process := range runtimes {
 			if strings.Contains(process.logs.redacted(), secret) {
 				t.Fatalf("%s logs contain a configured secret", process.name)
+			}
+		}
+	}
+}
+
+func runWorkerObservationsProcessGate(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	store *runstore.PostgresStore,
+	gateway *routingGateway,
+	server *childProcess,
+	runtimes []*childProcess,
+	controlClient, publicClient *http.Client,
+	publicBaseURL string,
+	runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots []string,
+) {
+	t.Helper()
+	initialFixture := fixtureForObservationScenario("observation-router-initial-planner")
+	initialArchive := workerObservationArchive(t, map[string]string{
+		initialFixture.BuilderPath:  initialFixture.Before + "\n",
+		initialFixture.ReviewerPath: "review the initial fixture\n",
+		initialFixture.UnreadPath:   "intentionally unread\n",
+	})
+	initialSource := uploadProjectArtifact(
+		t, publicClient, publicBaseURL, "worker-observations-initial", "application/zip", initialArchive,
+	)
+
+	streamlineRunID := createWorkflowRunWithParameters(
+		t, publicClient, publicBaseURL, "worker-observations-streamline@1",
+		"worker-observations-streamline", initialSource,
+		map[string]string{"scenario": "observations-streamline"},
+	)
+	streamlineStatus := waitForRoutingRun(
+		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, streamlineRunID,
+	)
+	streamlineAllocations := assertWorkerObservationExecution(
+		t, ctx, store, gateway, publicClient, publicBaseURL, streamlineStatus,
+		"observation-streamline-initial-planner", map[string]string{
+			"report": initialFixture.BuilderReport,
+		},
+	)
+	waitForObservationAllocationsReleased(
+		t, ctx, streamlineAllocations, runtimes, controlClient,
+		runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
+	)
+
+	routerRunID := createWorkflowRunWithParameters(
+		t, publicClient, publicBaseURL, "worker-observations-router@1",
+		"worker-observations-router-initial", initialSource,
+		map[string]string{"scenario": "observations-initial"},
+	)
+	routerStatus := waitForRoutingRun(
+		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, routerRunID,
+	)
+	routerAllocations := assertWorkerObservationExecution(
+		t, ctx, store, gateway, publicClient, publicBaseURL, routerStatus,
+		"observation-router-initial-planner", map[string]string{
+			"builder_report":  initialFixture.BuilderReport,
+			"reviewer_report": initialFixture.ReviewerReport,
+		},
+	)
+	waitForObservationAllocationsReleased(
+		t, ctx, routerAllocations, runtimes, controlClient,
+		runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
+	)
+	initialInstances := allocationInstanceSet(routerAllocations)
+	if len(initialInstances) != 2 {
+		t.Fatalf("observation Router used %d Runtime instances, want two: %+v", len(initialInstances), routerAllocations)
+	}
+
+	reuseFixture := fixtureForObservationScenario("observation-router-reuse-planner")
+	reuseArchive := workerObservationArchive(t, map[string]string{
+		reuseFixture.BuilderPath:  reuseFixture.Before + "\n",
+		reuseFixture.ReviewerPath: "review the fresh fixture\n",
+		reuseFixture.UnreadPath:   "fresh intentionally unread\n",
+	})
+	reuseSource := uploadProjectArtifact(
+		t, publicClient, publicBaseURL, "worker-observations-reuse", "application/zip", reuseArchive,
+	)
+	reuseRunID := createWorkflowRunWithParameters(
+		t, publicClient, publicBaseURL, "worker-observations-router@1",
+		"worker-observations-router-reuse", reuseSource,
+		map[string]string{"scenario": "observations-reuse"},
+	)
+	reuseStatus := waitForRoutingRun(
+		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, reuseRunID,
+	)
+	reuseAllocations := assertWorkerObservationExecution(
+		t, ctx, store, gateway, publicClient, publicBaseURL, reuseStatus,
+		"observation-router-reuse-planner", map[string]string{
+			"builder_report":  reuseFixture.BuilderReport,
+			"reviewer_report": reuseFixture.ReviewerReport,
+		},
+	)
+	if got := allocationInstanceSet(reuseAllocations); !equalStringSets(got, initialInstances) {
+		t.Fatalf("fresh observation Router did not reuse both Runtime slots: got=%v want=%v", got, initialInstances)
+	}
+	waitForObservationAllocationsReleased(
+		t, ctx, reuseAllocations, runtimes, controlClient,
+		runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots,
+	)
+
+	assertWorkerObservationPlannerRetention(
+		t, ctx, pool, []string{streamlineRunID, routerRunID, reuseRunID},
+		[]string{
+			initialFixture.BuilderPath, initialFixture.ReviewerPath, initialFixture.UnreadPath,
+			reuseFixture.BuilderPath, reuseFixture.ReviewerPath, reuseFixture.UnreadPath,
+		},
+	)
+	_, operationsBody := observedRuntimeAgents(t, publicClient, publicBaseURL)
+	publicStatuses, err := json.Marshal([]runStatus{streamlineStatus, routerStatus, reuseStatus})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retainedSurfaces := map[string]string{
+		"Server logs":       server.logs.redacted(publicToken, llmGatewayToken),
+		"public Runs":       string(publicStatuses),
+		"public Operations": operationsBody,
+	}
+	for _, runtime := range runtimes {
+		retainedSurfaces[runtime.name+" logs"] = runtime.logs.redacted(publicToken, llmGatewayToken)
+	}
+	for _, forbidden := range []string{
+		initialFixture.BuilderPath, initialFixture.ReviewerPath, initialFixture.UnreadPath,
+		reuseFixture.BuilderPath, reuseFixture.ReviewerPath, reuseFixture.UnreadPath,
+	} {
+		for surface, retained := range retainedSurfaces {
+			if strings.Contains(retained, forbidden) {
+				t.Fatalf("%s retained Worker State path %q", surface, forbidden)
+			}
+		}
+	}
+}
+
+func workerObservationArchive(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var output bytes.Buffer
+	writer := zip.NewWriter(&output)
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	for _, path := range paths {
+		header := &zip.FileHeader{Name: path, Method: zip.Store}
+		header.SetMode(0o600)
+		header.SetModTime(time.Date(2026, 9, 2, 0, 0, 0, 0, time.UTC))
+		entry, err := writer.CreateHeader(header)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write([]byte(files[path])); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return output.Bytes()
+}
+
+func assertWorkerObservationExecution(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	gateway *routingGateway,
+	client *http.Client,
+	baseURL string,
+	status runStatus,
+	scenario string,
+	wantOutputs map[string]string,
+) []runstore.StageAllocation {
+	t.Helper()
+	if status.State != "succeeded" || len(status.Attempts) != 1 ||
+		status.Attempts[0].State != "succeeded" || status.Attempts[0].Metrics == nil ||
+		!status.Attempts[0].Metrics.ReportsComplete {
+		t.Fatalf("Worker observation Run is incomplete: %+v", status)
+	}
+	for slot, expected := range wantOutputs {
+		ref, ok := status.Outputs[slot]
+		if !ok || ref.Revision == nil {
+			t.Fatalf("Worker observation Run omitted exact output %q: %+v", slot, status.Outputs)
+		}
+		data, mediaType := download(
+			t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/"+url.PathEscape(slot),
+		)
+		if string(data) != expected || mediaType != "text/markdown" {
+			t.Fatalf("Worker observation output %q = (%q, %q), want (%q, text/markdown)",
+				slot, data, mediaType, expected)
+		}
+	}
+	executions := requireExecutions(t, ctx, store, status.RunID, 1)
+	assertSucceededExecution(t, executions[0], 1)
+	allocations, err := store.ListStageAllocations(ctx, executions[0].StageExecutionID)
+	if err != nil || len(allocations) != len(wantOutputs) {
+		t.Fatalf("Worker observation allocations = (%+v, %v), want %d", allocations, err, len(wantOutputs))
+	}
+	reports, err := store.ListStageExecutionReports(ctx, executions[0].StageExecutionID)
+	if err != nil || len(reports) != len(allocations) {
+		t.Fatalf("Worker observation reports = (%+v, %v), want %d", reports, err, len(allocations))
+	}
+	stateUsages := gateway.StateUsages()
+	for _, report := range reports {
+		usage, ok := stateUsages[scenario+"/"+report.LogicalAgentName]
+		if !ok {
+			t.Fatalf("Gateway did not observe live State usage for %s/%s: %+v",
+				scenario, report.LogicalAgentName, stateUsages)
+		}
+		assertWorkerReportMatchesLiveUsage(t, report, usage)
+	}
+	return allocations
+}
+
+func assertWorkerReportMatchesLiveUsage(
+	t *testing.T,
+	report runstore.StageExecutionReport,
+	usage workerObservationUsage,
+) {
+	t.Helper()
+	worker := report.Report.Worker
+	metrics := worker.Metrics
+	if !worker.Complete || !report.Report.Runtime.Complete || metrics.ModelCalls == nil ||
+		metrics.TotalTokens == nil || *metrics.ModelCalls != usage.ModelCalls ||
+		*metrics.TotalTokens != usage.TotalTokens || int64(len(worker.ToolCalls)) != usage.ToolCalls {
+		t.Fatalf("durable report disagrees with live Worker State usage: report=%+v usage=%+v", worker, usage)
+	}
+	for name, calls := range usage.Tools {
+		value, ok := metrics.Tools[name]
+		if !ok || value.Calls == nil || *value.Calls != calls || value.Failed == nil || *value.Failed != 0 {
+			t.Fatalf("durable tool metrics %q = %+v, want calls=%d failed=0", name, value, calls)
+		}
+	}
+}
+
+func waitForObservationAllocationsReleased(
+	t *testing.T,
+	ctx context.Context,
+	allocations []runstore.StageAllocation,
+	runtimes []*childProcess,
+	client *http.Client,
+	runtimeURLs, runtimeInstanceIDs, workRoots, workspaceRoots []string,
+) {
+	t.Helper()
+	for _, allocation := range allocations {
+		index := runtimeProcessIndex(t, runtimeInstanceIDs, allocation.RuntimeAgentInstanceID)
+		waitForRuntimeReleased(
+			t, ctx, runtimes[index], client, runtimeURLs[index], allocation.AllocationID, workRoots[index],
+		)
+		deadline := time.Now().Add(10 * time.Second)
+		for !workRootEmpty(workspaceRoots[index]) && time.Now().Before(deadline) {
+			time.Sleep(50 * time.Millisecond)
+		}
+		if !workRootEmpty(workspaceRoots[index]) {
+			t.Fatalf("Runtime %s retained its allocation-private project workspace", allocation.RuntimeAgentInstanceID)
+		}
+	}
+}
+
+func runtimeProcessIndex(t *testing.T, runtimeInstanceIDs []string, instanceID string) int {
+	t.Helper()
+	for index, candidate := range runtimeInstanceIDs {
+		if candidate == instanceID {
+			return index
+		}
+	}
+	t.Fatalf("cannot map Runtime instance %s to its process", instanceID)
+	return -1
+}
+
+func allocationInstanceSet(allocations []runstore.StageAllocation) map[string]bool {
+	result := make(map[string]bool, len(allocations))
+	for _, allocation := range allocations {
+		result[allocation.RuntimeAgentInstanceID] = true
+	}
+	return result
+}
+
+func equalStringSets(left, right map[string]bool) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for value := range left {
+		if !right[value] {
+			return false
+		}
+	}
+	return true
+}
+
+func assertWorkerObservationPlannerRetention(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runIDs, forbidden []string,
+) {
+	t.Helper()
+	for _, runID := range runIDs {
+		queries := []string{
+			`SELECT COALESCE(string_agg(event::text, E'\n'), '') FROM planner_events WHERE run_id = $1`,
+			`SELECT COALESCE(string_agg(report.report::text, E'\n'), '')
+FROM planner_execution_reports AS report JOIN stage_executions AS execution
+ON execution.stage_execution_id = report.stage_execution_id WHERE execution.run_id = $1`,
+		}
+		for _, query := range queries {
+			var retained string
+			if err := pool.QueryRow(ctx, query, runID).Scan(&retained); err != nil {
+				t.Fatalf("read retained Planner observation surface for %s: %v", runID, err)
+			}
+			for _, value := range forbidden {
+				if strings.Contains(retained, value) {
+					t.Fatalf("durable Planner surface for %s retained State path %q", runID, value)
+				}
 			}
 		}
 	}

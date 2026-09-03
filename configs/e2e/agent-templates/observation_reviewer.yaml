@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: observation_reviewer
+  version: "1"
+
+spec:
+  description: Exercises deterministic workspace review and report publication
+  runtime: adk@1
+  instructions:
+    ref: instructions/worker-observations-reviewer.md
+  modelPolicy: reviewer_worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [read_file]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

@@ -174,17 +174,14 @@ func (g *codeAnalysisGateway) next(
 	var message map[string]any
 	reason := "tool_calls"
 	if step.final {
-		artifact, ok := lastExactArtifact(request, "analysis", "report")
+		_, ok := lastExactArtifact(request, "analysis", "report")
 		if !ok {
 			return nil, "", 0, fmt.Errorf("%s final response did not observe analysis/report", scenario.name)
 		}
-		body, _ := json.Marshal(map[string]any{
-			"apiVersion": "contractor/v1alpha1",
-			"outcome":    "succeeded",
-			"summary":    "Code analysis fixture completed",
-			"artifacts":  map[string]any{"report": artifact},
-		})
-		message = map[string]any{"role": "assistant", "content": string(body)}
+		message, err = workerModelResultMessage(request, "Code analysis fixture completed")
+		if err != nil {
+			return nil, "", 0, err
+		}
 		reason = "stop"
 	} else {
 		arguments, err := step.arguments(request)

@@ -135,7 +135,6 @@ type domainGatewayStep struct {
 	validate  func(map[string]any) error
 	summary   string
 	artifacts map[string]domainArtifactBinding
-	plain     bool
 	modelFail bool
 }
 
@@ -315,7 +314,7 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 	finishReason := "tool_calls"
 	var responseErr error
 	if step.modelFail {
-		if step.tool != "" || len(step.artifacts) != 0 || step.plain {
+		if step.tool != "" || len(step.artifacts) != 0 {
 			return nil, "", 0, errors.New("scripted model failure step has incompatible response fields")
 		}
 		finishReason = ""
@@ -329,30 +328,17 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 			fmt.Sprintf("domain-%d-%d", g.stageIndex+1, stepNumber), step.tool, arguments,
 		)
 	} else {
-		artifacts := make(map[string]any, len(step.artifacts))
-		for slot, binding := range step.artifacts {
-			artifact, ok := lastExactArtifact(request, binding.namespace, binding.name)
+		for _, binding := range step.artifacts {
+			_, ok := lastExactArtifact(request, binding.namespace, binding.name)
 			if !ok {
 				return nil, "", 0, fmt.Errorf(
 					"%s final result has not observed %s/%s", stage.name, binding.namespace, binding.name,
 				)
 			}
-			artifacts[slot] = artifact
 		}
-		if step.plain {
-			message = map[string]any{"role": "assistant", "content": step.summary}
-		} else {
-			resultBody := map[string]any{
-				"apiVersion": "contractor/v1alpha1",
-				"outcome":    "succeeded",
-				"summary":    step.summary,
-				"artifacts":  artifacts,
-			}
-			result, marshalErr := json.Marshal(resultBody)
-			if marshalErr != nil {
-				return nil, "", 0, marshalErr
-			}
-			message = map[string]any{"role": "assistant", "content": string(result)}
+		message, responseErr = workerModelResultMessage(request, step.summary)
+		if responseErr != nil {
+			return nil, "", 0, responseErr
 		}
 		finishReason = "stop"
 	}
@@ -607,7 +593,7 @@ func finalGatewayStep(
 	summary string,
 	artifacts map[string]domainArtifactBinding,
 ) domainGatewayStep {
-	return domainGatewayStep{summary: summary, artifacts: artifacts, plain: true}
+	return domainGatewayStep{summary: summary, artifacts: artifacts}
 }
 
 func fixedArguments(value map[string]any) func(map[string]any) (map[string]any, error) {

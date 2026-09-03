@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: observation_builder
+  version: "1"
+
+spec:
+  description: Exercises deterministic workspace reads, matches, mutation and report publication
+  runtime: adk@1
+  instructions:
+    ref: instructions/worker-observations-builder.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [read_file, grep]
+    - ref: edit-files@1
+      tools: [edit]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

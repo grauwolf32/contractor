@@ -591,11 +591,22 @@ func waitForRuntimeReleased(
 				cardURL := baseURL + "/private/v1/allocations/" + url.PathEscape(allocationID) + "/a2a/.well-known/agent-card.json"
 				cardRequest, _ := http.NewRequestWithContext(ctx, http.MethodGet, cardURL, nil)
 				cardResponse, cardErr := client.Do(cardRequest)
+				cardReleased := false
 				if cardErr == nil {
+					cardReleased = cardResponse.StatusCode == http.StatusConflict
 					cardResponse.Body.Close()
-					if cardResponse.StatusCode == http.StatusConflict {
-						return
-					}
+				}
+				stateURL := baseURL + "/private/v1/allocations/" + url.PathEscape(allocationID) + "/agent-state"
+				stateRequest, _ := http.NewRequestWithContext(ctx, http.MethodGet, stateURL, nil)
+				stateResponse, stateErr := client.Do(stateRequest)
+				stateReleased := false
+				if stateErr == nil {
+					stateReleased = stateResponse.StatusCode == http.StatusConflict ||
+						stateResponse.StatusCode == http.StatusNotFound
+					stateResponse.Body.Close()
+				}
+				if cardReleased && stateReleased {
+					return
 				}
 			}
 		}

@@ -479,7 +479,8 @@ func sharedMemoryWorkerResponse(
 			return nil, "", "", err
 		}
 		if appendValue == "" {
-			return workerResultMessage(scenario + " read isolated note"), "stop", "<final>", nil
+			message, err := workerModelResultMessage(request, scenario+" read isolated note")
+			return message, "stop", "<final>", err
 		}
 		return gatewayToolCall(scenario+"-append", "append_memory", map[string]any{
 			"name": name, "content": appendValue,
@@ -494,18 +495,11 @@ func sharedMemoryWorkerResponse(
 		if err := requireMemoryTimestampTransition(request, scenario+"-read", scenario+"-append", true); err != nil {
 			return nil, "", "", err
 		}
-		return workerResultMessage(scenario + " updated isolated note"), "stop", "<final>", nil
+		message, err := workerModelResultMessage(request, scenario+" updated isolated note")
+		return message, "stop", "<final>", err
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its bounded script (step %d)", scenario, step)
 	}
-}
-
-func workerResultMessage(summary string) map[string]any {
-	encoded, _ := json.Marshal(map[string]any{
-		"apiVersion": "contractor/v1alpha1", "outcome": "succeeded",
-		"summary": summary, "artifacts": map[string]any{},
-	})
-	return map[string]any{"role": "assistant", "content": string(encoded)}
 }
 
 func gatewayToolCall(id, name string, arguments map[string]any) (map[string]any, string, string, error) {
@@ -772,7 +766,7 @@ func validateSharedMemoryTools(request map[string]any, scenario string, worker b
 	}
 	plannerTools := []string{
 		"add_subtask", "append_memory", "execute_current_subtask", "finish",
-		"list_memories", "list_subtasks", "read_memory", "write_memory",
+		"get_worker_tool_usage", "list_memories", "list_subtasks", "read_memory", "write_memory",
 	}
 	want := plannerTools
 	if worker {

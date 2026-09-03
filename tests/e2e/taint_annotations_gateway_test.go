@@ -129,7 +129,7 @@ func taintMutationGatewayStage() domainGatewayStage {
 				}),
 			},
 			{
-				plain: true, summary: "Taint trace fixture completed",
+				summary: "Taint trace fixture completed",
 				artifacts: map[string]domainArtifactBinding{
 					"report": {namespace: "analysis", name: "report"},
 				},
@@ -177,7 +177,7 @@ func taintCleanReuseGatewayStage() domainGatewayStage {
 				}),
 			},
 			{
-				plain: true, summary: "Clean unrelated workspace completed",
+				summary: "Clean unrelated workspace completed",
 				artifacts: map[string]domainArtifactBinding{
 					"report": {namespace: "analysis", name: "report"},
 				},
