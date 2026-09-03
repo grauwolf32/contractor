@@ -1541,6 +1541,13 @@ func cloneRunSnapshot(source *runtimeconfig.RunSnapshot) *runtimeconfig.RunSnaps
 func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
 	result := source
 	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	if source.Summarizer != nil {
+		summarizer := *source.Summarizer
+		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
+		summarizer.SoftTotalTokens = cloneIntPointer(source.Summarizer.SoftTotalTokens)
+		summarizer.SoftPromptTokens = cloneIntPointer(source.Summarizer.SoftPromptTokens)
+		result.Summarizer = &summarizer
+	}
 	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
 	for index, selection := range source.Toolsets {
 		result.Toolsets[index] = selection
@@ -1555,6 +1562,14 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 		}
 	}
 	return result
+}
+
+func cloneIntPointer(source *int) *int {
+	if source == nil {
+		return nil
+	}
+	value := *source
+	return &value
 }
 
 func cloneModelPolicy(source contracts.ResolvedModelPolicy) contracts.ResolvedModelPolicy {

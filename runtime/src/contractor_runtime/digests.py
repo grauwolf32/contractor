@@ -30,6 +30,9 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
 
     verify_model_policy_digest(template.model_policy)
 
+    if template.summarizer is not None:
+        verify_model_policy_digest(template.summarizer.model_policy)
+
     template_digest = _agent_template_digest(template)
     if template_digest != template.ref.digest:
         raise TemplateDigestMismatch("resolved AgentTemplate digest does not match its body")
@@ -77,18 +80,6 @@ def _llm_gateway_config_digest(gateway: ResolvedLLMGatewayConfig) -> str:
 
 
 def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
-    policy: dict[str, Any] = {
-        "ref": {
-            "policyId": template.model_policy.ref.policy_id,
-            "version": template.model_policy.ref.version,
-            "digest": template.model_policy.ref.digest,
-        },
-        "model": template.model_policy.model,
-    }
-    _add_policy_limits(policy, template.model_policy)
-    if template.model_policy.temperature is not None:
-        policy["temperature"] = template.model_policy.temperature
-
     toolsets = [
         {
             "ref": {
@@ -116,7 +107,7 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
                 "ref": template.instructions.ref,
                 "digest": template.instructions.digest,
             },
-            "modelPolicy": policy,
+            "modelPolicy": _resolved_model_policy_value(template.model_policy),
             "toolsets": toolsets,
             "sandboxProfile": {
                 "sandboxProfileId": template.sandbox_profile.sandbox_profile_id,
@@ -128,7 +119,31 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
         manifest["spec"]["skills"] = [
             {"namespace": skill.namespace, "name": skill.name} for skill in template.skills
         ]
+    if template.summarizer is not None:
+        summarizer: dict[str, Any] = {
+            "modelPolicy": _resolved_model_policy_value(template.summarizer.model_policy)
+        }
+        if template.summarizer.soft_total_tokens is not None:
+            summarizer["softTotalTokens"] = template.summarizer.soft_total_tokens
+        if template.summarizer.soft_prompt_tokens is not None:
+            summarizer["softPromptTokens"] = template.summarizer.soft_prompt_tokens
+        manifest["spec"]["summarizer"] = summarizer
     return _digest_jcs(manifest)
+
+
+def _resolved_model_policy_value(policy: ResolvedModelPolicy) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "ref": {
+            "policyId": policy.ref.policy_id,
+            "version": policy.ref.version,
+            "digest": policy.ref.digest,
+        },
+        "model": policy.model,
+    }
+    _add_policy_limits(result, policy)
+    if policy.temperature is not None:
+        result["temperature"] = policy.temperature
+    return result
 
 
 def _digest_jcs(value: Any) -> str:

@@ -211,6 +211,16 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 	if len(template.Skills) > 0 {
 		result["skills"] = append([]contracts.ArtifactRef(nil), template.Skills...)
 	}
+	if template.Summarizer != nil {
+		summarizer := map[string]any{"modelPolicy": template.Summarizer.ModelPolicy.Ref}
+		if template.Summarizer.SoftTotalTokens != nil {
+			summarizer["softTotalTokens"] = *template.Summarizer.SoftTotalTokens
+		}
+		if template.Summarizer.SoftPromptTokens != nil {
+			summarizer["softPromptTokens"] = *template.Summarizer.SoftPromptTokens
+		}
+		result["summarizer"] = summarizer
+	}
 	return result
 }
 

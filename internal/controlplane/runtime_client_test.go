@@ -105,6 +105,19 @@ func runtimePrincipalFromCertificate(t *testing.T, path string) string {
 func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	template := testTemplate(t)
 	template.Skills = []contracts.ArtifactRef{{Namespace: contracts.AgentSkillNamespace, Name: "review"}}
+	softTotalTokens := template.ModelPolicy.MaxTotalTokens - 1
+	softPromptTokens := 2048
+	template.Summarizer = &contracts.WorkerSummarizerConfig{
+		ModelPolicy: contracts.ResolvedModelPolicy{
+			Ref: contracts.ModelPolicyRef{
+				PolicyID: "terminal-summarizer", Version: "1",
+				Digest: "sha256:" + strings.Repeat("f", 64),
+			},
+			Model: "worker-summarizer-model", MaxOutputTokens: 1024,
+			MaxModelCalls: 1, MaxTotalTokens: 4096,
+		},
+		SoftTotalTokens: &softTotalTokens, SoftPromptTokens: &softPromptTokens,
+	}
 	effectivePolicy := template.ModelPolicy
 	effectivePolicy.Ref = contracts.ModelPolicyRef{
 		PolicyID: "worker-strong", Version: "2", Digest: "sha256:" + strings.Repeat("d", 64),
@@ -181,6 +194,12 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
 		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
+		received.Spec.AgentTemplate.Summarizer == nil ||
+		received.Spec.AgentTemplate.Summarizer.ModelPolicy.Ref != template.Summarizer.ModelPolicy.Ref ||
+		received.Spec.AgentTemplate.Summarizer.SoftTotalTokens == nil ||
+		*received.Spec.AgentTemplate.Summarizer.SoftTotalTokens != softTotalTokens ||
+		received.Spec.AgentTemplate.Summarizer.SoftPromptTokens == nil ||
+		*received.Spec.AgentTemplate.Summarizer.SoftPromptTokens != softPromptTokens ||
 		len(received.Spec.ResolvedSkills) != 1 ||
 		received.Spec.ResolvedSkills[0].Artifact.Revision == nil ||
 		*received.Spec.ResolvedSkills[0].Artifact.Revision != skillRevision ||

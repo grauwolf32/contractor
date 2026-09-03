@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: terminal_summarizer
+  version: "1"
+
+spec:
+  model: worker-summarizer-model
+  maxOutputTokens: 2048
+  maxModelCalls: 1
+  maxTotalTokens: 8192
+  temperature: 0.1

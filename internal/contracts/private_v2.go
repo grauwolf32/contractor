@@ -708,6 +708,11 @@ func (s AllocationSpecV2) Validate() error {
 	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
 		return err
 	}
+	if s.AgentTemplate.Summarizer != nil {
+		if err := validateWorkerSummarizerConfig(*s.AgentTemplate.Summarizer, s.ModelPolicy); err != nil {
+			return err
+		}
+	}
 	if err := s.RuntimeSettings.Validate(); err != nil {
 		return err
 	}

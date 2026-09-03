@@ -275,6 +275,34 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 		assertResolutionError(t, err, ResolutionGatewayMismatch, "worker.llmGateway.credential")
 	})
 
+	t.Run("unauthorized summarizer policy", func(t *testing.T) {
+		input := resolverInput()
+		summarizer := contracts.ResolvedModelPolicy{
+			Ref: contracts.ModelPolicyRef{
+				PolicyID: "terminal-summarizer", Version: "1", Digest: testDigest("8"),
+			},
+			Model: "summary-model", MaxOutputTokens: 1024, MaxModelCalls: 1,
+			MaxTotalTokens: 4096,
+		}
+		input.SummarizerModelPolicy = &summarizer
+		input.Default.Spec.Worker.LLMGateway.Credential = credentialField("agent-key")
+		input.LLMCredentials["agent-key"] = authorization(
+			input, "agent-key", testGatewayRef("primary", "1"),
+		)
+		_, err := ResolveRuntimeConfig(input)
+		assertResolutionError(t, err, ResolutionModelUnauthorized, "worker.llmGateway.credential")
+
+		authorized := input.LLMCredentials["agent-key"]
+		authorized.ModelPolicies = append(authorized.ModelPolicies, summarizer.Ref)
+		authorized.Models = append(authorized.Models, summarizer.Model)
+		input.LLMCredentials["agent-key"] = authorized
+		resolved, err := ResolveRuntimeConfig(input)
+		if err != nil || resolved.LLMGateway.Ref != testGatewayRef("primary", "1") ||
+			resolved.LLMCredential == nil || resolved.LLMCredential.CredentialID != "agent-key" {
+			t.Fatalf("summarizer-authorized shared route = (%+v, %v)", resolved, err)
+		}
+	})
+
 	t.Run("Runtime credential kind", func(t *testing.T) {
 		input := resolverInput()
 		input.RunLabels = []PinnedRuntimeConfig{testPin("debug", "4", Spec{Worker: WorkerPatch{

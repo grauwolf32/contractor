@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: summarizer_enabled_worker
+  version: "1"
+
+spec:
+  description: Deterministic Worker fixture with one-shot terminal summarization enabled
+  runtime: adk@1
+  instructions:
+    ref: instructions/worker-summarizer.md
+  modelPolicy: worker@1
+  summarizer:
+    modelPolicy: terminal_summarizer@1
+    softTotalTokens: 20000
+    softPromptTokens: 12000
+  toolsets:
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

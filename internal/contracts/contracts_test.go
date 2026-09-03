@@ -21,6 +21,7 @@ func TestValidGoldenFixtures(t *testing.T) {
 		"heartbeat-response.json":                   roundTrip[HeartbeatResponse],
 		"llm-gateway-config.json":                   roundTrip[ResolvedLLMGatewayConfig],
 		"allocation-spec.json":                      roundTrip[AllocationSpec],
+		"allocation-spec-summarizer.json":           roundTrip[AllocationSpec],
 		"allocation-spec-skills.json":               roundTrip[AllocationSpec],
 		"allocation-final-response.json":            roundTrip[AllocationFinalResponse],
 		"finalize-allocation.json":                  roundTrip[FinalizeAllocationRequest],
@@ -285,6 +286,68 @@ func TestAllocationSpecRequiresBoundedWorkerBudgets(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
+	t.Parallel()
+
+	var baseline map[string]any
+	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec-summarizer.json"), &baseline); err != nil {
+		t.Fatal(err)
+	}
+	tests := map[string]func(map[string]any){
+		"missing thresholds": func(summarizer map[string]any) {
+			delete(summarizer, "softTotalTokens")
+			delete(summarizer, "softPromptTokens")
+		},
+		"zero total threshold": func(summarizer map[string]any) {
+			summarizer["softTotalTokens"] = float64(0)
+		},
+		"total threshold reaches Worker hard bound": func(summarizer map[string]any) {
+			summarizer["softTotalTokens"] = float64(32768)
+		},
+		"zero prompt threshold": func(summarizer map[string]any) {
+			summarizer["softPromptTokens"] = float64(0)
+		},
+		"missing output budget": func(summarizer map[string]any) {
+			delete(summarizer["modelPolicy"].(map[string]any), "maxOutputTokens")
+		},
+		"missing total budget": func(summarizer map[string]any) {
+			delete(summarizer["modelPolicy"].(map[string]any), "maxTotalTokens")
+		},
+		"more than one model call": func(summarizer map[string]any) {
+			summarizer["modelPolicy"].(map[string]any)["maxModelCalls"] = float64(2)
+		},
+		"tool budget": func(summarizer map[string]any) {
+			summarizer["modelPolicy"].(map[string]any)["maxToolCalls"] = float64(1)
+		},
+		"Worker-call budget": func(summarizer map[string]any) {
+			summarizer["modelPolicy"].(map[string]any)["maxWorkerCalls"] = float64(1)
+		},
+	}
+	for name, mutate := range tests {
+		name, mutate := name, mutate
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			encoded, _ := json.Marshal(baseline)
+			var candidate map[string]any
+			_ = json.Unmarshal(encoded, &candidate)
+			summarizer := candidate["agentTemplate"].(map[string]any)["summarizer"].(map[string]any)
+			mutate(summarizer)
+			encoded, _ = json.Marshal(candidate)
+			if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+				t.Fatal("invalid Worker summarizer was accepted")
+			}
+		})
+	}
+	encoded, _ := json.Marshal(baseline)
+	var effectiveBound map[string]any
+	_ = json.Unmarshal(encoded, &effectiveBound)
+	effectiveBound["modelPolicy"].(map[string]any)["maxTotalTokens"] = float64(20000)
+	encoded, _ = json.Marshal(effectiveBound)
+	if _, err := DecodeStrict[AllocationSpec](encoded); err == nil {
+		t.Fatal("summarizer soft total at effective Worker hard bound was accepted")
 	}
 }
 

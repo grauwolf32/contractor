@@ -1,0 +1,17 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: summarizer_disabled_worker
+  version: "1"
+
+spec:
+  description: Deterministic Worker fixture with terminal summarization omitted
+  runtime: adk@1
+  instructions:
+    ref: instructions/worker-summarizer.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

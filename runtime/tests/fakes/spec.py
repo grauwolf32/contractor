@@ -23,6 +23,7 @@ from contractor_runtime.contracts import (
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
+    WorkerSummarizerConfig,
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
@@ -37,6 +38,7 @@ def allocation_spec(
     secret: str = "recognizable-a2a-test-token",
     tools: list[str] | None = None,
     skills: list[ResolvedSkill] | None = None,
+    summarizer: bool = False,
 ) -> AllocationSpecV2:
     skills = skills or []
     instructions = "Use only the selected tools and return a strict result."
@@ -50,6 +52,26 @@ def allocation_spec(
         temperature=0.1,
     )
     policy.ref.digest = _model_policy_digest(policy)
+    summarizer_config: WorkerSummarizerConfig | None = None
+    if summarizer:
+        summarizer_policy = ResolvedModelPolicy(
+            ref=ModelPolicyRef(
+                policyId="terminal_summarizer",
+                version="1",
+                digest="sha256:" + "0" * 64,
+            ),
+            model="worker-summarizer-model",
+            maxOutputTokens=2048,
+            maxModelCalls=1,
+            maxTotalTokens=8192,
+            temperature=0.1,
+        )
+        summarizer_policy.ref.digest = _model_policy_digest(summarizer_policy)
+        summarizer_config = WorkerSummarizerConfig(
+            modelPolicy=summarizer_policy,
+            softTotalTokens=20_000,
+            softPromptTokens=12_000,
+        )
     template = ResolvedAgentTemplate(
         ref=AgentTemplateRef(
             templateId="artifact_builder", version="1", digest="sha256:" + "0" * 64
@@ -62,6 +84,7 @@ def allocation_spec(
             text=instructions,
         ),
         modelPolicy=policy,
+        summarizer=summarizer_config,
         toolsets=[
             ToolsetSelection(
                 ref=ToolsetRef(toolsetId="run-artifacts", version="1"),

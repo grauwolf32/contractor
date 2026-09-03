@@ -65,19 +65,6 @@ func executionConfigDigest(selector Selector, patch StageExecutionConfigPatch) (
 }
 
 func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemplate) (string, error) {
-	modelPolicy := map[string]any{
-		"ref": map[string]any{
-			"policyId": template.ModelPolicy.Ref.PolicyID,
-			"version":  template.ModelPolicy.Ref.Version,
-			"digest":   template.ModelPolicy.Ref.Digest,
-		},
-		"model": template.ModelPolicy.Model,
-	}
-	addModelPolicyLimits(modelPolicy, template.ModelPolicy)
-	if template.ModelPolicy.Temperature != nil {
-		modelPolicy["temperature"] = *template.ModelPolicy.Temperature
-	}
-
 	toolsets := make([]any, 0, len(template.Toolsets))
 	for _, selection := range template.Toolsets {
 		tools := make([]any, len(selection.Tools))
@@ -102,7 +89,7 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 			"ref":    template.Instructions.Ref,
 			"digest": template.Instructions.Digest,
 		},
-		"modelPolicy": modelPolicy,
+		"modelPolicy": resolvedModelPolicyCanonicalValue(template.ModelPolicy),
 		"toolsets":    toolsets,
 		"sandboxProfile": map[string]any{
 			"sandboxProfileId": template.SandboxProfile.SandboxProfileID,
@@ -116,6 +103,18 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 		}
 		spec["skills"] = skills
 	}
+	if template.Summarizer != nil {
+		summarizer := map[string]any{
+			"modelPolicy": resolvedModelPolicyCanonicalValue(template.Summarizer.ModelPolicy),
+		}
+		if template.Summarizer.SoftTotalTokens != nil {
+			summarizer["softTotalTokens"] = *template.Summarizer.SoftTotalTokens
+		}
+		if template.Summarizer.SoftPromptTokens != nil {
+			summarizer["softPromptTokens"] = *template.Summarizer.SoftPromptTokens
+		}
+		spec["summarizer"] = summarizer
+	}
 
 	manifest := map[string]any{
 		"apiVersion": contracts.APIVersion,
@@ -127,6 +126,22 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 		"spec": spec,
 	}
 	return digestJCS(manifest)
+}
+
+func resolvedModelPolicyCanonicalValue(policy contracts.ResolvedModelPolicy) map[string]any {
+	result := map[string]any{
+		"ref": map[string]any{
+			"policyId": policy.Ref.PolicyID,
+			"version":  policy.Ref.Version,
+			"digest":   policy.Ref.Digest,
+		},
+		"model": policy.Model,
+	}
+	addModelPolicyLimits(result, policy)
+	if policy.Temperature != nil {
+		result["temperature"] = *policy.Temperature
+	}
+	return result
 }
 
 func addModelPolicyLimits(target map[string]any, policy contracts.ResolvedModelPolicy) {

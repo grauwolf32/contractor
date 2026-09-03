@@ -65,6 +65,10 @@ func (p ResolvedModelPolicy) ValidateForWorker(hasTools bool) error {
 	return validateWorkerModelPolicy(p, hasTools)
 }
 
+func (p ResolvedModelPolicy) ValidateForWorkerSummarizer() error {
+	return validateWorkerSummarizerModelPolicy(p)
+}
+
 func (p ResolvedModelPolicy) ValidateForPlanner() error {
 	if err := validateModelPolicy(p); err != nil {
 		return err
@@ -108,15 +112,30 @@ type ToolsetSelection struct {
 	Tools []string   `json:"tools"`
 }
 
+// WorkerSummarizerConfig is an immutable, template-owned terminal
+// summarization policy. Its ModelPolicy is resolved before a Run is accepted;
+// the optional thresholds remain pointers so strict wire decoding can
+// distinguish omission from an explicitly invalid zero.
+type WorkerSummarizerConfig struct {
+	ModelPolicy      ResolvedModelPolicy `json:"modelPolicy"`
+	SoftTotalTokens  *int                `json:"softTotalTokens,omitempty"`
+	SoftPromptTokens *int                `json:"softPromptTokens,omitempty"`
+}
+
+func (c WorkerSummarizerConfig) Validate(workerPolicy ResolvedModelPolicy) error {
+	return validateWorkerSummarizerConfig(c, workerPolicy)
+}
+
 type ResolvedAgentTemplate struct {
-	Ref            AgentTemplateRef     `json:"ref"`
-	Description    string               `json:"description"`
-	Runtime        WorkerRuntimeRef     `json:"runtime"`
-	Instructions   ResolvedInstructions `json:"instructions"`
-	ModelPolicy    ResolvedModelPolicy  `json:"modelPolicy"`
-	Toolsets       []ToolsetSelection   `json:"toolsets"`
-	Skills         []ArtifactRef        `json:"skills,omitempty"`
-	SandboxProfile SandboxProfileRef    `json:"sandboxProfile"`
+	Ref            AgentTemplateRef        `json:"ref"`
+	Description    string                  `json:"description"`
+	Runtime        WorkerRuntimeRef        `json:"runtime"`
+	Instructions   ResolvedInstructions    `json:"instructions"`
+	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy"`
+	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
+	Toolsets       []ToolsetSelection      `json:"toolsets"`
+	Skills         []ArtifactRef           `json:"skills,omitempty"`
+	SandboxProfile SandboxProfileRef       `json:"sandboxProfile"`
 }
 
 func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }
@@ -177,6 +196,11 @@ func (s AllocationSpec) Validate() error {
 	}
 	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
 		return err
+	}
+	if s.AgentTemplate.Summarizer != nil {
+		if err := validateWorkerSummarizerConfig(*s.AgentTemplate.Summarizer, s.ModelPolicy); err != nil {
+			return err
+		}
 	}
 	return validateRuntimeSettings(s.RuntimeSettings)
 }
@@ -303,6 +327,11 @@ func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
 	if err := validateWorkerModelPolicy(template.ModelPolicy, len(template.Toolsets) > 0 || len(template.Skills) > 0); err != nil {
 		return err
 	}
+	if template.Summarizer != nil {
+		if err := validateWorkerSummarizerConfig(*template.Summarizer, template.ModelPolicy); err != nil {
+			return err
+		}
+	}
 	seenToolsets := make(map[string]struct{})
 	seenTools := make(map[string]struct{})
 	for _, selection := range template.Toolsets {
@@ -412,6 +441,53 @@ func validateWorkerModelPolicy(policy ResolvedModelPolicy, hasTools bool) error 
 	}
 	if policy.MaxWorkerCalls != 0 {
 		return invalidf("Worker modelPolicy must omit maxWorkerCalls")
+	}
+	return nil
+}
+
+func validateWorkerSummarizerModelPolicy(policy ResolvedModelPolicy) error {
+	if err := validateModelPolicy(policy); err != nil {
+		return err
+	}
+	if policy.MaxOutputTokens <= 0 {
+		return invalidf("Worker summarizer modelPolicy requires maxOutputTokens")
+	}
+	if policy.MaxModelCalls != 1 {
+		return invalidf("Worker summarizer modelPolicy requires maxModelCalls=1")
+	}
+	if policy.MaxTotalTokens <= 0 {
+		return invalidf("Worker summarizer modelPolicy requires maxTotalTokens")
+	}
+	if policy.MaxToolCalls != 0 {
+		return invalidf("Worker summarizer modelPolicy must omit maxToolCalls")
+	}
+	if policy.MaxWorkerCalls != 0 {
+		return invalidf("Worker summarizer modelPolicy must omit maxWorkerCalls")
+	}
+	return nil
+}
+
+func validateWorkerSummarizerConfig(
+	config WorkerSummarizerConfig,
+	workerPolicy ResolvedModelPolicy,
+) error {
+	if err := validateWorkerSummarizerModelPolicy(config.ModelPolicy); err != nil {
+		return err
+	}
+	if config.SoftTotalTokens == nil && config.SoftPromptTokens == nil {
+		return invalidf("Worker summarizer requires softTotalTokens or softPromptTokens")
+	}
+	if config.SoftTotalTokens != nil {
+		if *config.SoftTotalTokens <= 0 || *config.SoftTotalTokens > MaxWorkerTotalTokens {
+			return invalidf("Worker summarizer softTotalTokens must be between 1 and %d", MaxWorkerTotalTokens)
+		}
+		if workerPolicy.MaxTotalTokens <= 0 || *config.SoftTotalTokens >= workerPolicy.MaxTotalTokens {
+			return invalidf("Worker summarizer softTotalTokens must be below Worker maxTotalTokens")
+		}
+	}
+	if config.SoftPromptTokens != nil &&
+		(*config.SoftPromptTokens <= 0 || *config.SoftPromptTokens > MaxWorkerTotalTokens) {
+		return invalidf("Worker summarizer softPromptTokens must be between 1 and %d", MaxWorkerTotalTokens)
 	}
 	return nil
 }

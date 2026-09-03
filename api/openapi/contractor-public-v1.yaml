@@ -2646,6 +2646,15 @@ components:
           maxItems: 128
           uniqueItems: true
           items: {$ref: '#/components/schemas/ConfigId'}
+    WorkerSummarizerConfigBody:
+      type: object
+      additionalProperties: false
+      required: [modelPolicy]
+      minProperties: 2
+      properties:
+        modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
+        softTotalTokens: {type: integer, minimum: 1, maximum: 100000000}
+        softPromptTokens: {type: integer, minimum: 1, maximum: 100000000}
     AgentTemplateBody:
       type: object
       additionalProperties: false
@@ -2655,6 +2664,7 @@ components:
         runtime: {$ref: '#/components/schemas/Selector'}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
+        summarizer: {$ref: '#/components/schemas/WorkerSummarizerConfigBody'}
         toolsets: {type: array, maxItems: 128, items: {$ref: '#/components/schemas/ToolsetSelection'}}
         sandboxProfile: {$ref: '#/components/schemas/Selector'}
     ExecutionConfigSelection:

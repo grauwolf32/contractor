@@ -1508,11 +1508,17 @@ export interface components {
             ref: components["schemas"]["Selector"];
             tools: components["schemas"]["ConfigId"][];
         };
+        WorkerSummarizerConfigBody: {
+            modelPolicy: components["schemas"]["ModelPolicyRef"];
+            softTotalTokens?: number;
+            softPromptTokens?: number;
+        };
         AgentTemplateBody: {
             description: string;
             runtime: components["schemas"]["Selector"];
             instructions: components["schemas"]["InstructionsRef"];
             modelPolicy: components["schemas"]["ModelPolicyRef"];
+            summarizer?: components["schemas"]["WorkerSummarizerConfigBody"];
             toolsets: components["schemas"]["ToolsetSelection"][];
             sandboxProfile: components["schemas"]["Selector"];
         };

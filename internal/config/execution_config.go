@@ -522,6 +522,11 @@ func validateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		if err := validateConsumerExecutionConfig(selection, false, hasTools); err != nil {
 			return fmt.Errorf("Stage %q Agent %q executionConfig: %w", stageName, logicalName, err)
 		}
+		if binding.Template.Summarizer != nil {
+			if err := binding.Template.Summarizer.Validate(selection.ModelPolicy); err != nil {
+				return fmt.Errorf("Stage %q Agent %q summarizer: %w", stageName, logicalName, err)
+			}
+		}
 	}
 	return nil
 }

@@ -1,0 +1,79 @@
+{
+  "apiVersion": "contractor/v1alpha1",
+  "allocationId": "019c-allocation-summarizer",
+  "runId": "019c-run-summarizer",
+  "stageExecutionId": "019c-stage-summarizer",
+  "logicalAgentName": "builder",
+  "namespace": "builder",
+  "leaseExpiresAt": "2026-08-29T10:01:00Z",
+  "agentTemplate": {
+    "ref": {
+      "templateId": "summarizer_enabled_worker",
+      "version": "1",
+      "digest": "sha256:600ac762e9c5cb321324d47debbc35172ff6b9f30a14a79fb7ee4fef3067f5fc"
+    },
+    "description": "Builds the requested artifact with terminal summarization",
+    "runtime": {"runtimeId": "adk", "version": "1"},
+    "instructions": {
+      "ref": "instructions/worker-summarizer.md",
+      "digest": "sha256:c038791c2f52c3fc4a7bf983526e6d4c87b4831db5176ce310a90a2f630ddb9f",
+      "text": "Use the selected tools to complete the requested task."
+    },
+    "modelPolicy": {
+      "ref": {
+        "policyId": "worker",
+        "version": "1",
+        "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101"
+      },
+      "model": "worker-model",
+      "maxOutputTokens": 4096,
+      "maxModelCalls": 8,
+      "maxToolCalls": 16,
+      "maxTotalTokens": 32768,
+      "temperature": 0.1
+    },
+    "summarizer": {
+      "modelPolicy": {
+        "ref": {
+          "policyId": "terminal_summarizer",
+          "version": "1",
+          "digest": "sha256:c647b932e3be52d014dc76282fe618546c7d51e8956aa809b03418929052bbc5"
+        },
+        "model": "worker-summarizer-model",
+        "maxOutputTokens": 2048,
+        "maxModelCalls": 1,
+        "maxTotalTokens": 8192,
+        "temperature": 0.1
+      },
+      "softTotalTokens": 20000,
+      "softPromptTokens": 12000
+    },
+    "toolsets": [
+      {
+        "ref": {"toolsetId": "text-artifacts", "version": "1"},
+        "tools": ["write_text_artifact"]
+      }
+    ],
+    "sandboxProfile": {"sandboxProfileId": "local-workdir", "version": "1"}
+  },
+  "resolvedSkills": [],
+  "modelPolicy": {
+    "ref": {
+      "policyId": "worker",
+      "version": "1",
+      "digest": "sha256:98aeee4bea132b3320d0f7e75443e9ed4b9aab0f0e12db4cd17b6d067bc25101"
+    },
+    "model": "worker-model",
+    "maxOutputTokens": 4096,
+    "maxModelCalls": 8,
+    "maxToolCalls": 16,
+    "maxTotalTokens": 32768,
+    "temperature": 0.1
+  },
+  "runtimeSettings": {
+    "llmGatewayUrl": "http://127.0.0.1:4000/v1",
+    "llmGatewayToken": "golden-secret-token",
+    "artifactApiUrl": "https://127.0.0.1:8443/private/v1",
+    "requestTimeoutSeconds": 30
+  }
+}

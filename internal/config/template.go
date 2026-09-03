@@ -41,6 +41,10 @@ func (l *loader) resolveAgentTemplate(
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.modelPolicy selects unknown ModelPolicy %q", policySelector)
 	}
 	policy = cloneModelPolicy(policy)
+	summarizer, err := l.resolveWorkerSummarizer(spec.Summarizer, policy)
+	if err != nil {
+		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.summarizer: %w", err)
+	}
 
 	toolsets, err := l.resolveToolsets(spec.Toolsets)
 	if err != nil {
@@ -80,6 +84,7 @@ func (l *loader) resolveAgentTemplate(
 		},
 		Instructions: instructions,
 		ModelPolicy:  policy,
+		Summarizer:   summarizer,
 		Toolsets:     toolsets,
 		Skills:       skills,
 		SandboxProfile: contracts.SandboxProfileRef{
@@ -92,6 +97,32 @@ func (l *loader) resolveAgentTemplate(
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("compute AgentTemplate digest: %w", err)
 	}
 	result.Ref.Digest = digest
+	return result, nil
+}
+
+func (l *loader) resolveWorkerSummarizer(
+	source *workerSummarizerSource,
+	workerPolicy contracts.ResolvedModelPolicy,
+) (*contracts.WorkerSummarizerConfig, error) {
+	if source == nil {
+		return nil, nil
+	}
+	selector, err := ParseSelector(source.ModelPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("modelPolicy: %w", err)
+	}
+	policy, ok := l.policies[selector.String()]
+	if !ok {
+		return nil, fmt.Errorf("modelPolicy selects unknown ModelPolicy %q", selector)
+	}
+	result := &contracts.WorkerSummarizerConfig{
+		ModelPolicy:      cloneModelPolicy(policy),
+		SoftTotalTokens:  cloneInt(source.SoftTotalTokens),
+		SoftPromptTokens: cloneInt(source.SoftPromptTokens),
+	}
+	if err := result.Validate(workerPolicy); err != nil {
+		return nil, err
+	}
 	return result, nil
 }
 

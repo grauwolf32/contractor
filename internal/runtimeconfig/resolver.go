@@ -139,16 +139,17 @@ type LLMCredentialAuthorization struct {
 }
 
 type ResolveRuntimeConfigInput struct {
-	ModelPolicy        contracts.ResolvedModelPolicy
-	Default            PinnedRuntimeConfig
-	Workflow           WorkerRoutePatch
-	RunLabels          []PinnedRuntimeConfig
-	RunOverride        WorkerRoutePatch
-	Escalation         WorkerRoutePatch
-	AgentLabels        []PinnedRuntimeConfig
-	Gateways           map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig
-	LLMCredentials     map[string]LLMCredentialAuthorization
-	RuntimeCredentials map[string]contracts.RuntimeCredentialKind
+	ModelPolicy           contracts.ResolvedModelPolicy
+	SummarizerModelPolicy *contracts.ResolvedModelPolicy
+	Default               PinnedRuntimeConfig
+	Workflow              WorkerRoutePatch
+	RunLabels             []PinnedRuntimeConfig
+	RunOverride           WorkerRoutePatch
+	Escalation            WorkerRoutePatch
+	AgentLabels           []PinnedRuntimeConfig
+	Gateways              map[contracts.LLMGatewayConfigRef]contracts.ResolvedLLMGatewayConfig
+	LLMCredentials        map[string]LLMCredentialAuthorization
+	RuntimeCredentials    map[string]contracts.RuntimeCredentialKind
 }
 
 // ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
@@ -208,6 +209,13 @@ type layerOrigins struct {
 func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfig, error) {
 	if err := input.ModelPolicy.Validate(); err != nil {
 		return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelPolicy", ErrInvalid)
+	}
+	if input.SummarizerModelPolicy != nil {
+		if err := input.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionInvalid, "summarizer.modelPolicy", ErrInvalid,
+			)
+		}
 	}
 	if err := validatePinned(input.Default, DefaultLabel); err != nil {
 		return ResolvedRuntimeConfig{}, err
@@ -455,6 +463,13 @@ func validateLLMRoute(
 	if !authorization.Unrestricted &&
 		(!containsModelPolicy(authorization.ModelPolicies, input.ModelPolicy.Ref) ||
 			!containsString(authorization.Models, input.ModelPolicy.Model)) {
+		return resolutionError(
+			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
+		)
+	}
+	if !authorization.Unrestricted && input.SummarizerModelPolicy != nil &&
+		(!containsModelPolicy(authorization.ModelPolicies, input.SummarizerModelPolicy.Ref) ||
+			!containsString(authorization.Models, input.SummarizerModelPolicy.Model)) {
 		return resolutionError(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)

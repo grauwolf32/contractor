@@ -334,8 +334,14 @@ func (a *PlacementAllocator) resolveCandidate(
 	if err != nil {
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
+	var summarizerModelPolicy *contracts.ResolvedModelPolicy
+	if binding.AgentTemplate.Summarizer != nil {
+		policy := binding.AgentTemplate.Summarizer.ModelPolicy
+		summarizerModelPolicy = &policy
+	}
 	return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
-		ModelPolicy: binding.RuntimeSelection.ModelPolicy, Default: defaultConfig,
+		ModelPolicy: binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,
+		Default:  defaultConfig,
 		Workflow: workflowPatch, RunLabels: runConfigs, RunOverride: runPatch,
 		Escalation: escalationPatch, AgentLabels: agentConfigs,
 		Gateways: gateways, LLMCredentials: llmCredentials, RuntimeCredentials: runtimeCredentials,

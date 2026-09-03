@@ -213,6 +213,13 @@ func cloneLLMGatewayConfig(
 func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.ResolvedAgentTemplate {
 	result := source
 	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
+	if source.Summarizer != nil {
+		summarizer := *source.Summarizer
+		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
+		summarizer.SoftTotalTokens = cloneInt(source.Summarizer.SoftTotalTokens)
+		summarizer.SoftPromptTokens = cloneInt(source.Summarizer.SoftPromptTokens)
+		result.Summarizer = &summarizer
+	}
 	result.Toolsets = make([]contracts.ToolsetSelection, len(source.Toolsets))
 	for index, toolset := range source.Toolsets {
 		result.Toolsets[index] = toolset

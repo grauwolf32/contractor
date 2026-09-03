@@ -370,6 +370,17 @@ def _require_worker_policy(policy: ResolvedModelPolicy, *, has_tools: bool) -> N
         raise ValueError("modelPolicy is incompatible with adk@1 Worker")
 
 
+def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
+    if (
+        policy.max_output_tokens is None
+        or policy.max_model_calls != 1
+        or policy.max_total_tokens is None
+        or policy.max_tool_calls is not None
+        or policy.max_worker_calls is not None
+    ):
+        raise ValueError("modelPolicy is incompatible with the Worker terminal summarizer")
+
+
 class LLMGatewayCredentialManager(WireModel):
     implementation: Literal["litellm-virtual-keys@1"]
     management_url: str
@@ -405,12 +416,26 @@ class ToolsetSelection(WireModel):
         return self
 
 
+class WorkerSummarizerConfig(WireModel):
+    model_policy: ResolvedModelPolicy
+    soft_total_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
+    soft_prompt_tokens: int | None = Field(default=None, gt=0, le=100_000_000)
+
+    @model_validator(mode="after")
+    def validate_summarizer(self) -> Self:
+        _require_worker_summarizer_policy(self.model_policy)
+        if self.soft_total_tokens is None and self.soft_prompt_tokens is None:
+            raise ValueError("Worker summarizer requires a soft token threshold")
+        return self
+
+
 class ResolvedAgentTemplate(WireModel):
     ref: AgentTemplateRef
     description: str
     runtime: WorkerRuntimeRef
     instructions: ResolvedInstructions
     model_policy: ResolvedModelPolicy
+    summarizer: WorkerSummarizerConfig | None = None
     toolsets: list[ToolsetSelection]
     skills: list[ArtifactRef] = Field(
         default_factory=list, max_length=32, exclude_if=lambda value: not value
@@ -441,6 +466,16 @@ class ResolvedAgentTemplate(WireModel):
         if self.skills and NATIVE_SKILL_TOOL_NAMES.intersection(visible):
             raise ValueError("model-visible tool name is reserved by Agent Skills")
         _require_worker_policy(self.model_policy, has_tools=bool(visible or self.skills))
+        if self.summarizer is not None:
+            _require_worker_summarizer_policy(self.summarizer.model_policy)
+            if (
+                self.summarizer.soft_total_tokens is not None
+                and self.model_policy.max_total_tokens is not None
+                and self.summarizer.soft_total_tokens >= self.model_policy.max_total_tokens
+            ):
+                raise ValueError(
+                    "Worker summarizer softTotalTokens must be below Worker maxTotalTokens"
+                )
         return self
 
 
@@ -513,6 +548,16 @@ class AllocationSpec(VersionedWireModel):
                 or any(selection.tools for selection in self.agent_template.toolsets)
             ),
         )
+        if (
+            self.agent_template.summarizer is not None
+            and self.agent_template.summarizer.soft_total_tokens is not None
+            and self.model_policy.max_total_tokens is not None
+            and self.agent_template.summarizer.soft_total_tokens
+            >= self.model_policy.max_total_tokens
+        ):
+            raise ValueError(
+                "Worker summarizer softTotalTokens must be below effective Worker maxTotalTokens"
+            )
         return self
 
 

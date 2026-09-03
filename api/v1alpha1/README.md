@@ -24,6 +24,13 @@ Runtime validates its own digest and uses it without mutating or re-signing the
 AgentTemplate. `RuntimeSettings.llmGatewayToken` may be the empty string for an
 explicitly unauthenticated Gateway.
 
+`AllocationSpec.agentTemplate.summarizer`, when present, pins one separately
+digested tool-free ModelPolicy and positive soft-token thresholds. It is part
+of the AgentTemplate digest and uses the same allocation `RuntimeSettings`
+Gateway route and credential as the effective Worker. Its `softTotalTokens`
+must remain below both the template-default and effective Worker
+`maxTotalTokens`; omission is the only disabled representation.
+
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML
 manifest after YAML-to-JSON conversion. `llm-gateway-config.schema.json`
 describes its normalized, digest-bearing resolved value on private wires.

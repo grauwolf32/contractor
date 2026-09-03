@@ -77,6 +77,31 @@
         "temperature": {"type": "number", "minimum": 0}
       }
     },
+    "workerSummarizerConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modelPolicy"],
+      "minProperties": 2,
+      "properties": {
+        "modelPolicy": {
+          "allOf": [
+            {"$ref": "#/$defs/resolvedModelPolicy"},
+            {
+              "required": ["maxOutputTokens", "maxModelCalls", "maxTotalTokens"],
+              "properties": {"maxModelCalls": {"const": 1}},
+              "not": {
+                "anyOf": [
+                  {"required": ["maxToolCalls"]},
+                  {"required": ["maxWorkerCalls"]}
+                ]
+              }
+            }
+          ]
+        },
+        "softTotalTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
+        "softPromptTokens": {"type": "integer", "minimum": 1, "maximum": 100000000}
+      }
+    },
     "toolsetRef": {
       "type": "object",
       "additionalProperties": false,
@@ -114,6 +139,7 @@
           }
         },
         "modelPolicy": {"$ref": "#/$defs/resolvedModelPolicy"},
+        "summarizer": {"$ref": "#/$defs/workerSummarizerConfig"},
         "toolsets": {
           "type": "array",
           "items": {

@@ -306,9 +306,16 @@ type agentTemplateSpecSource struct {
 	Runtime        string                    `yaml:"runtime"`
 	Instructions   *instructionsRefSource    `yaml:"instructions"`
 	ModelPolicy    string                    `yaml:"modelPolicy"`
+	Summarizer     *workerSummarizerSource   `yaml:"summarizer,omitempty"`
 	Toolsets       *[]toolsetSelectionSource `yaml:"toolsets"`
 	Skills         *[]artifactRefSource      `yaml:"skills,omitempty"`
 	SandboxProfile string                    `yaml:"sandboxProfile"`
+}
+
+type workerSummarizerSource struct {
+	ModelPolicy      string `yaml:"modelPolicy"`
+	SoftTotalTokens  *int   `yaml:"softTotalTokens,omitempty"`
+	SoftPromptTokens *int   `yaml:"softPromptTokens,omitempty"`
 }
 
 type artifactRefSource struct {
