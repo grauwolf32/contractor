@@ -3,8 +3,8 @@ id: V20-006
 title: Prove Run metadata label isolation and eval correlation end to end
 milestone: run-metadata-labels
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 9715cd9cf84e5259b8c8d038b4ae11acd16eef82
 depends_on: [V20-004, V20-005]
 languages: [go, python, typescript, sql, yaml]
 
@@ -86,3 +86,13 @@ decisions:
     This gate proves the substrate needed by a future eval runner but does not
     implement suite orchestration or scoring; each sample is already an
     ordinary production WorkflowRun.
+  - >-
+    The process scenario uses one reusable Runtime slot intentionally: exact
+    allocation/config fingerprints across baseline, A/B and post-failure Runs
+    prove that metadata labels do not participate in placement or
+    infrastructure resolution.
+  - >-
+    The aggregate release run exposed strict legacy E2E clients that omitted
+    the new labels response field. They now share the complete create response
+    DTO, and the opt-in live project-workflow eval DTO mirrors the complete
+    create/status contract instead of weakening strict decoding.
