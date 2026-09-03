@@ -3,8 +3,8 @@ id: V18-002
 title: Implement deterministic one-shot terminal Worker summarization
 milestone: terminal-worker-summarization
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 7f737c9023682e8f534598044490ba0e72726a31
 depends_on: [V18-001]
 languages: [python, go]
 

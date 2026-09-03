@@ -4,7 +4,7 @@ title: Add optional pinned Worker summarizer configuration
 milestone: terminal-worker-summarization
 priority: P1
 status: complete
-implementation_commit: dca4bce0ec9ea2a9e4c468fb869bb41c99a1b609
+implementation_commit: 7f737c9023682e8f534598044490ba0e72726a31
 depends_on: [V17-007]
 languages: [go, python, yaml]
 
