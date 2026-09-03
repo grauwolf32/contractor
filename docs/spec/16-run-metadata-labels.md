@@ -63,7 +63,8 @@ The first slice permits at most 32 entries. A key is 1–63 ASCII bytes and uses
 [a-z][a-z0-9]*(?:[._-][a-z0-9]+)*
 ```
 
-A value is non-empty UTF-8 of at most 256 bytes after JSON decoding. Values are
+A value is non-empty UTF-8 of at most 256 bytes after JSON decoding; U+0000 is
+excluded because it has no PostgreSQL `text` representation. Values are
 opaque: they may contain paths, spaces or punctuation, and Server performs no
 case folding or semantic parsing. `contractor.` is reserved for future
 Server-owned keys; caller-supplied keys in that namespace are rejected.

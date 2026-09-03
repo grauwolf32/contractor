@@ -195,6 +195,19 @@ paths:
           in: query
           required: false
           schema: {$ref: '#/components/schemas/WorkflowRunState'}
+        - name: label
+          in: query
+          required: false
+          style: form
+          explode: true
+          description: >-
+            Repeat for an exact key/value conjunction. The first decoded '='
+            separates the metadata-label key from its value; percent-encode
+            value delimiters when constructing the URL.
+          schema:
+            type: array
+            maxItems: 32
+            items: {type: string, minLength: 3, maxLength: 320, pattern: '^[^=]+=.+'}
       responses:
         '200':
           description: Stable Run page
@@ -1539,7 +1552,7 @@ components:
         type: string
         minLength: 1
         maxLength: 256
-        description: Opaque UTF-8 value bounded by the Server to 256 encoded bytes.
+        description: Opaque non-NUL UTF-8 value bounded by the Server to 256 encoded bytes.
     RuntimeInfrastructureId:
       type: string
       minLength: 1

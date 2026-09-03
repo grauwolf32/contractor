@@ -380,6 +380,16 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 	if err := validateOpaque("ownerID", params.OwnerID); err != nil {
 		return nil, err
 	}
+	selectors, err := NormalizeRunMetadataLabelSelectors(params.MetadataLabelSelectors)
+	if err != nil {
+		return nil, err
+	}
+	selectorKeys := make([]string, len(selectors))
+	selectorValues := make([]string, len(selectors))
+	for index, selector := range selectors {
+		selectorKeys[index] = selector.Key
+		selectorValues[index] = selector.Value
+	}
 	if params.Limit < 1 || params.Limit > 201 {
 		return nil, invalidf("Run page limit must be between 1 and 201")
 	}
@@ -409,6 +419,17 @@ WITH page AS (
     WHERE owner_id = $1
       AND ($2::text IS NULL OR state = $2)
       AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
+      AND (
+          cardinality($6::text[]) = 0
+          OR (
+              SELECT count(*)
+              FROM workflow_run_metadata_labels AS matched
+              JOIN unnest($6::text[], $7::text[]) AS required(label_key, label_value)
+                ON matched.label_key = required.label_key
+               AND matched.label_value = required.label_value
+              WHERE matched.run_id = workflow_runs.run_id
+          ) = cardinality($6::text[])
+      )
     ORDER BY created_at DESC, run_id DESC
     LIMIT $5
 )
@@ -423,7 +444,10 @@ FROM page
 LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
 GROUP BY page.run_id, page.workflow_name, page.workflow_version, page.state,
          page.created_at, page.updated_at, page.finished_at
-ORDER BY page.created_at DESC, page.run_id DESC`, params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit)
+ORDER BY page.created_at DESC, page.run_id DESC`,
+		params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit,
+		selectorKeys, selectorValues,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list WorkflowRuns for owner: %w", err)
 	}

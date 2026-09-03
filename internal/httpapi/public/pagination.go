@@ -34,6 +34,21 @@ func pageQuery(raw string, extra ...string) (url.Values, int, string, error) {
 	if err != nil {
 		return nil, 0, "", err
 	}
+	return parsePageQuery(values)
+}
+
+func pageQueryWithRepeated(
+	raw string, repeatedKey string, maximum int, extra ...string,
+) (url.Values, int, string, error) {
+	allowed := append([]string{"limit", "cursor"}, extra...)
+	values, err := exactQueryWithRepeated(raw, repeatedKey, maximum, allowed...)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return parsePageQuery(values)
+}
+
+func parsePageQuery(values url.Values) (url.Values, int, string, error) {
 	limit := defaultPageLimit
 	if entries, present := values["limit"]; present {
 		parsed, parseErr := strconv.Atoi(entries[0])

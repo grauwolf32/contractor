@@ -402,6 +402,97 @@ SELECT count(*) FROM workflow_run_metadata_labels WHERE run_id = $1`, created.Ru
 	}
 }
 
+func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+	create := func(runID, ownerID, leg string) WorkflowRun {
+		t.Helper()
+		params := testRunParams(runID)
+		params.OwnerID = ownerID
+		params.MetadataLabels = RunMetadataLabels{
+			"purpose": "eval", "eval.id": "eval_filter", "eval.leg": leg,
+		}
+		run, err := store.CreateRun(ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return run
+	}
+	old := create("run-filter-old", "user-1", "a")
+	unrelatedParams := testRunParams("run-filter-unrelated")
+	unrelatedParams.MetadataLabels = RunMetadataLabels{"purpose": "manual"}
+	if _, err := store.CreateRun(ctx, unrelatedParams); err != nil {
+		t.Fatal(err)
+	}
+	newer := create("run-filter-newer", "user-1", "b")
+	_ = create("run-filter-foreign", "user-2", "a")
+	if _, err := store.TransitionRun(
+		ctx, newer.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	selectors := []RunMetadataLabelSelector{
+		{Key: "purpose", Value: "eval"}, {Key: "eval.id", Value: "eval_filter"},
+	}
+	first, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: selectors, Limit: 1,
+	})
+	if err != nil || len(first) != 1 || first[0].RunID != newer.RunID {
+		t.Fatalf("first filtered page = (%+v, %v)", first, err)
+	}
+	concurrent := create("run-filter-concurrent", "user-1", "a")
+	second, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: append(selectors, selectors[0]), Limit: 10,
+		BeforeCreatedAt: &first[0].CreatedAt, BeforeRunID: first[0].RunID,
+	})
+	if err != nil || len(second) != 1 || second[0].RunID != old.RunID {
+		t.Fatalf("second stable filtered page = (%+v, %v)", second, err)
+	}
+	all, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: selectors, Limit: 10,
+	})
+	if err != nil || len(all) != 3 || all[0].RunID != concurrent.RunID ||
+		all[1].RunID != newer.RunID || all[2].RunID != old.RunID {
+		t.Fatalf("complete filtered group = (%+v, %v)", all, err)
+	}
+	running := RunRunning
+	byState, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", State: &running, MetadataLabelSelectors: selectors, Limit: 10,
+	})
+	if err != nil || len(byState) != 1 || byState[0].RunID != newer.RunID {
+		t.Fatalf("state plus metadata-label filter = (%+v, %v)", byState, err)
+	}
+	legA, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: append(selectors,
+			RunMetadataLabelSelector{Key: "eval.leg", Value: "a"}), Limit: 10,
+	})
+	if err != nil || len(legA) != 2 || legA[0].RunID != concurrent.RunID || legA[1].RunID != old.RunID {
+		t.Fatalf("filtered leg = (%+v, %v)", legA, err)
+	}
+	contradiction, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: []RunMetadataLabelSelector{
+			{Key: "eval.leg", Value: "a"}, {Key: "eval.leg", Value: "b"},
+		}, Limit: 10,
+	})
+	if err != nil || len(contradiction) != 0 {
+		t.Fatalf("contradictory filtered group = (%+v, %v)", contradiction, err)
+	}
+	foreign, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-2", MetadataLabelSelectors: selectors, Limit: 10,
+	})
+	if err != nil || len(foreign) != 1 || foreign[0].RunID != "run-filter-foreign" {
+		t.Fatalf("foreign owner filtered group = (%+v, %v)", foreign, err)
+	}
+	if _, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: []RunMetadataLabelSelector{{Key: "Upper", Value: "bad"}}, Limit: 10,
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid repository selector error = %v", err)
+	}
+}
+
 func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
 	gateway := contracts.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),

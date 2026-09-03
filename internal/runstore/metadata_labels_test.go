@@ -47,6 +47,7 @@ func TestRunMetadataLabelsRejectInvalidBoundsAndShapes(t *testing.T) {
 		{strings.Repeat("a", MaxRunMetadataLabelKey+1): "value"},
 		{"purpose": strings.Repeat("Ж", MaxRunMetadataLabelValue/2+1)},
 		{"purpose": string([]byte{0xff})},
+		{"purpose": "before\x00after"},
 	}
 	tooMany := make(map[string]string)
 	for index := 0; index <= MaxRunMetadataLabels; index++ {
@@ -57,5 +58,33 @@ func TestRunMetadataLabelsRejectInvalidBoundsAndShapes(t *testing.T) {
 		if _, err := NormalizeRunMetadataLabels(labels); !errors.Is(err, ErrInvalid) {
 			t.Fatalf("NormalizeRunMetadataLabels(%q) error = %v", labels, err)
 		}
+	}
+}
+
+func TestRunMetadataLabelSelectorsNormalizeWithoutHidingContradictions(t *testing.T) {
+	t.Parallel()
+	selectors, err := NormalizeRunMetadataLabelSelectors([]RunMetadataLabelSelector{
+		{Key: "purpose", Value: "eval"},
+		{Key: "eval.leg", Value: "b"},
+		{Key: "purpose", Value: "eval"},
+		{Key: "eval.leg", Value: "a"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []RunMetadataLabelSelector{
+		{Key: "eval.leg", Value: "a"},
+		{Key: "eval.leg", Value: "b"},
+		{Key: "purpose", Value: "eval"},
+	}
+	if !reflect.DeepEqual(selectors, want) {
+		t.Fatalf("normalized selectors = %+v, want %+v", selectors, want)
+	}
+	tooMany := make([]RunMetadataLabelSelector, MaxRunMetadataLabels+1)
+	for index := range tooMany {
+		tooMany[index] = RunMetadataLabelSelector{Key: "purpose", Value: "eval"}
+	}
+	if _, err := NormalizeRunMetadataLabelSelectors(tooMany); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("over-limit duplicate selectors error = %v", err)
 	}
 }

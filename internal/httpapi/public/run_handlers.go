@@ -31,7 +31,9 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "state")
+	query, limit, encodedCursor, err := pageQueryWithRepeated(
+		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state",
+	)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -45,16 +47,21 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 		}
 		state = &candidate
 	}
-	cursorKind := "runs"
-	if state != nil {
-		cursorKind += ":" + string(*state)
+	selectors, err := parseRunMetadataLabelSelectors(query["label"])
+	if err != nil {
+		h.handleError(w, err)
+		return
 	}
+	cursorKind := runListCursorKind(state, selectors)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	params := runstore.ListRunsParams{OwnerID: principalUserID(r.Context()), State: state, Limit: limit + 1}
+	params := runstore.ListRunsParams{
+		OwnerID: principalUserID(r.Context()), State: state,
+		MetadataLabelSelectors: selectors, Limit: limit + 1,
+	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
 		if parseErr != nil {
@@ -92,6 +99,36 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, runPageResponse{Items: items, Page: page})
+}
+
+func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabelSelector, error) {
+	selectors := make([]runstore.RunMetadataLabelSelector, 0, len(values))
+	for _, value := range values {
+		parts := strings.SplitN(value, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("%w: Run label selector must contain key=value", errInvalidRequest)
+		}
+		selectors = append(selectors, runstore.RunMetadataLabelSelector{Key: parts[0], Value: parts[1]})
+	}
+	normalized, err := runstore.NormalizeRunMetadataLabelSelectors(selectors)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid Run label selector", errInvalidRequest)
+	}
+	return normalized, nil
+}
+
+func runListCursorKind(
+	state *runstore.WorkflowRunState, selectors []runstore.RunMetadataLabelSelector,
+) string {
+	kind := "runs"
+	if state != nil {
+		kind += ":" + string(*state)
+	}
+	if len(selectors) == 0 {
+		return kind
+	}
+	encoded, _ := json.Marshal(selectors)
+	return kind + ":labels:" + string(encoded)
 }
 
 func publicRunState(state runstore.WorkflowRunState) bool {

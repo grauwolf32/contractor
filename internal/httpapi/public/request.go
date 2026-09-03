@@ -122,6 +122,12 @@ func artifactWritePrecondition(r *http.Request) (*string, error) {
 }
 
 func exactQuery(raw string, allowed ...string) (url.Values, error) {
+	return exactQueryWithRepeated(raw, "", 0, allowed...)
+}
+
+func exactQueryWithRepeated(
+	raw string, repeatedKey string, maximum int, allowed ...string,
+) (url.Values, error) {
 	values, err := url.ParseQuery(raw)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid query string", errInvalidRequest)
@@ -131,6 +137,12 @@ func exactQuery(raw string, allowed ...string) (url.Values, error) {
 		accepted[key] = struct{}{}
 	}
 	for key, entries := range values {
+		if repeatedKey != "" && key == repeatedKey {
+			if len(entries) == 0 || len(entries) > maximum {
+				return nil, fmt.Errorf("%w: repeated query parameter exceeds its bound", errInvalidRequest)
+			}
+			continue
+		}
 		if _, ok := accepted[key]; !ok || len(entries) != 1 {
 			return nil, fmt.Errorf("%w: unsupported or repeated query parameter", errInvalidRequest)
 		}

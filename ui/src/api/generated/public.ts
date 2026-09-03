@@ -2154,6 +2154,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 state?: components["schemas"]["WorkflowRunState"];
+                /** @description Repeat for an exact key/value conjunction. The first decoded '=' separates the metadata-label key from its value; percent-encode value delimiters when constructing the URL. */
+                label?: string[];
             };
             header?: never;
             path?: never;

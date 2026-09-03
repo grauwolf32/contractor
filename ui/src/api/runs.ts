@@ -16,7 +16,11 @@ import {
   safeRunRuntimeConfiguration,
   safeStageRuntimeConfiguration,
 } from "./runtime-configuration";
-import { safeRunMetadataLabels } from "./run-metadata-labels";
+import {
+  normalizeRunMetadataLabelSelectors,
+  safeRunMetadataLabels,
+  type RunMetadataLabelSelector,
+} from "./run-metadata-labels";
 
 export const RUN_PAGE_SIZE = 50;
 export const RUN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
@@ -42,6 +46,7 @@ export type ArtifactLineagePage = components["schemas"]["ArtifactLineagePage"];
 export interface RunPageRequest {
   state?: WorkflowRunState;
   cursor?: string;
+  labelSelectors?: readonly RunMetadataLabelSelector[];
 }
 
 export interface RunArtifactPageRequest {
@@ -117,6 +122,9 @@ export async function listRuns(
   api: PublicAPI,
   request: RunPageRequest = {},
 ): Promise<RunPage> {
+  const labelSelectors = normalizeRunMetadataLabelSelectors(
+    request.labelSelectors ?? [],
+  );
   const result = await api.request((client) =>
     client.GET("/v1/runs", {
       params: {
@@ -124,11 +132,25 @@ export async function listRuns(
           limit: RUN_PAGE_SIZE,
           ...(request.state === undefined ? {} : { state: request.state }),
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          ...(labelSelectors.length === 0
+            ? {}
+            : {
+                label: labelSelectors.map(
+                  ({ key, value }) => `${key}=${value}`,
+                ),
+              }),
         },
       },
     }),
   );
-  return requireData(result);
+  const page = requireData(result);
+  return {
+    items: page.items.map((run) => ({
+      ...run,
+      labels: safeRunMetadataLabels(run.labels),
+    })),
+    page: { ...page.page },
+  };
 }
 
 export async function getRun(

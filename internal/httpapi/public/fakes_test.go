@@ -514,9 +514,23 @@ func newFakeRunStore() *fakeRunStore {
 func (f *fakeRunStore) ListRuns(
 	_ context.Context, params runstore.ListRunsParams,
 ) ([]runstore.WorkflowRunSummary, error) {
+	selectors, err := runstore.NormalizeRunMetadataLabelSelectors(params.MetadataLabelSelectors)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]runstore.WorkflowRunSummary, 0)
 	for _, run := range f.runs {
 		if run.OwnerID != params.OwnerID || params.State != nil && run.State != *params.State {
+			continue
+		}
+		matched := true
+		for _, selector := range selectors {
+			if run.MetadataLabels[selector.Key] != selector.Value {
+				matched = false
+				break
+			}
+		}
+		if !matched {
 			continue
 		}
 		if params.BeforeCreatedAt != nil && (run.CreatedAt.After(*params.BeforeCreatedAt) ||

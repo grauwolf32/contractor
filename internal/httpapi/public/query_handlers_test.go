@@ -85,6 +85,17 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	fixture.runs.runs["run-old"] = queryRun("run-old", "user-1", runstore.RunSucceeded, base)
 	fixture.runs.runs["run-new"] = queryRun("run-new", "user-1", runstore.RunRunning, base.Add(time.Minute))
 	fixture.runs.runs["run-foreign"] = queryRun("run-foreign", "user-2", runstore.RunFailed, base.Add(2*time.Minute))
+	old := fixture.runs.runs["run-old"]
+	old.MetadataLabels = runstore.RunMetadataLabels{
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "eval.note": "left=right",
+	}
+	fixture.runs.runs["run-old"] = old
+	newest := fixture.runs.runs["run-new"]
+	newest.MetadataLabels = runstore.RunMetadataLabels{"purpose": "eval", "eval.id": "eval_01", "eval.leg": "b"}
+	fixture.runs.runs["run-new"] = newest
+	foreign := fixture.runs.runs["run-foreign"]
+	foreign.MetadataLabels = runstore.RunMetadataLabels{"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a"}
+	fixture.runs.runs["run-foreign"] = foreign
 
 	first := serveQuery(t, fixture.handler, "/v1/runs?limit=1")
 	var page runPageResponse
@@ -106,11 +117,69 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	if filtered.Code != http.StatusOK || len(filteredPage.Items) != 1 || filteredPage.Items[0].RunID != "run-old" {
 		t.Fatalf("filtered Run page = status %d, %+v", filtered.Code, filteredPage)
 	}
+	evalQuery := url.Values{"label": {"purpose=eval", "eval.id=eval_01"}, "limit": {"1"}}
+	evalFirst := serveQuery(t, fixture.handler, "/v1/runs?"+evalQuery.Encode())
+	var evalPage runPageResponse
+	decodeQueryResponse(t, evalFirst, &evalPage)
+	if evalFirst.Code != http.StatusOK || len(evalPage.Items) != 1 ||
+		evalPage.Items[0].RunID != "run-new" || evalPage.Items[0].Labels["eval.leg"] != "b" ||
+		!evalPage.Page.HasMore || evalPage.Page.NextCursor == nil {
+		t.Fatalf("first exact-label Run page = status %d, %+v", evalFirst.Code, evalPage)
+	}
+	evalNextQuery := url.Values{
+		"label":  {"eval.id=eval_01", "purpose=eval", "purpose=eval"},
+		"limit":  {"1"},
+		"cursor": {*evalPage.Page.NextCursor},
+	}
+	evalSecond := serveQuery(t, fixture.handler, "/v1/runs?"+evalNextQuery.Encode())
+	var evalNext runPageResponse
+	decodeQueryResponse(t, evalSecond, &evalNext)
+	if evalSecond.Code != http.StatusOK || len(evalNext.Items) != 1 ||
+		evalNext.Items[0].RunID != "run-old" || evalNext.Page.HasMore {
+		t.Fatalf("second exact-label Run page = status %d, %+v", evalSecond.Code, evalNext)
+	}
+	legQuery := url.Values{"label": {"eval.id=eval_01", "eval.leg=a"}}
+	leg := serveQuery(t, fixture.handler, "/v1/runs?"+legQuery.Encode())
+	var legPage runPageResponse
+	decodeQueryResponse(t, leg, &legPage)
+	if leg.Code != http.StatusOK || len(legPage.Items) != 1 || legPage.Items[0].RunID != "run-old" {
+		t.Fatalf("exact leg Run page = status %d, %+v", leg.Code, legPage)
+	}
+	equalsQuery := url.Values{"label": {"eval.note=left=right"}}
+	equals := serveQuery(t, fixture.handler, "/v1/runs?"+equalsQuery.Encode())
+	var equalsPage runPageResponse
+	decodeQueryResponse(t, equals, &equalsPage)
+	if equals.Code != http.StatusOK || len(equalsPage.Items) != 1 || equalsPage.Items[0].RunID != "run-old" {
+		t.Fatalf("selector value containing equals = status %d, %+v", equals.Code, equalsPage)
+	}
+	contradictionQuery := url.Values{"label": {"eval.leg=a", "eval.leg=b"}}
+	contradiction := serveQuery(t, fixture.handler, "/v1/runs?"+contradictionQuery.Encode())
+	var empty runPageResponse
+	decodeQueryResponse(t, contradiction, &empty)
+	if contradiction.Code != http.StatusOK || len(empty.Items) != 0 || empty.Page.HasMore {
+		t.Fatalf("contradictory Run label page = status %d, %+v", contradiction.Code, empty)
+	}
+	mismatchedCursor := serveQuery(
+		t, fixture.handler, "/v1/runs?cursor="+url.QueryEscape(*evalPage.Page.NextCursor),
+	)
+	if mismatchedCursor.Code != http.StatusBadRequest {
+		t.Fatalf("label-filter cursor reuse = %d: %s", mismatchedCursor.Code, mismatchedCursor.Body.String())
+	}
+	overLimit := "/v1/runs?" + strings.TrimPrefix(
+		strings.Repeat("&label=purpose%3Deval", runstore.MaxRunMetadataLabels+1), "&",
+	)
 	for _, target := range []string{
 		"/v1/runs?state=unknown",
 		"/v1/runs?state=running&cursor=" + url.QueryEscape(*page.Page.NextCursor),
 		"/v1/runs?cursor=" + url.QueryEscape(tamperCursor(*page.Page.NextCursor)),
 		"/v1/runs?ownerId=user-2",
+		"/v1/runs?label=missing-equals",
+		"/v1/runs?label=%3Dvalue",
+		"/v1/runs?label=purpose%3D",
+		"/v1/runs?label=Upper%3Dvalue",
+		"/v1/runs?label=contractor.internal%3Dvalue",
+		"/v1/runs?label=purpose%3Dbefore%00after",
+		overLimit,
 	} {
 		response := serveQuery(t, fixture.handler, target)
 		if response.Code != http.StatusBadRequest {

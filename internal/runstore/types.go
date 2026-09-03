@@ -129,11 +129,12 @@ type CreateRunIdempotentParams struct {
 // ListRunsParams is a stable newest-first owner query. BeforeCreatedAt and
 // BeforeRunID are either both set or both absent and form the keyset cursor.
 type ListRunsParams struct {
-	OwnerID         string
-	State           *WorkflowRunState
-	BeforeCreatedAt *time.Time
-	BeforeRunID     string
-	Limit           int
+	OwnerID                string
+	State                  *WorkflowRunState
+	MetadataLabelSelectors []RunMetadataLabelSelector
+	BeforeCreatedAt        *time.Time
+	BeforeRunID            string
+	Limit                  int
 }
 
 type PinnedContextArtifact struct {

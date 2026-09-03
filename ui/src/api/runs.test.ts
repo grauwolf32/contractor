@@ -100,7 +100,14 @@ describe("Run API", () => {
       }),
     );
 
-    await listRuns(api, { state: "running", cursor: "run-next" });
+    await listRuns(api, {
+      state: "running",
+      cursor: "run-next",
+      labelSelectors: [
+        { key: "purpose", value: "eval" },
+        { key: "eval.id", value: "eval_01=a" },
+      ],
+    });
     await getRun(api, "run-1");
     await listRunArtifacts(api, {
       runId: "run-1",
@@ -127,13 +134,14 @@ describe("Run API", () => {
       cursor: "lineage-next",
     });
 
-    expect(new URL(requests[0]?.url ?? "http://invalid").searchParams).toEqual(
-      new URLSearchParams({
-        limit: "50",
-        state: "running",
-        cursor: "run-next",
-      }),
-    );
+    const runQuery = new URL(requests[0]?.url ?? "http://invalid").searchParams;
+    expect(runQuery.get("limit")).toBe("50");
+    expect(runQuery.get("state")).toBe("running");
+    expect(runQuery.get("cursor")).toBe("run-next");
+    expect(runQuery.getAll("label")).toEqual([
+      "eval.id=eval_01=a",
+      "purpose=eval",
+    ]);
     expect(requests[1]?.url).toBe("http://127.0.0.1:8080/v1/runs/run-1");
     expect(new URL(requests[2]?.url ?? "http://invalid").searchParams).toEqual(
       new URLSearchParams({

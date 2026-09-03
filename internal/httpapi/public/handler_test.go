@@ -516,6 +516,7 @@ func TestCreateRunMetadataLabelsAreStrictBeforeTransaction(t *testing.T) {
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"contractor.internal":"value"},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"Upper":"value"},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":""},"parameters":{},"artifacts":{}}`),
+		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"before\u0000after"},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{` + strings.Join(tooMany, ",") + `},"parameters":{},"artifacts":{}}`),
 		invalidUTF8,
 	}

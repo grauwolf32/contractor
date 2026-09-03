@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { safeRunMetadataLabels } from "./run-metadata-labels";
+import {
+  normalizeRunMetadataLabelSelectors,
+  safeRunMetadataLabels,
+} from "./run-metadata-labels";
 
 describe("Run metadata labels", () => {
   it("returns one detached deterministic string map", () => {
@@ -20,5 +23,20 @@ describe("Run metadata labels", () => {
     { purpose: "Ж".repeat(129) },
   ])("rejects an invalid response map %#", (labels) => {
     expect(() => safeRunMetadataLabels(labels)).toThrow(TypeError);
+  });
+
+  it("normalizes exact selectors and preserves contradictory values", () => {
+    expect(
+      normalizeRunMetadataLabelSelectors([
+        { key: "purpose", value: "eval" },
+        { key: "eval.leg", value: "b" },
+        { key: "purpose", value: "eval" },
+        { key: "eval.leg", value: "a" },
+      ]),
+    ).toEqual([
+      { key: "eval.leg", value: "a" },
+      { key: "eval.leg", value: "b" },
+      { key: "purpose", value: "eval" },
+    ]);
   });
 });
