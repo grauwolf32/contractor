@@ -3,8 +3,8 @@ id: V20-001
 title: Rename Run-selected infrastructure labels to runtimeLabels
 milestone: run-metadata-labels
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 88f7206a4103404129588efd7b5fe06373b89523
 depends_on: [V8-015]
 languages: [go, typescript, yaml, json]
 
