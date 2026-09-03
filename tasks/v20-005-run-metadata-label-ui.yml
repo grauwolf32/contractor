@@ -3,8 +3,8 @@ id: V20-005
 title: Add Run metadata label authoring and filtering to the UI
 milestone: run-metadata-labels
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 853a0f6a259aab5b0e04bbf30ea3b5a51985d8d7
 depends_on: [V20-003]
 languages: [typescript, html, css]
 
