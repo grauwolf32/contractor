@@ -3,8 +3,8 @@ id: V18-001
 title: Add optional pinned Worker summarizer configuration
 milestone: terminal-worker-summarization
 priority: P1
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: dca4bce0ec9ea2a9e4c468fb869bb41c99a1b609
 depends_on: [V17-007]
 languages: [go, python, yaml]
 

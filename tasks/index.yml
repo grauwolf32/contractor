@@ -456,8 +456,8 @@ v8_v12_spec_review:
   decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
-  completed_through: V17-007
-  next_task: V18-001
+  completed_through: V18-001
+  next_task: V18-002
   summary: >-
     V8 labels/adapters, V9 shared Memory and V10 artifact-pinned native ADK
     Skills are complete. Workspace and HTTP/Caido specifications/tasks were
@@ -577,7 +577,13 @@ current_checkpoint:
     projection, terminal cleanup, same-process slot reuse and retained-surface
     redaction for Streamline and Router. The full release gate passes with 688
     Python tests (1 skipped), 120 UI tests and every process scenario. V18-001
-    through V18-003 next implement optional one-shot terminal summarization.
+    is complete: optional summarization is now a closed AgentTemplate contract
+    with an independently digested tool-free ModelPolicy, deterministic soft
+    thresholds, exact Run/allocation pinning, effective-policy validation and
+    same-route credential authorization. Shared Go/Python fixtures cover the
+    strict wire and digest boundary; `make verify` passes with 703 Python tests
+    (1 skipped) and 120 UI tests. V18-002 next implements the one-shot terminal
+    Runtime behavior and separate metrics.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
