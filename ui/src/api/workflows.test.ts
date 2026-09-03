@@ -91,7 +91,11 @@ describe("Workflow API", () => {
             runId: "run_example",
             state: "running",
             runtimeLabels: [],
-            labels: {},
+            labels: {
+              "eval.id": "eval-01",
+              "eval.leg": "a",
+              purpose: "eval",
+            },
             runtimeConfiguration: {
               default: {
                 label: "default",
@@ -112,6 +116,7 @@ describe("Workflow API", () => {
     api.csrf.replace("a".repeat(43));
     const request: CreateRunRequest = {
       workflow: "openapi-from-source@1",
+      labels: { "eval.id": "eval-01", "eval.leg": "a", purpose: "eval" },
       parameters: { objective: "Describe the service" },
       artifacts: {
         source: {
@@ -125,7 +130,7 @@ describe("Workflow API", () => {
       runId: "run_example",
       state: "running",
       runtimeLabels: [],
-      labels: {},
+      labels: { "eval.id": "eval-01", "eval.leg": "a", purpose: "eval" },
       runtimeConfiguration: {
         default: {
           label: "default",
@@ -168,5 +173,38 @@ describe("Workflow API", () => {
     await expect(
       createRun(api, { workflow: "artifact-copy@1" }, "draft-status-1"),
     ).rejects.toMatchObject({ code: "invalid_api_response", status: 200 });
+  });
+
+  it("fails closed when a creation response contains hostile metadata labels", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response(
+          {
+            runId: "run_hostile",
+            state: "running",
+            runtimeLabels: [],
+            labels: { "contractor.secret": "must-not-render" },
+            runtimeConfiguration: {
+              default: {
+                label: "default",
+                bindingRevision: "1",
+                config: {
+                  name: "contractor-empty",
+                  version: "1",
+                  digest: `sha256:${"0".repeat(64)}`,
+                },
+              },
+              labels: [],
+            },
+          },
+          202,
+        ),
+      ),
+    );
+    api.csrf.replace("a".repeat(43));
+    await expect(
+      createRun(api, { workflow: "artifact-copy@1" }, "draft-hostile-1"),
+    ).rejects.toThrow("contractor. prefix is reserved");
   });
 });

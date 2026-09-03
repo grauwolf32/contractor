@@ -1486,6 +1486,67 @@ code {
   border-color: var(--danger);
 }
 
+.run-metadata-label-actions,
+.run-active-label-filters,
+.run-metadata-label-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.run-metadata-label-actions {
+  margin: 0.8rem 0;
+}
+
+.run-metadata-label-actions small {
+  color: var(--muted);
+}
+
+.run-label-secret-warning {
+  margin-top: 0.8rem;
+}
+
+.run-label-secret-warning p {
+  margin-bottom: 0;
+}
+
+.run-metadata-label-rows {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.run-metadata-label-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.75fr) minmax(12rem, 1fr) auto;
+  align-items: start;
+  gap: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: #090d13;
+  padding: 0.8rem;
+}
+
+.run-metadata-label-remove {
+  align-self: end;
+}
+
+.run-metadata-label-chip {
+  display: inline-flex;
+  max-width: min(32rem, 100%);
+  gap: 0.2rem;
+  border: 1px solid #52622d;
+  border-radius: 999px;
+  background: #17200e;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.run-metadata-label-chip span {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .run-field small,
 .field-guidance,
 .inventory-empty {
@@ -1552,6 +1613,84 @@ code {
 .run-artifact-library,
 .cancellation-panel {
   margin-top: 1.5rem;
+}
+
+.run-label-filters {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1rem 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 1rem 0;
+}
+
+.run-label-filters h4 {
+  margin: 0;
+}
+
+.run-eval-filter,
+.run-exact-label-filter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(8rem, 1fr)) auto;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.run-exact-label-filter {
+  grid-template-columns: minmax(10rem, 0.75fr) minmax(12rem, 1fr) auto;
+}
+
+.run-eval-filter label,
+.run-exact-label-filter label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.run-eval-filter input,
+.run-exact-label-filter input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  outline: none;
+  background: #080b0f;
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.run-eval-filter input:focus,
+.run-exact-label-filter input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #d8ff7222;
+}
+
+.run-active-label-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #52622d;
+  border-radius: 999px;
+  background: #17200e;
+  padding: 0.2rem 0.3rem 0.2rem 0.55rem;
+}
+
+.run-active-label-filter button {
+  width: 1.55rem;
+  min-height: 1.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff12;
+  color: inherit;
+  padding: 0;
+}
+
+.run-metadata-label-panel {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
 }
 
 .compact-select {
@@ -2884,8 +3023,17 @@ code {
   .run-field-grid,
   .override-grid,
   .run-binding-grid,
-  .run-attempt-body {
+  .run-attempt-body,
+  .run-metadata-label-row,
+  .run-eval-filter,
+  .run-exact-label-filter {
     grid-template-columns: 1fr;
+  }
+
+  .run-metadata-label-remove,
+  .run-eval-filter button,
+  .run-exact-label-filter button {
+    width: 100%;
   }
 
   .operations-overview-grid,

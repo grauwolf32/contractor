@@ -83,7 +83,11 @@ function runFixture(overrides: RunOverrides = {}): RunStatus {
     workflow: "router-analysis@1",
     state: "running",
     runtimeLabels: [],
-    labels: {},
+    labels: {
+      "eval.id": "eval-router-01",
+      "eval.leg": "a",
+      purpose: "eval",
+    },
     runtimeConfiguration: {
       default: {
         label: "default",
@@ -327,6 +331,102 @@ describe("Run routes", () => {
     expect(requests[0]?.searchParams.get("state")).toBe("failed");
   });
 
+  it("keeps exact metadata selectors across paging and resets the cursor when they change", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/runs") {
+          requests.push(url);
+          const labels = url.searchParams.getAll("label");
+          if (url.searchParams.get("cursor") === "next-eval") {
+            return apiResponse({
+              items: [
+                {
+                  runId: "run-leg-a-page-2",
+                  workflow: "router-analysis@1",
+                  state: "succeeded",
+                  labels: {
+                    "eval.id": "eval-group=01",
+                    "eval.leg": "a",
+                    purpose: "eval",
+                  },
+                  createdAt: "2026-08-31T10:00:00Z",
+                  updatedAt: "2026-08-31T10:10:00Z",
+                  finishedAt: "2026-08-31T10:10:00Z",
+                },
+              ],
+              page: { hasMore: false },
+            });
+          }
+          const leg = labels.includes("eval.leg=b") ? "b" : "a";
+          return apiResponse({
+            items: [
+              {
+                runId: `run-leg-${leg}`,
+                workflow: "router-analysis@1",
+                state: "running",
+                labels: {
+                  "eval.id": "eval-group=01",
+                  "eval.leg": leg,
+                  purpose: "eval",
+                },
+                createdAt: "2026-08-31T12:00:00Z",
+                updatedAt: "2026-08-31T12:01:00Z",
+              },
+            ],
+            page: { hasMore: true, nextCursor: "next-eval" },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderRunApplication(
+      api,
+      "/runs?label=eval.id%3Deval-group%3D01&label=eval.leg%3Da",
+    );
+    expect(
+      await screen.findByRole("link", { name: "run-leg-a" }),
+    ).toBeInTheDocument();
+    const firstRow = screen
+      .getByRole("link", { name: "run-leg-a" })
+      .closest("tr");
+    expect(firstRow).toHaveTextContent("eval.id=eval-group=01");
+    expect(firstRow).toHaveTextContent("eval.leg=a");
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByRole("link", { name: "run-leg-a-page-2" }),
+    ).toBeInTheDocument();
+    expect(requests.at(-1)?.searchParams.get("cursor")).toBe("next-eval");
+    expect(requests.at(-1)?.searchParams.getAll("label")).toEqual([
+      "eval.id=eval-group=01",
+      "eval.leg=a",
+    ]);
+
+    const leg = screen.getByLabelText("Eval leg");
+    await user.clear(leg);
+    await user.type(leg, "b");
+    await user.click(
+      screen.getByRole("button", { name: "Apply eval filters" }),
+    );
+    expect(
+      await screen.findByRole("link", { name: "run-leg-b" }),
+    ).toBeInTheDocument();
+    expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
+    expect(requests.at(-1)?.searchParams.getAll("label")).toEqual([
+      "eval.id=eval-group=01",
+      "eval.leg=b",
+      "purpose=eval",
+    ]);
+  });
+
   it("shows a global task and advances only its nested typed Planner projection", async () => {
     let currentRun = runFixture();
     let detailReads = 0;
@@ -409,6 +509,14 @@ describe("Run routes", () => {
     expect(
       await screen.findByText("Review trust boundaries"),
     ).toBeInTheDocument();
+    const metadataPanel = screen
+      .getByRole("heading", { name: "Run metadata labels" })
+      .closest("section");
+    expect(metadataPanel).toHaveTextContent("eval.id=eval-router-01");
+    expect(metadataPanel).toHaveTextContent("eval.leg=a");
+    expect(metadataPanel).toHaveTextContent(
+      "They do not select Runtime infrastructure",
+    );
     expect(detailReads).toBe(1);
     act(() =>
       socket?.message({

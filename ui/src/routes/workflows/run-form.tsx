@@ -3,7 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
@@ -14,6 +14,10 @@ import {
   type RuntimeLabelBinding,
 } from "../../api/operations";
 import { queryKeys } from "../../api/query-keys";
+import {
+  RUN_METADATA_LABEL_LIMIT,
+  type RunMetadataLabelDraft,
+} from "../../api/run-metadata-labels";
 import {
   createRun,
   listConfigurations,
@@ -36,6 +40,12 @@ import {
 import { ErrorNotice, formatBytes } from "../artifacts/common";
 
 const INITIAL_CURSOR = null;
+const EVAL_METADATA_PRESET = [
+  { key: "purpose", value: "eval" },
+  { key: "eval.name", value: "" },
+  { key: "eval.id", value: "" },
+  { key: "eval.leg", value: "" },
+] as const;
 
 function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
   return page.page.hasMore ? page.page.nextCursor : undefined;
@@ -60,6 +70,145 @@ function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
         {binding.config.digest.slice(0, 18)}…
       </code>
     </small>
+  );
+}
+
+function RunMetadataLabelEditor({
+  labels,
+  errors,
+  onAdd,
+  onAddEvalPreset,
+  onChange,
+  onRemove,
+}: {
+  labels: readonly RunMetadataLabelDraft[];
+  errors: Readonly<Record<string, string>>;
+  onAdd: () => void;
+  onAddEvalPreset: () => void;
+  onChange: (id: string, field: "key" | "value", value: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const existingKeys = new Set(labels.map((label) => label.key));
+  const missingEvalLabels = EVAL_METADATA_PRESET.filter(
+    (label) => !existingKeys.has(label.key),
+  ).length;
+  return (
+    <fieldset className="run-draft-section run-metadata-label-editor">
+      <legend>Run metadata labels</legend>
+      <p className="muted-copy">
+        Immutable searchable metadata for this Run and its root traces. Labels
+        do not select Runtime infrastructure and are never shown to Planner or
+        Workers.
+      </p>
+      <div className="notice notice-warning run-label-secret-warning">
+        <strong>Do not put secrets in labels.</strong>
+        <p>
+          Keys and values are visible through the Run API, list filters and
+          telemetry.
+        </p>
+      </div>
+      <div className="run-metadata-label-actions">
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={labels.length >= RUN_METADATA_LABEL_LIMIT}
+          onClick={onAdd}
+        >
+          Add metadata label
+        </button>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={
+            missingEvalLabels === 0 ||
+            labels.length + missingEvalLabels > RUN_METADATA_LABEL_LIMIT
+          }
+          onClick={onAddEvalPreset}
+        >
+          Add eval metadata preset
+        </button>
+        <small>
+          {labels.length}/{RUN_METADATA_LABEL_LIMIT} labels
+        </small>
+      </div>
+      {errors.metadataLabels === undefined ? null : (
+        <p className="field-error" role="alert">
+          {errors.metadataLabels}
+        </p>
+      )}
+      {labels.length === 0 ? (
+        <p className="compact-empty">No Run metadata labels.</p>
+      ) : (
+        <div className="run-metadata-label-rows">
+          {labels.map((label, index) => {
+            const keyError = errors[`metadataLabel:${label.id}:key`];
+            const valueError = errors[`metadataLabel:${label.id}:value`];
+            const keyErrorID = `metadata-label-${label.id}-key-error`;
+            const valueErrorID = `metadata-label-${label.id}-value-error`;
+            return (
+              <div className="run-metadata-label-row" key={label.id}>
+                <div className="run-field">
+                  <label htmlFor={`metadata-label-${label.id}-key`}>
+                    Run metadata label key {index + 1}
+                  </label>
+                  <input
+                    id={`metadata-label-${label.id}-key`}
+                    name={`metadata-label-key-${index + 1}`}
+                    type="text"
+                    autoComplete="off"
+                    value={label.key}
+                    aria-invalid={keyError === undefined ? undefined : true}
+                    aria-describedby={
+                      keyError === undefined ? undefined : keyErrorID
+                    }
+                    onChange={(event) =>
+                      onChange(label.id, "key", event.target.value)
+                    }
+                  />
+                  {keyError === undefined ? null : (
+                    <p className="field-error" id={keyErrorID} role="alert">
+                      {keyError}
+                    </p>
+                  )}
+                </div>
+                <div className="run-field">
+                  <label htmlFor={`metadata-label-${label.id}-value`}>
+                    Run metadata label value {index + 1}
+                  </label>
+                  <input
+                    id={`metadata-label-${label.id}-value`}
+                    name={`metadata-label-value-${index + 1}`}
+                    type="text"
+                    autoComplete="off"
+                    value={label.value}
+                    aria-invalid={valueError === undefined ? undefined : true}
+                    aria-describedby={
+                      valueError === undefined ? undefined : valueErrorID
+                    }
+                    onChange={(event) =>
+                      onChange(label.id, "value", event.target.value)
+                    }
+                  />
+                  {valueError === undefined ? null : (
+                    <p className="field-error" id={valueErrorID} role="alert">
+                      {valueError}
+                    </p>
+                  )}
+                </div>
+                <button
+                  className="danger-button run-metadata-label-remove"
+                  type="button"
+                  aria-label={`Remove Run metadata label ${index + 1}`}
+                  onClick={() => onRemove(label.id)}
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </fieldset>
   );
 }
 
@@ -174,6 +323,10 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   const [selectedRuntimeLabels, setSelectedRuntimeLabels] = useState<string[]>(
     [],
   );
+  const metadataLabelSequence = useRef(0);
+  const [metadataLabels, setMetadataLabels] = useState<RunMetadataLabelDraft[]>(
+    [],
+  );
   const [artifactSelections, setArtifactSelections] = useState<
     Record<string, string>
   >({});
@@ -272,6 +425,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     workflow,
     {
       runtimeLabels: selectedRuntimeLabels,
+      metadataLabels,
       parameters,
       artifacts: artifactSelections,
       overrides,
@@ -303,6 +457,76 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     });
   }
 
+  function clearMetadataLabelErrors(): void {
+    setValidationErrors((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(
+          ([key]) =>
+            key !== "metadataLabels" && !key.startsWith("metadataLabel:"),
+        ),
+      ),
+    );
+  }
+
+  function newMetadataLabel(key = "", value = ""): RunMetadataLabelDraft {
+    metadataLabelSequence.current += 1;
+    return {
+      id: String(metadataLabelSequence.current),
+      key,
+      value,
+    };
+  }
+
+  function addMetadataLabel(): void {
+    if (metadataLabels.length >= RUN_METADATA_LABEL_LIMIT) {
+      setValidationErrors((current) => ({
+        ...current,
+        metadataLabels: `A Run can have at most ${RUN_METADATA_LABEL_LIMIT} metadata labels.`,
+      }));
+      return;
+    }
+    const label = newMetadataLabel();
+    setMetadataLabels((current) => [...current, label]);
+    clearMetadataLabelErrors();
+  }
+
+  function addEvalMetadataPreset(): void {
+    const existingKeys = new Set(metadataLabels.map((label) => label.key));
+    const missing = EVAL_METADATA_PRESET.filter(
+      (label) => !existingKeys.has(label.key),
+    );
+    if (metadataLabels.length + missing.length > RUN_METADATA_LABEL_LIMIT) {
+      setValidationErrors((current) => ({
+        ...current,
+        metadataLabels: `The eval preset would exceed ${RUN_METADATA_LABEL_LIMIT} metadata labels.`,
+      }));
+      return;
+    }
+    const additions = missing.map((label) =>
+      newMetadataLabel(label.key, label.value),
+    );
+    setMetadataLabels((current) => [...current, ...additions]);
+    clearMetadataLabelErrors();
+  }
+
+  function updateMetadataLabel(
+    id: string,
+    field: "key" | "value",
+    value: string,
+  ): void {
+    setMetadataLabels((current) =>
+      current.map((label) =>
+        label.id === id ? { ...label, [field]: value } : label,
+      ),
+    );
+    clearMetadataLabelErrors();
+  }
+
+  function removeMetadataLabel(id: string): void {
+    setMetadataLabels((current) => current.filter((label) => label.id !== id));
+    clearMetadataLabelErrors();
+  }
+
   function updateOverride(
     role: keyof ExecutionOverrideDraft,
     field: keyof ConsumerOverrideDraft,
@@ -321,6 +545,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
       workflow,
       {
         runtimeLabels: selectedRuntimeLabels,
+        metadataLabels,
         parameters,
         artifacts: artifactSelections,
         overrides,
@@ -427,6 +652,15 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
           </button>
         ) : null}
       </fieldset>
+
+      <RunMetadataLabelEditor
+        labels={metadataLabels}
+        errors={validationErrors}
+        onAdd={addMetadataLabel}
+        onAddEvalPreset={addEvalMetadataPreset}
+        onChange={updateMetadataLabel}
+        onRemove={removeMetadataLabel}
+      />
 
       <fieldset className="run-draft-section">
         <legend>String parameters</legend>

@@ -49,8 +49,18 @@ export const queryKeys = {
   },
   runs: {
     all: ["runs"] as const,
-    list: (state: string | undefined, cursor: string | undefined) =>
-      ["runs", "list", state ?? null, cursor ?? null] as const,
+    list: (
+      state: string | undefined,
+      cursor: string | undefined,
+      labelSelectors: readonly string[] = [],
+    ) =>
+      [
+        "runs",
+        "list",
+        state ?? null,
+        [...labelSelectors],
+        cursor ?? null,
+      ] as const,
     detail: (runId: string) => ["runs", "detail", runId] as const,
     artifacts: (
       runId: string,

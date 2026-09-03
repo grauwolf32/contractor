@@ -222,6 +222,7 @@ async function startRun(
   workflow: string,
   parameters: Record<string, string>,
   artifacts: Record<string, string>,
+  metadataLabels: Record<string, string> = {},
 ): Promise<string> {
   await page.goto(`/workflows/${workflow.replace("@", "/")}`);
   await expect(page.getByRole("heading", { name: workflow })).toBeVisible();
@@ -237,6 +238,15 @@ async function startRun(
       page.locator(`select[name="artifact-${name}"]`),
       binding,
     );
+  }
+  let metadataIndex = 0;
+  for (const [key, value] of Object.entries(metadataLabels)) {
+    metadataIndex += 1;
+    await page.getByRole("button", { name: "Add metadata label" }).click();
+    await page.getByLabel(`Run metadata label key ${metadataIndex}`).fill(key);
+    await page
+      .getByLabel(`Run metadata label value ${metadataIndex}`)
+      .fill(value);
   }
   await page.getByRole("button", { name: "Start Workflow Run" }).click();
   await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
@@ -441,6 +451,12 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     "streamline-copy@1",
     { mode: "streamline-strict" },
     { source: "ui-stack-text" },
+    {
+      purpose: "eval",
+      "eval.name": "ui-stack-smoke",
+      "eval.id": "ui-stack-eval-01",
+      "eval.leg": "a",
+    },
   );
   await expect(
     page.getByRole("heading", { name: /STREAMLINE_E2E_GLOBAL/ }),
@@ -519,6 +535,20 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   ).toBeVisible({
     timeout: 45_000,
   });
+  const streamlineMetadata = page.locator(".run-metadata-label-panel");
+  await expect(streamlineMetadata).toContainText("eval.id=ui-stack-eval-01");
+  await expect(streamlineMetadata).toContainText("eval.leg=a");
+  await expect(streamlineMetadata).toContainText(
+    "They do not select Runtime infrastructure",
+  );
+  await page.goto("/runs");
+  await page.getByLabel("Eval ID").fill("ui-stack-eval-01");
+  await page.getByLabel("Eval leg").fill("a");
+  await page.getByRole("button", { name: "Apply eval filters" }).click();
+  await expect(page.getByRole("link", { name: streamlineRunID })).toBeVisible();
+  await expect(page).toHaveURL(/label=eval.id%3Dui-stack-eval-01/);
+  await expect(page).toHaveURL(/label=eval.leg%3Da/);
+  await page.goto(`/runs/${streamlineRunID}`);
   const streamlineAttempt = stageAttempt(page, "copy");
   await expect(streamlineAttempt).toHaveCount(1);
   await openDetails(streamlineAttempt);

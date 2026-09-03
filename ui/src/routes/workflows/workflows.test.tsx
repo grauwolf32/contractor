@@ -348,7 +348,12 @@ describe("Workflow routes", () => {
               runId: "run_openapi",
               state: "running",
               runtimeLabels: ["caido", "debug"],
-              labels: {},
+              labels: {
+                "eval.id": "eval-ui-01",
+                "eval.leg": "a",
+                "eval.name": "openapi-browser",
+                purpose: "eval",
+              },
               runtimeConfiguration: labeledRuntimeConfiguration,
             },
             { status: 202 },
@@ -360,7 +365,12 @@ describe("Workflow routes", () => {
             workflow: "openapi-from-source@1",
             state: "running",
             runtimeLabels: ["caido", "debug"],
-            labels: {},
+            labels: {
+              "eval.id": "eval-ui-01",
+              "eval.leg": "a",
+              "eval.name": "openapi-browser",
+              purpose: "eval",
+            },
             runtimeConfiguration: labeledRuntimeConfiguration,
             attempts: [],
             transitions: [],
@@ -402,6 +412,21 @@ describe("Workflow routes", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: /debug/ }));
     await user.click(screen.getByRole("checkbox", { name: /caido/ }));
+    await user.click(
+      screen.getByRole("button", { name: "Add eval metadata preset" }),
+    );
+    expect(screen.getByLabelText("Run metadata label key 1")).toHaveValue(
+      "purpose",
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label value 2"),
+      "openapi-browser",
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label value 3"),
+      "eval-ui-01",
+    );
+    await user.type(screen.getByLabelText("Run metadata label value 4"), "a");
     await user.type(screen.getByLabelText(/^objective/i), "Build public API");
     await screen.findByRole("option", {
       name: /projects\/source@revision-7/,
@@ -444,6 +469,12 @@ describe("Workflow routes", () => {
     expect(posts[0]?.body).toEqual({
       workflow: "openapi-from-source@1",
       runtimeLabels: ["caido", "debug"],
+      labels: {
+        "eval.id": "eval-ui-01",
+        "eval.leg": "a",
+        "eval.name": "openapi-browser",
+        purpose: "eval",
+      },
       parameters: { objective: "Build public API" },
       artifacts: {
         source: {
@@ -465,6 +496,13 @@ describe("Workflow routes", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Authoritative aggregate")).toBeInTheDocument();
     expect(await screen.findByText("binding revision 7")).toBeInTheDocument();
+    const metadata = screen
+      .getByRole("heading", { name: "Run metadata labels" })
+      .closest("section");
+    expect(metadata).not.toBeNull();
+    expect(metadata).toHaveTextContent("eval.id=eval-ui-01");
+    expect(metadata).toHaveTextContent("eval.leg=a");
+    expect(metadata).toHaveTextContent("Immutable");
   });
 
   it("blocks a mutation while required declared fields are missing", async () => {
@@ -552,7 +590,7 @@ describe("Workflow routes", () => {
               runId: "run_changed",
               state: "running",
               runtimeLabels: [],
-              labels: {},
+              labels: { "eval.leg": "b" },
               runtimeConfiguration: pinnedRuntimeConfiguration,
             },
             { status: 202 },
@@ -568,6 +606,15 @@ describe("Workflow routes", () => {
     const user = userEvent.setup();
     const objective = await screen.findByLabelText(/^objective/i);
     await user.type(objective, "Initial objective");
+    await user.click(
+      screen.getByRole("button", { name: "Add metadata label" }),
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label key 1"),
+      "eval.leg",
+    );
+    const labelValue = screen.getByLabelText("Run metadata label value 1");
+    await user.type(labelValue, "a");
     await screen.findByRole("option", { name: /projects\/source@revision-7/ });
     await user.selectOptions(
       screen.getByLabelText(/^source/i),
@@ -584,8 +631,8 @@ describe("Workflow routes", () => {
     ).toBeInTheDocument();
     expect(keys[0]).toBe(keys[1]);
 
-    await user.clear(objective);
-    await user.type(objective, "Changed objective");
+    await user.clear(labelValue);
+    await user.type(labelValue, "b");
     await user.click(
       screen.getByRole("button", {
         name: "Start changed draft with a new key",
@@ -596,5 +643,79 @@ describe("Workflow routes", () => {
     );
     expect(keys).toHaveLength(3);
     expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it("blocks duplicate and reserved Run metadata labels before mutation", async () => {
+    let postCount = 0;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+          return apiResponse(workflow);
+        }
+        const inventory = inventoryResponse(url.pathname);
+        if (inventory !== undefined) {
+          return inventory;
+        }
+        if (url.pathname === "/v1/runs" && request.method === "POST") {
+          postCount += 1;
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderWorkflowApplication(api, "/workflows/openapi-from-source/1");
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByLabelText(/^objective/i),
+      "Validate labels",
+    );
+    await screen.findByRole("option", { name: /projects\/source@revision-7/ });
+    await user.selectOptions(
+      screen.getByLabelText(/^source/i),
+      "projects/source@revision-7",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add metadata label" }),
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label key 1"),
+      "contractor.secret",
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label value 1"),
+      "must-not-submit",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add metadata label" }),
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label key 2"),
+      "eval.id",
+    );
+    await user.type(screen.getByLabelText("Run metadata label value 2"), "one");
+    await user.click(
+      screen.getByRole("button", { name: "Add metadata label" }),
+    );
+    await user.type(
+      screen.getByLabelText("Run metadata label key 3"),
+      "eval.id",
+    );
+    await user.type(screen.getByLabelText("Run metadata label value 3"), "two");
+    await user.click(
+      screen.getByRole("button", { name: "Start Workflow Run" }),
+    );
+
+    expect(
+      await screen.findByText("The contractor. prefix is reserved."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Label key eval.id is duplicated."),
+    ).toHaveLength(2);
+    expect(postCount).toBe(0);
   });
 });

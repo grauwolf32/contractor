@@ -27,6 +27,30 @@ export function StateBadge({ state }: { state: WorkflowRunState | string }) {
   );
 }
 
+export function RunMetadataLabelChips({
+  labels,
+  empty = "none",
+}: {
+  labels: Readonly<Record<string, string>>;
+  empty?: string;
+}) {
+  const entries = Object.entries(labels).sort(([left], [right]) =>
+    left === right ? 0 : left < right ? -1 : 1,
+  );
+  if (entries.length === 0) {
+    return <span className="muted-copy">{empty}</span>;
+  }
+  return (
+    <span className="run-metadata-label-chips">
+      {entries.map(([key, value]) => (
+        <code className="run-metadata-label-chip" key={key} title={value}>
+          <strong>{key}</strong>=<span>{value}</span>
+        </code>
+      ))}
+    </span>
+  );
+}
+
 function compactDigest(digest: string): string {
   return `${digest.slice(0, 14)}…${digest.slice(-8)}`;
 }

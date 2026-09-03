@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   normalizeRunMetadataLabelSelectors,
+  runMetadataLabelKeyError,
+  runMetadataLabelValueError,
   safeRunMetadataLabels,
 } from "./run-metadata-labels";
 
@@ -38,5 +40,15 @@ describe("Run metadata labels", () => {
       { key: "eval.leg", value: "b" },
       { key: "purpose", value: "eval" },
     ]);
+  });
+
+  it("provides field-specific authoring failures without trimming opaque values", () => {
+    expect(runMetadataLabelKeyError("contractor.trace")).toBe(
+      "The contractor. prefix is reserved.",
+    );
+    expect(runMetadataLabelKeyError("Eval.ID")).toContain("lowercase ASCII");
+    expect(runMetadataLabelValueError("")).toBe("Label value is required.");
+    expect(runMetadataLabelValueError("\0hidden")).toContain("U+0000");
+    expect(runMetadataLabelValueError(" value ")).toBeUndefined();
   });
 });

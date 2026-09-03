@@ -1,5 +1,11 @@
 import type { ArtifactMetadata, ExactArtifactRef } from "../api/artifacts";
 import type { components } from "../api/generated/public";
+import {
+  RUN_METADATA_LABEL_LIMIT,
+  runMetadataLabelKeyError,
+  runMetadataLabelValueError,
+  type RunMetadataLabelDraft,
+} from "../api/run-metadata-labels";
 import type { CreateRunRequest, WorkflowResource } from "../api/workflows";
 
 export const NO_CREDENTIAL_OVERRIDE = "__none__";
@@ -17,6 +23,7 @@ export interface ExecutionOverrideDraft {
 
 export interface RunDraftValues {
   runtimeLabels: string[];
+  metadataLabels: readonly RunMetadataLabelDraft[];
   parameters: Record<string, string | undefined>;
   artifacts: Record<string, string>;
   overrides: ExecutionOverrideDraft;
@@ -80,6 +87,41 @@ export function validateRunDraft(
     errors.runtimeLabels =
       "Runtime labels must be a unique set without default.";
   }
+
+  if (values.metadataLabels.length > RUN_METADATA_LABEL_LIMIT) {
+    errors.metadataLabels = `A Run can have at most ${RUN_METADATA_LABEL_LIMIT} metadata labels.`;
+  }
+  const metadataLabels: Record<string, string> = {};
+  const firstLabelByKey = new Map<string, string>();
+  for (const label of values.metadataLabels) {
+    const keyError = runMetadataLabelKeyError(label.key);
+    const valueError = runMetadataLabelValueError(label.value);
+    if (keyError !== undefined) {
+      errors[`metadataLabel:${label.id}:key`] = keyError;
+    }
+    if (valueError !== undefined) {
+      errors[`metadataLabel:${label.id}:value`] = valueError;
+    }
+    if (keyError !== undefined) {
+      continue;
+    }
+    const firstID = firstLabelByKey.get(label.key);
+    if (firstID !== undefined) {
+      const duplicateError = `Label key ${label.key} is duplicated.`;
+      errors[`metadataLabel:${firstID}:key`] = duplicateError;
+      errors[`metadataLabel:${label.id}:key`] = duplicateError;
+      continue;
+    }
+    firstLabelByKey.set(label.key, label.id);
+    if (valueError === undefined) {
+      metadataLabels[label.key] = label.value;
+    }
+  }
+  const sortedMetadataLabels = Object.fromEntries(
+    Object.entries(metadataLabels).sort(([left], [right]) =>
+      left === right ? 0 : left < right ? -1 : 1,
+    ),
+  );
   const parameters: Record<string, string> = {};
   for (const [name, slot] of Object.entries(workflow.parameters).sort()) {
     const value = values.parameters[name];
@@ -129,6 +171,9 @@ export function validateRunDraft(
     request: {
       workflow: `${workflow.ref.name}@${workflow.ref.version}`,
       runtimeLabels,
+      ...(Object.keys(sortedMetadataLabels).length === 0
+        ? {}
+        : { labels: sortedMetadataLabels }),
       parameters,
       artifacts: inputRefs,
       ...(Object.keys(executionConfig).length === 0 ? {} : { executionConfig }),

@@ -15,6 +15,7 @@ import { ErrorNotice, formatTimestamp } from "../artifacts/common";
 import {
   DefinitionList,
   RunArtifactRef,
+  RunMetadataLabelChips,
   StageAttemptView,
   StateBadge,
 } from "./components";
@@ -356,6 +357,25 @@ function RunBindings({ run }: { run: RunStatus }) {
   );
 }
 
+function RunMetadataLabels({ run }: { run: RunStatus }) {
+  return (
+    <section className="panel run-metadata-label-panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Immutable · telemetry-visible</p>
+          <h3>Run metadata labels</h3>
+        </div>
+        <span>{Object.keys(run.labels).length} labels</span>
+      </div>
+      <p className="muted-copy">
+        Search and correlate this Run by these exact values. They do not select
+        Runtime infrastructure and cannot be changed after creation.
+      </p>
+      <RunMetadataLabelChips labels={run.labels} empty="No metadata labels." />
+    </section>
+  );
+}
+
 function RunRuntimeConfiguration({ run }: { run: RunStatus }) {
   const entries = [
     run.runtimeConfiguration.default,
@@ -478,6 +498,7 @@ function LoadedRunDetail({
     <>
       <RunTriageSummary run={run} triage={triage} />
       <RunTimestamps run={run} />
+      <RunMetadataLabels run={run} />
       {run.cancellation === undefined ? null : (
         <div className="notice notice-warning cancellation-record">
           <strong>Cancellation requested</strong>

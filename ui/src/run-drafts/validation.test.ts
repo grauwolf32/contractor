@@ -45,6 +45,7 @@ describe("Run draft validation", () => {
       workflow,
       {
         runtimeLabels: [],
+        metadataLabels: [],
         parameters: {},
         artifacts: { source: key },
         overrides: emptyExecutionOverrides(),
@@ -64,6 +65,10 @@ describe("Run draft validation", () => {
       workflow,
       {
         runtimeLabels: ["debug"],
+        metadataLabels: [
+          { id: "label-2", key: "eval.id", value: "eval-01" },
+          { id: "label-1", key: "purpose", value: "eval" },
+        ],
         parameters: { objective: "Build OpenAPI" },
         artifacts: { source: key },
         overrides: emptyExecutionOverrides(),
@@ -74,6 +79,7 @@ describe("Run draft validation", () => {
     expect(result.request).toEqual({
       workflow: "openapi-from-source@1",
       runtimeLabels: ["debug"],
+      labels: { "eval.id": "eval-01", purpose: "eval" },
       parameters: { objective: "Build OpenAPI" },
       artifacts: { source: source.artifact },
     });
@@ -90,6 +96,7 @@ describe("Run draft validation", () => {
       workflow,
       {
         runtimeLabels: [],
+        metadataLabels: [],
         parameters: { objective: "Build OpenAPI", note: "" },
         artifacts: { source: key },
         overrides,
@@ -103,6 +110,42 @@ describe("Run draft validation", () => {
     expect(result.request?.parameters).toEqual({
       objective: "Build OpenAPI",
       note: "",
+    });
+  });
+
+  it("reports exact metadata key, value, duplicate, and count failures", () => {
+    const labels = [
+      { id: "upper", key: "Eval.ID", value: "one" },
+      { id: "reserved", key: "contractor.owner", value: "one" },
+      { id: "empty", key: "eval.case", value: "" },
+      { id: "first", key: "eval.id", value: "one" },
+      { id: "second", key: "eval.id", value: "two" },
+      ...Array.from({ length: 28 }, (_, index) => ({
+        id: `extra-${index}`,
+        key: `extra.${index}`,
+        value: "value",
+      })),
+    ];
+    const result = validateRunDraft(
+      { ...workflow, parameters: {}, inputs: {} },
+      {
+        runtimeLabels: [],
+        metadataLabels: labels,
+        parameters: {},
+        artifacts: {},
+        overrides: emptyExecutionOverrides(),
+      },
+      new Map(),
+    );
+    expect(result.request).toBeUndefined();
+    expect(result.errors).toMatchObject({
+      metadataLabels: "A Run can have at most 32 metadata labels.",
+      "metadataLabel:upper:key":
+        "Use lowercase ASCII segments separated by ., _ or -.",
+      "metadataLabel:reserved:key": "The contractor. prefix is reserved.",
+      "metadataLabel:empty:value": "Label value is required.",
+      "metadataLabel:first:key": "Label key eval.id is duplicated.",
+      "metadataLabel:second:key": "Label key eval.id is duplicated.",
     });
   });
 });

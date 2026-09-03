@@ -7,6 +7,7 @@ describe("Run draft idempotency", () => {
   it("canonicalizes object key order without coercing values", () => {
     const first: CreateRunRequest = {
       workflow: "workflow@1",
+      labels: { purpose: "eval", "eval.id": "eval-01" },
       parameters: { z: "", a: "value" },
       artifacts: {
         source: { namespace: "projects", name: "source", revision: "r1" },
@@ -17,6 +18,7 @@ describe("Run draft idempotency", () => {
         source: { revision: "r1", name: "source", namespace: "projects" },
       },
       parameters: { a: "value", z: "" },
+      labels: { "eval.id": "eval-01", purpose: "eval" },
       workflow: "workflow@1",
     };
     expect(canonicalRunRequest(first)).toBe(canonicalRunRequest(second));
@@ -48,6 +50,30 @@ describe("Run draft idempotency", () => {
     expect(keyring.keyFor(changed)).toBe("run-draft-2");
     expect(keyring.matches(first)).toBe(false);
     expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("rotates the key when one immutable metadata label changes", () => {
+    const generate = vi
+      .fn<() => string>()
+      .mockReturnValueOnce("run-label-1")
+      .mockReturnValueOnce("run-label-2");
+    const keyring = new RunDraftKeyring(generate);
+    const first: CreateRunRequest = {
+      workflow: "workflow@1",
+      labels: { "eval.id": "eval-01", "eval.leg": "a" },
+    };
+    const reordered: CreateRunRequest = {
+      labels: { "eval.leg": "a", "eval.id": "eval-01" },
+      workflow: "workflow@1",
+    };
+    const changed: CreateRunRequest = {
+      workflow: "workflow@1",
+      labels: { "eval.id": "eval-01", "eval.leg": "b" },
+    };
+
+    expect(keyring.keyFor(first)).toBe("run-label-1");
+    expect(keyring.keyFor(reordered)).toBe("run-label-1");
+    expect(keyring.keyFor(changed)).toBe("run-label-2");
   });
 
   it("rejects an unsafe key generator", () => {
