@@ -3,8 +3,8 @@ id: V20-004
 title: Propagate Run metadata labels into Planner and Worker traces
 milestone: run-metadata-labels
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 98d8ec90eb0cb3a7c571edde55112adde21bc171
 depends_on: [V20-002, V8-014, V17-001]
 languages: [go, python, json, yaml]
 
