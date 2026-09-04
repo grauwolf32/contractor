@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fakes.model import json_result, scripted_model, tool_call
+from fakes.model import scripted_model, text_result, tool_call
 from google.adk.tools.base_tool import BaseTool
 
 from contractor_runtime.adk_runtime import AdkWorkerRuntime, AdkWorkerRuntimeFactory
@@ -57,12 +57,7 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
                     {"skill_name": "demo", "file_path": "references/guide.md"},
                     call_id="resource",
                 ),
-                json_result(
-                    {
-                        "subtaskId": "0",
-                        "result": "Used the selected skill",
-                    }
-                ),
+                text_result("Used the selected skill"),
             ]
         )
         state = WorkerState()
@@ -81,8 +76,8 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
 
         assert result.result is not None
         assert result.result.result == "Used the selected skill"
-        assert len(model.requests) == 4
-        for request in model.requests:
+        assert len(model.requests) == 5
+        for request in model.requests[:-1]:
             assert request["toolNames"] == sorted(EXACT_SKILL_TOOL_NAMES)
             instruction = request["systemInstruction"]
             assert isinstance(instruction, str)
@@ -97,6 +92,8 @@ def test_worker_uses_exact_native_script_free_skill_surface(tmp_path: Path) -> N
                     "agent template",
                 )
             )
+        assert model.requests[-1]["toolNames"] == []
+        assert model.requests[-1]["hasResponseSchema"] is True
         assert state.metrics.counters["tool_calls"] == 3
         assert [call.tool for call in state.metrics.tool_calls] == list(EXACT_SKILL_TOOL_NAMES)
         assert all(

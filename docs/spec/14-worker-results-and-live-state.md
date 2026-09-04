@@ -11,7 +11,8 @@ Depends on: [00](00-workflow-and-planner.md),
 
 This document owns four closely related boundaries:
 
-- the structured semantic result produced by a Worker model;
+- the terminal semantic text produced by the main Worker model and its strict
+  structured projection;
 - the trusted `WorkerResult` assembled by Runtime Agent for Planner;
 - deterministic invocation observations accumulated in allocation-local State;
 - the read-only path by which explicit Server-side Planner tools inspect that
@@ -22,16 +23,18 @@ by V13. It does **not** move `StageResult` ownership to Worker: a model-backed
 Planner still decides Stage completion through `finish`, and Workflow Scheduler
 still validates and durably accepts that candidate.
 
-## Three result layers
+## Four result layers
 
-The word “result” refers to three different facts. They are separate contracts:
+The word “result” refers to four different facts. They are separate contracts:
 
-1. `WorkerModelResult` is authored by the Worker model. It says what one exact
-   subtask produced, and nothing about Contractor lifecycle.
-2. `WorkerResult` is assembled by Runtime. It combines the validated semantic
+1. terminal Worker text is authored by the main tool-using model. It says what
+   one exact subtask produced, and nothing about Contractor lifecycle;
+2. `WorkerModelResult` is emitted by a separate tool-free ADK result finalizer
+   which must copy that text and the Runtime-supplied subtask ID exactly;
+3. `WorkerResult` is assembled by Runtime. It combines the validated semantic
    result with Runtime-owned observations, exact trusted artifact refs and a
    Runtime-owned summarization flag.
-3. `StageResult` is authored by Planner and accepted by Scheduler. It decides
+4. `StageResult` is authored by Planner and accepted by Scheduler. It decides
    whether the complete Stage succeeded or failed.
 
 The model-facing schema is intentionally small:
@@ -48,22 +51,27 @@ Both fields are mandatory and non-empty; unknown fields are rejected.
 It is the factual result intended for the calling Planner, not a transport
 envelope, retry decision, Stage outcome or telemetry container.
 
-`WorkerModelResult` is internal to the Python Runtime/ADK adapter. It never
-crosses A2A and has no Server-domain counterpart. Only the Runtime-authored
-`WorkerCompletion` below is a shared Go/Python wire contract.
+The main Worker does not serialize this object and does not receive it as an
+output schema. `WorkerModelResult` is internal to the Python Runtime/ADK
+adapter. It never crosses A2A and has no Server-domain counterpart. Only the
+Runtime-authored `WorkerCompletion` below is a shared Go/Python wire contract.
 
 Every private Worker request contains a mandatory `subtask_id`. Streamline and
 Router copy the ID of the exact claimed `PlannerSubtask`; the baseline
 Passthrough Planner uses the fixed ID `0`. The ID is opaque to Worker and is
 distinct from A2A Task ID, invocation ID, allocation ID and StageExecution ID.
-Runtime includes it in semantic task input and configures the ADK Worker with
-`WorkerModelResult` as its output schema.
+Runtime includes it in semantic task input. After ordinary Worker completion,
+Runtime supplies the exact ID and bounded terminal text to the result finalizer
+described below.
 
-The model must echo that exact ID. Runtime compares the parsed value to the
+The finalizer must echo that exact ID. Runtime compares the parsed value to the
 request and rejects a mismatch as `worker_result_subtask_mismatch`; the value
 placed in the trusted result is always copied from the request, never trusted
-from model output. This check detects a stale or malformed model completion
-without letting the model redirect a result to another subtask.
+from model output. Runtime also requires byte-for-byte equality between
+finalized `result` and the main Worker's terminal text. A rewrite is
+`worker_result_finalizer_mismatch`. These checks detect stale, malformed or
+semantic-changing serialization without letting either model redirect or
+rewrite a result.
 
 Runtime then constructs:
 
@@ -119,10 +127,49 @@ select retry or escalation.
 
 ## Structured output and model boundary
 
-The selected `adk@1` implementation uses the pinned ADK structured-output
-mechanism that supports an output schema together with tools. Runtime does not
-append a hand-written Contractor result prompt and does not ask the model to
-serialize `WorkerResult`, `WorkerCompletion` or `StageResult`.
+The selected `adk@1` implementation never combines tools and an output schema
+in the main Worker Agent. This rule is unconditional: Runtime does not branch
+on a model or adapter capability flag. A generic LLM Gateway may route the same
+alias to backends with different grammar behavior, and an adapter's advertised
+capability is not proof that the selected downstream model accepts both
+features in one request.
+
+Every ordinary completion therefore has two phases:
+
+```text
+main ADK Worker: AgentTemplate behavior + task + selected tools, no output_schema
+  -> bounded terminal semantic text
+tool-free ADK result finalizer: exact subtask ID + exact terminal text
+  -> WorkerModelResult(subtask_id, result)
+Runtime: exact-copy validation + observations + trusted artifacts
+  -> WorkerResult(summarized=false)
+```
+
+The finalizer is an ephemeral ADK `LlmAgent`, `Runner` and in-memory Session.
+It uses the same allocation model client, pinned ModelPolicy and LLM Gateway as
+the main Worker, but receives no tools, Agent Skills, workspace handles,
+Artifact client, task objective/instructions, parameters, input refs, prior
+conversation or arbitrary State. Its deterministic input document contains
+only `subtaskId` and `resultText`, is at most 256 KiB encoded, and is destroyed
+with the invocation. Its instruction permits exact serialization only. It may
+not summarize, correct, reinterpret or reformat either value.
+
+The finalizer makes exactly one provider call. It has no repair or retry loop.
+That call and its provider-reported usage count against the same normal Worker
+`maxModelCalls` and `maxTotalTokens` as main turns, and appear in the same
+Worker metrics/live State. Model spans mark `model.phase=result_finalizer`.
+Workflow authors must include this mandatory call in the normal Worker budget;
+Runtime does not grant hidden finalization capacity. Missing, blank, over-64
+KiB or known-secret-bearing terminal text is rejected before the finalizer.
+
+The optional terminal summarizer in [15](15-worker-summarization.md) is the one
+exception to this ordinary two-phase path: it already is an independent
+tool-free structured terminal Agent. Its valid `WorkerModelResult` is checked
+and projected directly with `summarized=true`, without a redundant result
+finalizer call or normal-budget charge.
+
+Runtime does not ask either model to serialize `WorkerResult`,
+`WorkerCompletion` or `StageResult`.
 
 The model sees only:
 
@@ -131,14 +178,21 @@ The model sees only:
 - the exact opaque `subtask_id`;
 - immutable string parameters and named exact input ArtifactRefs;
 - its explicitly selected tools and skills;
+- no Contractor result schema or lifecycle envelope.
+
+The result finalizer sees only:
+
+- the exact opaque `subtask_id` supplied by Runtime;
+- the exact bounded terminal text emitted by the main Worker;
 - ADK's schema guidance for the two-field `WorkerModelResult`.
 
 It does not see result bindings, artifact grants, Runtime observations,
 `summarized`, state revision, physical placement, RuntimeSettings, lifecycle,
 retryability or Scheduler policy. An unsupported or invalid provider
-structured response fails closed with a bounded stable Worker error; Runtime
-does not accept arbitrary final text as a successful substitute and does not
-make a second repair/finalizer call.
+structured response fails closed with a bounded stable Worker error. Runtime
+accepts main final text only after the mandatory finalizer has returned the
+strict schema and exact-copy validation has succeeded. It never makes a second
+finalizer/repair call.
 
 The existing trusted artifact projection remains authoritative. Runtime maps
 only exact refs observed through completed allocation-bound tool calls in the
@@ -152,14 +206,19 @@ Initial stable result failures include:
 - `worker_result_missing`;
 - `worker_result_invalid`;
 - `worker_result_subtask_mismatch`;
+- `worker_result_finalizer_mismatch`;
+- `worker_result_finalizer_failed`;
 - `worker_result_too_large`;
 - `unsafe_worker_result`;
 - the existing `worker_budget_exhausted` and domain/runtime failures.
 
-Malformed/missing model output and a subtask mismatch are retryable Worker
-failures because a fresh StageExecution may succeed; deterministic size,
-secret-retention and invalid binding violations are non-retryable. Workflow
-policy, not Runtime, decides whether that flag causes another attempt.
+Malformed/missing model output, a subtask mismatch, an internal finalizer
+failure and a finalizer exact-copy mismatch are retryable Worker failures
+because a fresh StageExecution may succeed. Provider transport failures retain
+the shared `worker_gateway_unavailable` code; an internal finalizer boundary
+failure uses `worker_result_finalizer_failed`. Deterministic size, secret-retention and
+invalid binding violations are non-retryable. Workflow policy, not Runtime,
+decides whether that flag causes another attempt.
 
 ## One instrumentation plugin, separate reducers
 
@@ -179,6 +238,12 @@ This is one plugin for lifecycle correlation, not one untyped data bucket.
 Metrics and observations have different retention and projection rules.
 Refactoring existing per-tool metrics into the plugin must preserve the current
 `ExecutionReport` exactly and must not count a call twice.
+
+The result finalizer has a separate ephemeral ADK Runner but reports its one
+model call through typed hooks on this same invocation plugin. It therefore
+updates the same normal budget, metrics and Contractor-owned State reducers; it
+does not create a second uncorrelated instrumentation State. Its prompt and
+output are never retained in that State.
 
 The plugin never generically copies tool arguments or results into State. Each
 selected tool may register a narrow `ObservationExtractor` which converts a

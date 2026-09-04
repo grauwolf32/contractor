@@ -168,6 +168,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._invocation_metrics: InvocationMetricsReducer | None = None
         self._workspace_observations: WorkspaceObservationReducer | None = None
         self._pending_models: list[RuntimeSpan | None] = []
+        self._pending_auxiliary_models: dict[str, RuntimeSpan | None] = {}
         self._pending_tools: dict[int, _PendingTool] = {}
         self._next_tool_ordinal = 1
         self._projection_failed = False
@@ -203,6 +204,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._workspace_observations = workspace_observations
             self._projection_failed = self._projection_failed or workspace_projection_failed
             self._pending_models.clear()
+            self._pending_auxiliary_models.clear()
             self._pending_tools.clear()
             self._next_tool_ordinal = 1
             snapshot = await self._state.begin_invocation(
@@ -284,6 +286,82 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 self._metrics.record_model_error(error)
                 self._require_reducer().record_model_error()
             await self._publish_locked(callback_context)
+
+    async def before_result_finalizer_call(self, *, invocation_id: str) -> None:
+        """Account the isolated ADK finalizer in the normal Worker budget."""
+
+        async with self._lock:
+            if not self._is_active(invocation_id):
+                raise RuntimeError("Worker result finalizer invocation is stale")
+            phase = "result_finalizer"
+            if phase in self._pending_auxiliary_models:
+                raise RuntimeError("Worker result finalizer already has a model call")
+            budget = self._budget()
+            if budget is not None:
+                budget.before_model_call()
+            self._metrics.record_model_call()
+            self._require_reducer().record_model_call()
+            self._pending_auxiliary_models[phase] = _start_span(
+                self._instrumentation,
+                "contractor.worker.model",
+                {
+                    "operation.kind": "model",
+                    "model.alias": self._model_alias,
+                    "model.phase": phase,
+                },
+            )
+            await self._publish_locked(None)
+
+    async def after_result_finalizer_call(self, *, invocation_id: str, usage: Any | None) -> None:
+        async with self._lock:
+            phase = "result_finalizer"
+            if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
+                raise RuntimeError("Worker result finalizer model completion is stale")
+            span = self._pending_auxiliary_models.pop(phase)
+            self._metrics.record_model_usage(usage)
+            self._require_reducer().record_model_usage(usage)
+            _end_span(
+                span,
+                outcome="succeeded",
+                attributes={"model.phase": phase, **_usage_attributes(usage)},
+            )
+            try:
+                budget = self._budget()
+                if budget is not None:
+                    budget.after_model_response(usage)
+            finally:
+                await self._publish_locked(None)
+
+    async def on_result_finalizer_error(self, *, invocation_id: str, error: BaseException) -> None:
+        async with self._lock:
+            phase = "result_finalizer"
+            if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
+                return
+            span = self._pending_auxiliary_models.pop(phase)
+            if isinstance(error, asyncio.CancelledError):
+                _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
+            elif type(error).__name__ == "WorkerBudgetExceeded":
+                _end_span(
+                    span,
+                    outcome="rejected",
+                    attributes={
+                        "error.type": type(error).__name__,
+                        "model.phase": phase,
+                    },
+                )
+            else:
+                safe_error = error if isinstance(error, Exception) else RuntimeError("model failed")
+                _end_span(
+                    span,
+                    outcome="failed",
+                    attributes={
+                        "error.type": _safe_error_type(safe_error),
+                        "model.phase": phase,
+                    },
+                )
+                self._metrics.record_model_error(safe_error)
+                self._require_reducer().record_model_error()
+            await self._publish_locked(None)
 
     async def before_tool_callback(
         self,
@@ -434,6 +512,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 raise RuntimeError("Worker instrumentation completion is stale")
             while self._pending_models:
                 _end_span(self._pending_models.pop(0), outcome="cancelled")
+            for phase, span in tuple(self._pending_auxiliary_models.items()):
+                self._pending_auxiliary_models.pop(phase, None)
+                _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
             for key, pending in tuple(self._pending_tools.items()):
                 self._pending_tools.pop(key, None)
                 await self._finish_tool_locked(
@@ -463,6 +544,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._prepared = None
             while self._pending_models:
                 _end_span(self._pending_models.pop(0), outcome="cancelled")
+            for phase, span in tuple(self._pending_auxiliary_models.items()):
+                self._pending_auxiliary_models.pop(phase, None)
+                _end_span(span, outcome="cancelled", attributes={"model.phase": phase})
             for pending in self._pending_tools.values():
                 _end_span(pending.span, outcome="cancelled")
                 self._metrics.release_tool_correlation(pending.correlation_id)

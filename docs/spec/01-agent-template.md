@@ -260,8 +260,9 @@ before Run execution if the selected policy is incompatible:
 - an `adk@1` Worker requires `maxOutputTokens`, `maxModelCalls` and
   `maxTotalTokens`; it additionally requires `maxToolCalls` when the resolved
   AgentTemplate exposes any model-visible Contractor tool or Agent Skill and
-  does not use
-  `maxWorkerCalls`;
+  does not use `maxWorkerCalls`. `maxModelCalls` and `maxTotalTokens` include
+  the mandatory one-shot result-finalizer call after every ordinary terminal
+  Worker response;
 - a Worker whose AgentTemplate enables terminal summarization additionally
   requires `contextWindowTokens` so Runtime can derive its soft context
   boundary;

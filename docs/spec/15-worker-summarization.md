@@ -105,8 +105,10 @@ The trigger is checked at a safe boundary:
 
 1. a model response completes;
 2. every tool call selected by that response either completes or fails;
-3. if the response already contains a valid `WorkerModelResult`, Runtime uses
-   it normally with `summarized: false`;
+3. if the main Worker response contains ordinary terminal semantic text,
+   Runtime completes it through the mandatory result finalizer from
+   [14](14-worker-results-and-live-state.md) and returns it with
+   `summarized: false`;
 4. otherwise, before starting another normal model call, reaching either the
    derived context boundary or optional cumulative budget requests terminal
    summarization.
@@ -156,7 +158,9 @@ Runtime performs the same exact subtask check, secret scan, UTF-8/size bound,
 artifact projection and final wire validation as for a normal result. It then
 sets `summarized: true`; the model cannot set or clear that flag. Deterministic
 observations are copied from the completed normal loop rather than authored by
-the summarizer.
+the summarizer. Because this tool-free terminal summarizer already produces the
+strict `WorkerModelResult`, Runtime does not invoke the ordinary result
+finalizer after it.
 
 Once terminal summarization is requested, Runtime makes exactly one summarizer
 attempt. Missing/invalid/mismatched/oversized output, provider failure or its

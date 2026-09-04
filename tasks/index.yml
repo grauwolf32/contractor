@@ -55,11 +55,18 @@ fixed_decisions:
   worker_model_boundary:
     reusable_behavior: AgentTemplate resolved instruction text and selected tools/skills
     task_input: Planner objective/instructions, opaque subtask ID, string parameters and named exact input refs
-    model_output: Strict WorkerModelResult with only exact subtask ID and semantic result text
+    model_output: >-
+      Main Worker authors bounded terminal semantic text without output_schema;
+      one mandatory tool-free ADK result finalizer copies the exact subtask ID
+      and text into strict WorkerModelResult.
     result_projection: >-
       Runtime validates the subtask echo, stamps trusted identity, deterministic
       observations, summarized state and only current-invocation exact artifact
       refs; Planner separately owns StageResult.
+    finalizer_accounting: >-
+      The finalizer uses the same pinned model route and normal Worker
+      maxModelCalls/maxTotalTokens accounting, makes exactly one call, cannot
+      rewrite text and is distinct from optional terminal summarization.
   worker_live_state:
     storage: >-
       One bounded versioned Contractor subtree in allocation-local ADK State;
@@ -249,8 +256,9 @@ milestones:
     outcome: >-
       Historical V5 behavior let tool-complete Workers recover from malformed
       output, added explicit project-scale LikeC4 budgets and exposed safe
-      attempt errors. Its result-finalizer was superseded by V13 and the later
-      plain-text projection is superseded by the typed V17 boundary.
+      attempt errors. Its semantic repair-style finalizer was superseded by V13;
+      V21 later introduces a mandatory exact-copy serializer without restoring
+      model-authored recovery semantics.
   - id: lifecycle-review-hardening
     exit_task: V6-003
     outcome: >-
@@ -378,6 +386,12 @@ milestones:
       correlate eval groups and A/B legs across public API, UI and
       Planner/Worker traces without affecting execution or RuntimeConfig
       selection.
+  - id: adk-worker-result-finalizer
+    exit_task: V21-001
+    outcome: >-
+      Every ordinary adk@1 Worker separates tool execution from one exact-copy
+      tool-free structured-output call, eliminating backend-dependent
+      tools-plus-schema grammar failures without changing result ownership.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-02"
@@ -394,7 +408,9 @@ worker_results_state_planning_review:
       - Arbitrary result-format recovery and model-authored observation fields.
   checks:
     - >-
-      Result ownership is explicit: Worker model authors only subtaskId/result,
+      Result ownership is explicit: the main Worker model authors only bounded
+      semantic text, the mandatory tool-free finalizer serializes its exact text
+      plus Runtime's authoritative subtaskId, and Runtime rejects any rewrite;
       Runtime owns trusted metadata and technical failures, Planner owns
       StageResult and Scheduler owns durable acceptance/policy.
     - >-
@@ -1577,3 +1593,4 @@ tasks:
   - {id: V20-004, file: v20-004-run-label-telemetry-propagation.yml}
   - {id: V20-005, file: v20-005-run-metadata-label-ui.yml}
   - {id: V20-006, file: v20-006-run-metadata-label-release-gate.yml}
+  - {id: V21-001, file: v21-001-adk-worker-result-finalizer.yml}

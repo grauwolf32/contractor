@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fakes.model import json_result, scripted_model, tool_call
+from fakes.model import scripted_model, text_result, tool_call
 from test_adk_runtime import create_runtime, stage_request
 from test_filesystem_toolset import create_tools, workspace
 
@@ -333,7 +333,7 @@ def test_real_adk_runtime_projects_workspace_observations_into_worker_result(
                     {"pattern": "needle", "path": "", "glob": "**/*.py"},
                     call_id="grep-1",
                 ),
-                json_result({"subtaskId": "0", "result": "Workspace inspected"}),
+                text_result("Workspace inspected"),
             ]
         )
         runtime = await create_runtime(

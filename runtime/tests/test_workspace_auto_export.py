@@ -182,7 +182,7 @@ def test_adk_maps_partial_export_to_stable_retryable_failure(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_adk_rejects_protocol_shaped_or_free_text_before_workspace_export(
+def test_adk_treats_protocol_shaped_and_free_text_as_opaque_before_export(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -210,10 +210,11 @@ def test_adk_rejects_protocol_shaped_or_free_text_before_workspace_export(
         )
         await failed_session.write_text("source.txt", "useful partial state\n")
         failed = await failed_runtime.invoke(stage_request())
-        assert failed.failure is not None
-        assert failed.failure.code == "worker_result_invalid"
-        assert failed_client.bindings == {}
-        assert await failed_session.changed_paths() == ("source.txt",)
+        assert failed.result is not None
+        assert failed.failure is None
+        assert '"outcome":"failed"' in failed.result.result
+        assert set(failed.result.artifacts) == {"workspace_state", "workspace_diff"}
+        assert await failed_session.changed_paths() == ()
         await failed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         malformed_session = await overlay("malformed")
@@ -226,10 +227,11 @@ def test_adk_rejects_protocol_shaped_or_free_text_before_workspace_export(
         )
         await malformed_session.write_text("source.txt", "must stay private\n")
         malformed = await malformed_runtime.invoke(stage_request())
-        assert malformed.failure is not None
-        assert malformed.failure.code == "worker_result_invalid"
-        assert malformed_client.bindings == {}
-        assert await malformed_session.changed_paths() == ("source.txt",)
+        assert malformed.result is not None
+        assert malformed.failure is None
+        assert malformed.result.result == "ordinary summary"
+        assert set(malformed.result.artifacts) == {"workspace_state", "workspace_diff"}
+        assert await malformed_session.changed_paths() == ()
         await malformed_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
         reserved_session = await overlay("reserved")
@@ -256,9 +258,10 @@ def test_adk_rejects_protocol_shaped_or_free_text_before_workspace_export(
             ],
         )
         reserved = await reserved_runtime.invoke(stage_request())
-        assert reserved.failure is not None
-        assert reserved.failure.code == "worker_result_invalid"
-        assert reserved_client.bindings == {}
+        assert reserved.result is not None
+        assert reserved.failure is None
+        assert '"revision":"invented"' in reserved.result.result
+        assert set(reserved.result.artifacts) == {"workspace_state", "workspace_diff"}
         await reserved_runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -358,7 +361,7 @@ def worker_result() -> WorkerResult:
 
 
 def structured_response(result: str) -> object:
-    return json_result({"subtaskId": "0", "result": result})
+    return text_result(result)
 
 
 async def runtime_with_export(

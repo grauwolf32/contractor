@@ -312,18 +312,24 @@ such as the LLM Gateway adapter and are never a telemetry source.
 ### Worker result and live observation boundary
 
 Worker model, Runtime, Planner and Scheduler own separate result layers. The
-Worker model returns only a strict `WorkerModelResult(subtask_id, result)`.
-Runtime verifies its correlation, attaches deterministic observations and
-trusted exact result artifacts, and returns `WorkerResult` or a separate
-technical `WorkerFailure`. Planner alone turns one or more such completions into
-a StageResult candidate. The complete contract, including the read-only live
-State path and explicit Planner projection tools, is owned by
+main tool-using Worker model returns bounded terminal semantic text. Runtime
+always passes an ordinary completion through a separate one-shot, tool-free ADK
+result finalizer, which serializes the exact text and Runtime-supplied subtask ID
+as `WorkerModelResult(subtask_id, result)`. Runtime rejects semantic rewrites,
+attaches deterministic observations and trusted exact result artifacts, and
+returns `WorkerResult` or a separate technical `WorkerFailure`. Planner alone
+turns one or more such completions into a StageResult candidate. The complete
+contract, including the read-only live State path and explicit Planner
+projection tools, is owned by
 [14](14-worker-results-and-live-state.md).
 
-There is no invalid-output repair/finalizer call. Optional terminal
-summarization is a distinct one-shot model consumer that runs only before a
-Worker completion under [15](15-worker-summarization.md); allocation
-drain/finalization itself still performs no model or tool calls.
+The mandatory result finalizer is a serializer, not an invalid-output repair
+loop: it makes exactly one call and consumes the normal Worker model-call and
+token budget. Optional terminal summarization is a distinct one-shot model
+consumer under [15](15-worker-summarization.md). A successful terminal
+summarizer already returns the strict schema and is not followed by the ordinary
+result finalizer. Allocation drain/finalization itself still performs no model
+or tool calls.
 
 ## Execution reports
 

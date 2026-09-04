@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fakes.model import json_result, scripted_model, tool_call
+from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_projectfs_zip import REVISION, archive, settings
 from test_workspace_auto_export import MemoryArtifactClient, StoredArtifact
@@ -291,7 +291,7 @@ def edit_model(path: str, old: str, new: str, prefix: str) -> object:
                 {"path": path, "cursor": "", "max_bytes": 65536},
                 call_id=f"{prefix}-diff",
             ),
-            json_result(success_result()),
+            text_result("Workspace operation complete"),
         ]
     )
 
@@ -304,16 +304,9 @@ def read_only_model(path: str, prefix: str) -> object:
                 {"path": path, "start_line": 1, "max_lines": 20},
                 call_id=f"{prefix}-read",
             ),
-            json_result(success_result()),
+            text_result("Workspace operation complete"),
         ]
     )
-
-
-def success_result() -> dict[str, object]:
-    return {
-        "subtaskId": "0",
-        "result": "Workspace operation complete",
-    }
 
 
 def stage_request() -> StageContentRequest:

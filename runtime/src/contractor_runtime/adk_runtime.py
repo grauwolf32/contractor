@@ -39,6 +39,7 @@ from contractor_runtime.agent_skills.runtime import (
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     API_VERSION,
+    MAX_WORKER_RESULT_BYTES,
     AgentStateSnapshot,
     ArtifactRef,
     ResolvedModelPolicy,
@@ -66,6 +67,10 @@ from contractor_runtime.projectfs import (
     OverlayWorkspaceSession,
     WorkspaceAutoExporter,
     WorkspaceExportError,
+)
+from contractor_runtime.result_finalizer import (
+    ResultFinalizerFailure,
+    WorkerResultFinalizer,
 )
 from contractor_runtime.summarizer import (
     SummarizerFailure,
@@ -329,13 +334,17 @@ class AdkWorkerRuntime:
             workspace_observation_source=context.project_workspace,
             summarizer_enabled=context.summarizer is not None,
         )
+        self._result_finalizer: WorkerResultFinalizer | None = WorkerResultFinalizer(
+            model=model,
+            policy=policy,
+            observer=self._plugin,
+        )
         self._agent = LlmAgent(
             name="contractor_worker",
             description=context.description,
             model=model,
             instruction=context.instruction,
             tools=adk_tools,
-            output_schema=WorkerModelResult,
             generate_content_config=generation,
         )
         self._app = App(
@@ -602,12 +611,104 @@ class AdkWorkerRuntime:
                     ),
                     False,
                 )
-            return self._build_runtime_result(
-                request, candidate, tuple(self._invocation_observed_refs)
-            )
+            if candidate is None:
+                return self._build_runtime_result(
+                    request, candidate, tuple(self._invocation_observed_refs)
+                )
+            try:
+                return await self._run_result_finalizer(
+                    request=request,
+                    candidate=candidate,
+                    invocation_id=invocation_id,
+                    observed_refs=tuple(self._invocation_observed_refs),
+                )
+            except Exception as error:
+                budget_error = _worker_budget_error(error)
+                if budget_error is not None:
+                    self._metrics.record_worker_budget_exhausted(budget_error.dimension)
+                    return (
+                        _failure(
+                            "worker_budget_exhausted",
+                            f"Worker invocation budget exhausted ({budget_error.dimension})",
+                            True,
+                        ),
+                        False,
+                    )
+                if _gateway_model_error(error) is not None:
+                    return _failure(
+                        "worker_gateway_unavailable",
+                        "Worker LLM Gateway request failed",
+                        True,
+                    ), False
+                finalizer_error = _result_finalizer_error(error)
+                if finalizer_error is not None:
+                    if finalizer_error.code == "input_too_large":
+                        return _failure(
+                            "worker_result_too_large",
+                            "Worker result finalization input exceeds its limit",
+                            False,
+                        ), False
+                    return _failure(
+                        "worker_result_finalizer_failed",
+                        f"Worker result finalizer failed ({finalizer_error.code})",
+                        True,
+                    ), False
+                return _failure(
+                    "worker_result_finalizer_failed",
+                    "Worker result finalizer failed (runtime_failed)",
+                    True,
+                ), False
         finally:
             self._invocation_observed_refs.clear()
             _clear_artifact_observation_logs(self._context.tools)
+
+    async def _run_result_finalizer(
+        self,
+        *,
+        request: StageContentRequest,
+        candidate: str,
+        invocation_id: str,
+        observed_refs: tuple[ArtifactRef, ...],
+    ) -> tuple[WorkerResult | WorkerFailure, bool]:
+        candidate_bytes = len(candidate.encode("utf-8"))
+        if candidate_bytes > MAX_WORKER_RESULT_BYTES:
+            return _failure(
+                "worker_result_too_large", "Worker terminal result exceeds its limit", False
+            ), False
+        if not candidate.strip():
+            return _failure(
+                "worker_result_invalid", "Worker returned an invalid terminal result", True
+            ), False
+        wrapped_gateway_token = self._context.runtime_settings.llm_gateway_token
+        gateway_token = (
+            wrapped_gateway_token.get_secret_value() if wrapped_gateway_token is not None else ""
+        )
+        if gateway_token and gateway_token in candidate:
+            return _failure(
+                "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
+            ), False
+        finalizer = self._result_finalizer
+        if finalizer is None:
+            return _failure(
+                "worker_draining", "Worker is no longer accepting A2A work", True
+            ), False
+        structured_candidate = await finalizer.run(
+            subtask_id=request.subtask_id,
+            result_text=candidate,
+            invocation_id=invocation_id,
+        )
+        result, exportable = self._build_runtime_result(
+            request,
+            structured_candidate,
+            observed_refs,
+        )
+        if isinstance(result, WorkerResult) and result.result != candidate:
+            return _failure(
+                "worker_result_finalizer_mismatch",
+                "Worker result finalizer changed the terminal result",
+                True,
+            ), False
+        return result, exportable
 
     async def _run_terminal_summarizer(
         self,
@@ -867,6 +968,7 @@ class AdkWorkerRuntime:
             if isinstance(model, GatewayLiteLlm):
                 model.clear_credentials()
             self._agent = None
+            self._result_finalizer = None
             self._instrumentation = None
             self._agent_skills = None
             self._workspace_exporter = None
@@ -1074,6 +1176,19 @@ def _worker_summarization_request(
     while current is not None and id(current) not in seen:
         seen.add(id(current))
         if isinstance(current, WorkerSummarizationRequested):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _result_finalizer_error(error: BaseException) -> ResultFinalizerFailure | None:
+    """Find a finalizer control failure through ADK callback wrappers."""
+
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, ResultFinalizerFailure):
             return current
         current = current.__cause__ or current.__context__
     return None

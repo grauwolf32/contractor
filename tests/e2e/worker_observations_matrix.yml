@@ -2,8 +2,10 @@ schema_version: "1.0"
 
 policy:
   result_boundary: >-
-    The Worker model returns only strict WorkerModelResult; Runtime owns
-    correlation, observations and exact result artifact selection.
+    The main Worker model returns bounded semantic text; one mandatory
+    tool-free finalizer serializes the exact text and Runtime-owned subtask ID
+    as WorkerModelResult. Runtime owns correlation, observations and exact
+    result artifact selection.
   live_state: >-
     Full Contractor State remains allocation-private and volatile. Planner sees
     only fixed projections correlated to its newest completed dispatch.
@@ -23,20 +25,20 @@ cases:
     category: result
     acceptance: [A2]
     faults: [F01]
-    expected: Unknown fields malformed JSON and secret-bearing results fail at the Runtime model boundary.
-    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_rejects_non_schema_results_and_blocks_secrets}
+    expected: Protocol-shaped main text remains opaque while secret-bearing terminal text is rejected before finalization.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_treats_terminal_text_as_opaque_and_blocks_secrets}
   - id: result_size_and_subtask_boundaries
     category: result
     acceptance: [A2]
     faults: [F02]
-    expected: Empty oversized and wrong-subtask model results map to closed typed failures.
-    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_rejects_invalid_model_result_boundaries}
-  - id: no_result_repair_call
+    expected: Empty oversized wrong-subtask and semantic-changing finalizer results map to closed typed failures.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_rejects_invalid_result_finalizer_boundaries}
+  - id: one_result_finalizer_call
     category: result
     acceptance: [A2]
     faults: [F03]
-    expected: Free text fails without an implicit serializer or second model call.
-    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_free_text_fails_without_recovery_model_call}
+    expected: Ordinary terminal text succeeds only after exactly one separately budgeted structured serializer call.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_adk_worker_finalizes_plain_terminal_text_once}
   - id: a2a_subtask_correlation
     category: correlation
     acceptance: [A2]

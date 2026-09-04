@@ -1,0 +1,107 @@
+schema_version: "1.0"
+id: V21-001
+title: Isolate Worker structured output in an ADK result finalizer
+milestone: adk-worker-result-finalizer
+priority: P0
+status: in_progress
+implementation_commit: null
+depends_on: [V17-007, V18-003]
+languages: [python, yaml, markdown]
+
+goal: >-
+  Make ordinary adk@1 Worker completion independent of whether an
+  OpenAI-compatible model backend can combine function tools and JSON Schema
+  by always separating semantic execution from strict result serialization.
+
+context:
+  observed_failure: >-
+    A real LikeC4 Run through LiteLLM and LM Studio failed before inference with
+    "Failed to initialize samplers: failed to parse grammar". Direct probes
+    proved that this backend accepts tools alone and response_format JSON
+    Schema alone but rejects both in one request. Google ADK's LiteLlm adapter
+    advertises output_schema_and_tools unconditionally, so downstream
+    compatibility cannot be inferred from that adapter flag.
+  fixed_pipeline: >-
+    The main allocation-local ADK Worker always has its selected tools and no
+    output_schema. A separate ephemeral tool-free ADK LlmAgent receives only
+    the exact opaque subtask ID and bounded terminal text, and returns strict
+    WorkerModelResult. This path is mandatory for every ordinary terminal-text
+    completion, including models that could natively combine both features.
+  semantic_ownership: >-
+    The Worker authors terminal semantic text. The finalizer is a serializer
+    only: Runtime rejects any changed subtask ID or changed result text. Runtime
+    still adds observations, exact artifacts and summarized=false; Planner
+    still owns StageResult and Scheduler owns durable acceptance.
+
+scope:
+  in:
+    - Remove output_schema from the main adk@1 Worker while preserving its exact AgentTemplate instruction and selected tool/Skill surface.
+    - Add one ephemeral ADK result-finalizer Agent, Runner and in-memory Session with no tools, skills, workspace, artifacts, task instructions or prior conversation.
+    - Supply only subtaskId and the exact bounded terminal text in a deterministic at-most-256-KiB JSON document.
+    - Apply WorkerModelResult as the finalizer output schema and enforce exactly one provider call with no retry/repair loop.
+    - Require byte-for-byte semantic text equality and exact request-owned subtask identity after strict schema validation.
+    - Charge the finalizer call and provider-reported usage to the same normal Worker maxModelCalls and maxTotalTokens budgets, metrics, live State and model spans.
+    - Refuse to start the finalizer for missing, blank, oversized or known-secret-bearing terminal text and preserve bounded stable WorkerFailure codes.
+    - Cancel and clean the finalizer with the owning invocation on finalize, abort or lease-driven termination without retaining prompt/output in State or telemetry.
+    - Keep the optional terminal summarizer independent; when it is selected at a soft boundary it already is the one structured terminal agent and does not invoke this serializer afterward.
+    - Update Runtime tests, specification, task index and opt-in live Gateway coverage for the separated request shapes.
+  out:
+    - Provider-specific LM Studio grammar settings, model-capability negotiation, a Server/API schema change, a distinct finalizer ModelPolicy, semantic rewriting, or general ADK conversation compaction.
+
+deliverables:
+  - {path: runtime/src/contractor_runtime/result_finalizer.py, description: One-shot isolated tool-free ADK structured serializer.}
+  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Mandatory normal Worker-to-finalizer pipeline and strict projection.}
+  - {path: runtime/src/contractor_runtime/instrumentation.py, description: Same-budget finalizer model accounting and cancellation-safe spans.}
+  - {path: runtime/tests, description: Request-shape, equality, budget, failure, cancellation, artifact and lifecycle regression coverage.}
+  - {path: docs/spec, description: Normative ordinary-result finalizer and terminal-summarizer separation.}
+
+requirements:
+  - {id: R1, text: No ordinary main Worker model request contains both a tool declaration and response schema, regardless of advertised backend capabilities.}
+  - {id: R2, text: Every non-empty ordinary terminal result requires exactly one tool-free schema-constrained finalizer call; Runtime never accepts its semantic rewrite.}
+  - {id: R3, text: The finalizer consumes the same pinned model route and hard Worker budget and creates no hidden free or retrying inference path.}
+  - {id: R4, text: Finalizer Session, prompt and output are ephemeral and cancellation cannot leak credentials, task context, tools, artifacts or filesystem handles.}
+  - {id: R5, text: Optional terminal summarization retains its separate policy, input, accounting and summarized=true semantics and is not followed by the ordinary result finalizer.}
+
+acceptance_criteria:
+  - id: A1
+    given: A tool-using Worker reaches ordinary terminal text through an OpenAI-compatible Gateway.
+    when: Main and finalizer requests are captured.
+    then: Main turns expose tools with no response schema, exactly one following request exposes WorkerModelResult schema with no tools, and the trusted WorkerResult contains the exact original text.
+  - id: A2
+    given: Finalizer output changes text/ID, is missing/invalid/oversized, or its provider fails.
+    when: Runtime validates or observes the call.
+    then: It returns one bounded retryable/non-retryable failure as specified, performs no second finalizer call and retains neither raw candidate nor secrets.
+  - id: A3
+    given: Main execution consumes the last model call or token capacity.
+    when: It produces terminal text.
+    then: Finalization does not contact the provider and returns worker_budget_exhausted with complete same-budget metrics.
+  - id: A4
+    given: Finalize/abort cancels a blocked result-finalizer call.
+    when: The stop deadline is applied.
+    then: The call span closes as cancelled, invocation State closes as cancelled, no model error is fabricated and allocation cleanup remains bounded.
+  - id: A5
+    given: The real LiteLLM-to-LM-Studio route that rejects tools plus schema.
+    when: An ordinary tool-bearing ADK Worker is exercised.
+    then: Both separated requests are accepted and the final completion validates as WorkerModelResult/WorkerResult without a grammar initialization error.
+
+tests:
+  - {name: focused-runtime, command: "cd runtime && uv run pytest -W error tests/test_adk_runtime.py tests/test_result_finalizer.py tests/test_instrumentation.py tests/test_worker_summarizer.py tests/test_a2a_server.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests", covers: [A1, A2, A3, A4]}
+  - {name: live-gateway, command: "cd runtime && CONTRACTOR_LIVE_LLM_GATEWAY_URL=http://127.0.0.1:4000/v1 CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN=... CONTRACTOR_LIVE_LLM_MODEL=worker-model uv run pytest -W error tests/test_live_gateway.py -k result_finalizer", covers: [A5]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+
+decisions:
+  - >-
+    The finalizer is unconditional for ordinary completion. This spends one
+    extra model call but removes capability-dependent semantics and makes
+    behavior identical across local and hosted backends.
+  - >-
+    The finalizer shares the allocation's stateless model client and exact
+    ModelPolicy but has an independent ADK Agent, Runner and Session. Invocation
+    serialization prevents concurrent use and allocation cleanup erases the
+    shared credential once.
+  - >-
+    Exact-copy validation deliberately makes the LLM finalizer no more
+    authoritative than a serializer. Future richer model-authored completion
+    fields require a separately versioned contract rather than silently giving
+    this helper semantic ownership.

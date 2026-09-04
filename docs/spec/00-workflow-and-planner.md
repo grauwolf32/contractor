@@ -1099,13 +1099,18 @@ the declared outcome policy. There is no model-facing `escalate` operation.
 
 Each prepared ADK Worker independently enforces the cumulative model-call,
 tool-call, and provider-reported token ceilings embedded in its exact
-ModelPolicy. Its normal model loop produces the strict semantic output defined
-by [14](14-worker-results-and-live-state.md); there is no invalid-output repair
-call. Exhaustion stops before the next side effect and Runtime returns a
-retryable `WorkerFailure` code `worker_budget_exhausted`; it is not a Planner
-budget termination and not a direct StageExecution write. An explicitly
-configured one-shot terminal summarizer has separate soft-limit and accounting
-semantics under [15](15-worker-summarization.md).
+ModelPolicy. Its normal tool-using model loop produces bounded terminal semantic
+text. Every ordinary completion then uses one mandatory tool-free result
+finalizer to serialize the exact text and authoritative subtask ID into the
+strict output defined by [14](14-worker-results-and-live-state.md). This is not
+an invalid-output repair loop: it makes exactly one call and consumes the same
+normal Worker model-call and token budget. Exhaustion stops before the next side
+effect and Runtime returns a retryable `WorkerFailure` code
+`worker_budget_exhausted`; it is not a Planner budget termination and not a
+direct StageExecution write. An explicitly configured one-shot terminal
+summarizer has separate soft-limit and accounting semantics under
+[15](15-worker-summarization.md) and, when used, replaces the ordinary
+result-finalizer phase.
 
 `streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
 `maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
@@ -1153,16 +1158,19 @@ Runtime-owned response and artifact refs into `StageResult`.
 StageSpec + StageContext + WorkerHandle
   -> A2A SendMessage
   -> Runtime renders semantic task for Worker model
-  -> model WorkerModelResult(subtask_id, result)
+  -> main tool-using model returns bounded terminal semantic text
+  -> tool-free result finalizer serializes exact text + subtask_id
+  -> WorkerModelResult(subtask_id, result)
   -> Runtime WorkerResult + deterministic observations + exact artifact refs
   -> StageResult
 ```
 
-The Worker model authors only the two-field semantic result and must echo the
-opaque subtask ID supplied by Planner. Runtime verifies that echo, copies the
-authoritative ID from the request, computes observations and matches each
-declared `resultArtifacts` binding against exact refs actually observed through
-allocation-bound tools. The model cannot select Stage outcome, artifact slot,
+The main Worker model authors only the semantic result text. The isolated
+result finalizer must echo the opaque subtask ID supplied by Runtime and copy
+that text exactly; Runtime rejects a mismatch and always uses the authoritative
+request ID. Runtime then computes observations and matches each declared
+`resultArtifacts` binding against exact refs actually observed through
+allocation-bound tools. Neither model can select Stage outcome, artifact slot,
 revision, `summarized`, retryability or lifecycle transition. Runtime/tool/
 provider/budget failures are a separate `WorkerFailure`. Passthrough maps the
 trusted completion deterministically; Scheduler and Planner retain their

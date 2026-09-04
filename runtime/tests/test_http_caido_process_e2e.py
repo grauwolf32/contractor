@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fakes.model import json_result, scripted_model, tool_call
+from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from test_text_artifacts_toolset import MemoryArtifactClient
 
@@ -40,7 +40,7 @@ from contractor_runtime.contracts import (
     ToolsetRef,
     ToolsetSelection,
 )
-from contractor_runtime.digests import _agent_template_digest
+from contractor_runtime.digests import _agent_template_digest, _model_policy_digest
 from contractor_runtime.factories import FactoryRegistry, built_in_factories
 from contractor_runtime.state import ProcessState, RuntimeState
 
@@ -216,6 +216,10 @@ def http_caido_spec() -> Any:
             tools=["write_text_artifact"],
         ),
     ]
+    policy = spec.model_policy.model_copy(update={"max_model_calls": 9}, deep=True)
+    policy.ref.digest = _model_policy_digest(policy)
+    spec.model_policy = policy
+    spec.agent_template.model_policy = policy.model_copy(deep=True)
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
     spec.runtime_settings = RuntimeSettingsV2(
         llmGatewayUrl="https://gateway.example/v1",
@@ -295,12 +299,7 @@ def worker_model() -> object:
                 call_id="write-report",
             ),
             tool_call("http_session_clear", {}, call_id="session-clear"),
-            json_result(
-                {
-                    "subtaskId": "0",
-                    "result": "Bounded HTTP and Caido analysis completed",
-                }
-            ),
+            text_result("Bounded HTTP and Caido analysis completed"),
         ]
     )
 

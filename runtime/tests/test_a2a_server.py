@@ -18,7 +18,7 @@ from a2a.types import (
     TaskState,
 )
 from a2a.utils.constants import TransportProtocol
-from fakes.model import json_result, scripted_model
+from fakes.model import scripted_model, text_result
 from fakes.spec import allocation_spec
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.struct_pb2 import Value
@@ -39,7 +39,7 @@ SECRET = "recognizable-a2a-test-token"
 
 
 def model_result(result: str) -> object:
-    return json_result({"subtaskId": "0", "result": result})
+    return text_result(result)
 
 
 def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
@@ -81,11 +81,11 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
             assert result["result"]["subtaskId"] == "0"
             assert result["result"]["summarized"] is False
             assert result["stateRevision"] > 0
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
 
             invalid = await send(client, text_request(spec.allocation_id))
             assert invalid["failure"]["code"] == "invalid_stage_content"
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
 
             wrong_media = await send(
                 client,
@@ -96,7 +96,7 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
                 ),
             )
             assert wrong_media["failure"]["code"] == "invalid_stage_content"
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
 
             wrong_version = await send(
                 client,
@@ -107,7 +107,7 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
                 ),
             )
             assert wrong_version["failure"]["code"] == "invalid_stage_content"
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
 
             oversized = await http_client.post(
                 f"/private/v1/allocations/{spec.allocation_id}/a2a",
@@ -115,7 +115,7 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
             )
             assert oversized.status_code == 413
             assert oversized.json()["code"] == "request_too_large"
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
 
             await service.finalize(
                 FinalizeAllocationRequest(
@@ -127,14 +127,14 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
             )
             with pytest.raises(Exception, match="409"):
                 await send(client, data_request(spec.allocation_id))
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
 
             await service.release(
                 ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
             )
             with pytest.raises(Exception, match="409"):
                 await send(client, data_request(spec.allocation_id))
-            assert len(model.requests) == 1
+            assert len(model.requests) == 2
             await client.close()
 
     asyncio.run(scenario())

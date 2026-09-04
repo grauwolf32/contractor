@@ -747,6 +747,22 @@ unavailable. Schema rejection, free text, a changed subtask ID, a second call,
 or a Gateway timeout is a failed evaluation. The deterministic release proof
 remains `make test-worker-summarizer-e2e`; it never contacts LM Studio.
 
+To exercise the ordinary Worker boundary against a backend that cannot combine
+tools and JSON Schema, run the separated tool-bearing main Agent plus mandatory
+tool-free result finalizer:
+
+```shell
+cd runtime
+CONTRACTOR_LIVE_LLM_GATEWAY_URL='http://127.0.0.1:4000/v1' \
+CONTRACTOR_LIVE_LLM_GATEWAY_TOKEN='replace-with-gateway-token' \
+CONTRACTOR_LIVE_LLM_MODEL='worker-model' \
+  uv run pytest -v tests/test_live_gateway.py -k result_finalizer
+```
+
+A pass proves that the main ADK request contains tools without an output
+schema, the following isolated ADK Agent uses the strict schema without tools,
+and Runtime accepts the exact copied text as an unsummarized Worker result.
+
 ## Manual local stack
 
 The default local ports are public HTTP `127.0.0.1:8080`, Control Plane mTLS
@@ -1315,8 +1331,9 @@ quality gate always execute both.
 Every shipped ModelPolicy declares `maxModelCalls`, `maxToolCalls`, and
 `maxTotalTokens` in addition to per-response `maxOutputTokens`. The Runtime
 applies the cumulative limits to one Worker A2A invocation, including its
-optional tool-free result-finalization call. Model and tool capacity is checked
-before starting the next operation. Provider `total_tokens` is accumulated
+mandatory tool-free result-finalizer call after an ordinary terminal response.
+Model and tool capacity is checked before starting the next operation. Provider
+`total_tokens` is accumulated
 after each response; a response that crosses the limit cannot execute its tool
 call. Missing usage is reported as unavailable and model/tool limits remain
 active.

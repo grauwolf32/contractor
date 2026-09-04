@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncGenerator, Sequence
 from typing import Any
 
@@ -17,8 +18,12 @@ from pydantic import Field, PrivateAttr
 class ScriptedLlm(BaseLlm):
     responses: list[LlmResponse] = Field(exclude=True)
     block_first_call: bool = Field(default=False, exclude=True)
+    block_call_number: int | None = Field(default=None, exclude=True)
+    auto_result_finalizer: bool = Field(default=True, exclude=True)
+    result_finalizer_error: Exception | None = Field(default=None, exclude=True)
     requests: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
     _started: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
+    _blocked: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
     _release: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
 
     @property
@@ -29,6 +34,10 @@ class ScriptedLlm(BaseLlm):
     def started(self) -> asyncio.Event:
         return self._started
 
+    @property
+    def blocked(self) -> asyncio.Event:
+        return self._blocked
+
     def release(self) -> None:
         self._release.set()
 
@@ -36,30 +45,43 @@ class ScriptedLlm(BaseLlm):
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
         del stream
-        self.requests.append(
-            {
-                "model": llm_request.model,
-                "maxOutputTokens": llm_request.config.max_output_tokens,
-                "temperature": llm_request.config.temperature,
-                "responseMimeType": llm_request.config.response_mime_type,
-                "hasResponseSchema": llm_request.config.response_schema is not None,
-                "toolNames": sorted(
-                    declaration.name
-                    for tool in llm_request.config.tools or []
-                    for declaration in tool.function_declarations or []
-                ),
-                "systemInstruction": llm_request.config.system_instruction,
-                "contentText": "\n".join(
-                    part.text
-                    for content in llm_request.contents
-                    for part in content.parts or []
-                    if part.text is not None
-                ),
-            }
-        )
+        request_record = {
+            "model": llm_request.model,
+            "maxOutputTokens": llm_request.config.max_output_tokens,
+            "temperature": llm_request.config.temperature,
+            "responseMimeType": llm_request.config.response_mime_type,
+            "hasResponseSchema": llm_request.config.response_schema is not None,
+            "toolNames": sorted(
+                declaration.name
+                for tool in llm_request.config.tools or []
+                for declaration in tool.function_declarations or []
+            ),
+            "systemInstruction": llm_request.config.system_instruction,
+            "contentText": "\n".join(
+                part.text
+                for content in llm_request.contents
+                for part in content.parts or []
+                if part.text is not None
+            ),
+        }
+        self.requests.append(request_record)
         self._started.set()
-        if self.block_first_call and len(self.requests) == 1:
+        blocked_call = self.block_call_number or (1 if self.block_first_call else None)
+        if blocked_call == len(self.requests):
+            self._blocked.set()
             await self._release.wait()
+        marker = "Contractor Worker result finalization input (JSON):\n"
+        if marker in request_record["contentText"] and self.result_finalizer_error is not None:
+            raise self.result_finalizer_error
+        if self.auto_result_finalizer and marker in request_record["contentText"]:
+            payload = json.loads(request_record["contentText"].split(marker, 1)[1])
+            yield json_result(
+                {
+                    "subtaskId": payload["subtaskId"],
+                    "result": payload["resultText"],
+                }
+            )
+            return
         if not self.responses:
             raise RuntimeError("ScriptedLlm has no response for this model call")
         yield self.responses.pop(0)
@@ -120,9 +142,19 @@ def scripted_model(
     responses: Sequence[LlmResponse],
     *,
     block: bool = False,
+    block_call_number: int | None = None,
+    auto_result_finalizer: bool = True,
+    result_finalizer_error: Exception | None = None,
     model: str = "deterministic-fake",
 ) -> ScriptedLlm:
-    return ScriptedLlm(model=model, responses=list(responses), block_first_call=block)
+    return ScriptedLlm(
+        model=model,
+        responses=list(responses),
+        block_first_call=block,
+        block_call_number=block_call_number,
+        auto_result_finalizer=auto_result_finalizer,
+        result_finalizer_error=result_finalizer_error,
+    )
 
 
 def _with_usage(response: LlmResponse) -> LlmResponse:
