@@ -3,8 +3,8 @@ id: V23-004
 title: Add primary Workflow outputs and canonicalize built-in output names
 milestone: project-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: d52905f681b4c46aa97487cc02afd949eb4b4903
 depends_on: [V23-001]
 languages: [go, yaml, markdown, typescript]
 
@@ -52,4 +52,3 @@ tests:
   - {name: public-api, command: "go test ./internal/httpapi/public", covers: [A1]}
   - {name: ui-types, command: "cd ui && pnpm test -- --run", covers: [A1]}
   - {name: aggregate, command: "make verify", covers: [A1, A2]}
-
