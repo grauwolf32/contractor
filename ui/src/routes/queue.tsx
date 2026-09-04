@@ -50,7 +50,9 @@ function QueueContext({ item }: { item: QueueItem }) {
   }
   return (
     <span className="queue-context">
-      <Link to={`/projects/${encodeURIComponent(item.project.projectId)}`}>
+      <Link
+        to={`${item.project.kind === "evaluation" ? "/evals" : "/projects"}/${encodeURIComponent(item.project.projectId)}`}
+      >
         {item.project.name}
       </Link>
       <small>

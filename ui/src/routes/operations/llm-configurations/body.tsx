@@ -5,6 +5,7 @@ import type {
   LLMGatewayBody,
   ModelPolicyBody,
 } from "../../../api/operations";
+import { Link } from "react-router";
 import { ConfigurationRefLink } from "../common";
 import { exactConfigurationRef } from "../references";
 
@@ -144,6 +145,28 @@ function AgentTemplateView({ body }: { body: AgentTemplateBody }) {
               {body.toolsets.map((selection) => (
                 <li key={selection.ref}>
                   <code>{selection.ref}</code> · {selection.tools.join(", ")}
+                </li>
+              ))}
+            </ul>
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt>Global Skills</dt>
+        <dd>
+          {body.skills === undefined || body.skills.length === 0 ? (
+            <span className="muted-copy">None</span>
+          ) : (
+            <ul className="compact-value-list">
+              {body.skills.map((skill) => (
+                <li key={`${skill.namespace}/${skill.name}`}>
+                  <Link
+                    to={`/artifacts/${encodeURIComponent(skill.namespace)}/${encodeURIComponent(skill.name)}`}
+                  >
+                    <code>
+                      {skill.namespace}/{skill.name}
+                    </code>
+                  </Link>
                 </li>
               ))}
             </ul>

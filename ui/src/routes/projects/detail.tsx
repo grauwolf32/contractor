@@ -17,6 +17,7 @@ import {
   updateProject,
   type Project,
 } from "../../api/projects";
+import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
 import {
   CursorControls,
@@ -31,6 +32,7 @@ import {
   ProjectRegion,
 } from "./common";
 import type { ShortcutDefinition } from "./shortcuts";
+import { groupEvaluationRuns } from "./evaluation-groups";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
 function ProjectMetadataEditor({ project }: { project: Project }) {
@@ -51,7 +53,7 @@ function ProjectMetadataEditor({ project }: { project: Project }) {
         updated,
       );
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.projects.list("project"),
+        queryKey: queryKeys.projects.list(project.kind),
       });
       setEditing(false);
     },
@@ -164,7 +166,13 @@ function ProjectMetadataEditor({ project }: { project: Project }) {
   );
 }
 
-function ProjectArtifactRegion({ projectId }: { projectId: string }) {
+function ProjectArtifactRegion({
+  projectId,
+  detailRoot,
+}: {
+  projectId: string;
+  detailRoot: "/projects" | "/evals";
+}) {
   const api = usePublicAPI();
   const [namespaceDraft, setNamespaceDraft] = useState("");
   const [namespace, setNamespace] = useState<string | undefined>();
@@ -231,7 +239,7 @@ function ProjectArtifactRegion({ projectId }: { projectId: string }) {
         <div className="notice notice-success" role="status">
           <strong>Project Artifact revision stored.</strong>
           <Link
-            to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
+            to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(written.artifact.namespace)}/${encodeURIComponent(written.artifact.name)}?revision=${encodeURIComponent(written.artifact.revision)}`}
           >
             Open {written.artifact.namespace}/{written.artifact.name}@
             {written.artifact.revision}
@@ -293,7 +301,7 @@ function ProjectArtifactRegion({ projectId }: { projectId: string }) {
                   <tr key={`${item.artifact.namespace}/${item.artifact.name}`}>
                     <td data-label="Binding">
                       <Link
-                        to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
+                        to={`${detailRoot}/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(item.artifact.namespace)}/${encodeURIComponent(item.artifact.name)}`}
                       >
                         {item.artifact.namespace}/{item.artifact.name}
                       </Link>
@@ -340,7 +348,93 @@ function ProjectArtifactRegion({ projectId }: { projectId: string }) {
   );
 }
 
-function ProjectRunsRegion({ projectId }: { projectId: string }) {
+function EvaluationRuns({ runs }: { runs: readonly RunSummary[] }) {
+  return (
+    <div className="eval-run-groups">
+      {groupEvaluationRuns(runs).map((group) => (
+        <section className="eval-run-group" key={group.id}>
+          <div className="eval-run-group-heading">
+            <div>
+              <p className="eyebrow">eval.id</p>
+              <h4>
+                {group.id === "" ? (
+                  "Runs without eval.id"
+                ) : (
+                  <code>{group.id}</code>
+                )}
+              </h4>
+            </div>
+            <span className="project-workflow-count">
+              {group.runs.length} {group.runs.length === 1 ? "Run" : "Runs"}
+            </span>
+          </div>
+          {group.names.length === 0 ? null : (
+            <p className="muted-copy">
+              eval.name: <code>{group.names.join(", ")}</code>
+            </p>
+          )}
+          <div className="table-scroll">
+            <table className="responsive-table eval-run-table">
+              <thead>
+                <tr>
+                  <th>Run</th>
+                  <th>Leg</th>
+                  <th>Case</th>
+                  <th>Sample</th>
+                  <th>Workflow</th>
+                  <th>State</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {group.runs.map((run) => (
+                  <tr key={run.runId}>
+                    <td data-label="Run">
+                      <Link to={`/runs/${encodeURIComponent(run.runId)}`}>
+                        {run.runId}
+                      </Link>
+                    </td>
+                    <td data-label="Leg">
+                      <code>{run.labels["eval.leg"] ?? "—"}</code>
+                    </td>
+                    <td data-label="Case">
+                      <span className="eval-case-value">
+                        {run.labels["eval.fixture"] === undefined ? null : (
+                          <small>{run.labels["eval.fixture"]}</small>
+                        )}
+                        <code>{run.labels["eval.case"] ?? "—"}</code>
+                      </span>
+                    </td>
+                    <td data-label="Sample">
+                      <code>{run.labels["eval.sample"] ?? "—"}</code>
+                    </td>
+                    <td data-label="Workflow">
+                      <code>{run.workflow}</code>
+                    </td>
+                    <td data-label="State">
+                      <StateBadge state={run.state} />
+                    </td>
+                    <td data-label="Updated">
+                      {formatTimestamp(run.updatedAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ProjectRunsRegion({
+  projectId,
+  evaluation,
+}: {
+  projectId: string;
+  evaluation: boolean;
+}) {
   const api = usePublicAPI();
   const [cursors, setCursors] = useState<Array<string | undefined>>([
     undefined,
@@ -358,21 +452,25 @@ function ProjectRunsRegion({ projectId }: { projectId: string }) {
   return (
     <ProjectRegion
       eyebrow="Execution history"
-      title="Project Runs"
+      title={evaluation ? "Eval Runs" : "Project Runs"}
       id="project-runs"
       action={<Link to="/runs">All Runs →</Link>}
     >
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">
-          Loading Project Runs…
+          Loading {evaluation ? "Eval" : "Project"} Runs…
         </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />
       ) : query.data.items.length === 0 ? (
         <div className="compact-empty">
-          <strong>No Workflow Runs belong to this Project.</strong>
-          <p>Workflow recommendations and launch controls arrive next.</p>
+          <strong>
+            No Workflow Runs belong to this {evaluation ? "Eval" : "Project"}.
+          </strong>
+          <p>Launch one compatible Workflow when inputs are ready.</p>
         </div>
+      ) : evaluation ? (
+        <EvaluationRuns runs={query.data.items} />
       ) : (
         <div className="table-scroll">
           <table className="responsive-table project-run-table">
@@ -427,7 +525,11 @@ function ProjectRunsRegion({ projectId }: { projectId: string }) {
   );
 }
 
-export function ProjectDetailRoute() {
+function ProjectWorkspaceRoute({
+  expectedKind,
+}: {
+  expectedKind: "project" | "evaluation";
+}) {
   const api = usePublicAPI();
   const { projectId = "" } = useParams();
   const validProject = PROJECT_ID_PATTERN.test(projectId);
@@ -440,24 +542,44 @@ export function ProjectDetailRoute() {
   if (!validProject) {
     return (
       <section className="route-page">
-        <ErrorNotice error={new Error("Project route is invalid")} />
-        <Link to="/projects">Return to Projects</Link>
+        <ErrorNotice
+          error={
+            new Error(
+              expectedKind === "evaluation"
+                ? "Eval route is invalid"
+                : "Project route is invalid",
+            )
+          }
+        />
+        <Link to={expectedKind === "evaluation" ? "/evals" : "/projects"}>
+          Return to {expectedKind === "evaluation" ? "Evals" : "Projects"}
+        </Link>
       </section>
     );
   }
 
   return (
-    <section className="route-page projects-page project-detail-page">
+    <section
+      className={`route-page projects-page project-detail-page ${expectedKind === "evaluation" ? "eval-detail-page" : ""}`}
+    >
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to="/projects">
-            ← All Projects
+          <Link
+            className="back-link"
+            to={expectedKind === "evaluation" ? "/evals" : "/projects"}
+          >
+            ← All {expectedKind === "evaluation" ? "Evals" : "Projects"}
           </Link>
-          <p className="eyebrow">Project workspace</p>
+          <p className="eyebrow">
+            {expectedKind === "evaluation"
+              ? "Evaluation workspace"
+              : "Project workspace"}
+          </p>
           <h2>{project.data?.name ?? projectId}</h2>
           <p className="lede">
-            Reusable inputs and published results stay Project-scoped; every Run
-            still receives its own exact immutable copy.
+            {expectedKind === "evaluation"
+              ? "Each sample remains an ordinary isolated Workflow Run; eval labels group it without changing execution semantics."
+              : "Reusable inputs and published results stay Project-scoped; every Run still receives its own exact immutable copy."}
           </p>
         </div>
         <button
@@ -476,9 +598,15 @@ export function ProjectDetailRoute() {
         </p>
       ) : project.error !== null ? (
         <ErrorNotice error={project.error} />
-      ) : project.data.kind !== "project" ? (
+      ) : project.data.kind !== expectedKind ? (
         <ErrorNotice
-          error={new Error("Evaluation workspaces are available in Evals.")}
+          error={
+            new Error(
+              expectedKind === "evaluation"
+                ? "This workspace is available in Projects."
+                : "Evaluation workspaces are available in Evals.",
+            )
+          }
         />
       ) : (
         <>
@@ -492,7 +620,11 @@ export function ProjectDetailRoute() {
             <a href="#project-runs">Runs</a>
           </nav>
           <ProjectRegion
-            eyebrow="Project metadata"
+            eyebrow={
+              expectedKind === "evaluation"
+                ? "Evaluation metadata"
+                : "Project metadata"
+            }
             title="Overview"
             id="project-overview"
           >
@@ -501,11 +633,25 @@ export function ProjectDetailRoute() {
               project={project.data}
             />
           </ProjectRegion>
-          <ProjectArtifactRegion projectId={project.data.projectId} />
+          <ProjectArtifactRegion
+            projectId={project.data.projectId}
+            detailRoot={expectedKind === "evaluation" ? "/evals" : "/projects"}
+          />
           <ProjectWorkflowRecommendations projectId={project.data.projectId} />
-          <ProjectRunsRegion projectId={project.data.projectId} />
+          <ProjectRunsRegion
+            projectId={project.data.projectId}
+            evaluation={expectedKind === "evaluation"}
+          />
         </>
       )}
     </section>
   );
+}
+
+export function ProjectDetailRoute() {
+  return <ProjectWorkspaceRoute expectedKind="project" />;
+}
+
+export function EvaluationDetailRoute() {
+  return <ProjectWorkspaceRoute expectedKind="evaluation" />;
 }

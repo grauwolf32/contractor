@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -101,6 +102,9 @@ func workflowResourceReadModel(workflow config.ResolvedWorkflow) workflowResourc
 		for logicalName, binding := range stage.Agents {
 			agents[logicalName] = workflowAgentBindingResponse{
 				Template: binding.Template.Ref, Namespace: binding.Namespace,
+				Skills: append(
+					[]contracts.ArtifactRef{}, binding.Template.Skills...,
+				),
 			}
 		}
 		result.Stages[name] = workflowStageResponse{

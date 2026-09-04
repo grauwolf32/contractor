@@ -2092,6 +2092,13 @@ components:
           oneOf:
             - {$ref: '#/components/schemas/Revision'}
             - {type: 'null'}
+    AgentSkillRef:
+      type: object
+      additionalProperties: false
+      required: [namespace, name]
+      properties:
+        namespace: {type: string, const: skills}
+        name: {$ref: '#/components/schemas/ArtifactName'}
     ExactArtifactRef:
       type: object
       additionalProperties: false
@@ -2945,10 +2952,15 @@ components:
     WorkflowAgentBinding:
       type: object
       additionalProperties: false
-      required: [template, namespace]
+      required: [template, namespace, skills]
       properties:
         template: {$ref: '#/components/schemas/AgentTemplateRef'}
         namespace: {$ref: '#/components/schemas/ArtifactName'}
+        skills:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/AgentSkillRef'}
     WorkflowNextTransition:
       type: object
       additionalProperties: false
@@ -3065,6 +3077,7 @@ components:
                   version: '1'
                   digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
                 namespace: builder
+                skills: []
             executionConfig:
               agents:
                 builder:
@@ -3169,6 +3182,11 @@ components:
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         summarizer: {$ref: '#/components/schemas/WorkerSummarizerConfigBody'}
+        skills:
+          type: array
+          maxItems: 32
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/AgentSkillRef'}
         toolsets: {type: array, maxItems: 128, items: {$ref: '#/components/schemas/ToolsetSelection'}}
         sandboxProfile: {$ref: '#/components/schemas/Selector'}
     ExecutionConfigSelection:

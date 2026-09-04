@@ -107,10 +107,14 @@ export function CursorControls({
 
 export function ArtifactWriteForm({
   fixedIdentity,
+  fixedNamespace,
+  fixedMediaType,
   expectedRevision,
   onWritten,
 }: {
   fixedIdentity?: { namespace: string; name: string };
+  fixedNamespace?: string;
+  fixedMediaType?: string;
   expectedRevision?: string;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
@@ -118,10 +122,12 @@ export function ArtifactWriteForm({
   const queryClient = useQueryClient();
   const formId = useId();
   const [namespace, setNamespace] = useState(
-    fixedIdentity?.namespace ?? "projects",
+    fixedIdentity?.namespace ?? fixedNamespace ?? "projects",
   );
   const [name, setName] = useState(fixedIdentity?.name ?? "");
-  const [mediaType, setMediaType] = useState("application/octet-stream");
+  const [mediaType, setMediaType] = useState(
+    fixedMediaType ?? "application/octet-stream",
+  );
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [inputRevision, setInputRevision] = useState(0);
@@ -150,6 +156,7 @@ export function ArtifactWriteForm({
   function selectFile(selected: File | undefined): void {
     setFile(selected ?? null);
     if (
+      fixedMediaType === undefined &&
       selected?.type !== undefined &&
       selected.type !== "" &&
       MEDIA_TYPE_PATTERN.test(selected.type)
@@ -162,8 +169,10 @@ export function ArtifactWriteForm({
     event.preventDefault();
     setValidationError(null);
     mutation.reset();
-    const effectiveNamespace = fixedIdentity?.namespace ?? namespace;
+    const effectiveNamespace =
+      fixedIdentity?.namespace ?? fixedNamespace ?? namespace;
     const effectiveName = fixedIdentity?.name ?? name;
+    const effectiveMediaType = fixedMediaType ?? mediaType;
     if (
       !ARTIFACT_NAME_PATTERN.test(effectiveNamespace) ||
       !ARTIFACT_NAME_PATTERN.test(effectiveName)
@@ -173,7 +182,7 @@ export function ArtifactWriteForm({
       );
       return;
     }
-    if (!MEDIA_TYPE_PATTERN.test(mediaType)) {
+    if (!MEDIA_TYPE_PATTERN.test(effectiveMediaType)) {
       setValidationError(
         "Media type must be a lowercase type/subtype without parameters.",
       );
@@ -190,7 +199,7 @@ export function ArtifactWriteForm({
     mutation.mutate({
       namespace: effectiveNamespace,
       name: effectiveName,
-      mediaType,
+      mediaType: effectiveMediaType,
       payload: file,
       ...(expectedRevision === undefined ? {} : { expectedRevision }),
     });
@@ -217,8 +226,10 @@ export function ArtifactWriteForm({
             name="namespace"
             required
             maxLength={128}
-            disabled={fixedIdentity !== undefined}
-            value={fixedIdentity?.namespace ?? namespace}
+            disabled={
+              fixedIdentity !== undefined || fixedNamespace !== undefined
+            }
+            value={fixedIdentity?.namespace ?? fixedNamespace ?? namespace}
             onChange={(event) => setNamespace(event.target.value)}
           />
         </label>
@@ -238,7 +249,8 @@ export function ArtifactWriteForm({
           <input
             name="mediaType"
             required
-            value={mediaType}
+            disabled={fixedMediaType !== undefined}
+            value={fixedMediaType ?? mediaType}
             onChange={(event) => setMediaType(event.target.value)}
           />
         </label>

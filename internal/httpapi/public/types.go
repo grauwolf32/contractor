@@ -757,6 +757,7 @@ type instructionsRefResponse struct {
 type workflowAgentBindingResponse struct {
 	Template  contracts.AgentTemplateRef `json:"template"`
 	Namespace string                     `json:"namespace"`
+	Skills    []contracts.ArtifactRef    `json:"skills"`
 }
 
 type workflowStageResponse struct {

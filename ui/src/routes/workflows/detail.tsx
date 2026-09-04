@@ -207,6 +207,21 @@ function StageContract({
                     {binding.template.templateId}@{binding.template.version}
                   </span>
                   <span>namespace {binding.namespace}</span>
+                  {(binding.skills ?? []).length === 0 ? (
+                    <span className="muted-copy">No global Skills</span>
+                  ) : (
+                    <span className="workflow-skill-links">
+                      Skills:{" "}
+                      {(binding.skills ?? []).map((skill) => (
+                        <Link
+                          key={`${skill.namespace}/${skill.name}`}
+                          to={`/artifacts/${encodeURIComponent(skill.namespace)}/${encodeURIComponent(skill.name)}`}
+                        >
+                          {skill.namespace}/{skill.name}
+                        </Link>
+                      ))}
+                    </span>
+                  )}
                 </li>
               ))}
           </ul>

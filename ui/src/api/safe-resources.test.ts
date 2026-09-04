@@ -83,6 +83,10 @@ describe("safe public resource projections", () => {
           cumulativeBudget: 20_000,
           credential: "SUMMARIZER_CANARY",
         },
+        skills: [
+          { namespace: "skills", name: "architecture-review" },
+          { namespace: "skills", name: "openapi-analysis" },
+        ],
         toolsets: [],
         sandboxProfile: "local-workdir@1",
       },
@@ -96,6 +100,10 @@ describe("safe public resource projections", () => {
         contextWindowRatio: 0.9,
         cumulativeBudget: 20_000,
       },
+      skills: [
+        { namespace: "skills", name: "architecture-review" },
+        { namespace: "skills", name: "openapi-analysis" },
+      ],
     });
     expect(JSON.stringify(projected)).not.toMatch(/CANARY/);
   });

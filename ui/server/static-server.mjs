@@ -7,14 +7,18 @@ const CLIENT_ROUTES = new Set([
   "/",
   "/login",
   "/projects",
+  "/evals",
   "/queue",
   "/workflows",
   "/artifacts",
   "/runs",
+  "/skills",
   "/operations",
 ]);
 const CLIENT_ROUTE_PATTERNS = [
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
+  /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
+  /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,

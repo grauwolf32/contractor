@@ -5,13 +5,20 @@ import { HomeRoute } from "../routes/home";
 import { LoginRoute } from "../routes/login";
 import { ArtifactDetailRoute } from "../routes/artifacts/detail";
 import { ArtifactListRoute } from "../routes/artifacts/list";
-import { ProjectArtifactDetailRoute } from "../routes/projects/artifact-detail";
-import { ProjectDetailRoute } from "../routes/projects/detail";
-import { ProjectListRoute } from "../routes/projects/list";
+import {
+  EvaluationArtifactDetailRoute,
+  ProjectArtifactDetailRoute,
+} from "../routes/projects/artifact-detail";
+import {
+  EvaluationDetailRoute,
+  ProjectDetailRoute,
+} from "../routes/projects/detail";
+import { EvaluationListRoute, ProjectListRoute } from "../routes/projects/list";
 import { QueueRoute } from "../routes/queue";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { RunListRoute } from "../routes/runs/list";
+import { SkillsRoute } from "../routes/skills";
 import { AllocationListRoute } from "../routes/operations/allocations";
 import { CredentialDetailRoute } from "../routes/operations/credentials/detail";
 import { CredentialListRoute } from "../routes/operations/credentials";
@@ -57,6 +64,15 @@ export function applicationRoutes(): RouteObject[] {
               path: "/projects/:projectId/artifacts/:namespace/:name",
               element: <ProjectArtifactDetailRoute />,
             },
+            { path: "/evals", element: <EvaluationListRoute /> },
+            {
+              path: "/evals/:projectId",
+              element: <EvaluationDetailRoute />,
+            },
+            {
+              path: "/evals/:projectId/artifacts/:namespace/:name",
+              element: <EvaluationArtifactDetailRoute />,
+            },
             { path: "/queue", element: <QueueRoute /> },
             {
               path: "/artifacts",
@@ -72,6 +88,7 @@ export function applicationRoutes(): RouteObject[] {
               path: "/runs/:runId/artifacts/:namespace/:name",
               element: <RunArtifactDetailRoute />,
             },
+            { path: "/skills", element: <SkillsRoute /> },
             {
               path: "/operations",
               element: <OperationsLayoutRoute />,

@@ -64,6 +64,7 @@ const workflow: WorkflowResource = {
             digest,
           },
           namespace: "builder",
+          skills: [{ namespace: "skills", name: "openapi-analysis" }],
         },
       },
       executionConfig: { agents: { builder: workerConfig } },
@@ -557,6 +558,9 @@ describe("Workflow routes", () => {
       }),
     );
     renderWorkflowApplication(api, "/workflows/openapi-from-workspace/4");
+    expect(
+      await screen.findByRole("link", { name: "skills/openapi-analysis" }),
+    ).toHaveAttribute("href", "/artifacts/skills/openapi-analysis");
     await screen.findByRole("option", { name: /projects\/source@revision-7/ });
     const user = userEvent.setup();
     await user.click(

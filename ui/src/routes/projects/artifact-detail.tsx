@@ -261,7 +261,11 @@ function ProjectArtifactHistory({
   );
 }
 
-export function ProjectArtifactDetailRoute() {
+function ProjectArtifactDetailRouteView({
+  detailRoot,
+}: {
+  detailRoot: "/projects" | "/evals";
+}) {
   const api = usePublicAPI();
   const { projectId = "", namespace = "", name = "" } = useParams();
   const [searchParams] = useSearchParams();
@@ -292,7 +296,9 @@ export function ProjectArtifactDetailRoute() {
     return (
       <section className="route-page">
         <ErrorNotice error={new Error("Project Artifact route is invalid")} />
-        <Link to="/projects">Return to Projects</Link>
+        <Link to={detailRoot}>
+          Return to {detailRoot === "/evals" ? "Evals" : "Projects"}
+        </Link>
       </section>
     );
   }
@@ -303,9 +309,9 @@ export function ProjectArtifactDetailRoute() {
         <div>
           <Link
             className="back-link"
-            to={`/projects/${encodeURIComponent(projectId)}#project-artifacts`}
+            to={`${detailRoot}/${encodeURIComponent(projectId)}#project-artifacts`}
           >
-            ← Project Artifacts
+            ← {detailRoot === "/evals" ? "Eval" : "Project"} Artifacts
           </Link>
           <p className="eyebrow">ProjectScope binding</p>
           <h2>
@@ -377,4 +383,12 @@ export function ProjectArtifactDetailRoute() {
       )}
     </section>
   );
+}
+
+export function ProjectArtifactDetailRoute() {
+  return <ProjectArtifactDetailRouteView detailRoot="/projects" />;
+}
+
+export function EvaluationArtifactDetailRoute() {
+  return <ProjectArtifactDetailRouteView detailRoot="/evals" />;
 }

@@ -6,6 +6,31 @@ type CredentialResource = components["schemas"]["CredentialResource"];
 type CredentialPage = components["schemas"]["CredentialPage"];
 type ExecutionSelection = components["schemas"]["ExecutionConfigSelection"];
 
+const ARTIFACT_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
+
+function agentSkillRefs(
+  values: components["schemas"]["AgentSkillRef"][] | undefined,
+): components["schemas"]["AgentSkillRef"][] | undefined {
+  if (values === undefined) {
+    return undefined;
+  }
+  if (
+    values.length > 32 ||
+    values.some(
+      (value, index) =>
+        value.namespace !== "skills" ||
+        !ARTIFACT_NAME.test(value.name) ||
+        (index > 0 && values[index - 1]!.name >= value.name),
+    )
+  ) {
+    throw new TypeError("AgentTemplate Skills response is invalid");
+  }
+  return values.map((value) => ({
+    namespace: "skills",
+    name: value.name,
+  }));
+}
+
 function configurationRef(value: ConfigurationResource["ref"]) {
   return {
     kind: value.kind,
@@ -135,6 +160,7 @@ export function safeConfigurationResource(
           body: referenceSummary(value.body),
         };
       }
+      const skills = agentSkillRefs(body.skills);
       return {
         ref,
         source: value.source,
@@ -157,6 +183,7 @@ export function safeConfigurationResource(
                     : { cumulativeBudget: body.summarizer.cumulativeBudget }),
                 },
               }),
+          ...(skills === undefined ? {} : { skills }),
           toolsets: body.toolsets.map((selection) => ({
             ref: selection.ref,
             tools: [...selection.tools],

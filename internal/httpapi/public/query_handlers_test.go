@@ -63,6 +63,7 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 	stage := workflow.Stages["openapi_build"]
 	if stage.Objective == "" || stage.Instructions.Ref != "instructions/openapi-build-planner.md" ||
 		stage.Instructions.Digest == "" || stage.Agents["builder"].Template.TemplateID != "workspace_openapi_builder" ||
+		stage.Agents["builder"].Skills == nil ||
 		stage.ExecutionConfig.Agents["builder"].Origins.LLMGateway == "" {
 		t.Fatalf("safe Workflow projection = %+v", stage)
 	}
@@ -82,6 +83,18 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 	if strings.Contains(detail.Body.String(), unsafeText) || strings.Contains(detail.Body.String(), "llmGatewayUrl") ||
 		strings.Contains(detail.Body.String(), "http://") {
 		t.Fatalf("Workflow detail leaked instruction text or endpoint: %s", detail.Body.String())
+	}
+
+	skillDetail := serveQuery(t, fixture.handler, "/v1/workflows/likec4-from-workspace/versions/4")
+	if skillDetail.Code != http.StatusOK {
+		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())
+	}
+	var skillWorkflow workflowResourceResponse
+	decodeQueryResponse(t, skillDetail, &skillWorkflow)
+	skills := skillWorkflow.Stages["likec4_build"].Agents["builder"].Skills
+	if len(skills) != 1 || skills[0].Namespace != contracts.AgentSkillNamespace ||
+		skills[0].Name != "likec4" || skills[0].Revision != nil {
+		t.Fatalf("safe Workflow Skill requirements = %+v", skills)
 	}
 }
 

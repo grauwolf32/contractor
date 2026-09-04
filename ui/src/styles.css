@@ -3573,6 +3573,57 @@ code {
   text-decoration: none;
 }
 
+.evals-page .project-card,
+.eval-detail-page .project-region {
+  background-image: linear-gradient(
+    145deg,
+    #182025 0,
+    #121720 52%,
+    #16131d 100%
+  );
+}
+
+.eval-run-groups {
+  display: grid;
+  gap: 1rem;
+}
+
+.eval-run-group {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--surface-subtle);
+  padding: 1rem;
+}
+
+.eval-run-group-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.eval-run-group-heading h4 {
+  margin: 0.15rem 0 0;
+}
+
+.eval-run-group > .muted-copy {
+  margin: 0.5rem 0 0;
+}
+
+.eval-run-group .table-scroll {
+  margin-top: 0.8rem;
+}
+
+.eval-case-value {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.eval-case-value small {
+  color: var(--muted);
+}
+
 .project-local-navigation {
   display: flex;
   position: sticky;
@@ -3824,6 +3875,37 @@ code {
   border-radius: 0.7rem;
   background: #0d1219;
   padding: 1rem;
+}
+
+.workflow-skill-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.55rem;
+}
+
+.skill-library {
+  margin-top: 1.5rem;
+}
+
+.skill-upload-copy {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.skill-upload-copy > .muted-copy {
+  margin: 1rem 1rem 0;
+}
+
+.skill-scope-badge {
+  border: 1px solid #52622d;
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .project-workflow-card.is-compatible {

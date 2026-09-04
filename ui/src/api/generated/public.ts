@@ -977,6 +977,11 @@ export interface components {
             name: components["schemas"]["ArtifactName"];
             revision?: components["schemas"]["Revision"] | null;
         };
+        AgentSkillRef: {
+            /** @constant */
+            namespace: "skills";
+            name: components["schemas"]["ArtifactName"];
+        };
         ExactArtifactRef: {
             namespace: components["schemas"]["ArtifactName"];
             name: components["schemas"]["ArtifactName"];
@@ -1556,6 +1561,7 @@ export interface components {
         WorkflowAgentBinding: {
             template: components["schemas"]["AgentTemplateRef"];
             namespace: components["schemas"]["ArtifactName"];
+            skills: components["schemas"]["AgentSkillRef"][];
         };
         WorkflowNextTransition: {
             /** @constant */
@@ -1660,7 +1666,8 @@ export interface components {
          *                 "version": "1",
          *                 "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
          *               },
-         *               "namespace": "builder"
+         *               "namespace": "builder",
+         *               "skills": []
          *             }
          *           },
          *           "executionConfig": {
@@ -1785,6 +1792,7 @@ export interface components {
             instructions: components["schemas"]["InstructionsRef"];
             modelPolicy: components["schemas"]["ModelPolicyRef"];
             summarizer?: components["schemas"]["WorkerSummarizerConfigBody"];
+            skills?: components["schemas"]["AgentSkillRef"][];
             toolsets: components["schemas"]["ToolsetSelection"][];
             sandboxProfile: components["schemas"]["Selector"];
         };
