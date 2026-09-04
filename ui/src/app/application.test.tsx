@@ -58,10 +58,9 @@ describe("application session shell", () => {
     };
     renderApplication(api, "/runs");
     expect(
-      await screen.findByRole("heading", {
-        name: "Open the control workspace",
-      }),
+      await screen.findByRole("region", { name: "Sign in" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("v.2.0")).toBeVisible();
     const username = screen.getByLabelText("Username") as HTMLInputElement;
     expect(() => new RegExp(username.pattern, "v")).not.toThrow();
   });
@@ -108,7 +107,7 @@ describe("application session shell", () => {
     };
     const { router } = renderApplication(api, "/login");
     const user = userEvent.setup();
-    await screen.findByRole("heading", { name: "Open the control workspace" });
+    await screen.findByRole("region", { name: "Sign in" });
     await user.type(screen.getByLabelText("Username"), "owner");
     await user.type(screen.getByLabelText("Password"), "a-long-local-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));

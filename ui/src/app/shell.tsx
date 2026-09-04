@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
 
+import contractorLogoUrl from "../assets/contractor-logo.png";
 import { UI_VERSION } from "../build";
 import { useSession } from "../auth/session";
 
@@ -31,9 +32,12 @@ export function ApplicationShell() {
     <div className="application">
       <aside className="sidebar">
         <div>
-          <div className="brand-mark" aria-hidden="true">
-            C
-          </div>
+          <img
+            className="brand-mark"
+            src={contractorLogoUrl}
+            alt=""
+            aria-hidden="true"
+          />
           <p className="eyebrow">Contractor</p>
           <h1>Control workspace</h1>
         </div>

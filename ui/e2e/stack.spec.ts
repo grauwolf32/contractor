@@ -347,9 +347,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   const flushCapture = installEvidenceCapture(page, apiURL, evidence);
 
   await page.goto("/workflows");
-  await expect(
-    page.getByRole("heading", { name: "Open the control workspace" }),
-  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Sign in" })).toBeVisible();
   await login(page, username, password);
 
   const apiCookies = await context.cookies([apiURL]);
@@ -776,9 +774,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .textContent();
   await invokeControl(request, controlURL, controlToken, "restart-server");
   await page.reload();
-  await expect(
-    page.getByRole("heading", { name: "Open the control workspace" }),
-  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Sign in" })).toBeVisible();
   await login(page, username, password);
   await page.goto("/operations");
   const generationAfter = await page
@@ -788,9 +784,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   expect(generationAfter).not.toBe(generationBefore);
 
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Open the control workspace" }),
-  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "Sign in" })).toBeVisible();
   expect(await context.cookies([apiURL])).toHaveLength(0);
 
   const incompatible = await context.newPage();

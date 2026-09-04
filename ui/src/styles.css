@@ -107,16 +107,44 @@ a {
 }
 
 .brand-mark {
-  display: grid;
+  display: block;
   width: 2.4rem;
   height: 2.4rem;
   margin-bottom: 1.2rem;
-  place-items: center;
-  border: 1px solid #71843f;
-  border-radius: 0.65rem;
-  background: var(--accent-dark);
+  border: 1px solid #ffffff24;
+  border-radius: 50%;
+  background: #050505;
+  box-shadow: 0 0 1.5rem #d8ff7214;
+  object-fit: cover;
+}
+
+.login-card .brand-mark {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 9.75rem;
+  height: 9.75rem;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+.login-product {
+  position: absolute;
+  top: -7.5rem;
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
   color: var(--accent);
-  font-weight: 900;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.login-product-version {
+  text-transform: none;
 }
 
 .login-page,
@@ -128,21 +156,65 @@ a {
   text-align: center;
 }
 
+.login-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.login-spiral {
+  position: fixed;
+  z-index: 0;
+  width: clamp(28rem, 52vw, 46rem);
+  aspect-ratio: 1;
+  fill: none;
+  opacity: 0.13;
+  pointer-events: none;
+  stroke: #82918c;
+  stroke-linecap: round;
+  stroke-width: 1;
+}
+
+.login-spiral-near {
+  top: -18rem;
+  left: -14rem;
+  transform: rotate(-18deg);
+}
+
+.login-spiral-far {
+  right: -13rem;
+  bottom: -19rem;
+  transform: rotate(24deg) scale(0.88);
+  opacity: 0.1;
+}
+
+.login-spiral-spokes {
+  opacity: 0.72;
+}
+
+.login-spiral-accent {
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  opacity: 0.38;
+}
+
 .centered-state > * {
   max-width: 42rem;
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
   width: min(100%, 29rem);
+  margin-top: 7.5rem;
   border: 1px solid var(--line);
   border-radius: 1rem;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   padding: clamp(1.5rem, 5vw, 3rem);
+  padding-top: 6.375rem;
   box-shadow: 0 2rem 6rem #0008;
   text-align: left;
 }
 
-.login-card h1,
 .centered-state h1,
 .route-page h2 {
   margin: 0;
@@ -153,6 +225,11 @@ a {
   display: grid;
   gap: 1.1rem;
   margin-top: 2rem;
+}
+
+.login-card form button {
+  justify-self: center;
+  padding-inline: 2rem;
 }
 
 .login-card label {

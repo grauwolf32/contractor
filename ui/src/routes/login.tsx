@@ -1,7 +1,9 @@
 import { type FormEvent, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 
+import contractorLogoUrl from "../assets/contractor-logo.png";
 import { useSession } from "../auth/session";
+import { LoginBackdrop } from "./login-backdrop";
 
 function safeDestination(state: unknown): string {
   if (
@@ -61,15 +63,18 @@ export function LoginRoute() {
 
   return (
     <main className="login-page">
-      <section className="login-card" aria-labelledby="login-title">
-        <div className="brand-mark" aria-hidden="true">
-          C
-        </div>
-        <p className="eyebrow">Single-VM workflow runtime</p>
-        <h1 id="login-title">Open the control workspace</h1>
-        <p className="lede">
-          Sign in with the local owner account configured on Contractor Server.
+      <LoginBackdrop />
+      <section className="login-card" aria-label="Sign in">
+        <p className="login-product">
+          Contractor <span className="login-product-version">v.2.0</span>
         </p>
+        <img
+          className="brand-mark"
+          src={contractorLogoUrl}
+          alt=""
+          aria-hidden="true"
+        />
+        <p className="eyebrow">Security Research &amp; Automation</p>
         <form onSubmit={(event) => void onSubmit(event)}>
           <label>
             Username
