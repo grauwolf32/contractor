@@ -125,6 +125,7 @@ function runFixture(overrides: RunOverrides = {}): RunStatus {
     ],
     transitions: [],
     outputs: {},
+    outputPublications: [],
     eventCursor: { generation: "run-generation-1", sequence: "10" },
     activeStageExecutionId: "stage-router-1",
     createdAt: "2026-08-31T12:00:00Z",

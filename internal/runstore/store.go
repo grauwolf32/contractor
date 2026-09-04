@@ -29,6 +29,8 @@ type Repository interface {
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
+	RecordRunOutputPublication(context.Context, RecordRunOutputPublicationParams) (RunOutputPublication, bool, error)
+	ListRunOutputPublications(context.Context, string) ([]RunOutputPublication, error)
 	ListNonTerminalRunIDsByCredential(context.Context, string, int) ([]string, error)
 	TransitionRun(context.Context, string, WorkflowRunState, WorkflowRunState, Reason) (WorkflowRun, error)
 	RequestRunCancellation(context.Context, string, WorkflowRunCancellation) (WorkflowRun, error)

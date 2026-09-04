@@ -32,6 +32,7 @@ type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
+	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
 	ListStageTransitionDecisions(context.Context, string) ([]runstore.StageTransitionDecision, error)
@@ -376,12 +377,23 @@ type runStatusResponse struct {
 	Attempts               []stageAttemptResponse            `json:"attempts"`
 	Transitions            []stageTransitionResponse         `json:"transitions"`
 	Outputs                map[string]contracts.ArtifactRef  `json:"outputs"`
+	OutputPublications     []outputPublicationResponse       `json:"outputPublications"`
 	EventCursor            *eventCursorResponse              `json:"eventCursor,omitempty"`
 	ActiveStageExecutionID *string                           `json:"activeStageExecutionId,omitempty"`
 	CreatedAt              time.Time                         `json:"createdAt,omitempty"`
 	UpdatedAt              time.Time                         `json:"updatedAt,omitempty"`
 	StartedAt              *time.Time                        `json:"startedAt,omitempty"`
 	FinishedAt             *time.Time                        `json:"finishedAt,omitempty"`
+}
+
+type outputPublicationResponse struct {
+	Output       string                           `json:"output"`
+	Status       runstore.OutputPublicationStatus `json:"status"`
+	Source       contracts.ArtifactRef            `json:"source"`
+	Target       *contracts.ArtifactRef           `json:"target,omitempty"`
+	ErrorCode    string                           `json:"errorCode,omitempty"`
+	ErrorMessage string                           `json:"errorMessage,omitempty"`
+	CreatedAt    time.Time                        `json:"createdAt"`
 }
 
 type pinnedRuntimeConfigResponse struct {

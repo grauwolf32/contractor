@@ -22,6 +22,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -35,7 +36,16 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 	workflow := loadSchedulerWorkflow(t)
 	store := runstore.NewPostgresStore(pool)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
-	runStore := createSchedulerRun(t, ctx, store, artifactService, workflow)
+	projectID := "project-scheduler"
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Scheduler outputs", IdempotencyKey: "project-scheduler",
+		RequestDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runStore := createSchedulerRunInProject(t, ctx, store, artifactService, workflow, &projectID)
 	workerWrite, err := runStore.Write(
 		ctx,
 		contracts.ArtifactRef{Namespace: "builder", Name: "copied"},
@@ -115,6 +125,28 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 	if err != nil || run.State != runstore.RunSucceeded {
 		t.Fatalf("Run = (%+v, %v)", run, err)
 	}
+	publications, err := store.ListRunOutputPublications(ctx, "run-1")
+	if err != nil || len(publications) != 1 ||
+		publications[0].Status != runstore.OutputPublicationPublished ||
+		publications[0].Source.Revision == nil || publications[0].Target == nil {
+		t.Fatalf("Project output publications = (%+v, %v)", publications, err)
+	}
+	replayed, created, err := store.RecordRunOutputPublication(
+		ctx, runstore.RecordRunOutputPublicationParams{
+			RunID: "run-1", ProjectID: projectID, OutputName: publications[0].OutputName,
+			Status: publications[0].Status, Source: publications[0].Source,
+			Target: publications[0].Target,
+		},
+	)
+	if err != nil || created || replayed.Target == nil ||
+		*replayed.Target.Revision != *publications[0].Target.Revision {
+		t.Fatalf("publication receipt replay = (%+v, created=%t, %v)", replayed, created, err)
+	}
+	projectArtifacts, _ := artifactService.Project(projectID)
+	published, err := projectArtifacts.Read(ctx, *publications[0].Target)
+	if err != nil || string(published.Payload.Data) != "copied\n" {
+		t.Fatalf("published Project output = (%q, %v)", published.Payload.Data, err)
+	}
 	executions, err := store.ListStageExecutions(ctx, "run-1")
 	if err != nil || len(executions) != 1 || executions[0].State != runstore.StageSucceeded ||
 		executions[0].PlannerSessionID == nil || executions[0].AcceptedResult == nil {
@@ -153,6 +185,227 @@ FROM artifact_pins`).Scan(&contextPins, &resultPins, &outputPins); err != nil {
 	}
 	if contextPins != 1 || resultPins != 1 || outputPins != 1 {
 		t.Fatalf("artifact pins = context:%d result:%d output:%d", contextPins, resultPins, outputPins)
+	}
+}
+
+func TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	projectID := "project-publication-race"
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Publication race", IdempotencyKey: "project-publication-race",
+		RequestDigest: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	for _, runID := range []string{"run-publication-a", "run-publication-b"} {
+		createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", runID+"\n")
+	}
+
+	contractsByName := map[string]workflowconfig.ArtifactSlot{
+		"result":   {Required: true, MediaTypes: []string{"text/plain"}},
+		"optional": {Required: false, MediaTypes: []string{"text/plain"}},
+	}
+	start := make(chan struct{})
+	errorsFound := make(chan error, 2)
+	var wait sync.WaitGroup
+	for _, runID := range []string{"run-publication-a", "run-publication-b"} {
+		wait.Add(1)
+		go func(runID string) {
+			defer wait.Done()
+			<-start
+			errorsFound <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+				if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+					return err
+				}
+				return commitTerminalRun(
+					ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName,
+					StageProgression{
+						TerminalRunState: runstore.RunSucceeded,
+						RunReason:        runstore.Reason{Code: "workflow_succeeded"},
+					},
+				)
+			})
+		}(runID)
+	}
+	close(start)
+	wait.Wait()
+	close(errorsFound)
+	for err := range errorsFound {
+		if err != nil {
+			t.Fatalf("concurrent terminal commit: %v", err)
+		}
+	}
+
+	store := runstore.NewPostgresStore(pool)
+	statusCounts := map[runstore.OutputPublicationStatus]int{}
+	for _, runID := range []string{"run-publication-a", "run-publication-b"} {
+		run, err := store.GetRun(ctx, runID)
+		if err != nil || run.State != runstore.RunSucceeded {
+			t.Fatalf("Run %s after publication race = (%+v, %v)", runID, run, err)
+		}
+		receipts, err := store.ListRunOutputPublications(ctx, runID)
+		if err != nil || len(receipts) != 1 || receipts[0].Source.Revision == nil {
+			t.Fatalf("Run %s receipts = (%+v, %v)", runID, receipts, err)
+		}
+		statusCounts[receipts[0].Status]++
+	}
+	if statusCounts[runstore.OutputPublicationPublished] != 1 ||
+		statusCounts[runstore.OutputPublicationAlreadyPresent] != 1 {
+		t.Fatalf("publication race statuses = %+v", statusCounts)
+	}
+	project, _ := service.Project(projectID)
+	versions, err := project.ListVersions(
+		ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"},
+		artifacts.VersionPageQuery{Limit: 10},
+	)
+	if err != nil || len(versions) != 1 {
+		t.Fatalf("publication race Project revisions = (%+v, %v)", versions, err)
+	}
+}
+
+func TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetries(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	projectID := "project-publication-retry"
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Publication retry", IdempotencyKey: "project-publication-retry",
+		RequestDigest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	runID := "run-publication-retry"
+	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "retry\n")
+	contractsByName := map[string]workflowconfig.ArtifactSlot{
+		"result": {Required: true, MediaTypes: []string{"text/plain"}},
+	}
+	progression := StageProgression{
+		TerminalRunState: runstore.RunSucceeded,
+		RunReason:        runstore.Reason{Code: "workflow_succeeded"},
+	}
+	simulatedCrash := errors.New("simulated crash before terminal commit acknowledgement")
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+			return err
+		}
+		if err := commitTerminalRun(
+			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression,
+		); err != nil {
+			return err
+		}
+		return simulatedCrash
+	})
+	if !errors.Is(err, simulatedCrash) {
+		t.Fatalf("simulated terminal transaction failure = %v", err)
+	}
+	store := runstore.NewPostgresStore(pool)
+	if run, err := store.GetRun(ctx, runID); err != nil || run.State != runstore.RunRunning {
+		t.Fatalf("rolled-back Run = (%+v, %v)", run, err)
+	}
+	if receipts, err := store.ListRunOutputPublications(ctx, runID); err != nil || len(receipts) != 0 {
+		t.Fatalf("rolled-back receipts = (%+v, %v)", receipts, err)
+	}
+	project, _ := service.Project(projectID)
+	if _, err := project.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("rolled-back Project output error = %v", err)
+	}
+
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+			return err
+		}
+		return commitTerminalRun(
+			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName, progression,
+		)
+	})
+	if err != nil {
+		t.Fatalf("retry terminal transaction: %v", err)
+	}
+	if run, err := store.GetRun(ctx, runID); err != nil || run.State != runstore.RunSucceeded {
+		t.Fatalf("retried Run = (%+v, %v)", run, err)
+	}
+	receipts, err := store.ListRunOutputPublications(ctx, runID)
+	if err != nil || len(receipts) != 1 || receipts[0].Status != runstore.OutputPublicationPublished {
+		t.Fatalf("retried receipts = (%+v, %v)", receipts, err)
+	}
+	versions, err := project.ListVersions(
+		ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"},
+		artifacts.VersionPageQuery{Limit: 10},
+	)
+	if err != nil || len(versions) != 1 {
+		t.Fatalf("retried Project revisions = (%+v, %v)", versions, err)
+	}
+}
+
+func TestPostgresProjectOutputPublicationFailureDoesNotChangeRunSuccess(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	projectID := "project-publication-failure"
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Publication failure", IdempotencyKey: "project-publication-failure",
+		RequestDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	runID := "run-publication-failure"
+	createBoundProjectRunOutput(t, ctx, pool, service, runID, projectID, "result", "failure\n")
+	if _, err := pool.Exec(ctx, `
+CREATE FUNCTION reject_test_project_output_publication()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.lineage_kind = 'project_output_publish' THEN
+        RAISE EXCEPTION 'forced publication failure' USING ERRCODE = 'P0001';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER reject_test_project_output_publication
+BEFORE INSERT ON artifact_lineage
+FOR EACH ROW EXECUTE FUNCTION reject_test_project_output_publication()`); err != nil {
+		t.Fatal(err)
+	}
+	contractsByName := map[string]workflowconfig.ArtifactSlot{
+		"result": {Required: true, MediaTypes: []string{"text/plain"}},
+	}
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := lockRunState(ctx, tx, runID, runstore.RunRunning); err != nil {
+			return err
+		}
+		return commitTerminalRun(
+			ctx, tx, runstore.NewPostgresStore(tx), runID, contractsByName,
+			StageProgression{
+				TerminalRunState: runstore.RunSucceeded,
+				RunReason:        runstore.Reason{Code: "workflow_succeeded"},
+			},
+		)
+	})
+	if err != nil {
+		t.Fatalf("terminal success with failed publication: %v", err)
+	}
+	store := runstore.NewPostgresStore(pool)
+	if run, err := store.GetRun(ctx, runID); err != nil || run.State != runstore.RunSucceeded {
+		t.Fatalf("Run after publication failure = (%+v, %v)", run, err)
+	}
+	receipts, err := store.ListRunOutputPublications(ctx, runID)
+	if err != nil || len(receipts) != 1 || receipts[0].Status != runstore.OutputPublicationFailed ||
+		receipts[0].ErrorCode != "publication_failed" || receipts[0].ErrorMessage == "" {
+		t.Fatalf("failed publication receipt = (%+v, %v)", receipts, err)
+	}
+	project, _ := service.Project(projectID)
+	if _, err := project.Metadata(ctx, contracts.ArtifactRef{Namespace: "outputs", Name: "result"}); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("failed publication created Project output: %v", err)
 	}
 }
 
@@ -658,10 +911,22 @@ func createSchedulerRun(
 	artifactService *artifacts.Service,
 	workflow workflowconfig.ResolvedWorkflow,
 ) artifacts.ScopedStore {
+	return createSchedulerRunInProject(t, ctx, store, artifactService, workflow, nil)
+}
+
+func createSchedulerRunInProject(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	artifactService *artifacts.Service,
+	workflow workflowconfig.ResolvedWorkflow,
+	projectID *string,
+) artifacts.ScopedStore {
 	t.Helper()
 	workflowJSON, _ := json.Marshal(workflow)
 	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: "run-1", OwnerID: "user-1", WorkflowName: workflow.Ref.Name,
+		ProjectID:       projectID,
 		WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
 		WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "copy exactly"},
 		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
@@ -687,6 +952,56 @@ func createSchedulerRun(
 		t.Fatal(err)
 	}
 	return runArtifacts
+}
+
+func createBoundProjectRunOutput(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	artifactService *artifacts.Service,
+	runID string,
+	projectID string,
+	outputName string,
+	payload string,
+) contracts.ArtifactRef {
+	t.Helper()
+	workflow := loadSchedulerWorkflow(t)
+	workflowJSON, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := runstore.NewPostgresStore(pool)
+	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
+		RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+		WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: workflowJSON,
+		Parameters:    map[string]string{"objective": "copy exactly"},
+		RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+		runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	runArtifacts, err := artifactService.Run(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	written, err := runArtifacts.Write(
+		ctx, contracts.ArtifactRef{Namespace: "builder", Name: outputName},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte(payload)}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := artifactService.BindOutputExact(ctx, runID, outputName, written.Ref, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bound.TargetRef
 }
 
 func loadSchedulerWorkflow(t *testing.T) workflowconfig.ResolvedWorkflow {

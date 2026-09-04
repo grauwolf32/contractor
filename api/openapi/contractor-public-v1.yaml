@@ -2100,7 +2100,7 @@ components:
       additionalProperties: false
       required: [kind, sourceScope, source, targetScope, target, createdAt]
       properties:
-        kind: {enum: [input_fork, output_bind]}
+        kind: {enum: [input_fork, output_bind, project_output_publish]}
         sourceScope: {enum: [user, project, run]}
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
         targetScope: {enum: [user, project, run]}
@@ -2623,10 +2623,22 @@ components:
       properties:
         generation: {$ref: '#/components/schemas/ResourceId'}
         sequence: {type: string, pattern: '^(0|[1-9][0-9]*)$', maxLength: 20}
+    OutputPublication:
+      type: object
+      additionalProperties: false
+      required: [output, status, source, createdAt]
+      properties:
+        output: {$ref: '#/components/schemas/ConfigId'}
+        status: {enum: [published, already_present, failed]}
+        source: {$ref: '#/components/schemas/ExactArtifactRef'}
+        target: {$ref: '#/components/schemas/ExactArtifactRef'}
+        errorCode: {type: string, minLength: 1, maxLength: 128}
+        errorMessage: {type: string, minLength: 1, maxLength: 2048}
+        createdAt: {type: string, format: date-time}
     RunStatus:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs]
+      required: [runId, workflow, state, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs, outputPublications]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
@@ -2652,6 +2664,10 @@ components:
           type: object
           maxProperties: 128
           additionalProperties: {$ref: '#/components/schemas/ExactArtifactRef'}
+        outputPublications:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/OutputPublication'}
         eventCursor: {$ref: '#/components/schemas/EventCursor'}
         activeStageExecutionId: {$ref: '#/components/schemas/ResourceId'}
         createdAt: {type: string, format: date-time}

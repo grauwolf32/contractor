@@ -355,6 +355,8 @@ its current opaque revision as a separate CAS precondition. Publication records
 lineage and may reuse the existing blob. A successful Project Run additionally
 performs the create-only `outputs/<slot>` publication contract in [17]; it never
 silently replaces an existing Project binding or changes semantic Run outcome.
+The successful cross-scope lineage edge has kind
+`project_output_publish`, distinct from the Run-internal `output_bind` edge.
 
 ## OpenAPI Workflow example
 

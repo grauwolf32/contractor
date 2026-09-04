@@ -118,8 +118,9 @@ type LineageEdge struct {
 }
 
 const (
-	LineageInputFork  = "input_fork"
-	LineageOutputBind = "output_bind"
+	LineageInputFork            = "input_fork"
+	LineageOutputBind           = "output_bind"
+	LineageProjectOutputPublish = "project_output_publish"
 )
 
 type PinKind string

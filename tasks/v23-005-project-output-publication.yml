@@ -18,9 +18,10 @@ context:
     outputs/<slot>. Automatic publication is create-only. Existing bindings are
     never overwritten; primary controls recommendation only, not publication.
   receipt: >-
-    Store one bounded result per output: published, already_present or failed,
-    plus exact source and optional target revision. Concurrent Runs may race and
-    both remain succeeded. Retry always uses the recorded exact Run source.
+    Store one bounded result per present declared output: published,
+    already_present or failed, plus exact source and optional target revision.
+    A missing optional output has no receipt. Concurrent Runs may race and both
+    remain succeeded. Retry always uses the recorded exact Run source.
 
 scope:
   in:
@@ -55,4 +56,3 @@ tests:
   - {name: artifacts, command: "go test ./internal/artifacts ./internal/scheduler", covers: [A1, A2, A3]}
   - {name: postgres-race, command: "go test -race ./internal/artifacts ./internal/scheduler", covers: [A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-

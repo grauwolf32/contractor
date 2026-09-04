@@ -516,6 +516,11 @@ func commitTerminalRun(
 	if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
 		return fmt.Errorf("freeze Workflow outputs: %w", err)
 	}
+	if progression.TerminalRunState == runstore.RunSucceeded {
+		if err := publishProjectOutputs(ctx, tx, runID, outputContracts); err != nil {
+			return err
+		}
+	}
 	_, err := store.TransitionRun(
 		ctx,
 		runID,
@@ -524,6 +529,117 @@ func commitTerminalRun(
 		progression.RunReason,
 	)
 	return err
+}
+
+func publishProjectOutputs(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	outputContracts map[string]workflowconfig.ArtifactSlot,
+) error {
+	var projectID *string
+	if err := tx.QueryRow(ctx, `
+SELECT project_id
+FROM workflow_runs
+WHERE run_id = $1`, runID).Scan(&projectID); err != nil {
+		return fmt.Errorf("resolve WorkflowRun Project for output publication: %w", err)
+	}
+	if projectID == nil {
+		return nil
+	}
+
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	runArtifacts, err := artifactService.Run(runID)
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(outputContracts))
+	for name := range outputContracts {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		source, metadataErr := runArtifacts.Metadata(
+			ctx, contracts.ArtifactRef{Namespace: "outputs", Name: name},
+		)
+		if errors.Is(metadataErr, artifacts.ErrArtifactNotFound) && !outputContracts[name].Required {
+			continue
+		}
+		if metadataErr != nil {
+			return fmt.Errorf("resolve exact Workflow output %q for Project publication: %w", name, metadataErr)
+		}
+		if !source.Frozen || source.Ref.Revision == nil {
+			return fmt.Errorf("Workflow output %q is not frozen at an exact revision", name)
+		}
+		if err := publishOneProjectOutput(ctx, tx, runID, *projectID, name, source.Ref); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func publishOneProjectOutput(
+	ctx context.Context,
+	tx pgx.Tx,
+	runID string,
+	projectID string,
+	outputName string,
+	source contracts.ArtifactRef,
+) error {
+	attempt, err := tx.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("start Project output publication %q: %w", outputName, err)
+	}
+	attemptService := artifacts.NewService(artifacts.NewPostgresRepository(attempt))
+	published, publishErr := attemptService.PublishRunOutput(
+		ctx, runID, projectID, outputName, source,
+	)
+	if publishErr == nil {
+		target := published.TargetRef
+		_, _, recordErr := runstore.NewPostgresStore(attempt).RecordRunOutputPublication(
+			ctx,
+			runstore.RecordRunOutputPublicationParams{
+				RunID: runID, ProjectID: projectID, OutputName: outputName,
+				Status: runstore.OutputPublicationPublished,
+				Source: source, Target: &target,
+			},
+		)
+		if recordErr == nil {
+			if err := attempt.Commit(ctx); err != nil {
+				return fmt.Errorf("commit Project output publication %q: %w", outputName, err)
+			}
+			return nil
+		}
+		publishErr = fmt.Errorf("record successful publication: %w", recordErr)
+	}
+	if err := attempt.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		return fmt.Errorf("rollback Project output publication %q: %w", outputName, err)
+	}
+
+	params := runstore.RecordRunOutputPublicationParams{
+		RunID: runID, ProjectID: projectID, OutputName: outputName, Source: source,
+	}
+	if errors.Is(publishErr, artifacts.ErrArtifactConflict) {
+		params.Status = runstore.OutputPublicationAlreadyPresent
+	} else {
+		params.Status = runstore.OutputPublicationFailed
+		params.ErrorCode, params.ErrorMessage = projectOutputPublicationFailure(publishErr)
+	}
+	if _, _, err := runstore.NewPostgresStore(tx).RecordRunOutputPublication(ctx, params); err != nil {
+		return fmt.Errorf("record Project output publication %q: %w", outputName, err)
+	}
+	return nil
+}
+
+func projectOutputPublicationFailure(err error) (string, string) {
+	switch {
+	case errors.Is(err, artifacts.ErrArtifactNotFound):
+		return "source_unavailable", "The exact frozen Run output is unavailable."
+	case errors.Is(err, artifacts.ErrInvalidScope):
+		return "project_unavailable", "The destination Project is unavailable."
+	default:
+		return "publication_failed", "The Project output could not be published."
+	}
 }
 
 func verifyRequiredWorkflowOutputs(

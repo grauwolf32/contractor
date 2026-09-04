@@ -294,6 +294,76 @@ func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
 	}
 }
 
+func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	projectID := "project-output"
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Output publication", IdempotencyKey: "create-project-output",
+		RequestDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{
+		RunID: "run-project-output", OwnerID: "user-1", ProjectID: &projectID,
+		WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		WorkflowSchemaVersion: "contractor/v1alpha1",
+		WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+		RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(NewPostgresRepository(pool))
+	run, _ := service.Run("run-project-output")
+	workerResult, err := run.Write(
+		ctx, ArtifactRef{Namespace: "builder", Name: "openapi"},
+		Payload{MediaType: "application/yaml", Data: []byte("openapi: 3.1.0\n")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := service.BindOutputExact(
+		ctx, "run-project-output", "openapi", workerResult.Ref, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PublishRunOutput(
+		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
+	); !errors.Is(err, ErrArtifactNotFound) {
+		t.Fatalf("unfrozen Run output publication error = %v", err)
+	}
+	if err := service.FreezeRunOutputs(ctx, "run-project-output"); err != nil {
+		t.Fatal(err)
+	}
+	published, err := service.PublishRunOutput(
+		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, _ := service.Project(projectID)
+	read, err := project.Read(ctx, published.TargetRef)
+	if err != nil || string(read.Payload.Data) != "openapi: 3.1.0\n" {
+		t.Fatalf("published Project output = (%q, %v)", read.Payload.Data, err)
+	}
+	lineage, err := project.ListLineage(ctx, published.TargetRef, LineagePageQuery{Limit: 10})
+	if err != nil || len(lineage) != 1 || lineage[0].Kind != LineageProjectOutputPublish ||
+		lineage[0].SourceScope != ScopeRun || lineage[0].TargetScope != ScopeProject ||
+		lineage[0].Source.Revision == nil || *lineage[0].Source.Revision != *bound.TargetRef.Revision {
+		t.Fatalf("Project output lineage = (%+v, %v)", lineage, err)
+	}
+	if _, err := service.PublishRunOutput(
+		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
+	); !errors.Is(err, ErrArtifactConflict) {
+		t.Fatalf("create-only publication replay error = %v", err)
+	}
+}
+
 func TestPostgresIntegrationArtifactCASRace(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

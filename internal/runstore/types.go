@@ -83,6 +83,40 @@ type WorkflowRunSummary struct {
 	FinishedAt      *time.Time
 }
 
+type OutputPublicationStatus string
+
+const (
+	OutputPublicationPublished      OutputPublicationStatus = "published"
+	OutputPublicationAlreadyPresent OutputPublicationStatus = "already_present"
+	OutputPublicationFailed         OutputPublicationStatus = "failed"
+)
+
+// RunOutputPublication is the immutable result of attempting to expose one
+// exact frozen Run output in its owning Project. Target is present only when
+// this Run created the Project binding.
+type RunOutputPublication struct {
+	RunID        string
+	ProjectID    string
+	OutputName   string
+	Status       OutputPublicationStatus
+	Source       contracts.ArtifactRef
+	Target       *contracts.ArtifactRef
+	ErrorCode    string
+	ErrorMessage string
+	CreatedAt    time.Time
+}
+
+type RecordRunOutputPublicationParams struct {
+	RunID        string
+	ProjectID    string
+	OutputName   string
+	Status       OutputPublicationStatus
+	Source       contracts.ArtifactRef
+	Target       *contracts.ArtifactRef
+	ErrorCode    string
+	ErrorMessage string
+}
+
 const CancellationUserRequested = "user_cancelled"
 
 type WorkflowRunCancellation struct {

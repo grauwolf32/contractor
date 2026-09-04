@@ -991,7 +991,7 @@ export interface components {
         };
         ArtifactLineageEdge: {
             /** @enum {unknown} */
-            kind: "input_fork" | "output_bind";
+            kind: "input_fork" | "output_bind" | "project_output_publish";
             /** @enum {unknown} */
             sourceScope: "user" | "project" | "run";
             source: components["schemas"]["ExactArtifactRef"];
@@ -1331,6 +1331,17 @@ export interface components {
             generation: components["schemas"]["ResourceId"];
             sequence: string;
         };
+        OutputPublication: {
+            output: components["schemas"]["ConfigId"];
+            /** @enum {unknown} */
+            status: "published" | "already_present" | "failed";
+            source: components["schemas"]["ExactArtifactRef"];
+            target?: components["schemas"]["ExactArtifactRef"];
+            errorCode?: string;
+            errorMessage?: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         RunStatus: {
             runId: components["schemas"]["ResourceId"];
             projectId?: components["schemas"]["ResourceId"];
@@ -1351,6 +1362,7 @@ export interface components {
             outputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
             };
+            outputPublications: components["schemas"]["OutputPublication"][];
             eventCursor?: components["schemas"]["EventCursor"];
             activeStageExecutionId?: components["schemas"]["ResourceId"];
             /** Format: date-time */

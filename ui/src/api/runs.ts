@@ -178,6 +178,7 @@ export async function getRun(
   }
   return {
     runId: run.runId,
+    ...(run.projectId === undefined ? {} : { projectId: run.projectId }),
     workflow: run.workflow,
     state: run.state,
     runtimeLabels: [...run.runtimeLabels],
@@ -200,6 +201,13 @@ export async function getRun(
     })),
     transitions: [...run.transitions],
     outputs: { ...run.outputs },
+    outputPublications: (run.outputPublications ?? []).map((publication) => ({
+      ...publication,
+      source: { ...publication.source },
+      ...(publication.target === undefined
+        ? {}
+        : { target: { ...publication.target } }),
+    })),
     ...(run.eventCursor === undefined ? {} : { eventCursor: run.eventCursor }),
     ...(run.activeStageExecutionId === undefined
       ? {}

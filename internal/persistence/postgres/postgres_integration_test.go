@@ -72,7 +72,8 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"runtime_credential_creations", "runtime_credential_tombstones", "runtime_credentials",
 		"runtime_label_bindings", "runtime_management_operations", "stage_allocations",
 		"stage_execution_reports", "stage_executions", "stage_metrics",
-		"stage_transition_decisions", "workflow_run_events", "workflow_run_metadata_labels", "workflow_runs",
+		"stage_transition_decisions", "workflow_run_events", "workflow_run_metadata_labels",
+		"workflow_run_output_publications", "workflow_runs",
 	}
 	if strings.Join(tables, ",") != strings.Join(wantTables, ",") {
 		t.Fatalf("schema tables = %v, want %v", tables, wantTables)

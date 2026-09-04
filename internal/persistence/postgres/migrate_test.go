@@ -217,6 +217,37 @@ func TestProjectArtifactScopeMigrationAddsOnlyPublicProjectScope(t *testing.T) {
 	}
 }
 
+func TestProjectOutputPublicationMigrationIsExactBoundedAndImmutable(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var publication migration
+	for _, item := range items {
+		if item.name == "000028_project_output_publications.sql" {
+			publication = item
+			break
+		}
+	}
+	if publication.name == "" {
+		t.Fatal("Project output-publication migration is not embedded")
+	}
+	contents := string(publication.contents)
+	for _, required := range []string{
+		"status IN ('published', 'already_present', 'failed')",
+		"source_scope_kind text GENERATED ALWAYS AS ('run'::text)",
+		"target_scope_kind text GENERATED ALWAYS AS ('project'::text)",
+		"source_name = output_name AND target_name = output_name",
+		"workflow_run_output_publications_immutable",
+		"project_output_publish",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Project output-publication migration does not contain %q", required)
+		}
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

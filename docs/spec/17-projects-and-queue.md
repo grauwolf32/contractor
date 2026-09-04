@@ -175,13 +175,15 @@ race; exactly one creates the destination and the other records a publication
 conflict while both Runs remain `succeeded`. A Run that was cancelled or failed
 does not auto-publish.
 
-The terminal Run transaction records one bounded publication result per output
-(`published`, `already_present` or `failed`) together with the exact source and,
-when published, target revision. An existing Project output or a publication
-failure cannot rewrite semantic WorkflowRun success. The UI exposes the result
-and may offer an explicit CAS-protected replacement using the ordinary Project
-Artifact publication operation. Retrying publication is idempotent against the
-recorded exact source.
+The terminal Run transaction records one bounded publication result per present
+declared output (`published`, `already_present` or `failed`) together with the
+exact source and, when published, target revision. A legitimately absent
+optional output has no receipt because it has no exact source revision. An
+existing Project output or a publication failure cannot rewrite semantic
+WorkflowRun success. The UI exposes the result and may offer an explicit
+CAS-protected replacement using the ordinary Project Artifact publication
+operation. Retrying publication is idempotent against the recorded exact
+source.
 
 This rule publishes technical declared outputs as reusable artifacts as well;
 only `primary` outputs affect recommendations. A future Workflow composition or

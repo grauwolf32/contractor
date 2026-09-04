@@ -591,6 +591,20 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	publicationRecords, err := h.dependencies.Runs.ListRunOutputPublications(r.Context(), run.RunID)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	outputPublications := make([]outputPublicationResponse, len(publicationRecords))
+	for index, record := range publicationRecords {
+		outputPublications[index] = outputPublicationResponse{
+			Output: record.OutputName, Status: record.Status,
+			Source: record.Source, Target: record.Target,
+			ErrorCode: record.ErrorCode, ErrorMessage: record.ErrorMessage,
+			CreatedAt: record.CreatedAt,
+		}
+	}
 	inputs, err := h.runArtifactsByNamespace(r, run.RunID, "inputs")
 	if err != nil {
 		h.handleError(w, err)
@@ -696,6 +710,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,
 		Inputs: inputs, Attempts: attempts, Transitions: transitions, Outputs: outputs,
+		OutputPublications: outputPublications,
 		EventCursor: &eventCursorResponse{
 			Generation: eventCursor.Generation, Sequence: strconv.FormatInt(eventCursor.Sequence, 10),
 		},

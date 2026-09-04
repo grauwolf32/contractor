@@ -97,6 +97,68 @@ func TestWorkflowRunCancellationValidation(t *testing.T) {
 	}
 }
 
+func TestRunOutputPublicationValidation(t *testing.T) {
+	t.Parallel()
+
+	sourceRevision := "run-revision"
+	targetRevision := "project-revision"
+	base := RecordRunOutputPublicationParams{
+		RunID: "run-1", ProjectID: "project-1", OutputName: "openapi",
+		Source: contracts.ArtifactRef{
+			Namespace: "outputs", Name: "openapi", Revision: &sourceRevision,
+		},
+	}
+	published := base
+	published.Status = OutputPublicationPublished
+	published.Target = &contracts.ArtifactRef{
+		Namespace: "outputs", Name: "openapi", Revision: &targetRevision,
+	}
+	if err := validateOutputPublication(published); err != nil {
+		t.Fatalf("valid published receipt: %v", err)
+	}
+	alreadyPresent := base
+	alreadyPresent.Status = OutputPublicationAlreadyPresent
+	if err := validateOutputPublication(alreadyPresent); err != nil {
+		t.Fatalf("valid already-present receipt: %v", err)
+	}
+	failed := base
+	failed.Status = OutputPublicationFailed
+	failed.ErrorCode = "publication_failed"
+	failed.ErrorMessage = "The Project output could not be published."
+	if err := validateOutputPublication(failed); err != nil {
+		t.Fatalf("valid failed receipt: %v", err)
+	}
+
+	invalid := []RecordRunOutputPublicationParams{
+		base,
+		func() RecordRunOutputPublicationParams {
+			value := published
+			value.Source.Revision = nil
+			return value
+		}(),
+		func() RecordRunOutputPublicationParams {
+			value := published
+			value.Target = nil
+			return value
+		}(),
+		func() RecordRunOutputPublicationParams {
+			value := alreadyPresent
+			value.Target = published.Target
+			return value
+		}(),
+		func() RecordRunOutputPublicationParams {
+			value := failed
+			value.ErrorMessage = ""
+			return value
+		}(),
+	}
+	for _, value := range invalid {
+		if err := validateOutputPublication(value); !errors.Is(err, ErrInvalid) {
+			t.Errorf("invalid output publication %+v error = %v", value, err)
+		}
+	}
+}
+
 func TestStageExecutionInputValidation(t *testing.T) {
 	t.Parallel()
 

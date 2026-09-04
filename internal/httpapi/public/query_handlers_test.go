@@ -208,8 +208,10 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 		t.Fatal(err)
 	}
 	created := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	projectID := "project-detail"
 	fixture.runs.runs["run-detail"] = runstore.WorkflowRun{
 		RunID: "run-detail", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
+		ProjectID:  &projectID,
 		Parameters: map[string]string{"objective": "copy safely"}, State: runstore.RunRunning,
 		CreatedAt: created, UpdatedAt: created.Add(time.Minute), StartedAt: timeTestPointer(created.Add(time.Second)),
 	}
@@ -244,6 +246,14 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 	fixture.runs.eventCursors["run-detail"] = runstore.WorkflowRunEventCursor{
 		Generation: "events-detail", Sequence: 17,
 	}
+	sourceRevision, targetRevision := "run-output-1", "project-output-1"
+	fixture.runs.outputPublications["run-detail"] = []runstore.RunOutputPublication{{
+		RunID: "run-detail", ProjectID: projectID, OutputName: "result",
+		Status:    runstore.OutputPublicationPublished,
+		Source:    contracts.ArtifactRef{Namespace: "outputs", Name: "result", Revision: &sourceRevision},
+		Target:    &contracts.ArtifactRef{Namespace: "outputs", Name: "result", Revision: &targetRevision},
+		CreatedAt: created.Add(4 * time.Minute),
+	}}
 
 	response := serveQuery(t, fixture.handler, "/v1/runs/run-detail")
 	if response.Code != http.StatusOK {
@@ -256,7 +266,10 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 		result.ActiveStageExecutionID == nil || *result.ActiveStageExecutionID != "stage-detail" ||
 		len(result.Attempts) != 1 || result.Attempts[0].Objective != stage.Objective ||
 		result.Attempts[0].Plan == nil || result.Attempts[0].Plan.Revision != 1 ||
-		result.Attempts[0].ExecutionConfig.Agents["builder"].Origins.ModelPolicy == "" {
+		result.Attempts[0].ExecutionConfig.Agents["builder"].Origins.ModelPolicy == "" ||
+		len(result.OutputPublications) != 1 ||
+		result.OutputPublications[0].Status != runstore.OutputPublicationPublished ||
+		result.OutputPublications[0].Target == nil {
 		t.Fatalf("joined Run detail = %+v", result)
 	}
 	if strings.Contains(response.Body.String(), stage.Instructions.Text) || strings.Contains(response.Body.String(), "worker-model") ||

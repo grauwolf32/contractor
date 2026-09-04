@@ -575,14 +575,15 @@ func fakeLineageLess(left, right artifacts.LineageEdge) bool {
 }
 
 type fakeRunStore struct {
-	runs              map[string]runstore.WorkflowRun
-	executions        map[string][]runstore.StageExecution
-	allocations       map[string][]runstore.StageAllocation
-	decisions         map[string][]runstore.StageTransitionDecision
-	idempotencyClaims map[string]fakeIdempotencyClaim
-	eventCursors      map[string]runstore.WorkflowRunEventCursor
-	runEvents         map[string][]runstore.WorkflowRunEvent
-	pinRuntimeLabels  func(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
+	runs               map[string]runstore.WorkflowRun
+	executions         map[string][]runstore.StageExecution
+	allocations        map[string][]runstore.StageAllocation
+	decisions          map[string][]runstore.StageTransitionDecision
+	idempotencyClaims  map[string]fakeIdempotencyClaim
+	eventCursors       map[string]runstore.WorkflowRunEventCursor
+	runEvents          map[string][]runstore.WorkflowRunEvent
+	outputPublications map[string][]runstore.RunOutputPublication
+	pinRuntimeLabels   func(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
 }
 
 func (f *fakeRunStore) PinRuntimeLabels(
@@ -620,12 +621,22 @@ type fakeIdempotencyClaim struct {
 func newFakeRunStore() *fakeRunStore {
 	return &fakeRunStore{
 		runs: make(map[string]runstore.WorkflowRun), executions: make(map[string][]runstore.StageExecution),
-		allocations:       make(map[string][]runstore.StageAllocation),
-		decisions:         make(map[string][]runstore.StageTransitionDecision),
-		idempotencyClaims: make(map[string]fakeIdempotencyClaim),
-		eventCursors:      make(map[string]runstore.WorkflowRunEventCursor),
-		runEvents:         make(map[string][]runstore.WorkflowRunEvent),
+		allocations:        make(map[string][]runstore.StageAllocation),
+		decisions:          make(map[string][]runstore.StageTransitionDecision),
+		idempotencyClaims:  make(map[string]fakeIdempotencyClaim),
+		eventCursors:       make(map[string]runstore.WorkflowRunEventCursor),
+		runEvents:          make(map[string][]runstore.WorkflowRunEvent),
+		outputPublications: make(map[string][]runstore.RunOutputPublication),
 	}
+}
+
+func (f *fakeRunStore) ListRunOutputPublications(
+	_ context.Context, runID string,
+) ([]runstore.RunOutputPublication, error) {
+	if _, ok := f.runs[runID]; !ok {
+		return nil, runstore.ErrNotFound
+	}
+	return append([]runstore.RunOutputPublication(nil), f.outputPublications[runID]...), nil
 }
 
 func (f *fakeRunStore) ListRuns(

@@ -258,7 +258,8 @@ func validateLineagePageQuery(query LineagePageQuery) error {
 	}
 	if query.BeforeCreatedAt.IsZero() || validateRevision(query.BeforeTargetRevision) != nil ||
 		validateRevision(query.BeforeSourceRevision) != nil ||
-		(query.BeforeKind != LineageInputFork && query.BeforeKind != LineageOutputBind) {
+		(query.BeforeKind != LineageInputFork && query.BeforeKind != LineageOutputBind &&
+			query.BeforeKind != LineageProjectOutputPublish) {
 		return ErrInvalidName
 	}
 	return nil
@@ -343,6 +344,45 @@ func (s *Service) BindOutputExact(
 		}
 	}
 	return s.repository.BindOutputExact(ctx, run, outputSlot, source, expectedOutputRevision)
+}
+
+type projectOutputPublisher interface {
+	PublishRunOutput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
+}
+
+// PublishRunOutput is a trusted Scheduler operation that creates one
+// ProjectScope outputs/<slot> binding from an exact frozen RunScope output.
+// It is deliberately create-only: an existing Project binding is a conflict,
+// never an implicit replacement.
+func (s *Service) PublishRunOutput(
+	ctx context.Context,
+	runID string,
+	projectID string,
+	outputSlot string,
+	source ArtifactRef,
+) (ForkResult, error) {
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	project, err := ProjectScope(projectID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	if err := validateComponent(outputSlot); err != nil {
+		return ForkResult{}, err
+	}
+	if source.Namespace != "outputs" || source.Name != outputSlot {
+		return ForkResult{}, ErrInvalidName
+	}
+	if _, err := exactRevision(source); err != nil {
+		return ForkResult{}, err
+	}
+	repository, ok := s.repository.(projectOutputPublisher)
+	if !ok {
+		return ForkResult{}, ErrQueryUnsupported
+	}
+	return repository.PublishRunOutput(ctx, run, source, project, outputSlot)
 }
 
 func (s *Service) PinExact(

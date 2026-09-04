@@ -120,14 +120,43 @@ func TestTrustedOperationsRequireExactRefs(t *testing.T) {
 	}
 }
 
+func TestProjectOutputPublicationRequiresMatchingExactRunOutput(t *testing.T) {
+	t.Parallel()
+
+	repository := &fakeRepository{}
+	service := NewService(repository)
+	invalid := []ArtifactRef{
+		{Namespace: "outputs", Name: "openapi"},
+		exactRef("builder", "openapi", "revision-1"),
+		exactRef("outputs", "other", "revision-1"),
+	}
+	for _, source := range invalid {
+		if _, err := service.PublishRunOutput(
+			context.Background(), "run-1", "project-1", "openapi", source,
+		); err == nil {
+			t.Errorf("PublishRunOutput accepted %+v", source)
+		}
+	}
+	if repository.publishCalls != 0 {
+		t.Fatalf("invalid publications reached repository %d times", repository.publishCalls)
+	}
+	source := exactRef("outputs", "openapi", "revision-1")
+	if _, err := service.PublishRunOutput(
+		context.Background(), "run-1", "project-1", "openapi", source,
+	); err != nil || repository.publishCalls != 1 {
+		t.Fatalf("valid PublishRunOutput = (%v, calls=%d)", err, repository.publishCalls)
+	}
+}
+
 func exactRef(namespace, name, revision string) ArtifactRef {
 	return ArtifactRef{Namespace: namespace, Name: name, Revision: &revision}
 }
 
 type fakeRepository struct {
-	writeCalls int
-	bindCalls  int
-	writeErr   error
+	writeCalls   int
+	bindCalls    int
+	publishCalls int
+	writeErr     error
 }
 
 func (f *fakeRepository) Write(
@@ -153,6 +182,13 @@ func (f *fakeRepository) BindOutputExact(
 	context.Context, Scope, string, ArtifactRef, *string,
 ) (ForkResult, error) {
 	f.bindCalls++
+	return ForkResult{}, nil
+}
+
+func (f *fakeRepository) PublishRunOutput(
+	context.Context, Scope, ArtifactRef, Scope, string,
+) (ForkResult, error) {
+	f.publishCalls++
 	return ForkResult{}, nil
 }
 

@@ -37,6 +37,7 @@ function runFixture(): RunStatus {
     attempts: [],
     transitions: [],
     outputs: {},
+    outputPublications: [],
     createdAt: "2026-09-02T10:00:00Z",
     startedAt: "2026-09-02T10:00:02Z",
     updatedAt: "2026-09-02T10:00:36Z",
