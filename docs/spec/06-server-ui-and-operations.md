@@ -4,8 +4,8 @@ Status: **Working agreement; being refined in dialogue**
 
 Depends on: [00](00-workflow-and-planner.md),
 [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
-[03](03-artifact-plane.md), [04](04-execution-lifecycle-and-metrics.md) and
-[09](09-agent-skills.md)
+[03](03-artifact-plane.md), [04](04-execution-lifecycle-and-metrics.md),
+[09](09-agent-skills.md) and [17](17-projects-and-queue.md)
 
 ## Purpose
 
@@ -14,9 +14,12 @@ ordinary Workflow use and single-VM operational visibility. The UI uses the
 Server's public API; it does not become a second Scheduler, configuration
 resolver or source of lifecycle truth.
 
-The initial navigation contains:
+The target navigation contains:
 
 ```text
+Projects
+Evals
+Queue
 Workflows
 Artifacts
 Runs
@@ -25,6 +28,8 @@ Runs
      -> Inputs / outputs
      -> Metrics
 
+Skills
+
 Operations
   -> Runtime Agents
   -> Allocations
@@ -32,8 +37,11 @@ Operations
   -> Credentials
 ```
 
-The UI remains domain-neutral. OpenAPI, LikeC4, code analysis and security are
-Workflow/configuration examples rather than hard-coded application modes.
+The UI remains domain-neutral. Project artifact tiles may provide familiar
+OpenAPI, LikeC4, source, documentation and diff icons, but they are shortcuts
+over arbitrary ArtifactRefs rather than hard-coded Server modes. Project,
+Workflow recommendation, global Queue, Evals and global Skills behavior is
+owned by [17](17-projects-and-queue.md).
 
 ## Deployment boundary
 

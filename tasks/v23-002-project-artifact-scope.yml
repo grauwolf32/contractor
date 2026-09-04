@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V23-002
+title: Add ProjectScope to ArtifactStore and the public Project Artifact API
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V23-001]
+languages: [go, sql, yaml]
+
+goal: >-
+  Let a Project own arbitrary durable versioned artifacts through the existing
+  ArtifactRef, blob, revision, history and CAS model.
+
+context:
+  addressing: >-
+    ProjectScope(project_id) is structural context. ArtifactRef remains
+    namespace/name/optional revision. Public routes bind scope beneath the
+    authenticated Project; no body/query accepts scope_kind or owner_id.
+  compatibility: >-
+    Existing UserScope and RunScope behavior, private allocation grants,
+    reserved Run namespaces and immutable revisions must remain unchanged.
+
+scope:
+  in:
+    - Permit project in durable artifact_scopes with a foreign key to Projects.
+    - Generalize ArtifactStore scope validation/fork helpers without weakening Run fences.
+    - Add list/current/exact-read/history/create/update Project artifact routes matching User Artifact semantics.
+    - Preserve streaming bounds, media normalization, Content-Disposition, ETag and strong CAS.
+    - Prove arbitrary namespaces/media types work and foreign Project access is owner-safe.
+  out:
+    - Category enums, ProjectSnapshot types, Runtime access to ProjectScope, Workflow recommendation or output publication.
+
+requirements:
+  - {id: R1, text: Runtime allocation credentials can never select ProjectScope.}
+  - {id: R2, text: Sources/OpenAPI/LikeC4/Docs/Diffs are UI conventions; Other arbitrary artifacts remain valid.}
+  - {id: R3, text: Exact revision reads never fall forward to a newer current binding.}
+
+acceptance_criteria:
+  - id: A1
+    given: An owned Project and an empty binding.
+    when: A caller creates then CAS-updates an artifact.
+    then: Both exact immutable revisions remain readable and list exposes the current binding.
+  - id: A2
+    given: A stale ETag or foreign Project.
+    when: A write/read is attempted.
+    then: No payload or metadata leaks and no binding changes.
+  - id: A3
+    given: Existing User and Run Artifact tests.
+    when: The generalized scope implementation lands.
+    then: All existing fence, lineage and concurrent-write behavior still passes.
+
+tests:
+  - {name: artifact-unit, command: "go test ./internal/artifacts ./internal/httpapi/public", covers: [A1, A2, A3]}
+  - {name: race, command: "go test -race ./internal/artifacts ./internal/httpapi/public", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

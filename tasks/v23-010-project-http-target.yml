@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V23-010
+title: Resolve Project HTTP target credentials only into AllocationSpec
+milestone: project-workspaces-operations
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V23-003]
+languages: [go, sql, yaml, python, typescript]
+
+goal: >-
+  Configure one Project application URL and Basic/Bearer origin credential
+  without putting secret material in artifacts, prompts or durable execution.
+
+context:
+  reuse: >-
+    Use the existing encrypted RuntimeCredential store, audit/lifecycle,
+    RuntimeSettings and AllocationSpec. Add explicit target-origin credential
+    kinds; never reinterpret http-proxy credentials as origin Authorization.
+  lifecycle: >-
+    Project public data contains safe URL and credential id/kind only. Run
+    initialization pins those refs. Control Plane decrypts only after placement
+    for allocations whose selected HTTP tools need it, transports over mTLS and
+    Runtime erases it with allocation cleanup.
+
+scope:
+  in:
+    - Add Basic/Bearer target-origin RuntimeCredential kinds and strict secret payload validation.
+    - Add CAS Project target metadata update and prevent deletion of attached credentials.
+    - Snapshot safe target provenance into a Project Run without plaintext.
+    - Extend typed RuntimeSettings/AllocationSpec and HTTP adapter with exact-origin auth injection.
+    - Add UI target dialog with visible/show-hide input, safe metadata display and no browser persistence.
+    - Test logs/events/metrics/State/session/Artifact absence and release/lease-loss cleanup.
+  out:
+    - Multiple named targets, OAuth browser flow, proxy-credential reuse or generic secret interpolation.
+
+requirements:
+  - {id: R1, text: Plaintext exists server-side only inside bounded credential-use callbacks after placement.}
+  - {id: R2, text: Authorization is injected only for the configured exact origin and never on redirects to another origin.}
+  - {id: R3, text: Runtime exposes no model tool or state field that reads the credential.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Project target with Bearer credential and an HTTP-enabled Workflow.
+    when: Its Worker calls the exact target origin.
+    then: The server receives Authorization while model-visible inputs/results and retained state do not.
+  - id: A2
+    given: Redirect or request to a different origin.
+    when: HTTP tools follow/perform it.
+    then: Project Authorization is not forwarded.
+  - id: A3
+    given: finalize, abort, release or lease loss.
+    when: Runtime cleanup completes.
+    then: Target URL/secret adapters and plaintext references are gone before slot reuse.
+
+tests:
+  - {name: go, command: "go test ./internal/contracts ./internal/controlplane ./internal/scheduler ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error", covers: [A1, A2, A3]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

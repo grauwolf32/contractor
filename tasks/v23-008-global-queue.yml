@@ -1,0 +1,53 @@
+schema_version: "1.0"
+id: V23-008
+title: Add the owner-scoped global WorkflowRun Queue read model and UI
+milestone: project-workspaces-operations
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V23-003]
+languages: [go, sql, yaml, typescript]
+
+goal: >-
+  Show all nonterminal standalone, Project and evaluation Runs in one place
+  without creating a second queue or claiming an unstable numeric position.
+
+context:
+  projection: >-
+    Queue is GET-only over workflow_runs in initializing, running or cancelling.
+    Items include ordinary Run/Workflow state plus optional safe Project id,
+    name and kind. Scheduler's existing claim query remains authoritative.
+  ordering: >-
+    Use stable keyset pagination and document the display ordering. Do not
+    expose estimated start, rank or position because placement/recovery changes
+    execution order.
+
+scope:
+  in:
+    - Add an indexed owner-scoped queue query and strict public OpenAPI endpoint.
+    - Add Queue API client, top-level route, state/project filters and links to Run/Project detail.
+    - Invalidate/refetch from Run WebSocket events with polling fallback.
+    - Test foreign-owner isolation, pagination stability and terminal disappearance.
+  out:
+    - Priority mutation, reordering, pause/resume, a queued Run state or a new Scheduler table.
+
+requirements:
+  - {id: R1, text: Queue reads cannot mutate or claim Runs.}
+  - {id: R2, text: Evaluation and normal Project Runs use the same query and lifecycle.}
+  - {id: R3, text: A terminal Run no longer appears after the projection refreshes.}
+
+acceptance_criteria:
+  - id: A1
+    given: Standalone, Project and evaluation nonterminal Runs.
+    when: Their owner opens Queue.
+    then: All are visible with safe grouping and no numeric position.
+  - id: A2
+    given: One Run transitions terminal.
+    when: Its event or fallback poll is observed.
+    then: It disappears without affecting Scheduler state.
+
+tests:
+  - {name: server, command: "go test ./internal/runstore ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2]}
+

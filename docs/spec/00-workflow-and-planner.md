@@ -27,7 +27,8 @@ definition declares:
 - named string input parameters with required/optional status;
 - named input artifact slots, including required/optional status and accepted
   media types;
-- named output artifact slots and their acceptance contract;
+- named output artifact slots, their acceptance contract and optional
+  Project-recommendation `primary` marker;
 - Stages, dependencies and product transition/escalation rules.
 
 Workflow definitions are YAML files. At Server startup `WorkflowCatalog` loads,
@@ -641,6 +642,7 @@ spec:
   outputs:
     openapi:
       required: true
+      primary: true
       mediaTypes: [application/yaml, application/json]
 
   entryStage: build
@@ -741,6 +743,14 @@ Every artifact slot uses the same minimal payload contract:
   specific values;
 - `v1alpha1` has no artifact cardinality, size, filename-extension or structured
   payload schema in a slot contract. One slot binds at most one ArtifactRef.
+
+A Workflow output slot additionally accepts optional boolean `primary`;
+omission is `false`. It does not change StageResult validation,
+required-output success, freezing or Scheduler transitions. It identifies
+canonical user-facing results for Project Workflow recommendations and
+create-only publication under [17](17-projects-and-queue.md). Internal handoff
+outputs such as `workspace_state` and `workspace_diff` normally remain
+non-primary. `primary` is invalid on Workflow inputs and Stage result slots.
 
 A Stage result artifact additionally has a mandatory versionless `from` binding
 with exactly `namespace` and `name`. Its Namespace must be assigned to at least one

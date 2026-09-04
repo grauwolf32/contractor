@@ -6,7 +6,7 @@ Depends on: [00](00-workflow-and-planner.md), [02](02-runtime-and-a2a.md)
 
 ## Model
 
-Contractor has one physical `ArtifactStore`, not separate User and Run artifact
+Contractor has one physical `ArtifactStore`, not separate User, Project and Run artifact
 services. Every store operation is evaluated in one authenticated or
 trusted internal scope:
 
@@ -14,6 +14,10 @@ trusted internal scope:
   derives `user_id` from authentication rather than accepting an arbitrary
   scope from the request. It supports upload, read, list and revision-checked
   binding updates;
+- `ProjectScope(project_id)` is the owner's long-lived reusable workspace under
+  [17](17-projects-and-queue.md). Its public API derives owner and Project scope
+  from authentication and the Project resource; arbitrary artifacts are
+  allowed and exact selected versions may be forked into Runs;
 - `RunScope(run_id)` is the logical `RunArtifactSpace` of one Workflow Run.
   Planner and all allocated Runtime Agents acting as Workers across every Stage
   share this scope.
@@ -45,7 +49,7 @@ The space contains Namespaces. A Namespace is:
 
 - part of artifact addressing;
 - the fixed scope of specialized domain tools;
-- unique only within its UserScope or RunScope;
+- unique only within its UserScope, ProjectScope or RunScope;
 - not a security boundary against explicitly granted current-Run tools.
 
 RunScope reserves three Namespaces:
@@ -264,13 +268,14 @@ One resolved, versioned ref identifies one payload with one media type.
 Contractor has no compound artifact/`parts[]` contract. Multi-file output is an
 archive or a manifest that names exact versioned refs.
 
-The same contract backs the User Artifact API, Run clients and trusted
+The same contract backs User and Project Artifact APIs, Run clients and trusted
 Scheduler operations, but scope binding and grants differ. A public user client
-is bound to its authenticated `UserScope`; a Worker client is bound to the
-`RunScope` in its allocation. Only purpose-specific trusted Server operations
-may perform a controlled UserScope-to-RunScope fork, including Workflow input
-forks and Agent Skill forks in [09]; there is no generic client operation that
-accepts arbitrary source and target scopes.
+is bound to its authenticated `UserScope`; a Project client is owner-bound to
+one `ProjectScope`; a Worker client is bound to the `RunScope` in its
+allocation. Only purpose-specific trusted Server operations may perform a
+controlled source-to-RunScope or successful-Run-to-ProjectScope fork, including
+Workflow input/output forks in [17] and Agent Skill forks in [09]; there is no
+generic client operation that accepts arbitrary source and target scopes.
 
 ## Workflow inputs and scope fork
 
@@ -279,20 +284,22 @@ output bindings belong to one Workflow Run, not to the reusable Workflow
 definition.
 
 A source tree, repository archive, OpenAPI document or other domain input is an
-ordinary user-scoped artifact selected for a declared slot. Contractor core has
-no `ProjectSnapshot` or `ProjectSnapshotManifest` domain type. Generic digest,
-streaming, retention and size behavior belongs to ArtifactStore; safe unpacking
-or interpretation belongs to the selected Worker tools and sandbox policy.
+ordinary artifact selected for a declared slot. A standalone Run selects it
+from UserScope; a Project Run selects it from its owner-authorized ProjectScope
+as defined in [17]. Contractor core has no `ProjectSnapshot` or
+`ProjectSnapshotManifest` domain type. Generic digest, streaming, retention and
+size behavior belongs to ArtifactStore; safe unpacking or interpretation
+belongs to the selected Worker tools and sandbox policy.
 
-At Run creation, the caller maps input slots to `ArtifactRef` values in its
-authenticated UserScope. A versionless input selects the binding current at Run
-creation; a versioned input explicitly selects that retained historical
-revision. Before the Run becomes schedulable, Workflow Scheduler records the
-exact source version of every supplied input, validates its media type, then
-forks it to:
+At Run creation, the caller maps input slots to `ArtifactRef` values in the
+source scope selected by the endpoint. A versionless input selects the binding
+current at Run creation; a versioned input explicitly selects that retained
+historical revision. Before the Run becomes schedulable, Workflow Scheduler
+records the exact source version of every supplied input, validates its media
+type, then forks it to:
 
 ```text
-UserScope(user_id): <source namespace>/<source name>
+UserScope(user_id) or ProjectScope(project_id): <source namespace>/<source name>
   -> RunScope(run_id): inputs/<workflow input name>
 ```
 
@@ -340,12 +347,14 @@ concurrent writes of identical content to different bindings, must both observe
 the committed scope/blob after a uniqueness wait rather than return a false CAS
 conflict.
 
-A successful Run does not implicitly overwrite the user's artifact library.
-Publishing a result is an explicit controlled fork from the exact Run output
-version to a caller-selected versionless `ArtifactRef` in UserScope. Creating a
-new user binding is create-only; replacing an existing one requires its current
-opaque revision as a separate CAS precondition. Publication records lineage and
-may reuse the existing blob.
+A successful standalone Run does not implicitly overwrite the user's artifact
+library. Publishing a result is an explicit controlled fork from the exact Run
+output version to a caller-selected versionless `ArtifactRef` in UserScope.
+Creating a new user binding is create-only; replacing an existing one requires
+its current opaque revision as a separate CAS precondition. Publication records
+lineage and may reuse the existing blob. A successful Project Run additionally
+performs the create-only `outputs/<slot>` publication contract in [17]; it never
+silently replaces an existing Project binding or changes semantic Run outcome.
 
 ## OpenAPI Workflow example
 

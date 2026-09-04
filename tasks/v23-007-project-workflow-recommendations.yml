@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V23-007
+title: Recommend compatible Workflows and launch Project Runs from UI
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V23-003, V23-004, V23-006]
+languages: [typescript, css]
+
+goal: >-
+  Let a user launch one useful Workflow at a time from Project artifacts while
+  keeping recommendations advisory and deterministic.
+
+context:
+  algorithm: >-
+    A Workflow is compatible when every required artifact input slot has at
+    least one current Project artifact with an exactly accepted media type.
+    One candidate is preselected; multiple candidates require user selection.
+    Optional absence is valid. Required string parameters remain editable.
+  suppression: >-
+    Hide a compatible Workflow from Recommended only when every primary output
+    already exists at ProjectScope outputs/<slot>. All workflows/Run again
+    remains available. No ProjectLaunch/batch execution resource exists.
+
+scope:
+  in:
+    - Implement a pure tested compatibility/candidate/suppression reducer.
+    - Render Recommended and All workflows in Project detail with per-card Run action.
+    - Reuse the existing Run form for parameters, Runtime labels, metadata labels and execution overrides.
+    - Submit through the Project Run endpoint and navigate to the ordinary Run detail page.
+    - Show Project output publication status and invalidate Project artifact/recommendation queries on success.
+  out:
+    - Automatic workflow chaining, exact queue-position promises or Server-side recommendation policy.
+
+requirements:
+  - {id: R1, text: Server remains authoritative for all input/media/credential validation.}
+  - {id: R2, text: Explicit Run again is always reachable even when primary outputs exist.}
+  - {id: R3, text: Idempotency identity includes the exact candidate choices and Project endpoint.}
+
+acceptance_criteria:
+  - id: A1
+    given: One source ZIP and compatible OpenAPI/LikeC4 Workflows.
+    when: Project detail loads.
+    then: Both are recommended with source preselected and launch independently.
+  - id: A2
+    given: A current outputs/openapi artifact.
+    when: Recommendations recompute.
+    then: OpenAPI generation is suppressed there but remains runnable in All workflows.
+
+tests:
+  - {name: reducer, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
+  - {name: build, command: "cd ui && pnpm build", covers: [A1, A2]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A2]}
+

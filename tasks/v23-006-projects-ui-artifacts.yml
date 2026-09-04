@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V23-006
+title: Build Projects UI and artifact file-drop dashboard
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V23-002]
+languages: [typescript, css]
+
+goal: >-
+  Give the user a useful Project list/detail surface and upload arbitrary
+  reusable artifacts through recognizable shortcuts.
+
+context:
+  navigation: >-
+    Projects becomes a top-level route. Project detail has Overview, Artifacts
+    and Runs regions. Sources, OpenAPI, LikeC4, Docs, Diffs and Other are UI
+    shortcuts over the same Project Artifact API, not Server enums.
+  upload: >-
+    Clicking a tile opens a file-drop dialog. It suggests namespace, artifact
+    name and media type from category/file, keeps them editable, and uses exact
+    create/update ETags. Other always accepts arbitrary supported values.
+
+scope:
+  in:
+    - Add typed Project/Project-artifact API clients, query keys and mutations.
+    - Add responsive Project list/create/detail routes and shell navigation.
+    - Add accessible icon tiles, dropzone/dialog, progress/error/success and artifact revision list/preview links.
+    - Make empty/loading/error states stable when fields or lists are absent.
+    - Add component/API tests and browser happy path.
+  out:
+    - Workflow recommendation/launch, Evals, target credentials or Server-side category storage.
+
+requirements:
+  - {id: R1, text: UI never sends owner_id or scope_kind.}
+  - {id: R2, text: Category choice never prevents an arbitrary Other artifact upload.}
+  - {id: R3, text: Node remains a static server and receives no API credential or upload bytes.}
+
+acceptance_criteria:
+  - id: A1
+    given: A new Project.
+    when: A ZIP is dropped on Sources.
+    then: The editable metadata is confirmed and the new exact Project artifact appears without refresh.
+  - id: A2
+    given: A narrow/mobile viewport or failed API request.
+    when: Project detail renders.
+    then: Controls remain usable and a recoverable error replaces any application crash.
+
+tests:
+  - {name: ui-unit, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
+  - {name: ui-build, command: "cd ui && pnpm build", covers: [A1, A2]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A2]}
+

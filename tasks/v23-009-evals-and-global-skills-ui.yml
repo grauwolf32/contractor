@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V23-009
+title: Add separate Evals and global Skills UI views
+milestone: project-workspaces-operations
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V23-006, V23-008]
+languages: [typescript, css]
+
+goal: >-
+  Present evaluation workspaces and global owner Skills explicitly while
+  reusing ordinary Project, Run-label and Artifact APIs.
+
+context:
+  evals: >-
+    An evaluation Project is Project kind=evaluation. Its Runs are ordinary
+    Project Runs conventionally labeled purpose=eval and eval.*. Evals is a
+    separate top-level UI view, not a Server execution subsystem.
+  skills: >-
+    Skills are current UserScope artifacts under skills/* validated/resolved by
+    SkillCatalog. They are global to the owner. Project detail may show the
+    Skills required by a Workflow read-only but cannot own/copy them.
+
+scope:
+  in:
+    - Add Evals route filtering Project kind and grouping Runs by eval.id/leg/case/sample.
+    - Add global Skills route over ordinary User Artifact list/read/history/upload behavior.
+    - Add navigation, empty/error states and cross-links from Workflow requirements.
+    - Prove no eval-only Run endpoint and no ProjectScope Skill mutation is introduced.
+  out:
+    - Eval scoring/orchestration engine, Skill-specific Server API or Project Skill overrides.
+
+requirements:
+  - {id: R1, text: Evaluation kind and metadata labels remain independent fields.}
+  - {id: R2, text: Skills UI never gives a Project authority over owner UserScope.}
+
+acceptance_criteria:
+  - id: A1
+    given: Normal and evaluation Projects.
+    when: Projects and Evals routes load.
+    then: Each appears only in its intended view while Queue can show Runs from both.
+  - id: A2
+    given: A global Skill used by two Project Workflows.
+    when: It is inspected.
+    then: One owner artifact/revision history is shown and no Project copy exists.
+
+tests:
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
+  - {name: build, command: "cd ui && pnpm build", covers: [A1, A2]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A2]}
+

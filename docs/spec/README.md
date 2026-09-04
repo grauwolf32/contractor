@@ -49,6 +49,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [14](14-worker-results-and-live-state.md) | Typed Worker results, deterministic observations, volatile Worker State and explicit Planner projections |
 | [15](15-worker-summarization.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
 | [16](16-run-metadata-labels.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
+| [17](17-projects-and-queue.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -58,7 +59,7 @@ point for links that previously targeted the monolithic working agreement.
 
 ```text
 Workflow
-  -> Workflow Scheduler validates immutable parameters and forks exact UserScope inputs and selected owner skills into RunArtifactSpace
+  -> Workflow Scheduler validates immutable parameters and forks exact UserScope or ProjectScope inputs and selected owner skills into RunArtifactSpace
   -> selects a ready Stage
   -> resolve its AgentTemplate bindings
   -> Control Plane resolves pinned default/Run-selected Runtime labels plus Agent Runtime labels and prepares compatible Worker allocations
@@ -107,7 +108,10 @@ The boundaries are deliberately narrow:
 | Worker State | Bounded volatile Runtime-owned metrics/observation state, readable only through private Control Plane transport |
 | Planner state tools | Explicit typed projections over a logical Worker's newest correlated live snapshot; never a generic State query |
 | UserScope | Authenticated user's durable artifact library |
+| Project | Optional owner-scoped organization of reusable artifacts and ordinary Runs; never an execution state machine |
+| ProjectScope | Long-lived Project artifact view from which exact inputs are forked into a Run |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
+| Queue | Owner-scoped read projection over nonterminal WorkflowRuns; never a second Scheduler |
 
 ## Specification rule
 

@@ -30,6 +30,7 @@ blob backend remain replaceable deployment adapters.
 - [Runtime filesystems and Edit tools](spec/10-runtime-filesystems-and-edit-tools.md)
 - [HTTP and Caido tools](spec/11-http-and-caido-tools.md)
 - [Workspace code-analysis tools](spec/12-code-analysis-tools.md)
+- [Projects, reusable artifacts and global Queue](spec/17-projects-and-queue.md)
 - [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
 ## Research drafts

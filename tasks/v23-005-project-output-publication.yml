@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V23-005
+title: Publish successful Project Run outputs with create-only semantics
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V23-003, V23-004]
+languages: [go, sql, yaml]
+
+goal: >-
+  Make successful Workflow outputs reusable in their Project without allowing
+  a background publication conflict to change semantic Run success.
+
+context:
+  destination: >-
+    Every declared exact RunScope outputs/<slot> is forked to ProjectScope
+    outputs/<slot>. Automatic publication is create-only. Existing bindings are
+    never overwritten; primary controls recommendation only, not publication.
+  receipt: >-
+    Store one bounded result per output: published, already_present or failed,
+    plus exact source and optional target revision. Concurrent Runs may race and
+    both remain succeeded. Retry always uses the recorded exact Run source.
+
+scope:
+  in:
+    - Add durable output-publication receipt rows and owner-safe read projection.
+    - Integrate publication with terminal success using atomic metadata operations or a durable retry marker.
+    - Add ArtifactStore Run-to-Project fork lineage without copying bytes.
+    - Make create-only conflicts deterministic and non-fatal to WorkflowRun.
+    - Add explicit CAS replacement endpoint only if needed to exercise/recover an already_present result.
+  out:
+    - Implicit overwrite, publication from failed/cancelled Runs, semantic result rewriting or cross-Project publication.
+
+requirements:
+  - {id: R1, text: Every publication source ArtifactRef contains the exact frozen Run revision.}
+  - {id: R2, text: Run success cannot be rolled back or converted to failure by Project publication.}
+  - {id: R3, text: Reconciliation is idempotent after process/database response loss.}
+
+acceptance_criteria:
+  - id: A1
+    given: A successful Project Run and absent output destination.
+    when: Terminal processing commits.
+    then: The Project output reads identical bytes and lineage names the exact Run revision.
+  - id: A2
+    given: Two successful Runs targeting the same absent destination.
+    when: They publish concurrently.
+    then: One creates it, one records already_present and both Runs stay succeeded.
+  - id: A3
+    given: A crash after output fork but before acknowledgement.
+    when: Recovery retries.
+    then: No duplicate revision is manufactured and the receipt converges.
+
+tests:
+  - {name: artifacts, command: "go test ./internal/artifacts ./internal/scheduler", covers: [A1, A2, A3]}
+  - {name: postgres-race, command: "go test -race ./internal/artifacts ./internal/scheduler", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

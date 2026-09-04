@@ -1,0 +1,55 @@
+schema_version: "1.0"
+id: V23-004
+title: Add primary Workflow outputs and canonicalize built-in output names
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V23-001]
+languages: [go, yaml, markdown, typescript]
+
+goal: >-
+  Expose enough immutable Workflow metadata for the UI to distinguish the
+  main reusable result from technical handoff outputs.
+
+context:
+  schema: >-
+    Workflow output slots accept optional boolean primary, default false.
+    It affects only Project recommendation/publication presentation; it never
+    changes required output validation, Stage mapping or Run success.
+  naming: >-
+    Current built-ins use canonical semantic names across Workflows. LikeC4 is
+    likec4 rather than architecture. Generic report names become domain-qualified
+    where collision would hide meaning. Immutable published identities are not
+    silently changed; create new exact versions where bodies change.
+
+scope:
+  in:
+    - Extend strict Workflow decoding, normalized snapshot and public API projection with primary.
+    - Mark user-facing built-in OpenAPI/LikeC4/security/taint outputs primary and technical workspace outputs non-primary.
+    - Publish new Workflow versions for changed output names and update tests/selectors.
+    - Add reachability/catalog tests so removed superseded definitions do not return.
+  out:
+    - Recommendation algorithm, ProjectScope publication or a global closed output-type registry.
+
+requirements:
+  - {id: R1, text: Omitted primary decodes as false and old durable snapshots remain executable.}
+  - {id: R2, text: primary is rejected on input and Stage-result slots.}
+  - {id: R3, text: workspace_state and workspace_diff are reusable but never primary by default.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Workflow with primary and technical outputs.
+    when: It is loaded and queried.
+    then: Public output slots preserve the exact marker while execution semantics are unchanged.
+  - id: A2
+    given: Current built-in Workflows.
+    when: Their outputs are listed.
+    then: OpenAPI and LikeC4 share canonical names and no changed immutable identity was reused.
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A2]}
+  - {name: public-api, command: "go test ./internal/httpapi/public", covers: [A1]}
+  - {name: ui-types, command: "cd ui && pnpm test -- --run", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2]}
+

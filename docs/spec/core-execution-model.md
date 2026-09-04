@@ -22,6 +22,7 @@ The current working agreement is split across the documents indexed in
 - [Worker results and live State](14-worker-results-and-live-state.md).
 - [Optional terminal Worker summarization](15-worker-summarization.md).
 - [WorkflowRun metadata labels](16-run-metadata-labels.md).
+- [Projects, reusable artifacts and global Queue](17-projects-and-queue.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

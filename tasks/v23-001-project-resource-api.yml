@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V23-001
+title: Add the owner-scoped Project resource and public CRUD API
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V22-003]
+languages: [go, sql, yaml]
+
+goal: >-
+  Persist optional long-lived Projects and expose their safe metadata without
+  introducing a second execution state machine.
+
+context:
+  resource: >-
+    Project has project_id, authenticated owner_id, immutable kind
+    project|evaluation, mutable bounded name/description, opaque revision and
+    database timestamps. There is no delete/archive/default Project in this
+    slice. A standalone WorkflowRun remains valid.
+  concurrency: >-
+    Create is idempotent. Metadata update requires one strong If-Match against
+    the current revision and atomically advances it. Foreign-owner IDs are
+    indistinguishable from missing IDs.
+
+scope:
+  in:
+    - Add a forward-only PostgreSQL migration and indexes for Projects and create idempotency.
+    - Add a small projectstore package with Create, Get, List and CAS Update operations.
+    - Add owner-authenticated POST/GET collection, GET detail and PATCH metadata endpoints.
+    - Add strict OpenAPI schemas, pagination, ETag and error mappings.
+    - Unit-test validation/idempotency and PostgreSQL-test owner isolation/CAS.
+  out:
+    - Project deletion, archive state, Project artifacts, Run launch, output publication or UI.
+
+requirements:
+  - {id: R1, text: Project kind is immutable and only project or evaluation is accepted.}
+  - {id: R2, text: Owner identity always comes from auth and never from request JSON.}
+  - {id: R3, text: Project is metadata only; Scheduler and Control Plane have no Project branch.}
+
+acceptance_criteria:
+  - id: A1
+    given: Two authenticated owners and one Project.
+    when: They list or fetch Projects.
+    then: Only the owner can observe it and the other owner receives the normal safe not-found response.
+  - id: A2
+    given: A current Project ETag.
+    when: Two updates use it.
+    then: Exactly one commits and the stale update cannot overwrite metadata.
+  - id: A3
+    given: A repeated create idempotency key and identical canonical body.
+    when: The response is retried.
+    then: The original Project is returned; a changed body conflicts.
+
+tests:
+  - {name: project-unit, command: "go test ./internal/projectstore ./internal/httpapi/public", covers: [A1, A2, A3]}
+  - {name: public-contract, command: "go test ./internal/httpapi/public -run OpenAPI", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

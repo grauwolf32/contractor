@@ -5,7 +5,10 @@ This document owns immutable, queryable metadata labels attached to one
 from the Runtime labels in [07](07-runtime-labels-and-infrastructure-config.md),
 which select infrastructure configuration.
 
-The first motivating use is evaluation. One eval invocation may create many
+The first motivating use is evaluation. The Evals UI may organize these Runs in
+an `evaluation` Project under [17](17-projects-and-queue.md); this remains an
+owner-facing grouping and does not alter the generic label or execution
+contract. One eval invocation may create many
 ordinary WorkflowRuns for fixtures, cases, repeated samples and A/B legs. A
 shared label set must make those Runs discoverable without introducing a
 second execution path into Scheduler.

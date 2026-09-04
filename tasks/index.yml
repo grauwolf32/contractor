@@ -119,6 +119,27 @@ fixed_decisions:
       convention. One sample is one ordinary isolated WorkflowRun and exact
       conjunctive Run-list filters recover its eval group without an eval-only
       Scheduler path.
+  projects:
+    boundary: >-
+      An optional owner-scoped Project groups reusable ProjectScope artifacts
+      and ordinary WorkflowRuns. Standalone Runs remain first-class; Project
+      identity never becomes Scheduler, placement or Runtime state.
+    artifacts: >-
+      ProjectScope is the third structural view of the existing ArtifactStore.
+      Arbitrary artifacts are allowed; exact selected revisions fork to
+      RunScope, and Runtime never receives ProjectScope authority.
+    recommendations: >-
+      UI recommends one Workflow at a time when all required artifact inputs
+      have media-compatible Project candidates. primary Workflow outputs only
+      suppress completed recommendations and never change execution success.
+    publication: >-
+      Successful Project Run outputs fork create-only to outputs/<slot>.
+      Existing bindings or publication failures are recorded but never
+      overwrite data or change the semantic WorkflowRun outcome.
+    organization: >-
+      Evaluation is an immutable Project kind rendered in a separate Evals UI;
+      Skills remain global owner UserScope artifacts. Queue is a read projection
+      over all nonterminal ordinary Runs, not another Scheduler.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -399,6 +420,19 @@ milestones:
       Worker, LikeC4 retains a workspace-backed Streamline option, and the
       default catalog contains current user workflows rather than historical
       implementation versions or process-only fixtures.
+  - id: project-workspaces-mvp
+    exit_task: V23-007
+    outcome: >-
+      A user creates a Project, uploads arbitrary reusable artifacts, receives
+      deterministic compatible-Workflow recommendations and launches an
+      ordinary exact-input WorkflowRun whose successful outputs return to the
+      Project without silent overwrite.
+  - id: project-workspaces-operations
+    exit_task: V23-011
+    outcome: >-
+      Global Queue, separate Evals and Skills views, allocation-only Project
+      target credentials and production-process recovery/security tests make
+      Project organization releasable without changing standalone execution.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
@@ -1468,6 +1502,68 @@ run_metadata_labels_planning_review:
       Exact AND filtering is deliberately less expressive than Kubernetes-like
       selectors, but covers eval grouping while keeping query cost bounded.
 
+project_workspaces_planning_review:
+  reviewed_on: "2026-09-04"
+  verdict: ready_to_implement_in_dependency_order
+  agreed_contract:
+    - >-
+      Project is optional durable organization around ordinary Runs and a
+      ProjectScope ArtifactStore view; no default Project, ProjectSnapshot,
+      batch launch entity or Project-aware Scheduler exists.
+    - >-
+      ProjectScope accepts arbitrary artifacts. Sources/OpenAPI/LikeC4/Docs/
+      Diffs/Other are editable frontend upload shortcuts, not Server enums.
+    - >-
+      Project input refs resolve exactly once and fork into RunScope. Skills
+      still resolve globally from owner UserScope and Runtime sees only RunScope.
+    - >-
+      primary output metadata drives advisory recommendations. Automatic output
+      publication is create-only and a conflict cannot change Run success.
+    - >-
+      Queue is one owner-scoped nonterminal Run read model. Evaluation is a
+      Project kind plus generic eval labels and remains a normal execution path.
+    - >-
+      Project application auth reuses encrypted RuntimeCredential and enters
+      plaintext RuntimeSettings only in AllocationSpec after placement.
+  dependency_review:
+    - >-
+      V23-001 establishes ownership/identity; V23-002 adds ProjectScope; V23-003
+      composes exact Project inputs with the unchanged Run path. This is the
+      shortest Server-side vertical slice.
+    - >-
+      V23-004 is separate schema/catalog work. V23-005 joins exact Run outputs
+      to ProjectScope only after both input membership and output intent exist.
+    - >-
+      V23-006 delivers useful artifact organization before recommendations;
+      V23-007 then consumes completed Project, artifact, Run and output schemas
+      and is the first user-facing MVP exit.
+    - >-
+      Queue, Evals/Skills and target auth remain independently testable P1
+      slices. V23-011 is the only task that joins every production boundary.
+  review_findings:
+    - >-
+      Interpreting the same ArtifactRef by endpoint avoids adding scope to the
+      public ref and prevents mixed-scope ambiguity inside one Run request.
+    - >-
+      Create-only automatic publication avoids a subtle last-finisher-wins race
+      between recomputations. Explicit later replacement retains ordinary CAS.
+    - >-
+      A numeric queue position would be false because cancellation, recovery,
+      claims and capability placement can reorder effective progress.
+    - >-
+      Proxy and origin credentials require different kinds: reusing encrypted
+      storage is correct, reusing proxy Authorization semantics is not.
+  accepted_risks:
+    - >-
+      Compatibility initially uses current binding media type only and does not
+      score semantic freshness or inspect payload schemas.
+    - >-
+      One optional Project HTTP target is sufficient for the first slice;
+      multiple targets and OAuth need a later typed contract.
+    - >-
+      Automatic publication of technical outputs grows ProjectScope history;
+      Project retention and explicit Workflow composition are deferred.
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}
@@ -1627,3 +1723,14 @@ tasks:
   - {id: V22-001, file: v22-001-openapi-workspace-evidence.yml}
   - {id: V22-002, file: v22-002-likec4-workspace-streamline.yml}
   - {id: V22-003, file: v22-003-workflow-catalog-cleanup.yml}
+  - {id: V23-001, file: v23-001-project-resource-api.yml}
+  - {id: V23-002, file: v23-002-project-artifact-scope.yml}
+  - {id: V23-003, file: v23-003-project-run-creation.yml}
+  - {id: V23-004, file: v23-004-primary-output-contracts.yml}
+  - {id: V23-005, file: v23-005-project-output-publication.yml}
+  - {id: V23-006, file: v23-006-projects-ui-artifacts.yml}
+  - {id: V23-007, file: v23-007-project-workflow-recommendations.yml}
+  - {id: V23-008, file: v23-008-global-queue.yml}
+  - {id: V23-009, file: v23-009-evals-and-global-skills-ui.yml}
+  - {id: V23-010, file: v23-010-project-http-target.yml}
+  - {id: V23-011, file: v23-011-projects-release-gate.yml}

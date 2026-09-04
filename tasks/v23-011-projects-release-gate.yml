@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V23-011
+title: Prove Project workspace recovery, security and end-to-end UX
+milestone: project-workspaces-operations
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V23-005, V23-007, V23-008, V23-009, V23-010]
+languages: [go, python, typescript, yaml]
+
+goal: >-
+  Make the full Projects surface releasable across PostgreSQL, Go Server,
+  Python Runtime Agents and the independently deployed UI.
+
+context:
+  scenario: >-
+    Create a Project, upload one source ZIP, run compatible OpenAPI and LikeC4
+    Workflows, observe global Queue, inspect automatic Project outputs, reuse an
+    exact output as a later input, and preserve standalone/eval behavior.
+  failures: >-
+    Cover response loss, concurrent output publication, Server restart,
+    Runtime loss, stale ETags, foreign ownership and target-secret redaction.
+
+scope:
+  in:
+    - Add a declarative Project ownership/lifecycle conformance matrix bound to named tests.
+    - Add production-process end-to-end fixtures using real PostgreSQL, mTLS Server/Runtime and browser UI.
+    - Exercise two Runtime Agents and ensure Project metadata never affects capability placement.
+    - Add restart/replay and concurrent publication cases with retained exact lineage proof.
+    - Update demo stack/runbook with one Project workflow walkthrough.
+  out:
+    - Workflow joins, multi-user sharing, Project deletion/retention, batch launch or queue priorities.
+
+requirements:
+  - {id: R1, text: No test-only execution or Project storage path may replace production boundaries.}
+  - {id: R2, text: Existing standalone Run and UserScope tests remain mandatory regression coverage.}
+  - {id: R3, text: Demo credentials are synthetic and no secret appears in captured fixtures.}
+
+acceptance_criteria:
+  - id: A1
+    given: One source-only Project in the production demo stack.
+    when: OpenAPI then LikeC4 are launched independently.
+    then: Queue and Run pages progress normally and exact outputs appear in ProjectScope.
+  - id: A2
+    given: Restart/response-loss at each durable boundary.
+    when: Operations recover.
+    then: No duplicate Run/output revision or cross-owner read occurs.
+  - id: A3
+    given: The legacy standalone flow.
+    when: The aggregate suite runs.
+    then: It remains behaviorally unchanged.
+
+tests:
+  - {name: project-process, command: "make test-project-workspaces-e2e", covers: [A1, A2]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

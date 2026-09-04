@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V23-003
+title: Launch ordinary WorkflowRuns from exact ProjectScope inputs
+milestone: project-workspaces-mvp
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V23-002]
+languages: [go, sql, yaml]
+
+goal: >-
+  Create a normal WorkflowRun from a Project while pinning and forking exact
+  Project artifact revisions into its isolated RunScope.
+
+context:
+  endpoints: >-
+    POST /v1/runs keeps resolving artifact refs in UserScope. POST
+    /v1/projects/{project_id}/runs accepts the same body but resolves refs only
+    in that ProjectScope. The Run stores nullable immutable project_id.
+  execution: >-
+    Scheduler, Planner, Control Plane and Runtime must not branch on project_id.
+    Skills still resolve globally from owner UserScope. Project and User inputs
+    cannot be mixed in one create request.
+
+scope:
+  in:
+    - Add nullable owner-consistent project_id membership to workflow_runs and list/detail projections.
+    - Generalize exact input resolution/forking to an explicitly selected trusted source scope.
+    - Add idempotent Project Run route and include Project identity in canonical request replay identity.
+    - Add Project Run list filter/route used by detail UI.
+    - Test versionless pinning, exact historical selection, media mismatch and response-loss replay.
+  out:
+    - Scheduler Project logic, automatic output publication, cross-Project input or Project-owned Skills.
+
+requirements:
+  - {id: R1, text: A later Project artifact update never changes an already created Run input.}
+  - {id: R2, text: project_id is immutable query metadata and cannot influence placement or outcome.}
+  - {id: R3, text: Project Run initialization is atomic with all exact input forks and Skill pins.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Project source binding at revision one.
+    when: A Run is created and the Project binding advances to revision two.
+    then: Run inputs and stored provenance still resolve revision one bytes.
+  - id: A2
+    given: The same artifact ref in UserScope and ProjectScope.
+    when: Each Run endpoint is called.
+    then: Each resolves only its documented source scope.
+  - id: A3
+    given: A Project Run snapshot.
+    when: Scheduler executes it.
+    then: Existing execution tests pass without Project-aware Scheduler branches.
+
+tests:
+  - {name: runstore, command: "go test ./internal/runstore ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: scheduler, command: "go test ./internal/scheduler", covers: [A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

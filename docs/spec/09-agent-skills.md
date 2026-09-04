@@ -29,6 +29,12 @@ script-free progressive-disclosure instruction. No Contractor Memory note,
 MemoryTools tag, parallel model-facing Skill API or separate Skill persistence
 is created.
 
+Skills are global to the authenticated owner rather than owned by a Project.
+The Projects UI may display the exact Skills required by a candidate Workflow,
+but ProjectScope never contains Skill copies. Run initialization continues to
+resolve the AgentTemplate-selected current UserScope binding and fork its exact
+revision into the reserved RunScope namespace, including for a Project Run.
+
 ## AgentTemplate ownership
 
 Skills belong to an `AgentTemplate` because they describe reusable Worker
