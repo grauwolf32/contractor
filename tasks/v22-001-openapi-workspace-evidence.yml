@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V22-001
+title: Bind OpenAPI evidence validation to the project workspace
+milestone: workflow-catalog-consolidation
+priority: P0
+status: planned
+implementation_commit: null
+depends_on: [V11-011, V21-001]
+languages: [python, markdown]
+
+goal: >-
+  Make openapi@1 validate evidence against the same exact project workspace that
+  filesystem@1 exposes in workspace-backed Workflows, while retaining the
+  archive-local compatibility path used by analysis-only configurations.
+
+context:
+  observed_failure: >-
+    openapi-from-workspace@3 hydrates inputs/source at the project-workspace root.
+    filesystem@1 can read those files, but openapi@1 ignores its
+    project_workspace argument and checks AllocationWorkspace/source instead.
+    Every evidence-backed component/path mutation is therefore rejected and a
+    retry can repeatedly exhaust a fresh Worker budget without changing the
+    underlying condition.
+  trust_boundary: >-
+    AllocationWorkspace is private scratch for legacy tools and Skill material.
+    A Workflow project workspace is a distinct allocation-private session and
+    may be local or memory backed. The OpenAPI Toolset must receive only a narrow
+    read view and must never learn a provider or host path.
+
+scope:
+  in:
+    - Declare optional read access to the project workspace on OpenAPIToolsetFactory.
+    - When a project workspace exists, validate normalized evidence paths against one bounded WorkspaceSnapshot.
+    - Retain AllocationWorkspace/source validation only when no project workspace was supplied.
+    - Keep denied evidence suffixes, duplicate removal, path normalization and provenance validation unchanged.
+    - Test successful mutation and full validation with an empty scratch directory plus a project-workspace reader.
+    - Test that the legacy scratch/source path remains compatible and that a project workspace takes precedence when supplied.
+    - Specify the dual compatibility boundary and its path-free security properties.
+  out:
+    - A new Workflow version, physical workspace access, changing OpenAPI provenance fields, or relaxing evidence requirements.
+
+requirements:
+  - {id: R1, text: A workspace-backed Worker observes and validates evidence against one logical project tree through WorkspaceReader only.}
+  - {id: R2, text: A legacy non-workspace Worker continues to use its allocation-private source-analysis extraction without configuration changes.}
+  - {id: R3, text: Supplying a project workspace never falls back to an unrelated scratch file and never exposes backend or host-path information.}
+
+acceptance_criteria:
+  - id: A1
+    given: A project workspace containing src/app.py and an empty AllocationWorkspace scratch directory.
+    when: The Worker initializes OpenAPI and upserts a component/path citing src/app.py.
+    then: Both mutations and provenance validation succeed through the narrow snapshot.
+  - id: A2
+    given: The same relative path exists only in legacy scratch/source.
+    when: A project workspace is also supplied but does not contain that path.
+    then: The mutation is rejected instead of crossing the project-workspace boundary.
+  - id: A3
+    given: No project workspace and a source-analysis extraction below scratch/source.
+    when: Existing OpenAPI tool tests run.
+    then: Their behavior remains unchanged.
+
+tests:
+  - {name: openapi-toolset, command: "cd runtime && uv run pytest -W error tests/test_openapi_toolset.py", covers: [A1, A2, A3]}
+  - {name: runtime, command: "cd runtime && uv run pytest -W error tests", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

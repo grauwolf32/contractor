@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V22-003
+title: Remove historical Workflows and isolate process fixtures
+milestone: workflow-catalog-consolidation
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V22-002]
+languages: [yaml, go, markdown]
+
+goal: >-
+  Make the default Workflow catalog describe current user-facing capabilities
+  instead of exposing implementation history and internal process fixtures.
+
+context:
+  catalog_problem: >-
+    The operator tree currently publishes twenty exact Workflow versions. Many
+    are immutable stepping stones that differ only by a budget, Skill migration
+    or discovery implementation. shared-memory-* are no-input/no-output process
+    fixtures. Historical Runs already retain complete Workflow snapshots, and
+    Git retains deleted definitions, so no repository archive is useful.
+  overlay_decision: >-
+    Current workspace Workflows intentionally retain cumulative workspace_state
+    and checkpoint workspace_diff. With no imported state the overlay begins as
+    the canonical empty delta over hydrated sources; unchanged Stages still
+    export that exact identity state. These artifacts are internal workflow
+    lineage intended to support future explicit joins and are not redundant
+    public document content.
+
+scope:
+  in:
+    - Delete superseded source-based and older workspace/Skill Workflow versions rather than archiving them.
+    - Delete AgentTemplates and instruction resources that become unreachable from all current built-in Workflows.
+    - Move shared-memory process Workflow/template/instruction fixtures under configs/e2e and update their process/config tests.
+    - Keep artifact-copy@1 as the small built-in smoke Workflow and keep reusable unreferenced http_explorer@1 intentionally.
+    - Keep current analysis-entry, workspace, security and taint workflows plus the new workspace Streamline workflow.
+    - Preserve workspace_state/workspace_diff in current workspace Workflow contracts and document empty-initial-state semantics.
+    - Update default configuration counts, digest tests, documentation and live/project workflow selectors.
+    - Prove every retained default AgentTemplate/instruction is reachable except explicitly reusable http_explorer@1.
+  out:
+    - A compatibility archive, reuse of a deleted version identity, deletion of source-analysis@1, or implementation of Workflow join semantics.
+
+requirements:
+  - {id: R1, text: Deleted exact identities are not reused; current identities keep their versions and immutable bodies.}
+  - {id: R2, text: Existing durable Runs remain executable from their pinned snapshots and are not migrated.}
+  - {id: R3, text: The default catalog contains current product workflows plus only the explicit artifact-copy smoke fixture.}
+  - {id: R4, text: Empty overlay state is a canonical cumulative identity over exact sources and remains an explicit artifact handoff for future composition.}
+
+acceptance_criteria:
+  - id: A1
+    given: The cleaned default configuration root.
+    when: It is validated and listed.
+    then: No historical source/workspace/Skill version or shared-memory fixture is published.
+  - id: A2
+    given: The configs/e2e root.
+    when: Shared-memory configuration and process tests run.
+    then: Router and Streamline fixtures retain their exact isolated/shared note behavior.
+  - id: A3
+    given: A current workspace Workflow with no imported overlay and no file mutation.
+    when: Runtime exports its declared workspace results.
+    then: State reconstructs the unchanged hydrated sources and diff is the canonical empty checkpoint delta.
+  - id: A4
+    given: All current default Workflows.
+    when: Their transitive templates and instructions are inspected.
+    then: No unreachable historical configuration remains, except the documented reusable HTTP-only template.
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A4]}
+  - {name: workspace-runtime, command: "cd runtime && uv run pytest -W error tests/test_workspace_state.py tests/test_workspace_auto_export.py", covers: [A3]}
+  - {name: shared-memory-e2e, command: "make test-shared-memory-e2e", covers: [A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A3, A4]}
+

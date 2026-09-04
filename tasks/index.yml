@@ -392,6 +392,13 @@ milestones:
       Every ordinary adk@1 Worker separates tool execution from one exact-copy
       tool-free structured-output call, eliminating backend-dependent
       tools-plus-schema grammar failures without changing result ownership.
+  - id: workflow-catalog-consolidation
+    exit_task: V22-003
+    outcome: >-
+      OpenAPI domain tools validate the same project workspace exposed to the
+      Worker, LikeC4 retains a workspace-backed Streamline option, and the
+      default catalog contains current user workflows rather than historical
+      implementation versions or process-only fixtures.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
@@ -1617,3 +1624,6 @@ tasks:
   - {id: V20-005, file: v20-005-run-metadata-label-ui.yml}
   - {id: V20-006, file: v20-006-run-metadata-label-release-gate.yml}
   - {id: V21-001, file: v21-001-adk-worker-result-finalizer.yml}
+  - {id: V22-001, file: v22-001-openapi-workspace-evidence.yml}
+  - {id: V22-002, file: v22-002-likec4-workspace-streamline.yml}
+  - {id: V22-003, file: v22-003-workflow-catalog-cleanup.yml}

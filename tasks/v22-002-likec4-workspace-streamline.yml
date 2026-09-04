@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V22-002
+title: Publish the workspace-backed LikeC4 Streamline workflow
+milestone: workflow-catalog-consolidation
+priority: P1
+status: planned
+implementation_commit: null
+depends_on: [V22-001, V15-007, V10-006]
+languages: [yaml, go, markdown]
+
+goal: >-
+  Preserve the useful model-backed Streamline planning mode without retaining
+  an archive-local source-analysis Workflow as the public implementation.
+
+context:
+  current_gap: >-
+    likec4-from-workspace@3 is the current local Trailmark-backed passthrough
+    Workflow. The only Streamline variants still use source_analyst@1 and the
+    legacy scratch/source extraction path.
+  intended_shape: >-
+    The new Workflow uses the exact four-Stage graph, project workspace
+    hydration, cumulative overlay state/diff handoff, graph discovery templates,
+    LikeC4 Skill templates and frozen outputs of likec4-from-workspace@3. Only
+    Planner kind and explicit modeled Planner/Worker policies differ.
+
+scope:
+  in:
+    - Add likec4-from-workspace-streamline@1 as one immutable built-in Workflow.
+    - Select streamline@1 for all four Stages and project_planner@1 for each modeled Planner.
+    - Select project_worker@1 for Workers and retain exact Gateway credentials by role.
+    - Preserve source/seed inputs, cumulative workspace state/diff, retries, artifact handoffs and final output mappings.
+    - Add repository tests comparing every non-planner semantic field with likec4-from-workspace@3.
+    - Document when to choose passthrough versus Streamline.
+  out:
+    - Router behavior, hidden runtime selection, automatic Planner fallback, or mutation of likec4-from-workspace@3.
+
+requirements:
+  - {id: R1, text: Streamline changes task decomposition only; it does not change source, workspace, evidence or result contracts.}
+  - {id: R2, text: Planner and Worker each use their explicit finite project policy and role credential.}
+  - {id: R3, text: The Workflow requires the same complete local graph and LikeC4 capability surface as the current passthrough Workflow.}
+
+acceptance_criteria:
+  - id: A1
+    given: The built-in configuration tree.
+    when: Strict loading resolves likec4-from-workspace-streamline@1.
+    then: It has four Streamline Stages with exact workspace and artifact parity to likec4-from-workspace@3.
+  - id: A2
+    given: A Stage from the new Workflow.
+    when: Its effective execution configuration is inspected.
+    then: Planner resolves project_planner@1 and its logical Worker resolves project_worker@1 with distinct configured credentials.
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A2]}
+  - {name: config-gate, command: "make test-config", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2]}
+
