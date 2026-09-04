@@ -328,7 +328,7 @@ can add a tool that AgentTemplate omitted.
 The checked-in `caido_analyst@1` template is the initial closed assignment. It
 selects all ten `caido@1` operations, the bounded `http_request`,
 `http_read_body` and `http_history` operations, text artifact read/write, and
-the versionless `skills/caido` ref. `security-analysis@1` uses that template in
+the versionless `skills/caido` ref. `security-analysis@2` uses that template in
 one passthrough Stage; `http_explorer@1` is the reusable HTTP-only template and
 selects all six `http-tools@1` operations without a Caido Skill or adapter
 requirement. Their Workflow, template, instructions and Skill contain no

@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: likec4-from-analysis
-  version: "2"
+  version: "3"
 
 spec:
   parameters:
@@ -25,10 +25,11 @@ spec:
       mediaTypes: [text/vnd.likec4, text/plain]
 
   outputs:
-    architecture:
+    likec4:
       required: true
+      primary: true
       mediaTypes: [text/vnd.likec4]
-    validation_report:
+    likec4_validation_report:
       required: true
       mediaTypes: [text/markdown]
 
@@ -124,8 +125,8 @@ spec:
             mediaTypes: [text/markdown]
             from: {namespace: likec4, name: validation-report}
       workflowOutputs:
-        architecture: architecture
-        validation_report: validation_report
+        likec4: architecture
+        likec4_validation_report: validation_report
       on:
         succeeded:
           succeed: {}

@@ -12,7 +12,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("openapi-from-workspace@3")
+	workflow, err := snapshot.Workflow("openapi-from-workspace@4")
 	if err != nil {
 		t.Fatalf("resolve OpenAPI Workflow: %v", err)
 	}
@@ -26,10 +26,10 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 		t.Fatalf("unexpected optional seed input: %+v", seed)
 	}
 	if got, want := workflow.Outputs, map[string]ArtifactSlot{
-		"openapi":           {Required: true, MediaTypes: []string{"application/yaml"}},
-		"validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
-		"workspace_state":   {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
-		"workspace_diff":    {Required: true, MediaTypes: []string{"text/x-diff"}},
+		"openapi":                   {Required: true, MediaTypes: []string{"application/yaml"}, Primary: true},
+		"openapi_validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
+		"workspace_state":           {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
+		"workspace_diff":            {Required: true, MediaTypes: []string{"text/x-diff"}},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("OpenAPI outputs = %+v, want %+v", got, want)
 	}
@@ -82,7 +82,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	assertStageResult(t, validate, "openapi", "application/yaml")
 	assertStageResult(t, validate, "validation_report", "text/markdown")
 	if !reflect.DeepEqual(validate.WorkflowOutputs, map[string]string{
-		"openapi": "openapi", "validation_report": "validation_report",
+		"openapi": "openapi", "openapi_validation_report": "validation_report",
 		"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 	}) {
 		t.Fatalf("final Workflow output mappings = %+v", validate.WorkflowOutputs)

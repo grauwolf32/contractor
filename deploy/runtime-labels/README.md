@@ -37,7 +37,7 @@ Each concurrently connected Runtime process needs a distinct CA-signed key and
 certificate. Startup labels seed a previously unseen certificate principal;
 later changes use the principal-label Operations endpoint. Runtime adapters
 are all enabled by default. To expose a deliberate subset, repeat
-`--runtime-adapter`; a Runtime eligible for `security-analysis@1` needs both
+`--runtime-adapter`; a Runtime eligible for `security-analysis@2` needs both
 `--runtime-adapter http-proxy@1` and `--runtime-adapter caido-graphql@1` when an
 explicit subset is used. This narrows the factory/probe surface and never makes
 an unavailable implementation pass.

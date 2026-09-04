@@ -222,7 +222,7 @@ func loadLiveSettings(t *testing.T) (liveSettings, bool) {
 		gatewayURL:   strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL")),
 		gatewayToken: os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_TOKEN"),
 		model:        strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_MODEL")),
-		workflows:    []string{"openapi-from-workspace@3", "likec4-from-workspace@3"},
+		workflows:    []string{"openapi-from-workspace@4", "likec4-from-workspace@4"},
 	}
 	if settings.databaseURL == "" || settings.gatewayURL == "" || settings.model == "" {
 		return liveSettings{}, false
@@ -240,7 +240,7 @@ func loadLiveSettings(t *testing.T) (liveSettings, bool) {
 	}
 	if selected := strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_ONLY")); selected != "" {
 		switch selected {
-		case "openapi-from-workspace@3", "likec4-from-workspace@3":
+		case "openapi-from-workspace@4", "likec4-from-workspace@4":
 			settings.workflows = []string{selected}
 		default:
 			t.Fatal("CONTRACTOR_WORKFLOWS_LIVE_ONLY is not a supported live Workflow")
@@ -393,12 +393,12 @@ func evaluateLiveWorkflow(
 	}
 
 	switch workflow {
-	case "openapi-from-workspace@3":
+	case "openapi-from-workspace@4":
 		var document, report []byte
 		var documentErr, reportErr error
 		if status.State == string(runstore.RunSucceeded) {
 			document, documentErr = downloadLiveOutput(stack, runID, "openapi")
-			report, reportErr = downloadLiveOutput(stack, runID, "validation_report")
+			report, reportErr = downloadLiveOutput(stack, runID, "openapi_validation_report")
 		} else {
 			document, documentErr = readLiveRunArtifact(stack, runID, "openapi", "openapi")
 			report, reportErr = readLiveRunArtifact(stack, runID, "openapi", "validation-report")
@@ -417,12 +417,12 @@ func evaluateLiveWorkflow(
 		if reportErr == nil {
 			evidence.Files["openapi-validation-report.md"] = boundedLiveArtifact(report)
 		}
-	case "likec4-from-workspace@3":
+	case "likec4-from-workspace@4":
 		var document, report []byte
 		var documentErr, reportErr error
 		if status.State == string(runstore.RunSucceeded) {
-			document, documentErr = downloadLiveOutput(stack, runID, "architecture")
-			report, reportErr = downloadLiveOutput(stack, runID, "validation_report")
+			document, documentErr = downloadLiveOutput(stack, runID, "likec4")
+			report, reportErr = downloadLiveOutput(stack, runID, "likec4_validation_report")
 		} else {
 			document, documentErr = readLiveRunArtifact(stack, runID, "likec4", "architecture")
 			report, reportErr = readLiveRunArtifact(stack, runID, "likec4", "validation-report")

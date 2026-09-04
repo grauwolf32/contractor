@@ -54,7 +54,7 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 		t.Fatalf("caido_analyst@1 skills = %+v", caidoAnalyst.Skills)
 	}
 
-	workflow, err := snapshot.Workflow("security-analysis@1")
+	workflow, err := snapshot.Workflow("security-analysis@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,15 +62,16 @@ func TestRepositoryHTTPAndCaidoConfigurationIsClosed(t *testing.T) {
 		len(workflow.Parameters) != 3 || !workflow.Parameters["objective"].Required ||
 		!workflow.Parameters["target"].Required || !workflow.Parameters["authorization_scope"].Required ||
 		len(workflow.Inputs) != 1 || workflow.Inputs["context"].Required ||
-		len(workflow.Outputs) != 1 || !workflow.Outputs["report"].Required {
-		t.Fatalf("security-analysis@1 contract = %+v", workflow)
+		len(workflow.Outputs) != 1 || !workflow.Outputs["security_report"].Required ||
+		!workflow.Outputs["security_report"].Primary {
+		t.Fatalf("security-analysis@2 contract = %+v", workflow)
 	}
 	stage := workflow.Stages[workflow.EntryStage]
 	analyst, ok := stage.Agents["analyst"]
 	if !ok || analyst.Namespace != "security" || analyst.Template.Ref.TemplateID != "caido_analyst" ||
-		stage.Planner.PlannerID != "passthrough" || stage.WorkflowOutputs["report"] != "report" ||
+		stage.Planner.PlannerID != "passthrough" || stage.WorkflowOutputs["security_report"] != "report" ||
 		stage.On.Failed.Kind != TransitionFail || stage.On.Interrupted.Kind != TransitionFail {
-		t.Fatalf("security-analysis@1 analyze Stage = %+v", stage)
+		t.Fatalf("security-analysis@2 analyze Stage = %+v", stage)
 	}
 
 	for _, relative := range []string{

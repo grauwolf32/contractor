@@ -443,9 +443,9 @@ The default catalog publishes only the current graph-backed workspace choices:
 
 | Workflow | Planner | Discovery AgentTemplate | Placement effect |
 |---|---|---|---|
-| `openapi-from-workspace@3` | `passthrough@1` | `workspace_source_graph_analyst@1` | Selects all eleven operations; waits for complete local graph capacity |
-| `likec4-from-workspace@3` | `passthrough@1` | `workspace_source_graph_analyst@1` | Same graph placement contract |
-| `likec4-from-workspace-streamline@1` | `streamline@1` | `workspace_source_graph_analyst@1` | Same graph placement contract with modeled Stage decomposition |
+| `openapi-from-workspace@4` | `passthrough@1` | `workspace_source_graph_analyst@1` | Selects all eleven operations; waits for complete local graph capacity |
+| `likec4-from-workspace@4` | `passthrough@1` | `workspace_source_graph_analyst@1` | Same graph placement contract |
+| `likec4-from-workspace-streamline@2` | `streamline@1` | `workspace_source_graph_analyst@1` | Same graph placement contract with modeled Stage decomposition |
 
 Historical source-backed and shallow/default workspace versions are not
 published or archived. The portable `search_def` and `list_symbols` operations

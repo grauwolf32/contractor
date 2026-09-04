@@ -18,11 +18,11 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 	if err != nil {
 		return ResolvedWorkflow{}, err
 	}
-	inputs, err := resolveArtifactSlots("spec.inputs", spec.Inputs)
+	inputs, err := resolveArtifactSlots("spec.inputs", spec.Inputs, false)
 	if err != nil {
 		return ResolvedWorkflow{}, err
 	}
-	outputs, err := resolveArtifactSlots("spec.outputs", spec.Outputs)
+	outputs, err := resolveArtifactSlots("spec.outputs", spec.Outputs, true)
 	if err != nil {
 		return ResolvedWorkflow{}, err
 	}
@@ -145,17 +145,22 @@ func resolveParameters(source *map[string]parameterSlotSource) (map[string]Param
 	return result, nil
 }
 
-func resolveArtifactSlots(field string, source *map[string]artifactSlotSource) (map[string]ArtifactSlot, error) {
+func resolveArtifactSlots(
+	field string,
+	source *map[string]artifactSlotSource,
+	allowPrimary bool,
+) (map[string]ArtifactSlot, error) {
 	if source == nil {
 		return nil, fmt.Errorf("%s is required (use {} for none)", field)
 	}
-	return resolveArtifactSlotMap(field, *source, false)
+	return resolveArtifactSlotMap(field, *source, false, allowPrimary)
 }
 
 func resolveArtifactSlotMap(
 	field string,
 	source map[string]artifactSlotSource,
 	allowFrom bool,
+	allowPrimary bool,
 ) (map[string]ArtifactSlot, error) {
 	result := make(map[string]ArtifactSlot, len(source))
 	for name, slot := range source {
@@ -172,6 +177,9 @@ func resolveArtifactSlotMap(
 		if slot.From != nil && !allowFrom {
 			return nil, fmt.Errorf("%s.%s.from is allowed only for Stage result artifacts", field, name)
 		}
+		if slot.Primary != nil && !allowPrimary {
+			return nil, fmt.Errorf("%s.%s.primary is allowed only for Workflow outputs", field, name)
+		}
 		var from *ArtifactBinding
 		if slot.From != nil {
 			if err := validateArtifactComponent(field+"."+name+".from.namespace", slot.From.Namespace); err != nil {
@@ -186,7 +194,13 @@ func resolveArtifactSlotMap(
 			}
 			from = &ArtifactBinding{Namespace: slot.From.Namespace, Name: slot.From.Name}
 		}
-		result[name] = ArtifactSlot{Required: *slot.Required, MediaTypes: mediaTypes, From: from}
+		primary := false
+		if slot.Primary != nil {
+			primary = *slot.Primary
+		}
+		result[name] = ArtifactSlot{
+			Required: *slot.Required, MediaTypes: mediaTypes, From: from, Primary: primary,
+		}
 	}
 	return result, nil
 }
@@ -474,7 +488,7 @@ func resolveStageResult(source *stageResultSource) (StageResultContract, error) 
 	if source.Artifacts == nil {
 		return StageResultContract{}, fmt.Errorf("result.artifacts is required when result is present")
 	}
-	artifacts, err := resolveArtifactSlotMap("result.artifacts", *source.Artifacts, true)
+	artifacts, err := resolveArtifactSlotMap("result.artifacts", *source.Artifacts, true, false)
 	if err != nil {
 		return StageResultContract{}, err
 	}

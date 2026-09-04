@@ -251,7 +251,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPBodyArtifact(t, operations, publicClient, publicBaseURL, httpInitial.RunID)
 
 	oldRun := createHTTPCaidoRun(
-		operations, "security-analysis@1", "http-caido-old-run", "target.example",
+		operations, "security-analysis@2", "http-caido-old-run", "target.example",
 		[]string{"caido"},
 	)
 	select {
@@ -312,7 +312,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	)
 
 	newRun := createHTTPCaidoRun(
-		operations, "security-analysis@1", "http-caido-new-run", "target.example",
+		operations, "security-analysis@2", "http-caido-new-run", "target.example",
 		[]string{"caido"},
 	)
 	newStatus := waitForRunAcross(
@@ -456,11 +456,11 @@ func assertHTTPCaidoReport(
 ) {
 	t.Helper()
 	if status.State != "succeeded" || len(status.Attempts) != 1 ||
-		status.Attempts[0].State != "succeeded" || status.Outputs["report"].Revision == nil {
+		status.Attempts[0].State != "succeeded" || status.Outputs["security_report"].Revision == nil {
 		t.Fatalf("HTTP/Caido terminal status = %+v", status)
 	}
 	data, mediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/report",
+		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/security_report",
 	)
 	if string(data) != want || mediaType != "text/markdown" {
 		t.Fatalf("HTTP/Caido report = (%q, %q), want (%q, text/markdown)", data, mediaType, want)

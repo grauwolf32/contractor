@@ -255,7 +255,7 @@ describe("Run routes", () => {
               items: [
                 {
                   runId: "run-second",
-                  workflow: "likec4-from-workspace@3",
+                  workflow: "likec4-from-workspace@4",
                   state: "succeeded",
                   labels: {},
                   createdAt: "2026-08-31T10:00:00Z",
@@ -273,7 +273,7 @@ describe("Run routes", () => {
             items: [
               {
                 runId: "run-first",
-                workflow: "openapi-from-workspace@3",
+                workflow: "openapi-from-workspace@4",
                 state: "running",
                 labels: {},
                 createdAt: "2026-08-31T12:00:00Z",

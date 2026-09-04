@@ -3,13 +3,13 @@
 This directory contains the executable default configuration. Its current
 user-facing Workflow set is:
 
-- `openapi-from-workspace@3` and `likec4-from-workspace@3` for four-Stage local
+- `openapi-from-workspace@4` and `likec4-from-workspace@4` for four-Stage local
   graph-backed analysis and document generation;
-- `likec4-from-workspace-streamline@1` for the same LikeC4 contract with a
+- `likec4-from-workspace-streamline@2` for the same LikeC4 contract with a
   modeled single-Worker Planner;
-- `openapi-from-analysis@1` and `likec4-from-analysis@2` when the caller already
+- `openapi-from-analysis@2` and `likec4-from-analysis@3` when the caller already
   has exact dependency and project reports;
-- `security-analysis@1` and `taint-trace-from-workspace@1` for their explicit
+- `security-analysis@2` and `taint-trace-from-workspace@2` for their explicit
   focused analysis contracts;
 - `artifact-copy@1` as the one intentionally published smoke fixture.
 
@@ -33,9 +33,9 @@ eleven bounded structural operations. They wait for a Runtime Agent whose
 positive capability includes the complete local Trailmark graph surface; there
 is no automatic downgrade to shallow analysis.
 
-`likec4-from-workspace-streamline@1` retains the exact graph-backed workspace,
+`likec4-from-workspace-streamline@2` retains the exact graph-backed workspace,
 artifact handoffs, cumulative state/diff and output contract of
-`likec4-from-workspace@3`, but uses `streamline@1` for every Stage. Its modeled
+`likec4-from-workspace@4`, but uses `streamline@1` for every Stage. Its modeled
 Planners use `project_planner@1`; its Workers use `project_worker@1`. Choose it
 when each semantic Stage benefits from explicit ordered subtask decomposition;
 the passthrough variant remains the simpler default when one Worker invocation
@@ -49,7 +49,7 @@ is packaged and published into the owner-scoped `skills/likec4` artifact by the
 Skill Catalog path; configuration refers to the logical binding, not a
 checked-in digest.
 
-`security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
+`security-analysis@2` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and
 `authorization_scope` string parameters, accepts one optional text context
 artifact, and freezes one Markdown report. Its `caido_analyst@1` template pins

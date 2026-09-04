@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: security-analysis
-  version: "1"
+  version: "2"
 
 spec:
   parameters:
@@ -20,8 +20,9 @@ spec:
       mediaTypes: [text/plain, text/markdown]
 
   outputs:
-    report:
+    security_report:
       required: true
+      primary: true
       mediaTypes: [text/markdown]
 
   executionConfig:
@@ -53,7 +54,7 @@ spec:
             mediaTypes: [text/markdown]
             from: {namespace: security, name: report}
       workflowOutputs:
-        report: report
+        security_report: report
       on:
         succeeded:
           succeed: {}

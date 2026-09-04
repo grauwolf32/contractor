@@ -426,7 +426,7 @@ func createTaintAnnotationsRun(
 ) string {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
-		"workflow": "taint-trace-from-workspace@1",
+		"workflow": "taint-trace-from-workspace@2",
 		"parameters": map[string]string{
 			"target": target, "objective": "Trace the selected request flow",
 			"context": "Use only evidence in the supplied workspace",
@@ -497,14 +497,14 @@ func assertTaintRun(
 		status.Attempts[0].State != "succeeded" || status.Attempts[0].Attempt != 1 {
 		t.Fatalf("taint terminal Run = %+v", status)
 	}
-	for _, output := range []string{"report", "workspace_state", "workspace_diff"} {
+	for _, output := range []string{"taint_report", "workspace_state", "workspace_diff"} {
 		ref, ok := status.Outputs[output]
 		if !ok || ref.Revision == nil {
 			t.Fatalf("taint Run omitted exact output %q: %+v", output, status.Outputs)
 		}
 	}
 	report, reportMediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/report",
+		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/taint_report",
 	)
 	if string(report) != wantReport || reportMediaType != "text/markdown" {
 		t.Fatalf("taint report = (%q, %q)", report, reportMediaType)

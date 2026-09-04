@@ -10,7 +10,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("likec4-from-workspace@3")
+	workflow, err := snapshot.Workflow("likec4-from-workspace@4")
 	if err != nil {
 		t.Fatalf("resolve LikeC4 Workflow: %v", err)
 	}
@@ -24,10 +24,10 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 		t.Fatalf("unexpected optional seed input: %+v", seed)
 	}
 	if got, want := workflow.Outputs, map[string]ArtifactSlot{
-		"architecture":      {Required: true, MediaTypes: []string{"text/vnd.likec4"}},
-		"validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
-		"workspace_state":   {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
-		"workspace_diff":    {Required: true, MediaTypes: []string{"text/x-diff"}},
+		"likec4":                   {Required: true, MediaTypes: []string{"text/vnd.likec4"}, Primary: true},
+		"likec4_validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
+		"workspace_state":          {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
+		"workspace_diff":           {Required: true, MediaTypes: []string{"text/x-diff"}},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("LikeC4 outputs = %+v, want %+v", got, want)
 	}
@@ -80,7 +80,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	assertStageResult(t, validate, "architecture", "text/vnd.likec4")
 	assertStageResult(t, validate, "validation_report", "text/markdown")
 	if !reflect.DeepEqual(validate.WorkflowOutputs, map[string]string{
-		"architecture": "architecture", "validation_report": "validation_report",
+		"likec4": "architecture", "likec4_validation_report": "validation_report",
 		"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 	}) {
 		t.Fatalf("final Workflow output mappings = %+v", validate.WorkflowOutputs)
@@ -91,7 +91,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	assertBoundedRetry(t, validate.On.Failed, 2)
 	assertBoundedRetry(t, validate.On.Interrupted, 2)
 
-	openapi, err := snapshot.Workflow("openapi-from-workspace@3")
+	openapi, err := snapshot.Workflow("openapi-from-workspace@4")
 	if err != nil {
 		t.Fatal(err)
 	}

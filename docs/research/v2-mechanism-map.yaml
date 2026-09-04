@@ -238,7 +238,7 @@ programs:
     contract_test_candidates: [D3, D5]
     needs_small_seam: [AD3]
     needs_new_capability: [AD4]
-    note: A security-specific staged Workflow is still needed; security-analysis@1 is only one passthrough HTTP/Caido Worker.
+    note: A security-specific staged Workflow is still needed; security-analysis@2 is only one passthrough HTTP/Caido Worker.
 
   small_model_mission:
     directions: [E]

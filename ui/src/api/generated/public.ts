@@ -1450,6 +1450,12 @@ export interface components {
             required: boolean;
             mediaTypes: components["schemas"]["MediaType"][];
         };
+        WorkflowOutputArtifactSlot: {
+            required: boolean;
+            mediaTypes: components["schemas"]["MediaType"][];
+            /** @description Presentation and Project recommendation intent; it does not change execution semantics. */
+            primary?: boolean;
+        };
         ArtifactBinding: {
             namespace: components["schemas"]["ArtifactName"];
             name: components["schemas"]["ArtifactName"];
@@ -1474,7 +1480,7 @@ export interface components {
                 [key: string]: components["schemas"]["ArtifactSlot"];
             };
             outputs: {
-                [key: string]: components["schemas"]["ArtifactSlot"];
+                [key: string]: components["schemas"]["WorkflowOutputArtifactSlot"];
             };
         };
         InstructionsRef: {
@@ -1663,7 +1669,7 @@ export interface components {
                 [key: string]: components["schemas"]["ArtifactSlot"];
             };
             outputs: {
-                [key: string]: components["schemas"]["ArtifactSlot"];
+                [key: string]: components["schemas"]["WorkflowOutputArtifactSlot"];
             };
             stages: {
                 [key: string]: components["schemas"]["WorkflowStageContract"];

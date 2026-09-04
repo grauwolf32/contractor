@@ -58,9 +58,9 @@ Runs stored complete resolved snapshots, those rollout-only predecessors no
 longer served a runtime compatibility purpose and were deleted rather than
 archived. Deleted identities are never reused.
 
-The current archive-backed entry is `likec4-from-analysis@2`, using
+The current archive-backed entry is `likec4-from-analysis@3`, using
 `likec4_builder@2` and `likec4_validator@2`. The current source-to-document
-entries are `likec4-from-workspace@3` and
-`likec4-from-workspace-streamline@1`; their workspace-specific builder and
+entries are `likec4-from-workspace@4` and
+`likec4-from-workspace-streamline@2`; their workspace-specific builder and
 validator templates also select `skills/likec4`. Dependency/project discovery
 uses `workspace_source_graph_analyst@1` and remains unskilled.

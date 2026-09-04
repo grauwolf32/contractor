@@ -900,6 +900,52 @@ func TestWorkflowGraphLoadsMultiStageAndBoundedRetry(t *testing.T) {
 	}
 }
 
+func TestWorkflowPrimaryMarkerIsAcceptedOnlyOnWorkflowOutputs(t *testing.T) {
+	t.Run("output", func(t *testing.T) {
+		root := copyConfigTree(t)
+		path := filepath.Join(root, "workflows/artifact_copy.yaml")
+		replaceFile(t, path,
+			"  outputs:\n    result:\n      required: true\n      mediaTypes: [text/plain]",
+			"  outputs:\n    result:\n      required: true\n      primary: true\n      mediaTypes: [text/plain]",
+		)
+		workflow, err := mustLoad(t, root, MVPDescriptors()).Workflow("artifact-copy@1")
+		if err != nil || !workflow.Outputs["result"].Primary || workflow.Inputs["source"].Primary ||
+			workflow.Stages["copy"].Result.Artifacts["copied"].Primary {
+			t.Fatalf("resolved primary output marker = (%+v, %v)", workflow, err)
+		}
+	})
+
+	for _, test := range []struct {
+		name, old, replacement, field string
+	}{
+		{
+			name: "input",
+			old:  "  inputs:\n    source:\n      required: true\n      mediaTypes: [text/plain]",
+			replacement: "  inputs:\n    source:\n      required: true\n      primary: true\n" +
+				"      mediaTypes: [text/plain]",
+			field: "spec.inputs.source.primary",
+		},
+		{
+			name: "Stage result",
+			old:  "          copied:\n            required: true\n            mediaTypes: [text/plain]",
+			replacement: "          copied:\n            required: true\n            primary: true\n" +
+				"            mediaTypes: [text/plain]",
+			field: "result.artifacts.copied.primary",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := copyConfigTree(t)
+			path := filepath.Join(root, "workflows/artifact_copy.yaml")
+			replaceFile(t, path, test.old, test.replacement)
+			snapshot, err := Load(root, MVPDescriptors())
+			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.field) ||
+				!strings.Contains(err.Error(), "allowed only for Workflow outputs") {
+				t.Fatalf("Load() = (%v, %v), want output-only primary error", snapshot, err)
+			}
+		})
+	}
+}
+
 func TestWorkflowGraphRejectsNextCycle(t *testing.T) {
 	t.Parallel()
 	root := copyConfigTree(t)

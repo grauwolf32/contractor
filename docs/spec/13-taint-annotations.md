@@ -276,7 +276,7 @@ Runtime ban: another explicitly versioned template may select both Toolsets.
 The checked-in `workspace_taint_analyst@1` template selects the complete local
 graph surface, all three annotation operations, bounded filesystem reads,
 workspace change inspection and text-artifact reads/writes. The one-Stage
-`taint-trace-from-workspace@1` Workflow supplies `target`, optional `objective`
+`taint-trace-from-workspace@2` Workflow supplies `target`, optional `objective`
 and `context` strings, hydrates one required source ZIP in overlay mode, and
 maps the evidence report plus cumulative overlay state and text diff to
 Workflow outputs.

@@ -189,7 +189,7 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	openAPIRunID := createProjectRun(t, publicClient, publicBaseURL, "openapi-from-workspace@3", map[string]artifactRef{
+	openAPIRunID := createProjectRun(t, publicClient, publicBaseURL, "openapi-from-workspace@4", map[string]artifactRef{
 		"source": source, "existing_openapi": openAPISeedRef,
 	})
 	openAPIStatus := waitForDomainRun(
@@ -206,7 +206,7 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	assertOpenAPIOutput(t, openAPIBytes, openAPIMediaType)
 	openAPIReport, reportMediaType := download(
 		t, publicClient,
-		publicBaseURL+"/v1/runs/"+url.PathEscape(openAPIRunID)+"/outputs/validation_report",
+		publicBaseURL+"/v1/runs/"+url.PathEscape(openAPIRunID)+"/outputs/openapi_validation_report",
 	)
 	if reportMediaType != "text/markdown" || !strings.Contains(string(openAPIReport), "Final valid: true") {
 		t.Fatalf("unexpected OpenAPI validation report (%q): %s", reportMediaType, openAPIReport)
@@ -223,12 +223,12 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 			"openapi/openapi":          "application/yaml", "openapi/validation-report": "text/markdown",
 			"openapi/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"openapi/workspace_diff":  "text/x-diff",
-			"outputs/openapi":         "application/yaml", "outputs/validation_report": "text/markdown",
+			"outputs/openapi":         "application/yaml", "outputs/openapi_validation_report": "text/markdown",
 			"outputs/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"outputs/workspace_diff":  "text/x-diff",
 		},
 		map[string]string{
-			"openapi": "openapi", "validation_report": "validation_report",
+			"openapi": "openapi", "openapi_validation_report": "validation_report",
 			"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 		},
 	)
@@ -237,7 +237,7 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 		openAPIEvidence.lastAllocationID, workRoot,
 	)
 
-	likeC4RunID := createProjectRun(t, publicClient, publicBaseURL, "likec4-from-workspace@3", map[string]artifactRef{
+	likeC4RunID := createProjectRun(t, publicClient, publicBaseURL, "likec4-from-workspace@4", map[string]artifactRef{
 		"source": source, "existing_likec4": likeC4SeedRef,
 	})
 	likeC4Status := waitForDomainRun(
@@ -249,12 +249,12 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 		[]int64{5, 5, 11, 9},
 	)
 	likeC4Bytes, likeC4MediaType := download(
-		t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(likeC4RunID)+"/outputs/architecture",
+		t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(likeC4RunID)+"/outputs/likec4",
 	)
 	assertLikeC4Output(t, likeC4Bytes, likeC4MediaType)
 	likeC4Report, reportMediaType := download(
 		t, publicClient,
-		publicBaseURL+"/v1/runs/"+url.PathEscape(likeC4RunID)+"/outputs/validation_report",
+		publicBaseURL+"/v1/runs/"+url.PathEscape(likeC4RunID)+"/outputs/likec4_validation_report",
 	)
 	if reportMediaType != "text/markdown" || !strings.Contains(string(likeC4Report), "Final valid: true") {
 		t.Fatalf("unexpected LikeC4 validation report (%q): %s", reportMediaType, likeC4Report)
@@ -272,12 +272,12 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 			"likec4/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"likec4/workspace_diff":  "text/x-diff",
 			"skills/likec4":          "application/vnd.contractor.agent-skill+zip",
-			"outputs/architecture":   "text/vnd.likec4", "outputs/validation_report": "text/markdown",
+			"outputs/likec4":         "text/vnd.likec4", "outputs/likec4_validation_report": "text/markdown",
 			"outputs/workspace_state": "application/vnd.contractor.workspace-overlay+json",
 			"outputs/workspace_diff":  "text/x-diff",
 		},
 		map[string]string{
-			"architecture": "architecture", "validation_report": "validation_report",
+			"likec4": "architecture", "likec4_validation_report": "validation_report",
 			"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 		},
 	)

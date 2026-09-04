@@ -10,7 +10,7 @@ import {
 } from "./validation";
 
 const workflow: WorkflowResource = {
-  ref: { name: "openapi-from-workspace", version: "3" },
+  ref: { name: "openapi-from-workspace", version: "4" },
   entryStage: "dependencies",
   parameters: { objective: { required: true }, note: { required: false } },
   inputs: {
@@ -77,7 +77,7 @@ describe("Run draft validation", () => {
     );
     expect(result.errors).toEqual({});
     expect(result.request).toEqual({
-      workflow: "openapi-from-workspace@3",
+      workflow: "openapi-from-workspace@4",
       runtimeLabels: ["debug"],
       labels: { "eval.id": "eval-01", purpose: "eval" },
       parameters: { objective: "Build OpenAPI" },

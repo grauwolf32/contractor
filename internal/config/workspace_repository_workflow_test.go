@@ -14,16 +14,18 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	cases := []struct {
-		ref            string
-		domainStages   map[string]string
-		orderedStages  []string
-		finalStage     string
-		domainOutput   string
-		domainMedia    string
-		validationSlot string
+		ref                 string
+		domainStages        map[string]string
+		orderedStages       []string
+		finalStage          string
+		domainOutput        string
+		domainMedia         string
+		validationSlot      string
+		publishedOutput     string
+		publishedValidation string
 	}{
 		{
-			ref: "openapi-from-workspace@3",
+			ref: "openapi-from-workspace@4",
 			domainStages: map[string]string{
 				"dependency_discovery": "workspace_source_graph_analyst",
 				"project_discovery":    "workspace_source_graph_analyst",
@@ -32,10 +34,11 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 			},
 			orderedStages: []string{"dependency_discovery", "project_discovery", "openapi_build", "openapi_validate"},
 			finalStage:    "openapi_validate", domainOutput: "openapi", domainMedia: "application/yaml",
-			validationSlot: "validation_report",
+			validationSlot: "validation_report", publishedOutput: "openapi",
+			publishedValidation: "openapi_validation_report",
 		},
 		{
-			ref: "likec4-from-workspace@3",
+			ref: "likec4-from-workspace@4",
 			domainStages: map[string]string{
 				"dependency_discovery": "workspace_source_graph_analyst",
 				"project_discovery":    "workspace_source_graph_analyst",
@@ -44,7 +47,8 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 			},
 			orderedStages: []string{"dependency_discovery", "project_discovery", "likec4_build", "likec4_validate"},
 			finalStage:    "likec4_validate", domainOutput: "architecture", domainMedia: "text/vnd.likec4",
-			validationSlot: "validation_report",
+			validationSlot: "validation_report", publishedOutput: "likec4",
+			publishedValidation: "likec4_validation_report",
 		},
 	}
 	for _, test := range cases {
@@ -88,10 +92,10 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 			assertStageResult(t, final, test.domainOutput, test.domainMedia)
 			assertStageResult(t, final, test.validationSlot, "text/markdown")
 			if !reflect.DeepEqual(final.WorkflowOutputs, map[string]string{
-				test.domainOutput:   test.domainOutput,
-				test.validationSlot: test.validationSlot,
-				"workspace_state":   "workspace_state",
-				"workspace_diff":    "workspace_diff",
+				test.publishedOutput:     test.domainOutput,
+				test.publishedValidation: test.validationSlot,
+				"workspace_state":        "workspace_state",
+				"workspace_diff":         "workspace_diff",
 			}) {
 				t.Fatalf("final outputs = %+v", final.WorkflowOutputs)
 			}

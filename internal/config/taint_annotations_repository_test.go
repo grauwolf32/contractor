@@ -79,7 +79,7 @@ func TestRepositoryTraceAnnotationWorkflowOwnsOverlayResults(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("taint-trace-from-workspace@1")
+	workflow, err := snapshot.Workflow("taint-trace-from-workspace@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestRepositoryTraceAnnotationWorkflowOwnsOverlayResults(t *testing.T) {
 	if !reflect.DeepEqual(workflow.Inputs, map[string]ArtifactSlot{
 		"source": {Required: true, MediaTypes: []string{"application/zip"}},
 	}) || !reflect.DeepEqual(workflow.Outputs, map[string]ArtifactSlot{
-		"report":          {Required: true, MediaTypes: []string{"text/markdown"}},
+		"taint_report":    {Required: true, MediaTypes: []string{"text/markdown"}, Primary: true},
 		"workspace_diff":  {Required: true, MediaTypes: []string{"text/x-diff"}},
 		"workspace_state": {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
 	}) {
@@ -130,7 +130,7 @@ func TestRepositoryTraceAnnotationWorkflowOwnsOverlayResults(t *testing.T) {
 	if !reflect.DeepEqual(stage.Result, wantResult) || !reflect.DeepEqual(
 		stage.WorkflowOutputs,
 		map[string]string{
-			"report": "report", "workspace_diff": "workspace_diff", "workspace_state": "workspace_state",
+			"taint_report": "report", "workspace_diff": "workspace_diff", "workspace_state": "workspace_state",
 		},
 	) {
 		t.Fatalf("taint trace results = %+v outputs %+v", stage.Result, stage.WorkflowOutputs)

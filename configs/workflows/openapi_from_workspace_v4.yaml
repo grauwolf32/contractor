@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: openapi-from-workspace
-  version: "3"
+  version: "4"
 
 spec:
   parameters:
@@ -21,8 +21,9 @@ spec:
   outputs:
     openapi:
       required: true
+      primary: true
       mediaTypes: [application/yaml]
-    validation_report:
+    openapi_validation_report:
       required: true
       mediaTypes: [text/markdown]
     workspace_state:
@@ -273,7 +274,7 @@ spec:
             mediaTypes: [text/x-diff]
       workflowOutputs:
         openapi: openapi
-        validation_report: validation_report
+        openapi_validation_report: validation_report
         workspace_state: workspace_state
         workspace_diff: workspace_diff
       on:

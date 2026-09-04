@@ -52,7 +52,7 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 		}
 	}
 
-	detail := serveQuery(t, fixture.handler, "/v1/workflows/openapi-from-workspace/versions/3")
+	detail := serveQuery(t, fixture.handler, "/v1/workflows/openapi-from-workspace/versions/4")
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
 	}
@@ -64,11 +64,15 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 		stage.ExecutionConfig.Agents["builder"].Origins.LLMGateway == "" {
 		t.Fatalf("safe Workflow projection = %+v", stage)
 	}
+	if !workflow.Outputs["openapi"].Primary || workflow.Outputs["openapi_validation_report"].Primary ||
+		workflow.Inputs["source"].Primary {
+		t.Fatalf("Workflow primary output projection = %+v", workflow.Outputs)
+	}
 	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := snapshot.Workflow("openapi-from-workspace@3")
+	resolved, err := snapshot.Workflow("openapi-from-workspace@4")
 	if err != nil {
 		t.Fatal(err)
 	}

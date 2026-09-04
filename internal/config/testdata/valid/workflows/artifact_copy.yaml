@@ -9,7 +9,7 @@ spec:
   inputs:
     source: {required: true, mediaTypes: [text/plain]}
   outputs:
-    result: {required: true, mediaTypes: [text/plain]}
+    result: {required: true, primary: true, mediaTypes: [text/plain]}
   executionConfig:
     workers:
       llmGateway: local-litellm@1

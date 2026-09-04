@@ -556,7 +556,7 @@ func createAgentSkillWorkflowRun(
 ) string {
 	t.Helper()
 	requestBody := map[string]any{
-		"workflow": "likec4-from-analysis@2",
+		"workflow": "likec4-from-analysis@3",
 		"parameters": map[string]string{
 			"objective": "Model the implemented API and architecture boundaries",
 		},

@@ -21,23 +21,23 @@ func TestRepositoryPrecomputedAnalysisWorkflows(t *testing.T) {
 		outputMediaTypes  map[string]ArtifactSlot
 	}{
 		{
-			workflowRef: "openapi-from-analysis@1",
+			workflowRef: "openapi-from-analysis@2",
 			buildStage:  "openapi_build", validateStage: "openapi_validate",
 			builderTemplate: "openapi_builder@1", validatorTemplate: "openapi_validator@1",
 			seedInput: "existing_openapi", buildResult: "openapi", buildMediaType: "application/yaml",
 			outputMediaTypes: map[string]ArtifactSlot{
-				"openapi":           {Required: true, MediaTypes: []string{"application/yaml"}},
-				"validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
+				"openapi":                   {Required: true, MediaTypes: []string{"application/yaml"}, Primary: true},
+				"openapi_validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
 			},
 		},
 		{
-			workflowRef: "likec4-from-analysis@2",
+			workflowRef: "likec4-from-analysis@3",
 			buildStage:  "likec4_build", validateStage: "likec4_validate",
 			builderTemplate: "likec4_builder@2", validatorTemplate: "likec4_validator@2",
 			seedInput: "existing_likec4", buildResult: "architecture", buildMediaType: "text/vnd.likec4",
 			outputMediaTypes: map[string]ArtifactSlot{
-				"architecture":      {Required: true, MediaTypes: []string{"text/vnd.likec4"}},
-				"validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
+				"likec4":                   {Required: true, MediaTypes: []string{"text/vnd.likec4"}, Primary: true},
+				"likec4_validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
 			},
 		},
 	}

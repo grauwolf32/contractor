@@ -115,7 +115,7 @@ describe("Workflow API", () => {
     );
     api.csrf.replace("a".repeat(43));
     const request: CreateRunRequest = {
-      workflow: "openapi-from-workspace@3",
+      workflow: "openapi-from-workspace@4",
       labels: { "eval.id": "eval-01", "eval.leg": "a", purpose: "eval" },
       parameters: { objective: "Describe the service" },
       artifacts: {

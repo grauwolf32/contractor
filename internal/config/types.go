@@ -53,6 +53,7 @@ type ArtifactSlot struct {
 	Required   bool             `json:"required"`
 	MediaTypes []string         `json:"mediaTypes"`
 	From       *ArtifactBinding `json:"from,omitempty"`
+	Primary    bool             `json:"primary,omitempty"`
 }
 
 // ContextArtifact identifies a logical RunScope binding to pin for a Stage.
@@ -371,6 +372,7 @@ type artifactSlotSource struct {
 	Required   *bool                  `yaml:"required"`
 	MediaTypes []string               `yaml:"mediaTypes"`
 	From       *artifactBindingSource `yaml:"from,omitempty"`
+	Primary    *bool                  `yaml:"primary,omitempty"`
 }
 
 type artifactBindingSource struct {

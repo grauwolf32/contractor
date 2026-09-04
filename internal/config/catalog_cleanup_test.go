@@ -17,16 +17,26 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 	sort.Strings(got)
 	want := []string{
 		"artifact-copy@1",
-		"likec4-from-analysis@2",
-		"likec4-from-workspace-streamline@1",
-		"likec4-from-workspace@3",
-		"openapi-from-analysis@1",
-		"openapi-from-workspace@3",
-		"security-analysis@1",
-		"taint-trace-from-workspace@1",
+		"likec4-from-analysis@3",
+		"likec4-from-workspace-streamline@2",
+		"likec4-from-workspace@4",
+		"openapi-from-analysis@2",
+		"openapi-from-workspace@4",
+		"security-analysis@2",
+		"taint-trace-from-workspace@2",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("default Workflow selectors = %v, want %v", got, want)
+	}
+	for _, superseded := range []string{
+		"likec4-from-analysis@2", "likec4-from-workspace-streamline@1",
+		"likec4-from-workspace@3", "openapi-from-analysis@1",
+		"openapi-from-workspace@3", "security-analysis@1",
+		"taint-trace-from-workspace@1",
+	} {
+		if _, err := snapshot.Workflow(superseded); err == nil {
+			t.Errorf("superseded Workflow %s remains reachable", superseded)
+		}
 	}
 }
 

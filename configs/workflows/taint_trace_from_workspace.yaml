@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: taint-trace-from-workspace
-  version: "1"
+  version: "2"
 
 spec:
   parameters:
@@ -20,8 +20,9 @@ spec:
       mediaTypes: [application/zip]
 
   outputs:
-    report:
+    taint_report:
       required: true
+      primary: true
       mediaTypes: [text/markdown]
     workspace_state:
       required: true
@@ -73,7 +74,7 @@ spec:
             required: true
             mediaTypes: [text/x-diff]
       workflowOutputs:
-        report: report
+        taint_report: report
         workspace_state: workspace_state
         workspace_diff: workspace_diff
       on:

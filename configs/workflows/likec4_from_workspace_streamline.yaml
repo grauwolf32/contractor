@@ -3,7 +3,7 @@ kind: Workflow
 
 metadata:
   name: likec4-from-workspace-streamline
-  version: "1"
+  version: "2"
 
 spec:
   parameters:
@@ -19,10 +19,11 @@ spec:
       mediaTypes: [text/vnd.likec4, text/plain]
 
   outputs:
-    architecture:
+    likec4:
       required: true
+      primary: true
       mediaTypes: [text/vnd.likec4]
-    validation_report:
+    likec4_validation_report:
       required: true
       mediaTypes: [text/markdown]
     workspace_state:
@@ -277,8 +278,8 @@ spec:
             required: true
             mediaTypes: [text/x-diff]
       workflowOutputs:
-        architecture: architecture
-        validation_report: validation_report
+        likec4: architecture
+        likec4_validation_report: validation_report
         workspace_state: workspace_state
         workspace_diff: workspace_diff
       on:
@@ -294,4 +295,3 @@ spec:
             maxAttempts: 2
             then:
               fail: {}
-

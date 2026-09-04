@@ -2793,6 +2793,16 @@ components:
       properties:
         required: {type: boolean}
         mediaTypes: {type: array, minItems: 1, maxItems: 32, uniqueItems: true, items: {$ref: '#/components/schemas/MediaType'}}
+    WorkflowOutputArtifactSlot:
+      type: object
+      additionalProperties: false
+      required: [required, mediaTypes]
+      properties:
+        required: {type: boolean}
+        mediaTypes: {type: array, minItems: 1, maxItems: 32, uniqueItems: true, items: {$ref: '#/components/schemas/MediaType'}}
+        primary:
+          type: boolean
+          description: Presentation and Project recommendation intent; it does not change execution semantics.
     ArtifactBinding:
       type: object
       additionalProperties: false
@@ -2828,7 +2838,7 @@ components:
         entryStage: {$ref: '#/components/schemas/ConfigId'}
         parameters: {type: object, additionalProperties: {$ref: '#/components/schemas/ParameterSlot'}}
         inputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
-        outputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
+        outputs: {type: object, additionalProperties: {$ref: '#/components/schemas/WorkflowOutputArtifactSlot'}}
     InstructionsRef:
       type: object
       additionalProperties: false
@@ -2949,7 +2959,7 @@ components:
         entryStage: {$ref: '#/components/schemas/ConfigId'}
         parameters: {type: object, additionalProperties: {$ref: '#/components/schemas/ParameterSlot'}}
         inputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
-        outputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
+        outputs: {type: object, additionalProperties: {$ref: '#/components/schemas/WorkflowOutputArtifactSlot'}}
         stages: {type: object, minProperties: 1, additionalProperties: {$ref: '#/components/schemas/WorkflowStageContract'}}
       example:
         ref: {name: artifact-copy, version: '1'}
