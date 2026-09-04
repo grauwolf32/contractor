@@ -243,6 +243,165 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/projects/{projectId}/artifacts:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: listProjectArtifacts
+      tags: [Projects, Artifacts]
+      summary: List current Artifact bindings in one owned ProjectScope
+      x-contractor-implementation: implemented
+      parameters:
+        - name: namespace
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/ArtifactName'}
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable ProjectScope Artifact page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    put:
+      operationId: putProjectArtifact
+      tags: [Projects, Artifacts]
+      summary: Create or CAS-update a ProjectScope Artifact
+      description: |
+        `If-None-Match: *` creates a new binding. One strong quoted `If-Match`
+        revision updates an existing binding. Supplying both is invalid.
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 16777216
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IfNoneMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          '*/*':
+            schema: {type: string, format: binary, maxLength: 16777216}
+      responses:
+        '200': {$ref: '#/components/responses/ArtifactWritten'}
+        '201': {$ref: '#/components/responses/ArtifactCreated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    get:
+      operationId: downloadProjectArtifact
+      tags: [Projects, Artifacts]
+      summary: Download the current or one exact ProjectScope Artifact revision
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/Revision'}
+      responses:
+        '200': {$ref: '#/components/responses/ArtifactBytes'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getProjectArtifactMetadata
+      tags: [Projects, Artifacts]
+      summary: Get current or exact ProjectScope Artifact metadata
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/Revision'}
+      responses:
+        '200':
+          description: ProjectScope Artifact metadata without bytes
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactMetadata'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: listProjectArtifactVersions
+      tags: [Projects, Artifacts]
+      summary: List immutable versions of one ProjectScope Artifact binding
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable ProjectScope Artifact version page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    get:
+      operationId: getProjectArtifactLineage
+      tags: [Projects, Artifacts]
+      summary: List bounded provenance edges for one ProjectScope Artifact binding
+      x-contractor-implementation: implemented
+      parameters:
+        - name: revision
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/Revision'}
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable ProjectScope lineage page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ArtifactLineagePage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/runs:
     post:
       operationId: createRun
@@ -1876,9 +2035,9 @@ components:
       required: [kind, sourceScope, source, targetScope, target, createdAt]
       properties:
         kind: {enum: [input_fork, output_bind]}
-        sourceScope: {enum: [user, run]}
+        sourceScope: {enum: [user, project, run]}
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
-        targetScope: {enum: [user, run]}
+        targetScope: {enum: [user, project, run]}
         target: {$ref: '#/components/schemas/ExactArtifactRef'}
         runId: {$ref: '#/components/schemas/ResourceId'}
         stageExecutionId: {$ref: '#/components/schemas/ResourceId'}

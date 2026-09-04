@@ -15,6 +15,7 @@ import (
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -166,6 +167,52 @@ VALUES (decode(repeat('00', 32), 'hex'), 'bad digest'::bytea, 10)`)
 	_, err = pool.Exec(ctx, `DELETE FROM artifact_blobs`)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("blob deletion SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+}
+
+func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-artifacts", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Artifacts", IdempotencyKey: "create-project-artifacts",
+		RequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(NewPostgresRepository(pool))
+	project, err := service.Project("project-artifacts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := project.Write(ctx,
+		ArtifactRef{Namespace: "sources", Name: "service"},
+		Payload{MediaType: "application/zip", Data: []byte("first")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := project.Write(ctx,
+		ArtifactRef{Namespace: "sources", Name: "service"},
+		Payload{MediaType: "application/zip", Data: []byte("second")}, created.Ref.Revision,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := project.Read(ctx, ArtifactRef{Namespace: "sources", Name: "service"})
+	if err != nil || !bytes.Equal(current.Payload.Data, []byte("second")) ||
+		*current.Ref.Revision != *updated.Ref.Revision {
+		t.Fatalf("current Project artifact = (%+v, %v)", current, err)
+	}
+	historical, err := project.Read(ctx, created.Ref)
+	if err != nil || !bytes.Equal(historical.Payload.Data, []byte("first")) {
+		t.Fatalf("historical Project artifact = (%+v, %v)", historical, err)
+	}
+	metadata, err := project.ListMetadata(ctx, BindingPageQuery{Limit: 10})
+	if err != nil || len(metadata) != 1 || metadata[0].Ref.Namespace != "sources" {
+		t.Fatalf("Project Artifact page = (%+v, %v)", metadata, err)
 	}
 }
 

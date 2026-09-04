@@ -14,12 +14,13 @@ const MaxPayloadSize = 16 * 1024 * 1024
 type ScopeKind string
 
 const (
-	ScopeUser ScopeKind = "user"
-	ScopeRun  ScopeKind = "run"
+	ScopeUser    ScopeKind = "user"
+	ScopeProject ScopeKind = "project"
+	ScopeRun     ScopeKind = "run"
 )
 
-// Scope is created only through UserScope or RunScope; ArtifactRef never
-// carries these fields.
+// Scope is created only through UserScope, ProjectScope or RunScope;
+// ArtifactRef never carries these fields.
 type Scope struct {
 	kind ScopeKind
 	id   string
@@ -27,10 +28,13 @@ type Scope struct {
 
 func UserScope(userID string) (Scope, error) { return newScope(ScopeUser, userID) }
 
+func ProjectScope(projectID string) (Scope, error) { return newScope(ScopeProject, projectID) }
+
 func RunScope(runID string) (Scope, error) { return newScope(ScopeRun, runID) }
 
 func newScope(kind ScopeKind, id string) (Scope, error) {
-	if kind != ScopeUser && kind != ScopeRun || strings.TrimSpace(id) == "" || strings.ContainsRune(id, 0) {
+	if kind != ScopeUser && kind != ScopeProject && kind != ScopeRun ||
+		strings.TrimSpace(id) == "" || strings.ContainsRune(id, 0) {
 		return Scope{}, ErrInvalidScope
 	}
 	return Scope{kind: kind, id: id}, nil
@@ -152,7 +156,8 @@ type QueryRepository interface {
 var mediaTypePattern = regexp.MustCompile("^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$")
 
 func validateScope(scope Scope) error {
-	if scope.kind != ScopeUser && scope.kind != ScopeRun || strings.TrimSpace(scope.id) == "" || strings.ContainsRune(scope.id, 0) {
+	if scope.kind != ScopeUser && scope.kind != ScopeProject && scope.kind != ScopeRun ||
+		strings.TrimSpace(scope.id) == "" || strings.ContainsRune(scope.id, 0) {
 		return ErrInvalidScope
 	}
 	return nil

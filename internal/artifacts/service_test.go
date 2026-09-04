@@ -87,6 +87,25 @@ func TestWritePropagatesTypedCASConflict(t *testing.T) {
 	}
 }
 
+func TestProjectScopeIsDistinctAndDoesNotUseRunReservedNamespaces(t *testing.T) {
+	t.Parallel()
+	repository := &fakeRepository{}
+	service := NewService(repository)
+	project, err := service.Project("project-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if project.scope.Kind() != ScopeProject || project.scope.ID() != "project-1" {
+		t.Fatalf("Project scope = (%q, %q)", project.scope.Kind(), project.scope.ID())
+	}
+	if _, err := project.Write(
+		context.Background(), ArtifactRef{Namespace: "outputs", Name: "openapi"},
+		Payload{MediaType: "application/yaml", Data: []byte("openapi: 3.1.0")}, nil,
+	); err != nil {
+		t.Fatalf("Project outputs namespace should be an ordinary writable binding: %v", err)
+	}
+}
+
 func TestTrustedOperationsRequireExactRefs(t *testing.T) {
 	t.Parallel()
 

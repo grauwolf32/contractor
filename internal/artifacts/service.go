@@ -22,6 +22,14 @@ func (s *Service) User(userID string) (ScopedStore, error) {
 	return ScopedStore{service: s, scope: scope}, nil
 }
 
+func (s *Service) Project(projectID string) (ScopedStore, error) {
+	scope, err := ProjectScope(projectID)
+	if err != nil {
+		return ScopedStore{}, err
+	}
+	return ScopedStore{service: s, scope: scope}, nil
+}
+
 func (s *Service) Run(runID string) (ScopedStore, error) {
 	scope, err := RunScope(runID)
 	if err != nil {

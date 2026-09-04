@@ -189,6 +189,34 @@ func TestProjectMigrationKeepsIdentityImmutableAndOwnerIndexed(t *testing.T) {
 	}
 }
 
+func TestProjectArtifactScopeMigrationAddsOnlyPublicProjectScope(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var scope migration
+	for _, item := range items {
+		if item.name == "000026_project_artifact_scope.sql" {
+			scope = item
+			break
+		}
+	}
+	if scope.name == "" {
+		t.Fatal("Project Artifact scope migration is not embedded")
+	}
+	contents := string(scope.contents)
+	for _, required := range []string{
+		"scope_kind IN ('user', 'project', 'run')",
+		"CASE WHEN scope_kind = 'project' THEN scope_id ELSE NULL END",
+		"FOREIGN KEY (project_id) REFERENCES projects(project_id)",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Project Artifact scope migration does not contain %q", required)
+		}
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

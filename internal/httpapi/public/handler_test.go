@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -135,6 +136,87 @@ func TestProjectCreateReplayListGetAndCASUpdate(t *testing.T) {
 	fixture.handler.ServeHTTP(got, get)
 	if got.Code != http.StatusOK || got.Header().Get("ETag") != `"2"` {
 		t.Fatalf("get Project = %d headers=%v body=%s", got.Code, got.Header(), got.Body.String())
+	}
+}
+
+func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	createProject := authenticatedRequest(
+		http.MethodPost, "/v1/projects", bytes.NewReader([]byte(`{"kind":"project","name":"Workspace"}`)),
+	)
+	createProject.Header.Set("Content-Type", "application/json")
+	createProject.Header.Set("Idempotency-Key", "create-workspace")
+	projectResponseRecorder := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(projectResponseRecorder, createProject)
+	if projectResponseRecorder.Code != http.StatusCreated {
+		t.Fatalf("create Project = %d %s", projectResponseRecorder.Code, projectResponseRecorder.Body.String())
+	}
+
+	put := authenticatedRequest(
+		http.MethodPut, "/v1/projects/project_fixed/artifacts/sources/service", bytes.NewReader([]byte("first")),
+	)
+	put.Header.Set("Content-Type", "application/zip")
+	put.Header.Set("If-None-Match", "*")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, put)
+	if created.Code != http.StatusCreated || created.Header().Get("ETag") == "" {
+		t.Fatalf("create Project Artifact = %d headers=%v body=%s", created.Code, created.Header(), created.Body.String())
+	}
+	var first artifactWriteResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &first); err != nil || first.Artifact.Revision == nil {
+		t.Fatalf("created Project Artifact = (%+v, %v)", first, err)
+	}
+
+	update := authenticatedRequest(
+		http.MethodPut, "/v1/projects/project_fixed/artifacts/sources/service", bytes.NewReader([]byte("second")),
+	)
+	update.Header.Set("Content-Type", "application/zip")
+	update.Header.Set("If-Match", created.Header().Get("ETag"))
+	updated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updated, update)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") == created.Header().Get("ETag") {
+		t.Fatalf("update Project Artifact = %d headers=%v body=%s", updated.Code, updated.Header(), updated.Body.String())
+	}
+
+	exact := authenticatedRequest(
+		http.MethodGet,
+		"/v1/projects/project_fixed/artifacts/sources/service?revision="+*first.Artifact.Revision,
+		bytes.NewReader(nil),
+	)
+	exactResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(exactResponse, exact)
+	if exactResponse.Code != http.StatusOK || exactResponse.Body.String() != "first" {
+		t.Fatalf("exact Project Artifact = %d %q", exactResponse.Code, exactResponse.Body.String())
+	}
+
+	for name, path := range map[string]string{
+		"list":     "/v1/projects/project_fixed/artifacts",
+		"metadata": "/v1/projects/project_fixed/artifacts/sources/service/metadata",
+		"versions": "/v1/projects/project_fixed/artifacts/sources/service/versions",
+		"lineage":  "/v1/projects/project_fixed/artifacts/sources/service/lineage",
+	} {
+		request := authenticatedRequest(http.MethodGet, path, bytes.NewReader(nil))
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("Project Artifact %s = %d %s", name, response.Code, response.Body.String())
+		}
+	}
+
+	_, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "project-foreign", OwnerID: "user-2", Kind: projectstore.KindProject,
+		Name: "Foreign", IdempotencyKey: "create-foreign", RequestDigest: "sha256:foreign",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := authenticatedRequest(
+		http.MethodGet, "/v1/projects/project-foreign/artifacts", bytes.NewReader(nil),
+	)
+	foreignResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(foreignResponse, foreign)
+	if foreignResponse.Code != http.StatusNotFound {
+		t.Fatalf("foreign Project Artifact list = %d %s", foreignResponse.Code, foreignResponse.Body.String())
 	}
 }
 

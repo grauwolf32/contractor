@@ -104,6 +104,11 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/operations/snapshot",
 		"GET /v1/projects",
 		"GET /v1/projects/{projectId}",
+		"GET /v1/projects/{projectId}/artifacts",
+		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}",
+		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage",
+		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata",
+		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -127,6 +132,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"PUT /v1/artifacts/{namespace}/{name}",
 		"PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels",
 		"PUT /v1/operations/runtime-labels/{label}",
+		"PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
 	}
 	if !reflect.DeepEqual(implemented, wantImplemented) {
 		t.Fatalf("implemented public operations = %v, want %v", implemented, wantImplemented)
@@ -330,9 +336,24 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	if createdProject.Code != http.StatusCreated {
 		t.Fatalf("create Project = %d: %s", createdProject.Code, createdProject.Body.String())
 	}
+	createProjectArtifact := newPublicContractRequest(
+		http.MethodPut, "/v1/projects/project_fixed/artifacts/sources/service", []byte("source archive"),
+	)
+	createProjectArtifact.Header.Set("Content-Type", "application/zip")
+	createProjectArtifact.Header.Set("If-None-Match", "*")
+	if response := serveAndValidatePublicContract(
+		t, router, fixture.handler, createProjectArtifact, true,
+	); response.Code != http.StatusCreated {
+		t.Fatalf("create Project Artifact = %d: %s", response.Code, response.Body.String())
+	}
 	for name, path := range map[string]string{
-		"list Projects": "/v1/projects?kind=project&limit=1",
-		"get Project":   "/v1/projects/project_fixed",
+		"list Projects":             "/v1/projects?kind=project&limit=1",
+		"get Project":               "/v1/projects/project_fixed",
+		"list Project Artifacts":    "/v1/projects/project_fixed/artifacts",
+		"download Project Artifact": "/v1/projects/project_fixed/artifacts/sources/service",
+		"Project Artifact metadata": "/v1/projects/project_fixed/artifacts/sources/service/metadata",
+		"Project Artifact versions": "/v1/projects/project_fixed/artifacts/sources/service/versions",
+		"Project Artifact lineage":  "/v1/projects/project_fixed/artifacts/sources/service/lineage",
 	} {
 		request := newPublicContractRequest(http.MethodGet, path, nil)
 		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
