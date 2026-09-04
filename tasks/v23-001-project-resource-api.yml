@@ -3,8 +3,8 @@ id: V23-001
 title: Add the owner-scoped Project resource and public CRUD API
 milestone: project-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 10f017c621411d7d667aecc2d253d4a49298b1f0
 depends_on: [V22-003]
 languages: [go, sql, yaml]
 
@@ -56,4 +56,3 @@ tests:
   - {name: project-unit, command: "go test ./internal/projectstore ./internal/httpapi/public", covers: [A1, A2, A3]}
   - {name: public-contract, command: "go test ./internal/httpapi/public -run OpenAPI", covers: [A1]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
