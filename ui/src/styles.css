@@ -1253,6 +1253,120 @@ code {
   margin-top: 0.25rem;
 }
 
+.diff-artifact-preview {
+  color: #dce5ef;
+}
+
+.diff-artifact-summary {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: #0d1219;
+  padding: 0.55rem 0.85rem;
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.diff-artifact-summary > span:first-child {
+  margin-right: auto;
+}
+
+.diff-addition-count {
+  color: #75d89a;
+}
+
+.diff-deletion-count {
+  color: #ff938a;
+}
+
+.diff-lines {
+  max-height: 42rem;
+  overflow: auto;
+  background: #080b0f;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.diff-line {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  grid-template-columns: 3.25rem 3.25rem minmax(max-content, 1fr);
+}
+
+.diff-line > * {
+  padding-block: 0.08rem;
+}
+
+.diff-line-number {
+  border-right: 1px solid #ffffff0d;
+  color: #647184;
+  padding-inline: 0.55rem;
+  text-align: right;
+  user-select: none;
+}
+
+.diff-line code {
+  display: block;
+  max-width: none;
+  overflow-wrap: normal;
+  padding-inline: 0.8rem 1.5rem;
+  color: inherit;
+  font: inherit;
+  white-space: pre;
+}
+
+.diff-line-addition {
+  background: #10291b;
+  color: #b9f6ca;
+}
+
+.diff-line-addition .diff-line-number {
+  background: #174127;
+  color: #91dca9;
+}
+
+.diff-line-deletion {
+  background: #30171a;
+  color: #ffd0d4;
+}
+
+.diff-line-deletion .diff-line-number {
+  background: #512027;
+  color: #f3a1a8;
+}
+
+.diff-line-hunk {
+  background: #10233a;
+  color: #9dcaff;
+}
+
+.diff-line-hunk .diff-line-number {
+  background: #142c49;
+}
+
+.diff-line-file {
+  background: #171d26;
+  color: #d7e5f8;
+  font-weight: 700;
+}
+
+.diff-line-meta {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.diff-artifact-empty {
+  margin: 0;
+  padding: 2.5rem 1rem;
+  color: var(--muted);
+  text-align: center;
+}
+
 .markdown-image-placeholder {
   display: inline-flex;
   border: 1px dashed var(--line-strong);

@@ -59,6 +59,19 @@ const artifacts = {
       "}",
     ].join("\n"),
   },
+  "workspace-diff": {
+    mediaType: "text/x-diff",
+    source: [
+      "--- a/src/config.ts",
+      "+++ b/src/config.ts",
+      "@@ -1,3 +1,4 @@",
+      " export const ui = {",
+      "-  colorDiff: false,",
+      "+  colorDiff: true,",
+      "+  lineNumbers: true,",
+      " };",
+    ].join("\n"),
+  },
 } as const;
 
 type ArtifactName = keyof typeof artifacts;
@@ -163,7 +176,7 @@ async function openPreview(page: Page, name: ArtifactName): Promise<void> {
   await expect(page.getByRole("tab", { name: "Rendered" })).toBeVisible();
 }
 
-test("renders Markdown, OpenAPI and LikeC4 artifacts locally", async ({
+test("renders Markdown, diff, OpenAPI and LikeC4 artifacts locally", async ({
   page,
 }, testInfo) => {
   const configuredBaseURL = testInfo.project.use.baseURL;
@@ -200,6 +213,16 @@ test("renders Markdown, OpenAPI and LikeC4 artifacts locally", async ({
   await page.getByRole("tab", { name: "Source" }).click();
   await expect(page.locator("pre.artifact-preview")).toContainText(
     "<script>document.body.dataset.injected",
+  );
+
+  await openPreview(page, "workspace-diff");
+  await expect(page.getByText("1 file changed")).toBeVisible();
+  await expect(page.getByText("+2 additions")).toBeVisible();
+  await expect(page.getByText("−1 deletion")).toBeVisible();
+  await expect(page.locator(".diff-line-addition")).toHaveCount(2);
+  await expect(page.locator(".diff-line-deletion")).toHaveCount(1);
+  await expect(page.locator(".diff-line-hunk")).toContainText(
+    "@@ -1,3 +1,4 @@",
   );
 
   await openPreview(page, "openapi");

@@ -163,6 +163,9 @@ describe("Artifact API", () => {
     await expect(previewArtifact(api, exactMetadata)).resolves.toBe(content);
     expect(canPreviewArtifact(exactMetadata)).toBe(true);
     expect(
+      canPreviewArtifact({ ...exactMetadata, mediaType: "text/x-diff" }),
+    ).toBe(true);
+    expect(
       canPreviewArtifact({
         ...exactMetadata,
         size: MAXIMUM_PREVIEW_BYTES + 1,
@@ -191,5 +194,8 @@ describe("Artifact API", () => {
     expect(
       suggestedArtifactFilename(metadata.artifact, metadata.mediaType),
     ).toBe("projects-architecture-revision-2.c4");
+    expect(suggestedArtifactFilename(metadata.artifact, "text/x-diff")).toBe(
+      "projects-architecture-revision-2.diff",
+    );
   });
 });

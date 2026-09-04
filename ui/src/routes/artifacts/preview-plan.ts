@@ -1,5 +1,6 @@
 export type ArtifactPreviewPlan =
   | { kind: "source" }
+  | { kind: "diff" }
   | { kind: "markdown" }
   | { kind: "likec4" }
   | { kind: "openapi"; document: Record<string, unknown> };
@@ -18,6 +19,9 @@ export async function createArtifactPreviewPlan(
   mediaType: string,
   source: string,
 ): Promise<ArtifactPreviewPlan> {
+  if (mediaType === "text/x-diff") {
+    return { kind: "diff" };
+  }
   if (mediaType === "text/markdown" || mediaType === "text/x-markdown") {
     return { kind: "markdown" };
   }

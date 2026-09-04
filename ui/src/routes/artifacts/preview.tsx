@@ -19,8 +19,10 @@ import {
 const MarkdownArtifactPreview = lazy(() => import("./previews/markdown"));
 const OpenApiArtifactPreview = lazy(() => import("./previews/openapi"));
 const LikeC4ArtifactPreview = lazy(() => import("./previews/likec4"));
+const DiffArtifactPreview = lazy(() => import("./previews/diff"));
 
 const RENDERER_LABELS = {
+  diff: "Diff",
   markdown: "Markdown",
   openapi: "OpenAPI",
   likec4: "LikeC4",
@@ -34,6 +36,8 @@ function rendererLabel(plan: RenderedPlan): string {
 
 function Renderer({ plan, source }: { plan: RenderedPlan; source: string }) {
   switch (plan.kind) {
+    case "diff":
+      return <DiffArtifactPreview source={source} />;
     case "markdown":
       return <MarkdownArtifactPreview source={source} />;
     case "openapi":

@@ -12,6 +12,15 @@ describe("Artifact preview planning", () => {
     ).resolves.toEqual({ kind: "likec4" });
   });
 
+  it("selects the colored renderer for unified diffs", async () => {
+    await expect(
+      createArtifactPreviewPlan(
+        "text/x-diff",
+        "--- a/report.txt\n+++ b/report.txt\n",
+      ),
+    ).resolves.toEqual({ kind: "diff" });
+  });
+
   it("detects OpenAPI in generic JSON and YAML media types", async () => {
     await expect(
       createArtifactPreviewPlan(
