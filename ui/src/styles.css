@@ -3378,6 +3378,383 @@ code {
   background: var(--danger);
 }
 
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+
+.project-create-form,
+.project-metadata-form,
+.project-artifact-form {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.project-create-form {
+  margin-bottom: 2rem;
+  border-color: #52622d;
+  background: linear-gradient(135deg, #131c13, #111720 60%);
+}
+
+.project-create-form > button,
+.project-artifact-form > button {
+  justify-self: start;
+}
+
+.project-description-field {
+  grid-column: 1 / -1;
+}
+
+.form-grid textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  outline: none;
+  background: #0c1016;
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.form-grid textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #d8ff7222;
+}
+
+.project-list-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 2rem 0 1rem;
+}
+
+.project-list-heading h3,
+.project-artifact-library h4 {
+  margin: 0;
+}
+
+.project-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.project-card {
+  display: grid;
+  min-height: 20rem;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 1rem;
+  background: linear-gradient(150deg, #18211a 0, #121720 46%, #10141b 100%);
+  transition:
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.project-card:hover {
+  border-color: #52622d;
+  transform: translateY(-2px);
+}
+
+.project-card-mark {
+  display: grid;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid #52622d;
+  border-radius: 0.65rem;
+  background: var(--accent-dark);
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 850;
+  place-items: center;
+}
+
+.project-card h3 {
+  font-size: 1.2rem;
+}
+
+.project-card h3 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.project-card h3 a:hover {
+  color: var(--accent);
+}
+
+.project-card-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0.7rem 0 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.project-card-meta {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.project-card-meta div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.project-card-meta dt {
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.project-card-meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+}
+
+.project-card-open {
+  justify-self: start;
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.project-local-navigation {
+  display: flex;
+  position: sticky;
+  top: 0.7rem;
+  z-index: 4;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: 0.25rem;
+  margin: -0.6rem 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  padding: 0.35rem;
+  backdrop-filter: blur(0.8rem);
+}
+
+.project-local-navigation a {
+  flex: none;
+  border-radius: 0.4rem;
+  color: var(--muted-strong);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.project-local-navigation a:hover {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.project-region {
+  scroll-margin-top: 4.5rem;
+}
+
+.project-region + .project-region {
+  margin-top: 1.2rem;
+}
+
+.project-metadata-grid {
+  margin-top: 0.5rem;
+}
+
+.project-description-value {
+  grid-column: 1 / -1;
+}
+
+.project-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.project-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.project-shortcut {
+  display: grid;
+  min-width: 0;
+  min-height: 9.2rem;
+  align-content: start;
+  justify-items: start;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, #18202a, #10151c);
+  color: var(--text);
+  padding: 0.85rem;
+  text-align: left;
+}
+
+.project-shortcut:not(:disabled):hover {
+  border-color: #71843f;
+  background: #18210f;
+  transform: translateY(-1px);
+}
+
+.project-shortcut > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.project-shortcut small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--muted);
+  font-size: 0.67rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.project-shortcut-icon {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 1px solid #52622d;
+  border-radius: 0.55rem;
+  background: var(--accent-dark);
+  color: var(--accent);
+  place-items: center;
+}
+
+.project-shortcut-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.project-artifact-library {
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+}
+
+.project-dialog-backdrop {
+  display: grid;
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  overflow-y: auto;
+  background: #05070bd9;
+  padding: clamp(0.75rem, 4vw, 3rem);
+  place-items: center;
+  backdrop-filter: blur(0.3rem);
+}
+
+.project-dialog {
+  width: min(100%, 50rem);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  border-color: #52622d;
+  background: #111720;
+  box-shadow: 0 2rem 7rem #000c;
+}
+
+.project-dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.project-dialog-heading h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+}
+
+.project-dialog-close {
+  display: grid;
+  width: 2.5rem;
+  min-height: 2.5rem;
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  padding: 0;
+  font-size: 1.4rem;
+  place-items: center;
+}
+
+.project-file-drop {
+  display: grid;
+  min-height: 11rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  border: 1px dashed #58673b;
+  border-radius: 0.75rem;
+  background: #0c120d;
+  padding: 1.2rem;
+  text-align: center;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.project-file-drop.is-dragging {
+  border-color: var(--accent);
+  background: var(--accent-dark);
+}
+
+.project-file-drop-mark {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #11170a;
+  font-size: 1.3rem;
+  font-weight: 850;
+  place-items: center;
+}
+
+.project-file-drop small {
+  color: var(--muted);
+}
+
+.project-file-drop button {
+  margin-top: 0.6rem;
+}
+
+.project-artifact-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-artifact-form .notice {
+  margin: 0;
+}
+
+.project-artifact-page .project-artifact-form {
+  margin: 0;
+}
+
 .spinner {
   width: 1.8rem;
   height: 1.8rem;
@@ -3414,6 +3791,14 @@ code {
   .action-metric-grid,
   .quick-workflow-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-shortcut-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -3536,6 +3921,15 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .project-artifact-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .project-description-field,
+  .project-description-value {
+    grid-column: auto;
+  }
+
   .run-metadata-label-remove,
   .run-eval-filter button,
   .run-exact-label-filter button {
@@ -3629,6 +4023,38 @@ code {
   .action-center-grid,
   .quick-workflow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .project-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-shortcut-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-list-heading,
+  .project-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-form-actions button {
+    width: 100%;
+  }
+
+  .project-dialog-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .project-dialog {
+    width: 100%;
+    max-height: 92vh;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 1rem 1rem 0 0;
   }
 
   .quick-start-panel {
@@ -3887,6 +4313,10 @@ code {
 
   .sidebar nav a {
     justify-content: center;
+  }
+
+  .project-shortcut-grid {
+    grid-template-columns: 1fr;
   }
 }
 

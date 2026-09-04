@@ -5,6 +5,9 @@ import { HomeRoute } from "../routes/home";
 import { LoginRoute } from "../routes/login";
 import { ArtifactDetailRoute } from "../routes/artifacts/detail";
 import { ArtifactListRoute } from "../routes/artifacts/list";
+import { ProjectArtifactDetailRoute } from "../routes/projects/artifact-detail";
+import { ProjectDetailRoute } from "../routes/projects/detail";
+import { ProjectListRoute } from "../routes/projects/list";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { RunListRoute } from "../routes/runs/list";
@@ -40,6 +43,18 @@ export function applicationRoutes(): RouteObject[] {
             {
               path: "/workflows/:name/:version",
               element: <WorkflowDetailRoute />,
+            },
+            {
+              path: "/projects",
+              element: <ProjectListRoute />,
+            },
+            {
+              path: "/projects/:projectId",
+              element: <ProjectDetailRoute />,
+            },
+            {
+              path: "/projects/:projectId/artifacts/:namespace/:name",
+              element: <ProjectArtifactDetailRoute />,
             },
             {
               path: "/artifacts",

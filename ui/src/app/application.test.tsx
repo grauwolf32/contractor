@@ -76,6 +76,10 @@ describe("application session shell", () => {
       await screen.findByRole("heading", { name: "Runs" }),
     ).toBeInTheDocument();
     expect(screen.getByText("owner")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute(
+      "href",
+      "/projects",
+    );
     expect(screen.getByRole("link", { name: "Operations" })).toHaveAttribute(
       "href",
       "/operations",

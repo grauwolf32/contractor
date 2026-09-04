@@ -6,6 +6,82 @@ export const queryKeys = {
     detail: (name: string, version: string) =>
       ["workflows", "detail", name, version] as const,
   },
+  projects: {
+    all: ["projects"] as const,
+    list: (kind: string, cursor?: string) =>
+      ["projects", "list", kind, cursor ?? null] as const,
+    detail: (projectId: string) => ["projects", "detail", projectId] as const,
+    artifacts: {
+      all: (projectId: string) =>
+        ["projects", "detail", projectId, "artifacts"] as const,
+      list: (
+        projectId: string,
+        namespace: string | undefined,
+        cursor: string | undefined,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "list",
+          namespace ?? null,
+          cursor ?? null,
+        ] as const,
+      metadata: (
+        projectId: string,
+        namespace: string,
+        name: string,
+        revision?: string,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "metadata",
+          namespace,
+          name,
+          revision ?? null,
+        ] as const,
+      versions: (
+        projectId: string,
+        namespace: string,
+        name: string,
+        cursor?: string,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "versions",
+          namespace,
+          name,
+          cursor ?? null,
+        ] as const,
+      lineage: (
+        projectId: string,
+        namespace: string,
+        name: string,
+        revision: string,
+        cursor?: string,
+      ) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "artifacts",
+          "lineage",
+          namespace,
+          name,
+          revision,
+          cursor ?? null,
+        ] as const,
+    },
+    runs: (projectId: string, cursor?: string) =>
+      ["projects", "detail", projectId, "runs", cursor ?? null] as const,
+  },
   artifacts: {
     all: ["artifacts"] as const,
     picker: ["artifacts", "picker"] as const,

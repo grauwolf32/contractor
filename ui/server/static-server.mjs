@@ -6,12 +6,15 @@ import { extname, resolve, sep } from "node:path";
 const CLIENT_ROUTES = new Set([
   "/",
   "/login",
+  "/projects",
   "/workflows",
   "/artifacts",
   "/runs",
   "/operations",
 ]);
 const CLIENT_ROUTE_PATTERNS = [
+  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
+  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,

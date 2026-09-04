@@ -241,6 +241,22 @@ export async function writeArtifact(
   request: ArtifactWriteRequest,
 ): Promise<ArtifactWriteResponse> {
   const path = artifactPath(request.namespace, request.name);
+  return writeScopedArtifact(api, path, request);
+}
+
+/**
+ * Shared exact-CAS transport for scope-bound Artifact endpoints.
+ *
+ * Callers must construct a path whose scope is already authorized by the
+ * endpoint (for example ProjectScope). The response is still checked against
+ * the requested logical identity, media type, size, and ETag so a rolling or
+ * malformed Server response cannot be accepted as a successful upload.
+ */
+export async function writeScopedArtifact(
+  api: PublicAPI,
+  path: string,
+  request: ArtifactWriteRequest,
+): Promise<ArtifactWriteResponse> {
   requireMediaType(request.mediaType);
   if (request.mediaType === "*/*") {
     throw new TypeError("Artifact upload requires one concrete media type");
