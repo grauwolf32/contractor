@@ -3,8 +3,8 @@ id: V23-006
 title: Build Projects UI and artifact file-drop dashboard
 milestone: project-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: a28ce82f89280af460bc6267e7c3700dbfbc5abe
 depends_on: [V23-002]
 languages: [typescript, css]
 
@@ -51,4 +51,3 @@ tests:
   - {name: ui-unit, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
   - {name: ui-build, command: "cd ui && pnpm build", covers: [A1, A2]}
   - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A2]}
-
