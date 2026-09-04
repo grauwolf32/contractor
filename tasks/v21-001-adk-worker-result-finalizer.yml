@@ -3,8 +3,8 @@ id: V21-001
 title: Isolate Worker structured output in an ADK result finalizer
 milestone: adk-worker-result-finalizer
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 6631c606209240e2713d51c34c343b4714903303
 depends_on: [V17-007, V18-003]
 languages: [python, yaml, markdown]
 

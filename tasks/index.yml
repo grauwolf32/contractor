@@ -394,7 +394,7 @@ milestones:
       tools-plus-schema grammar failures without changing result ownership.
 
 worker_results_state_planning_review:
-  reviewed_on: "2026-09-02"
+  reviewed_on: "2026-09-04"
   verdict: ready_to_implement_in_dependency_order
   source_reference:
     repository: /home/ruslan/src/contractor-old
@@ -640,6 +640,29 @@ current_checkpoint:
     calls have no hidden transport retry. The executable invariant/fault matrix
     and focused race gate pass; `make verify` passes with 726 Python tests (2
     skipped), 121 UI tests and all Go packages. V19-001 is next.
+
+adk_worker_result_finalizer_review:
+  reviewed_on: "2026-09-04"
+  verdict: complete
+  implementation_commit: 6631c606209240e2713d51c34c343b4714903303
+  checks:
+    - >-
+      The main adk@1 Worker has no output schema and retains any selected tools;
+      every ordinary terminal text completion enters exactly one isolated
+      tool-free ADK result finalizer with the strict two-field WorkerModelResult
+      schema.
+    - >-
+      Runtime accepts only an exact subtask-ID and semantic-text copy, keeps
+      artifacts, observations and summarized ownership outside both models,
+      and returns bounded stable failures without a repair loop.
+    - >-
+      The finalizer shares the normal Worker model-call/token budget, metrics,
+      State and cancellation lifecycle. A terminal summarizer remains an
+      independent structured terminal path and is not finalized twice.
+    - >-
+      The real LiteLLM-to-LM-Studio route accepted the separated tool-bearing
+      and schema-only requests. `make verify` passes with 743 Python tests (3
+      skipped), 135 UI tests and all Go packages.
 
 runtime_configuration_hardening_review:
   reviewed_on: "2026-09-01"
