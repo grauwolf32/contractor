@@ -197,6 +197,12 @@ func TestParseConfig(t *testing.T) {
 	if cfg.ShutdownTimeout != 2*time.Second {
 		t.Fatalf("shutdown timeout = %s", cfg.ShutdownTimeout)
 	}
+	if cfg.RuntimeRequestTimeout != 30*time.Second {
+		t.Fatalf("runtime request timeout = %s", cfg.RuntimeRequestTimeout)
+	}
+	if cfg.WorkerRequestTimeout != 180*time.Second {
+		t.Fatalf("worker request timeout = %s", cfg.WorkerRequestTimeout)
+	}
 	if cfg.DatabaseURL != "postgres://contractor:secret@database/contractor" {
 		t.Fatalf("database URL was not read from the shared environment setting")
 	}
@@ -218,6 +224,24 @@ func TestParseConfig(t *testing.T) {
 	if cfg.DevelopmentPlannerToken.Reveal() != cfg.DevelopmentWorkerToken.Reveal() ||
 		cfg.PlannerTimeout != defaultPlannerTimeout {
 		t.Fatalf("development credential fallback or Planner timeout was not parsed: %+v", cfg)
+	}
+}
+
+func TestParseConfigRequiresWorkerRequestTimeoutOfAtLeastTwoMinutes(t *testing.T) {
+	t.Parallel()
+
+	if _, err := ParseConfig([]string{"--worker-request-timeout=119s"}, func(string) string { return "" }); err == nil {
+		t.Fatal("sub-120-second Worker request timeout was accepted")
+	}
+	cfg, err := ParseConfig(
+		[]string{"--worker-request-timeout=120s"},
+		func(string) string { return "" },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WorkerRequestTimeout != 120*time.Second {
+		t.Fatalf("worker request timeout = %s", cfg.WorkerRequestTimeout)
 	}
 }
 

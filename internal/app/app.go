@@ -50,6 +50,7 @@ type Config struct {
 	PrivateURL            string
 	ShutdownTimeout       time.Duration
 	RuntimeRequestTimeout time.Duration
+	WorkerRequestTimeout  time.Duration
 	DatabaseURL           string
 	// ConfigRoot is the deprecated alias retained for callers that inspect
 	// parsed settings. Runtime composition uses the two explicit roots below.
@@ -396,7 +397,7 @@ func RunCLI(
 	}
 	runtimeSettings := contracts.RuntimeSettings{
 		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
-		RequestTimeoutSeconds: int(cfg.RuntimeRequestTimeout / time.Second),
+		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
 	workflowScheduler, err := scheduler.New(
 		runstore.NewPostgresStore(pool),

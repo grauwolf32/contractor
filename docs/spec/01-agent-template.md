@@ -765,6 +765,14 @@ RuntimeSettings
   request timeouts and size/resource limits
 ```
 
+`RuntimeSettings.requestTimeoutSeconds` is the allocation-local outbound
+request budget used by Worker model and tool clients. The Server rejects an
+operator value below 120 seconds and uses 180 seconds by default. This budget
+is independent of the shorter Control Plane-to-Runtime management request
+timeout and of the enclosing Stage/Planner deadline; increasing it must not
+make terminal cleanup or Scheduler claim progress wait for a model-sized
+timeout.
+
 AgentTemplate selects its default exact ModelPolicy, but neither object carries
 the LLM Gateway URL, token, provider routing or credential. Run initialization
 resolves the Workflow defaults plus the request's reference-only

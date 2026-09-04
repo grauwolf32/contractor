@@ -33,6 +33,8 @@ const (
 	defaultPrivateURL            = "https://127.0.0.1:8443"
 	defaultShutdownTimeout       = 5 * time.Second
 	defaultRuntimeRequestTimeout = 30 * time.Second
+	minimumWorkerRequestTimeout  = 120 * time.Second
+	defaultWorkerRequestTimeout  = 180 * time.Second
 	defaultPlannerTimeout        = 30 * time.Minute
 	defaultConfigRoot            = "./configs"
 )
@@ -60,6 +62,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	shutdownTimeout := defaultShutdownTimeout
 	runtimeRequestTimeout := defaultRuntimeRequestTimeout
+	workerRequestTimeout := defaultWorkerRequestTimeout
 	plannerTimeout := defaultPlannerTimeout
 	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
 	operatorConfigRoot := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT")
@@ -110,6 +113,12 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		"runtime-request-timeout",
 		runtimeRequestTimeout,
 		"private Runtime Agent request timeout",
+	)
+	flags.DurationVar(
+		&workerRequestTimeout,
+		"worker-request-timeout",
+		workerRequestTimeout,
+		"allocation-local Worker outbound request timeout (minimum 120s)",
 	)
 	flags.StringVar(&databaseURL, "database-url", databaseURL, "PostgreSQL connection URL")
 	flags.StringVar(&operatorConfigRoot, "operator-config-root", operatorConfigRoot, "operator/bootstrap configuration root")
@@ -169,6 +178,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if runtimeRequestTimeout < time.Second || runtimeRequestTimeout%time.Second != 0 {
 		return Config{}, errors.New("runtime request timeout must be positive whole seconds")
 	}
+	if workerRequestTimeout < minimumWorkerRequestTimeout || workerRequestTimeout%time.Second != 0 {
+		return Config{}, errors.New("worker request timeout must be at least 120 whole seconds")
+	}
 	if plannerTimeout <= 0 || plannerTimeout > 30*time.Minute {
 		return Config{}, errors.New("planner timeout must be positive and at most 30 minutes")
 	}
@@ -190,8 +202,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	return Config{
 		ListenAddress: listenAddress, PrivateListenAddress: privateListenAddress, PrivateURL: privateURL,
 		ShutdownTimeout: shutdownTimeout, RuntimeRequestTimeout: runtimeRequestTimeout,
-		DatabaseURL: databaseURL,
-		ConfigRoot:  operatorConfigRoot, OperatorConfigRoot: operatorConfigRoot,
+		WorkerRequestTimeout: workerRequestTimeout,
+		DatabaseURL:          databaseURL,
+		ConfigRoot:           operatorConfigRoot, OperatorConfigRoot: operatorConfigRoot,
 		ManagedConfigRoot:           managedConfigRoot,
 		CredentialMasterKeyFile:     credentialMasterKeyFile,
 		LLMGatewayAdminBindingsFile: llmGatewayAdminBindingsFile,
