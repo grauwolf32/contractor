@@ -48,6 +48,7 @@ type SchedulerClaim struct {
 type WorkflowRun struct {
 	RunID                     string
 	OwnerID                   string
+	ProjectID                 *string
 	WorkflowName              string
 	WorkflowVersion           string
 	WorkflowSchemaVersion     string
@@ -72,6 +73,7 @@ type WorkflowRun struct {
 // excludes the immutable Workflow snapshot and user parameter values.
 type WorkflowRunSummary struct {
 	RunID           string
+	ProjectID       *string
 	WorkflowName    string
 	WorkflowVersion string
 	MetadataLabels  RunMetadataLabels
@@ -111,6 +113,7 @@ func (c WorkflowRunCancellation) Validate() error {
 type CreateRunParams struct {
 	RunID                 string
 	OwnerID               string
+	ProjectID             *string
 	WorkflowName          string
 	WorkflowVersion       string
 	WorkflowSchemaVersion string
@@ -130,6 +133,7 @@ type CreateRunIdempotentParams struct {
 // BeforeRunID are either both set or both absent and form the keyset cursor.
 type ListRunsParams struct {
 	OwnerID                string
+	ProjectID              *string
 	State                  *WorkflowRunState
 	MetadataLabelSelectors []RunMetadataLabelSelector
 	BeforeCreatedAt        *time.Time

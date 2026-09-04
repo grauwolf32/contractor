@@ -84,6 +84,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata", current.getProjectArtifactMetadata)
 	mux.HandleFunc("GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions", current.listProjectArtifactVersions)
 	mux.HandleFunc("GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage", current.listProjectArtifactLineage)
+	mux.HandleFunc("POST /v1/projects/{projectId}/runs", current.createProjectRun)
+	mux.HandleFunc("GET /v1/projects/{projectId}/runs", current.listProjectRuns)
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
 	mux.HandleFunc("POST /v1/configurations/{kind}", current.publishConfiguration)
 	mux.HandleFunc("GET /v1/configurations/{kind}/{name}/versions/{version}", current.getConfiguration)
@@ -165,6 +167,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage", current.methodNotAllowed)
 	mux.HandleFunc("/v1/projects/{projectId}/artifacts/{namespace}/{name}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/projects/{projectId}/artifacts", current.methodNotAllowed)
+	mux.HandleFunc("/v1/projects/{projectId}/runs", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
 	return withAPIVersion(current.withRequestID(current.cors(current.authenticate(mux), mux))), nil

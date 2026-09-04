@@ -290,6 +290,33 @@ func (s *Service) ForkInput(
 	return s.repository.ForkInput(ctx, user, source, run, inputSlot)
 }
 
+// ForkProjectInput is the trusted Project-Run counterpart of ForkInput. The
+// caller must establish Project ownership before selecting the ProjectScope;
+// public request bodies never carry a source scope identifier.
+func (s *Service) ForkProjectInput(
+	ctx context.Context,
+	projectID string,
+	source ArtifactRef,
+	runID string,
+	inputSlot string,
+) (ForkResult, error) {
+	project, err := ProjectScope(projectID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	if err := validateRef(source); err != nil {
+		return ForkResult{}, err
+	}
+	if err := validateComponent(inputSlot); err != nil {
+		return ForkResult{}, err
+	}
+	return s.repository.ForkInput(ctx, project, source, run, inputSlot)
+}
+
 // BindOutputExact is a trusted Scheduler operation. Construct Service with a
 // transaction-bound repository when output binding and Run success must be
 // committed atomically.

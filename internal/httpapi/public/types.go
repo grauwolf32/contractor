@@ -254,6 +254,7 @@ func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
 
 type createRunResponse struct {
 	RunID                string                     `json:"runId"`
+	ProjectID            *string                    `json:"projectId,omitempty"`
 	State                runstore.WorkflowRunState  `json:"state"`
 	RuntimeLabels        []string                   `json:"runtimeLabels"`
 	Labels               runstore.RunMetadataLabels `json:"labels"`
@@ -363,6 +364,7 @@ type artifactLineagePageResponse struct {
 
 type runStatusResponse struct {
 	RunID                  string                            `json:"runId"`
+	ProjectID              *string                           `json:"projectId,omitempty"`
 	Workflow               string                            `json:"workflow"`
 	State                  runstore.WorkflowRunState         `json:"state"`
 	RuntimeLabels          []string                          `json:"runtimeLabels"`
@@ -432,6 +434,7 @@ type eventCursorResponse struct {
 
 type runSummaryResponse struct {
 	RunID      string                     `json:"runId"`
+	ProjectID  *string                    `json:"projectId,omitempty"`
 	Workflow   string                     `json:"workflow"`
 	State      runstore.WorkflowRunState  `json:"state"`
 	Labels     runstore.RunMetadataLabels `json:"labels"`

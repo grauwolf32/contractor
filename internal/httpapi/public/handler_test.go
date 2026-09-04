@@ -220,6 +220,133 @@ func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
 	}
 }
 
+func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	_, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "project-one", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Workspace", IdempotencyKey: "project-one", RequestDigest: "sha256:project-one",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	project, err := fixture.artifacts.Project("project-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	written, err := project.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("project revision one")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An identically named UserScope artifact must never be selected by the
+	// Project route.
+	user, _ := fixture.artifacts.User("user-1")
+	if _, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("user bytes")}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	body := []byte(`{"workflow":"artifact-copy@1","parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}}}`)
+	create := authenticatedRequest(
+		http.MethodPost, "/v1/projects/project-one/runs", bytes.NewReader(body),
+	)
+	create.Header.Set(idempotencyKeyHeader, "project-run-one")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusAccepted {
+		t.Fatalf("create Project Run = %d %s", created.Code, created.Body.String())
+	}
+	var model createRunResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &model); err != nil ||
+		model.ProjectID == nil || *model.ProjectID != "project-one" {
+		t.Fatalf("Project Run response = (%+v, %v)", model, err)
+	}
+
+	if _, err := project.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("project revision two")},
+		written.Ref.Revision,
+	); err != nil {
+		t.Fatal(err)
+	}
+	runArtifacts, _ := fixture.artifacts.Run("run_fixed")
+	pinned, err := runArtifacts.Read(
+		t.Context(), contracts.ArtifactRef{Namespace: "inputs", Name: "source"},
+	)
+	if err != nil || string(pinned.Payload.Data) != "project revision one" {
+		t.Fatalf("pinned Project input = (%q, %v)", pinned.Payload.Data, err)
+	}
+	stored := fixture.runs.runs["run_fixed"]
+	if stored.ProjectID == nil || *stored.ProjectID != "project-one" {
+		t.Fatalf("stored Project membership = %+v", stored.ProjectID)
+	}
+
+	replay := authenticatedRequest(
+		http.MethodPost, "/v1/projects/project-one/runs", bytes.NewReader(body),
+	)
+	replay.Header.Set(idempotencyKeyHeader, "project-run-one")
+	replayed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replayed, replay)
+	if replayed.Code != http.StatusAccepted || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() || fixture.notifier.calls != 1 {
+		t.Fatalf("Project Run replay = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+
+	list := authenticatedRequest(http.MethodGet, "/v1/projects/project-one/runs", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, list)
+	var page runPageResponse
+	if listed.Code != http.StatusOK || json.Unmarshal(listed.Body.Bytes(), &page) != nil ||
+		len(page.Items) != 1 || page.Items[0].ProjectID == nil || *page.Items[0].ProjectID != "project-one" {
+		t.Fatalf("list Project Runs = %d %s", listed.Code, listed.Body.String())
+	}
+
+	detail := authenticatedRequest(http.MethodGet, "/v1/runs/run_fixed", bytes.NewReader(nil))
+	detailed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(detailed, detail)
+	var status runStatusResponse
+	if detailed.Code != http.StatusOK || json.Unmarshal(detailed.Body.Bytes(), &status) != nil ||
+		status.ProjectID == nil || *status.ProjectID != "project-one" {
+		t.Fatalf("Project Run detail = %d %s", detailed.Code, detailed.Body.String())
+	}
+}
+
+func TestProjectRunRejectsForeignProjectAndCannotReplayStandaloneKey(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	_, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+		ProjectID: "foreign", OwnerID: "user-2", Kind: projectstore.KindProject,
+		Name: "Foreign", IdempotencyKey: "foreign", RequestDigest: "sha256:foreign",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := authenticatedRequest(
+		http.MethodPost, "/v1/projects/foreign/runs",
+		bytes.NewReader([]byte(`{"workflow":"artifact-copy@1"}`)),
+	)
+	request.Header.Set(idempotencyKeyHeader, "foreign-run")
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound || fixture.unit.calls != 0 {
+		t.Fatalf("foreign Project Run = %d transactions=%d body=%s", response.Code, fixture.unit.calls, response.Body.String())
+	}
+
+	standalone := createRunRequest{Workflow: "artifact-copy@1"}
+	standaloneDigest, err := createRunRequestDigestForProject(standalone, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectID := "project-one"
+	projectDigest, err := createRunRequestDigestForProject(standalone, &projectID)
+	if err != nil || projectDigest == standaloneDigest {
+		t.Fatalf("source-scoped request digests = %q and %q (%v)", standaloneDigest, projectDigest, err)
+	}
+}
+
 func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture {
 	return newHandlerFixtureWithAuth(
 		t,

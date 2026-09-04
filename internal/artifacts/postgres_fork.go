@@ -14,7 +14,8 @@ func (r *PostgresRepository) ForkInput(
 	targetScope Scope,
 	inputSlot string,
 ) (ForkResult, error) {
-	if err := validateScope(sourceScope); err != nil || sourceScope.kind != ScopeUser {
+	if err := validateScope(sourceScope); err != nil ||
+		(sourceScope.kind != ScopeUser && sourceScope.kind != ScopeProject) {
 		return ForkResult{}, ErrInvalidScope
 	}
 	if err := validateScope(targetScope); err != nil || targetScope.kind != ScopeRun {
@@ -49,6 +50,13 @@ WITH source_selection AS (
     JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
     WHERE revision.scope_kind = $1 AND revision.scope_id = $2
       AND revision.namespace = $3 AND revision.name = $4
+      AND (
+          $1 <> 'project'
+          OR EXISTS (
+              SELECT 1 FROM workflow_runs
+              WHERE run_id = $7 AND project_id = $2
+          )
+      )
       AND (
           ($5::text IS NULL AND revision.revision = binding.current_revision)
           OR ($5::text IS NOT NULL AND revision.revision = $5)

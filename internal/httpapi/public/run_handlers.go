@@ -31,6 +31,24 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
+	h.listRunsFromProject(w, r, nil)
+}
+
+func (h *handler) listProjectRuns(w http.ResponseWriter, r *http.Request) {
+	if h.rejectHead(w, r) {
+		return
+	}
+	projectID := r.PathValue("projectId")
+	if _, err := h.dependencies.Projects.Get(
+		r.Context(), principalUserID(r.Context()), projectID,
+	); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	h.listRunsFromProject(w, r, &projectID)
+}
+
+func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
 	query, limit, encodedCursor, err := pageQueryWithRepeated(
 		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state",
 	)
@@ -52,7 +70,7 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	cursorKind := runListCursorKind(state, selectors)
+	cursorKind := runListCursorKindForProject(state, selectors, projectID)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
 		h.handleError(w, err)
@@ -60,7 +78,7 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 	}
 	params := runstore.ListRunsParams{
 		OwnerID: principalUserID(r.Context()), State: state,
-		MetadataLabelSelectors: selectors, Limit: limit + 1,
+		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: limit + 1,
 	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[0])
@@ -93,8 +111,9 @@ func (h *handler) listRuns(w http.ResponseWriter, r *http.Request) {
 	items := make([]runSummaryResponse, 0, len(runs))
 	for _, run := range runs {
 		items = append(items, runSummaryResponse{
-			RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-			State: run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			RunID: run.RunID, ProjectID: run.ProjectID,
+			Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+			State:    run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			Labels: run.MetadataLabels.Clone(), FinishedAt: run.FinishedAt,
 		})
 	}
@@ -120,7 +139,18 @@ func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabe
 func runListCursorKind(
 	state *runstore.WorkflowRunState, selectors []runstore.RunMetadataLabelSelector,
 ) string {
+	return runListCursorKindForProject(state, selectors, nil)
+}
+
+func runListCursorKindForProject(
+	state *runstore.WorkflowRunState,
+	selectors []runstore.RunMetadataLabelSelector,
+	projectID *string,
+) string {
 	kind := "runs"
+	if projectID != nil {
+		kind += ":project:" + *projectID
+	}
 	if state != nil {
 		kind += ":" + string(*state)
 	}
@@ -142,6 +172,21 @@ func publicRunState(state runstore.WorkflowRunState) bool {
 }
 
 func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
+	h.createRunFromProject(w, r, nil)
+}
+
+func (h *handler) createProjectRun(w http.ResponseWriter, r *http.Request) {
+	projectID := r.PathValue("projectId")
+	if _, err := h.dependencies.Projects.Get(
+		r.Context(), principalUserID(r.Context()), projectID,
+	); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	h.createRunFromProject(w, r, &projectID)
+}
+
+func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -168,7 +213,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	requestDigest, err := createRunRequestDigest(request)
+	requestDigest, err := createRunRequestDigestForProject(request, projectID)
 	if err != nil {
 		h.handleError(w, fmt.Errorf("digest Run request: %w", err))
 		return
@@ -244,6 +289,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 				r.Context(), runstore.CreateRunIdempotentParams{
 					CreateRunParams: runstore.CreateRunParams{
 						RunID: runID, OwnerID: ownerID,
+						ProjectID:    projectID,
 						WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 						WorkflowSchemaVersion: contracts.APIVersion,
 						WorkflowSnapshot:      workflowSnapshot,
@@ -272,9 +318,17 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 
 			slots := sortedArtifactSlots(request.Artifacts)
 			for _, slot := range slots {
-				forked, err := artifactService.ForkInput(
-					r.Context(), ownerID, request.Artifacts[slot], runID, slot,
-				)
+				var forked artifacts.ForkResult
+				var err error
+				if projectID == nil {
+					forked, err = artifactService.ForkInput(
+						r.Context(), ownerID, request.Artifacts[slot], runID, slot,
+					)
+				} else {
+					forked, err = artifactService.ForkProjectInput(
+						r.Context(), *projectID, request.Artifacts[slot], runID, slot,
+					)
+				}
 				if err != nil {
 					return err
 				}
@@ -327,7 +381,7 @@ func (h *handler) createRun(w http.ResponseWriter, r *http.Request) {
 
 func createRunReadModel(run runstore.WorkflowRun) createRunResponse {
 	return createRunResponse{
-		RunID: run.RunID, State: run.State,
+		RunID: run.RunID, ProjectID: run.ProjectID, State: run.State,
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
@@ -379,6 +433,23 @@ func createRunRequestDigest(request createRunRequest) (string, error) {
 		canonical["labels"] = metadataLabels
 	}
 	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
+}
+
+func createRunRequestDigestForProject(request createRunRequest, projectID *string) (string, error) {
+	requestDigest, err := createRunRequestDigest(request)
+	if err != nil || projectID == nil {
+		return requestDigest, err
+	}
+	encoded, err := json.Marshal(map[string]string{
+		"sourceScope":      "project",
+		"projectId":        *projectID,
+		"runRequestDigest": requestDigest,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -618,8 +689,9 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
-		RunID: run.RunID, Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State: run.State, RuntimeLabels: append([]string{}, run.RuntimeLabels...),
+		RunID: run.RunID, ProjectID: run.ProjectID,
+		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
+		State:    run.State, RuntimeLabels: append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 		Cancellation:         run.Cancellation, Parameters: run.Parameters,

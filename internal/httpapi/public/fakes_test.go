@@ -637,7 +637,8 @@ func (f *fakeRunStore) ListRuns(
 	}
 	result := make([]runstore.WorkflowRunSummary, 0)
 	for _, run := range f.runs {
-		if run.OwnerID != params.OwnerID || params.State != nil && run.State != *params.State {
+		if run.OwnerID != params.OwnerID || params.State != nil && run.State != *params.State ||
+			params.ProjectID != nil && (run.ProjectID == nil || *run.ProjectID != *params.ProjectID) {
 			continue
 		}
 		matched := true
@@ -655,7 +656,8 @@ func (f *fakeRunStore) ListRuns(
 			continue
 		}
 		result = append(result, runstore.WorkflowRunSummary{
-			RunID: run.RunID, WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
+			RunID: run.RunID, ProjectID: run.ProjectID,
+			WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
 			MetadataLabels: run.MetadataLabels.Clone(),
 			State:          run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			FinishedAt: run.FinishedAt,
@@ -679,6 +681,7 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 	}
 	run := runstore.WorkflowRun{
 		RunID: params.RunID, OwnerID: params.OwnerID,
+		ProjectID:    params.ProjectID,
 		WorkflowName: params.WorkflowName, WorkflowVersion: params.WorkflowVersion,
 		WorkflowSchemaVersion: params.WorkflowSchemaVersion, WorkflowSnapshot: params.WorkflowSnapshot,
 		Parameters:     cloneParameters(params.Parameters),
@@ -751,6 +754,10 @@ func (f *fakeRunStore) GetRun(_ context.Context, runID string) (runstore.Workflo
 }
 
 func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
+	if run.ProjectID != nil {
+		projectID := *run.ProjectID
+		run.ProjectID = &projectID
+	}
 	run.MetadataLabels = run.MetadataLabels.Clone()
 	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
 	run.Parameters = cloneParameters(run.Parameters)

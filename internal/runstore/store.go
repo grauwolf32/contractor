@@ -191,22 +191,22 @@ func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (
 	row := s.db.QueryRow(ctx, `
 WITH inserted_run AS (
 INSERT INTO workflow_runs (
-    run_id, owner_id, workflow_name, workflow_version,
+    run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, 'initializing', 'created', '')
 RETURNING *
 ), inserted_labels AS (
     INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
     SELECT inserted_run.run_id,
            row_number() OVER (ORDER BY entry.key), entry.key, entry.value
     FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($10::jsonb) AS entry
+    CROSS JOIN LATERAL jsonb_each_text($11::jsonb) AS entry
 )
 SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
 FROM inserted_run`,
-		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
+		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
 		runtimeLabels, encodedRuntimeConfig, encodedMetadataLabels,
 	)
@@ -259,12 +259,12 @@ func (s *PostgresStore) CreateRunIdempotent(
 	result, err := scanWorkflowRun(s.db.QueryRow(ctx, `
 WITH inserted_run AS (
 INSERT INTO workflow_runs (
-    run_id, owner_id, workflow_name, workflow_version,
+    run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
     runtime_labels, runtime_config_snapshot,
     request_idempotency_key, request_digest,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9::jsonb, $10, $11, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11, $12, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
 RETURNING *
 ), inserted_labels AS (
@@ -272,11 +272,11 @@ RETURNING *
     SELECT inserted_run.run_id,
            row_number() OVER (ORDER BY entry.key), entry.key, entry.value
     FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($12::jsonb) AS entry
+    CROSS JOIN LATERAL jsonb_each_text($13::jsonb) AS entry
 )
 SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
 FROM inserted_run`,
-		params.RunID, params.OwnerID, params.WorkflowName, params.WorkflowVersion,
+		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
 		runtimeLabels, encodedRuntimeConfig, params.IdempotencyKey, params.RequestDigest,
 		encodedMetadataLabels,
@@ -380,6 +380,11 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 	if err := validateOpaque("ownerID", params.OwnerID); err != nil {
 		return nil, err
 	}
+	if params.ProjectID != nil {
+		if err := validateOpaque("projectID", *params.ProjectID); err != nil {
+			return nil, err
+		}
+	}
 	selectors, err := NormalizeRunMetadataLabelSelectors(params.MetadataLabelSelectors)
 	if err != nil {
 		return nil, err
@@ -414,11 +419,12 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 	}
 	rows, err := s.db.Query(ctx, `
 WITH page AS (
-    SELECT run_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
+    SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
     FROM workflow_runs
     WHERE owner_id = $1
       AND ($2::text IS NULL OR state = $2)
       AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
+      AND ($8::text IS NULL OR project_id = $8)
       AND (
           cardinality($6::text[]) = 0
           OR (
@@ -433,7 +439,7 @@ WITH page AS (
     ORDER BY created_at DESC, run_id DESC
     LIMIT $5
 )
-SELECT page.run_id, page.workflow_name, page.workflow_version, page.state,
+SELECT page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
        page.created_at, page.updated_at, page.finished_at,
        COALESCE(
            jsonb_object_agg(labels.label_key, labels.label_value ORDER BY labels.label_key)
@@ -442,11 +448,11 @@ SELECT page.run_id, page.workflow_name, page.workflow_version, page.state,
        )
 FROM page
 LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
-GROUP BY page.run_id, page.workflow_name, page.workflow_version, page.state,
+GROUP BY page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
          page.created_at, page.updated_at, page.finished_at
 ORDER BY page.created_at DESC, page.run_id DESC`,
 		params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit,
-		selectorKeys, selectorValues,
+		selectorKeys, selectorValues, params.ProjectID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list WorkflowRuns for owner: %w", err)
@@ -458,7 +464,7 @@ ORDER BY page.created_at DESC, page.run_id DESC`,
 		var state string
 		var encodedLabels []byte
 		if scanErr := rows.Scan(
-			&run.RunID, &run.WorkflowName, &run.WorkflowVersion, &state,
+			&run.RunID, &run.ProjectID, &run.WorkflowName, &run.WorkflowVersion, &state,
 			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt, &encodedLabels,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan WorkflowRun summary page: %w", scanErr)
@@ -680,6 +686,11 @@ func validateCreateRun(params CreateRunParams) error {
 		"workflowSchemaVersion": params.WorkflowSchemaVersion,
 	} {
 		if err := validateOpaque(field, value); err != nil {
+			return err
+		}
+	}
+	if params.ProjectID != nil {
+		if err := validateOpaque("projectID", *params.ProjectID); err != nil {
 			return err
 		}
 	}

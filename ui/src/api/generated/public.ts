@@ -92,6 +92,172 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Projects owned by the authenticated principal */
+        get: operations["listProjects"];
+        put?: never;
+        /** Create an idempotent owner-scoped Project */
+        post: operations["createProject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Get one owned Project */
+        get: operations["getProject"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** CAS-update Project display metadata */
+        patch: operations["updateProject"];
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** List current Artifact bindings in one owned ProjectScope */
+        get: operations["listProjectArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /** Download the current or one exact ProjectScope Artifact revision */
+        get: operations["downloadProjectArtifact"];
+        /**
+         * Create or CAS-update a ProjectScope Artifact
+         * @description `If-None-Match: *` creates a new binding. One strong quoted `If-Match`
+         *     revision updates an existing binding. Supplying both is invalid.
+         */
+        put: operations["putProjectArtifact"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /** Get current or exact ProjectScope Artifact metadata */
+        get: operations["getProjectArtifactMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /** List immutable versions of one ProjectScope Artifact binding */
+        get: operations["listProjectArtifactVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        /** List bounded provenance edges for one ProjectScope Artifact binding */
+        get: operations["getProjectArtifactLineage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** List Runs that were launched from one owned Project */
+        get: operations["listProjectRuns"];
+        put?: never;
+        /** Create an idempotent WorkflowRun from exact ProjectScope inputs */
+        post: operations["createProjectRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs": {
         parameters: {
             query?: never;
@@ -706,10 +872,36 @@ export interface components {
     schemas: {
         RequestId: string;
         ResourceId: string;
+        /** @enum {string} */
+        ProjectKind: "project" | "evaluation";
         AuditActor: string;
         ConfigId: string;
         RunMetadataLabels: {
             [key: string]: string;
+        };
+        CreateProjectRequest: {
+            kind: components["schemas"]["ProjectKind"];
+            name: string;
+            description?: string;
+        };
+        UpdateProjectRequest: {
+            name?: string;
+            description?: string;
+        };
+        Project: {
+            projectId: components["schemas"]["ResourceId"];
+            kind: components["schemas"]["ProjectKind"];
+            name: string;
+            description: string;
+            revision: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProjectPage: {
+            items: components["schemas"]["Project"][];
+            page: components["schemas"]["PageInfo"];
         };
         RuntimeInfrastructureId: string;
         RuntimeCredentialId: string;
@@ -801,10 +993,10 @@ export interface components {
             /** @enum {unknown} */
             kind: "input_fork" | "output_bind";
             /** @enum {unknown} */
-            sourceScope: "user" | "run";
+            sourceScope: "user" | "project" | "run";
             source: components["schemas"]["ExactArtifactRef"];
             /** @enum {unknown} */
-            targetScope: "user" | "run";
+            targetScope: "user" | "project" | "run";
             target: components["schemas"]["ExactArtifactRef"];
             runId?: components["schemas"]["ResourceId"];
             stageExecutionId?: components["schemas"]["ResourceId"];
@@ -1141,6 +1333,7 @@ export interface components {
         };
         RunStatus: {
             runId: components["schemas"]["ResourceId"];
+            projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
             runtimeLabels: components["schemas"]["ConfigId"][];
@@ -1171,6 +1364,7 @@ export interface components {
         };
         RunSummary: {
             runId: components["schemas"]["ResourceId"];
+            projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
             labels: components["schemas"]["RunMetadataLabels"];
@@ -1187,6 +1381,7 @@ export interface components {
         };
         CreateRunResponse: {
             runId: components["schemas"]["ResourceId"];
+            projectId?: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
@@ -2009,6 +2204,7 @@ export interface components {
         RuntimeLabel: components["schemas"]["RuntimeInfrastructureId"];
         RuntimeCredentialId: components["schemas"]["RuntimeCredentialId"];
         RuntimeAgentId: string;
+        ProjectId: components["schemas"]["ResourceId"];
         IdempotencyKey: string;
         IfMatch: string;
         RequiredIfMatch: string;
@@ -2145,6 +2341,406 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProjects: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                kind?: components["schemas"]["ProjectKind"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable newest-first Project page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createProject: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "kind": "project",
+                 *       "name": "Payment service",
+                 *       "description": "Reusable service analysis"
+                 *     }
+                 */
+                "application/json": components["schemas"]["CreateProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Project created or exact idempotency replay */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getProject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current Project metadata */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateProject: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated Project metadata */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProjectArtifacts: {
+        parameters: {
+            query?: {
+                namespace?: components["schemas"]["ArtifactName"];
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable ProjectScope Artifact page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    downloadProjectArtifact: {
+        parameters: {
+            query?: {
+                revision?: components["schemas"]["Revision"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["ArtifactBytes"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    putProjectArtifact: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: components["parameters"]["IfMatch"];
+                "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "*/*": string;
+            };
+        };
+        responses: {
+            200: components["responses"]["ArtifactWritten"];
+            201: components["responses"]["ArtifactCreated"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getProjectArtifactMetadata: {
+        parameters: {
+            query?: {
+                revision?: components["schemas"]["Revision"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description ProjectScope Artifact metadata without bytes */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactMetadata"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProjectArtifactVersions: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable ProjectScope Artifact version page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getProjectArtifactLineage: {
+        parameters: {
+            query?: {
+                revision?: components["schemas"]["Revision"];
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable ProjectScope lineage page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtifactLineagePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listProjectRuns: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                state?: components["schemas"]["WorkflowRunState"];
+                label?: string[];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable newest-first Project Run page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createProjectRun: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Project Run accepted with its exact inputs isolated in RunScope */
+            202: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateRunResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };

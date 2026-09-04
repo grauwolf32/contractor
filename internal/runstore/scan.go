@@ -8,7 +8,7 @@ import (
 )
 
 const workflowRunColumns = `
-run_id, owner_id, workflow_name, workflow_version,
+run_id, owner_id, project_id, workflow_name, workflow_version,
 workflow_schema_version, workflow_snapshot, parameters,
 runtime_labels, runtime_config_snapshot, skill_snapshot,
 state, state_reason_code, state_reason_message,
@@ -32,7 +32,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	var claimedAt *time.Time
 	var claimExpiresAt *time.Time
 	if err := row.Scan(
-		&result.RunID, &result.OwnerID, &result.WorkflowName, &result.WorkflowVersion,
+		&result.RunID, &result.OwnerID, &result.ProjectID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
 		&result.RuntimeLabels, &runtimeConfig, &skillSnapshot,
 		&state, &result.StateReason.Code, &result.StateReason.Message,

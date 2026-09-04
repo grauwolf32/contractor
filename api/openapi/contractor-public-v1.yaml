@@ -402,6 +402,72 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/projects/{projectId}/runs:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    post:
+      operationId: createProjectRun
+      tags: [Projects, Runs]
+      summary: Create an idempotent WorkflowRun from exact ProjectScope inputs
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateRunRequest'}
+      responses:
+        '202':
+          description: Project Run accepted with its exact inputs isolated in RunScope
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CreateRunResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    get:
+      operationId: listProjectRuns
+      tags: [Projects, Runs]
+      summary: List Runs that were launched from one owned Project
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: state
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/WorkflowRunState'}
+        - name: label
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 32
+            items: {type: string, minLength: 3, maxLength: 320, pattern: '^[^=]+=.+'}
+      responses:
+        '200':
+          description: Stable newest-first Project Run page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/runs:
     post:
       operationId: createRun
@@ -2563,6 +2629,7 @@ components:
       required: [runId, workflow, state, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
+        projectId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         runtimeLabels:
@@ -2597,6 +2664,7 @@ components:
       required: [runId, workflow, state, labels, createdAt, updatedAt]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
+        projectId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         labels: {$ref: '#/components/schemas/RunMetadataLabels'}
@@ -2616,6 +2684,7 @@ components:
       required: [runId, state, runtimeLabels, labels, runtimeConfiguration]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
+        projectId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         runtimeLabels:
           type: array

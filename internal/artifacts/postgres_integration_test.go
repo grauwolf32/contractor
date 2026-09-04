@@ -170,6 +170,84 @@ VALUES (decode(repeat('00', 32), 'hex'), 'bad digest'::bytea, 10)`)
 	}
 }
 
+func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	projectID := "project-fork"
+	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Fork fixture", IdempotencyKey: "project-fork",
+		RequestDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+	})
+	if err != nil {
+		t.Fatalf("create Project: %v", err)
+	}
+	for _, runID := range []string{"run-project-exact", "run-project-current"} {
+		_, err := runstore.NewPostgresStore(pool).CreateRun(ctx, runstore.CreateRunParams{
+			RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+			WorkflowName: "artifact-copy", WorkflowVersion: "1",
+			WorkflowSchemaVersion: "contractor/v1alpha1",
+			WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+			RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		})
+		if err != nil {
+			t.Fatalf("create Project Run %q: %v", runID, err)
+		}
+	}
+	createArtifactRun(t, ctx, pool, "run-project-scope-mismatch", false)
+
+	service := NewService(NewPostgresRepository(pool))
+	project, _ := service.Project(projectID)
+	first, err := project.Write(
+		ctx, ArtifactRef{Namespace: "sources", Name: "service"},
+		Payload{MediaType: "text/plain", Data: []byte("revision one")}, nil,
+	)
+	if err != nil {
+		t.Fatalf("write first Project revision: %v", err)
+	}
+	second, err := project.Write(
+		ctx, ArtifactRef{Namespace: "sources", Name: "service"},
+		Payload{MediaType: "text/plain", Data: []byte("revision two")}, first.Ref.Revision,
+	)
+	if err != nil {
+		t.Fatalf("write second Project revision: %v", err)
+	}
+
+	exactFork, err := service.ForkProjectInput(
+		ctx, projectID, first.Ref, "run-project-exact", "source",
+	)
+	if err != nil {
+		t.Fatalf("fork exact Project revision: %v", err)
+	}
+	currentFork, err := service.ForkProjectInput(
+		ctx, projectID, ArtifactRef{Namespace: "sources", Name: "service"},
+		"run-project-current", "source",
+	)
+	if err != nil {
+		t.Fatalf("fork current Project revision: %v", err)
+	}
+	if exactFork.SourceRef.Revision == nil || *exactFork.SourceRef.Revision != *first.Ref.Revision ||
+		currentFork.SourceRef.Revision == nil || *currentFork.SourceRef.Revision != *second.Ref.Revision {
+		t.Fatalf("Project fork revisions = exact:%+v current:%+v", exactFork, currentFork)
+	}
+	for runID, want := range map[string]string{
+		"run-project-exact": "revision one", "run-project-current": "revision two",
+	} {
+		run, _ := service.Run(runID)
+		read, readErr := run.Read(ctx, ArtifactRef{Namespace: "inputs", Name: "source"})
+		if readErr != nil || string(read.Payload.Data) != want {
+			t.Fatalf("read %s pinned input = (%q, %v), want %q", runID, read.Payload.Data, readErr, want)
+		}
+	}
+	_, err = service.ForkProjectInput(
+		ctx, projectID, first.Ref, "run-project-scope-mismatch", "source",
+	)
+	if !errors.Is(err, ErrArtifactNotFound) {
+		t.Fatalf("cross-scope Project fork error = %v", err)
+	}
+}
+
 func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

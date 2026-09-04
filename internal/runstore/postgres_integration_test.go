@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -399,6 +401,53 @@ VALUES ($1, 33, 'extra', 'value')`, created.RunID)
 	if err := pool.QueryRow(ctx, `
 SELECT count(*) FROM workflow_run_metadata_labels WHERE run_id = $1`, created.RunID).Scan(&remaining); err != nil || remaining != 0 {
 		t.Fatalf("retained metadata-label rows = %d, error = %v", remaining, err)
+	}
+}
+
+func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	for index, projectID := range []string{"project-one", "project-two"} {
+		_, _, err := projects.Create(ctx, projectstore.CreateParams{
+			ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+			Name: projectID, IdempotencyKey: projectID,
+			RequestDigest: fmt.Sprintf("sha256:%064x", index+1),
+		})
+		if err != nil {
+			t.Fatalf("create Project %q: %v", projectID, err)
+		}
+	}
+	store := NewPostgresStore(pool)
+	projectID := "project-one"
+	projectParams := testRunParams("run-project-member")
+	projectParams.ProjectID = &projectID
+	projectRun, err := store.CreateRun(ctx, projectParams)
+	if err != nil || projectRun.ProjectID == nil || *projectRun.ProjectID != projectID {
+		t.Fatalf("create Project Run = (%+v, %v)", projectRun, err)
+	}
+	if _, err := store.CreateRun(ctx, testRunParams("run-standalone")); err != nil {
+		t.Fatal(err)
+	}
+	page, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", ProjectID: &projectID, Limit: 10,
+	})
+	if err != nil || len(page) != 1 || page[0].RunID != projectRun.RunID ||
+		page[0].ProjectID == nil || *page[0].ProjectID != projectID {
+		t.Fatalf("Project Run page = (%+v, %v)", page, err)
+	}
+
+	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET project_id = 'project-two' WHERE run_id = $1`, projectRun.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("Project membership mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	foreignParams := testRunParams("run-foreign-project-member")
+	foreignParams.OwnerID = "user-2"
+	foreignParams.ProjectID = &projectID
+	_, err = store.CreateRun(ctx, foreignParams)
+	if persistencepostgres.SQLState(err) != "23503" {
+		t.Fatalf("foreign Project membership SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 }
 

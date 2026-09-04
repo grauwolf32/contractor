@@ -109,6 +109,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage",
 		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata",
 		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions",
+		"GET /v1/projects/{projectId}/runs",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -127,6 +128,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"POST /v1/operations/runtime-configs",
 		"POST /v1/operations/runtime-credentials",
 		"POST /v1/projects",
+		"POST /v1/projects/{projectId}/runs",
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
@@ -726,6 +728,52 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	tooLarge.ContentLength = artifacts.MaxPayloadSize + 1
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, tooLarge, false); response.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("too-large response = %d: %s", response.Code, response.Body.String())
+	}
+}
+
+func TestProjectRunHandlersConformToOpenAPI(t *testing.T) {
+	document := loadPublicOpenAPI(t)
+	router, err := gorillamux.NewRouter(document)
+	if err != nil {
+		t.Fatalf("build contract router: %v", err)
+	}
+	fixture := newHandlerFixture(t)
+	createProject := newPublicContractRequest(
+		http.MethodPost, "/v1/projects", []byte(`{"kind":"project","name":"Project Run fixture"}`),
+	)
+	createProject.Header.Set("Content-Type", "application/json")
+	createProject.Header.Set("Idempotency-Key", "project-run-contract-project")
+	if response := serveAndValidatePublicContract(
+		t, router, fixture.handler, createProject, true,
+	); response.Code != http.StatusCreated {
+		t.Fatalf("create Project = %d: %s", response.Code, response.Body.String())
+	}
+	createArtifact := newPublicContractRequest(
+		http.MethodPut, "/v1/projects/project_fixed/artifacts/sources/service", []byte("source"),
+	)
+	createArtifact.Header.Set("Content-Type", "text/plain")
+	createArtifact.Header.Set("If-None-Match", "*")
+	if response := serveAndValidatePublicContract(
+		t, router, fixture.handler, createArtifact, true,
+	); response.Code != http.StatusCreated {
+		t.Fatalf("create Project input = %d: %s", response.Code, response.Body.String())
+	}
+	createRun := newPublicContractRequest(
+		http.MethodPost, "/v1/projects/project_fixed/runs",
+		[]byte(`{"workflow":"artifact-copy@1","artifacts":{"source":{"namespace":"sources","name":"service"}}}`),
+	)
+	createRun.Header.Set("Content-Type", "application/json")
+	createRun.Header.Set("Idempotency-Key", "project-run-contract")
+	if response := serveAndValidatePublicContract(
+		t, router, fixture.handler, createRun, true,
+	); response.Code != http.StatusAccepted {
+		t.Fatalf("create Project Run = %d: %s", response.Code, response.Body.String())
+	}
+	listRuns := newPublicContractRequest(http.MethodGet, "/v1/projects/project_fixed/runs", nil)
+	if response := serveAndValidatePublicContract(
+		t, router, fixture.handler, listRuns, true,
+	); response.Code != http.StatusOK {
+		t.Fatalf("list Project Runs = %d: %s", response.Code, response.Body.String())
 	}
 }
 
