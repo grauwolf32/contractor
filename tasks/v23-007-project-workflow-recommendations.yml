@@ -3,8 +3,8 @@ id: V23-007
 title: Recommend compatible Workflows and launch Project Runs from UI
 milestone: project-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 90091b861acd1cafd91c4052c1670210ffe0d044
 depends_on: [V23-003, V23-004, V23-006]
 languages: [typescript, css]
 
@@ -52,4 +52,3 @@ tests:
   - {name: reducer, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
   - {name: build, command: "cd ui && pnpm build", covers: [A1, A2]}
   - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A2]}
-
