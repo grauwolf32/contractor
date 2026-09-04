@@ -1,33 +1,37 @@
 # Contractor configuration
 
-This directory contains the executable default configuration. It includes the
-small artifact-copy fixture and the four-Stage `openapi-from-source@1` and
-`likec4-from-source@1` project workflows. Those IDs retain their archive-local
-`source-analysis@1` behavior. Explicit workspace-backed variants are:
+This directory contains the executable default configuration. Its current
+user-facing Workflow set is:
 
-- `openapi-from-workspace@1`;
-- `likec4-from-workspace@1`;
-- portable structural-analysis variants `openapi-from-workspace@2` and
-  `likec4-from-workspace@2`;
-- local graph-analysis variants `openapi-from-workspace@3` and
-  `likec4-from-workspace@3`.
+- `openapi-from-workspace@3` and `likec4-from-workspace@3` for four-Stage local
+  graph-backed analysis and document generation;
+- `likec4-from-workspace-streamline@1` for the same LikeC4 contract with a
+  modeled single-Worker Planner;
+- `openapi-from-analysis@1` and `likec4-from-analysis@2` when the caller already
+  has exact dependency and project reports;
+- `security-analysis@1` and `taint-trace-from-workspace@1` for their explicit
+  focused analysis contracts;
+- `artifact-copy@1` as the one intentionally published smoke fixture.
 
-Each workspace variant hydrates the exact `inputs/source` ZIP below the private
-workspace root for every Stage, uses only bounded `filesystem@1` reads, and
-exports exact cumulative `workspace_state` plus checkpoint `workspace_diff`
-results. A later Stage imports the exact prior state revision; no allocation
-workspace is shared or synchronized implicitly. The domain outputs are the same
-as the corresponding source workflow and both workspace results are additionally
-frozen as Workflow outputs.
+Historical source-analysis and earlier workspace/Skill versions are deleted,
+not archived or republished. Existing Runs retain their complete resolved
+Workflow snapshots; a deleted exact identity is never reused. Process-only
+Router/Streamline Memory fixtures live under `configs/e2e` and do not enter the
+default catalog.
 
-The `@2` variants use `workspace_source_analyst@2`, which adds only the
-portable `code-analysis@1` `search_def` and `list_symbols` operations. The `@3`
-variants use `workspace_source_graph_analyst@1` and select all eleven bounded
-structural operations. They therefore wait for a Runtime Agent whose positive
-capability includes the local Trailmark graph surface; there is no automatic
-downgrade to shallow analysis. Both choices affect only the two discovery
-Stages. Builder and validator versions, explicit reports, overlay handoffs,
-retries, execution configuration and frozen outputs remain identical to `@1`.
+Each current workspace Workflow hydrates the exact `inputs/source` ZIP below a
+private project-workspace root for every Stage and uses bounded filesystem/code
+tools. It exports exact cumulative `workspace_state` plus checkpoint
+`workspace_diff`; a later Stage imports the exact prior state revision. With no
+imported state, the cumulative overlay is the canonical empty delta over the
+hydrated sources. An unchanged Stage therefore exports an identity state and
+empty diff. These are internal lineage artifacts retained for future explicit
+Workflow composition; no join behavior or implicit workspace sharing exists.
+
+The discovery Stages use `workspace_source_graph_analyst@1` and select all
+eleven bounded structural operations. They wait for a Runtime Agent whose
+positive capability includes the complete local Trailmark graph surface; there
+is no automatic downgrade to shallow analysis.
 
 `likec4-from-workspace-streamline@1` retains the exact graph-backed workspace,
 artifact handoffs, cumulative state/diff and output contract of
@@ -37,37 +41,13 @@ when each semantic Stage benefits from explicit ordered subtask decomposition;
 the passthrough variant remains the simpler default when one Worker invocation
 can own the complete Stage objective.
 
-The original LikeC4 identity remains available for reproducibility. Other
-project-sized variants are:
-
-- `likec4-from-source@2`: the same deterministic `passthrough@1` graph with
-  `project_worker@1` (48 model calls, 256 tool calls, 1,000,000 cumulative
-  provider-reported tokens, and 32,768 output tokens per response);
-- `likec4-from-source-streamline@1`: the same four Stages and artifact handoffs,
-  but each Stage uses a model-backed `streamline@1` Planner with
-  `project_planner@1` (48 model calls, 64 Worker calls, 500,000 cumulative
-  tokens, and 8,192 output tokens per response) and the same project Worker
-  policy.
-
-The LikeC4 Agent Skill is an additive compatibility boundary:
-
-- `likec4_builder@1` and `likec4_validator@1` keep their original, self-contained
-  instruction files and declare no Skill;
-- `likec4_builder@2` and `likec4_validator@2` keep the mandatory artifact,
-  evidence, validation, and completion procedure in always-on instructions and
-  select the versionless logical artifact `skills/likec4` for detailed DSL
-  guidance;
-- `likec4-from-source@1`, `likec4-from-source@2`,
-  `likec4-from-source-streamline@1`, and `likec4-from-analysis@1` remain legacy
-  selectors using the @1 templates;
-- `likec4-from-source@3`, `likec4-from-source-streamline@2`, and
-  `likec4-from-analysis@2` preserve their predecessor graphs and select only the
-  @2 LikeC4 templates in build and validation Stages.
-
-The package source is `skills/likec4/SKILL.md` plus fourteen on-demand
-references. It is packaged and published into the owner-scoped `skills/likec4`
-artifact by the Skill Catalog path; configuration refers to the logical binding,
-not a checked-in digest.
+Both current LikeC4 template families select the versionless logical
+`skills/likec4` artifact for detailed DSL guidance while retaining mandatory
+artifact, evidence, validation and completion rules in always-on instructions.
+The package source is `skills/likec4/SKILL.md` plus its on-demand references. It
+is packaged and published into the owner-scoped `skills/likec4` artifact by the
+Skill Catalog path; configuration refers to the logical binding, not a
+checked-in digest.
 
 `security-analysis@1` is an opt-in single-Stage workflow for authorized HTTP
 and Caido analysis. It requires the caller to provide `objective`, `target` and

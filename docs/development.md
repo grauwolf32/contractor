@@ -39,8 +39,9 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - namespace-bound, CAS-backed OpenAPI construction with source provenance and
   Vacuum validation;
 - namespace-bound, CAS-backed LikeC4 editing with direct CLI validation;
-- executable four-Stage `openapi-from-source@1` and `likec4-from-source@1`
-  Workflow configurations;
+- executable four-Stage `openapi-from-workspace@3` and
+  `likec4-from-workspace@3` Workflow configurations plus the modeled-Planner
+  `likec4-from-workspace-streamline@1` variant;
 - an opt-in production-stack live-model quality gate and explicit two-Stage
   variants for caller-supplied reviewed analysis reports;
 - exact ModelPolicy-bound cumulative model-call, tool-call, and token budgets
@@ -158,12 +159,12 @@ curl --fail --silent --show-error -X PUT \
 ```
 
 Create a Run through the ordinary Workflow API after uploading exact `source`
-and optional `existing_likec4` inputs as described below. Version 3 assigns the
-bundled LikeC4 skill to its builder and validator AgentTemplates:
+and optional `existing_likec4` inputs as described below. The current workspace
+Workflow assigns the bundled LikeC4 Skill to its builder and validator Workers:
 
 ```shell
 jq -n --argjson source "$SOURCE_REF" --arg objective 'Model the architecture' \
-  '{workflow:"likec4-from-source@3",parameters:{objective:$objective},artifacts:{source:$source}}' | \
+  '{workflow:"likec4-from-workspace@3",parameters:{objective:$objective},artifacts:{source:$source}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-skilled-$(date +%s)" \
@@ -1034,12 +1035,14 @@ No external LM Studio, Caido instance, internet target or cloud credential is
 part of this gate. The fake services inject response loss, schema errors,
 oversized bodies and secret canaries deterministically.
 
-## OpenAPI from a source archive
+## OpenAPI from a project workspace
 
-`openapi-from-source@1` runs four serial Stages: dependency discovery, project
-discovery, incremental OpenAPI construction, and final validation/repair. Each
-Stage gets its own allocation and workspace. The reports and document move
-between Stages as exact RunScope artifact revisions rather than model memory.
+`openapi-from-workspace@3` runs four serial Stages: graph-backed dependency
+discovery, graph-backed project discovery, incremental OpenAPI construction,
+and final validation/repair. Each Stage gets its own allocation and reconstructs
+one private workspace from the exact source and cumulative overlay state. The
+reports, document and workspace state move between Stages as exact RunScope
+artifact revisions rather than model memory or a shared directory.
 
 The Runtime Agent host must have `vacuum` on its `PATH`:
 
@@ -1059,10 +1062,9 @@ export SOURCE_ZIP='/tmp/contractor-project-source.zip'
 git -C "$PROJECT_ROOT" archive --format=zip --output="$SOURCE_ZIP" HEAD
 ```
 
-The source Toolset deliberately rejects path traversal, absolute/backslash
-paths, duplicate entries, symbolic/special entries, encrypted members, more
-than 10,000 members, archives above 16 MiB compressed, and archives above 64
-MiB declared uncompressed.
+Workspace hydration deliberately rejects path traversal, absolute/backslash
+paths, duplicate entries, symbolic/special entries, encrypted members and
+configured file/archive limits.
 
 Upload the source as a UserScope artifact. The Run creation transaction copies
 the exact revision to `inputs/source`; Workers never read the UserScope binding
@@ -1095,7 +1097,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$OPENAPI_SEED_REF" \
   --arg objective 'Document the implemented public HTTP API' \
-  '{workflow:"openapi-from-source@1",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
+  '{workflow:"openapi-from-workspace@3",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: openapi-run-$(date +%s)" \
@@ -1104,8 +1106,9 @@ RUN_ID="$(jq -n \
 ```
 
 For a new document, omit `existing_openapi` and build the artifact map as
-`{source:$source}`. Poll `/v1/runs/$RUN_ID`; after success, retrieve the two
-frozen Workflow outputs:
+`{source:$source}`. Poll `/v1/runs/$RUN_ID`; after success, retrieve the
+document/report outputs. The same Run also freezes `workspace_state` and
+`workspace_diff` for exact lineage and future explicit composition:
 
 ```shell
 curl --fail --silent --show-error \
@@ -1120,19 +1123,19 @@ curl --fail --silent --show-error \
 ```
 
 Intermediate Run bindings are `analysis/dependencies`, `analysis/project`,
+the per-namespace cumulative `workspace_state`/checkpoint `workspace_diff`,
 `openapi/openapi`, and `openapi/validation-report`. The Workflow succeeds only
 when the final `validate_openapi` call reports a structurally clean document and
 no serious Vacuum findings. Missing Vacuum is an explicit failed validation,
 never an implicit pass.
 
-### Workspace-backed OpenAPI variant
+### Runtime workspace requirements
 
-Use `openapi-from-workspace@1` when the Worker should inspect the hydrated tree
-through `filesystem@1` rather than open the ZIP through `source-analysis@1`.
-The Run request is otherwise identical. Every Stage receives a new isolated
-workspace reconstructed from the exact source ref and, after the first Stage,
-the exact cumulative state exported by its predecessor. The final Run freezes
-`openapi`, `validation_report`, `workspace_state`, and `workspace_diff`.
+Every Stage receives a new isolated workspace reconstructed from the exact
+source ref and, after the first Stage, the exact cumulative state exported by
+its predecessor. With no imported state, the overlay is the canonical empty
+delta over the hydrated source. An unchanged Stage still exports an identity
+state and an empty diff; there is no implicit join or live workspace sharing.
 
 Workspace support is an immutable Runtime startup capability. Enable exactly
 one backend when starting an agent:
@@ -1156,7 +1159,7 @@ paths never cross the private Runtime boundary. Direct-mode edits affect only
 the disposable hydrated copy; overlay-mode changes become durable only through
 the Workflow-declared state/diff Artifact slots.
 
-Workspace v1 intentionally has three sharp boundaries. Text tools cannot read,
+Workspace support intentionally has three sharp boundaries. Text tools cannot read,
 modify or encode binary files; a future binary patch is a separate artifact
 type. No shell/subprocess tool or automatic temporary-checkout adapter exists.
 Finally, allocations—including Router siblings—never share a live workspace;
@@ -1164,19 +1167,19 @@ coordination happens only through exact exported artifacts in a later
 allocation. Keep the local `workRoot` private to the Runtime OS identity: a
 same-UID process with write access is part of that host's trust boundary.
 
-## LikeC4 from a source archive
+## LikeC4 from a project workspace
 
-`likec4-from-source@1` reuses the same dependency- and project-discovery
-contracts as the OpenAPI workflow, then builds and repair-validates one
-single-file architecture model. Reports and the model cross Stage boundaries as
-exact artifact revisions; no Worker relies on another allocation's memory or
-workspace.
+`likec4-from-workspace@3` reuses the same graph-backed dependency and project
+discovery contracts as the OpenAPI Workflow, then builds and repair-validates
+one single-file architecture model. Reports, the model and cumulative overlay
+state cross Stage boundaries as exact artifact revisions; no Worker relies on
+another allocation's memory or live workspace. The final Run freezes
+`architecture`, `validation_report`, `workspace_state`, and `workspace_diff`.
 
-`likec4-from-workspace@1` is the explicit workspace-backed equivalent. It keeps
-the same four semantic Stages and domain outputs, selects the workspace-aware
-AgentTemplates, carries cumulative overlay state by exact Artifact revision, and
-also freezes `workspace_state` and `workspace_diff`. Existing
-`likec4-from-source@*` IDs are unchanged.
+`likec4-from-workspace-streamline@1` has the same artifact and Stage contract,
+but each Stage uses a modeled `streamline@1` Planner. Use it when explicit
+subtask decomposition is useful; the `@3` passthrough Workflow is the simpler
+default.
 
 Install the LikeC4 CLI directly on every Runtime Agent host and make it visible
 on `PATH`. The Runtime never invokes `npx` or downloads a validator while a Run
@@ -1208,7 +1211,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$LIKEC4_SEED_REF" \
   --arg objective 'Model the implemented architecture and trust boundaries' \
-  '{workflow:"likec4-from-source@1",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
+  '{workflow:"likec4-from-workspace@3",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-run-$(date +%s)" \
@@ -1241,7 +1244,7 @@ retryable validation failure, never an implicit pass.
 
 ## Reusing explicit analysis reports
 
-`openapi-from-analysis@1` and `likec4-from-analysis@1` are two-Stage variants
+`openapi-from-analysis@1` and `likec4-from-analysis@2` are two-Stage variants
 for callers that already have reviewed dependency and project reports. They do
 not search prior Runs or choose a current artifact implicitly. The caller must
 upload exact `text/markdown` reports to UserScope and select their revisions
@@ -1274,7 +1277,7 @@ RUN_ID="$(jq -n \
     http://127.0.0.1:8080/v1/runs | jq -r .runId)"
 ```
 
-Use `likec4-from-analysis@1` in the same request to produce LikeC4. Optional
+Use `likec4-from-analysis@2` in the same request to produce LikeC4. Optional
 `existing_openapi` and `existing_likec4` inputs retain the contracts described
 above. Contractor v1alpha1 does not prove that a report revision was derived
 from the selected source revision; the caller owns that compatibility decision.
@@ -1323,7 +1326,7 @@ not persist the source archive, Gateway URL/token, prompts, or provider response
 bodies. A successful run removes its isolated schema, certificates, processes,
 and Runtime workspaces without retaining evaluation artifacts.
 During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
-`openapi-from-source@1` or `likec4-from-source@1`; the default and documented
+`openapi-from-workspace@3` or `likec4-from-workspace@3`; the default and documented
 quality gate always execute both.
 
 ## Worker invocation budgets

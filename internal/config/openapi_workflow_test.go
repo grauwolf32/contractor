@@ -12,7 +12,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("openapi-from-source@1")
+	workflow, err := snapshot.Workflow("openapi-from-workspace@3")
 	if err != nil {
 		t.Fatalf("resolve OpenAPI Workflow: %v", err)
 	}
@@ -28,12 +28,14 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	if got, want := workflow.Outputs, map[string]ArtifactSlot{
 		"openapi":           {Required: true, MediaTypes: []string{"application/yaml"}},
 		"validation_report": {Required: true, MediaTypes: []string{"text/markdown"}},
+		"workspace_state":   {Required: true, MediaTypes: []string{"application/vnd.contractor.workspace-overlay+json"}},
+		"workspace_diff":    {Required: true, MediaTypes: []string{"text/x-diff"}},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("OpenAPI outputs = %+v, want %+v", got, want)
 	}
 
 	dependency := workflow.Stages["dependency_discovery"]
-	assertSingleAgent(t, dependency, "analyst", "source_analyst", "analysis")
+	assertSingleAgent(t, dependency, "analyst", "workspace_source_graph_analyst", "analysis")
 	assertContext(t, dependency, map[string]ContextArtifact{
 		"source": {Namespace: "inputs", Name: "source", Required: true},
 	})
@@ -43,10 +45,11 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	assertBoundedRetry(t, dependency.On.Interrupted, 2)
 
 	project := workflow.Stages["project_discovery"]
-	assertSingleAgent(t, project, "analyst", "source_analyst", "analysis")
+	assertSingleAgent(t, project, "analyst", "workspace_source_graph_analyst", "analysis")
 	assertContext(t, project, map[string]ContextArtifact{
-		"source":            {Namespace: "inputs", Name: "source", Required: true},
-		"dependency_report": {Namespace: "analysis", Name: "dependencies", Required: true},
+		"source":                {Namespace: "inputs", Name: "source", Required: true},
+		"dependency_report":     {Namespace: "analysis", Name: "dependencies", Required: true},
+		"prior_workspace_state": {Namespace: "analysis", Name: "workspace_state", Required: true},
 	})
 	assertStageResult(t, project, "project_report", "text/markdown")
 	assertNext(t, project.On.Succeeded, "openapi_build")
@@ -54,12 +57,13 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	assertBoundedRetry(t, project.On.Interrupted, 2)
 
 	build := workflow.Stages["openapi_build"]
-	assertSingleAgent(t, build, "builder", "openapi_builder", "openapi")
+	assertSingleAgent(t, build, "builder", "workspace_openapi_builder", "openapi")
 	assertContext(t, build, map[string]ContextArtifact{
-		"source":            {Namespace: "inputs", Name: "source", Required: true},
-		"dependency_report": {Namespace: "analysis", Name: "dependencies", Required: true},
-		"project_report":    {Namespace: "analysis", Name: "project", Required: true},
-		"existing_openapi":  {Namespace: "inputs", Name: "existing_openapi", Required: false},
+		"source":                {Namespace: "inputs", Name: "source", Required: true},
+		"dependency_report":     {Namespace: "analysis", Name: "dependencies", Required: true},
+		"project_report":        {Namespace: "analysis", Name: "project", Required: true},
+		"existing_openapi":      {Namespace: "inputs", Name: "existing_openapi", Required: false},
+		"prior_workspace_state": {Namespace: "analysis", Name: "workspace_state", Required: true},
 	})
 	assertStageResult(t, build, "openapi", "application/yaml")
 	assertNext(t, build.On.Succeeded, "openapi_validate")
@@ -67,17 +71,19 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	assertBoundedRetry(t, build.On.Interrupted, 4)
 
 	validate := workflow.Stages["openapi_validate"]
-	assertSingleAgent(t, validate, "validator", "openapi_validator", "openapi")
+	assertSingleAgent(t, validate, "validator", "workspace_openapi_validator", "openapi")
 	assertContext(t, validate, map[string]ContextArtifact{
-		"source":            {Namespace: "inputs", Name: "source", Required: true},
-		"dependency_report": {Namespace: "analysis", Name: "dependencies", Required: true},
-		"project_report":    {Namespace: "analysis", Name: "project", Required: true},
-		"openapi_candidate": {Namespace: "openapi", Name: "openapi", Required: true},
+		"source":                {Namespace: "inputs", Name: "source", Required: true},
+		"dependency_report":     {Namespace: "analysis", Name: "dependencies", Required: true},
+		"project_report":        {Namespace: "analysis", Name: "project", Required: true},
+		"openapi_candidate":     {Namespace: "openapi", Name: "openapi", Required: true},
+		"prior_workspace_state": {Namespace: "openapi", Name: "workspace_state", Required: true},
 	})
 	assertStageResult(t, validate, "openapi", "application/yaml")
 	assertStageResult(t, validate, "validation_report", "text/markdown")
 	if !reflect.DeepEqual(validate.WorkflowOutputs, map[string]string{
 		"openapi": "openapi", "validation_report": "validation_report",
+		"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
 	}) {
 		t.Fatalf("final Workflow output mappings = %+v", validate.WorkflowOutputs)
 	}
@@ -116,13 +122,6 @@ func TestRepositoryOpenAPIAgentToolAllowlists(t *testing.T) {
 		ref      string
 		expected map[string][]string
 	}{
-		{
-			ref: "source_analyst@1",
-			expected: map[string][]string{
-				"source-analysis@1": {"list_source_files", "open_source_archive", "read_source", "search_source"},
-				"text-artifacts@1":  {"read_text_artifact", "write_text_artifact"},
-			},
-		},
 		{
 			ref: "openapi_builder@1",
 			expected: map[string][]string{

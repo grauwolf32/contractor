@@ -213,7 +213,18 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		t, publicClient, publicBaseURL, "agent-skills-likec4-seed", "text/plain",
 		[]byte(likeC4Seed),
 	)
-	inputs := map[string]artifactRef{"source": source, "existing_likec4": seed}
+	dependencies := uploadProjectArtifact(
+		t, publicClient, publicBaseURL, "agent-skills-dependencies", "text/markdown",
+		[]byte(dependencyReport),
+	)
+	project := uploadProjectArtifact(
+		t, publicClient, publicBaseURL, "agent-skills-project", "text/markdown",
+		[]byte(projectReport),
+	)
+	inputs := map[string]artifactRef{
+		"source": source, "existing_likec4": seed,
+		"dependency_report": dependencies, "project_report": project,
+	}
 	oldRunID := createAgentSkillWorkflowRun(
 		t, publicClient, publicBaseURL, "agent-skills-old-a", inputs,
 		[]string{"agent-skills-debug"},
@@ -320,8 +331,8 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		assertAgentSkillCanariesAbsent(t, fixture, string(payload))
 	}
 
-	if gateway.CompletedStages() != 11 || gateway.Calls() != 82 || len(gateway.Failures()) != 0 {
-		t.Fatalf("Agent Skill gateway stages/calls/failures = %d/%d/%v, want 11/82/none",
+	if gateway.CompletedStages() != 7 || gateway.Calls() != 68 || len(gateway.Failures()) != 0 {
+		t.Fatalf("Agent Skill gateway stages/calls/failures = %d/%d/%v, want 7/68/none",
 			gateway.CompletedStages(), gateway.Calls(), gateway.Failures())
 	}
 	assertAgentSkillGatewaySequence(t, gateway.Observations(), fixture)
@@ -545,7 +556,7 @@ func createAgentSkillWorkflowRun(
 ) string {
 	t.Helper()
 	requestBody := map[string]any{
-		"workflow": "likec4-from-source@3",
+		"workflow": "likec4-from-analysis@2",
 		"parameters": map[string]string{
 			"objective": "Model the implemented API and architecture boundaries",
 		},
@@ -603,15 +614,13 @@ func assertPendingAgentSkillSelection(
 
 func assertAgentSkillAttemptSequence(t *testing.T, status runStatus, retried bool) {
 	t.Helper()
-	wantStages := []string{"dependency_discovery", "project_discovery", "likec4_build", "likec4_validate"}
-	wantAttempts := []int{1, 1, 1, 1}
-	wantStates := []string{"succeeded", "succeeded", "succeeded", "succeeded"}
+	wantStages := []string{"likec4_build", "likec4_validate"}
+	wantAttempts := []int{1, 1}
+	wantStates := []string{"succeeded", "succeeded"}
 	if retried {
-		wantStages = []string{
-			"dependency_discovery", "project_discovery", "likec4_build", "likec4_build", "likec4_validate",
-		}
-		wantAttempts = []int{1, 1, 1, 2, 1}
-		wantStates = []string{"succeeded", "succeeded", "failed", "succeeded", "succeeded"}
+		wantStages = []string{"likec4_build", "likec4_build", "likec4_validate"}
+		wantAttempts = []int{1, 2, 1}
+		wantStates = []string{"failed", "succeeded", "succeeded"}
 	}
 	if status.State != "succeeded" || len(status.Attempts) != len(wantStages) {
 		t.Fatalf("Agent Skill Run attempts = %+v", status.Attempts)
@@ -676,7 +685,7 @@ func assertAgentSkillRunEvidence(
 	}
 
 	executions, err := store.ListStageExecutions(ctx, runID)
-	if err != nil || len(executions) < 4 {
+	if err != nil || len(executions) < 2 {
 		t.Fatalf("Agent Skill StageExecutions = (%+v, %v)", executions, err)
 	}
 	evidence := agentSkillRunEvidence{}

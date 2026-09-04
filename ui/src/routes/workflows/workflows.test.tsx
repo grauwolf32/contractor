@@ -39,7 +39,7 @@ const workerConfig = {
 };
 
 const workflow: WorkflowResource = {
-  ref: { name: "openapi-from-source", version: "1" },
+  ref: { name: "openapi-from-workspace", version: "3" },
   entryStage: "build",
   parameters: {
     objective: { required: true },
@@ -299,7 +299,7 @@ describe("Workflow routes", () => {
               items: [
                 {
                   ...workflow,
-                  ref: { name: "likec4-from-source", version: "1" },
+                  ref: { name: "likec4-from-workspace", version: "3" },
                 },
               ],
               page: { hasMore: false },
@@ -315,12 +315,12 @@ describe("Workflow routes", () => {
     );
     renderWorkflowApplication(api, "/workflows");
     expect(
-      await screen.findByRole("link", { name: "openapi-from-source@1" }),
-    ).toHaveAttribute("href", "/workflows/openapi-from-source/1");
+      await screen.findByRole("link", { name: "openapi-from-workspace@3" }),
+    ).toHaveAttribute("href", "/workflows/openapi-from-workspace/3");
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(
-      await screen.findByRole("link", { name: "likec4-from-source@1" }),
+      await screen.findByRole("link", { name: "likec4-from-workspace@3" }),
     ).toBeInTheDocument();
   });
 
@@ -334,7 +334,9 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
-        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+        if (
+          url.pathname === "/v1/workflows/openapi-from-workspace/versions/3"
+        ) {
           return apiResponse(workflow);
         }
         const inventory = inventoryResponse(url.pathname);
@@ -362,7 +364,7 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/runs/run_openapi") {
           return apiResponse({
             runId: "run_openapi",
-            workflow: "openapi-from-source@1",
+            workflow: "openapi-from-workspace@3",
             state: "running",
             runtimeLabels: ["caido", "debug"],
             labels: {
@@ -385,10 +387,10 @@ describe("Workflow routes", () => {
     );
     const { router } = renderWorkflowApplication(
       api,
-      "/workflows/openapi-from-source/1",
+      "/workflows/openapi-from-workspace/3",
     );
     expect(
-      await screen.findByRole("heading", { name: "openapi-from-source@1" }),
+      await screen.findByRole("heading", { name: "openapi-from-workspace@3" }),
     ).toBeInTheDocument();
     await screen.findByText("Scheduler transitions");
     expect(
@@ -467,7 +469,7 @@ describe("Workflow routes", () => {
       /^run-ui-[0-9a-f]{32}$/,
     );
     expect(posts[0]?.body).toEqual({
-      workflow: "openapi-from-source@1",
+      workflow: "openapi-from-workspace@3",
       runtimeLabels: ["caido", "debug"],
       labels: {
         "eval.id": "eval-ui-01",
@@ -515,7 +517,9 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
-        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+        if (
+          url.pathname === "/v1/workflows/openapi-from-workspace/versions/3"
+        ) {
           return apiResponse(workflow);
         }
         if (
@@ -534,7 +538,7 @@ describe("Workflow routes", () => {
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
-    renderWorkflowApplication(api, "/workflows/openapi-from-source/1");
+    renderWorkflowApplication(api, "/workflows/openapi-from-workspace/3");
     await screen.findByRole("option", { name: /projects\/source@revision-7/ });
     const user = userEvent.setup();
     await user.click(
@@ -572,7 +576,9 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
-        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+        if (
+          url.pathname === "/v1/workflows/openapi-from-workspace/versions/3"
+        ) {
           return apiResponse(workflow);
         }
         const inventory = inventoryResponse(url.pathname);
@@ -601,7 +607,7 @@ describe("Workflow routes", () => {
     );
     const { router } = renderWorkflowApplication(
       api,
-      "/workflows/openapi-from-source/1",
+      "/workflows/openapi-from-workspace/3",
     );
     const user = userEvent.setup();
     const objective = await screen.findByLabelText(/^objective/i);
@@ -655,7 +661,9 @@ describe("Workflow routes", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
-        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+        if (
+          url.pathname === "/v1/workflows/openapi-from-workspace/versions/3"
+        ) {
           return apiResponse(workflow);
         }
         const inventory = inventoryResponse(url.pathname);
@@ -668,7 +676,7 @@ describe("Workflow routes", () => {
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
-    renderWorkflowApplication(api, "/workflows/openapi-from-source/1");
+    renderWorkflowApplication(api, "/workflows/openapi-from-workspace/3");
     const user = userEvent.setup();
     await user.type(
       await screen.findByLabelText(/^objective/i),

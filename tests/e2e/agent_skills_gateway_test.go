@@ -19,10 +19,6 @@ type agentSkillMVPFixture struct {
 }
 
 func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage {
-	analystTools := []string{
-		"list_source_files", "open_source_archive", "read_source", "read_text_artifact",
-		"search_source", "write_text_artifact",
-	}
 	likeC4BuilderTools := []string{
 		"append_likec4", "list_source_files", "load_likec4", "open_source_archive",
 		"read_likec4", "read_source", "read_text_artifact", "replace_likec4",
@@ -36,8 +32,6 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 
 	return []domainGatewayStage{
 		artifactCopyGatewayStage("blocker/copy"),
-		discoveryGatewayStage("old/dependency_discovery", analystTools, true),
-		discoveryGatewayStage("old/project_discovery", analystTools, false),
 		failedAgentSkillGatewayStage("old/likec4_build_attempt_1", likeC4BuilderTools, fixture, fixture.PackageACanary),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "old/likec4_build_attempt_2"),
@@ -47,8 +41,6 @@ func agentSkillGatewayStages(fixture agentSkillMVPFixture) []domainGatewayStage 
 			renameGatewayStage(likeC4ValidateGatewayStage(likeC4ValidatorTools), "old/likec4_validate"),
 			fixture, fixture.PackageACanary,
 		),
-		discoveryGatewayStage("new/dependency_discovery", analystTools, true),
-		discoveryGatewayStage("new/project_discovery", analystTools, false),
 		withAgentSkillGateway(
 			renameGatewayStage(likeC4BuildGatewayStage(likeC4BuilderTools), "new/likec4_build"),
 			fixture, fixture.PackageBCanary,

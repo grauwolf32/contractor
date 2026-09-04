@@ -569,7 +569,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   const openAPIRunID = await startRun(
     page,
-    "openapi-from-source@1",
+    "openapi-from-workspace@3",
     { objective: "Model the browser fixture API and trust boundary" },
     {
       source: "ui-stack-source",
@@ -606,7 +606,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     );
   }
   await expect(
-    page.locator(".run-metadata").getByText("openapi-from-source@1", {
+    page.locator(".run-metadata").getByText("openapi-from-workspace@3", {
       exact: true,
     }),
   ).toBeVisible();

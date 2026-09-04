@@ -39,9 +39,9 @@ describe("Workflow API", () => {
         if (path === "/v1/workflows") {
           return response({ items: [], page: { hasMore: false } });
         }
-        if (path === "/v1/workflows/openapi-from-source/versions/1") {
+        if (path === "/v1/workflows/openapi-from-workspace/versions/3") {
           return response({
-            ref: { name: "openapi-from-source", version: "1" },
+            ref: { name: "openapi-from-workspace", version: "3" },
             entryStage: "discover",
             parameters: {},
             inputs: {},
@@ -60,7 +60,7 @@ describe("Workflow API", () => {
     );
 
     await listWorkflows(api, { cursor: "workflow-next" });
-    await getWorkflow(api, "openapi-from-source", "1");
+    await getWorkflow(api, "openapi-from-workspace", "3");
     await listConfigurations(api, "model-policies", {
       cursor: "policy-next",
     });
@@ -70,7 +70,7 @@ describe("Workflow API", () => {
       new URLSearchParams({ limit: "50", cursor: "workflow-next" }),
     );
     expect(requests[1]?.url).toBe(
-      "http://127.0.0.1:8080/v1/workflows/openapi-from-source/versions/1",
+      "http://127.0.0.1:8080/v1/workflows/openapi-from-workspace/versions/3",
     );
     expect(new URL(requests[2]?.url ?? "http://invalid").searchParams).toEqual(
       new URLSearchParams({ limit: "50", cursor: "policy-next" }),
@@ -115,7 +115,7 @@ describe("Workflow API", () => {
     );
     api.csrf.replace("a".repeat(43));
     const request: CreateRunRequest = {
-      workflow: "openapi-from-source@1",
+      workflow: "openapi-from-workspace@3",
       labels: { "eval.id": "eval-01", "eval.leg": "a", purpose: "eval" },
       parameters: { objective: "Describe the service" },
       artifacts: {

@@ -1,28 +1,29 @@
 package config
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
 )
 
-func TestRepositoryPrecomputedAnalysisWorkflowVariants(t *testing.T) {
+func TestRepositoryPrecomputedAnalysisWorkflows(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	cases := []struct {
-		variantRef       string
-		sourceRef        string
-		buildStage       string
-		validateStage    string
-		seedInput        string
-		buildResult      string
-		buildMediaType   string
-		outputMediaTypes map[string]ArtifactSlot
+		workflowRef       string
+		buildStage        string
+		validateStage     string
+		builderTemplate   string
+		validatorTemplate string
+		seedInput         string
+		buildResult       string
+		buildMediaType    string
+		outputMediaTypes  map[string]ArtifactSlot
 	}{
 		{
-			variantRef: "openapi-from-analysis@1", sourceRef: "openapi-from-source@1",
-			buildStage: "openapi_build", validateStage: "openapi_validate",
+			workflowRef: "openapi-from-analysis@1",
+			buildStage:  "openapi_build", validateStage: "openapi_validate",
+			builderTemplate: "openapi_builder@1", validatorTemplate: "openapi_validator@1",
 			seedInput: "existing_openapi", buildResult: "openapi", buildMediaType: "application/yaml",
 			outputMediaTypes: map[string]ArtifactSlot{
 				"openapi":           {Required: true, MediaTypes: []string{"application/yaml"}},
@@ -30,8 +31,9 @@ func TestRepositoryPrecomputedAnalysisWorkflowVariants(t *testing.T) {
 			},
 		},
 		{
-			variantRef: "likec4-from-analysis@1", sourceRef: "likec4-from-source@1",
-			buildStage: "likec4_build", validateStage: "likec4_validate",
+			workflowRef: "likec4-from-analysis@2",
+			buildStage:  "likec4_build", validateStage: "likec4_validate",
+			builderTemplate: "likec4_builder@2", validatorTemplate: "likec4_validator@2",
 			seedInput: "existing_likec4", buildResult: "architecture", buildMediaType: "text/vnd.likec4",
 			outputMediaTypes: map[string]ArtifactSlot{
 				"architecture":      {Required: true, MediaTypes: []string{"text/vnd.likec4"}},
@@ -41,51 +43,39 @@ func TestRepositoryPrecomputedAnalysisWorkflowVariants(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		t.Run(test.variantRef, func(t *testing.T) {
-			variant, err := snapshot.Workflow(test.variantRef)
+		t.Run(test.workflowRef, func(t *testing.T) {
+			workflow, err := snapshot.Workflow(test.workflowRef)
 			if err != nil {
 				t.Fatal(err)
 			}
-			source, err := snapshot.Workflow(test.sourceRef)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if variant.EntryStage != test.buildStage || len(variant.Stages) != 2 {
-				t.Fatalf("variant topology = entry %q, stages %d", variant.EntryStage, len(variant.Stages))
-			}
-			if _, exists := variant.Stages["dependency_discovery"]; exists {
-				t.Fatal("variant unexpectedly contains dependency discovery")
-			}
-			if _, exists := variant.Stages["project_discovery"]; exists {
-				t.Fatal("variant unexpectedly contains project discovery")
+			if workflow.EntryStage != test.buildStage || len(workflow.Stages) != 2 {
+				t.Fatalf("topology = entry %q, stages %d", workflow.EntryStage, len(workflow.Stages))
 			}
 			for name, expected := range map[string]ArtifactSlot{
 				"source":            {Required: true, MediaTypes: []string{"application/zip"}},
 				"dependency_report": {Required: true, MediaTypes: []string{"text/markdown"}},
 				"project_report":    {Required: true, MediaTypes: []string{"text/markdown"}},
 			} {
-				if !reflect.DeepEqual(variant.Inputs[name], expected) {
-					t.Fatalf("input %q = %+v, want %+v", name, variant.Inputs[name], expected)
+				if !reflect.DeepEqual(workflow.Inputs[name], expected) {
+					t.Fatalf("input %q = %+v, want %+v", name, workflow.Inputs[name], expected)
 				}
 			}
-			if len(variant.Inputs) != 4 || !reflect.DeepEqual(variant.Inputs[test.seedInput], source.Inputs[test.seedInput]) {
-				t.Fatalf("variant inputs = %+v", variant.Inputs)
+			if len(workflow.Inputs) != 4 || workflow.Inputs[test.seedInput].Required {
+				t.Fatalf("inputs = %+v", workflow.Inputs)
 			}
-			if !reflect.DeepEqual(variant.Outputs, test.outputMediaTypes) {
-				t.Fatalf("variant outputs = %+v, want %+v", variant.Outputs, test.outputMediaTypes)
+			if !reflect.DeepEqual(workflow.Outputs, test.outputMediaTypes) {
+				t.Fatalf("outputs = %+v, want %+v", workflow.Outputs, test.outputMediaTypes)
 			}
 
-			build := variant.Stages[test.buildStage]
-			validate := variant.Stages[test.validateStage]
+			build := workflow.Stages[test.buildStage]
+			validate := workflow.Stages[test.validateStage]
 			assertContext(t, build, map[string]ContextArtifact{
 				"source":            {Namespace: "inputs", Name: "source", Required: true},
 				"dependency_report": {Namespace: "inputs", Name: "dependency_report", Required: true},
 				"project_report":    {Namespace: "inputs", Name: "project_report", Required: true},
 				test.seedInput:      {Namespace: "inputs", Name: test.seedInput, Required: false},
 			})
-			candidateName := "openapi_candidate"
-			candidateNamespace := "openapi"
-			candidateArtifact := "openapi"
+			candidateName, candidateNamespace, candidateArtifact := "openapi_candidate", "openapi", "openapi"
 			if test.buildStage == "likec4_build" {
 				candidateName, candidateNamespace, candidateArtifact = "architecture_candidate", "likec4", "architecture"
 			}
@@ -96,25 +86,35 @@ func TestRepositoryPrecomputedAnalysisWorkflowVariants(t *testing.T) {
 				candidateName:       {Namespace: candidateNamespace, Name: candidateArtifact, Required: true},
 			})
 			assertStageResult(t, build, test.buildResult, test.buildMediaType)
-			if !reflect.DeepEqual(build.Agents, source.Stages[test.buildStage].Agents) ||
-				!reflect.DeepEqual(validate.Agents, source.Stages[test.validateStage].Agents) ||
-				!reflect.DeepEqual(build.On, source.Stages[test.buildStage].On) ||
-				!reflect.DeepEqual(validate.On, source.Stages[test.validateStage].On) ||
-				!reflect.DeepEqual(validate.WorkflowOutputs, source.Stages[test.validateStage].WorkflowOutputs) {
-				t.Fatal("variant does not preserve source Workflow templates, retries, or outputs")
+			assertTemplateSelector(t, build, test.builderTemplate)
+			assertTemplateSelector(t, validate, test.validatorTemplate)
+			assertNext(t, build.On.Succeeded, test.validateStage)
+			if validate.On.Succeeded.Kind != TransitionSucceed {
+				t.Fatalf("validation success transition = %+v", validate.On.Succeeded)
 			}
-			for stageName, stage := range variant.Stages {
+			for stageName, stage := range workflow.Stages {
+				if stage.Context.Workspace != nil {
+					t.Fatalf("precomputed-analysis Stage %q unexpectedly hydrates workspace", stageName)
+				}
 				for contextName, artifact := range stage.Context.Artifacts {
 					if artifact.Namespace == "analysis" {
 						t.Fatalf("Stage %q context %q reads hidden prior-Run analysis", stageName, contextName)
 					}
 				}
 			}
-			variantJSON, _ := json.Marshal(variant)
-			sourceJSON, _ := json.Marshal(source)
-			if reflect.DeepEqual(variantJSON, sourceJSON) || variant.Ref == source.Ref {
-				t.Fatal("variant and source Workflow snapshots are not independent")
-			}
 		})
+	}
+}
+
+func assertTemplateSelector(t *testing.T, stage ResolvedStage, want string) {
+	t.Helper()
+	if len(stage.Agents) != 1 {
+		t.Fatalf("agents = %+v", stage.Agents)
+	}
+	for _, binding := range stage.Agents {
+		got := binding.Template.Ref.TemplateID + "@" + binding.Template.Ref.Version
+		if got != want {
+			t.Fatalf("template = %s, want %s", got, want)
+		}
 	}
 }

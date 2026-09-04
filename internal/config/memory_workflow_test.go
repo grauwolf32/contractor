@@ -1,13 +1,14 @@
 package config
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 )
 
 func TestSharedMemoryWorkflowConfigurations(t *testing.T) {
 	t.Parallel()
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, filepath.Join(repositoryConfigRoot, "e2e"), MVPDescriptors())
 
 	streamline, err := snapshot.Workflow("shared-memory-streamline@1")
 	if err != nil {

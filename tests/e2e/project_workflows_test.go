@@ -72,7 +72,7 @@ type persistedBinding struct {
 	frozen    bool
 }
 
-func TestProjectWorkflowsFromSource(t *testing.T) {
+func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	if testing.Short() {
 		t.Skip("end-to-end process test")
 	}
@@ -148,6 +148,7 @@ func TestProjectWorkflowsFromSource(t *testing.T) {
 		t.Fatalf("Python Runtime environment is missing at %s; run 'cd runtime && uv sync --locked'", python)
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
+	workspaceRoot := filepath.Join(temporaryRoot, "runtime-project-workspaces")
 	runtimeProcess := startProcess(
 		t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{
@@ -163,6 +164,8 @@ func TestProjectWorkflowsFromSource(t *testing.T) {
 		"--private-key-file", agentPaths.PrivateKey,
 		"--listen", runtimeAddress,
 		"--work-root", workRoot,
+		"--workspace-storage", "local",
+		"--workspace-work-root", workspaceRoot,
 		"--request-timeout-seconds", "12",
 		"--shutdown-grace-seconds", "5",
 	)
@@ -186,7 +189,7 @@ func TestProjectWorkflowsFromSource(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	openAPIRunID := createProjectRun(t, publicClient, publicBaseURL, "openapi-from-source@1", map[string]artifactRef{
+	openAPIRunID := createProjectRun(t, publicClient, publicBaseURL, "openapi-from-workspace@3", map[string]artifactRef{
 		"source": source, "existing_openapi": openAPISeedRef,
 	})
 	openAPIStatus := waitForDomainRun(
@@ -215,17 +218,26 @@ func TestProjectWorkflowsFromSource(t *testing.T) {
 		map[string]string{
 			"inputs/source": "application/zip", "inputs/existing_openapi": "application/yaml",
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
-			"openapi/openapi": "application/yaml", "openapi/validation-report": "text/markdown",
-			"outputs/openapi": "application/yaml", "outputs/validation_report": "text/markdown",
+			"analysis/workspace_state": "application/vnd.contractor.workspace-overlay+json",
+			"analysis/workspace_diff":  "text/x-diff",
+			"openapi/openapi":          "application/yaml", "openapi/validation-report": "text/markdown",
+			"openapi/workspace_state": "application/vnd.contractor.workspace-overlay+json",
+			"openapi/workspace_diff":  "text/x-diff",
+			"outputs/openapi":         "application/yaml", "outputs/validation_report": "text/markdown",
+			"outputs/workspace_state": "application/vnd.contractor.workspace-overlay+json",
+			"outputs/workspace_diff":  "text/x-diff",
 		},
-		map[string]string{"openapi": "openapi", "validation_report": "validation_report"},
+		map[string]string{
+			"openapi": "openapi", "validation_report": "validation_report",
+			"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
+		},
 	)
 	waitForRuntimeReleased(
 		t, ctx, runtimeProcess, controlClient, runtimeBaseURL,
 		openAPIEvidence.lastAllocationID, workRoot,
 	)
 
-	likeC4RunID := createProjectRun(t, publicClient, publicBaseURL, "likec4-from-source@1", map[string]artifactRef{
+	likeC4RunID := createProjectRun(t, publicClient, publicBaseURL, "likec4-from-workspace@3", map[string]artifactRef{
 		"source": source, "existing_likec4": likeC4SeedRef,
 	})
 	likeC4Status := waitForDomainRun(
@@ -254,15 +266,28 @@ func TestProjectWorkflowsFromSource(t *testing.T) {
 		map[string]string{
 			"inputs/source": "application/zip", "inputs/existing_likec4": "text/plain",
 			"analysis/dependencies": "text/markdown", "analysis/project": "text/markdown",
-			"likec4/architecture": "text/vnd.likec4", "likec4/validation-report": "text/markdown",
-			"outputs/architecture": "text/vnd.likec4", "outputs/validation_report": "text/markdown",
+			"analysis/workspace_state": "application/vnd.contractor.workspace-overlay+json",
+			"analysis/workspace_diff":  "text/x-diff",
+			"likec4/architecture":      "text/vnd.likec4", "likec4/validation-report": "text/markdown",
+			"likec4/workspace_state": "application/vnd.contractor.workspace-overlay+json",
+			"likec4/workspace_diff":  "text/x-diff",
+			"skills/likec4":          "application/vnd.contractor.agent-skill+zip",
+			"outputs/architecture":   "text/vnd.likec4", "outputs/validation_report": "text/markdown",
+			"outputs/workspace_state": "application/vnd.contractor.workspace-overlay+json",
+			"outputs/workspace_diff":  "text/x-diff",
 		},
-		map[string]string{"architecture": "architecture", "validation_report": "validation_report"},
+		map[string]string{
+			"architecture": "architecture", "validation_report": "validation_report",
+			"workspace_state": "workspace_state", "workspace_diff": "workspace_diff",
+		},
 	)
 	waitForRuntimeReleased(
 		t, ctx, runtimeProcess, controlClient, runtimeBaseURL,
 		likeC4Evidence.lastAllocationID, workRoot,
 	)
+	if !workRootEmpty(workspaceRoot) {
+		t.Fatal("project Workflow Runtime retained an allocation-private workspace")
+	}
 	if openAPIEvidence.runtimeInstanceID != likeC4Evidence.runtimeInstanceID {
 		t.Fatalf("workflows used different Runtime slots: %q != %q",
 			openAPIEvidence.runtimeInstanceID, likeC4Evidence.runtimeInstanceID)
@@ -434,12 +459,12 @@ func createProjectRun(
 	}
 	request.Header.Set("Authorization", "Bearer "+publicToken)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Idempotency-Key", "project-e2e-"+strings.TrimSuffix(workflow, "@1"))
+	request.Header.Set("Idempotency-Key", "project-e2e-"+strings.ReplaceAll(workflow, "@", "-v"))
 	response := do(t, client, request, http.StatusAccepted)
 	defer response.Body.Close()
 	var payload runCreateResponse
 	decodeResponse(t, response, &payload)
-	if payload.RunID == "" || payload.State != "running" {
+	if payload.RunID == "" || payload.State != "initializing" && payload.State != "running" {
 		t.Fatalf("create %s Run response = %+v", workflow, payload)
 	}
 	return payload.RunID
@@ -513,9 +538,9 @@ func assertProjectRunStatus(
 			t.Fatalf("attempt %d = %+v, want %s attempt 1 succeeded", index, attempt, stages[index])
 		}
 		if attempt.Metrics == nil || attempt.Metrics.ModelCalls != modelCalls[index] ||
-			attempt.Metrics.ToolCalls != modelCalls[index] || !attempt.Metrics.ReportsComplete {
-			t.Fatalf("attempt %s metrics = %+v, want model/tool=%d and complete reports",
-				attempt.Stage, attempt.Metrics, modelCalls[index])
+			attempt.Metrics.ToolCalls != modelCalls[index]-1 || !attempt.Metrics.ReportsComplete {
+			t.Fatalf("attempt %s metrics = %+v, want model/tool=%d/%d and complete reports",
+				attempt.Stage, attempt.Metrics, modelCalls[index], modelCalls[index]-1)
 		}
 	}
 }
@@ -576,9 +601,9 @@ func assertProjectRunDurable(
 				workerToolCalls += *tool.Calls
 			}
 		}
-		if workerToolCalls != modelCalls[index]-1 {
+		if workerToolCalls != modelCalls[index]-2 {
 			t.Fatalf("Worker tool calls for %s = %d, want %d; metrics=%+v",
-				execution.StageName, workerToolCalls, modelCalls[index]-1, metrics.Tools)
+				execution.StageName, workerToolCalls, modelCalls[index]-2, metrics.Tools)
 		}
 		budget := metrics.WorkerBudget
 		if budget == nil || budget.MaxModelCalls != 24 || budget.MaxToolCalls != 96 ||
@@ -629,13 +654,21 @@ WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'analysis' AND name =
 		}
 	}
 	var inputForks, outputBinds int
+	expectedInputForks := 0
+	for key := range expectedBindings {
+		if strings.HasPrefix(key, "inputs/") || strings.HasPrefix(key, "skills/") {
+			expectedInputForks++
+		}
+	}
 	if err := pool.QueryRow(ctx, `
 SELECT count(*) FILTER (WHERE lineage_kind = 'input_fork'),
        count(*) FILTER (WHERE lineage_kind = 'output_bind')
 FROM artifact_lineage
 WHERE target_scope_kind = 'run' AND target_scope_id = $1`, runID,
-	).Scan(&inputForks, &outputBinds); err != nil || inputForks != 2 || outputBinds != 2 {
-		t.Fatalf("lineage input/output = %d/%d (err=%v), want 2/2", inputForks, outputBinds, err)
+	).Scan(&inputForks, &outputBinds); err != nil ||
+		inputForks != expectedInputForks || outputBinds != len(outputSlots) {
+		t.Fatalf("lineage input/output = %d/%d (err=%v), want %d/%d",
+			inputForks, outputBinds, err, expectedInputForks, len(outputSlots))
 	}
 
 	final := executions[len(executions)-1].AcceptedResult

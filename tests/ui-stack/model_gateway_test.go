@@ -19,6 +19,7 @@ import (
 const (
 	streamlineGlobalMarker = "STREAMLINE_E2E_GLOBAL"
 	streamlineWorkerMarker = "STREAMLINE_WORKER_TASK"
+	resultFinalizerMarker  = "Contractor Worker result finalization input (JSON):\n"
 	dependencyReport       = `# External-Service Dependency Inventory
 
 | Dependency | Constraint | Ecosystem | Role | Evidence |
@@ -79,6 +80,11 @@ type artifactBinding struct {
 	name      string
 }
 
+type resultFinalizerInput struct {
+	SubtaskID  string `json:"subtaskId"`
+	ResultText string `json:"resultText"`
+}
+
 func TestModelGatewayFindsNamedInputAfterParameterBlock(t *testing.T) {
 	request := map[string]any{"messages": []any{map[string]any{
 		"content": "String parameters:\n{\"objective\":\"inspect\"}\n\nNamed input artifacts:\n" +
@@ -137,7 +143,20 @@ func (g *modelGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var message map[string]any
 	var finishReason, model string
 	var err error
-	if strings.Contains(string(encoded), streamlineGlobalMarker) ||
+	finalizerInput, isFinalizer, decodeErr := decodeResultFinalizerRequest(request)
+	if decodeErr != nil {
+		g.writeFailure(w, http.StatusBadRequest, decodeErr.Error())
+		return
+	}
+	if isFinalizer {
+		if !requestHasNoModelTools(request) || !expectedResultFinalizerCandidate(finalizerInput.ResultText) {
+			g.writeFailure(w, http.StatusBadRequest, "invalid Worker result-finalizer request")
+			return
+		}
+		message, err = resultFinalizerMessage(finalizerInput)
+		finishReason = "stop"
+		model, _ = request["model"].(string)
+	} else if strings.Contains(string(encoded), streamlineGlobalMarker) ||
 		strings.Contains(string(encoded), streamlineWorkerMarker) {
 		message, finishReason, model, err = g.nextStreamline(r.Context(), request, string(encoded))
 	} else {
@@ -248,8 +267,9 @@ func (g *modelGateway) nextStreamline(
 		if !found {
 			return nil, "", "", errors.New("streamline Worker did not observe output revision")
 		}
-		message, err := workerModelResultMessage(request, "streamline Worker copied the source")
-		return message, "stop", model, err
+		return map[string]any{
+			"role": "assistant", "content": "streamline Worker copied the source",
+		}, "stop", model, nil
 	default:
 		return nil, "", "", errors.New("streamline Worker exceeded its script")
 	}
@@ -297,10 +317,7 @@ func (g *modelGateway) nextDomain(
 				)
 			}
 		}
-		message, err = workerModelResultMessage(request, step.summary)
-		if err != nil {
-			return nil, "", "", err
-		}
+		message = map[string]any{"role": "assistant", "content": step.summary}
 		finishReason = "stop"
 	}
 	g.domainStep++
@@ -325,22 +342,25 @@ func (g *modelGateway) writeFailure(w http.ResponseWriter, status int, message s
 
 func openAPIGatewayStages() []gatewayStage {
 	analystTools := []string{
-		"list_source_files", "open_source_archive", "read_source", "read_text_artifact",
-		"search_source", "write_text_artifact",
+		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
+		"find_callers", "find_symbol", "functions_that_raise", "glob", "graph_summary",
+		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_text_artifact",
+		"search_def", "write_text_artifact",
 	}
 	builderTools := []string{
-		"get_openapi_component", "get_openapi_info", "get_openapi_path", "initialize_openapi",
-		"list_openapi_components", "list_openapi_paths", "list_openapi_servers", "list_openapi_tags", "load_openapi",
-		"open_source_archive", "read_source", "read_text_artifact", "search_source",
-		"set_openapi_info", "set_openapi_servers", "set_openapi_tags", "upsert_openapi_component",
-		"upsert_openapi_path", "validate_openapi", "list_source_files",
+		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
+		"glob", "grep", "initialize_openapi", "list_openapi_components", "list_openapi_paths",
+		"list_openapi_servers", "list_openapi_tags", "load_openapi", "ls", "read_file",
+		"read_text_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
+		"set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi",
 	}
 	validatorTools := []string{
-		"get_openapi_component", "get_openapi_info", "get_openapi_path",
-		"list_openapi_components", "list_openapi_paths", "list_openapi_servers", "list_openapi_tags", "load_openapi",
-		"open_source_archive", "read_source", "read_text_artifact", "remove_openapi_component",
-		"remove_openapi_path", "search_source", "set_openapi_info", "set_openapi_servers", "set_openapi_tags",
-		"upsert_openapi_component", "upsert_openapi_path", "validate_openapi", "write_text_artifact",
+		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
+		"glob", "grep", "list_openapi_components", "list_openapi_paths", "list_openapi_servers",
+		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_text_artifact",
+		"remove_openapi_component", "remove_openapi_path", "rollback_changes", "set_openapi_info",
+		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
+		"validate_openapi", "write_text_artifact",
 	}
 	return []gatewayStage{
 		discoveryGatewayStage("openapi/dependency_discovery", analystTools, true),
@@ -351,15 +371,15 @@ func openAPIGatewayStages() []gatewayStage {
 }
 
 func discoveryGatewayStage(name string, tools []string, dependency bool) gatewayStage {
-	steps := []gatewayStep{toolGatewayStep("open_source_archive", stageRefArguments("source", nil))}
+	steps := []gatewayStep{}
 	if dependency {
-		steps = append(steps, toolGatewayStep("list_source_files", fixedArguments(map[string]any{
-			"pattern": "**/*", "offset": 0, "limit": 50,
+		steps = append(steps, toolGatewayStep("ls", fixedArguments(map[string]any{
+			"path": "", "cursor": "", "limit": 50,
 		})))
 	} else {
 		steps = append(steps, toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)))
 	}
-	steps = append(steps, toolGatewayStep("read_source", fixedArguments(map[string]any{
+	steps = append(steps, toolGatewayStep("read_file", fixedArguments(map[string]any{
 		"path": "app.py", "start_line": 1, "max_lines": 100,
 	})))
 	if dependency {
@@ -388,10 +408,9 @@ func discoveryGatewayStage(name string, tools []string, dependency bool) gateway
 
 func openAPIBuildGatewayStage(tools []string) gatewayStage {
 	return gatewayStage{name: "openapi/openapi_build", tools: tools, steps: []gatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
 		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
 		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
-		toolGatewayStep("read_source", fixedArguments(map[string]any{
+		toolGatewayStep("read_file", fixedArguments(map[string]any{
 			"path": "app.py", "start_line": 1, "max_lines": 100,
 		})),
 		toolGatewayStep("load_openapi", stageRefArguments("existing_openapi", map[string]any{
@@ -436,7 +455,6 @@ func openAPIBuildGatewayStage(tools []string) gatewayStage {
 
 func openAPIValidateGatewayStage(tools []string) gatewayStage {
 	return gatewayStage{name: "openapi/openapi_validate", tools: tools, steps: []gatewayStep{
-		toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
 		toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)),
 		toolGatewayStep("read_text_artifact", stageRefArguments("project_report", nil)),
 		toolGatewayStep("load_openapi", stageRefArguments("openapi_candidate", map[string]any{
@@ -539,12 +557,15 @@ func toolCallMessage(id, name string, arguments map[string]any) map[string]any {
 	}
 }
 
-func workerModelResultMessage(request map[string]any, result string) (map[string]any, error) {
-	const marker = "Subtask ID:\n"
-	var subtaskID string
-	conflicting := false
+func decodeResultFinalizerRequest(request map[string]any) (resultFinalizerInput, bool, error) {
+	var result resultFinalizerInput
+	found := false
+	var decodeErr error
 	var visit func(any)
 	visit = func(value any) {
+		if decodeErr != nil {
+			return
+		}
 		switch typed := value.(type) {
 		case map[string]any:
 			for _, child := range typed {
@@ -555,35 +576,61 @@ func workerModelResultMessage(request map[string]any, result string) (map[string
 				visit(child)
 			}
 		case string:
-			index := strings.Index(typed, marker)
+			index := strings.Index(typed, resultFinalizerMarker)
 			if index < 0 {
 				return
 			}
-			candidate := typed[index+len(marker):]
-			if end := strings.Index(candidate, "\n\n"); end >= 0 {
-				candidate = candidate[:end]
-			}
-			candidate = strings.TrimSpace(candidate)
-			if !validWorkerSubtaskID(candidate) {
+			var candidate resultFinalizerInput
+			if err := json.Unmarshal(
+				[]byte(typed[index+len(resultFinalizerMarker):]), &candidate,
+			); err != nil {
+				decodeErr = fmt.Errorf("decode Worker result-finalizer input: %w", err)
 				return
 			}
-			if subtaskID != "" && subtaskID != candidate {
-				conflicting = true
-			} else {
-				subtaskID = candidate
+			if !validWorkerSubtaskID(candidate.SubtaskID) || candidate.ResultText == "" {
+				decodeErr = errors.New("Worker result-finalizer input is invalid")
+				return
 			}
+			if found && candidate != result {
+				decodeErr = errors.New("Worker result-finalizer input is conflicting")
+				return
+			}
+			result, found = candidate, true
 		}
 	}
 	visit(request)
-	if conflicting {
-		return nil, errors.New("Worker request contains conflicting Runtime-rendered subtask IDs")
+	return result, found, decodeErr
+}
+
+func requestHasNoModelTools(request map[string]any) bool {
+	raw, exists := request["tools"]
+	if !exists || raw == nil {
+		return true
 	}
-	if subtaskID == "" {
-		return nil, errors.New("Worker request has no valid Runtime-rendered subtask ID")
+	tools, ok := raw.([]any)
+	return ok && len(tools) == 0
+}
+
+func expectedResultFinalizerCandidate(result string) bool {
+	switch result {
+	case "streamline Worker copied the source",
+		"Dependency inventory published",
+		"Project inventory published",
+		"OpenAPI candidate built and validated",
+		"OpenAPI candidate is clean":
+		return true
+	default:
+		return false
 	}
-	encoded, err := json.Marshal(map[string]any{"subtaskId": subtaskID, "result": result})
+}
+
+func resultFinalizerMessage(input resultFinalizerInput) (map[string]any, error) {
+	encoded, err := json.Marshal(map[string]any{
+		"subtaskId": input.SubtaskID,
+		"result":    input.ResultText,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("encode WorkerModelResult: %w", err)
+		return nil, fmt.Errorf("encode Worker result-finalizer response: %w", err)
 	}
 	return map[string]any{"role": "assistant", "content": string(encoded)}, nil
 }

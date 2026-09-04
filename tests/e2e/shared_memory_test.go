@@ -76,7 +76,7 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 	gateway := newSharedMemoryGateway(llmGatewayToken)
 	t.Cleanup(gateway.close)
 	configRoot := stageE2EConfiguration(
-		t, filepath.Join(repositoryRoot, "configs"),
+		t, filepath.Join(repositoryRoot, "configs", "e2e"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	publicAddress := freeAddress(t)
@@ -349,7 +349,7 @@ func assertStreamlineMemoryRun(
 	t.Helper()
 	// The release scenario enables Planner OTLP, whose bounded supplementary
 	// telemetry.export record adds one safe tool-call metric to each attempt.
-	assertPublicAttemptMetrics(t, status, [][2]int64{{9, 9}, {9, 9}, {9, 9}})
+	assertPublicAttemptMetrics(t, status, [][2]int64{{10, 9}, {10, 9}, {10, 9}})
 	if len(status.Outputs) != 0 {
 		t.Fatalf("shared-memory Run %s exposed outputs: %+v", runID, status.Outputs)
 	}
@@ -407,7 +407,7 @@ func assertRouterMemoryRun(
 	status runStatus,
 ) []runstore.StageAllocation {
 	t.Helper()
-	assertPublicAttemptMetrics(t, status, [][2]int64{{17, 16}})
+	assertPublicAttemptMetrics(t, status, [][2]int64{{19, 16}})
 	executions := requireExecutions(t, ctx, store, runID, 1)
 	assertSucceededExecution(t, executions[0], 1)
 	allocations := assertCompleteAllocations(t, ctx, store, executions[0], 2, "builder", "reviewer")

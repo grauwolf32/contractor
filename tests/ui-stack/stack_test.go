@@ -243,6 +243,7 @@ func TestBrowserOperationsStack(t *testing.T) {
 	}
 	validatorBin, _ := installValidators(t, temporaryRoot)
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
+	workspaceRoot := filepath.Join(temporaryRoot, "runtime-project-workspaces")
 	runtimeProcess := startProcess(
 		t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"),
 		inheritedEnvironment(map[string]string{
@@ -258,6 +259,8 @@ func TestBrowserOperationsStack(t *testing.T) {
 		"--private-key-file", agentPaths.PrivateKey,
 		"--listen", runtimeAddress,
 		"--work-root", workRoot,
+		"--workspace-storage", "local",
+		"--workspace-work-root", workspaceRoot,
 		"--request-timeout-seconds", "90",
 		"--shutdown-grace-seconds", "5",
 	)
@@ -306,8 +309,8 @@ func TestBrowserOperationsStack(t *testing.T) {
 	stack.assertCredentialLifecycle()
 	stack.assertSecretBoundaries(evidencePath, tracePaths, screenshotPath)
 	calls, completedStages, gatewayFailures := modelGateway.snapshot()
-	if calls != 34 || completedStages != 4 || len(gatewayFailures) != 0 {
-		t.Fatalf("model Gateway calls/stages/failures = %d/%d/%v, want 34/4/none", calls, completedStages, gatewayFailures)
+	if calls != 35 || completedStages != 4 || len(gatewayFailures) != 0 {
+		t.Fatalf("model Gateway calls/stages/failures = %d/%d/%v, want 35/4/none", calls, completedStages, gatewayFailures)
 	}
 	creates, deletes, managerFailures := credentialManager.snapshot()
 	if creates != 1 || deletes != 1 || len(managerFailures) != 0 {

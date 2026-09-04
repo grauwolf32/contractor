@@ -81,8 +81,8 @@ cases:
     test: {source: tests/e2e/agent_skills_test.go, symbol: TestAgentSkillsMVPProcesses}
   - id: exact_server_selection_topology
     covers: [A5]
-    expected: Exactly likec4_builder@2 and likec4_validator@2 select skills/likec4; every other current server template remains unskilled.
-    test: {source: internal/config/likec4_skill_versions_test.go, symbol: TestRepositoryLikeC4SkillTemplateVersionBoundary}
+    expected: Current archive-backed and workspace-backed LikeC4 builder and validator templates select skills/likec4.
+    test: {source: internal/config/likec4_skill_versions_test.go, symbol: TestRepositoryCurrentLikeC4TemplatesSelectSkill}
   - id: artifact_plane_only_inventory
     covers: [A5]
     expected: Static public/private routes and migrations contain no Skill-specific endpoint, table or SystemScope.

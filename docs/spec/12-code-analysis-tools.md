@@ -439,25 +439,23 @@ artifacts are equal.
 
 ## Built-in Workflow variants
 
-The repository publishes additive workspace-backed discovery choices; it does
-not mutate the original identities:
+The default catalog publishes only the current graph-backed workspace choices:
 
-| Workflow versions | Discovery AgentTemplate | Placement effect |
-|---|---|---|
-| `openapi-from-workspace@1`, `likec4-from-workspace@1` | `workspace_source_analyst@1` | Original filesystem-only behavior |
-| `openapi-from-workspace@2`, `likec4-from-workspace@2` | `workspace_source_analyst@2` | Selects only `search_def` and `list_symbols`; local or memory is eligible |
-| `openapi-from-workspace@3`, `likec4-from-workspace@3` | `workspace_source_graph_analyst@1` | Selects all eleven operations; waits for complete local graph capacity |
+| Workflow | Planner | Discovery AgentTemplate | Placement effect |
+|---|---|---|---|
+| `openapi-from-workspace@3` | `passthrough@1` | `workspace_source_graph_analyst@1` | Selects all eleven operations; waits for complete local graph capacity |
+| `likec4-from-workspace@3` | `passthrough@1` | `workspace_source_graph_analyst@1` | Same graph placement contract |
+| `likec4-from-workspace-streamline@1` | `streamline@1` | `workspace_source_graph_analyst@1` | Same graph placement contract with modeled Stage decomposition |
 
-Only `dependency_discovery` and `project_discovery` change template selection.
-The four-Stage graph, Planner instructions, input/output declarations, explicit
-Markdown report handoff, overlay state/diff handoff, retry/escalation rules,
-execution configuration and builder/validator template versions are byte-for-
-byte-equivalent to `@1` after accounting for Workflow/template identity. There
-is no analyzer-aware Scheduler branch and no fallback from `@3` to `@2`.
+Historical source-backed and shallow/default workspace versions are not
+published or archived. The portable `search_def` and `list_symbols` operations
+remain available to operator-authored AgentTemplates, but the built-in project
+Workflows never silently downgrade to them. There is no analyzer-aware
+Scheduler branch or placement fallback.
 
-Both new discovery templates retain only bounded filesystem reads and explicit
-text-artifact read/write operations in addition to their exact analysis
-allowlist. They have no Edit or workspace-change tool authority. Their Worker
+The current discovery template retains only bounded filesystem reads and
+explicit text-artifact read/write operations in addition to its exact graph
+allowlist. It has no Edit or workspace-change tool authority. Its Worker
 instructions explain model-visible operation semantics, opaque graph identity,
 coverage and truncation without describing configuration objects, placement,
 process identity, scratch paths or implementation protocols.

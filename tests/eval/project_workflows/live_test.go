@@ -153,6 +153,7 @@ type liveStack struct {
 	server         *liveProcess
 	runtime        *liveProcess
 	workRoot       string
+	workspaceRoot  string
 	pool           *pgxpool.Pool
 }
 
@@ -221,7 +222,7 @@ func loadLiveSettings(t *testing.T) (liveSettings, bool) {
 		gatewayURL:   strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL")),
 		gatewayToken: os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_TOKEN"),
 		model:        strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_MODEL")),
-		workflows:    []string{"openapi-from-source@1", "likec4-from-source@1"},
+		workflows:    []string{"openapi-from-workspace@3", "likec4-from-workspace@3"},
 	}
 	if settings.databaseURL == "" || settings.gatewayURL == "" || settings.model == "" {
 		return liveSettings{}, false
@@ -239,7 +240,7 @@ func loadLiveSettings(t *testing.T) (liveSettings, bool) {
 	}
 	if selected := strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_ONLY")); selected != "" {
 		switch selected {
-		case "openapi-from-source@1", "likec4-from-source@1":
+		case "openapi-from-workspace@3", "likec4-from-workspace@3":
 			settings.workflows = []string{selected}
 		default:
 			t.Fatal("CONTRACTOR_WORKFLOWS_LIVE_ONLY is not a supported live Workflow")
@@ -316,6 +317,7 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 		t.Fatalf("Python Runtime environment is missing; run 'cd runtime && uv sync --locked'")
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
+	workspaceRoot := filepath.Join(temporaryRoot, "runtime-project-workspaces")
 	runtimeProcess := startLiveProcess(
 		t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"),
 		map[string]string{"PYTHONUNBUFFERED": "1"},
@@ -328,6 +330,8 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 		"--private-key-file", agentPaths.PrivateKey,
 		"--listen", runtimeAddress,
 		"--work-root", workRoot,
+		"--workspace-storage", "local",
+		"--workspace-work-root", workspaceRoot,
 		"--request-timeout-seconds", fmt.Sprintf("%.0f", liveRuntimeRequestTime.Seconds()),
 		"--shutdown-grace-seconds", "10",
 	)
@@ -342,7 +346,7 @@ func startLiveStack(t *testing.T, settings liveSettings) *liveStack {
 		ctx: context.Background(), repositoryRoot: repositoryRoot, databaseURL: databaseURL,
 		publicBaseURL: publicBaseURL, runtimeBaseURL: runtimeBaseURL, publicToken: publicToken,
 		client: publicClient, controlClient: controlClient, server: server, runtime: runtimeProcess,
-		workRoot: workRoot, pool: pool,
+		workRoot: workRoot, workspaceRoot: workspaceRoot, pool: pool,
 	}
 }
 
@@ -389,7 +393,7 @@ func evaluateLiveWorkflow(
 	}
 
 	switch workflow {
-	case "openapi-from-source@1":
+	case "openapi-from-workspace@3":
 		var document, report []byte
 		var documentErr, reportErr error
 		if status.State == string(runstore.RunSucceeded) {
@@ -413,7 +417,7 @@ func evaluateLiveWorkflow(
 		if reportErr == nil {
 			evidence.Files["openapi-validation-report.md"] = boundedLiveArtifact(report)
 		}
-	case "likec4-from-source@1":
+	case "likec4-from-workspace@3":
 		var document, report []byte
 		var documentErr, reportErr error
 		if status.State == string(runstore.RunSucceeded) {
@@ -497,7 +501,7 @@ func createLiveRun(stack *liveStack, workflow string, source liveArtifactRef) (s
 	}
 	request.Header.Set("Authorization", "Bearer "+stack.publicToken)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Idempotency-Key", "live-"+strings.TrimSuffix(workflow, "@1")+"-"+time.Now().UTC().Format("20060102T150405.000000000"))
+	request.Header.Set("Idempotency-Key", "live-"+strings.ReplaceAll(workflow, "@", "-v")+"-"+time.Now().UTC().Format("20060102T150405.000000000"))
 	response, err := stack.client.Do(request)
 	if err != nil {
 		return "", err
@@ -650,7 +654,8 @@ func waitForLiveRelease(stack *liveStack, deadline time.Duration) error {
 				_ = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload)
 			}
 			response.Body.Close()
-			if payload.State == "idle" && liveWorkRootEmpty(stack.workRoot) {
+			if payload.State == "idle" && liveWorkRootEmpty(stack.workRoot) &&
+				liveWorkRootEmpty(stack.workspaceRoot) {
 				return nil
 			}
 		}

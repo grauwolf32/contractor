@@ -158,6 +158,41 @@ func (g *sharedMemoryGateway) next(
 	if marshalErr != nil {
 		return nil, "", "", "", 0, "", marshalErr
 	}
+	finalizerInput, isFinalizer, finalizerErr := decodeWorkerResultFinalizerRequest(request)
+	if finalizerErr != nil {
+		return nil, "", "", "", 0, "", finalizerErr
+	}
+	if isFinalizer {
+		if modelName != "worker-model" {
+			return nil, "", "", "", 0, "", fmt.Errorf(
+				"unexpected shared-memory result-finalizer model %q", modelName,
+			)
+		}
+		if !requestHasNoModelTools(request) {
+			return nil, "", "", "", 0, "", errors.New(
+				"shared-memory result finalizer exposed model-visible tools",
+			)
+		}
+		scenario, scenarioErr := sharedMemoryFinalizerScenario(finalizerInput.ResultText)
+		if scenarioErr != nil {
+			return nil, "", "", "", 0, "", scenarioErr
+		}
+		message, encodeErr := workerResultFinalizerMessage(finalizerInput)
+		if encodeErr != nil {
+			return nil, "", "", "", 0, "", encodeErr
+		}
+		g.mu.Lock()
+		if g.transcriptBytes+len(encoded) > 16<<20 {
+			g.mu.Unlock()
+			return nil, "", "", "", 0, "", errors.New(
+				"shared-memory Gateway transcript exceeded 16 MiB",
+			)
+		}
+		g.transcriptBytes += len(encoded)
+		g.transcripts = append(g.transcripts, string(encoded))
+		g.mu.Unlock()
+		return message, "stop", modelName, scenario, 1, "<result-finalizer>", nil
+	}
 	scenario, worker, detectErr := sharedMemoryScenario(modelName, string(encoded))
 	if detectErr != nil {
 		return nil, "", "", "", 0, "", detectErr
@@ -187,6 +222,18 @@ func (g *sharedMemoryGateway) next(
 		message, finishReason, toolName, err = g.sharedMemoryPlannerResponse(scenario, step, request, priorCalls)
 	}
 	return message, finishReason, modelName, scenario, step, toolName, err
+}
+
+func sharedMemoryFinalizerScenario(result string) (string, error) {
+	for _, scenario := range []string{
+		"streamline-first-worker", "streamline-retry-worker", "streamline-confirm-worker",
+		"router-builder-worker", "router-reviewer-worker",
+	} {
+		if result == scenario+" updated isolated note" || result == scenario+" read isolated note" {
+			return scenario + "-result-finalizer", nil
+		}
+	}
+	return "", errors.New("unexpected shared-memory result-finalizer candidate")
 }
 
 func sharedMemoryScenario(modelName, payload string) (string, bool, error) {
@@ -479,8 +526,9 @@ func sharedMemoryWorkerResponse(
 			return nil, "", "", err
 		}
 		if appendValue == "" {
-			message, err := workerModelResultMessage(request, scenario+" read isolated note")
-			return message, "stop", "<final>", err
+			return map[string]any{
+				"role": "assistant", "content": scenario + " read isolated note",
+			}, "stop", "<final>", nil
 		}
 		return gatewayToolCall(scenario+"-append", "append_memory", map[string]any{
 			"name": name, "content": appendValue,
@@ -495,8 +543,9 @@ func sharedMemoryWorkerResponse(
 		if err := requireMemoryTimestampTransition(request, scenario+"-read", scenario+"-append", true); err != nil {
 			return nil, "", "", err
 		}
-		message, err := workerModelResultMessage(request, scenario+" updated isolated note")
-		return message, "stop", "<final>", err
+		return map[string]any{
+			"role": "assistant", "content": scenario + " updated isolated note",
+		}, "stop", "<final>", nil
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its bounded script (step %d)", scenario, step)
 	}

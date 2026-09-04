@@ -19,7 +19,7 @@ func TestLoadRepositoryConfig(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	if got, want := snapshot.Counts(), (Counts{
-		Workflows: 21, AgentTemplates: 20, ModelPolicies: 6, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 30,
+		Workflows: 8, AgentTemplates: 13, ModelPolicies: 6, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 22,
 	}); got != want {
 		t.Fatalf("Counts() = %+v, want %+v", got, want)
 	}
@@ -324,13 +324,8 @@ func TestCodeAnalysisToolSelectionIsStrictAndCollisionSafe(t *testing.T) {
 func TestCodeAnalysisSelectionLoadsAndDigestsInWorkspaceTemplate(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
-	path := filepath.Join(root, "agent-templates/workspace_source_analyst.yaml")
-	replaceFile(t, path, "  sandboxProfile: local-workdir@1", `    - ref: code-analysis@1
-      tools: [search_def, list_symbols, find_callers]
-  sandboxProfile: local-workdir@1`)
-	snapshot := mustLoad(t, root, MVPDescriptors())
-	template, err := snapshot.AgentTemplate("workspace_source_analyst@1")
+	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	template, err := snapshot.AgentTemplate("workspace_source_graph_analyst@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +336,11 @@ func TestCodeAnalysisSelectionLoadsAndDigestsInWorkspaceTemplate(t *testing.T) {
 			continue
 		}
 		found = true
-		want := []string{"find_callers", "list_symbols", "search_def"}
+		want := []string{
+			"attack_surface", "complexity_hotspots", "entrypoint_paths_to",
+			"find_callees", "find_callers", "find_symbol", "functions_that_raise",
+			"graph_summary", "list_symbols", "paths_between", "search_def",
+		}
 		if !equalStrings(toolset.Tools, want) {
 			t.Fatalf("normalized code-analysis tools = %v, want %v", toolset.Tools, want)
 		}
@@ -584,7 +583,7 @@ func TestWorkflowExamplesLoad(t *testing.T) {
 			example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", name))
 			writeFile(t, filepath.Join(root, "workflows", name), example)
 			snapshot := mustLoad(t, root, MVPDescriptors())
-			if snapshot.Counts().Workflows != 22 {
+			if snapshot.Counts().Workflows != 9 {
 				t.Fatalf("example Workflow count = %d", snapshot.Counts().Workflows)
 			}
 		})

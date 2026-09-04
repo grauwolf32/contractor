@@ -9,51 +9,41 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestRepositoryWorkspaceWorkflowVariantsPreserveLegacyIDs(t *testing.T) {
+func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	for _, legacyRef := range []string{"openapi-from-source@1", "likec4-from-source@1"} {
-		legacy, err := snapshot.Workflow(legacyRef)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for name, stage := range legacy.Stages {
-			if stage.Context.Workspace != nil {
-				t.Fatalf("legacy %s Stage %s unexpectedly gained a workspace", legacyRef, name)
-			}
-		}
-	}
-
 	cases := []struct {
 		ref            string
-		legacyRef      string
 		domainStages   map[string]string
+		orderedStages  []string
 		finalStage     string
 		domainOutput   string
 		domainMedia    string
 		validationSlot string
 	}{
 		{
-			ref: "openapi-from-workspace@1", legacyRef: "openapi-from-source@1",
+			ref: "openapi-from-workspace@3",
 			domainStages: map[string]string{
-				"dependency_discovery": "workspace_source_analyst",
-				"project_discovery":    "workspace_source_analyst",
+				"dependency_discovery": "workspace_source_graph_analyst",
+				"project_discovery":    "workspace_source_graph_analyst",
 				"openapi_build":        "workspace_openapi_builder",
 				"openapi_validate":     "workspace_openapi_validator",
 			},
-			finalStage: "openapi_validate", domainOutput: "openapi", domainMedia: "application/yaml",
+			orderedStages: []string{"dependency_discovery", "project_discovery", "openapi_build", "openapi_validate"},
+			finalStage:    "openapi_validate", domainOutput: "openapi", domainMedia: "application/yaml",
 			validationSlot: "validation_report",
 		},
 		{
-			ref: "likec4-from-workspace@1", legacyRef: "likec4-from-source@1",
+			ref: "likec4-from-workspace@3",
 			domainStages: map[string]string{
-				"dependency_discovery": "workspace_source_analyst",
-				"project_discovery":    "workspace_source_analyst",
+				"dependency_discovery": "workspace_source_graph_analyst",
+				"project_discovery":    "workspace_source_graph_analyst",
 				"likec4_build":         "workspace_likec4_builder",
 				"likec4_validate":      "workspace_likec4_validator",
 			},
-			finalStage: "likec4_validate", domainOutput: "architecture", domainMedia: "text/vnd.likec4",
+			orderedStages: []string{"dependency_discovery", "project_discovery", "likec4_build", "likec4_validate"},
+			finalStage:    "likec4_validate", domainOutput: "architecture", domainMedia: "text/vnd.likec4",
 			validationSlot: "validation_report",
 		},
 	}
@@ -63,16 +53,12 @@ func TestRepositoryWorkspaceWorkflowVariantsPreserveLegacyIDs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			legacy, err := snapshot.Workflow(test.legacyRef)
-			if err != nil {
-				t.Fatal(err)
+			if workflow.EntryStage != test.orderedStages[0] || len(workflow.Stages) != len(test.orderedStages) {
+				t.Fatalf("unexpected workspace graph: entry=%q stages=%d", workflow.EntryStage, len(workflow.Stages))
 			}
-			if workflow.EntryStage != legacy.EntryStage || !reflect.DeepEqual(workflow.Inputs, legacy.Inputs) ||
-				len(workflow.Stages) != len(legacy.Stages) {
-				t.Fatalf("workspace Workflow drifted from legacy graph: %+v", workflow)
-			}
-			for name, templateID := range test.domainStages {
+			for index, name := range test.orderedStages {
 				stage := workflow.Stages[name]
+				templateID := test.domainStages[name]
 				if len(stage.Agents) != 1 {
 					t.Fatalf("Stage %s agents = %+v", name, stage.Agents)
 				}
@@ -88,12 +74,12 @@ func TestRepositoryWorkspaceWorkflowVariantsPreserveLegacyIDs(t *testing.T) {
 					workspace.Export.Diff != "workspace_diff" {
 					t.Fatalf("Stage %s workspace = %+v", name, workspace)
 				}
-				if name == workflow.EntryStage {
+				if index == 0 {
 					if workspace.State != nil {
-						t.Fatalf("entry Stage imports state: %+v", workspace.State)
+						t.Fatalf("entry Stage must start from the canonical empty overlay: %+v", workspace.State)
 					}
 				} else if workspace.State == nil || workspace.State.Artifact != "prior_workspace_state" {
-					t.Fatalf("Stage %s state input = %+v", name, workspace.State)
+					t.Fatalf("Stage %s cumulative state input = %+v", name, workspace.State)
 				}
 				assertStageResult(t, stage, "workspace_state", "application/vnd.contractor.workspace-overlay+json")
 				assertStageResult(t, stage, "workspace_diff", "text/x-diff")
@@ -147,7 +133,7 @@ func TestRepositoryWorkspaceTemplatesUseOnlyNarrowFilesystemContracts(t *testing
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	for _, ref := range []string{
-		"workspace_source_analyst@1",
+		"workspace_source_graph_analyst@1",
 		"workspace_openapi_builder@1",
 		"workspace_openapi_validator@1",
 		"workspace_likec4_builder@1",
@@ -161,13 +147,17 @@ func TestRepositoryWorkspaceTemplatesUseOnlyNarrowFilesystemContracts(t *testing
 		if _, exists := toolsets["source-analysis@1"]; exists {
 			t.Fatalf("%s retains archive-local source-analysis@1", ref)
 		}
-		if !reflect.DeepEqual(toolsets["filesystem@1"], []string{"glob", "grep", "ls", "read_file"}) ||
+		if !reflect.DeepEqual(toolsets["filesystem@1"], []string{"glob", "grep", "ls", "read_file"}) {
+			t.Fatalf("%s filesystem tools = %+v", ref, toolsets)
+		}
+		if ref != "workspace_source_graph_analyst@1" &&
 			!reflect.DeepEqual(toolsets["workspace-changes@1"], []string{"changed_paths", "diff", "rollback_changes"}) {
-			t.Fatalf("%s workspace tools = %+v", ref, toolsets)
+			t.Fatalf("%s workspace-change tools = %+v", ref, toolsets)
 		}
 		instructions := strings.Join(strings.Fields(template.Instructions.Text), " ")
-		if !strings.Contains(strings.ToLower(instructions), "workspace export is automatic") ||
-			!strings.Contains(instructions, "host path") {
+		if ref != "workspace_source_graph_analyst@1" &&
+			(!strings.Contains(strings.ToLower(instructions), "workspace export is automatic") ||
+				!strings.Contains(instructions, "host path")) {
 			t.Fatalf("%s instructions do not explain workspace boundaries", ref)
 		}
 	}

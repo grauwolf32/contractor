@@ -410,7 +410,7 @@ make `caido@1` model-visible when AgentTemplate omitted it.
 `POST /v1/runs` accepts one optional top-level `runtimeLabels` array:
 
 ```json
-{"workflow":"likec4-from-source@1","runtimeLabels":["caido","debug"],"labels":{"purpose":"eval"},"parameters":{},"artifacts":{}}
+{"workflow":"likec4-from-workspace@3","runtimeLabels":["caido","debug"],"labels":{"purpose":"eval"},"parameters":{},"artifacts":{}}
 ```
 
 Run-selected Runtime labels are immutable. During Run creation Server first

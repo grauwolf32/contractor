@@ -138,6 +138,13 @@ type domainGatewayStep struct {
 	modelFail bool
 }
 
+const workerResultFinalizerMarker = "Contractor Worker result finalization input (JSON):\n"
+
+type workerResultFinalizerInput struct {
+	SubtaskID  string `json:"subtaskId"`
+	ResultText string `json:"resultText"`
+}
+
 type scriptedModelFailure struct{}
 
 func (*scriptedModelFailure) Error() string { return "scripted model failure" }
@@ -286,6 +293,32 @@ func (g *domainGateway) awaitInitialRelease(ctx context.Context) bool {
 func (g *domainGateway) next(request map[string]any) (map[string]any, string, int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	if isFinalizer {
+		if !requestHasNoModelTools(request) {
+			return nil, "", 0, errors.New("Worker result finalizer exposed model-visible tools")
+		}
+		stageName, stepNumber, expected, found := g.completedResultCandidate()
+		if !found {
+			return nil, "", 0, errors.New("Worker result finalizer has no completed Worker candidate")
+		}
+		if finalizerInput.ResultText != expected {
+			return nil, "", 0, fmt.Errorf("%s result finalizer changed its Worker candidate", stageName)
+		}
+		message, encodeErr := workerResultFinalizerMessage(finalizerInput)
+		if encodeErr != nil {
+			return nil, "", 0, encodeErr
+		}
+		g.calls++
+		call := g.calls
+		g.observations = append(g.observations, domainGatewayObservation{
+			Stage: stageName, Step: stepNumber, Tool: "<result-finalizer>", Tools: []string{},
+		})
+		return message, "stop", call, nil
+	}
 	if g.stageIndex >= len(g.stages) {
 		return nil, "", 0, errors.New("unexpected additional LLM invocation")
 	}
@@ -336,10 +369,7 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 				)
 			}
 		}
-		message, responseErr = workerModelResultMessage(request, step.summary)
-		if responseErr != nil {
-			return nil, "", 0, responseErr
-		}
+		message = map[string]any{"role": "assistant", "content": step.summary}
 		finishReason = "stop"
 	}
 
@@ -362,6 +392,87 @@ func (g *domainGateway) next(request map[string]any) (map[string]any, string, in
 	return message, finishReason, call, responseErr
 }
 
+func (g *domainGateway) completedResultCandidate() (string, int, string, bool) {
+	for index := g.stageIndex - 1; index >= 0; index-- {
+		stage := g.stages[index]
+		if len(stage.steps) == 0 {
+			continue
+		}
+		last := stage.steps[len(stage.steps)-1]
+		if last.tool == "" && !last.modelFail && last.summary != "" {
+			return stage.name, len(stage.steps) + 1, last.summary, true
+		}
+	}
+	return "", 0, "", false
+}
+
+func decodeWorkerResultFinalizerRequest(
+	request map[string]any,
+) (workerResultFinalizerInput, bool, error) {
+	var result workerResultFinalizerInput
+	found := false
+	var decodeErr error
+	var visit func(any)
+	visit = func(value any) {
+		if decodeErr != nil {
+			return
+		}
+		switch typed := value.(type) {
+		case map[string]any:
+			for _, child := range typed {
+				visit(child)
+			}
+		case []any:
+			for _, child := range typed {
+				visit(child)
+			}
+		case string:
+			index := strings.Index(typed, workerResultFinalizerMarker)
+			if index < 0 {
+				return
+			}
+			var candidate workerResultFinalizerInput
+			if err := json.Unmarshal(
+				[]byte(typed[index+len(workerResultFinalizerMarker):]), &candidate,
+			); err != nil {
+				decodeErr = fmt.Errorf("decode Worker result finalizer input: %w", err)
+				return
+			}
+			if !validFixtureSubtaskID(candidate.SubtaskID) || candidate.ResultText == "" {
+				decodeErr = errors.New("Worker result finalizer input is invalid")
+				return
+			}
+			if found && candidate != result {
+				decodeErr = errors.New("Worker result finalizer input is conflicting")
+				return
+			}
+			result, found = candidate, true
+		}
+	}
+	visit(request)
+	return result, found, decodeErr
+}
+
+func requestHasNoModelTools(request map[string]any) bool {
+	raw, exists := request["tools"]
+	if !exists || raw == nil {
+		return true
+	}
+	tools, ok := raw.([]any)
+	return ok && len(tools) == 0
+}
+
+func workerResultFinalizerMessage(input workerResultFinalizerInput) (map[string]any, error) {
+	encoded, err := json.Marshal(map[string]any{
+		"subtaskId": input.SubtaskID,
+		"result":    input.ResultText,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("encode Worker result finalizer response: %w", err)
+	}
+	return map[string]any{"role": "assistant", "content": string(encoded)}, nil
+}
+
 func (g *domainGateway) writeFailure(w http.ResponseWriter, status int, message string) {
 	g.mu.Lock()
 	g.failures = append(g.failures, message)
@@ -375,46 +486,116 @@ func (g *domainGateway) writeFailure(w http.ResponseWriter, status int, message 
 
 func domainGatewayStages() []domainGatewayStage {
 	analystTools := []string{
-		"list_source_files", "open_source_archive", "read_source", "read_text_artifact",
-		"search_source", "write_text_artifact",
+		"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
+		"find_callers", "find_symbol", "functions_that_raise", "glob", "graph_summary",
+		"grep", "list_symbols", "ls", "paths_between", "read_file", "read_text_artifact",
+		"search_def", "write_text_artifact",
 	}
 	openAPIBuilderTools := []string{
-		"get_openapi_component", "get_openapi_info", "get_openapi_path", "initialize_openapi",
-		"list_openapi_components", "list_openapi_paths", "list_openapi_servers", "list_openapi_tags", "load_openapi",
-		"open_source_archive", "read_source", "read_text_artifact", "search_source",
-		"set_openapi_info", "set_openapi_servers", "set_openapi_tags", "upsert_openapi_component",
-		"upsert_openapi_path", "validate_openapi", "list_source_files",
+		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
+		"glob", "grep", "initialize_openapi", "list_openapi_components", "list_openapi_paths",
+		"list_openapi_servers", "list_openapi_tags", "load_openapi", "ls", "read_file",
+		"read_text_artifact", "rollback_changes", "set_openapi_info", "set_openapi_servers",
+		"set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path", "validate_openapi",
 	}
 	openAPIValidatorTools := []string{
-		"get_openapi_component", "get_openapi_info", "get_openapi_path",
-		"list_openapi_components", "list_openapi_paths", "list_openapi_servers", "list_openapi_tags", "load_openapi",
-		"open_source_archive", "read_source", "read_text_artifact", "remove_openapi_component",
-		"remove_openapi_path", "search_source", "set_openapi_info", "set_openapi_servers", "set_openapi_tags",
-		"upsert_openapi_component", "upsert_openapi_path", "validate_openapi", "write_text_artifact",
+		"changed_paths", "diff", "get_openapi_component", "get_openapi_info", "get_openapi_path",
+		"glob", "grep", "list_openapi_components", "list_openapi_paths", "list_openapi_servers",
+		"list_openapi_tags", "load_openapi", "ls", "read_file", "read_text_artifact",
+		"remove_openapi_component", "remove_openapi_path", "rollback_changes", "set_openapi_info",
+		"set_openapi_servers", "set_openapi_tags", "upsert_openapi_component", "upsert_openapi_path",
+		"validate_openapi", "write_text_artifact",
 	}
 	likeC4BuilderTools := []string{
-		"append_likec4", "list_source_files", "load_likec4", "open_source_archive",
-		"read_likec4", "read_source", "read_text_artifact", "replace_likec4",
-		"search_source", "validate_likec4", "write_likec4",
+		"append_likec4", "changed_paths", "diff", "glob", "grep", "list_skills",
+		"load_likec4", "load_skill", "load_skill_resource", "ls", "read_file", "read_likec4",
+		"read_text_artifact", "replace_likec4", "rollback_changes", "validate_likec4", "write_likec4",
 	}
 	likeC4ValidatorTools := []string{
-		"append_likec4", "load_likec4", "open_source_archive", "read_likec4", "read_source",
-		"read_text_artifact", "replace_likec4", "search_source", "validate_likec4",
+		"append_likec4", "changed_paths", "diff", "glob", "grep", "list_skills",
+		"load_likec4", "load_skill", "load_skill_resource", "ls", "read_file", "read_likec4",
+		"read_text_artifact", "replace_likec4", "rollback_changes", "validate_likec4",
 		"write_likec4", "write_text_artifact",
 	}
 
 	stages := make([]domainGatewayStage, 0, 8)
 	stages = append(stages,
-		discoveryGatewayStage("openapi/dependency_discovery", analystTools, true),
-		discoveryGatewayStage("openapi/project_discovery", analystTools, false),
-		openAPIBuildGatewayStage(openAPIBuilderTools),
-		openAPIValidateGatewayStage(openAPIValidatorTools),
-		discoveryGatewayStage("likec4/dependency_discovery", analystTools, true),
-		discoveryGatewayStage("likec4/project_discovery", analystTools, false),
-		likeC4BuildGatewayStage(likeC4BuilderTools),
-		likeC4ValidateGatewayStage(likeC4ValidatorTools),
+		workspaceDiscoveryGatewayStage("openapi/dependency_discovery", analystTools, true),
+		workspaceDiscoveryGatewayStage("openapi/project_discovery", analystTools, false),
+		workspaceOpenAPIBuildGatewayStage(openAPIBuilderTools),
+		workspaceOpenAPIValidateGatewayStage(openAPIValidatorTools),
+		workspaceDiscoveryGatewayStage("likec4/dependency_discovery", analystTools, true),
+		workspaceDiscoveryGatewayStage("likec4/project_discovery", analystTools, false),
+		workspaceLikeC4BuildGatewayStage(likeC4BuilderTools),
+		workspaceLikeC4ValidateGatewayStage(likeC4ValidatorTools),
 	)
 	return stages
+}
+
+func workspaceDiscoveryGatewayStage(name string, tools []string, dependency bool) domainGatewayStage {
+	steps := []domainGatewayStep{}
+	if dependency {
+		steps = append(steps, toolGatewayStep("ls", fixedArguments(map[string]any{
+			"path": "", "cursor": "", "limit": 50,
+		})))
+	} else {
+		steps = append(steps, toolGatewayStep("read_text_artifact", stageRefArguments("dependency_report", nil)))
+	}
+	steps = append(steps, toolGatewayStep("read_file", fixedArguments(map[string]any{
+		"path": "app.py", "start_line": 1, "max_lines": 100,
+	})))
+	if dependency {
+		steps = append(steps,
+			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
+				"name": "dependencies", "text": dependencyReport, "media_type": "text/markdown",
+				"expected_revision": nil,
+			})),
+			finalGatewayStep("Dependency inventory published", map[string]domainArtifactBinding{
+				"dependency_report": {namespace: "analysis", name: "dependencies"},
+			}),
+		)
+	} else {
+		steps = append(steps,
+			toolGatewayStep("write_text_artifact", fixedArguments(map[string]any{
+				"name": "project", "text": projectReport, "media_type": "text/markdown",
+				"expected_revision": nil,
+			})),
+			finalGatewayStep("Project inventory published", map[string]domainArtifactBinding{
+				"project_report": {namespace: "analysis", name: "project"},
+			}),
+		)
+	}
+	return domainGatewayStage{name: name, tools: tools, steps: steps}
+}
+
+func workspaceOpenAPIBuildGatewayStage(tools []string) domainGatewayStage {
+	stage := openAPIBuildGatewayStage(tools)
+	stage.steps = append([]domainGatewayStep(nil), stage.steps[1:]...)
+	stage.steps[2] = toolGatewayStep("read_file", fixedArguments(map[string]any{
+		"path": "app.py", "start_line": 1, "max_lines": 100,
+	}))
+	return stage
+}
+
+func workspaceOpenAPIValidateGatewayStage(tools []string) domainGatewayStage {
+	stage := openAPIValidateGatewayStage(tools)
+	stage.steps = append([]domainGatewayStep(nil), stage.steps[1:]...)
+	return stage
+}
+
+func workspaceLikeC4BuildGatewayStage(tools []string) domainGatewayStage {
+	stage := likeC4BuildGatewayStage(tools)
+	stage.steps = append([]domainGatewayStep(nil), stage.steps[1:]...)
+	stage.steps[2] = toolGatewayStep("read_file", fixedArguments(map[string]any{
+		"path": "app.py", "start_line": 1, "max_lines": 100,
+	}))
+	return stage
+}
+
+func workspaceLikeC4ValidateGatewayStage(tools []string) domainGatewayStage {
+	stage := likeC4ValidateGatewayStage(tools)
+	stage.steps = append([]domainGatewayStep(nil), stage.steps[1:]...)
+	return stage
 }
 
 func discoveryGatewayStage(name string, tools []string, dependency bool) domainGatewayStage {

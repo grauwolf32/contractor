@@ -864,7 +864,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"workflow":"openapi-from-source@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source-archive"}}}`)
+	body := []byte(`{"workflow":"openapi-from-workspace@3","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source-archive"}}}`)
 	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, request)
@@ -1153,7 +1153,7 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow, err := snapshot.Workflow("openapi-from-source@1")
+	workflow, err := snapshot.Workflow("openapi-from-workspace@3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1173,8 +1173,8 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	}
 	previous, ordinal := "stage-base", 1
 	fixture.runs.runs["run-escalation"] = runstore.WorkflowRun{
-		RunID: "run-escalation", OwnerID: "user-1", WorkflowName: "openapi-from-source",
-		WorkflowVersion: "1", State: runstore.RunFailed,
+		RunID: "run-escalation", OwnerID: "user-1", WorkflowName: "openapi-from-workspace",
+		WorkflowVersion: "3", State: runstore.RunFailed,
 	}
 	fixture.runs.executions["run-escalation"] = []runstore.StageExecution{
 		{

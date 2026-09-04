@@ -36,7 +36,7 @@ need no semantic migration merely because their public field is renamed.
 
 ```json
 {
-  "workflow": "openapi-from-source@1",
+  "workflow": "openapi-from-workspace@3",
   "runtimeLabels": ["debug"],
   "labels": {
     "purpose": "eval",

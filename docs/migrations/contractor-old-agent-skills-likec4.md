@@ -51,19 +51,16 @@ Every file below is accounted for exactly once.
   and finish conditions. Detailed DSL examples and troubleshooting move to
   optional Skill disclosure.
 
-## Additive configuration versions
+## Current configuration after catalog consolidation
 
-Existing `likec4_builder@1`, `likec4_validator@1`, their instruction files, and
-all prior Workflow manifests remain byte-for-byte fixtures. The following
-selectors are additive:
+The migration was initially introduced through additive versions. Once durable
+Runs stored complete resolved snapshots, those rollout-only predecessors no
+longer served a runtime compatibility purpose and were deleted rather than
+archived. Deleted identities are never reused.
 
-| New selector | Compatibility predecessor | Change |
-| --- | --- | --- |
-| `likec4_builder@2` | `likec4_builder@1` | v2 always-on instructions plus `skills/likec4` |
-| `likec4_validator@2` | `likec4_validator@1` | v2 always-on instructions plus `skills/likec4` |
-| `likec4-from-source@3` | `likec4-from-source@2` | build/validate use the @2 templates |
-| `likec4-from-source-streamline@2` | `likec4-from-source-streamline@1` | build/validate use the @2 templates |
-| `likec4-from-analysis@2` | `likec4-from-analysis@1` | build/validate use the @2 templates |
-
-The dependency- and project-analysis Stages continue to use
-`source_analyst@1`; no unrelated AgentTemplate receives the LikeC4 Skill.
+The current archive-backed entry is `likec4-from-analysis@2`, using
+`likec4_builder@2` and `likec4_validator@2`. The current source-to-document
+entries are `likec4-from-workspace@3` and
+`likec4-from-workspace-streamline@1`; their workspace-specific builder and
+validator templates also select `skills/likec4`. Dependency/project discovery
+uses `workspace_source_graph_analyst@1` and remains unskilled.

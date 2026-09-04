@@ -20,7 +20,7 @@ func TestPrecomputedAnalysisRunInputsAreExplicitAndStrict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, workflowRef := range []string{"openapi-from-analysis@1", "likec4-from-analysis@1"} {
+	for _, workflowRef := range []string{"openapi-from-analysis@1", "likec4-from-analysis@2"} {
 		t.Run(workflowRef, func(t *testing.T) {
 			workflow, workflowErr := snapshot.Workflow(workflowRef)
 			if workflowErr != nil {
