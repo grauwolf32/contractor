@@ -11,7 +11,7 @@ require (
 	github.com/ucarion/jcs v0.1.2
 	go.opentelemetry.io/proto/otlp v1.10.0
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
-	golang.org/x/crypto v0.51.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/sys v0.45.0
 	golang.org/x/term v0.43.0
 	golang.org/x/text v0.39.0
