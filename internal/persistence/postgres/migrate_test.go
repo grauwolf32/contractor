@@ -159,6 +159,36 @@ func TestWorkflowRunMetadataLabelMigrationIsBoundedIndexedAndImmutable(t *testin
 	}
 }
 
+func TestProjectMigrationKeepsIdentityImmutableAndOwnerIndexed(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var projects migration
+	for _, item := range items {
+		if item.name == "000025_projects.sql" {
+			projects = item
+			break
+		}
+	}
+	if projects.name == "" {
+		t.Fatal("Project migration is not embedded")
+	}
+	contents := string(projects.contents)
+	for _, required := range []string{
+		"kind IN ('project', 'evaluation')",
+		"UNIQUE (owner_id, request_idempotency_key)",
+		"projects_owner_kind_created_idx",
+		"contractor_protect_project",
+		"NEW.revision <> OLD.revision + 1",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Project migration does not contain %q", required)
+		}
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

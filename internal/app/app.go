@@ -34,6 +34,7 @@ import (
 	plannerrouter "github.com/grauwolf32/contractor/internal/planner/router"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/scheduler"
@@ -445,6 +446,7 @@ func RunCLI(
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
 		RuntimeAgentPrincipals: principalOperations,
+		Projects:               projectstore.NewPostgresStore(pool),
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
 		Operations:             registry, OperationsInvalidator: registry, Events: eventHub,

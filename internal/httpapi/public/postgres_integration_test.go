@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
@@ -66,6 +67,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
 		RuntimeAgentPrincipals: runtimePrincipals,
+		Projects:               projectstore.NewPostgresStore(pool),
 		Runs:                   runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,

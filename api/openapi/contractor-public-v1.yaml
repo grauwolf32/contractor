@@ -29,6 +29,7 @@ security:
 tags:
   - {name: Auth, description: Local browser-session lifecycle}
   - {name: Workflows, description: Published Workflow contracts}
+  - {name: Projects, description: Owner-scoped reusable artifact workspaces}
   - {name: Runs, description: User-owned Workflow executions}
   - {name: Artifacts, description: User and Run artifact views}
   - {name: Configuration, description: Immutable published configuration}
@@ -131,6 +132,115 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects:
+    post:
+      operationId: createProject
+      tags: [Projects]
+      summary: Create an idempotent owner-scoped Project
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateProjectRequest'}
+            example: {kind: project, name: Payment service, description: Reusable service analysis}
+      responses:
+        '201':
+          description: Project created or exact idempotency replay
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    get:
+      operationId: listProjects
+      tags: [Projects]
+      summary: List Projects owned by the authenticated principal
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: kind
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/ProjectKind'}
+      responses:
+        '200':
+          description: Stable newest-first Project page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProjectPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      operationId: getProject
+      tags: [Projects]
+      summary: Get one owned Project
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Current Project metadata
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    patch:
+      operationId: updateProject
+      tags: [Projects]
+      summary: CAS-update Project display metadata
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateProjectRequest'}
+      responses:
+        '200':
+          description: Updated Project metadata
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/runs:
@@ -1294,6 +1404,11 @@ components:
       in: path
       required: true
       schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceId'}
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1529,6 +1644,9 @@ components:
       minLength: 1
       maxLength: 256
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]*$'
+    ProjectKind:
+      type: string
+      enum: [project, evaluation]
     AuditActor:
       type: string
       minLength: 1
@@ -1553,6 +1671,40 @@ components:
         minLength: 1
         maxLength: 256
         description: Opaque non-NUL UTF-8 value bounded by the Server to 256 encoded bytes.
+    CreateProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, name]
+      properties:
+        kind: {$ref: '#/components/schemas/ProjectKind'}
+        name: {type: string, minLength: 1, maxLength: 160}
+        description: {type: string, maxLength: 4096}
+    UpdateProjectRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+        description: {type: string, maxLength: 4096}
+    Project:
+      type: object
+      additionalProperties: false
+      required: [projectId, kind, name, description, revision, createdAt, updatedAt]
+      properties:
+        projectId: {$ref: '#/components/schemas/ResourceId'}
+        kind: {$ref: '#/components/schemas/ProjectKind'}
+        name: {type: string, minLength: 1, maxLength: 160}
+        description: {type: string, maxLength: 4096}
+        revision: {type: string, pattern: '^[1-9][0-9]{0,18}$'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ProjectPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/Project'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
     RuntimeInfrastructureId:
       type: string
       minLength: 1

@@ -17,7 +17,7 @@ import (
 const maximumLoginBodyBytes int64 = 2048
 
 var (
-	corsMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete}
+	corsMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
 	corsHeaders = []string{
 		"Authorization", "Content-Type", "Idempotency-Key", "If-Match", "If-None-Match", "X-CSRF-Token",
 	}

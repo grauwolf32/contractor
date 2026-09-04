@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,9 +15,125 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
+
+type fakeProjectClaim struct {
+	projectID string
+	digest    string
+}
+
+type fakeProjectStore struct {
+	mu       sync.Mutex
+	projects map[string]projectstore.Project
+	claims   map[string]fakeProjectClaim
+	nextTime int64
+}
+
+func newFakeProjectStore() *fakeProjectStore {
+	return &fakeProjectStore{
+		projects: make(map[string]projectstore.Project),
+		claims:   make(map[string]fakeProjectClaim),
+		nextTime: time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC).UnixNano(),
+	}
+}
+
+func (f *fakeProjectStore) Create(
+	_ context.Context, params projectstore.CreateParams,
+) (projectstore.Project, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	claimKey := params.OwnerID + "\x00" + params.IdempotencyKey
+	if claim, exists := f.claims[claimKey]; exists {
+		if claim.digest != params.RequestDigest {
+			return projectstore.Project{}, false, projectstore.ErrConflict
+		}
+		return f.projects[claim.projectID], false, nil
+	}
+	if !params.Kind.Valid() || strings.TrimSpace(params.Name) == "" ||
+		len(params.Name) > projectstore.MaxNameBytes || len(params.Description) > projectstore.MaxDescriptionBytes {
+		return projectstore.Project{}, false, projectstore.ErrInvalid
+	}
+	if _, exists := f.projects[params.ProjectID]; exists {
+		return projectstore.Project{}, false, projectstore.ErrConflict
+	}
+	now := time.Unix(0, f.nextTime).UTC()
+	f.nextTime++
+	project := projectstore.Project{
+		ProjectID: params.ProjectID, OwnerID: params.OwnerID, Kind: params.Kind,
+		Name: params.Name, Description: params.Description, Revision: 1,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	f.projects[params.ProjectID] = project
+	f.claims[claimKey] = fakeProjectClaim{projectID: params.ProjectID, digest: params.RequestDigest}
+	return project, true, nil
+}
+
+func (f *fakeProjectStore) Get(
+	_ context.Context, ownerID, projectID string,
+) (projectstore.Project, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	project, exists := f.projects[projectID]
+	if !exists || project.OwnerID != ownerID {
+		return projectstore.Project{}, projectstore.ErrNotFound
+	}
+	return project, nil
+}
+
+func (f *fakeProjectStore) List(
+	_ context.Context, params projectstore.ListParams,
+) ([]projectstore.Project, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	projects := make([]projectstore.Project, 0)
+	for _, project := range f.projects {
+		if project.OwnerID != params.OwnerID || params.Kind != nil && project.Kind != *params.Kind {
+			continue
+		}
+		if params.BeforeCreatedAt != nil && !project.CreatedAt.Before(*params.BeforeCreatedAt) &&
+			!(project.CreatedAt.Equal(*params.BeforeCreatedAt) && project.ProjectID < params.BeforeProjectID) {
+			continue
+		}
+		projects = append(projects, project)
+	}
+	sort.Slice(projects, func(i, j int) bool {
+		if projects[i].CreatedAt.Equal(projects[j].CreatedAt) {
+			return projects[i].ProjectID > projects[j].ProjectID
+		}
+		return projects[i].CreatedAt.After(projects[j].CreatedAt)
+	})
+	if len(projects) > params.Limit {
+		projects = projects[:params.Limit]
+	}
+	return projects, nil
+}
+
+func (f *fakeProjectStore) Update(
+	_ context.Context, params projectstore.UpdateParams,
+) (projectstore.Project, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	project, exists := f.projects[params.ProjectID]
+	if !exists || project.OwnerID != params.OwnerID {
+		return projectstore.Project{}, projectstore.ErrNotFound
+	}
+	if project.Revision != params.ExpectedRevision {
+		return projectstore.Project{}, projectstore.ErrPrecondition
+	}
+	if strings.TrimSpace(params.Name) == "" || len(params.Name) > projectstore.MaxNameBytes ||
+		len(params.Description) > projectstore.MaxDescriptionBytes {
+		return projectstore.Project{}, projectstore.ErrInvalid
+	}
+	project.Name, project.Description = params.Name, params.Description
+	project.Revision++
+	project.UpdatedAt = time.Unix(0, f.nextTime).UTC()
+	f.nextTime++
+	f.projects[project.ProjectID] = project
+	return project, nil
+}
 
 type fakeOperationsReader struct {
 	mu          sync.Mutex

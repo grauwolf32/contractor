@@ -31,6 +31,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
 		dependencies.RuntimeConfigs == nil || dependencies.RuntimeCredentials == nil ||
 		dependencies.RuntimeAgentPrincipals == nil ||
+		dependencies.Projects == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
 		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
@@ -73,6 +74,10 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/events/ws", current.connectEventsWebSocket)
 	mux.HandleFunc("GET /v1/workflows", current.listWorkflows)
 	mux.HandleFunc("GET /v1/workflows/{name}/versions/{version}", current.getWorkflow)
+	mux.HandleFunc("POST /v1/projects", current.createProject)
+	mux.HandleFunc("GET /v1/projects", current.listProjects)
+	mux.HandleFunc("GET /v1/projects/{projectId}", current.getProject)
+	mux.HandleFunc("PATCH /v1/projects/{projectId}", current.updateProject)
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
 	mux.HandleFunc("POST /v1/configurations/{kind}", current.publishConfiguration)
 	mux.HandleFunc("GET /v1/configurations/{kind}/{name}/versions/{version}", current.getConfiguration)
@@ -147,6 +152,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/events/ws", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows/{name}/versions/{version}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/workflows", current.methodNotAllowed)
+	mux.HandleFunc("/v1/projects/{projectId}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/projects", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
 	return withAPIVersion(current.withRequestID(current.cors(current.authenticate(mux), mux))), nil

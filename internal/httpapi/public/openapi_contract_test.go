@@ -102,6 +102,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/operations/runtime-labels",
 		"GET /v1/operations/runtime-labels/{label}",
 		"GET /v1/operations/snapshot",
+		"GET /v1/projects",
+		"GET /v1/projects/{projectId}",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -112,12 +114,14 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/runs/{runId}/outputs/{slot}",
 		"GET /v1/workflows",
 		"GET /v1/workflows/{name}/versions/{version}",
+		"PATCH /v1/projects/{projectId}",
 		"POST /v1/auth/login",
 		"POST /v1/auth/logout",
 		"POST /v1/configurations/{kind}",
 		"POST /v1/operations/credentials",
 		"POST /v1/operations/runtime-configs",
 		"POST /v1/operations/runtime-credentials",
+		"POST /v1/projects",
 		"POST /v1/runs",
 		"POST /v1/runs/{runId}/cancel",
 		"PUT /v1/artifacts/{namespace}/{name}",
@@ -315,6 +319,33 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	getWorkflow := newPublicContractRequest(http.MethodGet, "/v1/workflows/artifact-copy/versions/1", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, getWorkflow, true); response.Code != http.StatusOK {
 		t.Fatalf("get Workflow = %d: %s", response.Code, response.Body.String())
+	}
+	createProject := newPublicContractRequest(
+		http.MethodPost, "/v1/projects",
+		[]byte(`{"kind":"project","name":"Contract project","description":"Contract fixture"}`),
+	)
+	createProject.Header.Set("Content-Type", "application/json")
+	createProject.Header.Set("Idempotency-Key", "contract-create-project")
+	createdProject := serveAndValidatePublicContract(t, router, fixture.handler, createProject, true)
+	if createdProject.Code != http.StatusCreated {
+		t.Fatalf("create Project = %d: %s", createdProject.Code, createdProject.Body.String())
+	}
+	for name, path := range map[string]string{
+		"list Projects": "/v1/projects?kind=project&limit=1",
+		"get Project":   "/v1/projects/project_fixed",
+	} {
+		request := newPublicContractRequest(http.MethodGet, path, nil)
+		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
+			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
+		}
+	}
+	updateProject := newPublicContractRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", []byte(`{"description":"Updated fixture"}`),
+	)
+	updateProject.Header.Set("Content-Type", "application/json")
+	updateProject.Header.Set("If-Match", createdProject.Header().Get("ETag"))
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, updateProject, true); response.Code != http.StatusOK {
+		t.Fatalf("update Project = %d: %s", response.Code, response.Body.String())
 	}
 	listConfigurations := newPublicContractRequest(http.MethodGet, "/v1/configurations/model-policies?limit=1", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, listConfigurations, true); response.Code != http.StatusOK {

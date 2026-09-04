@@ -53,11 +53,89 @@ type handlerFixture struct {
 	runtimeConfigs     *fakeRuntimeConfigManagement
 	runtimeCredentials *fakeRuntimeCredentialManagement
 	runtimePrincipals  *fakeRuntimeAgentPrincipalManagement
+	projects           *fakeProjectStore
 	operations         *fakeOperationsReader
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
 	return newHandlerFixtureWithConfig(t, "../../config/testdata/valid")
+}
+
+func TestProjectCreateReplayListGetAndCASUpdate(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	createBody := []byte(`{"kind":"project","name":"Payment service","description":"Initial"}`)
+	create := authenticatedRequest(http.MethodPost, "/v1/projects", bytes.NewReader(createBody))
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("Idempotency-Key", "create-payment-project")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated || created.Header().Get("ETag") != `"1"` {
+		t.Fatalf("create Project = %d headers=%v body=%s", created.Code, created.Header(), created.Body.String())
+	}
+	var resource projectResponse
+	if err := json.Unmarshal(created.Body.Bytes(), &resource); err != nil ||
+		resource.ProjectID != "project_fixed" || resource.Kind != "project" || resource.Revision != "1" {
+		t.Fatalf("created Project = (%+v, %v)", resource, err)
+	}
+
+	replay := authenticatedRequest(http.MethodPost, "/v1/projects", bytes.NewReader(createBody))
+	replay.Header.Set("Content-Type", "application/json")
+	replay.Header.Set("Idempotency-Key", "create-payment-project")
+	replayed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(replayed, replay)
+	if replayed.Code != http.StatusCreated || replayed.Header().Get("Idempotency-Replayed") != "true" ||
+		replayed.Body.String() != created.Body.String() {
+		t.Fatalf("replay Project = %d headers=%v body=%s", replayed.Code, replayed.Header(), replayed.Body.String())
+	}
+
+	changed := authenticatedRequest(
+		http.MethodPost, "/v1/projects", bytes.NewReader([]byte(`{"kind":"evaluation","name":"Payment service"}`)),
+	)
+	changed.Header.Set("Content-Type", "application/json")
+	changed.Header.Set("Idempotency-Key", "create-payment-project")
+	changedResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(changedResponse, changed)
+	if changedResponse.Code != http.StatusConflict {
+		t.Fatalf("changed Project replay = %d %s", changedResponse.Code, changedResponse.Body.String())
+	}
+
+	update := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"description":"Current"}`)),
+	)
+	update.Header.Set("Content-Type", "application/json")
+	update.Header.Set("If-Match", `"1"`)
+	updated := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updated, update)
+	if updated.Code != http.StatusOK || updated.Header().Get("ETag") != `"2"` {
+		t.Fatalf("update Project = %d headers=%v body=%s", updated.Code, updated.Header(), updated.Body.String())
+	}
+
+	stale := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"name":"Stale"}`)),
+	)
+	stale.Header.Set("Content-Type", "application/json")
+	stale.Header.Set("If-Match", `"1"`)
+	staleResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(staleResponse, stale)
+	if staleResponse.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale Project update = %d %s", staleResponse.Code, staleResponse.Body.String())
+	}
+
+	list := authenticatedRequest(http.MethodGet, "/v1/projects?kind=project", bytes.NewReader(nil))
+	listed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listed, list)
+	var page projectPageResponse
+	if listed.Code != http.StatusOK || json.Unmarshal(listed.Body.Bytes(), &page) != nil ||
+		len(page.Items) != 1 || page.Items[0].Description != "Current" {
+		t.Fatalf("list Projects = %d %s", listed.Code, listed.Body.String())
+	}
+
+	get := authenticatedRequest(http.MethodGet, "/v1/projects/project_fixed", bytes.NewReader(nil))
+	got := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(got, get)
+	if got.Code != http.StatusOK || got.Header().Get("ETag") != `"2"` {
+		t.Fatalf("get Project = %d headers=%v body=%s", got.Code, got.Header(), got.Body.String())
+	}
 }
 
 func newHandlerFixtureWithConfig(t *testing.T, configRoot string) handlerFixture {
@@ -111,6 +189,7 @@ func newHandlerFixtureWithAuth(
 	))
 	runtimeCredentials := newFakeRuntimeCredentialManagement()
 	runtimePrincipals := newFakeRuntimeAgentPrincipalManagement()
+	projects := newFakeProjectStore()
 	operations := newFakeOperationsReader()
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
@@ -127,6 +206,7 @@ func newHandlerFixtureWithAuth(
 		Credentials: managedCredentials, ManagedCredentials: managedCredentials,
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
 		RuntimeAgentPrincipals: runtimePrincipals,
+		Projects:               projects,
 		Runs:                   runs, Artifacts: service, Transactions: unit,
 		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
 		Metrics:      metrics,
@@ -150,6 +230,7 @@ func newHandlerFixtureWithAuth(
 		credentials:    managedCredentials,
 		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
 		runtimePrincipals: runtimePrincipals,
+		projects:          projects,
 		operations:        operations,
 	}
 }

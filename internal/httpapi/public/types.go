@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -145,6 +146,13 @@ type RuntimeAgentPrincipalManagement interface {
 	Delete(context.Context, string, uint64, string, string, time.Time) (bool, error)
 }
 
+type ProjectManagement interface {
+	Create(context.Context, projectstore.CreateParams) (projectstore.Project, bool, error)
+	Get(context.Context, string, string) (projectstore.Project, error)
+	List(context.Context, projectstore.ListParams) ([]projectstore.Project, error)
+	Update(context.Context, projectstore.UpdateParams) (projectstore.Project, error)
+}
+
 type Dependencies struct {
 	Authentication         *auth.Service
 	BrowserOrigins         auth.OriginPolicy
@@ -156,6 +164,7 @@ type Dependencies struct {
 	RuntimeConfigs         RuntimeConfigManagement
 	RuntimeCredentials     RuntimeCredentialManagement
 	RuntimeAgentPrincipals RuntimeAgentPrincipalManagement
+	Projects               ProjectManagement
 	Runs                   RunReader
 	PlannerPlans           PlannerPlanReader
 	Metrics                MetricsReader
@@ -249,6 +258,81 @@ type createRunResponse struct {
 	RuntimeLabels        []string                   `json:"runtimeLabels"`
 	Labels               runstore.RunMetadataLabels `json:"labels"`
 	RuntimeConfiguration runRuntimeConfigResponse   `json:"runtimeConfiguration"`
+}
+
+type createProjectRequest struct {
+	Kind        projectstore.Kind `json:"kind"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+}
+
+func (r *createProjectRequest) UnmarshalJSON(data []byte) error {
+	type wire createProjectRequest
+	var decoded wire
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for _, required := range []string{"kind", "name"} {
+		value, present := fields[required]
+		if !present || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return fmt.Errorf("%s is required", required)
+		}
+	}
+	if value, present := fields["description"]; present && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		return errors.New("description cannot be null")
+	}
+	*r = createProjectRequest(decoded)
+	return nil
+}
+
+type updateProjectRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
+	type wire updateProjectRequest
+	var decoded wire
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	if len(fields) == 0 {
+		return errors.New("at least one Project field is required")
+	}
+	for name, value := range fields {
+		if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+			return fmt.Errorf("%s cannot be null", name)
+		}
+	}
+	*r = updateProjectRequest(decoded)
+	return nil
+}
+
+type projectResponse struct {
+	ProjectID   string            `json:"projectId"`
+	Kind        projectstore.Kind `json:"kind"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Revision    string            `json:"revision"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
+}
+
+type projectPageResponse struct {
+	Items []projectResponse `json:"items"`
+	Page  pageInfoResponse  `json:"page"`
 }
 
 type cancelRunRequest struct {
