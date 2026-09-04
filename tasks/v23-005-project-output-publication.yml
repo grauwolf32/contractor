@@ -3,8 +3,8 @@ id: V23-005
 title: Publish successful Project Run outputs with create-only semantics
 milestone: project-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 0c88a0f9594e9ad1588efa1f75e9b7dedc1747df
 depends_on: [V23-003, V23-004]
 languages: [go, sql, yaml]
 
