@@ -3,8 +3,8 @@ id: V22-002
 title: Publish the workspace-backed LikeC4 Streamline workflow
 milestone: workflow-catalog-consolidation
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: ad228239a09b2d68ccead31315916609f3a38803
 depends_on: [V22-001, V15-007, V10-006]
 languages: [yaml, go, markdown]
 
@@ -53,4 +53,3 @@ tests:
   - {name: config, command: "go test ./internal/config", covers: [A1, A2]}
   - {name: config-gate, command: "make test-config", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2]}
-
