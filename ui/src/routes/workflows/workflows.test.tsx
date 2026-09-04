@@ -252,17 +252,15 @@ function renderWorkflowApplication(api: PublicAPI, path: string) {
 
 describe("Workflow routes", () => {
   it("isolates infinite Run inventories from finite Operations picker cache", async () => {
-    const api = new PublicAPI(
-      runtimeConfig,
-      vi.fn(async (input) => {
-        const request = input instanceof Request ? input : new Request(input);
-        const inventory = inventoryResponse(new URL(request.url).pathname);
-        if (inventory !== undefined) {
-          return inventory;
-        }
-        throw new Error(`unexpected ${request.method} ${request.url}`);
-      }),
-    );
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const request = input instanceof Request ? input : new Request(input);
+      const inventory = inventoryResponse(new URL(request.url).pathname);
+      if (inventory !== undefined) {
+        return inventory;
+      }
+      throw new Error(`unexpected ${request.method} ${request.url}`);
+    });
+    const api = new PublicAPI(runtimeConfig, fetcher);
     const queryClient = createApplicationQueryClient();
     queryClient.setQueryData(queryKeys.configurations.picker("llm-gateways"), {
       items: [],
@@ -280,8 +278,28 @@ describe("Workflow routes", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Create Workflow Run" }),
+      await screen.findByRole("heading", { name: "Start Workflow Run" }),
     ).toBeInTheDocument();
+    expect(await screen.findByText("0/2")).toBeInTheDocument();
+    await screen.findByRole("option", { name: /projects\/source@revision-7/ });
+    expect(
+      fetcher.mock.calls.map(
+        ([input]) =>
+          new URL(input instanceof Request ? input.url : input).pathname,
+      ),
+    ).toEqual(["/v1/artifacts"]);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Execution overrides", { exact: true }));
+    expect(
+      await screen.findAllByRole("option", { name: /worker-strong@2/ }),
+    ).toHaveLength(2);
+    expect(
+      fetcher.mock.calls.map(
+        ([input]) =>
+          new URL(input instanceof Request ? input.url : input).pathname,
+      ),
+    ).not.toContain("/v1/operations/runtime-labels");
   });
 
   it("paginates exact published Workflow versions", async () => {
@@ -409,11 +427,13 @@ describe("Workflow routes", () => {
     ).not.toBeInTheDocument();
 
     const user = userEvent.setup();
+    await user.click(screen.getByText("Runtime placement", { exact: true }));
     expect(
       await screen.findByText("Default · always applied"),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("checkbox", { name: /debug/ }));
     await user.click(screen.getByRole("checkbox", { name: /caido/ }));
+    await user.click(screen.getByText("Run metadata", { exact: true }));
     await user.click(
       screen.getByRole("button", { name: "Add eval metadata preset" }),
     );
@@ -437,9 +457,7 @@ describe("Workflow routes", () => {
       screen.getByLabelText(/^source/i),
       "projects/source@revision-7",
     );
-    await user.click(
-      screen.getByText("Optional published execution overrides"),
-    );
+    await user.click(screen.getByText("Execution overrides", { exact: true }));
     const workerOverrides = screen.getByRole("group", { name: "Workers" });
     await user.selectOptions(
       within(workerOverrides).getByLabelText("Model policy"),
@@ -551,9 +569,7 @@ describe("Workflow routes", () => {
       screen.getByText("Required Artifact input is missing."),
     ).toBeInTheDocument();
     expect(postCount).toBe(0);
-    await user.click(
-      screen.getByText("Optional published execution overrides"),
-    );
+    await user.click(screen.getByText("Execution overrides", { exact: true }));
     expect(
       await screen.findByText("No ModelPolicy versions published."),
     ).toBeInTheDocument();
@@ -612,6 +628,7 @@ describe("Workflow routes", () => {
     const user = userEvent.setup();
     const objective = await screen.findByLabelText(/^objective/i);
     await user.type(objective, "Initial objective");
+    await user.click(screen.getByText("Run metadata", { exact: true }));
     await user.click(
       screen.getByRole("button", { name: "Add metadata label" }),
     );
@@ -687,6 +704,7 @@ describe("Workflow routes", () => {
       screen.getByLabelText(/^source/i),
       "projects/source@revision-7",
     );
+    await user.click(screen.getByText("Run metadata", { exact: true }));
     await user.click(
       screen.getByRole("button", { name: "Add metadata label" }),
     );

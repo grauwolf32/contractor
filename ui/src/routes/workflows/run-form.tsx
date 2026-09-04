@@ -73,6 +73,32 @@ function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
   );
 }
 
+function DraftDisclosureSummary({
+  title,
+  description,
+  status,
+  active = false,
+}: {
+  title: string;
+  description: string;
+  status: string;
+  active?: boolean;
+}) {
+  return (
+    <>
+      <span className="run-draft-disclosure-title">
+        <strong>{title}</strong>
+        <small>{description}</small>
+      </span>
+      <span
+        className={`run-draft-disclosure-status ${active ? "is-active" : ""}`}
+      >
+        {status}
+      </span>
+    </>
+  );
+}
+
 function RunMetadataLabelEditor({
   labels,
   errors,
@@ -93,8 +119,10 @@ function RunMetadataLabelEditor({
     (label) => !existingKeys.has(label.key),
   ).length;
   return (
-    <fieldset className="run-draft-section run-metadata-label-editor">
-      <legend>Run metadata labels</legend>
+    <fieldset
+      className="run-draft-section run-metadata-label-editor"
+      aria-label="Run metadata labels"
+    >
       <p className="muted-copy">
         Immutable searchable metadata for this Run and its root traces. Labels
         do not select Runtime infrastructure and are never shown to Planner or
@@ -336,6 +364,9 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
+  const [runtimeOptionsOpen, setRuntimeOptionsOpen] = useState(false);
+  const [metadataOptionsOpen, setMetadataOptionsOpen] = useState(false);
+  const [executionOptionsOpen, setExecutionOptionsOpen] = useState(false);
 
   const artifactInventory = useInfiniteQuery({
     queryKey: queryKeys.artifacts.picker,
@@ -354,6 +385,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
         pageParam === null ? {} : { cursor: pageParam },
       ),
     getNextPageParam: nextCursor,
+    enabled: executionOptionsOpen,
   });
   const gatewayInventory = useInfiniteQuery({
     queryKey: queryKeys.configurations.infinitePicker("llm-gateways"),
@@ -365,6 +397,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
         pageParam === null ? {} : { cursor: pageParam },
       ),
     getNextPageParam: nextCursor,
+    enabled: executionOptionsOpen,
   });
   const credentialInventory = useInfiniteQuery({
     queryKey: queryKeys.credentials.picker,
@@ -372,6 +405,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     queryFn: ({ pageParam }) =>
       listCredentials(api, pageParam === null ? {} : { cursor: pageParam }),
     getNextPageParam: nextCursor,
+    enabled: executionOptionsOpen,
   });
   const runtimeLabelInventory = useInfiniteQuery({
     queryKey: queryKeys.operations.runtimeLabels.picker,
@@ -379,6 +413,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     queryFn: ({ pageParam }) =>
       listRuntimeLabels(api, pageParam === null ? {} : { cursor: pageParam }),
     getNextPageParam: nextCursor,
+    enabled: runtimeOptionsOpen,
   });
 
   const artifacts = useMemo(
@@ -554,6 +589,17 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     );
     setValidationErrors(validation.errors);
     if (validation.request === undefined) {
+      const errorKeys = Object.keys(validation.errors);
+      if (errorKeys.includes("runtimeLabels")) {
+        setRuntimeOptionsOpen(true);
+      }
+      if (
+        errorKeys.some(
+          (key) => key === "metadataLabels" || key.startsWith("metadataLabel:"),
+        )
+      ) {
+        setMetadataOptionsOpen(true);
+      }
       return;
     }
     mutation.mutate({
@@ -574,93 +620,72 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     modelPolicyInventory.error,
     gatewayInventory.error,
     credentialInventory.error,
-    runtimeLabelInventory.error,
   ].filter((error) => error !== null);
+  const requiredParameterNames = Object.entries(workflow.parameters)
+    .filter(([, slot]) => slot.required)
+    .map(([name]) => name);
+  const requiredArtifactNames = Object.entries(workflow.inputs)
+    .filter(([, slot]) => slot.required)
+    .map(([name]) => name);
+  const requiredFieldCount =
+    requiredParameterNames.length + requiredArtifactNames.length;
+  const completedRequiredFieldCount =
+    requiredParameterNames.filter((name) => parameters[name] !== undefined)
+      .length +
+    requiredArtifactNames.filter(
+      (name) => (artifactSelections[name] ?? "") !== "",
+    ).length;
+  const remainingRequiredFieldCount = Math.max(
+    0,
+    requiredFieldCount - completedRequiredFieldCount,
+  );
+  const draftReady =
+    currentValidation.request !== undefined && !artifactInventory.isPending;
+  const overrideCount = Object.values(overrides).reduce(
+    (count, selection) =>
+      count + Object.values(selection).filter((value) => value !== "").length,
+    0,
+  );
+  const readinessValue = draftReady
+    ? "Ready"
+    : requiredFieldCount === 0
+      ? "Defaults"
+      : `${completedRequiredFieldCount}/${requiredFieldCount}`;
+  const readinessCopy = draftReady
+    ? "All required fields are complete"
+    : artifactInventory.isPending && requiredArtifactNames.length > 0
+      ? "Loading Artifact choices…"
+      : remainingRequiredFieldCount > 0
+        ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
+        : "Review highlighted settings";
 
   return (
-    <form className="run-draft" onSubmit={submit} noValidate>
-      <div className="section-heading">
+    <form
+      className="run-draft"
+      id="workflow-run-form"
+      onSubmit={submit}
+      noValidate
+    >
+      <div className="section-heading run-draft-heading">
         <div>
-          <p className="eyebrow">Immutable request draft</p>
-          <h3>Create Workflow Run</h3>
-        </div>
-        <code>
-          {workflow.ref.name}@{workflow.ref.version}
-        </code>
-      </div>
-
-      <fieldset className="run-draft-section runtime-label-picker">
-        <legend>Runtime infrastructure labels</legend>
-        <p className="muted-copy">
-          Default is always pinned and is not selectable. Explicit labels are a
-          sorted immutable set for this Run; they configure infrastructure, not
-          Workflow behavior or model budgets.
-        </p>
-        {runtimeLabelInventory.error === null ? null : (
-          <ErrorNotice error={runtimeLabelInventory.error} />
-        )}
-        <div className="runtime-default-preview">
-          <strong>Default · always applied</strong>
-          {defaultRuntimeConfig === undefined ? (
-            <span className="muted-copy">Loading exact binding…</span>
-          ) : (
-            <RuntimeLabelPreview binding={defaultRuntimeConfig} />
-          )}
-        </div>
-        {runtimeLabels.length === 0 && !runtimeLabelInventory.isPending ? (
-          <p className="compact-empty">No explicit Runtime labels are bound.</p>
-        ) : (
-          <div className="runtime-label-options">
-            {runtimeLabels.map((binding) => (
-              <label className="runtime-label-option" key={binding.label}>
-                <input
-                  type="checkbox"
-                  checked={selectedRuntimeLabels.includes(binding.label)}
-                  onChange={(event) => {
-                    setSelectedRuntimeLabels((current) =>
-                      (event.target.checked
-                        ? [...current, binding.label]
-                        : current.filter((label) => label !== binding.label)
-                      ).sort(),
-                    );
-                    clearError("runtimeLabels");
-                  }}
-                />
-                <span>
-                  <strong>{binding.label}</strong>
-                  <RuntimeLabelPreview binding={binding} />
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-        {validationErrors.runtimeLabels === undefined ? null : (
-          <p className="field-error" role="alert">
-            {validationErrors.runtimeLabels}
+          <p className="eyebrow">Run setup</p>
+          <h3>Start Workflow Run</h3>
+          <p className="run-draft-intro">
+            Complete the declared inputs. Optional settings keep the published
+            Workflow defaults until you change them.
           </p>
-        )}
-        {runtimeLabelInventory.hasNextPage ? (
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={runtimeLabelInventory.isFetchingNextPage}
-            onClick={() => void runtimeLabelInventory.fetchNextPage()}
-          >
-            {runtimeLabelInventory.isFetchingNextPage
-              ? "Loading Runtime labels…"
-              : "Load more Runtime labels"}
-          </button>
-        ) : null}
-      </fieldset>
-
-      <RunMetadataLabelEditor
-        labels={metadataLabels}
-        errors={validationErrors}
-        onAdd={addMetadataLabel}
-        onAddEvalPreset={addEvalMetadataPreset}
-        onChange={updateMetadataLabel}
-        onRemove={removeMetadataLabel}
-      />
+          <code className="run-draft-workflow">
+            {workflow.ref.name}@{workflow.ref.version}
+          </code>
+        </div>
+        <span
+          className={`run-draft-readiness ${draftReady ? "is-ready" : ""}`}
+          aria-live="polite"
+        >
+          <strong>{readinessValue}</strong>
+          <small>{readinessCopy}</small>
+        </span>
+      </div>
 
       <fieldset className="run-draft-section">
         <legend>String parameters</legend>
@@ -836,77 +861,230 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
         ) : null}
       </fieldset>
 
-      <details className="run-draft-section override-panel">
-        <summary>Optional published execution overrides</summary>
-        <p className="muted-copy">
-          Empty fields retain the Workflow's resolved defaults. Values below are
-          exact published refs or active credential IDs; this form accepts no
-          free-form model, Gateway URL, budget, provider, or token.
-        </p>
-        {inventoryErrors.map((error, index) => (
-          <ErrorNotice key={index} error={error} />
-        ))}
-        {!modelPolicyInventory.isPending && modelPolicies.length === 0 ? (
-          <p className="inventory-empty">No ModelPolicy versions published.</p>
-        ) : null}
-        {!gatewayInventory.isPending && gateways.length === 0 ? (
-          <p className="inventory-empty">
-            No LLMGatewayConfig versions published.
-          </p>
-        ) : null}
-        {!credentialInventory.isPending && credentials.length === 0 ? (
-          <p className="inventory-empty">No active credentials available.</p>
-        ) : null}
-        <div className="override-grid">
-          <ConsumerOverrides
-            role="Planner"
-            value={overrides.planner}
-            modelPolicies={modelPolicies}
-            gateways={gateways}
-            credentials={credentials}
-            disabled={!plannerSupported}
-            onChange={(field, value) => updateOverride("planner", field, value)}
-          />
-          <ConsumerOverrides
-            role="Workers"
-            value={overrides.workers}
-            modelPolicies={modelPolicies}
-            gateways={gateways}
-            credentials={credentials}
-            onChange={(field, value) => updateOverride("workers", field, value)}
-          />
+      <div className="run-draft-advanced-heading">
+        <div>
+          <p className="eyebrow">Optional setup</p>
+          <h4>Advanced settings</h4>
         </div>
-        <div className="load-more-row">
-          {modelPolicyInventory.hasNextPage ? (
+        <p>
+          Keep these collapsed to use the published Workflow and Runtime
+          defaults.
+        </p>
+      </div>
+
+      <details
+        className="run-draft-disclosure"
+        open={runtimeOptionsOpen}
+        onToggle={(event) => setRuntimeOptionsOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <DraftDisclosureSummary
+            title="Runtime placement"
+            description="Published default is always applied"
+            status={
+              runtimeLabelInventory.error !== null
+                ? "Unavailable"
+                : runtimeOptionsOpen && runtimeLabelInventory.isPending
+                  ? "Loading…"
+                  : selectedRuntimeLabels.length === 0
+                    ? "Default only"
+                    : `${selectedRuntimeLabels.length} selected`
+            }
+            active={selectedRuntimeLabels.length > 0}
+          />
+        </summary>
+        <fieldset
+          className="run-draft-section runtime-label-picker"
+          aria-label="Runtime infrastructure labels"
+        >
+          <p className="muted-copy">
+            Default is always pinned and is not selectable. Explicit labels are
+            a sorted immutable set for this Run; they configure infrastructure,
+            not Workflow behavior or model budgets.
+          </p>
+          {runtimeLabelInventory.error === null ? null : (
+            <ErrorNotice error={runtimeLabelInventory.error} />
+          )}
+          <div className="runtime-default-preview">
+            <strong>Default · always applied</strong>
+            {defaultRuntimeConfig === undefined ? (
+              <span className="muted-copy">Loading exact binding…</span>
+            ) : (
+              <RuntimeLabelPreview binding={defaultRuntimeConfig} />
+            )}
+          </div>
+          {runtimeLabels.length === 0 && !runtimeLabelInventory.isPending ? (
+            <p className="compact-empty">
+              No explicit Runtime labels are bound.
+            </p>
+          ) : (
+            <div className="runtime-label-options">
+              {runtimeLabels.map((binding) => (
+                <label className="runtime-label-option" key={binding.label}>
+                  <input
+                    type="checkbox"
+                    checked={selectedRuntimeLabels.includes(binding.label)}
+                    onChange={(event) => {
+                      setSelectedRuntimeLabels((current) =>
+                        (event.target.checked
+                          ? [...current, binding.label]
+                          : current.filter((label) => label !== binding.label)
+                        ).sort(),
+                      );
+                      clearError("runtimeLabels");
+                    }}
+                  />
+                  <span>
+                    <strong>{binding.label}</strong>
+                    <RuntimeLabelPreview binding={binding} />
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+          {validationErrors.runtimeLabels === undefined ? null : (
+            <p className="field-error" role="alert">
+              {validationErrors.runtimeLabels}
+            </p>
+          )}
+          {runtimeLabelInventory.hasNextPage ? (
             <button
               className="secondary-button"
               type="button"
-              disabled={modelPolicyInventory.isFetchingNextPage}
-              onClick={() => void modelPolicyInventory.fetchNextPage()}
+              disabled={runtimeLabelInventory.isFetchingNextPage}
+              onClick={() => void runtimeLabelInventory.fetchNextPage()}
             >
-              Load more ModelPolicies
+              {runtimeLabelInventory.isFetchingNextPage
+                ? "Loading Runtime labels…"
+                : "Load more Runtime labels"}
             </button>
           ) : null}
-          {gatewayInventory.hasNextPage ? (
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={gatewayInventory.isFetchingNextPage}
-              onClick={() => void gatewayInventory.fetchNextPage()}
-            >
-              Load more Gateways
-            </button>
+        </fieldset>
+      </details>
+
+      <details
+        className="run-draft-disclosure"
+        open={metadataOptionsOpen}
+        onToggle={(event) => setMetadataOptionsOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <DraftDisclosureSummary
+            title="Run metadata"
+            description="Searchable labels and eval identifiers"
+            status={
+              metadataLabels.length === 0
+                ? "No labels"
+                : `${metadataLabels.length} ${metadataLabels.length === 1 ? "label" : "labels"}`
+            }
+            active={metadataLabels.length > 0}
+          />
+        </summary>
+        <RunMetadataLabelEditor
+          labels={metadataLabels}
+          errors={validationErrors}
+          onAdd={addMetadataLabel}
+          onAddEvalPreset={addEvalMetadataPreset}
+          onChange={updateMetadataLabel}
+          onRemove={removeMetadataLabel}
+        />
+      </details>
+
+      <details
+        className="run-draft-disclosure override-panel"
+        open={executionOptionsOpen}
+        onToggle={(event) => setExecutionOptionsOpen(event.currentTarget.open)}
+      >
+        <summary>
+          <DraftDisclosureSummary
+            title="Execution overrides"
+            description="Models, Gateway and credentials"
+            status={
+              executionOptionsOpen && inventoryErrors.length > 0
+                ? "Unavailable"
+                : overrideCount === 0
+                  ? "Workflow defaults"
+                  : `${overrideCount} overridden`
+            }
+            active={overrideCount > 0}
+          />
+        </summary>
+        <div className="run-draft-disclosure-body">
+          <p className="muted-copy">
+            Empty fields retain the Workflow's resolved defaults. Values below
+            are exact published refs or active credential IDs; this form accepts
+            no free-form model, Gateway URL, budget, provider, or token.
+          </p>
+          {inventoryErrors.map((error, index) => (
+            <ErrorNotice key={index} error={error} />
+          ))}
+          {!modelPolicyInventory.isPending && modelPolicies.length === 0 ? (
+            <p className="inventory-empty">
+              No ModelPolicy versions published.
+            </p>
           ) : null}
-          {credentialInventory.hasNextPage ? (
-            <button
-              className="secondary-button"
-              type="button"
-              disabled={credentialInventory.isFetchingNextPage}
-              onClick={() => void credentialInventory.fetchNextPage()}
-            >
-              Load more credentials
-            </button>
+          {!gatewayInventory.isPending && gateways.length === 0 ? (
+            <p className="inventory-empty">
+              No LLMGatewayConfig versions published.
+            </p>
           ) : null}
+          {!credentialInventory.isPending && credentials.length === 0 ? (
+            <p className="inventory-empty">No active credentials available.</p>
+          ) : null}
+          <div className="override-grid">
+            <ConsumerOverrides
+              role="Planner"
+              value={overrides.planner}
+              modelPolicies={modelPolicies}
+              gateways={gateways}
+              credentials={credentials}
+              disabled={!plannerSupported}
+              onChange={(field, value) =>
+                updateOverride("planner", field, value)
+              }
+            />
+            <ConsumerOverrides
+              role="Workers"
+              value={overrides.workers}
+              modelPolicies={modelPolicies}
+              gateways={gateways}
+              credentials={credentials}
+              onChange={(field, value) =>
+                updateOverride("workers", field, value)
+              }
+            />
+          </div>
+          <div className="load-more-row">
+            {modelPolicyInventory.hasNextPage ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={modelPolicyInventory.isFetchingNextPage}
+                onClick={() => void modelPolicyInventory.fetchNextPage()}
+              >
+                Load more ModelPolicies
+              </button>
+            ) : null}
+            {gatewayInventory.hasNextPage ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={gatewayInventory.isFetchingNextPage}
+                onClick={() => void gatewayInventory.fetchNextPage()}
+              >
+                Load more Gateways
+              </button>
+            ) : null}
+            {credentialInventory.hasNextPage ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={credentialInventory.isFetchingNextPage}
+                onClick={() => void credentialInventory.fetchNextPage()}
+              >
+                Load more credentials
+              </button>
+            ) : null}
+          </div>
         </div>
       </details>
 
@@ -929,6 +1107,10 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
         </div>
       ) : null}
       <div className="run-submit-row">
+        <span className="run-submit-status">
+          <strong>{draftReady ? "Ready to start" : readinessCopy}</strong>
+          <small>The Run opens after the Server accepts the request.</small>
+        </span>
         <button
           type="submit"
           disabled={
@@ -945,9 +1127,6 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
                 ? "Start changed draft with a new key"
                 : "Start Workflow Run"}
         </button>
-        <small>
-          No Run is inserted optimistically; navigation waits for Server 202.
-        </small>
       </div>
     </form>
   );
