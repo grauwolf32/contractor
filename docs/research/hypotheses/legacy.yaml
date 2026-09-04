@@ -1,0 +1,3827 @@
+schema_version: contractor.research.hypothesis-catalog/v1
+catalog:
+  id: contractor-v1-legacy-research
+  source:
+    repository: contractor-old
+    revision: 9c76b56cf7b83377fb1dd5e4a17440fa27b723f3
+    path: docs/research/reports/research.html
+    sha256: 215dfe4f797174ee54492bb9d1b450bd517bad02d869d4778dba792257731461
+    memo_date: '2026-06-06'
+    last_addendum_date: '2026-07-07'
+  supplemental_sources:
+  - path: research/hypotheses/AW1.yaml
+    sha256: 8e725e89cba04f8be698061472bc210024ddeb1fb1c0632b9857f7c33eb634ec
+    applies_to: [AW1]
+  - path: research/experiments/EXP-2026-001.yaml
+    sha256: 4fdd867aadb60f701d410e996902364d700aae22f784b0ad143e4deaa539e1db
+    applies_to: [AW1]
+  imported_for: contractor-v2
+  imported_on: '2026-09-04'
+  hypothesis_count: 228
+  direction_count: 51
+  planner_variant_count: 11
+  normalization: HTML presentation removed; human-readable text and legacy component names retained.
+  status_rule: Legacy evidence is historical only; every hypothesis is proposed and unvalidated on v2.
+directions:
+- id: A
+  title: Token efficiency & cost
+  hypothesis_count: 6
+- id: B
+  title: Detection recall & precision
+  hypothesis_count: 5
+- id: C
+  title: Exploit verification & dynamic confirmation
+  hypothesis_count: 6
+- id: D
+  title: Simplification without capability loss
+  hypothesis_count: 5
+- id: E
+  title: Elevating small LLMs (the north star)
+  hypothesis_count: 5
+- id: F
+  title: Measurement rigor (so the rest is provable)
+  hypothesis_count: 4
+- id: G
+  title: Knowledge-surface breadth
+  hypothesis_count: 4
+- id: H
+  title: Automated dataflow / taint primitive
+  hypothesis_count: 4
+- id: I
+  title: Graph-tool robustness
+  hypothesis_count: 3
+- id: J
+  title: SCA / dependency-CVE correlation
+  hypothesis_count: 3
+- id: K
+  title: Triage, dedup & confidence calibration
+  hypothesis_count: 3
+- id: L
+  title: Ensemble & diversity
+  hypothesis_count: 3
+- id: M
+  title: Reusable, verifiable artifacts — diff as lingua franca
+  hypothesis_count: 5
+- id: N
+  title: Patch-diff & N-day variant hunting
+  hypothesis_count: 4
+- id: O
+  title: Self-improving experience memory
+  hypothesis_count: 3
+- id: P
+  title: Adversarial self-play & synthetic fixtures
+  hypothesis_count: 3
+- id: Q
+  title: LLM-authored deterministic detection rules
+  hypothesis_count: 3
+- id: R
+  title: Intent / invariant inference
+  hypothesis_count: 3
+- id: S
+  title: Compositional exploit-chain reasoning
+  hypothesis_count: 3
+- id: T
+  title: LLM-guided grey-box fuzzing / concolic
+  hypothesis_count: 3
+- id: U
+  title: Value-of-information attention policy
+  hypothesis_count: 3
+- id: V
+  title: Heterogeneous small-model consensus
+  hypothesis_count: 3
+- id: W
+  title: Planner architecture — keep the split, change the engine
+  hypothesis_count: 6
+- id: X
+  title: Well-known formats as the reasoning substrate
+  hypothesis_count: 5
+- id: Y
+  title: BFS × DFS — the discovery-strategy duality
+  hypothesis_count: 5
+- id: Z
+  title: Knowledge architecture — the engagement artifact pool
+  hypothesis_count: 6
+- id: AA
+  title: Skill taxonomy — knowledge as a composable matrix
+  hypothesis_count: 5
+- id: AB
+  title: Hypothesis generation — blackbox / graybox / whitebox
+  hypothesis_count: 8
+- id: AC
+  title: Deterministic observations & grounding feedback
+  hypothesis_count: 8
+- id: AD
+  title: Task & pipeline composition
+  hypothesis_count: 6
+- id: AE
+  title: Prompt-surface architecture — the three deterministic layers
+  hypothesis_count: 6
+- id: AF
+  title: Agent-loop control & convergence
+  hypothesis_count: 5
+- id: AG
+  title: Output-handling & context-economy mechanics
+  hypothesis_count: 4
+- id: AH
+  title: Cascade decay & the verification funnel
+  hypothesis_count: 5
+- id: AI
+  title: Selective escalation to frontier models
+  hypothesis_count: 6
+- id: AJ
+  title: Pragmatic RAG integration (plain · pinned · bounded)
+  hypothesis_count: 5
+- id: AK
+  title: Automatic prompt / skill / task refinement
+  hypothesis_count: 7
+- id: AL
+  title: Iterative solution-space exploration (the planner loop as search)
+  hypothesis_count: 7
+- id: AM
+  title: Stop conditions & iteration-budget sizing
+  hypothesis_count: 5
+- id: AN
+  title: Handoff fidelity & the query-back channel
+  hypothesis_count: 4
+- id: AO
+  title: Deterministic baseline floor in the eval
+  hypothesis_count: 3
+- id: AP
+  title: Ground-truth completeness & FP adjudication
+  hypothesis_count: 3
+- id: AQ
+  title: Target test-suite leverage — tests as oracle, map, and harness
+  hypothesis_count: 3
+- id: AR
+  title: Eval-validity floor — variance · scorer · multiplicity
+  hypothesis_count: 3
+- id: AS
+  title: Contamination & generalization to private code
+  hypothesis_count: 3
+- id: AT
+  title: Miss decomposition — route every FN to its cause
+  hypothesis_count: 1
+- id: AU
+  title: Adopter cost & utility — what "for less" actually costs
+  hypothesis_count: 3
+- id: AV
+  title: Two capability tests the lenses imply but skip
+  hypothesis_count: 2
+- id: AW
+  title: Tool-contract reliability — capability is bounded by what the agent can actually observe
+  hypothesis_count: 3
+- id: AX
+  title: Difficulty-aware search — route capability gaps differently from complexity barriers
+  hypothesis_count: 3
+- id: AY
+  title: Ecological eval validity — distractors, clean targets, and the full vulnerability lifecycle
+  hypothesis_count: 3
+- id: PV
+  title: Planner / task-runner variants
+  hypothesis_count: 11
+hypotheses:
+- id: A1
+  direction: A
+  claim: Prompt caching of the static prefix cuts input tokens ≥40% with no quality change.
+  legacy_design:
+    mechanism: Mark the worker system prompt + schema trailer + injected skills as cacheable so re-sends bill
+      at the cached rate instead of full input rate.
+    test: Re-run vuln-detection (24 fixtures) + XBOW subset with caching on/off.
+    decision_rule: Confirm if LLM_USAGE.usage.cached > 0 and mean input drops ≥40% while detection F1 and capture
+      rate stay within pass@3 noise. Kill if F1 moves >1σ.
+    metrics:
+    - metrics.jsonl → LLM_USAGE.usage.{input,cached,total}; RUN_SUMMARY.input_tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: A1
+  v2_status: proposed
+- id: A2
+  direction: A
+  claim: Byte-bounded heavy-result retention ( keep_budget_chars>0 ) reduces peak prompt size ≥30% on scan tasks
+    without lowering recall.
+  legacy_design:
+    mechanism: Today retention is count-only (last 15); 15× up to 50 KB reads can co-reside. Add a byte budget
+      so large reads evict sooner.
+    test: vuln-scan (max_steps 75) + vuln-scan-trace on the realvuln fixtures, sweep keep_budget_chars ∈ {0, 60k,
+      120k} .
+    decision_rule: Confirm if peak input tokens drop ≥30% and detection recall is flat; kill if recall drops >5%.
+    metrics:
+    - RUN_SUMMARY.input_tokens (peak per agent) vs scoring.recall
+  legacy_evidence:
+    status: shipped_or_validated
+    note: Byte-bounded retention was shipped and reported recall-safe on binding large scans.
+  source_anchor: A2
+  v2_status: proposed
+- id: A3
+  direction: A
+  claim: Making summarization prune (drop oldest tool results) instead of appending a nudge lowers total tokens
+    on over-budget runs.
+  legacy_design:
+    mechanism: On crossing the budget, evict the oldest elided-eligible results to bring the prompt under budget,
+      rather than appending a "wrap up" message that grows it and repeats each turn.
+    test: Long-horizon tasks (scan 75-step) where summarization currently fires repeatedly; compare total tokens
+      and count of summarization-history entries.
+    decision_rule: Confirm if total tokens fall and completion/recall hold; kill if the model truncates output
+      (incomplete rate rises).
+    metrics:
+    - CALLBACK_SUMMARY.summarization.history length; RUN_SUMMARY.total_tokens; subtask incomplete rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: A3
+  v2_status: proposed
+- id: A4
+  direction: A
+  claim: A cross-subtask file-read cache cuts redundant read_file tokens materially on multi-subtask tasks.
+  legacy_design:
+    mechanism: Dedup elision only catches near-identical calls inside one prompt; the same file read in subtask
+      1 and subtask 5 is re-fetched and re-tokenized. Return a "already read, see prior result" handle for unchanged
+      files.
+    test: Instrument repeated read_file args across a planner session on vuln-assess ; measure duplicate-read
+      rate and token bytes.
+    decision_rule: Confirm if duplicate-read bytes are a non-trivial share (≥15%) and the cache reclaims most
+      of it with equal recall.
+    metrics:
+    - TOOL_RESULT.result_size summed by args_hash for read_file
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: A4
+  v2_status: proposed
+- id: A5
+  direction: A
+  claim: Repair-only re-prompting (vs n_retries=3 full re-run) on malformed worker output cuts wasted tokens without
+    lowering completion.
+  legacy_design:
+    mechanism: A malformed parse currently re-runs the entire worker (all reads/tool calls). Instead feed back
+      just the parse error and ask for a corrected structured object — the expensive reasoning already happened.
+    test: Force-induce malformed outputs (small model, complex fixture); compare tokens-per-recovery and final
+      completion rate, retries 3→1+repair.
+    decision_rule: Confirm if recovery tokens drop sharply and completion rate is equal; especially measure on
+      the smallest model (mission tie-in).
+    metrics:
+    - TOOL_CALL count per subtask; RUN_SUMMARY by attempt; completion rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: A5
+  v2_status: proposed
+- id: A6
+  direction: A
+  claim: 'Elide-to-handle: prune old tool results to just their id/handle (e.g. an HTTP request_id ) so the agent
+    recalls the body by lookup only when needed — cutting the exploit loop''s accumulated context.'
+  legacy_design:
+    mechanism: 'A FunctionResultsRemovalCallback variant: instead of replacing a stale result with {elided:true}
+      , keep a compact stub carrying the handle ( {request_id, method, path, status} for http_request ; {artifact_key,
+      exit_code} for run_python ) plus a "recall via http_read_body / http_history(request_id) " hint. Register
+      it for http_request + code-exec (not in today''s DEFAULT_HEAVY_TOOLS ). Safe for the exploit agent : the
+      proof chain is rebuilt deterministically from Caido by tag at the end ( collect_http_chain ), not from prompt
+      context — so eliding in-context bodies loses no evidence, and the recall path already exists.'
+    test: Exploit/verdict eval + XBOW subset, elide-to-handle on/off; input tokens, capture/verdict accuracy,
+      recall-lookups vs redundant re-probes.
+    decision_rule: Confirm input tokens drop materially with capture/verdict held; kill if the agent loses track
+      and re-probes redundantly (spike in duplicate probes).
+    metrics:
+    - exploit-agent input tokens; capture/verdict accuracy; recall-lookups vs duplicate re-probes
+    additional:
+      whats_needed: (1) extend the callback with an elide-to-handle strategy that extracts the id before stubbing;
+        (2) register it on the exploit agent's HTTP/code-exec tools; (3) ensure a by-id lookup tool is exposed
+        (mostly present). Ties A4 (read cache) and AG2 (offload-to-handle).
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: A6
+  v2_status: proposed
+- id: B1
+  direction: B
+  claim: Activating the shannon trace prompt raises detection recall ≥10% at equal precision vs v7 .
+  legacy_design:
+    mechanism: Coverage-ledger + sink-slot/sanitizer reasoning forces the model to account for every sink rather
+      than stopping at the first finding.
+    test: CONTRACTOR_EVAL_TRACE_PROMPT_VERSION=shannon vs v7 on the 4 trace-task fixtures + 24 detection fixtures,
+      pass@5.
+    decision_rule: Confirm if recall +10% and precision flat; kill if precision drops (more FPs) — note this lands
+      on the same anti-overfit constraint as B4.
+    metrics:
+    - trace_vuln_scoring / scoring.score_vuln_findings → micro P/R/F1
+  legacy_evidence:
+    status: tested_inconclusive
+    note: The Shannon prompt was directionally positive but within noise and was superseded by the converge prompt.
+  source_anchor: B1
+  v2_status: proposed
+- id: B2
+  direction: B
+  claim: A structured finding schema (first-class cwe , sink_kind , entry_point , data_flow ) improves post-dedup
+    precision and stops overwrite loss.
+  legacy_design:
+    mechanism: Replace free-text details parsing with typed fields; dedup/merge on structured keys instead of
+      "CWE-" string-split; key reports so competing findings for one slug don't silently overwrite.
+    test: Run vuln-scan-fast on fixtures known to surface duplicate/contradictory findings; count merge errors
+      and lost findings before/after.
+    decision_rule: Confirm if duplicate/overwrite incidents → ~0 and precision rises with recall held.
+    metrics:
+    - count of dedup mis-merges; scoring precision; report overwrite events
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: B2
+  v2_status: proposed
+- id: B3
+  direction: B
+  claim: A second independent trace pass + programmatic union/dedup raises recall ≥X% — i.e. single-pass is the
+    binding constraint.
+  legacy_design:
+    mechanism: Re-run the per-operation trace with a different seed/lens, union findings, dedup structurally.
+      Tests whether misses are stochastic (recoverable by re-roll) or systematic.
+    test: 1-pass vs 2-pass vs 3-pass on 24 detection fixtures; plot recall vs token cost.
+    decision_rule: Confirm if recall climbs with passes (stochastic misses) → motivates iteration; flat means
+      misses are systematic → invest in B1/E instead. Either way it's decisive.
+    metrics:
+    - recall@passes; cost = sum RUN_SUMMARY.total_tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: B3
+  v2_status: proposed
+- id: B4
+  direction: B
+  claim: Replacing codereview v3 's hardcoded patterns with general source/sink methodology holds recall on seen
+    fixtures while raising it on held-out fixtures.
+  legacy_design:
+    mechanism: 'The overfit hypothesis: literal grep/WordPress patterns inflate seen-fixture recall but generalize
+      poorly. A methodology-first prompt should transfer.'
+    test: Wire the unused eyeballvul / full Real-Vuln-Benchmark corpora as held-out fixtures (Direction F3); compare
+      seen vs held-out recall for v3 vs methodology prompt.
+    decision_rule: Confirm if held-out recall rises for the methodology prompt with seen-recall flat. Falls back
+      to the repo's anti-overfit principle.
+    metrics:
+    - recall on seen vs held-out fixture splits
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: B4
+  v2_status: proposed
+- id: B5
+  direction: B
+  claim: A SAST pre-pass (semgrep) seeding candidate sinks lets a 27b model match a 70b baseline's recall.
+  legacy_design:
+    mechanism: Run semgrep, feed ranked candidate sinks to the trace/scan agent as leads. Offloads pattern-recall
+      (where small models are weakest) to a deterministic engine. Mission-central (also E1).
+    test: '2×2: {27b, 70b} × {with semgrep, without} on 24 detection fixtures.'
+    decision_rule: Confirm if (27b + semgrep) recall ≥ (70b baseline) recall, at lower or equal cost. Kill if
+      FP rate from semgrep noise tanks precision.
+    metrics:
+    - F1 by (model × semgrep) cell; precision delta
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: B5
+  v2_status: proposed
+- id: C1
+  direction: C
+  claim: Requiring a request-id-backed proof chain (not self-asserted strings) reveals the true exploitation rate.
+  legacy_design:
+    mechanism: Tighten score_exploitability_run "evidence present" to require ≥1 cited request_id in the Caido
+      chain, not just a non-empty summary.
+    test: Re-score existing exploitability runs under old vs new evidence rule.
+    decision_rule: 'This is a measurement correction: the gap between old and new pass rate is the result — it
+      quantifies how much "exploitable" is currently unproven.'
+    metrics:
+    - verdict eval evidence_rate; pass-rate delta under strict rule
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: C1
+  v2_status: proposed
+- id: C2
+  direction: C
+  claim: Granting the exploit agent read-only code access raises verdict accuracy on sparse-seed findings.
+  legacy_design:
+    mechanism: When seed details omit the endpoint/param, the "do NOT read code" rule strands the agent. Allow
+      targeted reads to recover the entry point.
+    test: Verdict eval on fixtures with deliberately thin seeds, code-access on/off.
+    decision_rule: Confirm if verdict accuracy rises on thin seeds with no precision loss on rich seeds; kill
+      if it induces code-trusting (verdicts not backed by a probe).
+    metrics:
+    - verdict match rate by seed-richness bucket; evidence_rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: C2
+  v2_status: proposed
+- id: C3
+  direction: C
+  claim: One fused static+dynamic verifier beats the two split agents on verdict accuracy.
+  legacy_design:
+    mechanism: A single agent that both traces code (entry→sink) and fires HTTP probes can corroborate path-exists
+      with payload-fires; the split design loses that join.
+    test: Fused agent vs (trace-verify → exploit) chain on the exploitability fixtures + XBOW subset.
+    decision_rule: Confirm if verdict accuracy / capture rate rises at equal-or-lower token cost.
+    metrics:
+    - capture rate (XBOW), verdict match (exploitability), total tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: C3
+  v2_status: proposed
+- id: C4
+  direction: C
+  claim: XBEN-010 is solvable with an XSS execution oracle, not more time.
+  legacy_design:
+    mechanism: The holdout is XSS; HTTP-only probing has no DOM/JS execution oracle, so the agent loops without
+      a success signal. Add a headless-browser oracle.
+    test: Re-run XBEN-010 with the oracle, same 900s budget.
+    decision_rule: Confirm if it captures within budget; kill (it's a budget/reasoning problem) if it still times
+      out — which itself redirects effort.
+    metrics:
+    - flag_captured for XBEN-010; llm calls / time to capture
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: C4
+  v2_status: proposed
+- id: C5
+  direction: C
+  claim: Per-finding exploit budgets (derived from metrics) cut XBOW total tokens without losing captures.
+  legacy_design:
+    mechanism: Captures span ~26→128 llm calls; a flat budget over-spends on easy cases and under-spends on hard
+      ones. Class-aware budgets reallocate.
+    test: Flat vs class-aware budget on the 15-ID XBOW set; track captures and total tokens.
+    decision_rule: Confirm if total tokens drop with captures held at 14/15.
+    metrics:
+    - sum input/output tokens; capture count
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: C5
+  v2_status: proposed
+- id: C6
+  direction: C
+  claim: 'Bypass-exhaustion gate: require N distinct failed bypasses before any not_exploitable verdict — make
+    the verifier earn a negative.'
+  legacy_design:
+    mechanism: '[comparative: Shannon] Distinguish "control withstood ≥8–10 real bypass attempts" (true FP) from
+      "blocked by an external operational constraint" (still potential). An explicit attempt counter on the negative
+      verdict.'
+    test: Verdict eval; false-negative rate (real bugs wrongly called not-exploitable) with/without the gate.
+    decision_rule: Confirm if FN drops; suits small LLMs as an explicit counter/checklist rather than a holistic
+      judgement.
+    metrics:
+    - false-negative rate on exploitable fixtures; bypasses logged
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: C6
+  v2_status: proposed
+- id: D1
+  direction: D
+  claim: The four trace workflows collapse into one parametrized workflow with no eval regression.
+  legacy_design:
+    mechanism: 'One trace workflow with flags {driver: planner|direct, graph: on|off, path_parallel: on|off} .
+      The variants become config presets.'
+    test: Run trace-task + 24 detection fixtures + XBOW subset on old variants vs the unified workflow's equivalent
+      presets.
+    decision_rule: Confirm if all metrics stay within pass@5 noise and net LOC drops materially; kill if any preset
+      regresses.
+    metrics:
+    - F1 / capture parity; LOC removed (git diff stat)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: D1
+  v2_status: proposed
+- id: D2
+  direction: D
+  claim: Dropping the planner for iterations=1, max_attempts≤2 tasks (uniform AgentRunner) cuts LLM calls at equal
+    completion.
+  legacy_design:
+    mechanism: For single-iteration tasks the planner's add/execute/finish loop is overhead — the direct trace
+      variants already prove the worker runs fine without it.
+    test: Pick such tasks; run planner vs AgentRunner; compare llm_calls, tokens, completion, recall.
+    decision_rule: Confirm if llm_calls/tokens drop with equal completion + recall.
+    metrics:
+    - RUN_SUMMARY.llm_calls / total_tokens; completion + recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: D2
+  v2_status: proposed
+- id: D3
+  direction: D
+  claim: Unifying the vuln namespace eliminates the verify/pathpar coupling bug class.
+  legacy_design:
+    mechanism: 'Replace hardcoded trace-annotation: reads with the shared namespace constant so trace-verify consumes
+      any trace engine''s output.'
+    test: Run trace-graph-pathpar → trace-verify end-to-end (currently broken).
+    decision_rule: 'Binary: verify successfully reads pathpar findings. Regression test added.'
+    metrics:
+    - verify reads N>0 findings from pathpar output
+  legacy_evidence:
+    status: confirmed_fixed
+    note: The predicted namespace-coupling failure was found in the old production path and fixed.
+  source_anchor: D3
+  v2_status: proposed
+- id: D4
+  direction: D
+  claim: Dropping the records artifact + separate summarizer call reduces tokens/code with no downstream breakage.
+  legacy_design:
+    mechanism: The summarizer re-bills the full records payload as input. If no task declares records as an upstream
+      artifact, it's dead weight.
+    test: Grep artifact-consumer declarations for /records ; if none, remove and re-run the full eval set.
+    decision_rule: Confirm if no consumer references records and all eval metrics hold; tokens drop by the summarizer-call
+      cost.
+    metrics:
+    - consumer grep count; total tokens; eval parity
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: D4
+  v2_status: proposed
+- id: D5
+  direction: D
+  claim: Pruning unwired agents / inactive prompts shrinks maintenance surface with zero eval impact.
+  legacy_design:
+    mechanism: Confirm via import graph that web_exploitability_agent / threat_model_agent /inactive prompt versions
+      are unreferenced by registered workflows; archive or delete.
+    test: Static import/registry analysis + full eval run before/after.
+    decision_rule: Confirm if nothing in get_workflows() reaches them and eval is byte-identical; keep anything
+      an eval or workflow touches.
+    metrics:
+    - import-graph reachability; eval envelope diff (must be empty)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: D5
+  v2_status: proposed
+- id: E1
+  direction: E
+  claim: Each unit of reasoning offloaded to a deterministic tool narrows the 27b↔70b recall gap.
+  legacy_design:
+    mechanism: General form of B5. Add deterministic leads (semgrep sinks, dataflow edges, handler-control diff)
+      and measure the gap as a function of how much reasoning is offloaded.
+    test: 2×2 {27b,70b} × {baseline, +tool} per offload tool; plot the gap.
+    decision_rule: Confirm if the small-model uplift > large-model uplift for each tool (gap narrows). A tool
+      that helps both equally is "nice" but off-mission.
+    metrics:
+    - recall(70b) − recall(27b), before vs after each tool
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: E1
+  v2_status: proposed
+- id: E2
+  direction: E
+  claim: Forced structured-output schemas cut small-model format failure more than large-model.
+  legacy_design:
+    mechanism: Small models drift from output schemas, inflating malformed / incomplete subtasks (→ wasted n_retries
+      ). Tighter schema + forced tool calls should disproportionately help them.
+    test: Measure malformed/incomplete subtask rate by model size, schema-strict on/off.
+    decision_rule: Confirm if small-model malformed rate drops more than large-model's; ties to A5 (retry cost).
+    metrics:
+    - subtask status distribution (malformed/incomplete) by model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: E2
+  v2_status: proposed
+- id: E3
+  direction: E
+  claim: An "attack-surface + control-diff" tool lets small models do absence-detection they currently miss.
+  legacy_design:
+    mechanism: Absence-detection (missing authz on one sibling handler) needs the model to hold all handlers +
+      their guards in working memory — exactly where small models fail. A tool that enumerates handlers and diffs
+      their controls does the bookkeeping. ( attack_surface lists entrypoints but doesn't diff guards.)
+    test: BOLA/missing-authz fixtures (crapi, vampi), tool on/off, both model sizes.
+    decision_rule: Confirm if small-model BOLA recall rises toward large-model with the tool.
+    metrics:
+    - recall on BOLA/BFLA/missing-authz cases by model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: E3
+  v2_status: proposed
+- id: E4
+  direction: E
+  claim: A payload/PoC library exposed as a tool beats payloads-as-prose for small-model exploit success.
+  legacy_design:
+    mechanism: Retrieval beats free-recall for small models. Move per-class payloads from skill prose into a queryable
+      tool the exploit agent calls by class.
+    test: Exploitability + XBOW subset, payload-tool vs prose, both model sizes.
+    decision_rule: Confirm if small-model capture/verdict accuracy rises; kill if no delta (prose recall was sufficient).
+    metrics:
+    - capture rate / verdict accuracy by model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: E4
+  v2_status: proposed
+- id: E5
+  direction: E
+  claim: Caching + leaner resident scaffold keeps small models inside their context window, cutting crash/truncation
+    rate.
+  legacy_design:
+    mechanism: Combine A1 (caching) + D (less resident scaffold) + load only the skill refs actually needed. Directly
+      attacks the 65536-ctx OOM ceiling.
+    test: XBOW + scan tasks on the 27b model, measure crashes/truncations and peak resident context before/after.
+    decision_rule: Confirm if model-crash + incomplete rate falls and peak context drops below the OOM threshold
+      with stable headroom.
+    metrics:
+    - model-crash count; incomplete rate; peak input tokens vs ctx limit
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: E5
+  v2_status: proposed
+- id: F1
+  direction: F
+  claim: Raising to pass@≥5 with reported variance changes the ranking of prompt/tool variants.
+  legacy_design:
+    mechanism: Best-of-3 with low thresholds compresses real differences into noise. More repeats + variance bands
+      reveal whether A/B conclusions (e.g. B1, E-series) are real.
+    test: Re-run a prior "winner" A/B at pass@5–10; compare mean±σ.
+    decision_rule: Confirm if any prior ranking flips or collapses into overlap — quantifies how much current
+      conclusions are variance.
+    metrics:
+    - F1 mean ± σ across passes; rank stability
+  legacy_evidence:
+    status: partially_tested
+    note: pass@N infrastructure was built; pass@5 was not pursued.
+  source_anchor: F1
+  v2_status: proposed
+- id: F2
+  direction: F
+  claim: Adding cost (tokens) + latency as first-class scored metrics surfaces regressions invisible today.
+  legacy_design:
+    mechanism: Scoring is quality-only; a change can hold F1 while doubling tokens. Promote totals.tokens /latency
+      into the envelope headline.
+    test: Backfill cost into the envelope; re-rank recent runs by quality-per-token.
+    decision_rule: Confirm if at least one "neutral" past change is revealed as a cost regression. Enables every
+      Direction-A claim to be scored.
+    metrics:
+    - envelope.totals.{tokens,latency}; quality-per-token
+  legacy_evidence:
+    status: shipped_or_validated
+    note: Token and latency cost were added to the legacy eval envelope.
+  source_anchor: F2
+  v2_status: proposed
+- id: F3
+  direction: F
+  claim: Wiring idle corpora as held-out fixtures detects overfitting in codereview v3 .
+  legacy_design:
+    mechanism: Generate fixtures from eyeballvul / full Real-Vuln-Benchmark; treat as held-out. A seen-vs-held-out
+      recall gap is the overfit signal (pairs with B4).
+    test: Score v3 on seen vs newly-wired held-out splits.
+    decision_rule: Confirm if held-out recall < seen recall by a meaningful margin → overfit confirmed; informs
+      B4.
+    metrics:
+    - recall(seen) − recall(held-out)
+  legacy_evidence:
+    status: tested_negative
+    note: A held-out fixture did not confirm the proposed overfitting explanation.
+  source_anchor: F3
+  v2_status: proposed
+- id: F4
+  direction: F
+  claim: Fixing the envelope writer makes analytics-ui reflect the real XBOW 14/15.
+  legacy_design:
+    mechanism: The wrapper's final envelope write is truncated; rebuild it from per-benchmark dirs ( rebuild_eval_envelope.py
+      pattern) so the top-level result isn't 0.
+    test: Rebuild + open analytics-ui.
+    decision_rule: 'Binary: top-level envelope shows 14/15 with per-fixture detail. Trivial, high-trust fix.'
+    metrics:
+    - envelope.totals vs per-dir ground truth
+  legacy_evidence:
+    status: shipped_or_validated
+    note: The legacy XBOW envelope reconstruction was shipped.
+  source_anchor: F4
+  v2_status: proposed
+- id: G1
+  direction: G
+  claim: Adding sink/source patterns for an under-covered language lifts that language's recall toward the Python/Java
+    level.
+  legacy_design:
+    mechanism: Author a sink ref for e.g. Go or Rust; the AST/grep substrate already exists, only the knowledge
+      is missing.
+    test: Language-stratified fixtures (the playground has java/python/typescript dirs; extend); recall before/after
+      the ref.
+    decision_rule: Confirm if that language's recall rises with no cross-language precision loss.
+    metrics:
+    - recall stratified by fixture language
+  legacy_evidence:
+    status: tested_negative
+    note: The legacy review found no under-covered language matching the proposed premise.
+  source_anchor: G1
+  v2_status: proposed
+- id: G2
+  direction: G
+  claim: Adding an uncovered vuln class (race/TOCTOU, SSRF-to-cloud-metadata) surfaces a finding class currently
+    invisible.
+  legacy_design:
+    mechanism: New skill ref + sink patterns for the class; pattern-recall offloaded from the model.
+    test: Fixtures containing that class (wire from idle corpora); count TPs of the class before/after.
+    decision_rule: Confirm if the class goes from ~0 TP to detected, precision elsewhere flat.
+    metrics:
+    - class-specific tp/fn
+  legacy_evidence:
+    status: tested_negative
+    note: The named vulnerability classes were already represented in legacy skills.
+  source_anchor: G2
+  v2_status: proposed
+- id: G3
+  direction: G
+  claim: Each added skill ref helps the 27b model more than the 70b (knowledge substitutes for capacity).
+  legacy_design:
+    mechanism: Large models already "know" common sinks; the ref mostly informs the small model — the mission
+      asymmetry test.
+    test: 2×2 {27b,70b} × {ref on/off} per added ref.
+    decision_rule: Confirm if small-model uplift > large-model uplift (gap narrows).
+    metrics:
+    - recall(70b)−recall(27b) before vs after ref
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: G3
+  v2_status: proposed
+- id: G4
+  direction: G
+  claim: Ad-hoc AST-pattern search (ast-grep) for syntactic shapes the call-graph can't resolve — dynamic sink
+    names, attribute chains, subscripts.
+  legacy_design:
+    mechanism: '[comparative: cli-agent] trailmark/tree-sitter resolve symbols/calls/routes, but can''t match
+      arbitrary expression shapes ( os.system($CMD) with a given arg shape, request.args[$K] , dynamically-built
+      sink names). A thin ast-grep wrapper complements the call graph for novel/obfuscated sinks the model otherwise
+      greps for lossily.'
+    test: Fixtures with dynamically-built / obfuscated sinks; recall with ast-grep vs regex fallback.
+    decision_rule: Confirm recall on novel sink shapes rises; small models benefit (structural match beats hand-written
+      regex).
+    metrics:
+    - recall on dynamic/obfuscated-sink cases
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: G4
+  v2_status: proposed
+- id: H1
+  direction: H
+  claim: An intra-procedural def-use / taint primitive raises recall on taint-style bugs and cuts FPs on sanitized
+    paths.
+  legacy_design:
+    mechanism: Compute def-use chains (tree-sitter already parses) and expose "does tainted X reach sink Y, through
+      what sanitizers". The model confirms instead of derives.
+    test: SQLi/cmdi/path-traversal fixtures incl. FP traps (vampi has 4); recall + precision before/after.
+    decision_rule: Confirm if recall rises on true taint bugs AND FP-trap precision rises (sanitizers recognized).
+    metrics:
+    - P/R/F1 on taint-class cases + FP-trap precision
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: H1
+  v2_status: proposed
+- id: H2
+  direction: H
+  claim: Dataflow edges narrow the small↔large gap more than any prompt change.
+  legacy_design:
+    mechanism: Multi-hop propagation tracking is where small models break down; deterministic edges remove the
+      dependency on model working-memory.
+    test: 2×2 {27b,70b} × {dataflow on/off} on multi-hop fixtures.
+    decision_rule: Confirm if the gap closes most for multi-hop cases specifically.
+    metrics:
+    - gap by data-flow hop-count bucket
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: H2
+  v2_status: proposed
+- id: H3
+  direction: H
+  claim: Intra-procedural dataflow captures most of the benefit; inter-procedural adds marginal recall at high
+    build cost.
+  legacy_design:
+    mechanism: 'Scope-of-investment test: cheap intra-proc vs expensive whole-program taint.'
+    test: Three arms — none / intra / inter — recall vs build cost.
+    decision_rule: Confirm if intra-proc gets ≥70% of the recall gain at a fraction of cost → bound the engineering
+      scope.
+    metrics:
+    - recall gain per arm; graph build time/cost
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: H3
+  v2_status: proposed
+- id: H4
+  direction: H
+  claim: 'Dominator-based control analysis: a guard counts only if it dominates the sink on every path — turning
+    "is there a check?" into a mechanical, precise predicate.'
+  legacy_design:
+    mechanism: '[comparative: Shannon] A check placed after the side-effect, or on only some paths, doesn''t protect
+      the sink. Compute control-flow dominators so "guard dominates sink on all paths" is a checkable structural
+      fact, not a judgement call. The single highest-value detection idea surfaced by the competitor analysis.'
+    test: Missing-authz + FP-trap fixtures; precision with/without the dominance predicate.
+    decision_rule: Confirm if precision rises (guards-after-sink no longer credited) at held recall; especially
+      small-LLM-friendly (structural question replaces fuzzy reasoning).
+    metrics:
+    - precision on control-presence cases; FP-trap survival
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: H4
+  v2_status: proposed
+- id: I1
+  direction: I
+  claim: 'Quantify the dependency: with graph tools disabled, recall drops by a measurable margin.'
+  legacy_design:
+    mechanism: Run identical fixtures with graph tools on vs forced off (simulating remote FS) to size the loss.
+    test: 24 detection + 4 trace fixtures, graph on/off.
+    decision_rule: The recall delta is the result — it sizes how much remote-FS users are silently losing and
+      justifies (or deprioritizes) I2.
+    metrics:
+    - recall(graph on) − recall(graph off)
+  legacy_evidence:
+    status: partially_supported
+    note: The graph helped decisively on large fixtures and was near-neutral with extra cost on small fixtures.
+  source_anchor: I1
+  v2_status: proposed
+- id: I2
+  direction: I
+  claim: Building the graph from an overlay/remote snapshot recovers local-FS recall on those backends.
+  legacy_design:
+    mechanism: Materialize a local snapshot (or port trailmark to read via the FS abstraction) so graph tools
+      work off GitLabFS/overlay.
+    test: Same target served local vs GitLabFS; recall parity.
+    decision_rule: Confirm if remote-FS recall reaches local-FS recall.
+    metrics:
+    - recall by FS backend
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: I2
+  v2_status: proposed
+- id: I3
+  direction: I
+  claim: Surfacing skipped (non-UTF8 / unparsed) files recovers findings in repos that contain them.
+  legacy_design:
+    mechanism: At minimum log/expose skipped files so the model knows the graph is partial; ideally decode-fallback
+      them.
+    test: Fixture with mixed encodings; findings before/after.
+    decision_rule: Confirm if previously-dropped nodes yield new TPs.
+    metrics:
+    - skipped-file count; tp recovered
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: I3
+  v2_status: proposed
+- id: J1
+  direction: J
+  claim: A dependency-manifest → known-CVE lookup tool adds true positives no current path can find.
+  legacy_design:
+    mechanism: Parse lockfiles/manifests, match against an advisory DB; emit structured dep-vuln findings.
+    test: Fixtures with known-vulnerable deps (cvebench components); count dep-class TPs before/after.
+    decision_rule: Confirm if dep-vuln TPs appear where they were previously 0.
+    metrics:
+    - dep-class tp count
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: J1
+  v2_status: proposed
+- id: J2
+  direction: J
+  claim: Dependency-CVE leads focus the code-level trace on the vulnerable component, raising code-detection recall.
+  legacy_design:
+    mechanism: Auto-derive what CVEBENCH_PRIMARY_ARCHIVE pins by hand, then bias the trace toward that component.
+    test: cvebench fixtures, trace with/without dep-derived focus.
+    decision_rule: Confirm if recall rises on the pinned-component CVE.
+    metrics:
+    - cvebench detection recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: J2
+  v2_status: proposed
+- id: J3
+  direction: J
+  claim: SCA findings raise overall precision at ~zero model cost (deterministic source).
+  legacy_design:
+    mechanism: Lookup-derived findings are near-100% precise, lifting the aggregate precision number without LLM
+      spend.
+    test: Aggregate precision + tokens with SCA findings folded in.
+    decision_rule: Confirm if precision rises and token-per-finding falls.
+    metrics:
+    - aggregate precision; tokens/finding
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: J3
+  v2_status: proposed
+- id: K1
+  direction: K
+  claim: A triage/dedup stage across all finders raises precision at equal recall.
+  legacy_design:
+    mechanism: Wire triage_agent after discovery to merge dups, drop contradictions, confirm reachability.
+    test: vuln-scan-trace + vuln-assess with/without triage stage.
+    decision_rule: Confirm if precision rises, recall held.
+    metrics:
+    - P/R/F1 before vs after triage
+  legacy_evidence:
+    status: shipped_or_validated
+    note: A gated deterministic finding deduplicator was shipped in the old implementation.
+  source_anchor: K1
+  v2_status: proposed
+- id: K2
+  direction: K
+  claim: Confidence is currently uncalibrated; calibration enables a predictable precision/recall knob.
+  legacy_design:
+    mechanism: Plot reliability (self-reported confidence vs actual TP rate). If miscalibrated, recalibrate so
+      a threshold trades recall for precision predictably.
+    test: Bin findings by confidence across the 24 fixtures; compute per-bin TP rate.
+    decision_rule: Confirm if a calibrated threshold yields a monotone precision/recall curve.
+    metrics:
+    - reliability curve (confidence vs TP rate); AUC
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: K2
+  v2_status: proposed
+- id: K3
+  direction: K
+  claim: Triaging before the dynamic stage cuts verify/exploit token spend by pruning low-value findings.
+  legacy_design:
+    mechanism: The exploit stage is the most expensive; pruning low-confidence/duplicate findings before it removes
+      wasted probes.
+    test: Exploit-stage tokens with/without an upstream triage filter; track missed TPs.
+    decision_rule: Confirm if exploit tokens drop materially with ≤ a small recall cost.
+    metrics:
+    - exploit-stage total_tokens; verified-TP count
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: K3
+  v2_status: proposed
+- id: L1
+  direction: L
+  claim: An ensemble of diverse-lens finders (per-class or per-file), unioned + deduped, beats a single generalist
+    pass at equal per-agent budget.
+  legacy_design:
+    mechanism: Each agent focuses on one class/region it can fully hold in context; union covers more than one
+      wide pass.
+    test: Single-pass vs N-lens ensemble (same per-agent token budget) on 24 fixtures.
+    decision_rule: Confirm if ensemble recall > single-pass at comparable total cost; report cost multiplier.
+    metrics:
+    - recall; total tokens (cost-normalized)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: L1
+  v2_status: proposed
+- id: L2
+  direction: L
+  claim: An adversarial (majority-refute) verifier raises precision more than it costs recall — replicating the
+    audit methodology.
+  legacy_design:
+    mechanism: N skeptics per finding prompted to refute; drop if majority refute. The audit's 24-confirm/6-refute
+      split shows the pattern discriminates.
+    test: Findings with/without the refute panel; precision and recall.
+    decision_rule: Confirm if precision gain ≫ recall loss; tune panel size N.
+    metrics:
+    - precision/recall delta; refute rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: L2
+  v2_status: proposed
+- id: L3
+  direction: L
+  claim: Ensemble diversity helps small models disproportionately (narrow slices fit their context).
+  legacy_design:
+    mechanism: A 70b can hold a whole subsystem; a 27b can't — so splitting into narrow agents recovers more of
+      the small model's deficit. Mission asymmetry test.
+    test: 2×2 {27b,70b} × {single, ensemble}.
+    decision_rule: Confirm if ensemble uplift(27b) > uplift(70b).
+    metrics:
+    - recall uplift by model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: L3
+  v2_status: proposed
+- id: M1
+  direction: M
+  claim: Feeding the @trace -annotated diff to verify/exploit raises their accuracy vs raw findings.
+  legacy_design:
+    mechanism: The annotated path encodes entry→sink reachability the verifier/exploiter currently re-derives;
+      passing it should sharpen them (the post-diff agent idea).
+    test: Verify/exploit fixtures with annotated-diff input vs raw-finding input.
+    decision_rule: Confirm if verdict/capture accuracy rises with the annotated diff.
+    metrics:
+    - verdict accuracy / capture rate
+  legacy_evidence:
+    status: tested_negative_so_far
+    note: The first pipeline test showed substantial handoff retention loss; the result was not a final refutation.
+  source_anchor: M1
+  v2_status: proposed
+- id: M2
+  direction: M
+  claim: Persisted annotations make a re-run / update workflow cheaper than cold (incremental reuse).
+  legacy_design:
+    mechanism: Reachability persisted as annotations should let an update run skip re-tracing unchanged code.
+    test: Cold trace vs warm re-trace (with prior annotations) on the same target after a small change.
+    decision_rule: Confirm if warm-run tokens drop with equal findings.
+    metrics:
+    - total tokens cold vs warm; finding parity
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: M2
+  v2_status: proposed
+- id: M3
+  direction: M
+  claim: 'Artifact discipline: an emitted artifact with no consumer is dead weight — every artifact a task produces
+    should be either consumed downstream or dropped.'
+  legacy_design:
+    mechanism: 'Enforce the contract: each task declares the artifact it emits and at least one downstream task
+      that consumes it; unconsumed kinds (e.g. records , or annotations if M1 is null) are pruned (links to D4).'
+    test: Map the producer→consumer graph of artifacts; flag any artifact kind no task declares as upstream; for
+      flagged kinds, measure standalone production cost.
+    decision_rule: Decisive either way — the artifact earns its cost via a real consumer, or it's identified for
+      removal.
+    metrics:
+    - artifact producer/consumer graph; per-artifact production tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: M3
+  v2_status: proposed
+- id: M4
+  direction: M
+  claim: A unified-diff artifact is reused more reliably by small models than a bespoke structured (JSON/YAML)
+    artifact.
+  legacy_design:
+    mechanism: Diffs are line-anchored, minimal, and ubiquitous in pretraining; small models parse and reason
+      over them more reliably than over nested custom schemas. Test the format itself, holding content constant.
+    test: Same upstream content rendered as (i) unified diff vs (ii) JSON/YAML artifact; measure a downstream
+      agent's reuse accuracy, especially on the 27b model.
+    decision_rule: Confirm if diff-format reuse accuracy > structured-format on the small model (and whether the
+      gap shrinks on the large model — the legibility-asymmetry signature).
+    metrics:
+    - downstream reuse accuracy by artifact format × model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: M4
+  v2_status: proposed
+- id: M5
+  direction: M
+  claim: 'The artifact-contract generalizes: any task that emits a reusable diff lets the next agent outperform
+    re-deriving from source — not just trace.'
+  legacy_design:
+    mechanism: 'Generalize M1 beyond trace: e.g. OAS build, threat model, and scan each emit a verifiable diff/patch
+      the next stage composes over (verify re-applies and checks it) instead of re-reading the whole codebase.'
+    test: For ≥2 task pairs, run downstream consuming the upstream diff vs re-deriving from source; compare accuracy
+      and tokens.
+    decision_rule: Confirm if diff-reuse beats re-derivation on accuracy and cost across multiple task pairs —
+      establishing the contract as a project-wide pattern.
+    metrics:
+    - downstream accuracy + tokens, diff-reuse vs re-derive
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: M5
+  v2_status: proposed
+- id: N1
+  direction: N
+  claim: Given a known fix location + pattern, the system finds ≥1 unpatched sibling occurrence elsewhere in the
+    repo.
+  legacy_design:
+    mechanism: Extract the defective pattern from the patched site, then structural/dataflow-search for analogous
+      unguarded sites.
+    test: Fixtures (or synthetic, via P) where a patched and an unpatched instance of one bug class coexist.
+    decision_rule: Confirm if the unpatched sibling is found; measure precision of variant matches.
+    metrics:
+    - variant recall; variant-match precision
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: N1
+  v2_status: proposed
+- id: N2
+  direction: N
+  claim: Diff-scoped review finds introduced vulns at a fraction of full-scan token cost — enabling per-PR CI
+    use.
+  legacy_design:
+    mechanism: Restrict analysis to changed lines + their dataflow neighborhood instead of the whole tree.
+    test: Inject vulns into diffs; compare recall and tokens, diff-scoped vs full-repo.
+    decision_rule: Confirm if recall on introduced bugs holds at ≪ full-scan cost (CI-viable budget).
+    metrics:
+    - recall on introduced bugs; tokens per PR
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: N2
+  v2_status: proposed
+- id: N3
+  direction: N
+  claim: 'Cross-repo transplant: a pattern confirmed in project A detects its analog in project B.'
+  legacy_design:
+    mechanism: Generalize a confirmed pattern (ties to O/Q) and apply to a different codebase — tests transfer,
+      not memorization.
+    test: Pairs of fixtures sharing a CWE across frameworks.
+    decision_rule: Confirm if cross-repo detection beats a cold scan on B.
+    metrics:
+    - cross-repo variant recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: N3
+  v2_status: proposed
+- id: N4
+  direction: N
+  claim: 'Git provenance tools (blame/log/show) as first-class: when/which commit introduced a sink — for provenance,
+    churn-prioritization, and N-day scoping.'
+  legacy_design:
+    mechanism: '[comparative: cli-agent capability-gap] The sandbox already runs git; expose git_blame / git_log
+      / git_show as tools. Recently-changed code is higher-risk; commit history scopes N-day variant hunting (N1)
+      and feeds the value-of-information policy (U2).'
+    test: Prioritize by churn vs flat ordering; finding density by recency, recall@budget.
+    decision_rule: Confirm if recently-touched code yields higher finding density and churn-priors improve recall@small-budget.
+    metrics:
+    - finding density by churn; recall@budget
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: N4
+  v2_status: proposed
+- id: O1
+  direction: O
+  claim: Priming a run with a RAG index of past confirmed findings + FP patterns raises precision on later runs.
+  legacy_design:
+    mechanism: Retrieve relevant prior lessons by deterministic key/structure/lexical match (framework, CWE, symbol,
+      file-shape — see Z), not vector similarity; inject as leads + anti-patterns.
+    test: Cold vs experience-primed on held-out fixtures (train memory on a disjoint split).
+    decision_rule: Confirm if precision rises (fewer repeat FPs) with recall held; guard against leakage (memory
+      must be from a disjoint split).
+    metrics:
+    - precision delta cold vs primed; repeat-FP rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: O1
+  v2_status: proposed
+- id: O2
+  direction: O
+  claim: Auto-mining eval false positives into anti-patterns reduces those FP classes in subsequent runs.
+  legacy_design:
+    mechanism: Each scored FP becomes a stored "looks-like-bug-but-isn't" note retrieved on similar code.
+    test: Measure per-class FP rate over successive eval rounds with the growing anti-pattern store.
+    decision_rule: Confirm if FP-class rate declines monotonically.
+    metrics:
+    - per-class FP rate across rounds
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: O2
+  v2_status: proposed
+- id: O3
+  direction: O
+  claim: Experience memory helps small models more than large (substitutes for parametric knowledge).
+  legacy_design:
+    mechanism: 'Mission asymmetry: a 70b already "knows" common gotchas; the memory mostly lifts the 27b.'
+    test: 2×2 {27b,70b} × {memory on/off}.
+    decision_rule: Confirm if uplift(27b) > uplift(70b).
+    metrics:
+    - precision/recall uplift by model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: O3
+  v2_status: proposed
+- id: P1
+  direction: P
+  claim: Recall on synthetic-injected vulns predicts recall on real held-out fixtures (the synthetic signal is
+    valid).
+  legacy_design:
+    mechanism: Inject labeled bugs into clean code; correlate detector performance with real-fixture performance.
+    test: Compute correlation between synthetic recall and real held-out recall across configs.
+    decision_rule: Confirm if correlation is strong → synthetic becomes a cheap, infinite proxy benchmark.
+    metrics:
+    - corr(synthetic recall, real recall)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: P1
+  v2_status: proposed
+- id: P2
+  direction: P
+  claim: 'Training-free hardening: iterating finder-vs-generator improves real-fixture recall over rounds.'
+  legacy_design:
+    mechanism: The generator targets the finder's blind spots; misses feed the experience memory (O), closing
+      them.
+    test: Track real held-out recall across self-play rounds.
+    decision_rule: Confirm if recall climbs across rounds without weight updates.
+    metrics:
+    - real recall vs self-play round
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: P2
+  v2_status: proposed
+- id: P3
+  direction: P
+  claim: Injection difficulty can be tuned to model size, yielding a curriculum that maximizes learning signal
+    per token.
+  legacy_design:
+    mechanism: Generate bugs at the edge of the finder's ability; ties to small-LLM curriculum bootstrapping.
+    test: Measure recall gain per token at varied injected-difficulty levels.
+    decision_rule: Confirm an optimal difficulty band exists and differs by model size.
+    metrics:
+    - recall gain / token vs difficulty × model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: P3
+  v2_status: proposed
+- id: Q1
+  direction: Q
+  claim: A small model can author semgrep rules that reach recall within X% of direct model scanning, at a fraction
+    of per-run cost.
+  legacy_design:
+    mechanism: Model writes + self-tests rules against known examples; rules then run rule-only on held-out code.
+    test: Rule-only vs model-scan recall + per-run cost on held-out fixtures.
+    decision_rule: Confirm if rule-only recall is within tolerance at near-zero marginal cost.
+    metrics:
+    - rule recall vs model recall; cost/run
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Q1
+  v2_status: proposed
+- id: Q2
+  direction: Q
+  claim: Rules authored from confirmed findings accumulate into a library whose coverage grows monotonically across
+    projects.
+  legacy_design:
+    mechanism: Every confirmed finding (via O/N) seeds a generalized rule; library compounds.
+    test: Track rule-library recall on a fixed held-out set as the library grows.
+    decision_rule: Confirm monotone coverage growth without precision collapse.
+    metrics:
+    - library recall over time; precision
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Q2
+  v2_status: proposed
+- id: Q3
+  direction: Q
+  claim: Hybrid (rules for breadth + model for the novel residual) Pareto-dominates model-only on cost-per-finding.
+  legacy_design:
+    mechanism: Rules clear the known cheaply; the model spends only on what rules can't express.
+    test: 'Plot cost-per-confirmed-finding: rules-only, model-only, hybrid.'
+    decision_rule: Confirm hybrid is on the Pareto frontier (lower cost at equal-or-higher recall).
+    metrics:
+    - cost per confirmed finding
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Q3
+  v2_status: proposed
+- id: R1
+  direction: R
+  claim: An inferred "handler → expected guards" model flags missing-authz outliers with higher recall than the
+    checklist prompt.
+  legacy_design:
+    mechanism: Build the population of handlers + their controls; flag statistical outliers.
+    test: BOLA/BFLA fixtures (crapi, vampi), inferred-invariant vs checklist.
+    decision_rule: Confirm if outlier-based recall > checklist recall.
+    metrics:
+    - missing-authz recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: R1
+  v2_status: proposed
+- id: R2
+  direction: R
+  claim: Population-anomaly framing reduces false positives vs pattern matching (only deviations-from-norm flagged).
+  legacy_design:
+    mechanism: A handler that matches its siblings isn't flagged even if it touches a "sink", cutting noise.
+    test: Precision on fixtures with intentional FP traps.
+    decision_rule: Confirm if precision rises vs pattern matching.
+    metrics:
+    - precision; FP-trap survival rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: R2
+  v2_status: proposed
+- id: R3
+  direction: R
+  claim: Inferred invariants catch violations the checklist never enumerated (novel business-logic flaws).
+  legacy_design:
+    mechanism: 'Generalization test: does intent-modeling find bugs outside any predefined class?'
+    test: Business-logic fixtures with non-taxonomic flaws.
+    decision_rule: Confirm recall on flaws not covered by the pattern lists.
+    metrics:
+    - recall on non-taxonomic business-logic cases
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: R3
+  v2_status: proposed
+- id: S1
+  direction: S
+  claim: A chain-search stage discovers multi-step exploits no single finding represents.
+  legacy_design:
+    mechanism: Treat findings as nodes with pre/post-conditions; search for paths to high-impact states.
+    test: XBOW privesc/business-logic IDs requiring ≥2 steps; count validated chains.
+    decision_rule: Confirm if chains are captured that per-finding analysis misses.
+    metrics:
+    - validated multi-step captures
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: S1
+  v2_status: proposed
+- id: S2
+  direction: S
+  claim: Chain-aware severity re-ranking surfaces critical paths that per-finding severity scored low/medium.
+  legacy_design:
+    mechanism: Re-score severity by the worst reachable chain state, not the isolated finding.
+    test: Compare ranking vs ground-truth impact on chained fixtures.
+    decision_rule: Confirm if high-impact chains rise to the top of the ranking.
+    metrics:
+    - ranking correlation with true impact
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: S2
+  v2_status: proposed
+- id: S3
+  direction: S
+  claim: Chain reasoning is where small models most need externalized search (gap test).
+  legacy_design:
+    mechanism: Multi-step planning over a graph is long-horizon; externalizing the search should help the 27b
+      most.
+    test: 2×2 {27b,70b} × {chain-search on/off}.
+    decision_rule: Confirm uplift(27b) > uplift(70b) for multi-step captures.
+    metrics:
+    - multi-step capture uplift by model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: S3
+  v2_status: proposed
+- id: T1
+  direction: T
+  claim: Coverage feedback raises exploit success where blind probing plateaus, within equal budget.
+  legacy_design:
+    mechanism: Feed coverage deltas back to the model to steer input mutation toward unexplored branches.
+    test: Fixtures where HTTP probing stalls (incl. XBEN-010 class), coverage on/off, same budget.
+    decision_rule: Confirm if capture rate rises at equal cost.
+    metrics:
+    - capture rate; tokens to capture
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: T1
+  v2_status: proposed
+- id: T2
+  direction: T
+  claim: LLM-proposed property tests, falsified by a fuzzer, find logic bugs missed by static scan and HTTP probing.
+  legacy_design:
+    mechanism: Model writes invariants ("a user can never read another's order"); fuzzer searches for counterexamples.
+    test: Business-logic fixtures; new TPs vs static + probing baselines.
+    decision_rule: Confirm a new TP class appears.
+    metrics:
+    - logic-bug TPs unique to this method
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: T2
+  v2_status: proposed
+- id: T3
+  direction: T
+  claim: Runtime taint (grey-box) confirms reachability the static path only conjectured, raising verdict precision.
+  legacy_design:
+    mechanism: Observe tainted input actually arriving at the sink at runtime → fewer exploitable_unverified .
+    test: Verdict eval, static-only vs grey-box.
+    decision_rule: Confirm if verified-exploitable rate rises and unverified falls.
+    metrics:
+    - verdict distribution; evidence_rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: T3
+  v2_status: proposed
+- id: U1
+  direction: U
+  claim: Adaptive allocation reaches equal recall at lower total tokens than flat max_steps .
+  legacy_design:
+    mechanism: Estimate value-of-information per target region; spend where expected yield is highest.
+    test: Flat vs adaptive on 24 fixtures; recall vs tokens.
+    decision_rule: Confirm if adaptive sits below the flat budget on the recall/cost frontier.
+    metrics:
+    - recall at fixed token budget; tokens at fixed recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: U1
+  v2_status: proposed
+- id: U2
+  direction: U
+  claim: Prioritizing by attack-surface/complexity/churn finds high-severity bugs earlier (better recall@small-budget).
+  legacy_design:
+    mechanism: Use attack_surface / complexity_hotspots (+ churn from N) as priors for ordering.
+    test: Recall@k-tokens curve, prioritized vs unordered.
+    decision_rule: Confirm steeper early recall — matters when adopters cap spend.
+    metrics:
+    - recall@budget curve (area under)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: U2
+  v2_status: proposed
+- id: U3
+  direction: U
+  claim: The policy's value estimates give a stopping signal that avoids the over-budget summarization spiral.
+  legacy_design:
+    mechanism: Stop when expected marginal finding < threshold instead of grinding to max_steps (ties to A3).
+    test: Compare tokens + missed findings, fixed-steps vs value-stopped.
+    decision_rule: Confirm tokens drop with negligible recall loss.
+    metrics:
+    - tokens saved; recall delta
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: U3
+  v2_status: proposed
+- id: V1
+  direction: V
+  claim: A 2–3 family small-model panel achieves higher recall than any single family at equal per-model budget.
+  legacy_design:
+    mechanism: Union of findings across families; each family covers others' blind spots.
+    test: Single-family vs panel on 24 fixtures, per-model budget held.
+    decision_rule: Confirm panel recall > best single family; report cost multiplier.
+    metrics:
+    - recall by single vs panel; cost
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: V1
+  v2_status: proposed
+- id: V2
+  direction: V
+  claim: Inter-model agreement is a calibrated confidence signal (agreed findings have higher TP rate).
+  legacy_design:
+    mechanism: Findings flagged by ≥2 families are more likely real; feeds the K2 confidence knob.
+    test: TP rate by agreement level (1 vs 2 vs 3 families).
+    decision_rule: Confirm monotone TP rate with agreement.
+    metrics:
+    - 'TP rate vs #families agreeing'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: V2
+  v2_status: proposed
+- id: V3
+  direction: V
+  claim: Disagreement-routing (only contested findings get expensive verification) lowers total cost.
+  legacy_design:
+    mechanism: Auto-accept unanimous findings; spend the dynamic/exploit budget only on contested ones.
+    test: Verify-everything vs verify-contested-only; cost + final precision.
+    decision_rule: Confirm cost drops with precision held.
+    metrics:
+    - verification tokens; final precision
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: V3
+  v2_status: proposed
+- id: W1
+  direction: W
+  claim: 'Quantify it: planner tokens are a large, measurable fraction of total — larger than any single worker.'
+  legacy_design:
+    mechanism: Attribute RUN_SUMMARY tokens by agent role (planner vs worker vs summarizer) across workflows.
+    test: Decompose tokens by agent_name on a representative vuln-assess + scan run.
+    decision_rule: The planner/summarizer share is the result — it sizes the prize and tells us which planner
+      change (W2–W5) to pursue.
+    metrics:
+    - RUN_SUMMARY tokens grouped by planner / worker / summarizer
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: W1
+  v2_status: proposed
+- id: W2
+  direction: W
+  claim: A deterministic fan-out planner for known-structure tasks preserves worker context-isolation at ~zero
+    planner LLM cost.
+  legacy_design:
+    mechanism: When decomposition is predictable (per-path / per-operation / per-finding), generate the subtask
+      list deterministically — no planner LLM. Each worker still gets one small slice. Generalizes what trace-direct
+      already does to scan/assess/verify.
+    test: LLM-planner vs deterministic-planner on those workflows; tokens, completion, recall, and worker peak
+      context (must stay small — the whole point).
+    decision_rule: Confirm if planner tokens → ~0 with equal recall/completion and unchanged worker context.
+    metrics:
+    - planner tokens; recall; worker peak input tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: W2
+  v2_status: proposed
+- id: W3
+  direction: W
+  claim: Plan-once (single planning call) + deterministic execution, re-planning only on failure, beats the per-turn
+    ReAct loop.
+  legacy_design:
+    mechanism: For genuinely dynamic decomposition, emit the whole subtask list in one LLM call, then execute
+      deterministically; re-invoke the planner only when a subtask fails — instead of re-sending the planner prompt
+      every step.
+    test: ReAct planner vs plan-once on dynamic tasks; planner tokens + completion.
+    decision_rule: Confirm planner tokens drop with equal completion.
+    metrics:
+    - planner tokens/turns; completion rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: W3
+  v2_status: proposed
+- id: W4
+  direction: W
+  claim: A compact-state planner (sees attack-surface / file-index summaries, not full artifacts) cuts planner
+    per-turn tokens with no decomposition-quality loss.
+  legacy_design:
+    mechanism: The planner only needs enough to decide structure; feed it a compact index (entrypoints, file tree,
+      prior summaries) and let workers pull detail. Keeps the planner's window tiny — same discipline the split
+      applies to workers, applied to the planner.
+    test: Full-context vs compact-state planner; planner tokens + decomposition quality (downstream recall).
+    decision_rule: Confirm planner tokens fall with recall held.
+    metrics:
+    - planner input tokens; downstream recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: W4
+  v2_status: proposed
+- id: W5
+  direction: W
+  claim: The optimal architecture is "deterministic/compact planner + small-context workers" — it dominates "LLM
+    ReAct planner + small workers" on cost at equal quality, mission-wide.
+  legacy_design:
+    mechanism: Synthesis of W2–W4 + caching (A1) + drop redundant summarizer (D4). The decomposition that protects
+      the small model's context stays; the expensive part of the planner is removed.
+    test: 'End-to-end vuln-assess + scan: current vs redesigned planner; full cost + eval envelope, both model
+      sizes.'
+    decision_rule: Confirm total tokens drop materially with eval metrics within noise and worker context-isolation
+      preserved; especially verify the small model still fits its window.
+    metrics:
+    - total tokens; eval F1/capture; worker peak context vs ctx limit
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: W5
+  v2_status: proposed
+- id: W6
+  direction: W
+  claim: Decomposition can be driven by cheap structural signals (file tree, OAS paths, request list, call-graph
+    communities) without the planner reading file contents — so the carve-up that protects worker context need
+    not itself consume large context.
+  legacy_design:
+    mechanism: 'The hard part the user names — "one LLM can''t read everything to decide how to split" — is avoidable:
+      a too-large target is partitioned into window-sized units from maps , not contents (directory/file tree,
+      OpenAPI paths/operations, the enumerated request list, call-graph partitioning via attack_surface /community
+      detection). The planner sees an index; workers read the slices. This is the key that makes W2/W4 feasible
+      rather than circular.'
+    test: 'Structure-driven partitioner vs content-reading LLM planner: compare (a) planner context/tokens, (b)
+      coverage — does every file/operation/request land in exactly one digestible unit, none dropped, none oversized
+      — and (c) downstream recall.'
+    decision_rule: Confirm if structural partitioning yields full coverage with each unit under the worker's window,
+      at near-zero planner context, with downstream recall held. Kill if structure alone produces oversized or
+      incoherent units that hurt recall (→ a thin LLM pass is needed only to refine boundaries).
+    metrics:
+    - planner input tokens; unit-size distribution vs ctx limit; coverage (units/total); downstream recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: W6
+  v2_status: proposed
+- id: X1
+  direction: X
+  claim: Generating an OpenAPI spec first improves endpoint-vuln recall / fuzz targeting vs reasoning directly
+    over source (validate the founding premise).
+  legacy_design:
+    mechanism: The spec gives the model a complete, legible map of the attack surface it can't hold by reading
+      source piecemeal.
+    test: 'API fixtures (vampi, vfapi, vulnyapi, crapi): trace/scan with OAS artifact vs without, both model sizes.'
+    decision_rule: Confirm if with-OAS recall > without; quantify the lift and whether it's larger for the small
+      model.
+    metrics:
+    - endpoint-vuln recall with/without OAS × model size
+  legacy_evidence:
+    status: tested_inconclusive
+    note: The pinned-target test removed the attack-surface-discovery mechanism that X1 intended to measure.
+  source_anchor: X1
+  v2_status: proposed
+- id: X2
+  direction: X
+  claim: A LikeC4 architecture model improves threat-model quality (STRIDE coverage) vs no model.
+  legacy_design:
+    mechanism: A standard architecture DSL lets the model reason about trust boundaries/dataflows it would otherwise
+      have to reconstruct.
+    test: Threat-model task with/without the LikeC4 artifact; score STRIDE category coverage.
+    decision_rule: Confirm if STRIDE coverage/recall rises with the model present.
+    metrics:
+    - STRIDE category recall with/without LikeC4
+  legacy_evidence:
+    status: supported
+    note: The legacy test reported improved STRIDE and endpoint coverage with LikeC4 as the changed variable.
+  source_anchor: X2
+  v2_status: proposed
+- id: X3
+  direction: X
+  claim: Emitting findings as SARIF (a standard tools and LLMs both know) beats the bespoke free-text report on
+    reuse, interop, and small-model parsing.
+  legacy_design:
+    mechanism: SARIF is in pretraining and ingested by CI/IDE tooling; it makes findings portable and re-checkable
+      (ties to M's verifiability + B2's structure).
+    test: Downstream verify/triage consuming SARIF vs free-text; reuse accuracy + external-tool ingestion success,
+      both model sizes.
+    decision_rule: Confirm if SARIF reuse accuracy > free-text (especially on the 27b) and it ingests cleanly
+      into a standard viewer.
+    metrics:
+    - downstream reuse accuracy by format × model; tool-ingestion success
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: X3
+  v2_status: proposed
+- id: X4
+  direction: X
+  claim: 'Format-competence asymmetry: the most training-prevalent format helps small models more than large (across
+    OAS, diff, SARIF, HAR, Mermaid).'
+  legacy_design:
+    mechanism: Frontier models are format-robust; small models lean on familiarity. The standard-format choice
+      is therefore a small-LLM lever specifically.
+    test: For each intermediate, standard vs bespoke encoding × {27b, 70b}.
+    decision_rule: Confirm if standard-format uplift(27b) > uplift(70b) consistently.
+    metrics:
+    - task accuracy delta (standard − bespoke) by model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: X4
+  v2_status: proposed
+- id: X5
+  direction: X
+  claim: Choosing formats with mature external automation lets Contractor offload work (OpenAPI→schemathesis/RESTler,
+    SARIF→CI, HAR→replay).
+  legacy_design:
+    mechanism: A standard artifact is an interface to an existing tool ecosystem — the model produces the spec,
+      a battle-tested fuzzer does the grinding.
+    test: Feed Contractor's generated OpenAPI to an off-the-shelf API fuzzer; count bugs found by the fuzzer that
+      Contractor's own probing missed.
+    decision_rule: Confirm if the external tool, seeded by Contractor's artifact, adds findings at low marginal
+      LLM cost.
+    metrics:
+    - external-tool TPs added; LLM tokens spent to seed them
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: X5
+  v2_status: proposed
+- id: Y1
+  direction: Y
+  claim: BFS and DFS find largely disjoint bug sets, so their union recall ≫ either alone.
+  legacy_design:
+    mechanism: BFS catches shallow/pattern bugs; DFS catches deep/multi-hop dataflow bugs. If overlap is low,
+      neither mode alone suffices.
+    test: Run BFS-only and DFS-only on the 24 fixtures; measure set overlap and union recall.
+    decision_rule: Confirm if overlap is low and union ≫ max(single) — justifying always running both.
+    metrics:
+    - finding-set Jaccard overlap; union vs single recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Y1
+  v2_status: proposed
+- id: Y2
+  direction: Y
+  claim: BFS→DFS handoff (scan seeds trace targets) is more token-efficient than DFS-everywhere at equal recall
+    (validate the vuln_scan_trace design).
+  legacy_design:
+    mechanism: Cheap BFS narrows where expensive DFS looks, instead of tracing every entrypoint.
+    test: BFS→DFS vs trace-only (DFS everywhere) on fixtures; recall vs tokens.
+    decision_rule: Confirm if handoff reaches equal recall at materially lower cost.
+    metrics:
+    - recall; total tokens (handoff vs DFS-everywhere)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Y2
+  v2_status: proposed
+- id: Y3
+  direction: Y
+  claim: Adaptive scheduling (iterative-deepening / best-first, deepen only high-value leads) beats fixed BFS-then-DFS
+    on recall@budget.
+  legacy_design:
+    mechanism: Start broad, then spend DFS depth only on leads with high expected value (ties to U's value-of-information
+      policy).
+    test: Fixed BFS→DFS vs adaptive scheduler; recall@k-tokens curve.
+    decision_rule: Confirm if adaptive dominates the fixed schedule on the recall/cost frontier.
+    metrics:
+    - recall@budget (area under)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Y3
+  v2_status: proposed
+- id: Y4
+  direction: Y
+  claim: Required depth correlates with bug class — a class-aware router assigns the right mode.
+  legacy_design:
+    mechanism: Missing-authz / info-disclosure are BFS-catchable; multi-hop taint / exploit chains need DFS. Route
+      per class.
+    test: Recall by (bug class × mode) on stratified fixtures.
+    decision_rule: Confirm a clear class→mode mapping exists and a router using it beats a single mode.
+    metrics:
+    - 'recall matrix: class × {BFS, DFS}'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Y4
+  v2_status: proposed
+- id: Y5
+  direction: Y
+  claim: BFS is the most small-LLM-friendly default (smallest per-unit context); DFS's depth needs graph-tool
+    scaffolding to stay in-window.
+  legacy_design:
+    mechanism: BFS processes one file/pattern at a time; DFS must hold a multi-hop path — measure each mode's
+      peak context and how the small↔large gap differs by mode.
+    test: Peak worker context + recall per mode × {27b, 70b}.
+    decision_rule: Confirm if DFS's small↔large gap is wider than BFS's (depth is where small models need the
+      most help → motivates graph/dataflow scaffolding for DFS).
+    metrics:
+    - peak context per mode; recall gap by mode × model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Y5
+  v2_status: proposed
+- id: Z1
+  direction: Z
+  claim: Deterministic pool retrieval yields ~0 run-to-run variance in selected context; embedding-RAG does not.
+  legacy_design:
+    mechanism: Keyed/structured/lexical queries return the same set every run by construction; ANN over embeddings
+      does not.
+    test: Repeat the same run N times; measure the Jaccard stability of the retrieved/injected context set, pool
+      vs RAG.
+    decision_rule: Confirm if pool stability ≈ 1.0 while RAG < 1.0 — quantifies the confound the author is worried
+      about.
+    metrics:
+    - Jaccard of retrieved-context set across repeats
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Z1
+  v2_status: proposed
+- id: Z2
+  direction: Z
+  claim: Deterministic retrieval shrinks eval-metric variance across repeats, making smaller effects detectable
+    (hypotheses become testable).
+  legacy_design:
+    mechanism: Removing retrieval noise tightens the confidence interval on F1/capture, so a real but small improvement
+      clears the noise band.
+    test: Run a fixed config N times with pool vs RAG context; compare σ of F1.
+    decision_rule: Confirm if σ(pool) < σ(RAG) — directly validates "RAG makes it hard to test hypotheses".
+    metrics:
+    - σ of F1/capture across repeats; min detectable effect size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Z2
+  v2_status: proposed
+- id: Z3
+  direction: Z
+  claim: A typed "leads / suspicious" backlog — distinct from confirmed findings — raises recall when the scheduler
+    deepens it.
+  legacy_design:
+    mechanism: Low-confidence signals ("this handler lacks the auth its siblings have"; "this response was anomalous")
+      are currently dropped or conflated with findings. Store them as a separate type the BFS/DFS scheduler (Y3)
+      and budget policy (U) consume for deepening.
+    test: Pipeline with/without a leads pool feeding the DFS stage; recall + precision.
+    decision_rule: Confirm if recall rises (deepened leads become findings) without precision collapse.
+    metrics:
+    - recall/precision with vs without leads backlog
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Z3
+  v2_status: proposed
+- id: Z4
+  direction: Z
+  claim: Content-addressed artifacts let the pipeline skip re-deriving what's already known, cutting tokens.
+  legacy_design:
+    mechanism: Hash-keyed artifacts give deterministic cache hits (a file/analysis already computed isn't recomputed)
+      — ties to A4 (read cache) and W (planner).
+    test: Re-run / multi-task workflows with content-addressed caching on/off; tokens + cache-hit rate.
+    decision_rule: Confirm if tokens drop with equal output.
+    metrics:
+    - total tokens; artifact cache-hit rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Z4
+  v2_status: proposed
+- id: Z5
+  direction: Z
+  claim: A typed engagement graph (finding→endpoint→trace→evidence) lets downstream agents traverse rather than
+    re-derive from source.
+  legacy_design:
+    mechanism: Replace last-write-wins flat storage with typed relations + provenance; a verifier follows links
+      to the exact trace/evidence instead of re-reading the codebase (extends M5).
+    test: Downstream verify/exploit consuming the graph vs re-deriving; accuracy + tokens.
+    decision_rule: Confirm if traversal beats re-derivation on accuracy and cost; also verify no findings are
+      lost to overwrite.
+    metrics:
+    - downstream accuracy + tokens; finding-overwrite loss → 0
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Z5
+  v2_status: proposed
+- id: Z6
+  direction: Z
+  claim: 'Falsify the skepticism: pinned RAG (fixed embed model, deterministic top-k, stable tie-break) either
+    reaches pool-level reproducibility — or it doesn''t.'
+  legacy_design:
+    mechanism: The author suspects RAG is too inconsistent; test whether the inconsistency is intrinsic or merely
+      unpinned implementation. Pin every source of variance and re-measure.
+    test: Z1's variance measurement on naive RAG vs pinned RAG vs deterministic pool.
+    decision_rule: If pinned-RAG variance ≈ pool, the skepticism is addressable and RAG's fuzzy-recall reach can
+      be reclaimed where deterministic keys fall short; if pinned-RAG stays noisy, the deterministic pool is decisively
+      justified. Either way the belief becomes a measurement.
+    metrics:
+    - 'retrieval variance: naive-RAG vs pinned-RAG vs pool'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: Z6
+  v2_status: proposed
+- id: AA1
+  direction: AA
+  claim: Deterministic, context-targeted cell injection (framework × class × task) cuts resident skill context
+    vs all-injecting, at equal recall.
+  legacy_design:
+    mechanism: Detect framework from deps/manifest, take the current task's vuln class, and inject only matching
+      cells — instead of whole bundles. Selection is by deterministic signal (reproducible, per Z), not LLM/vector
+      choice.
+    test: Whole-bundle vs targeted-cell injection on the 24 fixtures; resident skill tokens + recall, both model
+      sizes.
+    decision_rule: Confirm if skill context drops with recall held — and helps the small model most (less window
+      pressure).
+    metrics:
+    - resident skill tokens; recall; small↔large gap
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AA1
+  v2_status: proposed
+- id: AA2
+  direction: AA
+  claim: 'Composition beats monoliths: a framework × class cell outperforms a generic class skill on framework-specific
+    bugs.'
+  legacy_design:
+    mechanism: Django-IDOR knowledge (queryset ownership, get_object_or_404 idioms) is more actionable than generic
+      IDOR prose.
+    test: Generic class skill vs framework×class cell, stratified by framework (crapi=Spring/Django, vampi=Flask…).
+    decision_rule: Confirm if framework-cell recall > generic on that framework's fixtures.
+    metrics:
+    - recall by framework, cell vs generic
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AA2
+  v2_status: proposed
+- id: AA3
+  direction: AA
+  claim: Task-specific skills as executable assets (tool-call sequences, code templates, scripts) raise small-model
+    success vs prose.
+  legacy_design:
+    mechanism: 'Generalizes E4 from payloads to whole procedures: a replayable probe sequence / code template
+      is retrieved and run, not recalled and improvised — retrieval beats free-recall for small models.'
+    test: Exploit/verify fixtures with procedural-skill-as-asset vs prose, both model sizes.
+    decision_rule: Confirm if small-model capture/verdict rises with executable procedures.
+    metrics:
+    - capture/verdict accuracy by model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AA3
+  v2_status: proposed
+- id: AA4
+  direction: AA
+  claim: The framework/language axis closes the AST-vs-knowledge gap (G) for under-covered languages.
+  legacy_design:
+    mechanism: Languages with AST support but no sink knowledge (Rust/Kotlin/Swift) gain recall once their language
+      cell exists — the substrate is already there (ties G1).
+    test: Language-stratified fixtures; recall before/after adding the language cell.
+    decision_rule: Confirm if that language's recall climbs toward Python/Java.
+    metrics:
+    - recall stratified by language
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AA4
+  v2_status: proposed
+- id: AA5
+  direction: AA
+  claim: 'A skill-coverage matrix (axes × cells) makes gaps explicit and measurable: empty cells predict low recall
+    on those framework×class combos.'
+  legacy_design:
+    mechanism: Lay skills on the framework×class grid; occupancy becomes a measurable surface. Filling a predicted-weak
+      cell should raise exactly that combo's recall — turning coverage into a plannable, anti-overfit roadmap
+      (general cells, not benchmark-specific patches).
+    test: Correlate per-(framework×class) recall with cell occupancy; then fill the lowest-occupancy, highest-traffic
+      cells and re-measure.
+    decision_rule: Confirm if recall tracks occupancy and filling targeted cells lifts their combos without hurting
+      others.
+    metrics:
+    - recall ~ cell-occupancy correlation; per-cell recall lift
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AA5
+  v2_status: proposed
+- id: AB1
+  direction: AB
+  claim: Define and instrument hypothesis quality — hit-rate, hypothesis-recall, and confirmed-findings-per-hypothesis-token
+    — so generators are comparable.
+  legacy_design:
+    mechanism: Hit-rate = confirmed / generated; hypothesis-recall = ground-truth vulns that had a matching hypothesis
+      at all; efficiency = confirmed findings per hypothesis-token. This is the instrument the whole direction
+      needs (measurement-first, like F).
+    test: Score oas_analyzer on the 24 fixtures as the baseline under these metrics.
+    decision_rule: Establishes the baseline; every generator below is judged against it.
+    metrics:
+    - hit-rate; hypothesis-recall; confirmed/hypothesis-token
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB1
+  v2_status: proposed
+- id: AB2
+  direction: AB
+  claim: 'Mode richness trades off cleanly: whitebox > graybox > blackbox on hit-rate; blackbox wins on breadth-per-token.'
+  legacy_design:
+    mechanism: More internal signal → more precise hypotheses but higher cost/narrower reach. Quantifying the
+      curve tells you which mode to use when (and pairs with Y's BFS/DFS).
+    test: Same fixtures, generate hypotheses in each mode; plot hit-rate and recall vs tokens.
+    decision_rule: Confirm the ordering and the cost crossover; output a mode-selection guideline.
+    metrics:
+    - hit-rate / recall / tokens by mode
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB2
+  v2_status: proposed
+- id: AB3
+  direction: AB
+  claim: Differential/comparative generation (hypothesize from the outlier sibling) beats per-endpoint spec-shape
+    on hit-rate.
+  legacy_design:
+    mechanism: '"Siblings A,B check ownership; C doesn''t" is a far stronger signal than "C takes an id" (ties
+      R intent-anomaly, E3 control-diff). Works in all three modes.'
+    test: Differential generator vs oas_analyzer on BOLA/BFLA fixtures (crapi, vampi).
+    decision_rule: Confirm if differential hit-rate > spec-shape, with fewer naming-based false hypotheses.
+    metrics:
+    - hit-rate; naming-based-FP share
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB3
+  v2_status: proposed
+- id: AB4
+  direction: AB
+  claim: Active/behavioral generation (probe → observe differential → hypothesize from the anomaly) surfaces hypotheses
+    static spec-analysis misses.
+  legacy_design:
+    mechanism: 'Graybox/blackbox: send calibrated baseline requests, mine response-code/size/timing/error differentials
+      for anomalies, turn each into a hypothesis. The spec never reveals these.'
+    test: Behavioral generator vs static-only; hypothesis-recall on fixtures with behavior-only signals (error-based,
+      timing).
+    decision_rule: Confirm a class of hypotheses appears that static generation cannot produce.
+    metrics:
+    - hypothesis-recall; behavior-only hypotheses count
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB4
+  v2_status: proposed
+- id: AB5
+  direction: AB
+  claim: Multi-modal fusion (OAS + LikeC4 + code/dataflow + traces) generates higher-quality hypotheses than any
+    single source.
+  legacy_design:
+    mechanism: The spec gives the surface, the architecture gives trust boundaries, dataflow gives reachability,
+      traces give runtime truth — fused, they ground hypotheses the blackbox oas_analyzer can't (whitebox-grade
+      leads from the founding format artifacts X).
+    test: Fusion generator vs OAS-only; hit-rate + recall, both model sizes.
+    decision_rule: Confirm fusion beats single-source on both metrics; measure the small-model lift.
+    metrics:
+    - hit-rate / recall, fusion vs OAS-only × model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB5
+  v2_status: proposed
+- id: AB6
+  direction: AB
+  claim: Generate-then-critique (adversarial pruning before spending probe budget) raises end-to-end efficiency.
+  legacy_design:
+    mechanism: Over-generate, then a critic prunes low-prior / non-falsifiable hypotheses before the expensive
+      verification stage spends probes (ties L2 adversarial verify, U budget).
+    test: With/without critique stage; confirmed findings per probe and per token.
+    decision_rule: Confirm efficiency rises (fewer wasted probes) without recall loss.
+    metrics:
+    - confirmed/probe; confirmed/token; recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB6
+  v2_status: proposed
+- id: AB7
+  direction: AB
+  claim: Hypothesis-as-typed-artifact (probe + oracle + prior + falsification criterion) stored in the leads pool
+    and ranked by the budget policy improves recall@budget.
+  legacy_design:
+    mechanism: Make each hypothesis a structured, verifiable object (Z3) the scheduler (U) ranks by prior×impact
+      — vs unstructured prose that can't be prioritized or falsified cleanly.
+    test: Typed+ranked hypotheses vs prose list feeding the same verification budget; recall@budget.
+    decision_rule: Confirm structured+ranked reaches more confirmed findings per fixed budget.
+    metrics:
+    - recall@budget; prior-vs-confirmation calibration (ties K2)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB7
+  v2_status: proposed
+- id: AB8
+  direction: AB
+  claim: Diversity-controlled generation (cover classes/endpoints/assets) beats greedy single-class generation
+    on hypothesis-recall.
+  legacy_design:
+    mechanism: Greedy generators over-produce one class and never hypothesize the bug that was actually there.
+      Enforce spread across classes/endpoints/assets (ties L1 ensemble lenses).
+    test: Diversity-controlled vs greedy; hypothesis-recall (did a matching hypothesis exist for each ground-truth
+      vuln?).
+    decision_rule: Confirm recall rises, especially for under-represented classes.
+    metrics:
+    - hypothesis-recall by class; class-coverage spread
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AB8
+  v2_status: proposed
+- id: AC1
+  direction: AC
+  claim: 'Grounding generalizes: any deterministic check that contradicts the worker''s self-report suppresses
+    hallucination — file_paths is one instance of many.'
+  legacy_design:
+    mechanism: '"Reported a finding in file X but never read X" is a contradiction the system can detect deterministically
+      and act on. Enumerate such checks (place-vs-read, sink-vs-trace, endpoint-vs-source) and feed them back.'
+    test: Add contradiction checks beyond paths; measure FP reduction on the trace fixtures.
+    decision_rule: Confirm if additional contradiction signals each cut FP the way paths did, at flat cost.
+    metrics:
+    - vuln FP; F1; tool cost
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AC1
+  v2_status: proposed
+- id: AC2
+  direction: AC
+  claim: 'An emitted-vs-observed cross-check kills hallucinated artifacts (the oas_build CRUD hallucinations:
+    GET /notes , PUT /users/{id} absent from source).'
+  legacy_design:
+    mechanism: Flag any emitted endpoint/finding whose place was never present in an observed (read) file — the
+      precise failure mode file_paths targets, already queued in the study's next steps.
+    test: oas_build + trace with the cross-check on/off; endpoint FP and vuln-place FP.
+    decision_rule: Confirm if CRUD-pattern hallucinations are eliminated without dropping real endpoints.
+    metrics:
+    - endpoint/vuln-place FP; recall of genuine items
+  legacy_evidence:
+    status: shipped_or_validated
+    note: The emitted-versus-observed cross-check was shipped behind a gate.
+  source_anchor: AC2
+  v2_status: proposed
+- id: AC3
+  direction: AC
+  claim: Observations raise recall WITHOUT injecting run-to-run variance (deterministic, per Z) — unlike a learned/fuzzy
+    feedback channel would.
+  legacy_design:
+    mechanism: The block is computed from recorded tool usage, not generated — so it's identical across repeats.
+      Confirms observations are a safe lever for a hypothesis-driven roadmap.
+    test: Repeat a fixed config; verify the injected observation block is byte-identical run-to-run; contrast
+      variance with the off arm's intrinsic noise.
+    decision_rule: Confirm the signal itself adds zero variance (the ±0.07 is model noise, not observation noise).
+    metrics:
+    - observation-block stability across repeats
+  legacy_evidence:
+    status: supported
+    note: Legacy repeats reported an observation recall lift without additional run-to-run variance.
+  source_anchor: AC3
+  v2_status: proposed
+- id: AC4
+  direction: AC
+  claim: 'It''s a small-LLM lever: the recall lift is replicated on 27b/35b at flat-or-lower cost, and may be
+    larger for smaller models.'
+  legacy_design:
+    mechanism: Observations substitute for the working-memory a small model lacks ("you already looked here, found
+      this"). The 27b result (+5 vulns, ~half the tools) suggests the lift is at least as large for the smaller
+      model.
+    test: Run the off baseline on both MTP models (queued in the study) for clean within-model deltas; compare
+      lift by model size.
+    decision_rule: Confirm the off→obs lift holds within each model and quantify whether it's larger for smaller
+      ones (mission asymmetry).
+    metrics:
+    - within-model recall lift by model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AC4
+  v2_status: proposed
+- id: AC5
+  direction: AC
+  claim: More observation dimensions pay off — coverage gaps, graph-reachability, and malformed/retry signals
+    (the malformed_only arm was 2nd-best at the cheapest cost).
+  legacy_design:
+    mechanism: 'The study tested tools/files/skills/memories. Untested deterministic signals: "these handlers
+      were never visited" (coverage), "this sink is reachable but never traced" (graph), and the cheap malformed_only
+      signal that already gave +0.062 F1.'
+    test: Add each dimension as an arm; vuln F1 + cost vs lean.
+    decision_rule: Confirm which new dimensions add recall/precision per token; drop the neutral ones (as errors/memories
+      were dropped).
+    metrics:
+    - vuln F1 / FP / tokens per added dimension
+  legacy_evidence:
+    status: shipped_or_validated
+    note: Coverage-gap observations were shipped behind a gate.
+  source_anchor: AC5
+  v2_status: proposed
+- id: AC6
+  direction: AC
+  claim: Observations are a tunable precision/recall dial — lean and lean+paths move opposite axes; route per
+    use-case.
+  legacy_design:
+    mechanism: 'The study showed lean = recall, lean+paths = precision. Expose this as a config dial: a security
+      scanner that must not miss bugs picks lean; a PR-gate / triage flow drowning in FPs picks lean+paths.'
+    test: Sweep the dial across use-case-representative fixtures; verify monotone precision/recall movement.
+    decision_rule: Confirm the dial behaves predictably enough to expose as a documented knob.
+    metrics:
+    - precision/recall along the dial
+  legacy_evidence:
+    status: supported
+    note: The legacy comparison reported different precision/recall behavior for lean and lean-plus-paths.
+  source_anchor: AC6
+  v2_status: proposed
+- id: AC7
+  direction: AC
+  claim: Tool arguments (not just counts/paths) as observations sharpen coverage-gap and ungrounded-claim detection
+    — but risk the errors-arm failure mode.
+  legacy_design:
+    mechanism: 'Project what the worker actually searched/probed: grep patterns, resolved symbols, HTTP params/payloads,
+      edits. The planner can then see gaps ("grepped SQLi sinks, never SSRF") and contradictions ("claimed SQLi
+      but no arg matched a query sink" — extends AC1). The honest risk: like include_tool_errors , the extra text
+      may add noise/FP and tokens rather than signal.'
+    test: Add a tool-args arm vs lean and lean+paths; vuln F1 / FP / recall + tokens, on the trace + scan fixtures.
+    decision_rule: Keep only if it adds recall or precision per token; drop if neutral-to-negative, exactly as
+      errors/memories were dropped. The precedent says assume nothing.
+    metrics:
+    - vuln F1 / FP / recall; tokens — args arm vs lean / lean+paths
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AC7
+  v2_status: proposed
+- id: AC8
+  direction: AC
+  claim: Task-relevance scoping of observations beats projecting everything — the "relevant for tasks" control
+    is what keeps args from becoming noise.
+  legacy_design:
+    mechanism: 'Which tool args matter is task-dependent: a trace task cares about read/grep/graph args; an exploit
+      task about HTTP params/payloads; an oas task about endpoints emitted vs files read. Project only the task-relevant
+      slice (ties AA''s task axis + the per-task skills: /config pattern) instead of all args — controlling the
+      token/noise blowup that sank the errors arm.'
+    test: Three arms — counts-only (current lean) vs all-args vs task-scoped-args — measured as F1 per token across
+      task types.
+    decision_rule: Confirm if task-scoped args dominate all-args on F1-per-token (signal without the noise tax);
+      if all-args already wins, scoping is unnecessary complexity.
+    metrics:
+    - vuln F1 per token by projection scope × task type
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AC8
+  v2_status: proposed
+- id: AD1
+  direction: AD
+  claim: 'Task ablation maps which tasks earn their place: removing each task moves end-to-end recall/F1/cost
+    measurably (or not).'
+  legacy_design:
+    mechanism: 'Systematically drop one task at a time from a pipeline (e.g. vuln-assess : SWE → OAS → lint →
+      trace → exploit) and measure the end-to-end delta. A task whose removal doesn''t move metrics is dead weight
+      (ties D).'
+    test: Leave-one-out ablation over the pipeline's tasks on the eval fixtures.
+    decision_rule: Produces a per-task value table (ΔF1, Δcost); keep high-value tasks, prune zero-value ones.
+    metrics:
+    - end-to-end ΔF1 / Δrecall / Δtokens per task removed
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AD1
+  v2_status: proposed
+- id: AD2
+  direction: AD
+  claim: A specialized agent beats the generalist worker on its subtask only when the subtask is distinct enough
+    — specialize where it wins, not everywhere.
+  legacy_design:
+    mechanism: A focused prompt helps small LLMs (narrower instruction surface), but every new agent is maintenance
+      + the agent-proliferation the report warns about. Decide by measured subtask lift, not intuition.
+    test: 'For each candidate (e.g. auth-discovery, hypothesis-gen): specialized agent vs generalist worker on
+      the subtask, both model sizes.'
+    decision_rule: Create the agent only where it beats the generalist on subtask quality (especially on the 27b);
+      otherwise keep the generalist.
+    metrics:
+    - subtask success/quality, specialized vs generalist × model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AD2
+  v2_status: proposed
+- id: AD3
+  direction: AD
+  claim: Declarative composition (derive pipeline order from declared artifact deps, topologically) reproduces
+    hand-coded pipelines at equal quality with far less code.
+  legacy_design:
+    mechanism: The artifact-dependency graph already determines order; make it the source of truth so a pipeline
+      is data (a task list + deps) not a bespoke workflow.py . Collapses the proliferation D1/W2 target.
+    test: Re-express ≥2 existing workflows declaratively; run the full eval set; compare metrics and LOC.
+    decision_rule: Confirm if metrics stay within noise and net LOC drops materially; kill if the graph can't
+      express a needed control flow.
+    metrics:
+    - 'eval parity; LOC removed; #workflows collapsed'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AD3
+  v2_status: proposed
+- id: AD4
+  direction: AD
+  claim: Target-aware auto-composition (select tasks by target type) matches or beats a fixed maximal pipeline
+    at lower cost.
+  legacy_design:
+    mechanism: Detect target characteristics (HTTP API? deps/lockfiles? live URL?) and assemble only the relevant
+      tasks — API → oas+trace+exploit; no-API → scan; has-deps → SCA (J); no-URL → skip exploit. Skips irrelevant
+      work instead of running everything.
+    test: Auto-composed vs fixed maximal pipeline across heterogeneous fixtures (API and non-API); recall vs tokens.
+    decision_rule: Confirm if auto matches fixed recall at lower cost (no relevant task dropped); kill if the
+      selector misroutes and loses findings.
+    metrics:
+    - recall; total tokens; misroute rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AD4
+  v2_status: proposed
+- id: AD5
+  direction: AD
+  claim: 'Missing tasks add coverage: inserting recon/auth-discovery, SCA, hypothesis-gen, or triage into a pipeline
+    raises end-to-end recall/precision.'
+  legacy_design:
+    mechanism: Test each candidate new task as a pipeline insertion at its natural stage — auth-discovery before
+      trace (enables two-user IDOR), SCA (J) in parallel, hypothesis-gen (AB) before discovery, triage (K) before
+      verify.
+    test: Pipeline with/without each inserted task; end-to-end F1.
+    decision_rule: Keep insertions that lift F1 per token; this is how the catalog grows by evidence, not guesswork.
+    metrics:
+    - end-to-end ΔF1 / Δprecision per inserted task
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AD5
+  v2_status: proposed
+- id: AD6
+  direction: AD
+  claim: 'Staging dominates: the handoff order (scan→triage→verify; BFS→DFS) beats a flat all-at-once pipeline
+    on F1-per-token.'
+  legacy_design:
+    mechanism: Cheap-broad-first then expensive-narrow-later (ties Y BFS/DFS, K triage-before-verify, U budget)
+      spends costly stages only on survivors of cheap ones.
+    test: Staged vs flat composition of the same tasks; F1 and tokens.
+    decision_rule: Confirm if staging reaches equal-or-higher F1 at lower cost; identifies the best handoff order.
+    metrics:
+    - F1 per token, staged vs flat
+  legacy_evidence:
+    status: contradicted_so_far
+    note: The first pass@1 pipeline test favored the flat pipeline because staged retention was low.
+  source_anchor: AD6
+  v2_status: proposed
+- id: AE1
+  direction: AE
+  claim: 'Layer placement changes outcomes: the same content in agent-prompt vs task-prompt vs skill yields different
+    recall/precision/cost — establish the routing rules empirically.'
+  legacy_design:
+    mechanism: Take one piece of guidance (e.g. a methodology rule) and A/B its placement across the three layers;
+      resident-always vs per-task vs pulled-on-demand trade availability against token cost.
+    test: Same content, three placements, on the trace + scan fixtures; F1 and tokens.
+    decision_rule: Produces an evidence-based routing rule per content type (behavior → agent; task-specific grounding
+      → task; reference knowledge → skill).
+    metrics:
+    - F1 / recall / tokens by layer placement
+  legacy_evidence:
+    status: supported
+    note: Legacy task-layer placement changes were associated with an F1 improvement.
+  source_anchor: AE1
+  v2_status: proposed
+- id: AE2
+  direction: AE
+  claim: Minimal, focused layers help small LLMs disproportionately — prompt bloat crowds the small window.
+  legacy_design:
+    mechanism: A frontier model tolerates a verbose prompt; a 27b spends window it needs for the actual code.
+      Measure F1 vs total resident prompt size by model.
+    test: Trim each layer to essentials vs verbose baseline, × {27b, 70b}.
+    decision_rule: Confirm if trimming lifts (or holds) small-model F1 more than large-model — the mission asymmetry.
+    metrics:
+    - F1 vs resident prompt tokens × model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AE2
+  v2_status: proposed
+- id: AE3
+  direction: AE
+  claim: Fine-grained, lazily-pulled skills beat monolithic bundles for small LLMs — validate the design divergence.
+  legacy_design:
+    mechanism: Index + small references read on demand lets the model load only the relevant slice, fitting the
+      window; a monolithic resident skill wastes context on the irrelevant. Test the author's design choice head-to-head.
+    test: Same knowledge as fine-grained refs vs one monolithic skill; small-model recall + peak context + skill
+      tokens pulled.
+    decision_rule: Confirm if fine-grained wins on recall-per-context for the small model; also find the right
+      chunk granularity (too fine = many round-trips, too coarse = over-pull).
+    metrics:
+    - recall; peak context; skill tokens pulled — fine vs monolithic × model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AE3
+  v2_status: proposed
+- id: AE4
+  direction: AE
+  claim: 'The task-prompt worker-context channel is high-leverage: task-specific grounding belongs there, not
+    baked into the static agent prompt or a skill.'
+  legacy_design:
+    mechanism: Per-target facts (the endpoint under test, prior findings, deterministic observations from AC)
+      injected via the task prompt reach the worker exactly when relevant, without inflating the always-resident
+      agent prompt or polluting a reusable skill.
+    test: Inject task-specific grounding via task prompt vs agent prompt vs skill; F1 and tokens.
+    decision_rule: Confirm if the task-prompt channel gives the grounding benefit at lower resident cost than
+      the alternatives.
+    metrics:
+    - F1; resident vs per-task tokens by channel
+  legacy_evidence:
+    status: implemented_evidence
+    note: The legacy v3 prompt split moved knowledge, tools and task grounding to separate layers.
+  source_anchor: AE4
+  v2_status: proposed
+- id: AE5
+  direction: AE
+  claim: 'Placement-by-access-frequency minimizes tokens at equal quality: frequently-needed → resident; occasionally-needed
+    → lazy.'
+  legacy_design:
+    mechanism: 'Formalize the routing as a cost model: knowledge needed on most turns is cheapest resident (or
+      cached, A1); rarely-needed knowledge is cheapest lazily pulled. Audit current placements against this and
+      re-route the mismatches.'
+    test: Re-route a few mis-placed items per the rule; total tokens + F1.
+    decision_rule: Confirm if re-routing cuts tokens with quality held — turning layer choice into a principled,
+      not ad-hoc, decision.
+    metrics:
+    - total tokens; F1; per-item access-frequency vs placement
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AE5
+  v2_status: proposed
+- id: AE6
+  direction: AE
+  claim: A hard skill-injection cap per worker (e.g. 1–3, max 5) — treat the "everything agent" as an explicit
+    anti-pattern.
+  legacy_design:
+    mechanism: '[comparative: Strix validate_requested_skills ] An enforced budget on how many skills any one
+      worker loads, bounding context bloat at the source (complements AA''s organization with a per-worker constraint).'
+    test: Capped vs uncapped skill injection; recall + resident context, both model sizes.
+    decision_rule: Confirm if small-model F1/context improves or holds with the cap (focus beats breadth in a
+      tiny window).
+    metrics:
+    - 'F1; resident context; #skills loaded'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AE6
+  v2_status: proposed
+- id: AF1
+  direction: AF
+  claim: Near-duplicate action detection (beyond exact-match) that forces a strategy change breaks non-convergent
+    loops like XBEN-010.
+  legacy_design:
+    mechanism: Detect semantically near-identical successive tool calls / code-exec scripts (not just byte-identical)
+      and inject a "you are repeating — change approach or commit" signal.
+    test: Re-run XBEN-010 + loop-prone fixtures with the guard; capture rate and duplicate-script rate.
+    decision_rule: Confirm if it captures XBEN-010 within budget (or at least exits the loop); kill if it trips
+      on legitimate iterative refinement.
+    metrics:
+    - capture rate; near-duplicate-action rate; false-trip rate
+  legacy_evidence:
+    status: supported
+    note: The converge prompt reduced a known annotation/restore loop and improved workshop recall.
+  source_anchor: AF1
+  v2_status: proposed
+- id: AF2
+  direction: AF
+  claim: A periodic injected self-critique ("am I looping? is this approach impossible? what would change my mind?")
+    improves recovery from stuck states.
+  legacy_design:
+    mechanism: '[comparative: PentAGI mentor] On a step cadence, inject a critique prompt that forces the model
+      to reassess rather than grind.'
+    test: With/without the critique cadence on stuck-prone fixtures; stuck-state escape rate, F1, tokens.
+    decision_rule: Confirm escape rate rises without a token blowup; tune cadence.
+    metrics:
+    - stuck-state escape rate; F1; tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AF2
+  v2_status: proposed
+- id: AF3
+  direction: AF
+  claim: A "new-situation" re-plan gate (re-plan only when facts/blockers materially changed) cuts planning tokens
+    without losing quality.
+  legacy_design:
+    mechanism: '[comparative: Cairn] Trigger planner re-derivation only on a material change, and explicitly not
+      on merely adding an intent — avoiding planning churn (a firing condition for W).'
+    test: Re-plan-always vs gated; planner tokens + completion + recall.
+    decision_rule: Confirm planner tokens drop with quality held.
+    metrics:
+    - planner tokens; completion; recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AF3
+  v2_status: proposed
+- id: AF4
+  direction: AF
+  claim: '"Did nothing" as a signal — surfacing empty observations on malformed / no-work subtasks lets the planner
+    distinguish confused-but-working from dead.'
+  legacy_design:
+    mechanism: '[comparative: observation-record samples] Inject observations even when empty on the malformed
+      path — "produced garbage AND did no work" is itself diagnostic, enabling better recovery routing.'
+    test: With/without empty-observation injection on malformed subtasks; malformed-recovery rate.
+    decision_rule: Confirm recovery improves; near-zero cost so the bar is low.
+    metrics:
+    - malformed-subtask recovery rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AF4
+  v2_status: proposed
+- id: AF5
+  direction: AF
+  claim: 'Vendor the primitive: shipping known tooling/encoders as executable assets (e.g. a JSFuck encoder) instead
+    of hand-deriving algorithms breaks derivation loops.'
+  legacy_design:
+    mechanism: XBEN-010 stalled hand-building a JSFuck encoder recursively. Small models are bad at long mechanical
+      derivations but fine at calling a provided primitive — so ship encoders/payload-builders as tools, not prose
+      (the AF-specific case of AA3/E4).
+    test: XBEN-010-class fixtures with the vendored encoder available; capture rate / time-to-capture.
+    decision_rule: Confirm the construction loop is sidestepped and the case captures.
+    metrics:
+    - capture rate; derivation-loop occurrences
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AF5
+  v2_status: proposed
+- id: AG1
+  direction: AG
+  claim: A per-line character cap (~2000 chars, before the byte budget) raises signal density — one minified/lockfile/base64
+    line can't consume the whole read.
+  legacy_design:
+    mechanism: Truncate any single overlong line first; content-blind (safe for code/comments, which matter for
+      vuln/trace). The cheapest gap both studies flagged.
+    test: Fixtures with minified/generated files; recall + wasted-token share, cap on/off.
+    decision_rule: Confirm wasted tokens drop and recall holds; small models gain the most (window is the constraint).
+    metrics:
+    - wasted-token share; recall; reads hitting the line cap
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AG1
+  v2_status: proposed
+- id: AG2
+  direction: AG
+  claim: Large-output offload (spill to artifact + preview + resumable handle) turns truncation into pagination,
+    recovering findings lost to the cap.
+  legacy_design:
+    mechanism: When a read/grep/graph result exceeds threshold, write the full result to the artifact store (Z)
+      and return a short preview + handle (key + offset / grep continuation) instead of discarding the tail.
+    test: Large-grep / large-file fixtures; recall of items beyond the current cap.
+    decision_rule: Confirm tail-findings are recoverable at modest extra cost; pairs with A2 retention tuning.
+    metrics:
+    - recall of beyond-cap items; tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AG2
+  v2_status: proposed
+- id: AG3
+  direction: AG
+  claim: Throw-instead-of-truncate on a no-limit oversized read costs fewer tokens than a truncated head and teaches
+    better tool use.
+  legacy_design:
+    mechanism: '[comparative: Claude Code measured] A ~100-byte "use offset/limit/grep" error bills far less than
+      a truncated head (which still consumes a full budget while teaching nothing) and nudges the model to scope
+      reads.'
+    test: Tokens-per-read + downstream read-scoping behavior; A/B in the pass@X harness.
+    decision_rule: Confirm the throw path costs fewer tokens with equal-or-better completion.
+    metrics:
+    - tokens per oversized read; subsequent scoped-read rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AG3
+  v2_status: proposed
+- id: AG4
+  direction: AG
+  claim: 'Input compaction is where the leverage is (input ≈ 47× output): HTTP-body truncation + cross-turn source-refeed
+    dedup beat any output-side change.'
+  legacy_design:
+    mechanism: The XBOW token split (12.67M in / 270k out) says cost is re-feeding source + large bodies each
+      turn, not generation — so target the input side (ties A1 caching, A4 read cache).
+    test: Input-side optimizations vs output-side; total tokens at equal capture/recall.
+    decision_rule: Confirm input-side changes move total tokens more than output-side ones — directing where A-effort
+      goes.
+    metrics:
+    - total tokens; input:output ratio
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AG4
+  v2_status: proposed
+- id: AH1
+  direction: AH
+  claim: Observed end-to-end recall stays far above the naive p^N prediction, because filter stages have retention
+    ρ≈1, not p≈0.8.
+  legacy_design:
+    mechanism: Instrument each pipeline stage; estimate per-stage accuracy on labeled fixtures; plot observed
+      end-to-end recall ( recall_scan × ρ_dedup × ρ_trace × ρ_verify ) against the p^N a generator chain would
+      predict. (The talk's E2, Chart A.)
+    test: Score each stage artifact independently against ground truth on the eval fixtures.
+    decision_rule: Confirm the observed line sits far above p^N — turning "verification ≠ generation" from a claim
+      into a graph.
+    metrics:
+    - per-stage ρ and precision; observed recall vs p^N
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AH1
+  v2_status: proposed
+- id: AH2
+  direction: AH
+  claim: The precision/recall funnel — recall flat-or-falling, precision rising across stages — is the visual
+    proof that filters add precision without a generator's recall hit.
+  legacy_design:
+    mechanism: 'Plot recall and precision across the four stages (E2, Chart B): recall can only fall (only filters
+      touch it), precision climbs as FPs are removed.'
+    test: Per-stage P/R on the fixtures; chart the two trajectories.
+    decision_rule: Confirm the funnel shape (recall ≈ flat, precision ↑); a recall collapse at a stage flags a
+      too-aggressive filter.
+    metrics:
+    - per-stage recall & precision trajectories
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AH2
+  v2_status: proposed
+- id: AH3
+  direction: AH
+  claim: 'Control arm: a generator-only chain (N independent scans unioned) has precision collapse as passes grow,
+    while the funnel''s precision climbs.'
+  legacy_design:
+    mechanism: Run 3× independent vuln_scan passes unioned (each a generator, no filtering); each pass adds FPs.
+      Same models/fixtures as the funnel. The decisive contrast that separates filter from generator.
+    test: Precision vs number of passes, union-chain vs funnel.
+    decision_rule: Confirm union precision falls while funnel precision rises — one slide, two trajectories.
+    metrics:
+    - 'precision vs #passes (union) vs funnel precision'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AH3
+  v2_status: proposed
+- id: AH4
+  direction: AH
+  claim: Context rot lowers each stage's accuracy p as input grows (small models sooner) — so per-stage context
+    minimization raises p and end-to-end recall.
+  legacy_design:
+    mechanism: Long context degrades each step's accuracy (Chroma's 18-model Context Rot study; arXiv 2510.05381
+      isolates input length as causal); small models hit the wall sooner. Minimizing per-stage context (ties A/AG/AE)
+      directly raises p , which compounds favorably through the funnel.
+    test: Stage accuracy vs injected context size, by model size.
+    decision_rule: Confirm p falls with context length and the drop is steeper for smaller models — quantifying
+      why the context-economy directions matter.
+    metrics:
+    - p_stage vs context length × model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AH4
+  v2_status: proposed
+- id: AH5
+  direction: AH
+  claim: Capability = harness × model, and below frontier scale the harness term dominates — the harness lift
+    is larger for small models than frontier (substitutes, not complements).
+  legacy_design:
+    mechanism: 'The talk''s E1 ablation matrix: models × harness conditions (full / no-verify / no-skills / raw-tools
+      / raw-prompt). Plot F1(full) − F1(raw_prompt) per model — if small-model bars are taller than the frontier
+      bar, harness and scale are substitutes. (Ties E.)'
+    test: 'Factorial eval: 4–5 models × the harness conditions × fixtures, N=3 at temp 0; the env-gated ablation
+      toggles already specified (no-skills, raw-tools, raw-prompt).'
+    decision_rule: Confirm the harness gap is larger for small models — the headline finding for the small-LLM
+      mission.
+    metrics:
+    - F1(full) − F1(raw) by model size; per-component single-ablation drop
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AH5
+  v2_status: proposed
+- id: AI1
+  direction: AI
+  claim: Targeted escalation at stuck/loop points (the AF trigger) resolves cases the small model can't — e.g.
+    the XBEN-010 non-convergent loop — at small aggregate cost.
+  legacy_design:
+    mechanism: Detect a stuck / low-confidence state and escalate that single subtask to the frontier model; escalation
+      is the exception (the AutoMix/FrugalGPT pattern), so the bill stays close to small-only.
+    test: 'Small-only vs small+escalate-on-stuck on the XBOW subset + loop-prone fixtures; capture rate, total
+      cost, #escalations.'
+    decision_rule: Confirm hard cases resolve with escalations few enough that aggregate cost stays near small-only;
+      kill if escalations fire too often (then the trigger, not the model, is wrong).
+    metrics:
+    - capture/verdict; total tokens & $; escalations per run
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AI1
+  v2_status: proposed
+- id: AI2
+  direction: AI
+  claim: Escalating only contested / low-confidence items (vs none vs all) is the cost-optimal cascade — most
+    accuracy per escalation dollar.
+  legacy_design:
+    mechanism: Confidence/disagreement-gated deferral (FrugalGPT/RouteLLM/cascaded-LMs) escalates only the uncertain
+      tail — ties K (calibration) and V (consensus disagreement as the trigger).
+    test: escalate-none vs escalate-contested vs escalate-all on verdict/detection fixtures; accuracy vs cost.
+    decision_rule: Confirm escalate-contested Pareto-dominates the other two on accuracy-per-dollar.
+    metrics:
+    - accuracy vs escalation cost across the three policies
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AI2
+  v2_status: proposed
+- id: AI3
+  direction: AI
+  claim: Frontier-seeded hypotheses + small-model verification beats small-only generation, cheaply.
+  legacy_design:
+    mechanism: A few frontier tokens generate high-quality hypotheses/leads (AB); the bulk verification stays
+      local. Inter-Cascade shows the strong model's output can be stored as a reusable strategy (ties O experience
+      memory).
+    test: Small-only generation vs frontier-seeded + local-verify; hypothesis hit-rate/recall + cost.
+    decision_rule: Confirm hit-rate/recall rises at modest added cost (few frontier tokens).
+    metrics:
+    - hypothesis hit-rate/recall; frontier tokens spent
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AI3
+  v2_status: proposed
+- id: AI4
+  direction: AI
+  claim: Which insertion point yields the best quality-per-escalation-token — planner / hypothesis-gen / verify
+    filter / stuck-retry?
+  legacy_design:
+    mechanism: Ablate escalation at each seam; cascade-aware / multi-objective work shows the decision point shifts
+      the cost/quality frontier, so the best point is empirical.
+    test: Per-point quality lift per escalation token across the four seams.
+    decision_rule: 'Locate the highest-leverage point(s); escalate only there. (Hypothesis: the verify filter
+      — escalating the bottom of the AH funnel — wins.)'
+    metrics:
+    - ΔF1 / Δcapture per escalation token, by insertion point
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AI4
+  v2_status: proposed
+- id: AI5
+  direction: AI
+  claim: Optional, config-gated escalation is a no-op when unset and drop-in when set — swap the model alias for
+    one call, identical tools/prompt/schema; explicit opt-in for data-residency.
+  legacy_design:
+    mechanism: 'A config knob ( escalation_model + policy: off | on-stuck | on-low-confidence | on-verify ), env-gated
+      like observations. Because escalation can send code off-box, it is opt-in only (sovereignty).'
+    test: Off == baseline (byte-identical eval envelope); on-path swaps the model for the gated call and flows
+      back via artifacts.
+    decision_rule: Confirm zero behavior change when off; clean integration when on.
+    metrics:
+    - off-vs-baseline eval diff (must be empty); on-path correctness
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AI5
+  v2_status: proposed
+- id: AI6
+  direction: AI
+  claim: Because escalation is rare×targeted, aggregate cost stays near small-only while quality approaches "frontier
+    did the hard parts" — map the escalation cost/quality frontier.
+  legacy_design:
+    mechanism: Plot all-small vs cascade vs all-frontier (the FrugalGPT/AutoMix/RouteLLM curves); the cascade
+      should sit on the Pareto frontier between them.
+    test: F1/capture vs total $ for the three regimes on the eval set.
+    decision_rule: Confirm the cascade Pareto-dominates all-small (quality) and all-frontier (cost).
+    metrics:
+    - F1/capture vs cost, three regimes
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AI6
+  v2_status: proposed
+- id: AJ1
+  direction: AJ
+  claim: Plain RAG over a curated security KB (CWE entries, sink patterns, skill refs) lifts small-model recall/precision
+    where the knowledge doesn't fit resident context.
+  legacy_design:
+    mechanism: Retrieve only the relevant KB slice per query (ToolRAG retrieves CWE fields to cut FPs; RESCUE
+      injects security knowledge training-free). Curated, not a raw-doc dump.
+    test: no-RAG vs RAG-over-KB vs all-resident skills on detection fixtures, by model size and KB size.
+    decision_rule: RAG wins when the KB exceeds the window; if it fits, all-resident or CAG (AJ5) wins — so the
+      result is a size threshold, not a yes/no.
+    metrics:
+    - P/R/F1 by knowledge-delivery mode × model; KB size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AJ1
+  v2_status: proposed
+- id: AJ2
+  direction: AJ
+  claim: Reproducibility-pinned RAG (fixed embedding, deterministic top-k, stable tie-break) recovers run-to-run
+    determinism — the constructive form of Z6.
+  legacy_design:
+    mechanism: ReproRAG shows nondeterminism originates in vector retrieval, ranked embedding > index > precision
+      > hardware > distribution; pin each (and prefer lexical/BM25 where possible — it's deterministic).
+    test: 'Retrieval-set Jaccard / Kendall''s Tau across repeats: naive RAG vs pinned RAG vs the deterministic
+      pool.'
+    decision_rule: If pinned-RAG variance ≈ pool, plain RAG is admissible for the roadmap; if it stays noisy,
+      keep deterministic retrieval. Settles the Z skepticism with a number.
+    metrics:
+    - retrieval Jaccard / Kendall's Tau across repeats
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AJ2
+  v2_status: proposed
+- id: AJ3
+  direction: AJ
+  claim: Plain vector/hybrid RAG suffices; GraphRAG's cost isn't justified for this project's small KBs — adopt
+    adaptive routing, graph only if relationship queries dominate.
+  legacy_design:
+    mechanism: GraphRAG wins multi-entity/cross-document reasoning but costs more to index and hinges on entity-extraction
+      quality; LazyGraphRAG / adaptive routing reclaim most of the benefit cheaply.
+    test: vector vs hybrid vs graph RAG on the KB tasks; quality vs index+query cost.
+    decision_rule: Confirm plain/hybrid is on the cost/quality frontier for these KBs; promote to graph only where
+      relationship queries are shown to dominate.
+    metrics:
+    - quality vs index+query cost across RAG variants
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AJ3
+  v2_status: proposed
+- id: AJ4
+  direction: AJ
+  claim: RAG is the retrieval layer for experience memory (O) and N-day variant matching (N) — retrieve similar
+    past confirmed findings/patterns to prime a run.
+  legacy_design:
+    mechanism: Similarity search over the deterministic store (Z) surfaces analogous prior findings (O) and code
+      resembling a known-vulnerable pattern (N); training-free, grows with use.
+    test: Cold vs RAG-primed (memory built on a disjoint split) precision/recall on held-out fixtures.
+    decision_rule: Confirm precision rises (fewer repeat FPs) and variant recall rises; guard against leakage
+      from the priming split.
+    metrics:
+    - precision/recall, primed vs cold
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AJ4
+  v2_status: proposed
+- id: AJ5
+  direction: AJ
+  claim: For small static KBs, CAG (preload into context/KV-cache, no retrieval) beats RAG — find the crossover
+    where KB size forces retrieval.
+  legacy_design:
+    mechanism: '"Don''t Do RAG" shows preloading a small, stable KB removes retrieval latency + retrieval errors
+      and matches/beats RAG — the formal backing for the project''s in-prompt-skills stance (AE/AA). RAG only
+      wins once the KB exceeds the window.'
+    test: CAG vs RAG vs no-knowledge as KB size grows; quality + latency.
+    decision_rule: Confirm CAG ≥ RAG below the window crossover and RAG takes over above it — bounding when retrieval
+      is worth any plumbing at all.
+    metrics:
+    - quality/latency vs KB size, CAG vs RAG
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AJ5
+  v2_status: proposed
+- id: AK1
+  direction: AK
+  claim: Reflective / textual-gradient refinement (GEPA / ProTeGi / TextGrad style) improves F1 over hand-tuning
+    at lower human effort.
+  legacy_design:
+    mechanism: Feed eval failures + trajectories back as natural-language "gradients"; an LLM diagnoses the flaw
+      and proposes a targeted prompt/skill edit; iterate, keeping what moves the metric.
+    test: Auto-refined vs current hand-tuned prompt on held-out fixtures; F1 + human hours.
+    decision_rule: Confirm F1 ≥ hand-tuned at materially less effort; kill if it only matches on seen fixtures
+      (overfit — see AK4).
+    metrics:
+    - held-out F1; maintainer hours per point of F1
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK1
+  v2_status: proposed
+- id: AK2
+  direction: AK
+  claim: Failure attribution to the right surface (agent vs task vs skill) is the missing — and hard — signal;
+    attributed edits beat blind edits.
+  legacy_design:
+    mechanism: 'Map each FP/FN to the surface that caused it (per AE roles) before editing. Note the warning from
+      the literature: automated attribution is hard (best methods ~53% agent / ~14% step), so the attributor itself
+      needs evaluation.'
+    test: Attributed vs unattributed refinement; fixes landed per proposed edit (hit-rate), and attributor accuracy
+      on a labeled set.
+    decision_rule: Confirm attribution raises edit hit-rate; if the attributor is too noisy, fall back to surface-agnostic
+      edits + A/B.
+    metrics:
+    - edit hit-rate (attributed vs blind); attributor accuracy
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK2
+  v2_status: proposed
+- id: AK3
+  direction: AK
+  claim: Per-finding rationale capture (why reported / why stopped) is required input and currently thin — adding
+    it improves root-cause diagnosis.
+  legacy_design:
+    mechanism: Record the model's stated reason per finding and per stop/finish; reflective optimizers (GEPA)
+      diagnose from the trajectory, so without rationale the refiner reflects blind.
+    test: Diagnosis accuracy (does the refiner identify the true root cause of an FP/FN?) with vs without captured
+      rationale.
+    decision_rule: Confirm rationale lifts diagnosis accuracy enough to justify the extra capture cost.
+    metrics:
+    - root-cause diagnosis accuracy, with vs without rationale
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK3
+  v2_status: proposed
+- id: AK4
+  direction: AK
+  claim: Counterfactual minimal pairs + a held-out split prevent overfit refinements (the anti-overfit guard).
+  legacy_design:
+    mechanism: Mutate on a feedback ("golden") split, select on a held-out split; store same-fixture/one-surface-changed
+      pairs to isolate an edit's true effect (ties F3 and the no-overfit-skills rule).
+    test: Accept refinements by held-out gain; measure the seen→held-out generalization gap.
+    decision_rule: Confirm accepted edits generalize (small gap); reject edits that only help seen fixtures.
+    metrics:
+    - seen vs held-out F1 gap per accepted edit
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK4
+  v2_status: proposed
+- id: AK5
+  direction: AK
+  claim: DSPy/MIPRO-style compile (optimize instructions + few-shot demos against the metric) beats manual prompt-version
+    authoring.
+  legacy_design:
+    mechanism: Wrap a worker/planner as a typed module + the eval metric; let MIPRO/OPRO propose and select instructions
+      (and any exemplars) — version-controlled, repeatable, not ad-hoc.
+    test: DSPy-optimized vs hand-authored prompt on the eval metric, both model sizes.
+    decision_rule: Confirm the compiled prompt meets/beats hand-authored; especially check the small model (mission).
+    metrics:
+    - eval F1, compiled vs hand-authored × model
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK5
+  v2_status: proposed
+- id: AK6
+  direction: AK
+  claim: The maintainer's own past edits (and their metric deltas) are a cheap supervision signal to warm-start/guide
+    the auto-refiner.
+  legacy_design:
+    mechanism: Mine the prompt/skill version history + the eval-envelope delta each edit produced; use it to imitate
+      the maintainer's judgment (a novel angle — no paper isolates it, but it's directly testable).
+    test: Auto-refiner with vs without maintainer-edit history; quality of proposed edits (acceptance rate, held-out
+      gain).
+    decision_rule: Confirm history-primed proposals are accepted/generalize more often than cold ones.
+    metrics:
+    - proposed-edit acceptance rate; held-out gain
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK6
+  v2_status: proposed
+- id: AK7
+  direction: AK
+  claim: 'Data-requirements audit: records + metrics are necessary but not sufficient — the gap list (rationale,
+    attribution, counterfactuals, held-out + edit history) is the telemetry to add.'
+  legacy_design:
+    mechanism: 'Required inputs vs current coverage — have: labeled failures (tp/fp/fn), records, metrics/tokens,
+      observations (AC); missing/partial: per-finding rationale (AK3), error→surface attribution (AK2), stored
+      counterfactual minimal pairs, prompt-version↔metric-delta linkage, a maintained held-out split + maintainer-edit
+      history (AK6).'
+    test: Instrument the missing signals; verify an end-to-end refinement loop can consume them and produce an
+      accepted, generalizing edit.
+    decision_rule: The gap list itself answers "what's missing"; success = the loop closes once the gaps are filled.
+    metrics:
+    - telemetry coverage of the required-input list; loop closes end-to-end
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AK7
+  v2_status: proposed
+- id: AL1
+  direction: AL
+  claim: 'More iterations raise coverage on multi-solution tasks: a min_iterations>1 budget converts into solved
+    cases when a verifier can pick the win.'
+  legacy_design:
+    mechanism: Coverage (solved-by-any-attempt) scales log-linearly with attempts (Large Language Monkeys); the
+      verify funnel (AH) is the verifier that turns coverage into precision.
+    test: min_iterations ∈ {1,2,3} on fixtures with multiple valid solution paths; recall/F1 vs cost.
+    decision_rule: Confirm recall climbs with iterations on multi-solution tasks; flat means misses are systematic,
+      not path-dependent (invest elsewhere).
+    metrics:
+    - recall@iterations; total tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL1
+  v2_status: proposed
+- id: AL2
+  direction: AL
+  claim: 'Memory-carryover across iterations beats memoryless re-runs (Reflexion): prior-attempt records prevent
+    repetition, so coverage-per-iteration is higher.'
+  legacy_design:
+    mechanism: Each iteration reads prior iterations' records/reflections and avoids re-treading them — iterations
+      become cumulative, not independent re-rolls.
+    test: Memory-on vs memory-off across iterations; recall per iteration, redundancy (repeated subtasks/probes).
+    decision_rule: Confirm memory raises coverage-per-iteration and cuts redundancy; especially measure on the
+      small model (AL helps it most — externalizes "what I tried").
+    metrics:
+    - recall per iteration; redundant-work rate; by model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL2
+  v2_status: proposed
+- id: AL3
+  direction: AL
+  claim: 'Explore vs exploit: a policy that balances continuing/deepening the promising path against branching
+    to a new one beats both always-continue and always-switch.'
+  legacy_design:
+    mechanism: Left to discretion the planner may under-explore or thrash; an MCTS/UCT-style balance (deepen when
+      the current path looks promising, branch when it stalls) chooses per state. Sometimes continuing the prior
+      direction is the right move.
+    test: always-exploit (continue) vs always-explore (diversify) vs balanced policy; recall/F1 vs cost.
+    decision_rule: Confirm the balanced policy dominates the two extremes on the recall/cost frontier.
+    metrics:
+    - recall/F1 vs cost across the three policies
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL3
+  v2_status: proposed
+- id: AL4
+  direction: AL
+  claim: The exploration strategy belongs in the task config (per-task search policy + min/max_iter) — different
+    tasks want different search.
+  legacy_design:
+    mechanism: Declare a strategy per task (e.g. explore | exploit | balanced | first-success-stop ) alongside
+      min/max_iterations — ToT/LATS treat the search algorithm and budget as explicit parameters; ties AD (composition)
+      and W.
+    test: Per-task strategy vs a single global setting across heterogeneous tasks; F1-per-token.
+    decision_rule: Confirm per-task strategy beats one-size-fits-all (cheap tasks stop early, hard tasks get depth/breadth).
+    metrics:
+    - F1 per token, per-task strategy vs global
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL4
+  v2_status: proposed
+- id: AL5
+  direction: AL
+  claim: Cap iterations by value-of-information, not a flat max_iterations — stop when marginal expected gain
+    < cost.
+  legacy_design:
+    mechanism: Coverage gains follow diminishing returns (power law); a flat cap over- or under-spends. Continue
+      iterating only while the expected gain of another path (deepen or branch) exceeds its cost (ties U).
+    test: Flat max_iterations vs VoI stopping; cost vs recall.
+    decision_rule: Confirm VoI stopping cuts cost with negligible recall loss.
+    metrics:
+    - tokens saved; recall delta
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL5
+  v2_status: proposed
+- id: AL6
+  direction: AL
+  claim: Persisted memory can entrench errors; recording refuted paths (not just explored ones) prevents re-entrenchment.
+  legacy_design:
+    mechanism: 'Run-to-run persistence cuts both ways: a wrong lead carried forward can harden into false consensus
+      (AH). Store refuted/dead-end paths so later iterations don''t re-enter them.'
+    test: With/without refuted-path memory; FP-entrenchment rate across iterations.
+    decision_rule: Confirm refuted-path memory lowers entrenchment without suppressing genuine re-examination.
+    metrics:
+    - FP-entrenchment rate; recall held
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL6
+  v2_status: proposed
+- id: AL7
+  direction: AL
+  claim: 'Characterize and upgrade the search topology: the loop is breadth-over-plans × depth-in-run; an explicit
+    best-first/beam over iterations beats naive sequential re-attempt.'
+  legacy_design:
+    mechanism: First instrument the loop (do later iterations explore new top-level plans, or refine?) to answer
+      "is it BFS?"; then test replacing implicit iterate-and-hope with a value-guided frontier (expand the most
+      promising prior partial — ToT beam / LATS MCTS).
+    test: Measure iteration-to-iteration plan divergence; then naive re-attempt vs best-first/beam over iterations;
+      recall@cost.
+    decision_rule: Confirm the loop's actual shape, and whether value-guided expansion beats naive breadth; if
+      divergence is already low, the lever is forcing diversity (AL3), not topology.
+    metrics:
+    - inter-iteration plan divergence; recall@cost, naive vs best-first
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AL7
+  v2_status: proposed
+- id: AM1
+  direction: AM
+  claim: min_iter should scale with project size / attack surface — validate and fit the law (the author's "large
+    projects need more" observation).
+  legacy_design:
+    mechanism: A larger codebase has more behaviors/sinks to discover (STADS species framing), so the exploration
+      floor needed for a given coverage grows with size.
+    test: Sweep min_iter across small and large fixtures; plot recall vs min_iter by project size; fit the curve
+      (e.g. min_iter ∝ f(#endpoints / attack-surface)).
+    decision_rule: 'Confirm large fixtures need a higher floor for equal recall; the fitted relationship becomes
+      the auto-sizing input for AM2. (Caveat: more iterations help recall only if the AH verify funnel holds precision.)'
+    metrics:
+    - recall vs min_iter × project-size; fitted scaling relation
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AM1
+  v2_status: proposed
+- id: AM2
+  direction: AM
+  claim: Auto-derive the iteration budget from cheap pre-run structural signals — beats a hand-set constant.
+  legacy_design:
+    mechanism: Compute size/difficulty from attack_surface , complexity hotspots, file/endpoint counts before
+      the run and set min/max_iter from the AM1 law (compute-optimal allocation by difficulty — Snell).
+    test: Structure-derived budget vs a flat constant across heterogeneous projects; recall@cost.
+    decision_rule: Confirm derived budgets match recall at lower aggregate cost (small projects stop early, large
+      ones get the floor they need).
+    metrics:
+    - recall@cost, derived vs constant budget
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AM2
+  v2_status: proposed
+- id: AM3
+  direction: AM
+  claim: A dynamic saturation / dry-streak stop (K iterations with no new vuln-relevant finding) beats a fixed
+    max_iterations .
+  legacy_design:
+    mechanism: Stop when findings (not raw coverage) saturate — Green Fuzzing ends campaigns early at little recall
+      cost by tracking vuln-relevant saturation rather than a fixed budget.
+    test: Fixed cap vs dry-streak stop; cost vs recall, and false-stop rate (stopping while findings still arriving).
+    decision_rule: Confirm the dynamic stop cuts cost with negligible recall loss; tune K for robustness.
+    metrics:
+    - tokens saved; recall delta; false-stop rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AM3
+  v2_status: proposed
+- id: AM4
+  direction: AM
+  claim: 'Compute-optimal allocation: under a global budget, give more iterations to hard/large tasks and fewer
+    to easy — beats uniform min_iter.'
+  legacy_design:
+    mechanism: Difficulty-weighted budgeting (Snell; "LLMs can predict if they can do better"); a Bayesian optimal-stopping
+      rule (BEACON) decides per-task when another iteration's expected value falls below its cost.
+    test: Uniform vs difficulty-weighted allocation at a fixed total budget; aggregate recall.
+    decision_rule: Confirm difficulty-weighted allocation lifts aggregate recall at equal total cost.
+    metrics:
+    - aggregate recall at fixed total iterations
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AM4
+  v2_status: proposed
+- id: AM5
+  direction: AM
+  claim: Residual-risk estimation turns "are we done?" into a quantified stop with a confidence statement.
+  legacy_design:
+    mechanism: Good-Turing / species-richness estimators (STADS; residual risk in greybox fuzzing) bound the chance
+      a finding class remains undiscovered — stop when estimated residual risk < threshold, and report it as an
+      assurance metric.
+    test: Estimator-driven stop vs heuristic; calibration of the residual-risk estimate against held-out ground
+      truth.
+    decision_rule: Confirm the estimate is calibrated enough to drive stopping and to state coverage assurance
+      in the eval (ties F).
+    metrics:
+    - residual-risk calibration; stop-decision quality
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AM5
+  v2_status: proposed
+- id: PV0
+  direction: PV
+  claim: A single worker with no planner matches the streamline planner on small/medium tasks at lower tokens/run.
+  legacy_design:
+    mechanism: Drive one instrumented worker via AgentRunner — already the trace-direct path; give it a strategy
+      label so it emits the same envelope.
+    decision_rule: 'The honest floor: if f1 holds at lower cost, planning isn''t earning its keep on that workload.'
+    metrics:
+    - f1 · tokens/run vs. streamline baseline
+    additional:
+      decision_tested: Whether the planner's decomposition tax pays at all.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV0
+  v2_status: proposed
+- id: PV1
+  direction: PV
+  claim: An upfront plan with no mid-run re-planning cuts churn at equal f1 — reactive decomposition is mostly
+    loops on small models.
+  legacy_design:
+    mechanism: Remove decompose_subtask from the toolset and ship a paired plan_once prompt — v5 references decomposition
+      throughout, so tool and prompt must change together (a registry entry is (builder, prompt, toolset) , not
+      a bare builder).
+    decision_rule: Wins if malformed/retry churn drops at equal f1; killed if recall falls on tasks that genuinely
+      need adaptive splits.
+    metrics:
+    - malformed/retry count · steps/task · f1
+    additional:
+      decision_tested: Reactive decomposition vs. plan-once.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV1
+  v2_status: proposed
+- id: PV2
+  direction: PV
+  claim: An emergent ReAct loop (no subtask list) beats a flat pre-committed plan.
+  legacy_design:
+    mechanism: A different root agent with no StreamlineManager ; honours only the fixed-key contract ( task::{id}::status/result/summary/pool
+      ) + end_invocation , so the runner/retry/publish/eval path is unchanged.
+    metrics:
+    - f1 · recall · step-budget hit-rate
+    additional:
+      decision_tested: Committed pre-planning itself.
+      caveat: Dissolves the schema-instrumented planner/worker boundary, the malformed-fallback machinery, and
+        the records pool at once — a win won't tell you which mechanism mattered. Budget follow-up ablations.
+  legacy_evidence:
+    status: design_warning
+    note: The proposed arm changes several mechanisms simultaneously and cannot support single-mechanism attribution.
+  source_anchor: PV2
+  v2_status: proposed
+- id: PV7
+  direction: PV
+  claim: Estimating subtask size and splitting upfront beats waiting for an incomplete .
+  legacy_design:
+    mechanism: Planner estimates complexity before executing and pre-splits big subtasks.
+    decision_rule: Catches "too big for one pass" before the wasted attempt — but the planner estimates blind
+      (never touches domain tools), which V9 fixes. A high V8 success rate weakens this.
+    metrics:
+    - first-pass done rate · malformed count
+    additional:
+      decision_tested: Reactive decomposition (split only after failure).
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV7
+  v2_status: proposed
+- id: PV9
+  direction: PV
+  claim: Letting the worker propose the decomposition (it just read the code) yields children that clear on first
+    pass more often than planner-guessed ones.
+  legacy_design:
+    mechanism: Extend SubtaskExecutionResult with optional suggested_subtasks ; on incomplete the worker proposes
+      the split, planner may adopt/edit/ignore. The information-flow fix V7 only approximates.
+    decision_rule: Wins if worker-proposed children clear first-pass more often than planner-guessed.
+    metrics:
+    - child first-pass done rate vs. baseline decomposition
+    additional:
+      decision_tested: That the planner decomposes — blind, since it never reads code.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV9
+  v2_status: proposed
+- id: PV8
+  direction: PV
+  claim: One in-place re-execution of an incomplete subtask reaches done often enough to beat forcing a decomposition
+    — many incomplete s are stochastic, not structural.
+  legacy_design:
+    mechanism: Allow exactly one in-place retry ( incomplete → new , once) with the prior record injected as context;
+      a second incomplete falls back to decompose/skip. Lives in the execution policy — cheapest point on the
+      trust axis.
+    decision_rule: A high re-execution success fraction confirms the failures were transient (sampling noise,
+      flaky tool) and also weakens V7's case.
+    metrics:
+    - fraction of re-executions reaching done · tokens saved vs. decomposing
+    additional:
+      decision_tested: The invariant that incomplete can never be re-executed.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV8
+  v2_status: proposed
+- id: PV3
+  direction: PV
+  claim: A verifier gating done — cheapest at finish-gate / acceptance-line scope — cuts over-claiming and silent
+    misses.
+  legacy_design:
+    mechanism: 'Three scopings, cheapest first: (a) acceptance-line — verify only the subtask''s one Acceptance:
+      line (which nothing machine-checks today); (b) finish-gate — one verifier call per task; (c) per-subtask.
+      Reuse trace_verifier_agent .'
+    decision_rule: Directly targets the trace-eval failure modes (over-annotation precision, complete misses).
+      Acceptance-line is a far easier task for a small model than open-ended verification.
+    metrics:
+    - precision · verdict accuracy · false- done rate · cost per scope
+    additional:
+      decision_tested: Trust the worker's self-report; nobody re-checks the deliverable.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV3
+  v2_status: proposed
+- id: PV4
+  direction: PV
+  claim: Running the worker N× per subtask and merging lifts recall on hard fixtures.
+  legacy_design:
+    mechanism: Execution policy runs the worker N× and merges/picks before returning one result.
+    decision_rule: The recall lever for the crApi-workshop BOLA/injection misses; watch the cost multiple against
+      the gain.
+    metrics:
+    - recall@N · unique-findings union · cost
+    additional:
+      decision_tested: One worker pass per subtask (priciest re-check).
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV4
+  v2_status: proposed
+- id: PV6
+  direction: PV
+  claim: A continuously-compressed running summary beats the last-20 records pool on long plans.
+  legacy_design:
+    mechanism: A records policy folds each record into a running summary (an on_record hook); the planner sees
+      the summary instead of the raw tail.
+    decision_rule: Wins if f1 holds on large fixtures at lower tokens/run; killed if compression drops detail
+      the planner needs.
+    metrics:
+    - f1 on large fixtures · tokens/run
+    additional:
+      decision_tested: The last-20 records pool as the only history view.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV6
+  v2_status: proposed
+- id: PV5
+  direction: PV
+  claim: Declaring subtask dependencies and running independent siblings in parallel cuts wallclock at f1 parity.
+  legacy_design:
+    mechanism: A depends_on field on Subtask ; scheduler picks the first dep-ready subtask; the runner executes
+      ready siblings concurrently (reuse the trace_graph_pathpar overlay fork/merge machinery). The one seam spanning
+      manager and runner — second-wave.
+    metrics:
+    - wallclock · f1 parity
+    additional:
+      decision_tested: Flat, strictly-sequential execution.
+  legacy_evidence:
+    status: deferred
+    note: The legacy memo classified parallel dependency scheduling as a second-wave experiment.
+  source_anchor: PV5
+  v2_status: proposed
+- id: PV10
+  direction: PV
+  claim: Carrying the prior attempt's plan forward (resume, not restart) is the single biggest tokens/run win
+    on multi-attempt tasks.
+  legacy_design:
+    mechanism: 'A runner flag in _build_task_initial_state : keep the prior subtask list — done preserved, the
+      failing one reset or pre-decomposed.'
+    decision_rule: Risk is a poisoned plan — mitigate by carrying forward only when the prior attempt failed at
+      finish stage, or behind its own flag.
+    metrics:
+    - tokens/run on multi-attempt tasks · f1 parity
+    additional:
+      decision_tested: That every retry rebuilds an empty plan, re-doing every done subtask.
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: PV10
+  v2_status: proposed
+- id: AN1
+  direction: AN
+  claim: Per-stage retention ρ as a first-class envelope metric makes too-aggressive filters visible at the stage
+    where they fire, not at end-to-end F1.
+  legacy_design:
+    mechanism: Score every stage's artifact independently against ground truth (the AH1 instrumentation) and emit
+      ρ_stage = recall_out / recall_in per handoff into the eval/v1 envelope. A pipeline change is then attributable
+      to the stage that moved.
+    test: Backfill ρ for the existing pipeline-eval runs; confirm the postdiff handoff shows ρ≈0.45 while dedup-style
+      pure-code filters show ρ≈1.
+    decision_rule: 'This is a measurement fix (like F2/F4): pass = the envelope localizes the known recall loss
+      to the postdiff stage without re-running anything.'
+    metrics:
+    - per-stage ρ in eval/v1 envelope; localization of known recall loss
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AN1
+  v2_status: proposed
+- id: AN2
+  direction: AN
+  claim: 'Oracle arm: giving the postdiff agent the artifact plus full source access recovers most of the lost
+    recall — i.e. the artifact is lossy, not the judgment.'
+  legacy_design:
+    mechanism: Decisive root-cause split. If recall recovers with source access, the diff omits what the verdict
+      needs (artifact insufficiency → fix the handoff). If recall stays ≈.35, the consumer is rejecting truths
+      it can fully see (over-aggressive judging → fix the prompt/verdict bar, ties C6's earn-a-negative gate).
+    test: 'Postdiff stage on the same sweep output: artifact-only vs artifact+read-tools, same fixtures, pass@3.'
+    decision_rule: Either outcome redirects effort decisively — lossiness → AN3/AN4; judgment → prompt-side fix.
+      Run this before building anything.
+    metrics:
+    - ρ_postdiff artifact-only vs artifact+source; verdict-flip analysis on recovered findings
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AN2
+  v2_status: proposed
+- id: AN3
+  direction: AN
+  claim: A bounded query-back channel (consumer pulls per-finding context on demand) recovers the oracle arm's
+    recall at a fraction of full re-derivation cost.
+  legacy_design:
+    mechanism: Expose a lookup keyed by finding — its trace records, the annotated hunk's surrounding function,
+      the entry-point source — instead of granting open codebase access. Bounded (N lookups per finding) so the
+      stage stays a filter, not a second generator; deterministic retrieval per Z.
+    test: 'Three arms on the pipeline eval: artifact-only vs query-back(N≤3) vs full source access; recall, precision,
+      tokens.'
+    decision_rule: Confirm if query-back reaches ≥80% of the oracle's recall recovery at materially lower tokens
+      than full access, with precision held; kill if the channel re-opens the FP faucet (precision falls toward
+      sweep's .30).
+    metrics:
+    - ρ_postdiff and precision by arm; tokens per verified finding
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AN3
+  v2_status: proposed
+- id: AN4
+  direction: AN
+  claim: Richer carry-context attached to the artifact (per-finding trace records + entry→sink path travels with
+    the diff) closes part of the gap with no channel at all.
+  legacy_design:
+    mechanism: 'The cheapest fix if AN2 says "lossy": don''t make the consumer ask — bundle what it predictably
+      needs. The producer already has the trace records; attaching them per finding is free at emit time (ties
+      M5, Z5''s provenance links).'
+    test: Diff-only vs diff+carry-context handoff on the pipeline eval; recall + tokens (carry-context inflates
+      the artifact — measure the resident cost on the small model).
+    decision_rule: Confirm if carry-context recovers recall at acceptable artifact growth; if AN3's on-demand
+      channel dominates (same recall, less resident context), prefer the channel — small-window models shouldn't
+      pay for context they don't use.
+    metrics:
+    - ρ_postdiff; artifact size; consumer peak input tokens
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AN4
+  v2_status: proposed
+- id: AO1
+  direction: AO
+  claim: A per-fixture semgrep/CodeQL floor (P/R against the same ground truth) reframes at least one celebrated
+    pipeline result as ≤ floor — and localizes where the LLM actually adds value.
+  legacy_design:
+    mechanism: Run default + security rulesets over each fixture's source_root , score with the existing vuln-cases.json
+      scorer, and write floor.{precision,recall} per fixture into the envelope. Headline metric becomes recall
+      − floor_recall per class.
+    test: One-time sweep over the 24 detection fixtures + crapi + cvebench; diff floor recall vs the pipeline's
+      per-class recall.
+    decision_rule: 'Decisive either way: classes where floor ≈ pipeline recall are candidates for rule-offload
+      (Q3 hybrid); classes where floor ≈ 0 are where the LLM budget belongs. The map itself is the result.'
+    metrics:
+    - floor P/R per fixture×class; pipeline recall − floor recall
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AO1
+  v2_status: proposed
+- id: AO2
+  direction: AO
+  claim: An osv-scanner/manifest floor covers the J-class at ~zero cost — the LLM is only credited above it.
+  legacy_design:
+    mechanism: Lockfile/manifest scan per fixture establishes the dependency-CVE floor before J1 builds anything
+      — and may simply be J1's implementation, demoting that direction from "build a tool" to "wire a scanner
+      + score it".
+    test: osv-scanner over fixtures with pinned vulnerable components (cvebench); dep-class TPs vs ground truth.
+    decision_rule: Confirm if the scanner alone recovers the pinned components — then J2 (lead-focused tracing)
+      is the only LLM-shaped part of Direction J left.
+    metrics:
+    - dep-class TP from scanner alone; residual for J2
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AO2
+  v2_status: proposed
+- id: AO3
+  direction: AO
+  claim: Publishing value-above-floor changes at least one prior A/B ranking or priority call.
+  legacy_design:
+    mechanism: 'Same shape as F2 (cost metrics revealed hidden regressions): re-rank recent runs by (recall −
+      floor) / token . A variant that looked strong may be winning only on floor-reachable bugs; one that looked
+      weak may dominate on the floor-invisible residual.'
+    test: Backfill floors into recent envelope history; re-rank.
+    decision_rule: Confirm if any ranking flips — quantifies how much current conclusions conflate "LLM capability"
+      with "what grep-grade tooling finds anyway".
+    metrics:
+    - rank stability under (recall − floor)/token re-scoring
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AO3
+  v2_status: proposed
+- id: AP1
+  direction: AP
+  claim: A meaningful share of scored FPs are real unlabeled vulns — quantifying the GT-induced precision error
+    per fixture.
+  legacy_design:
+    mechanism: 'Queue every distinct scored FP from recent runs through an adversarial verification panel (L2
+      shape: N skeptics prompted to refute; human-spot-check the promotions). The promotion rate is the GT incompleteness
+      estimate.'
+    test: Adjudicate the accumulated FP pool on vulnyapi + crapi-workshop first (the fixtures driving current
+      conclusions).
+    decision_rule: 'Decisive either way: a high promotion rate means precision numbers (and the postdiff .67)
+      need re-reading; a near-zero rate certifies the GT and hardens every precision claim in the memo.'
+    metrics:
+    - FP→GT promotion rate per fixture; corrected precision per prior run
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AP1
+  v2_status: proposed
+- id: AP2
+  direction: AP
+  claim: Adjudicated GT flips at least one prior A/B ranking.
+  legacy_design:
+    mechanism: Re-score envelope history against the corrected GT. Variants differ in which findings they emit;
+      if their FPs promote at different rates, their relative precision — and any precision-gated conclusion (e.g.
+      lean vs lean+paths, sweep vs postdiff) — can reorder without re-running anything.
+    test: Re-score stored eval results under corrected GT; compare rankings.
+    decision_rule: Confirm if any accepted/rejected change reverses — measures how much past decision-making was
+      GT artifact.
+    metrics:
+    - rank stability original-GT vs adjudicated-GT
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AP2
+  v2_status: proposed
+- id: AP3
+  direction: AP
+  claim: A standing adjudication stage (every new FP class gets one refute-panel pass) keeps GT monotonically
+    converging at bounded cost.
+  legacy_design:
+    mechanism: Don't re-adjudicate known FPs — key them (B2's structured schema helps) and only panel novel ones.
+      GT grows monotonically toward completeness; the refuted pool doubles as O2's anti-pattern store (each adjudicated-fake
+      FP is a "looks-like-bug-but-isn't" exemplar, for free).
+    test: Run the stage across several eval rounds; track novel-FP rate, panel cost, and GT churn over time.
+    decision_rule: Confirm if novel-FP rate (and hence panel cost) decays across rounds — the loop converges;
+      kill if FP novelty stays high (then adjudication is a per-run tax, batch it instead).
+    metrics:
+    - novel-FP rate per round; adjudication tokens; GT additions per round
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AP3
+  v2_status: proposed
+- id: AQ1
+  direction: AQ
+  claim: A coverage-derived endpoint↔handler map gives AB's generators whitebox-grade grounding at near-zero LLM
+    cost.
+  legacy_design:
+    mechanism: Run the suite once under coverage; tests named/marked per endpoint yield a deterministic endpoint→code
+      map (which files a request actually exercises). Feeds hypothesis generation (AB5 fusion) and trace targeting
+      without the model deriving the routing itself — exactly what small models get wrong on convention-heavy
+      frameworks (Django's implicit routing was the workshop failure mode).
+    test: Trace/scan with vs without the coverage map injected as leads, on fixtures with passing suites; recall
+      + tokens, both model sizes.
+    decision_rule: Confirm if recall rises (or tokens fall at equal recall), with the larger lift on the small
+      model (E-asymmetry); kill if suites are too broken across real fixtures to run — which itself bounds the
+      modality's applicability.
+    metrics:
+    - recall ± tokens with/without map × model size; fixture-suite runnability rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AQ1
+  v2_status: proposed
+- id: AQ2
+  direction: AQ
+  claim: Auth/ownership assertions mined from tests are the invariant substrate R lacks — inferred-policy detection
+    beats the checklist on BOLA fixtures using mined , not guessed, policy.
+  legacy_design:
+    mechanism: Tests like assert client_b.get(order_a).status == 403 state the ownership policy explicitly. Extract
+      them (structurally — request + asserted status/role), build the "handler → expected guards" population R1
+      wants, and flag endpoints whose siblings are tested-for-403 but which have no such test and no guard — a
+      missing-authz signal grounded in the project's own stated intent.
+    test: R1's test (BOLA/BFLA fixtures, crapi/vampi) with the policy mined from tests vs inferred from code population
+      vs the checklist prompt.
+    decision_rule: 'Confirm if mined-policy recall ≥ inferred-policy recall (it should — it''s ground truth where
+      it exists); the interesting result is coverage: what fraction of fixtures'' suites encode enough policy
+      to mine.'
+    metrics:
+    - missing-authz recall by policy source; policy-assertion yield per fixture
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AQ2
+  v2_status: proposed
+- id: AQ3
+  direction: AQ
+  claim: 'PoC-in-test-harness is the missing middle verification rung: it upgrades verdicts beyond static at a
+    fraction of live-exploit cost.'
+  legacy_design:
+    mechanism: 'The verifier writes a failing test ("user B reads user A''s order and gets 200") and runs it via
+      the framework''s test client — runtime confirmation with no deployment, no Caido, no live URL. Slots into
+      the AH funnel between trace-verify (static) and exploit (live); output is a committed, re-runnable artifact
+      (M''s verifiability: the test is the proof, and the fix''s regression test, for free).'
+    test: 'Verdict eval on fixtures with runnable suites: static-only vs static+test-harness vs full exploit chain;
+      verdict accuracy, evidence rate, tokens.'
+    decision_rule: Confirm if test-harness verdicts approach exploit-stage accuracy at materially lower cost where
+      suites run; kill if writing runnable tests proves harder for the small model than firing HTTP probes (measure
+      malformed-test rate).
+    metrics:
+    - verdict accuracy / evidence rate / tokens by verification rung; runnable-PoC success rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AQ3
+  v2_status: proposed
+- id: AR1
+  direction: AR
+  claim: The serving stack has an irreducible variance floor (temp-0 non-determinism from continuous batching)
+    that every effect must clear — measure it before attributing any Δ to a change.
+  legacy_design:
+    mechanism: Repeat one fixed config (same prompt, temp 0) N≥10× on the real LM Studio/llama.cpp stack; the
+      σ of F1/capture/tokens is the irreducible band, distinct from GT (AP) and retrieval (Z2) variance. Publish
+      serving_sigma into the eval/v1 envelope as the promotion threshold.
+    test: N-repeat sweep at -np=1 vs -np>1 — isolates the batching-nondeterminism term specifically.
+    decision_rule: 'If -np>1 σ ≫ -np=1 σ, eval runs should pin -np=1 (trade throughput for attributability). Reframes
+      AC3/Z1/Z2: "observation block byte-stable and outcome σ ≤ serving floor," else some of the ±0.07 called
+      "model noise" is removable serving noise.'
+    metrics:
+    - σ(F1/capture/tokens) across repeats × parallelism; longest-common-prefix stability (ties A1)
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AR1
+  v2_status: proposed
+- id: AR2
+  direction: AR
+  claim: 'Scorer-strictness sensitivity: a real find mislabeled FP by a sibling CWE or an off-by-15 sink line
+    is a matcher artifact biasing precision independently of GT — sweep the tolerances and report each conclusion''s
+    stability band.'
+  legacy_design:
+    mechanism: Sweep the matcher tolerances — LINE_TOLERANCE ∈ {0,10,25,∞} , exact-CWE vs CWE-family, exact-file
+      vs file∨caller — and re-score. Audit acceptable_cwes / acceptable_locations coverage the way AP audits the
+      vuln set itself.
+    test: Re-score existing envelope history under the tolerance grid; no new model calls.
+    decision_rule: A ranking that flips within the plausible tolerance range is scorer-driven , not capability-driven
+      — freeze one canonical tolerance and report the band. This is distinct from AP (which promotes real FPs
+      into GT); AR2 is about the matcher wrongly rejecting true TPs.
+    metrics:
+    - rank stability vs tolerance; per-fixture P/R sensitivity; tolerance-set coverage rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AR2
+  v2_status: proposed
+- id: AR3
+  direction: AR
+  claim: Multiplicity discipline (pre-registration + FDR across each A/B batch) separates real discoveries from
+    the ~10 expected by chance.
+  legacy_design:
+    mechanism: Fix N + threshold before each run (already gestured at in the planner-variants "Method"); apply
+      Benjamini–Hochberg FDR across each batch of comparisons.
+    test: Apply FDR to the already-run A/B corpus; count how many "wins" survive q=0.1.
+    decision_rule: The surviving set is the trustworthy roadmap; the culled set returns to "needs pass@N." Pairs
+      with Z2 (variance reduction lets more effects clear) and F1 (pass@≥5).
+    metrics:
+    - '# surviving discoveries at FDR q=0.1 vs raw p<0.05'
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AR3
+  v2_status: proposed
+- id: AS1
+  direction: AS
+  claim: 'Perturbation-sensitivity: semantic-preserving renames/relocations that leave a deriving model ~invariant
+    collapse a memorizing one — the honest benchmark is the perturbed fixture.'
+  legacy_design:
+    mechanism: Mechanically rename endpoints/params/vars/files and relocate handlers within a fixture (behavior-preserving),
+      then re-score. Derivation is ~invariant; recall-of-writeups collapses.
+    test: Original vs perturbed crapi/vampi/cvebench; Δrecall by fixture, both model sizes.
+    decision_rule: Small Δ ⇒ derivation (trustworthy); large Δ ⇒ memorization (discount that fixture's recall
+      and re-weight the aggregate). Either way the perturbed set becomes the honest benchmark — and a cheap, unlimited
+      one.
+    metrics:
+    - recall(original) − recall(perturbed) per fixture × model size
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AS1
+  v2_status: proposed
+- id: AS2
+  direction: AS
+  claim: 'Public-vs-fresh gap: recall on never-published fixtures of matched difficulty quantifies the contamination
+    tax and re-baselines the memo''s recall figures toward what an adopter will see.'
+  legacy_design:
+    mechanism: Author (or via P self-play) a small set of never-published fixtures in the same frameworks/classes;
+      compare recall to public fixtures matched on class × framework × LoC.
+    test: public vs fresh, matched difficulty, both model sizes.
+    decision_rule: A large public≫fresh gap is the contamination tax; the memo's headline recall numbers should
+      be read at the fresh level, not the public one. Ties P (self-play as the fresh-fixture generator) and F3
+      (held-out splits).
+    metrics:
+    - recall(public) − recall(fresh), matched
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AS2
+  v2_status: proposed
+- id: AS3
+  direction: AS
+  claim: 'The mission trap: part of the measured 27b↔70b gap may be memorization, not reasoning — so the target
+    should be the perturbed gap, not the raw one.'
+  legacy_design:
+    mechanism: Larger models memorize more of the public corpus; if their advantage on public fixtures is partly
+      recall-of-writeups, "close the gap" is partly chasing a number the adopter's private code won't reward.
+    test: AS1's perturbation-Δ, stratified by model size.
+    decision_rule: If Δ(70b) > Δ(27b) (the bigger model drops more under perturbation), the raw gap overstates
+      the capability deficit; redefine the mission metric as the perturbed 27b↔70b gap. A profound correction
+      to the whole E/G/H/L asymmetry axis if it holds.
+    metrics:
+    - perturbation-Δ by model size; perturbed-gap vs raw-gap
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AS3
+  v2_status: proposed
+- id: AT1
+  direction: AT
+  claim: Per-FN cause attribution (coverage / reasoning / scoring / retention) as an envelope histogram tells
+    you which direction each fixture's misses actually demand.
+  legacy_design:
+    mechanism: For each ground-truth vuln missed, classify by the join of (was its file in the observed read-set?)
+      × (did any stage emit a matching finding pre-filter?) × (matcher tolerance, AR2). Emit an FN-cause histogram
+      per fixture into the eval/v1 envelope.
+    test: Backfill over recent runs — uses stored AC observations + records, no new model calls.
+    decision_rule: 'Decisive routing: coverage-dominated misses → W6/U ordering & AM min_iter; reasoning misses
+      → E/H/skills; scoring misses → AR2; retention misses → AN. Pass = the memo''s biggest open question ("why
+      does recall collapse on large targets?") gets a per-cause answer for free.'
+    metrics:
+    - FN-cause distribution per fixture; per-cause share of total miss
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AT1
+  v2_status: proposed
+- id: AU1
+  direction: AU
+  claim: 'Wall-clock, not tokens — and output is co-equal, not 1/47th: decode dominates GPU-seconds, and post-caching
+    it dominates outright, partially reversing AG4.'
+  legacy_design:
+    mechanism: Measure prefill-tok/s and decode-tok/s on the real stack; convert every token figure to GPU-seconds.
+      Because decode is ~10–50× slower per token, the 47:1 token ratio is ~1:1 in wall-clock — and once A1/E5
+      prefix-caching makes repeated prefill ~free, output tokens dominate wall-clock outright , so generation-side
+      reductions (terser reasoning, shorter records, D4's summarizer) may beat input compaction on the metric
+      adopters feel.
+    test: A-series/AG changes scored in tokens vs GPU-seconds; input-side vs output-side reductions on wall-clock
+      at equal recall, pre- and post-caching.
+    decision_rule: Confirm the input:output wall-clock ratio ≪ 47:1 and that post-cache the leverage shifts output-side
+      — redirecting where A/AG effort goes. Kills AG4's premise if it holds only in tokens.
+    metrics:
+    - GPU-seconds/run; prefill:decode tok/s ratio; wall-clock Δ input-side vs output-side
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AU1
+  v2_status: proposed
+- id: AU2
+  direction: AU
+  claim: 'Precision-weighted utility (triage cost): F1 under-values the C/K/L2 precision directions because the
+    adopter pays per finding reviewed, not per F1 point.'
+  legacy_design:
+    mechanism: Add a triage-cost metric — Fβ with β<1, or a fixed findings-to-review budget — and show F1-ranked
+      configs diverge from utility-ranked ones.
+    test: Re-rank recent runs by Fβ<1 / cost-to-triage; compare to F1 ranking.
+    decision_rule: If rankings diverge, precision-axis directions (C, K, L2, triage) are under-valued by F1; adopt
+      a documented β. Ties AC6's precision/recall dial (the dial's setpoint should be chosen by adopter utility,
+      not symmetric F1).
+    metrics:
+    - rank correlation F1 vs Fβ<1; findings-emitted per confirmed TP
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AU2
+  v2_status: proposed
+- id: AU3
+  direction: AU
+  claim: Severity-weighted recall reorders rankings toward what an adopter cares about — a config strong on low-severity
+    breadth but weak on criticals should not win.
+  legacy_design:
+    mechanism: Weight recall by CVSS/impact; complements S2 (chain-aware severity), which the scorer doesn't yet
+      honor.
+    test: Re-score with severity weights; re-rank.
+    decision_rule: Confirm a breadth-strong/criticals-weak config drops under weighting — the adopter-relevant
+      reorder. Kill if severity is uncorrelated with ranking (unlikely).
+    metrics:
+    - severity-weighted recall; ranking shift vs unweighted
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AU3
+  v2_status: proposed
+- id: AV1
+  direction: AV
+  claim: 'Position/ordering bias (distinct from AH4 length): where a slice sits in the prompt changes recall at
+    fixed length — a near-free lever via deterministic salience-ordering.'
+  legacy_design:
+    mechanism: Shuffle the order of injected files/skills/observations at fixed total length; measure recall variance
+      attributable to position alone, by model size. Interacts with A1 (a stable prefix pins position) and AE
+      (layer order).
+    test: Order permutations at fixed length on trace + scan fixtures, both model sizes.
+    decision_rule: If position-only variance is non-trivial (esp. on the 27b), prompt assembly needs a deterministic
+      salience-ordering rule (most-suspect slice first/last) and AC/AE injection order becomes a tunable — a near-free
+      recall lever. Kill if recall is position-invariant.
+    metrics:
+    - recall σ from ordering permutations × model size; ties A1 prefix-stability
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AV1
+  v2_status: proposed
+- id: AV2
+  direction: AV
+  claim: 'Scaling-cliff characterization: is recall degradation smooth (budget-fixable) or a cliff (needs decomposition)?
+    — the curve AM1''s law presupposes.'
+  legacy_design:
+    mechanism: 'Plot recall/precision/tokens vs target size (LoC, #files, #endpoints, call-graph size) across
+      small→large fixtures plus synthetic size sweeps (concatenate/prune a fixture). Decompose the drop via AT1
+      (coverage vs reasoning).'
+    test: Recall(size) curve + knee detection; which sub-metric drives the drop.
+    decision_rule: Fit the curve; a cliff localizes to a mechanism — context ceiling → W/AH4; coverage → U/W6;
+      convergence → AF. Feeds AM1 with data instead of the "large projects need more" heuristic. Pass = min_iter
+      auto-sizing (AM2) gets a real scaling law.
+    metrics:
+    - recall(size); knee location; AT1 cause-share at each size bucket
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AV2
+  v2_status: proposed
+- id: AW1
+  direction: AW
+  claim: 'Tool-success-conditioned recall exposes a hidden capability ceiling: runs with incomplete or ambiguous
+    tool results account for a disproportionate share of false negatives.'
+  legacy_design:
+    mechanism: Add a per-call outcome taxonomy ( complete , partial , empty-valid , empty-ambiguous , error )
+      and join it to AT1's per-FN cause attribution. This separates model reasoning misses from evidence the model
+      never received.
+    test: Backfill tool events where possible, then instrument paired eval runs. Compare FN rate for paths touched
+      by complete calls versus partial/ambiguous calls, controlling for fixture and model.
+    decision_rule: Confirm if partial/ambiguous calls have materially higher FN odds and explain a non-trivial
+      share of misses. Kill as a priority if the share is negligible after current fixes.
+    metrics:
+    - FN odds ratio by tool outcome; share of FNs preceded by partial/ambiguous evidence; recall conditioned on
+      complete evidence
+  legacy_evidence:
+    status: not_recorded
+  legacy_registry:
+    source_path: research/hypotheses/AW1.yaml
+    schema_version: hypothesis/v1
+    title: Tool-success-conditioned recall exposes a hidden capability ceiling
+    status: proposed
+    primary_metric:
+      name: fn_odds_ratio_partial_vs_complete
+      direction: increase
+      minimum_effect: 1.5
+    guardrails:
+    - name: tool_outcome_unclassified_rate
+      direction: decrease
+      minimum_effect: 0.0
+    dependencies: []
+    tags: [validity, tools, miss-attribution]
+    draft_experiment:
+      source_path: research/experiments/EXP-2026-001.yaml
+      id: EXP-2026-001
+      status: draft
+      design: observational
+      fixtures: [crapi-community, crapi-identity, crapi-workshop]
+      requested_seeds: [17]
+      scorer: tests.eval.trace_vuln_scoring:aw1-v1
+      frozen_at: null
+  source_anchor: AW1
+  v2_status: proposed
+- id: AW2
+  direction: AW
+  claim: Failing closed on ambiguous empty results (with one bounded retry or alternate query) raises recall more
+    cheaply than adding another model iteration.
+  legacy_design:
+    mechanism: An empty glob, missing artifact, zero-finding namespace, or truncated search becomes a typed diagnostic
+      rather than ordinary data. The runner retries once with a validated fallback, then surfaces the unresolved
+      gap to the agent and envelope.
+    test: Fault-inject empty/partial responses into file search, artifact load, graph lookup, and finding retrieval;
+      compare silent-empty baseline, typed retry, and one extra model iteration at equal token budget.
+    decision_rule: Confirm if typed retry recovers more ground-truth evidence and avoids false-success runs at
+      lower cost than model re-execution. Kill individual retries whose false-alarm rate or cost exceeds their
+      recovery.
+    metrics:
+    - evidence-recovery rate; false-success rate; recall recovered per 1k tokens; false-alarm rate
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AW2
+  v2_status: proposed
+- id: AW3
+  direction: AW
+  claim: A backend-conformance corpus makes local, overlay, and remote execution recall-equivalent; behavioral
+    parity predicts end-to-end parity better than unit coverage does.
+  legacy_design:
+    mechanism: Replay one golden corpus of path, glob, encoding, truncation, artifact, and graph queries against
+      every backend and compare normalized results. Gate releases on semantic parity, not merely each implementation's
+      isolated tests.
+    test: Run the same vuln fixtures on rooted-local, overlay, and remote snapshots after conformance; compare
+      tool-result set equality first, then recall/F1.
+    decision_rule: Confirm if eliminating contract deltas collapses the backend recall gap. Any remaining gap
+      routes to model/context behavior rather than filesystem semantics.
+    metrics:
+    - cross-backend result-set Jaccard; contract violations per corpus; recall/F1 gap by backend
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AW3
+  v2_status: proposed
+- id: AX1
+  direction: AX
+  claim: A capability-vs-complexity failure classifier improves recovery because the two classes require different
+    interventions.
+  legacy_design:
+    mechanism: 'Classify a stuck subtask from deterministic signals: invalid/failed tool calls, missing capability
+      and parse errors imply capability failure; long evidence-bearing paths, branching, and budget exhaustion
+      imply complexity. Route the first to a typed tool/skill or command repair, the second to decomposition,
+      search, or escalation.'
+    test: Label recent failed runs, measure classifier accuracy, then A/B class-aware recovery against the current
+      uniform retry on matched failures.
+    decision_rule: Confirm if completion rises and wasted repeated actions fall at equal budget; kill if the classes
+      cannot be predicted before the recovery decision.
+    metrics:
+    - failure-class accuracy; recovery rate by class; repeated-action tokens avoided
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AX1
+  v2_status: proposed
+- id: AX2
+  direction: AX
+  claim: A calibrated remaining-difficulty estimate predicts whether a path needs 3 or 30 steps and improves abandon/continue
+    decisions.
+  legacy_design:
+    mechanism: Estimate remaining depth from attack-tree depth, unresolved prerequisites, tool availability, evidence
+      confidence, context load, and observed progress. Calibrate the estimate against actual remaining steps rather
+      than trusting self-reported confidence.
+    test: Replay completed and failed trajectories; predict remaining steps and eventual success at each decision
+      point, then use the estimate in U/AL's scheduler.
+    decision_rule: Confirm if estimates are calibrated enough to reduce premature abandonment and doomed-path
+      overspend. Kill if a cheap structural baseline performs equally well.
+    metrics:
+    - remaining-step MAE; success calibration error; recall and tokens from difficulty-aware routing
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AX2
+  v2_status: proposed
+- id: AX3
+  direction: AX
+  claim: An external evidence-guided attack tree beats prose plans by preserving alternatives and penalizing high-difficulty
+    branches without corrupting state.
+  legacy_design:
+    mechanism: Store each hypothesis/path as a node with evidence, confidence, estimated difficulty, visits, and
+      status; select with a UCB-style score over promise × exploration − difficulty. The model proposes actions,
+      while code owns tree mutation and state.
+    test: External tree vs current flat plan and AL7 best-first on multi-path exploit fixtures, with the same
+      model and action budget.
+    decision_rule: Confirm if it explores more distinct promising branches, resumes abandoned paths correctly,
+      and improves capture at equal cost.
+    metrics:
+    - capture/recall@budget; productive branch coverage; state-corruption rate; path-switch regret
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AX3
+  v2_status: proposed
+- id: AY1
+  direction: AY
+  claim: Recall and efficiency degrade as benign distractor density rises; the slope distinguishes robust search
+    from benchmark cue-following.
+  legacy_design:
+    mechanism: Hold the vulnerable component fixed while adding secure sibling services, endpoints, and code modules.
+      Measure whether attention and probes remain concentrated on evidence-bearing paths.
+    test: Evaluate each fixture at 0/1/3/7 matched distractor components with fixed vulnerability and budget.
+    decision_rule: Fit the degradation curve. A steep slope re-prioritizes U/AX search and invalidates isolated-target
+      scores as deployment estimates; a flat slope validates the current scaffold.
+    metrics:
+    - recall and confirmed findings per token vs distractor count; irrelevant-tool-call share
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AY1
+  v2_status: proposed
+- id: AY2
+  direction: AY
+  claim: Clean-target controls reveal prevalence-induced over-reporting that vulnerable-only benchmarks cannot
+    measure.
+  legacy_design:
+    mechanism: Mix patched/secure twins into the benchmark without telling the agent which targets are positive.
+      Score target-level specificity and calibration in addition to finding precision.
+    test: Run a blinded mixture across vulnerability prevalence levels (50%, 10%, 1% via resampling) and require
+      an evidence-backed no-finding outcome where appropriate.
+    decision_rule: Confirm if precision or calibration collapses at realistic low prevalence. Promote only configurations
+      whose utility remains positive after triage cost (AU2).
+    metrics:
+    - target-level specificity; false-positive targets per 100 clean targets; precision and expected triage cost
+      by prevalence
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AY2
+  v2_status: proposed
+- id: AY3
+  direction: AY
+  claim: 'Lifecycle handoff fidelity predicts real utility better than detection recall: finding → executable
+    PoC → minimally safe patch → regression tests.'
+  legacy_design:
+    mechanism: Score each transition separately in a reproducible build sandbox. A finding only advances when
+      its PoC reproduces; a patch only advances when it blocks the PoC and passes existing functionality tests.
+    test: Add a small CyberGym-E2E-style track over existing reproducible fixtures; compare ranking by detection-only
+      F1 versus end-to-end completion.
+    decision_rule: Confirm if rankings change and identify the lossiest handoff. Keep detection-only eval for
+      diagnosis, but use lifecycle completion for deployment claims.
+    metrics:
+    - stage retention; end-to-end completion; functionality-test pass rate; rank correlation with detection F1
+  legacy_evidence:
+    status: not_recorded
+  source_anchor: AY3
+  v2_status: proposed

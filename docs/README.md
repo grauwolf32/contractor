@@ -32,6 +32,17 @@ blob backend remain replaceable deployment adapters.
 - [Workspace code-analysis tools](spec/12-code-analysis-tools.md)
 - [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
+## Research drafts
+
+Research drafts are non-normative, not production-ready, and do not describe
+registered configuration unless promoted into the focused specification.
+
+- [`stateflow@1` Planner research draft](stateflow-1-research-draft.md) — explores
+  bounded explicit Planner state, deterministic Worker-context construction and
+  allocation-scoped Worker-session modes (isolated by default) selected from
+  Stage configuration, inspired by the SKILL.state
+  paper.
+
 ## Local commands
 
 ```shell

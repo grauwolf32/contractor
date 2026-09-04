@@ -1,0 +1,454 @@
+schema_version: contractor.research.v2-mechanism-map/v1
+as_of: "2026-09-04"
+
+interpretation:
+  unit: >-
+    This map classifies the primary v2 mechanism needed to test a legacy
+    hypothesis. It does not transfer a legacy evidence result to v2.
+  statuses:
+    implemented: Production v2 has a stable mechanism that can participate in an arm.
+    implemented_partial: The useful primitive exists, but its projection, backend coverage or control surface is incomplete.
+    specified: A focused specification exists, but current production code does not implement it.
+    research_only: A non-normative design exists and must not be selected by a production Workflow.
+    missing: No v2 mechanism currently implements the proposed intervention.
+  experiment_rule: >-
+    Research metadata may correlate Runs but may not change their behavior. An
+    arm must resolve to ordinary immutable Workflow, AgentTemplate, Skill,
+    ModelPolicy, ExecutionConfig, RuntimeConfig and ArtifactRef contracts.
+  program_lists: >-
+    Program directions form an exhaustive partition of the legacy catalog, and
+    every legacy hypothesis ID appears in at least one readiness list. The lists
+    are intentionally non-exclusive: an implemented primitive can make a test
+    easier while a scorer, fixture or bounded production seam is still missing.
+
+mechanisms:
+  immutable_run_snapshot:
+    status: implemented
+    owned_by: docs/spec/00-workflow-and-planner.md
+    enables:
+      - Exact Workflow and Stage topology per sample.
+      - Exact Planner, AgentTemplate, ModelPolicy, Gateway and ExecutionConfig attribution.
+      - Snapshot comparison proving the intended arm difference.
+
+  exact_artifact_plane:
+    status: implemented
+    owned_by: docs/spec/03-artifact-plane.md
+    enables:
+      - One exact fixture revision shared by paired arms.
+      - Immutable RunScope input forks and exact output pins.
+      - Versioned handoffs and independent rescoring of retained outputs.
+
+  versioned_agent_behavior:
+    status: implemented
+    owned_by:
+      - docs/spec/01-agent-template.md
+      - docs/spec/09-agent-skills.md
+    enables:
+      - Prompt, tool allowlist, Skill and model-policy arms without research flags.
+      - Progressive-disclosure versus resident-context comparisons.
+    limits:
+      - Workflow and AgentTemplate publication is still operator-authored rather than a general eval API.
+      - Agent Skill packages deliberately cannot execute bundled scripts.
+
+  execution_reports:
+    status: implemented_partial
+    owned_by: docs/spec/04-execution-lifecycle-and-metrics.md
+    enables:
+      - Per-Stage Planner and Worker call, token, duration, tool and error totals.
+      - Explicit report completeness, truncation and budget exhaustion.
+    missing:
+      - Durable cached-input-token totals.
+      - Requested and effective seed.
+      - Effective served-model or deployment fingerprint.
+      - Per-model-call latency, time-to-first-token and provider/GPU cost.
+      - Owner-scoped export of the complete safe evidence envelope.
+
+  worker_observations:
+    status: implemented_partial
+    owned_by: docs/spec/14-worker-results-and-live-state.md
+    enables:
+      - Deterministic tool counts and workspace read/discovery/change coverage.
+      - Explicit scope/detail completeness and bounded Planner pull tools.
+    missing:
+      - A versioned observation profile selector.
+      - Control arms such as none, lean, paths, arguments and task-relevant.
+      - Stable domain observations for findings and proof evidence.
+
+  planner_baselines:
+    status: implemented
+    owned_by: docs/spec/00-workflow-and-planner.md
+    values: [passthrough@1, streamline@1, router@1]
+    enables:
+      - Direct Worker versus model-Planner comparisons.
+      - One-Worker versus fixed multi-Worker routing.
+      - Separately metered Planner and Worker model policies.
+    limits:
+      - Dispatch is sequential.
+      - Model-backed Planners retain an ADK conversation.
+      - There is no persisted frontier, difficulty policy or plan resume.
+
+  scheduler_retry_and_escalation:
+    status: implemented
+    owned_by: docs/spec/00-workflow-and-planner.md
+    enables:
+      - Exact retry and stronger-policy escalation variants as distinct StageExecutions.
+      - Cost and outcome attribution to the base or escalated attempt.
+    limits:
+      - Escalation is selected by fixed Workflow outcome branches, not per-finding confidence or value of information.
+
+  terminal_worker_summarizer:
+    status: implemented
+    owned_by: docs/spec/15-worker-summarization.md
+    enables:
+      - Enabled versus disabled terminal-summary arms with a separately pinned model policy.
+    limits:
+      - It terminates the normal Worker loop; it is not continuing context compaction or PV6-style memory.
+
+  run_scoped_memory:
+    status: implemented_partial
+    owned_by: docs/spec/08-memory-tools.md
+    enables:
+      - Explicit bounded coordination notes inside one WorkflowRun.
+    limits:
+      - No automatic prompt injection, cross-Run experience memory, embeddings or semantic retrieval.
+
+  code_analysis:
+    status: implemented_partial
+    owned_by:
+      - docs/spec/12-code-analysis-tools.md
+      - docs/spec/13-taint-annotations.md
+    enables:
+      - Portable structural symbol search and bounded local graph queries.
+      - Attack-surface, path, complexity, exception and coverage signals.
+      - Structured source annotations written into a Workspace.
+    missing:
+      - Automated def-use, taint propagation and dominator analysis.
+      - Arbitrary AST-pattern search, SCA and git provenance.
+      - Remote graph backend parity.
+    warning: Taint annotations are not a taint engine.
+
+  http_and_caido:
+    status: implemented_partial
+    owned_by: docs/spec/11-http-and-caido-tools.md
+    enables:
+      - Bounded requests, exact request IDs, body artifacts, history and Caido operations.
+      - Static versus dynamic tool-grant arms.
+    missing:
+      - Typed finding-to-proof-chain reconciliation.
+      - Browser/XSS execution oracle, coverage-guided fuzzing and runtime taint.
+
+  run_metadata_labels:
+    status: implemented_partial
+    owned_by: docs/spec/16-run-metadata-labels.md
+    enables:
+      - Immutable bounded metadata labels stored atomically with each Run.
+      - Exact eval identity fields in owner-scoped create, list and detail projections.
+    intended_eval_keys:
+      - purpose
+      - eval.name
+      - eval.id
+      - eval.leg
+      - eval.fixture
+      - eval.case
+      - eval.sample
+    missing:
+      - V20-003 exact indexed owner-scoped label selection is pending.
+      - V20-004 Planner and Worker trace propagation is pending.
+      - V20-005 UI support and the V20-006 isolation release gate are pending.
+
+  worker_session_modes:
+    status: specified
+    owned_by: tasks/v19-001-worker-session-modes.yml
+    intended_values: [isolated, shared]
+    current_gap: V19-001 is pending; current allocations retain the legacy shared-session behavior.
+
+  stateflow_planner:
+    status: research_only
+    owned_by: docs/stateflow-1-research-draft.md
+    intended_arm: Bounded explicit Planner state and latest observation versus accumulated Planner conversation.
+
+  typed_security_findings:
+    status: missing
+    needed_for:
+      - Stable finding identity across generation, triage and verification.
+      - Deterministic union, deduplication and per-Stage retention.
+      - Ground-truth matching and FN-cause attribution.
+    placement: A versioned domain artifact/tool contract, not extra fields in generic WorkerResult.
+
+  eval_evidence_export:
+    status: missing
+    needed_for:
+      - Public-API-only research runners.
+      - Immutable evidence retention for successful as well as failed Runs.
+      - Rescoring without direct PostgreSQL or internal-package access.
+
+  research_registry_and_runner:
+    status: missing
+    needed_for:
+      - Preregistration, arm resolution, pass@N orchestration and cost caps.
+      - Scorer versioning, paired statistics, FDR and immutable decisions.
+
+programs:
+  cost_and_context:
+    directions: [A, AG, AU, AV]
+    fit: partial
+    existing_mechanisms:
+      - execution_reports
+      - exact_artifact_plane
+      - terminal_worker_summarizer
+    easier_now: [A6, AG2, AU2, AU3, AV1, AV2]
+    needs_small_seam: [A1, A2, A3, A4, A5, A6, AG1, AG2, AG3, AG4, AU1]
+    notes:
+      - HTTP already implements body-to-artifact plus request-ID recall, but an on/off context-policy arm is absent.
+      - Ordering, size and adopter-utility hypotheses mainly need fixtures, scorers and aggregation rather than Scheduler changes.
+
+  detection_and_hypothesis_generation:
+    directions: [B, AB]
+    fit: partial
+    existing_mechanisms:
+      - versioned_agent_behavior
+      - code_analysis
+      - exact_artifact_plane
+    easier_after_common_eval_contract: [B1, B4]
+    needs_small_seam: [B2, B3, AB1, AB7]
+    needs_new_capability: [B5, AB2, AB3, AB4, AB5, AB6, AB8]
+    common_gap: Typed leads and findings with deterministic scorer and union/dedup semantics.
+
+  verification_and_precision:
+    directions: [C, K, AH]
+    fit: partial
+    existing_mechanisms:
+      - http_and_caido
+      - exact_artifact_plane
+      - versioned_agent_behavior
+    easier_after_common_eval_contract: [C2, C3, AH1, AH2, AH3, AH4, AH5]
+    needs_small_seam: [C1, C5, C6, K1, K2, K3]
+    needs_new_capability: [C4]
+    common_gap: Stable finding IDs, typed verdict/proof artifacts and per-Stage retention.
+
+  simplification_and_composition:
+    directions: [D, AD]
+    fit: strong
+    existing_mechanisms:
+      - immutable_run_snapshot
+      - planner_baselines
+      - exact_artifact_plane
+      - versioned_agent_behavior
+    config_only_candidates: [D1, D2, D4, AD1, AD2, AD5, AD6]
+    contract_test_candidates: [D3, D5]
+    needs_small_seam: [AD3]
+    needs_new_capability: [AD4]
+    note: A security-specific staged Workflow is still needed; security-analysis@1 is only one passthrough HTTP/Caido Worker.
+
+  small_model_mission:
+    directions: [E]
+    fit: partial
+    existing_mechanisms:
+      - versioned_agent_behavior
+      - code_analysis
+      - planner_baselines
+    common_advantage: Exact per-role ModelPolicy overrides make small-versus-large comparisons much cleaner.
+    easier_after_common_eval_contract: [E1]
+    needs_small_seam: [E2, E3, E5]
+    needs_new_capability: [E4]
+    validity_dependency: Use headroom-normalized uplift and void ceilinged large-model comparisons.
+
+  validity_and_truth:
+    directions: [F, AO, AP, AR, AS, AY]
+    fit: eval_layer
+    existing_mechanisms:
+      - immutable_run_snapshot
+      - exact_artifact_plane
+      - execution_reports
+    first_candidates: [F1, F2, AR1, AR2, AR3, AO1, AO2, AY2]
+    contract_test_candidates: [F4]
+    needs_small_seam: [AO3, AP2]
+    needs_eval_assets: [F3, AS1, AS2, AS3, AY1]
+    needs_new_capability: [AP1, AP3, AY3]
+    required_eval_assets:
+      - run_metadata_labels
+      - eval_evidence_export
+      - research_registry_and_runner
+      - Versioned fixture and ground-truth manifests.
+      - Clean twins, held-out/private cases and perturbation generators.
+      - Blind adjudication records and deterministic baseline outputs.
+    note: AO baselines should start in the eval layer; production SAST integration is not required to score a floor.
+
+  code_and_test_understanding:
+    directions: [G, H, I, J, AQ]
+    fit: partial
+    existing_mechanisms:
+      - code_analysis
+      - versioned_agent_behavior
+    directly_armable: [G1, G2, G3, I1]
+    needs_small_seam: [I3]
+    needs_new_capability:
+      - G4
+      - H1
+      - H2
+      - H3
+      - H4
+      - I2
+      - J1
+      - J2
+      - J3
+      - AQ1
+      - AQ2
+      - AQ3
+    note: AQ requires coverage/test mining and controlled test execution; ordinary source-file access is not an oracle.
+
+  ensembles_and_escalation:
+    directions: [L, V, AI]
+    fit: partial
+    existing_mechanisms:
+      - planner_baselines
+      - scheduler_retry_and_escalation
+      - immutable_run_snapshot
+    directly_armable: [AI5]
+    needs_small_seam: [L1, L2, L3, V1, V2, V3, AI1, AI2, AI3, AI4, AI6]
+    common_gap: Typed union/dedup, contested-item identity and item-level selective routing.
+
+  artifacts_formats_and_handoffs:
+    directions: [M, X, Z, AN]
+    fit: strong
+    existing_mechanisms:
+      - exact_artifact_plane
+      - immutable_run_snapshot
+      - worker_observations
+    directly_armable_after_scorers: [M1, M4, M5, X1, X2, X4, X5, AN2]
+    contract_test_candidates: [M3, Z1]
+    needs_small_seam: [M2, X3, Z3, Z4, Z5, AN1, AN3, AN4]
+    needs_new_capability: [Z2, Z6]
+    common_gap: Typed finding/evidence artifacts and a consumer query-back contract.
+
+  change_analysis_and_learning:
+    directions: [N, O, P, Q, R]
+    fit: weak
+    existing_mechanisms:
+      - exact_artifact_plane
+      - run_scoped_memory
+      - versioned_agent_behavior
+    needs_new_capability:
+      - N1
+      - N2
+      - N3
+      - N4
+      - O1
+      - O2
+      - O3
+      - P1
+      - P2
+      - P3
+      - Q1
+      - Q2
+      - Q3
+      - R1
+      - R2
+      - R3
+    common_gaps:
+      - Git/diff provenance and variant search.
+      - Cross-Run curated experience memory and deterministic retrieval.
+      - Self-play fixture generation, rule compilation and inferred invariants.
+
+  exploit_chains_and_dynamic_testing:
+    directions: [S, T]
+    fit: weak
+    existing_mechanisms:
+      - http_and_caido
+      - exact_artifact_plane
+    needs_new_capability: [S1, S2, S3, T1, T2, T3]
+    common_gaps:
+      - Typed engagement/chain graph.
+      - Coverage-guided fuzzing and property-test execution.
+      - Runtime taint and reproducible target reset.
+
+  planning_and_search:
+    directions: [U, W, Y, AL, AM, PV, AF, AX]
+    fit: partial
+    existing_mechanisms:
+      - planner_baselines
+      - scheduler_retry_and_escalation
+      - worker_observations
+      - run_scoped_memory
+    directly_armable: [W1, PV0]
+    near_term_after_session_modes: [W2, W3, W4, W5, W6, PV1, PV2, PV6, AF3, AF4]
+    needs_small_seam: [U2, Y1, Y2, Y5, AL2, AL4, AF1, AF2, PV3, PV4, PV7, PV8, PV9]
+    needs_new_capability:
+      - U1
+      - U3
+      - Y3
+      - Y4
+      - AL1
+      - AL3
+      - AL5
+      - AL6
+      - AL7
+      - AM1
+      - AM2
+      - AM3
+      - AM4
+      - AM5
+      - PV5
+      - PV10
+      - AF5
+      - AX1
+      - AX2
+      - AX3
+    common_gaps:
+      - worker_session_modes
+      - stateflow_planner
+      - Persisted bounded frontier and difficulty/value policy.
+      - Parallel Stage or sibling dispatch.
+
+  skills_prompts_retrieval_and_refinement:
+    directions: [AA, AE, AJ, AK]
+    fit: partial
+    existing_mechanisms:
+      - versioned_agent_behavior
+      - exact_artifact_plane
+    directly_armable_after_scorers: [AA1, AA2, AA4, AA5, AE1, AE2, AE3, AE4, AE5, AE6]
+    needs_new_capability: [AA3, AJ1, AJ2, AJ3, AJ4, AJ5, AK1, AK2, AK3, AK4, AK5, AK6, AK7]
+    note: Executable Skill assets require a separately reviewed sandbox/tool contract; they must not bypass AgentTemplate tool authority.
+
+  observations_and_miss_attribution:
+    directions: [AC, AT, AW]
+    fit: strong_but_not_armable
+    existing_mechanisms:
+      - worker_observations
+      - execution_reports
+      - code_analysis
+    needs_small_seam: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AT1, AW1, AW2]
+    needs_new_capability: [AW3]
+    common_gaps:
+      - Versioned observation profiles.
+      - Per-tool semantic evidence outcomes separate from transport success.
+      - Stable finding and ground-truth joins for per-FN cause attribution.
+
+recommended_sequence:
+  - id: eval_foundation
+    deliver:
+      - run_metadata_labels
+      - eval_evidence_export
+      - research_registry_and_runner
+      - typed_security_findings
+      - Versioned fixture, ground-truth and scorer records.
+
+  - id: harness_calibration
+    hypotheses: [AR1, AR2, AR3, F1, F2, AO1, AO2, AY2]
+    reason: Measure variance, scorer sensitivity, deterministic floors and clean-target behavior before interpreting feature deltas.
+
+  - id: planner_cost_smoke
+    hypotheses: [PV0, D2, W1]
+    reason: Existing passthrough and streamline project Workflows exercise A/B orchestration without a new security capability.
+
+  - id: security_validity_vertical
+    hypotheses: [AW1, AT1, AN1, AH1]
+    reason: A semantic tool-outcome and finding-retention join explains whether misses come from tools, reasoning, handoff or scoring.
+
+  - id: configuration_ablations
+    hypotheses: [I1, G3, AA1, AE1, AE3, AC5, AC6]
+    reason: Exact AgentTemplate, Skill, graph-tool and observation variants are high-leverage small-model experiments.
+
+  - id: capability_wave
+    hypotheses: [H1, J1, AQ3, AX1, AX2, AX3]
+    reason: Build new analyzers and search policy only after the validity and attribution layers can measure their effect.

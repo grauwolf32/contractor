@@ -1,0 +1,697 @@
+schema_version: contractor.research.hypothesis-catalog/v1
+catalog:
+  id: contractor-v2-native-research
+  created_on: "2026-09-04"
+  status_rule: >-
+    Records are proposed designs. Effect thresholds, sample sizes and decision
+    rules must be frozen before the first model call.
+  id_rule: >-
+    V2-native directions start at AZ, immediately after the legacy A-AY range.
+
+readiness_values:
+  armable: Existing production v2 configuration can express both arms after the common eval foundation exists.
+  small_seam_required: A bounded production or evidence-contract change is needed before the contrast is valid.
+  specified_not_implemented: A focused v2 specification exists, but its implementation is pending.
+  prototype_required: The candidate is intentionally research-only and needs an opt-in prototype.
+
+prerequisites:
+  eval_foundation:
+    - Implement immutable Run metadata labels and indexed lookup.
+    - Export complete safe Run evidence for every terminal outcome.
+    - Freeze experiment, scorer, fixture, ground-truth and arm-snapshot digests.
+    - Run one fresh WorkflowRun per leg, fixture, case and sample.
+  security_eval_contract:
+    - Add stable typed finding, verdict and proof-evidence artifacts.
+    - Add deterministic ground-truth matching and per-Stage finding retention.
+  observation_profiles:
+    - Pin a named profile in immutable configuration.
+    - Support at least result-only, lean and pull-on-incomplete contrasts.
+  tool_evidence_outcomes:
+    - Record semantic completeness independently of transport success.
+  worker_session_modes:
+    - Complete V19-001 isolated/shared Stage configuration and Runtime behavior.
+  stateflow_prototype:
+    - Implement the opt-in bounded-state Planner described by the research draft.
+
+directions:
+  - id: AZ
+    title: Worker session isolation and explicit State carry
+  - id: BA
+    title: Bounded Planner state and selective projections
+  - id: BB
+    title: Terminal Worker summarization policy
+  - id: BC
+    title: Typed artifact and evidence authority
+  - id: BD
+    title: Evaluation non-interference and infrastructure confounding
+  - id: BE
+    title: Per-role model allocation and evidence-aware escalation
+  - id: BF
+    title: Observation composition and coverage signals
+  - id: BG
+    title: Stage granularity and explicit handoff channels
+
+hypotheses:
+  - id: AZ1
+    direction: AZ
+    title: Isolated Worker sessions flatten context growth
+    claim: >-
+      On Stages with at least three Worker invocations, isolated sessions with
+      bounded State carry reduce input-token growth and repeated actions versus
+      a shared conversation, without lowering case completion.
+    mechanism: >-
+      Each invocation receives a fresh ADK event history while Runtime carries
+      only eligible bounded State inside the allocation.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Stage session mode shared.
+    treatment: Stage session mode isolated with the same State carry, model, tools and task sequence.
+    primary_metric: {name: worker_input_token_slope_per_invocation, expectation: decrease}
+    guardrails:
+      - {name: case_completion_rate, expectation: non_inferior}
+      - {name: unique_evidence_recall, expectation: non_inferior}
+    related_legacy: [W4, PV6, AL2]
+    prerequisites: [eval_foundation, worker_session_modes]
+    v2_readiness: specified_not_implemented
+
+  - id: AZ2
+    direction: AZ
+    title: Shared sessions retain useful tacit context for tight refinement loops
+    claim: >-
+      On tightly coupled inspect-edit-validate tasks, an explicit shared Worker
+      session completes more cases than isolated sessions when the handoff State
+      omits details that remain available in the conversation transcript.
+    mechanism: >-
+      A shared session preserves model-visible intermediate explanations and
+      tool-result context that bounded State does not reconstruct.
+    status: proposed
+    scenario: agent
+    design: paired_ab
+    control: Isolated session with bounded State carry.
+    treatment: Shared session with identical model, tools, inputs and budgets.
+    primary_metric: {name: refinement_case_completion_rate, expectation: increase}
+    guardrails:
+      - {name: total_input_tokens, expectation: report}
+      - {name: stale_context_error_rate, expectation: non_increase}
+    related_legacy: [AL2, PV10, M2]
+    prerequisites: [eval_foundation, worker_session_modes]
+    v2_readiness: specified_not_implemented
+
+  - id: AZ3
+    direction: AZ
+    title: Bounded State carry preserves the useful part of session continuity
+    claim: >-
+      Isolated sessions with bounded eligible State outperform fully stateless
+      isolated sessions on multi-invocation tasks while retaining nearly the same
+      prompt-size advantage.
+    mechanism: >-
+      Explicit State carries durable progress and activation facts without
+      carrying the prior event transcript.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Fresh session and empty non-Contractor State on every invocation.
+    treatment: Fresh session with the V19-eligible bounded State projection.
+    primary_metric: {name: multi_invocation_completion_rate, expectation: increase}
+    guardrails:
+      - {name: input_tokens_per_invocation, expectation: non_inferior}
+      - {name: state_corruption_rate, expectation: zero}
+    related_legacy: [AL2, W4, AF3]
+    prerequisites: [eval_foundation, worker_session_modes]
+    v2_readiness: small_seam_required
+
+  - id: AZ4
+    direction: AZ
+    title: Isolated sessions expose a progressive-disclosure reload tax
+    claim: >-
+      Re-loading the same Agent Skill in successive isolated invocations consumes
+      a material share of tokens; deterministic safe re-disclosure from pinned
+      Skill state recovers most of that cost without changing task quality.
+    mechanism: >-
+      V19 carries activation State but not the prior load_skill result. A trusted
+      context builder can re-disclose only the exact already-pinned Skill content.
+    status: proposed
+    scenario: agent
+    design: paired_ab
+    control: Every isolated invocation calls load_skill normally.
+    treatment: Runtime re-discloses the exact active Skill through a bounded reviewed contract.
+    primary_metric: {name: repeated_skill_load_tokens, expectation: decrease}
+    guardrails:
+      - {name: task_quality, expectation: non_inferior}
+      - {name: unrequested_skill_disclosure_rate, expectation: zero}
+    related_legacy: [AE3, AE5, AL2]
+    prerequisites: [eval_foundation, worker_session_modes]
+    v2_readiness: small_seam_required
+
+  - id: BA1
+    direction: BA
+    title: Explicit Planner state bounds long-horizon prompt growth
+    claim: >-
+      A stateflow Planner receiving immutable procedure, bounded current state
+      and the latest observation has a substantially lower Planner input-token
+      slope than streamline while preserving completion on long Stages.
+    mechanism: >-
+      Trusted code replaces accumulated Planner conversation with one validated
+      state revision and one new observation per macro step.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: streamline@1 with its accumulated ADK conversation.
+    treatment: Opt-in stateflow prototype with the same model, Worker set, inputs and limits.
+    primary_metric: {name: planner_input_token_slope_per_macro_step, expectation: decrease}
+    guardrails:
+      - {name: case_completion_rate, expectation: non_inferior}
+      - {name: state_loss_failure_rate, expectation: bounded}
+    related_legacy: [W3, W4, PV6]
+    prerequisites: [eval_foundation, worker_session_modes, stateflow_prototype]
+    v2_readiness: prototype_required
+
+  - id: BA2
+    direction: BA
+    title: Explicit current state reduces duplicate Worker dispatches
+    claim: >-
+      Stateflow produces fewer semantically duplicate Worker dispatches than a
+      conversational Planner because completed goals and blockers remain in a
+      validated current-state projection.
+    mechanism: >-
+      Code-owned state revisions make progress monotonic and allow deterministic
+      duplicate-intent checks before an external action begins.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: streamline@1.
+    treatment: Stateflow with validated dispatch intent and progress fields.
+    primary_metric: {name: semantic_duplicate_dispatch_rate, expectation: decrease}
+    guardrails:
+      - {name: productive_branch_coverage, expectation: non_inferior}
+      - {name: false_duplicate_rejection_rate, expectation: bounded}
+    related_legacy: [AF1, AF3, PV1]
+    prerequisites: [eval_foundation, stateflow_prototype]
+    v2_readiness: prototype_required
+
+  - id: BA3
+    direction: BA
+    title: Pull-based Planner state beats eager detailed observation injection
+    claim: >-
+      Supplying lean observations and letting Planner request details only when
+      needed achieves equal or better completion at lower Planner tokens than
+      eagerly injecting the complete available observation projection.
+    mechanism: >-
+      Planner state tools expose bounded details behind an explicit information
+      request, avoiding repeated context for already-settled subtasks.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Eager detailed observation projection on every Planner turn.
+    treatment: Lean result plus bounded pull tools for details.
+    primary_metric: {name: planner_total_input_tokens, expectation: decrease}
+    guardrails:
+      - {name: case_completion_rate, expectation: non_inferior}
+      - {name: missed_required_detail_rate, expectation: non_increase}
+    related_legacy: [AC8, W4, Z3]
+    prerequisites: [eval_foundation, observation_profiles]
+    v2_readiness: small_seam_required
+
+  - id: BA4
+    direction: BA
+    title: Completeness flags prevent premature Planner finish
+    claim: >-
+      Explicit scope_complete and detail_complete flags reduce premature
+      successful finish decisions compared with the same coverage counts without
+      completeness semantics.
+    mechanism: >-
+      Counts alone make bounded lower bounds look exhaustive; completeness flags
+      tell Planner when absence is not negative evidence.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Coverage counts with completeness flags hidden.
+    treatment: The same counts with trusted completeness and truncation flags.
+    primary_metric: {name: premature_successful_finish_rate, expectation: decrease}
+    guardrails:
+      - {name: unnecessary_followup_dispatches, expectation: bounded}
+      - {name: total_tokens, expectation: report}
+    related_legacy: [AC5, AF4, AW1]
+    prerequisites: [eval_foundation, observation_profiles, security_eval_contract]
+    v2_readiness: small_seam_required
+
+  - id: BB1
+    direction: BB
+    title: Terminal summarization rescues useful work before hard exhaustion
+    claim: >-
+      Enabling terminal Worker summarization converts more near-context-limit
+      invocations into valid semantic results than hard exhaustion alone, without
+      reducing result correctness.
+    mechanism: >-
+      Runtime stops the normal loop at a safe completed boundary and gives one
+      tool-free summarizer the bounded non-thought event projection.
+    status: proposed
+    scenario: agent
+    design: paired_ab
+    control: AgentTemplate with summarizer omitted.
+    treatment: Otherwise identical AgentTemplate with terminal@1 summarizer enabled.
+    primary_metric: {name: valid_completion_rate_after_soft_boundary, expectation: increase}
+    guardrails:
+      - {name: result_correctness, expectation: non_inferior}
+      - {name: unsupported_claim_rate, expectation: non_increase}
+    related_legacy: [A3, E5, AF2]
+    prerequisites: [eval_foundation]
+    v2_readiness: armable
+
+  - id: BB2
+    direction: BB
+    title: A cheaper dedicated summarizer is sufficient
+    claim: >-
+      A smaller dedicated one-call summarizer model is non-inferior to the normal
+      Worker model for terminal result recovery and lowers total cost.
+    mechanism: >-
+      The summarizer receives a constrained evidence projection and does no tool
+      use, making the task narrower than the original Worker loop.
+    status: proposed
+    scenario: agent
+    design: non_inferiority
+    control: Terminal summarizer using the normal Worker model family.
+    treatment: Terminal summarizer using a smaller pinned ModelPolicy.
+    primary_metric: {name: summarizer_cost_per_valid_result, expectation: decrease}
+    guardrails:
+      - {name: terminal_result_correctness, expectation: non_inferior}
+      - {name: summarizer_failure_rate, expectation: non_increase}
+    related_legacy: [A3, AI4, E1]
+    prerequisites: [eval_foundation]
+    v2_readiness: armable
+
+  - id: BB3
+    direction: BB
+    title: Terminal summarizer trigger timing has an interior optimum
+    claim: >-
+      Sweeping contextWindowRatio and cumulativeBudget reveals a trigger region
+      that minimizes hard failures and cost; triggering substantially earlier or
+      later reduces utility.
+    mechanism: >-
+      Late triggers risk provider rejection before the safe boundary, while early
+      triggers terminate productive evidence gathering.
+    status: proposed
+    scenario: agent
+    design: scaling_sweep
+    control: Current default trigger values.
+    treatment: Pre-registered context-window-ratio and cumulative-budget grid.
+    primary_metric: {name: quality_adjusted_completion_per_token, expectation: maximize}
+    guardrails:
+      - {name: hard_context_failure_rate, expectation: decrease}
+      - {name: premature_summary_rate, expectation: bounded}
+    related_legacy: [A3, AM3, E5]
+    prerequisites: [eval_foundation]
+    v2_readiness: armable
+
+  - id: BC1
+    direction: BC
+    title: Typed findings improve downstream verification over Markdown-only handoff
+    claim: >-
+      A typed finding artifact containing stable identity, location, class and
+      exact evidence references improves verifier precision and Stage retention
+      compared with a Markdown-only report.
+    mechanism: >-
+      The consumer receives machine-checkable fields and authoritative refs
+      without re-parsing prose or silently overwriting same-name findings.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Markdown finding report.
+    treatment: Versioned typed finding artifact plus a human-readable projection.
+    primary_metric: {name: verifier_precision, expectation: increase}
+    guardrails:
+      - {name: stage_finding_retention, expectation: increase_or_non_inferior}
+      - {name: artifact_bytes, expectation: report}
+    related_legacy: [B2, K1, AN4]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: small_seam_required
+
+  - id: BC2
+    direction: BC
+    title: Stable finding identity makes deterministic reconciliation superior
+    claim: >-
+      Deterministic reconciliation over stable finding IDs and source locations
+      retains more true findings with fewer false merges than an LLM-only dedup
+      pass at lower model cost.
+    mechanism: >-
+      Identity and lineage separate exact duplicates, refinements and independent
+      same-class findings before semantic judgment is requested.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: LLM-only union and deduplication of prose findings.
+    treatment: Deterministic identity reconciliation followed by semantic review only for conflicts.
+    primary_metric: {name: reconciliation_error_rate, expectation: decrease}
+    guardrails:
+      - {name: finding_recall, expectation: non_inferior}
+      - {name: model_tokens_per_reconciled_finding, expectation: decrease}
+    related_legacy: [K1, Z5, B3]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: small_seam_required
+
+  - id: BC3
+    direction: BC
+    title: Exact evidence references outperform copied excerpts
+    claim: >-
+      Findings carrying exact ArtifactRefs and HTTP request IDs produce more
+      accurate downstream verdicts than findings carrying only copied evidence
+      excerpts of the same byte budget.
+    mechanism: >-
+      Exact references allow bounded query-back to authoritative evidence and
+      avoid stale, truncated or decontextualized copies.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Finding with bounded embedded evidence excerpts only.
+    treatment: Finding with exact evidence refs and bounded on-demand readers.
+    primary_metric: {name: verdict_accuracy, expectation: increase}
+    guardrails:
+      - {name: consumer_total_tokens, expectation: non_inferior}
+      - {name: broken_evidence_ref_rate, expectation: zero}
+    related_legacy: [C1, M1, AN3, AN4]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: small_seam_required
+
+  - id: BC4
+    direction: BC
+    title: Handle-and-preview beats inline large results
+    claim: >-
+      Returning a bounded preview plus an exact retrieval handle for large tool
+      results reduces accumulated Worker context without lowering evidence recall
+      compared with returning the full result inline.
+    mechanism: >-
+      The Worker pays for large bytes only when it explicitly reads the relevant
+      slice; the authoritative complete body remains an artifact.
+    status: proposed
+    scenario: agent
+    design: paired_ab
+    control: Full model-visible result inline up to the context policy limit.
+    treatment: Preview, exact handle and bounded by-ID slice retrieval.
+    primary_metric: {name: accumulated_input_tokens, expectation: decrease}
+    guardrails:
+      - {name: evidence_recall, expectation: non_inferior}
+      - {name: redundant_reprobe_rate, expectation: non_increase}
+    related_legacy: [A6, AG2, AN3]
+    prerequisites: [eval_foundation]
+    v2_readiness: small_seam_required
+
+  - id: BD1
+    direction: BD
+    title: Run metadata labels are semantically inert
+    kind: invariant_probe
+    claim: >-
+      Changing only bounded WorkflowRun metadata labels leaves model-visible
+      requests, tool behavior and outcome distributions unchanged.
+    mechanism: >-
+      Labels are attached to trusted correlation telemetry and never enter
+      prompts, State, tools, Skills, placement or Scheduler policy.
+    status: proposed
+    scenario: offline
+    design: paired_ab
+    control: Run with an empty metadata-label map.
+    treatment: Run with complete eval metadata labels and otherwise byte-identical snapshot and inputs.
+    primary_metric: {name: model_visible_request_digest_mismatch_rate, expectation: zero}
+    guardrails:
+      - {name: output_distribution_delta, expectation: within_noise_floor}
+      - {name: placement_delta, expectation: zero}
+    related_legacy: [AR1, AS1]
+    prerequisites: [eval_foundation]
+    v2_readiness: small_seam_required
+
+  - id: BD2
+    direction: BD
+    title: Effective infrastructure equivalence predicts semantic equivalence
+    claim: >-
+      Runtime configurations that resolve to the same served model build, tool
+      capabilities and fixture bytes have equivalent quality; any residual delta
+      identifies infrastructure as an experimental confounder.
+    mechanism: >-
+      V2 separates semantic AgentTemplate/ModelPolicy selection from physical
+      Gateway, adapter and Runtime placement configuration.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Baseline RuntimeConfig and Runtime Agent placement.
+    treatment: Alternative RuntimeConfig with matched effective model and tool capability fingerprints.
+    primary_metric: {name: paired_quality_delta, expectation: within_noise_floor}
+    guardrails:
+      - {name: latency_delta, expectation: report}
+      - {name: tool_result_set_jaccard, expectation: one}
+    related_legacy: [AR1, AW3, I2]
+    prerequisites: [eval_foundation]
+    v2_readiness: small_seam_required
+
+  - id: BD3
+    direction: BD
+    title: Complete-case telemetry analysis biases model-quality estimates
+    claim: >-
+      Dropping Runs or participants with incomplete execution reports produces a
+      materially optimistic quality or cost estimate because telemetry
+      incompleteness is correlated with execution failure and exhaustion.
+    mechanism: >-
+      Report collection and semantic outcomes have different failure paths, so
+      missingness is unlikely to be completely at random.
+    status: proposed
+    scenario: offline
+    design: observational
+    control: Aggregate only attempts whose reports are complete.
+    treatment: Include all attempts with explicit missingness strata and sensitivity bounds.
+    primary_metric: {name: complete_case_quality_bias, expectation: nonzero}
+    guardrails:
+      - {name: report_incomplete_rate, expectation: report}
+      - {name: sensitivity_interval_width, expectation: report}
+    related_legacy: [F2, AR1, AW1]
+    prerequisites: [eval_foundation]
+    v2_readiness: small_seam_required
+
+  - id: BE1
+    direction: BE
+    title: Worker model capacity buys more quality than Planner capacity
+    claim: >-
+      Under a fixed total model-cost budget, assigning the stronger policy to
+      Workers and the cheaper policy to Planner improves security quality more
+      than the inverse allocation.
+    mechanism: >-
+      Workers directly inspect evidence and use domain tools, while Planner can
+      rely on typed state, structural summaries and a fixed Worker roster.
+    status: proposed
+    scenario: pipeline
+    design: factorial
+    control: Cheap Planner and cheap Worker policies.
+    treatment: Crossed cheap/strong Planner and Worker ModelPolicy assignments at matched total cost.
+    primary_metric: {name: severity_weighted_recall_at_fixed_cost, expectation: increase}
+    guardrails:
+      - {name: planner_failure_rate, expectation: bounded}
+      - {name: wall_clock, expectation: report}
+    related_legacy: [W1, AI4, E1]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: armable
+
+  - id: BE2
+    direction: BE
+    title: Stage-local strong models dominate globally strong execution
+    claim: >-
+      Assigning a strong ModelPolicy only to the empirically lossy or difficult
+      Stage approaches globally strong quality at materially lower cost.
+    mechanism: >-
+      V2 resolves ModelPolicy independently for Planner and each logical Worker
+      binding while preserving the same Workflow and artifact contracts.
+    status: proposed
+    scenario: pipeline
+    design: factorial
+    control: One small policy for all Stages and one strong-policy upper bound for all Stages.
+    treatment: Strong policy only at one pre-registered Stage or binding.
+    primary_metric: {name: quality_per_model_cost, expectation: increase}
+    guardrails:
+      - {name: end_to_end_recall, expectation: non_inferior_to_all_strong}
+      - {name: escalation_or_strong_call_share, expectation: bounded}
+    related_legacy: [AI2, AI4, AI6, AN1]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: armable
+
+  - id: BE3
+    direction: BE
+    title: Evidence-aware escalation beats same-policy retry
+    claim: >-
+      When a Stage fails with incomplete or ambiguous tool evidence, escalating
+      to a stronger policy or alternate capability recovers more true findings
+      per unit cost than retrying the same policy with unchanged evidence.
+    mechanism: >-
+      Typed evidence outcomes distinguish stochastic model failure from a missing
+      capability or evidence channel and select a different bounded recovery.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Same-policy Scheduler retry after the selected failure class.
+    treatment: Exact predeclared escalation variant selected for that failure class.
+    primary_metric: {name: true_findings_recovered_per_cost, expectation: increase}
+    guardrails:
+      - {name: unnecessary_escalation_rate, expectation: bounded}
+      - {name: final_precision, expectation: non_inferior}
+    related_legacy: [AW2, AI1, AX1]
+    prerequisites: [eval_foundation, security_eval_contract, tool_evidence_outcomes]
+    v2_readiness: small_seam_required
+
+  - id: BF1
+    direction: BF
+    title: Lean observations improve the next Planner dispatch
+    claim: >-
+      Providing Runtime-authored lean Worker observations in addition to semantic
+      Worker result text improves the coverage and usefulness of the next Planner
+      dispatch at equal Worker budget.
+    mechanism: >-
+      Deterministic tool and workspace coverage facts expose what was actually
+      inspected rather than relying on the Worker's self-description.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Planner receives Worker semantic result and artifacts only.
+    treatment: Planner also receives the fixed lean observation projection.
+    primary_metric: {name: next_dispatch_new_evidence_rate, expectation: increase}
+    guardrails:
+      - {name: planner_input_tokens, expectation: bounded}
+      - {name: case_completion_rate, expectation: non_decrease}
+    related_legacy: [AC1, AC5, W4]
+    prerequisites: [eval_foundation, observation_profiles]
+    v2_readiness: small_seam_required
+
+  - id: BF2
+    direction: BF
+    title: Adaptive observation detail Pareto-dominates a fixed projection
+    claim: >-
+      Lean observations followed by detailed pull only when completeness or
+      coverage signals warrant it achieve better quality per Planner token than
+      always hiding or always injecting path detail.
+    mechanism: >-
+      Trusted completeness signals act as a deterministic information-acquisition
+      gate instead of making every task pay for maximum observation detail.
+    status: proposed
+    scenario: pipeline
+    design: factorial
+    control: Result-only and always-detailed observation arms.
+    treatment: Lean-by-default with bounded pull-on-incomplete behavior.
+    primary_metric: {name: quality_per_planner_input_token, expectation: increase}
+    guardrails:
+      - {name: false_followup_rate, expectation: bounded}
+      - {name: missed_coverage_gap_rate, expectation: non_increase}
+    related_legacy: [AC6, AC8, W4]
+    prerequisites: [eval_foundation, observation_profiles]
+    v2_readiness: small_seam_required
+
+  - id: BF3
+    direction: BF
+    title: Workspace and parser coverage explain different false negatives
+    claim: >-
+      The joint use of model-visible workspace-read coverage and internal
+      code-analysis coverage predicts false negatives better than either signal
+      alone.
+    mechanism: >-
+      Parser coverage measures what deterministic tooling indexed; workspace
+      observations measure which returned evidence was actually exposed to the
+      model. The failure modes are distinct.
+    status: proposed
+    scenario: offline
+    design: observational
+    control: FN attribution models using one coverage family at a time.
+    treatment: Pre-registered model using both coverage families and completeness flags.
+    primary_metric: {name: fn_cause_prediction_log_loss, expectation: decrease}
+    guardrails:
+      - {name: calibration_error, expectation: decrease}
+      - {name: unclassified_fn_rate, expectation: bounded}
+    related_legacy: [AT1, I3, AC5]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: small_seam_required
+
+  - id: BF4
+    direction: BF
+    title: Path detail can create salience bias on large repositories
+    claim: >-
+      Injecting a bounded first-observed filesRead list improves grounding on
+      small repositories but can reduce breadth on large repositories by
+      anchoring Planner on early paths.
+    mechanism: >-
+      A deterministic truncated list is stable but not necessarily representative;
+      the model may treat first-observed paths as priority evidence.
+    status: proposed
+    scenario: pipeline
+    design: scaling_sweep
+    control: Lean counts and completeness flags without path names.
+    treatment: The same projection with bounded first-observed path detail.
+    primary_metric: {name: recall_delta_by_repository_size, expectation: characterize_interaction}
+    guardrails:
+      - {name: planner_tokens, expectation: report}
+      - {name: unexplored_component_rate, expectation: report}
+    related_legacy: [AC6, AV1, AY1]
+    prerequisites: [eval_foundation, observation_profiles, security_eval_contract]
+    v2_readiness: small_seam_required
+
+  - id: BG1
+    direction: BG
+    title: Workflow Stage granularity has an interior optimum
+    claim: >-
+      Splitting a security workflow into more isolated Stages improves local
+      context quality only until artifact handoff loss and allocation overhead
+      dominate; quality per cost peaks at an intermediate granularity.
+    mechanism: >-
+      Stage boundaries reset Planner/Worker execution context and pin artifacts,
+      but each boundary compresses evidence into an explicit handoff contract.
+    status: proposed
+    scenario: pipeline
+    design: scaling_sweep
+    control: One-stage generalist and maximally split pipelines.
+    treatment: Pre-registered two-, three- and four-stage variants with matched tools and total budgets.
+    primary_metric: {name: end_to_end_f1_per_cost, expectation: maximize}
+    guardrails:
+      - {name: per_stage_retention, expectation: report}
+      - {name: allocation_overhead_ms, expectation: report}
+    related_legacy: [AD1, AD6, AN1, AH4]
+    prerequisites: [eval_foundation, security_eval_contract]
+    v2_readiness: armable
+
+  - id: BG2
+    direction: BG
+    title: Serial passthrough Stages can beat one conversational Router
+    claim: >-
+      For known pipeline topology, several serial passthrough Stages with explicit
+      artifacts use fewer Planner tokens and achieve more reproducible handoffs
+      than one Router Stage, despite higher allocation overhead.
+    mechanism: >-
+      Workflow code owns the fixed order and each Stage receives a fresh bounded
+      execution scope instead of asking a model Planner to rediscover topology.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: One router@1 Stage with the complete fixed Worker roster.
+    treatment: Equivalent serial passthrough@1 Stages with exact artifact mappings.
+    primary_metric: {name: planner_tokens_per_completed_case, expectation: decrease}
+    guardrails:
+      - {name: end_to_end_quality, expectation: non_inferior}
+      - {name: wall_clock, expectation: report}
+    related_legacy: [D2, W2, PV0]
+    prerequisites: [eval_foundation]
+    v2_readiness: armable
+
+  - id: BG3
+    direction: BG
+    title: Explicit Memory notes outperform tacit shared-session handoff
+    claim: >-
+      Passing cross-Worker progress through bounded Run-scoped Memory notes is
+      more reproducible than relying on a shared conversation transcript and
+      remains non-inferior in downstream task quality.
+    mechanism: >-
+      MemoryTools create explicit versioned coordination artifacts; shared
+      transcript context is implicit, order-sensitive and unavailable across
+      isolated Worker sessions.
+    status: proposed
+    scenario: pipeline
+    design: paired_ab
+    control: Shared session context with no required Memory note.
+    treatment: Isolated sessions with a prescribed bounded Memory note handoff.
+    primary_metric: {name: downstream_output_variance, expectation: decrease}
+    guardrails:
+      - {name: downstream_task_quality, expectation: non_inferior}
+      - {name: handoff_tokens, expectation: report}
+    related_legacy: [AL2, AN3, O1]
+    prerequisites: [eval_foundation, worker_session_modes]
+    v2_readiness: specified_not_implemented
