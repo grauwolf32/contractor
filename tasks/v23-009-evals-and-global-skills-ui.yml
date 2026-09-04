@@ -3,10 +3,10 @@ id: V23-009
 title: Add separate Evals and global Skills UI views
 milestone: project-workspaces-operations
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 741127dd86aa1950abb7c4a57bc3cf44a377cf9e
 depends_on: [V23-006, V23-008]
-languages: [typescript, css]
+languages: [go, yaml, typescript, css]
 
 goal: >-
   Present evaluation workspaces and global owner Skills explicitly while
@@ -46,7 +46,7 @@ acceptance_criteria:
     then: One owner artifact/revision history is shown and no Project copy exists.
 
 tests:
+  - {name: server, command: "go test ./internal/httpapi/public ./internal/config", covers: [A2]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
   - {name: build, command: "cd ui && pnpm build", covers: [A1, A2]}
   - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A2]}
-
