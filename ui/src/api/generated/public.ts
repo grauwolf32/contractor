@@ -258,6 +258,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated owner's non-terminal WorkflowRuns
+         * @description Stable oldest-created-first display projection. This order is not a Scheduler rank, execution priority, estimated start time, or claim.
+         */
+        get: operations["listRunQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs": {
         parameters: {
             query?: never;
@@ -874,6 +894,8 @@ export interface components {
         ResourceId: string;
         /** @enum {string} */
         ProjectKind: "project" | "evaluation";
+        /** @enum {string} */
+        RunQueueMembership: "standalone" | "project" | "evaluation";
         AuditActor: string;
         ConfigId: string;
         RunMetadataLabels: {
@@ -1009,6 +1031,8 @@ export interface components {
         };
         /** @enum {unknown} */
         WorkflowRunState: "initializing" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
+        /** @enum {unknown} */
+        NonTerminalWorkflowRunState: "initializing" | "running" | "cancelling";
         /** @enum {unknown} */
         StageExecutionState: "preparing" | "running" | "finalizing" | "aborting" | "succeeded" | "failed" | "interrupted" | "cancelled";
         /** @enum {unknown} */
@@ -1389,6 +1413,27 @@ export interface components {
         };
         RunPage: {
             items: components["schemas"]["RunSummary"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        RunQueueProject: {
+            projectId: components["schemas"]["ResourceId"];
+            name: string;
+            kind: components["schemas"]["ProjectKind"];
+        };
+        RunQueueItem: {
+            runId: components["schemas"]["ResourceId"];
+            project?: components["schemas"]["RunQueueProject"];
+            workflow: components["schemas"]["Selector"];
+            state: components["schemas"]["NonTerminalWorkflowRunState"];
+            labels: components["schemas"]["RunMetadataLabels"];
+            eventCursor: components["schemas"]["EventCursor"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RunQueuePage: {
+            items: components["schemas"]["RunQueueItem"][];
             page: components["schemas"]["PageInfo"];
         };
         CreateRunResponse: {
@@ -2759,6 +2804,35 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listRunQueue: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                state?: components["schemas"]["NonTerminalWorkflowRunState"];
+                membership?: components["schemas"]["RunQueueMembership"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable oldest-created-first non-terminal Run page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunQueuePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             500: components["responses"]["InternalError"];
         };
     };

@@ -32,6 +32,7 @@ type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
+	ListRunQueue(context.Context, runstore.ListRunQueueParams) ([]runstore.WorkflowRunQueueItem, error)
 	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
@@ -458,6 +459,28 @@ type runSummaryResponse struct {
 type runPageResponse struct {
 	Items []runSummaryResponse `json:"items"`
 	Page  pageInfoResponse     `json:"page"`
+}
+
+type queueProjectResponse struct {
+	ProjectID string            `json:"projectId"`
+	Name      string            `json:"name"`
+	Kind      projectstore.Kind `json:"kind"`
+}
+
+type queueItemResponse struct {
+	RunID       string                     `json:"runId"`
+	Project     *queueProjectResponse      `json:"project,omitempty"`
+	Workflow    string                     `json:"workflow"`
+	State       runstore.WorkflowRunState  `json:"state"`
+	Labels      runstore.RunMetadataLabels `json:"labels"`
+	EventCursor eventCursorResponse        `json:"eventCursor"`
+	CreatedAt   time.Time                  `json:"createdAt"`
+	UpdatedAt   time.Time                  `json:"updatedAt"`
+}
+
+type queuePageResponse struct {
+	Items []queueItemResponse `json:"items"`
+	Page  pageInfoResponse    `json:"page"`
 }
 
 type stageExecutionConfigResponse struct {

@@ -399,6 +399,7 @@ func newHandlerFixtureWithAuth(
 	runtimeCredentials := newFakeRuntimeCredentialManagement()
 	runtimePrincipals := newFakeRuntimeAgentPrincipalManagement()
 	projects := newFakeProjectStore()
+	runs.projects = projects
 	operations := newFakeOperationsReader()
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,

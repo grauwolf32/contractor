@@ -30,6 +30,7 @@ tags:
   - {name: Auth, description: Local browser-session lifecycle}
   - {name: Workflows, description: Published Workflow contracts}
   - {name: Projects, description: Owner-scoped reusable artifact workspaces}
+  - {name: Queue, description: Owner-scoped non-terminal WorkflowRun projection}
   - {name: Runs, description: User-owned Workflow executions}
   - {name: Artifacts, description: User and Run artifact views}
   - {name: Configuration, description: Immutable published configuration}
@@ -466,6 +467,37 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/queue:
+    get:
+      operationId: listRunQueue
+      tags: [Queue, Runs]
+      summary: List the authenticated owner's non-terminal WorkflowRuns
+      description: >-
+        Stable oldest-created-first display projection. This order is not a
+        Scheduler rank, execution priority, estimated start time, or claim.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: state
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/NonTerminalWorkflowRunState'}
+        - name: membership
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/RunQueueMembership'}
+      responses:
+        '200':
+          description: Stable oldest-created-first non-terminal Run page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RunQueuePage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/runs:
@@ -1872,6 +1904,9 @@ components:
     ProjectKind:
       type: string
       enum: [project, evaluation]
+    RunQueueMembership:
+      type: string
+      enum: [standalone, project, evaluation]
     AuditActor:
       type: string
       minLength: 1
@@ -2118,6 +2153,8 @@ components:
 
     WorkflowRunState:
       enum: [initializing, running, cancelling, succeeded, failed, cancelled]
+    NonTerminalWorkflowRunState:
+      enum: [initializing, running, cancelling]
     StageExecutionState:
       enum: [preparing, running, finalizing, aborting, succeeded, failed, interrupted, cancelled]
     StageOutcome:
@@ -2693,6 +2730,34 @@ components:
       required: [items, page]
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RunSummary'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    RunQueueProject:
+      type: object
+      additionalProperties: false
+      required: [projectId, name, kind]
+      properties:
+        projectId: {$ref: '#/components/schemas/ResourceId'}
+        name: {type: string, minLength: 1, maxLength: 160}
+        kind: {$ref: '#/components/schemas/ProjectKind'}
+    RunQueueItem:
+      type: object
+      additionalProperties: false
+      required: [runId, workflow, state, labels, eventCursor, createdAt, updatedAt]
+      properties:
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        project: {$ref: '#/components/schemas/RunQueueProject'}
+        workflow: {$ref: '#/components/schemas/Selector'}
+        state: {$ref: '#/components/schemas/NonTerminalWorkflowRunState'}
+        labels: {$ref: '#/components/schemas/RunMetadataLabels'}
+        eventCursor: {$ref: '#/components/schemas/EventCursor'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    RunQueuePage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/RunQueueItem'}}
         page: {$ref: '#/components/schemas/PageInfo'}
     CreateRunResponse:
       type: object

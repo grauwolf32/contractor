@@ -583,6 +583,7 @@ type fakeRunStore struct {
 	eventCursors       map[string]runstore.WorkflowRunEventCursor
 	runEvents          map[string][]runstore.WorkflowRunEvent
 	outputPublications map[string][]runstore.RunOutputPublication
+	projects           *fakeProjectStore
 	pinRuntimeLabels   func(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
 }
 
@@ -679,6 +680,75 @@ func (f *fakeRunStore) ListRuns(
 			return result[i].RunID > result[j].RunID
 		}
 		return result[i].CreatedAt.After(result[j].CreatedAt)
+	})
+	if len(result) > params.Limit {
+		result = result[:params.Limit]
+	}
+	return result, nil
+}
+
+func (f *fakeRunStore) ListRunQueue(
+	ctx context.Context, params runstore.ListRunQueueParams,
+) ([]runstore.WorkflowRunQueueItem, error) {
+	result := make([]runstore.WorkflowRunQueueItem, 0)
+	for _, run := range f.runs {
+		if run.OwnerID != params.OwnerID ||
+			(run.State != runstore.RunInitializing && run.State != runstore.RunRunning && run.State != runstore.RunCancelling) ||
+			params.State != nil && run.State != *params.State {
+			continue
+		}
+		if params.AfterCreatedAt != nil && (run.CreatedAt.Before(*params.AfterCreatedAt) ||
+			run.CreatedAt.Equal(*params.AfterCreatedAt) && run.RunID <= params.AfterRunID) {
+			continue
+		}
+		item := runstore.WorkflowRunQueueItem{
+			RunID: run.RunID, ProjectID: run.ProjectID,
+			WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
+			MetadataLabels: run.MetadataLabels.Clone(), State: run.State,
+			EventCursor: runstore.WorkflowRunEventCursor{
+				Generation: "events-" + run.RunID,
+			},
+			CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+		}
+		if cursor, ok := f.eventCursors[run.RunID]; ok {
+			item.EventCursor = cursor
+		}
+		if run.ProjectID != nil {
+			if f.projects == nil {
+				continue
+			}
+			project, err := f.projects.Get(ctx, run.OwnerID, *run.ProjectID)
+			if err != nil {
+				continue
+			}
+			item.ProjectName = project.Name
+			item.ProjectKind = string(project.Kind)
+		}
+		if params.Membership != nil {
+			switch *params.Membership {
+			case runstore.RunQueueStandalone:
+				if run.ProjectID != nil {
+					continue
+				}
+			case runstore.RunQueueProject:
+				if item.ProjectKind != string(projectstore.KindProject) {
+					continue
+				}
+			case runstore.RunQueueEvaluation:
+				if item.ProjectKind != string(projectstore.KindEvaluation) {
+					continue
+				}
+			default:
+				return nil, runstore.ErrInvalid
+			}
+		}
+		result = append(result, item)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].CreatedAt.Equal(result[j].CreatedAt) {
+			return result[i].RunID < result[j].RunID
+		}
+		return result[i].CreatedAt.Before(result[j].CreatedAt)
 	})
 	if len(result) > params.Limit {
 		result = result[:params.Limit]

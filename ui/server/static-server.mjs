@@ -7,6 +7,7 @@ const CLIENT_ROUTES = new Set([
   "/",
   "/login",
   "/projects",
+  "/queue",
   "/workflows",
   "/artifacts",
   "/runs",

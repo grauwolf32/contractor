@@ -3,6 +3,7 @@ package public
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -188,6 +190,107 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 		response := serveQuery(t, fixture.handler, target)
 		if response.Code != http.StatusBadRequest {
 			t.Errorf("invalid Run query %q = %d: %s", target, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestRunQueueIsOwnedStableFilteredAndDropsTerminalRuns(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	base := time.Date(2026, 9, 5, 8, 0, 0, 0, time.UTC)
+	for index, item := range []struct {
+		id   string
+		kind projectstore.Kind
+		name string
+	}{
+		{id: "project-queue", kind: projectstore.KindProject, name: "Payment service"},
+		{id: "evaluation-queue", kind: projectstore.KindEvaluation, name: "OpenAPI eval"},
+	} {
+		if _, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+			ProjectID: item.id, OwnerID: "user-1", Kind: item.kind, Name: item.name,
+			IdempotencyKey: "create-" + item.id,
+			RequestDigest:  fmt.Sprintf("sha256:%064x", index+1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	projectID, evaluationID := "project-queue", "evaluation-queue"
+	standalone := queryRun("run-standalone", "user-1", runstore.RunRunning, base)
+	projectRun := queryRun("run-project", "user-1", runstore.RunInitializing, base.Add(time.Minute))
+	projectRun.ProjectID = &projectID
+	projectRun.MetadataLabels = runstore.RunMetadataLabels{"purpose": "manual"}
+	evaluationRun := queryRun("run-evaluation", "user-1", runstore.RunCancelling, base.Add(2*time.Minute))
+	evaluationRun.ProjectID = &evaluationID
+	evaluationRun.MetadataLabels = runstore.RunMetadataLabels{"purpose": "eval", "eval.id": "eval-1"}
+	fixture.runs.runs[standalone.RunID] = standalone
+	fixture.runs.runs[projectRun.RunID] = projectRun
+	fixture.runs.runs[evaluationRun.RunID] = evaluationRun
+	fixture.runs.runs["run-terminal"] = queryRun(
+		"run-terminal", "user-1", runstore.RunSucceeded, base.Add(3*time.Minute),
+	)
+	fixture.runs.runs["run-foreign"] = queryRun(
+		"run-foreign", "user-2", runstore.RunRunning, base.Add(4*time.Minute),
+	)
+	fixture.runs.eventCursors[projectRun.RunID] = runstore.WorkflowRunEventCursor{
+		Generation: "events-project", Sequence: 7,
+	}
+
+	first := serveQuery(t, fixture.handler, "/v1/queue?limit=2")
+	var page queuePageResponse
+	decodeQueryResponse(t, first, &page)
+	if first.Code != http.StatusOK || len(page.Items) != 2 ||
+		page.Items[0].RunID != standalone.RunID || page.Items[0].Project != nil ||
+		page.Items[1].RunID != projectRun.RunID || page.Items[1].Project == nil ||
+		page.Items[1].Project.Name != "Payment service" ||
+		page.Items[1].EventCursor.Sequence != "7" || !page.Page.HasMore || page.Page.NextCursor == nil {
+		t.Fatalf("first Queue page = status %d, %+v", first.Code, page)
+	}
+	if strings.Contains(first.Body.String(), "position") || strings.Contains(first.Body.String(), "owner") {
+		t.Fatalf("Queue response exposed unsupported or owner data: %s", first.Body.String())
+	}
+	second := serveQuery(
+		t, fixture.handler, "/v1/queue?limit=2&cursor="+url.QueryEscape(*page.Page.NextCursor),
+	)
+	var next queuePageResponse
+	decodeQueryResponse(t, second, &next)
+	if second.Code != http.StatusOK || len(next.Items) != 1 ||
+		next.Items[0].RunID != evaluationRun.RunID || next.Items[0].Project == nil ||
+		next.Items[0].Project.Kind != projectstore.KindEvaluation || next.Page.HasMore {
+		t.Fatalf("second Queue page = status %d, %+v", second.Code, next)
+	}
+
+	for target, wantRun := range map[string]string{
+		"/v1/queue?state=running":         standalone.RunID,
+		"/v1/queue?membership=standalone": standalone.RunID,
+		"/v1/queue?membership=project":    projectRun.RunID,
+		"/v1/queue?membership=evaluation": evaluationRun.RunID,
+	} {
+		response := serveQuery(t, fixture.handler, target)
+		var filtered queuePageResponse
+		decodeQueryResponse(t, response, &filtered)
+		if response.Code != http.StatusOK || len(filtered.Items) != 1 || filtered.Items[0].RunID != wantRun {
+			t.Errorf("filtered Queue %q = status %d, %+v", target, response.Code, filtered)
+		}
+	}
+
+	projectRun.State = runstore.RunSucceeded
+	fixture.runs.runs[projectRun.RunID] = projectRun
+	disappeared := serveQuery(t, fixture.handler, "/v1/queue?membership=project")
+	var empty queuePageResponse
+	decodeQueryResponse(t, disappeared, &empty)
+	if disappeared.Code != http.StatusOK || len(empty.Items) != 0 {
+		t.Fatalf("terminal Queue projection = status %d, %+v", disappeared.Code, empty)
+	}
+
+	for _, target := range []string{
+		"/v1/queue?state=succeeded",
+		"/v1/queue?membership=unknown",
+		"/v1/queue?ownerId=user-2",
+		"/v1/queue?membership=project&cursor=" + url.QueryEscape(*page.Page.NextCursor),
+		"/v1/queue?cursor=" + url.QueryEscape(tamperCursor(*page.Page.NextCursor)),
+	} {
+		response := serveQuery(t, fixture.handler, target)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("invalid Queue query %q = %d: %s", target, response.Code, response.Body.String())
 		}
 	}
 }

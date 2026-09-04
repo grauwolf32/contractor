@@ -1998,9 +1998,46 @@ code {
 }
 
 .run-library,
+.queue-library,
 .run-artifact-library,
 .cancellation-panel {
   margin-top: 1.5rem;
+}
+
+.queue-heading {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1rem;
+}
+
+.queue-heading .muted-copy {
+  max-width: 44rem;
+  margin: 0.35rem 0 0;
+}
+
+.queue-filters {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 0.7rem;
+}
+
+.queue-context {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.queue-context > :where(a, strong) {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.queue-context small {
+  color: var(--muted);
+  font-size: 0.67rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .run-label-filters {
@@ -4248,6 +4285,12 @@ code {
     padding: 1.15rem 1rem 2rem;
   }
 
+  .queue-filters {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .route-page h2 {
     font-size: clamp(1.85rem, 10vw, 2.5rem);
   }
@@ -4465,12 +4508,18 @@ code {
 
   .run-list-table .run-list-workflow-cell,
   .run-list-table .run-list-updated-cell,
-  .run-list-table .run-list-labels-cell {
+  .run-list-table .run-list-labels-cell,
+  .queue-table .queue-context-cell {
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: 4.3rem minmax(0, 1fr);
     align-items: baseline;
     gap: 0.6rem;
+  }
+
+  .queue-table .queue-context-cell::before {
+    display: block;
+    content: "Context";
   }
 
   .run-list-table .run-list-created-cell,

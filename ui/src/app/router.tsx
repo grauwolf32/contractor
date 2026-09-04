@@ -8,6 +8,7 @@ import { ArtifactListRoute } from "../routes/artifacts/list";
 import { ProjectArtifactDetailRoute } from "../routes/projects/artifact-detail";
 import { ProjectDetailRoute } from "../routes/projects/detail";
 import { ProjectListRoute } from "../routes/projects/list";
+import { QueueRoute } from "../routes/queue";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { RunListRoute } from "../routes/runs/list";
@@ -56,6 +57,7 @@ export function applicationRoutes(): RouteObject[] {
               path: "/projects/:projectId/artifacts/:namespace/:name",
               element: <ProjectArtifactDetailRoute />,
             },
+            { path: "/queue", element: <QueueRoute /> },
             {
               path: "/artifacts",
               element: <ArtifactListRoute />,

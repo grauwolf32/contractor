@@ -85,6 +85,21 @@ export const queryKeys = {
     runs: (projectId: string, cursor?: string) =>
       ["projects", "detail", projectId, "runs", cursor ?? null] as const,
   },
+  queue: {
+    all: ["queue"] as const,
+    list: (
+      state: string | undefined,
+      membership: string | undefined,
+      cursor: string | undefined,
+    ) =>
+      [
+        "queue",
+        "list",
+        state ?? null,
+        membership ?? null,
+        cursor ?? null,
+      ] as const,
+  },
   artifacts: {
     all: ["artifacts"] as const,
     picker: ["artifacts", "picker"] as const,

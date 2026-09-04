@@ -83,6 +83,37 @@ type WorkflowRunSummary struct {
 	FinishedAt      *time.Time
 }
 
+// RunQueueMembership is a display filter over immutable Project membership.
+// It does not affect Scheduler eligibility or claim order.
+type RunQueueMembership string
+
+const (
+	RunQueueStandalone RunQueueMembership = "standalone"
+	RunQueueProject    RunQueueMembership = "project"
+	RunQueueEvaluation RunQueueMembership = "evaluation"
+)
+
+func (m RunQueueMembership) Valid() bool {
+	return m == RunQueueStandalone || m == RunQueueProject || m == RunQueueEvaluation
+}
+
+// WorkflowRunQueueItem is the bounded owner-facing projection of one
+// non-terminal Run. Project metadata is safe display data and event cursor is
+// the exact starting point for an optional read-only UI subscription.
+type WorkflowRunQueueItem struct {
+	RunID           string
+	ProjectID       *string
+	ProjectName     string
+	ProjectKind     string
+	WorkflowName    string
+	WorkflowVersion string
+	MetadataLabels  RunMetadataLabels
+	State           WorkflowRunState
+	EventCursor     WorkflowRunEventCursor
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type OutputPublicationStatus string
 
 const (
@@ -173,6 +204,17 @@ type ListRunsParams struct {
 	BeforeCreatedAt        *time.Time
 	BeforeRunID            string
 	Limit                  int
+}
+
+// ListRunQueueParams is an immutable-created-at, oldest-first keyset query.
+// AfterCreatedAt and AfterRunID are either both set or both absent.
+type ListRunQueueParams struct {
+	OwnerID        string
+	State          *WorkflowRunState
+	Membership     *RunQueueMembership
+	AfterCreatedAt *time.Time
+	AfterRunID     string
+	Limit          int
 }
 
 type PinnedContextArtifact struct {

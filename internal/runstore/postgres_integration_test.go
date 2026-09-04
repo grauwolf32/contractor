@@ -451,6 +451,119 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 	}
 }
 
+func TestPostgresWorkflowRunQueueIsOwnedOldestFirstAndTerminalAware(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	for index, item := range []struct {
+		id   string
+		kind projectstore.Kind
+		name string
+	}{
+		{id: "project-queue", kind: projectstore.KindProject, name: "Payment service"},
+		{id: "evaluation-queue", kind: projectstore.KindEvaluation, name: "OpenAPI eval"},
+	} {
+		if _, _, err := projects.Create(ctx, projectstore.CreateParams{
+			ProjectID: item.id, OwnerID: "user-1", Kind: item.kind, Name: item.name,
+			IdempotencyKey: "create-" + item.id,
+			RequestDigest:  fmt.Sprintf("sha256:%064x", index+1),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := NewPostgresStore(pool)
+	create := func(runID string, projectID *string, labels RunMetadataLabels) WorkflowRun {
+		t.Helper()
+		params := testRunParams(runID)
+		params.ProjectID = projectID
+		params.MetadataLabels = labels
+		run, err := store.CreateRun(ctx, params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return run
+	}
+	projectID, evaluationID := "project-queue", "evaluation-queue"
+	standalone := create("run-queue-standalone", nil, nil)
+	projectRun := create(
+		"run-queue-project", &projectID, RunMetadataLabels{"purpose": "manual"},
+	)
+	evaluationRun := create(
+		"run-queue-evaluation", &evaluationID,
+		RunMetadataLabels{"purpose": "eval", "eval.id": "eval-queue-1"},
+	)
+	terminal := create("run-queue-terminal", nil, nil)
+	foreignParams := testRunParams("run-queue-foreign")
+	foreignParams.OwnerID = "user-2"
+	if _, err := store.CreateRun(ctx, foreignParams); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, standalone.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RequestRunCancellation(ctx, evaluationRun.RunID, WorkflowRunCancellation{
+		Code: CancellationUserRequested, RequestedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, terminal.RunID, RunInitializing, RunFailed, Reason{Code: "invalid_input"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := store.ListRunQueue(ctx, ListRunQueueParams{OwnerID: "user-1", Limit: 2})
+	if err != nil || len(first) != 2 || first[0].RunID != standalone.RunID ||
+		first[1].RunID != projectRun.RunID || first[0].ProjectID != nil ||
+		first[1].ProjectID == nil || first[1].ProjectName != "Payment service" ||
+		first[1].ProjectKind != string(projectstore.KindProject) ||
+		first[1].MetadataLabels["purpose"] != "manual" ||
+		first[1].EventCursor.Generation == "" || first[1].EventCursor.Sequence < 0 {
+		t.Fatalf("first Queue page = (%+v, %v)", first, err)
+	}
+	second, err := store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", AfterCreatedAt: &first[1].CreatedAt,
+		AfterRunID: first[1].RunID, Limit: 2,
+	})
+	if err != nil || len(second) != 1 || second[0].RunID != evaluationRun.RunID ||
+		second[0].ProjectKind != string(projectstore.KindEvaluation) ||
+		second[0].MetadataLabels["eval.id"] != "eval-queue-1" {
+		t.Fatalf("second Queue page = (%+v, %v)", second, err)
+	}
+	projectMembership := RunQueueProject
+	projectOnly, err := store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", Membership: &projectMembership, Limit: 10,
+	})
+	if err != nil || len(projectOnly) != 1 || projectOnly[0].RunID != projectRun.RunID {
+		t.Fatalf("Project Queue filter = (%+v, %v)", projectOnly, err)
+	}
+	cancelling := RunCancelling
+	cancellingOnly, err := store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", State: &cancelling, Limit: 10,
+	})
+	if err != nil || len(cancellingOnly) != 1 || cancellingOnly[0].RunID != evaluationRun.RunID {
+		t.Fatalf("cancelling Queue filter = (%+v, %v)", cancellingOnly, err)
+	}
+	foreign, err := store.ListRunQueue(ctx, ListRunQueueParams{OwnerID: "user-2", Limit: 10})
+	if err != nil || len(foreign) != 1 || foreign[0].RunID != "run-queue-foreign" {
+		t.Fatalf("foreign owner Queue = (%+v, %v)", foreign, err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, projectRun.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	projectOnly, err = store.ListRunQueue(ctx, ListRunQueueParams{
+		OwnerID: "user-1", Membership: &projectMembership, Limit: 10,
+	})
+	if err != nil || len(projectOnly) != 0 {
+		t.Fatalf("terminal Project Queue = (%+v, %v)", projectOnly, err)
+	}
+}
+
 func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

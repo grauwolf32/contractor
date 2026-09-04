@@ -97,6 +97,33 @@ func TestWorkflowRunCancellationValidation(t *testing.T) {
 	}
 }
 
+func TestRunQueueValidationAcceptsOnlyNonTerminalCompleteKeysets(t *testing.T) {
+	t.Parallel()
+	running := RunRunning
+	membership := RunQueueEvaluation
+	now := time.Now()
+	valid := ListRunQueueParams{
+		OwnerID: "owner-1", State: &running, Membership: &membership,
+		AfterCreatedAt: &now, AfterRunID: "run-1", Limit: 50,
+	}
+	if err := validateRunQueueParams(valid); err != nil {
+		t.Fatalf("valid Queue params: %v", err)
+	}
+	terminal := RunSucceeded
+	invalidMembership := RunQueueMembership("other")
+	for _, invalid := range []ListRunQueueParams{
+		{OwnerID: "owner-1", State: &terminal, Limit: 50},
+		{OwnerID: "owner-1", Membership: &invalidMembership, Limit: 50},
+		{OwnerID: "owner-1", AfterCreatedAt: &now, Limit: 50},
+		{OwnerID: "owner-1", AfterRunID: "run-1", Limit: 50},
+		{OwnerID: "owner-1", Limit: 202},
+	} {
+		if err := validateRunQueueParams(invalid); !errors.Is(err, ErrInvalid) {
+			t.Errorf("invalid Queue params %+v error = %v", invalid, err)
+		}
+	}
+}
+
 func TestRunOutputPublicationValidation(t *testing.T) {
 	t.Parallel()
 

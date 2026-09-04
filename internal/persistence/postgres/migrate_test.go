@@ -248,6 +248,37 @@ func TestProjectOutputPublicationMigrationIsExactBoundedAndImmutable(t *testing.
 	}
 }
 
+func TestWorkflowRunQueueMigrationAddsOnlyAPartialReadIndex(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var queue migration
+	for _, item := range items {
+		if item.name == "000029_workflow_run_queue.sql" {
+			queue = item
+			break
+		}
+	}
+	if queue.name == "" {
+		t.Fatal("WorkflowRun Queue migration is not embedded")
+	}
+	contents := string(queue.contents)
+	for _, required := range []string{
+		"workflow_runs_owner_nonterminal_queue_idx",
+		"ON workflow_runs (owner_id, created_at, run_id)",
+		"WHERE state IN ('initializing', 'running', 'cancelling')",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("WorkflowRun Queue migration does not contain %q", required)
+		}
+	}
+	if strings.Contains(strings.ToUpper(contents), "CREATE TABLE") {
+		t.Fatalf("WorkflowRun Queue migration created a second queue table: %s", contents)
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()
