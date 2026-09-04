@@ -29,6 +29,14 @@ downgrade to shallow analysis. Both choices affect only the two discovery
 Stages. Builder and validator versions, explicit reports, overlay handoffs,
 retries, execution configuration and frozen outputs remain identical to `@1`.
 
+`likec4-from-workspace-streamline@1` retains the exact graph-backed workspace,
+artifact handoffs, cumulative state/diff and output contract of
+`likec4-from-workspace@3`, but uses `streamline@1` for every Stage. Its modeled
+Planners use `project_planner@1`; its Workers use `project_worker@1`. Choose it
+when each semantic Stage benefits from explicit ordered subtask decomposition;
+the passthrough variant remains the simpler default when one Worker invocation
+can own the complete Stage objective.
+
 The original LikeC4 identity remains available for reproducibility. Other
 project-sized variants are:
 
