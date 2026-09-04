@@ -311,6 +311,14 @@ At prepare:
 sources S -> apply imported cumulative state I -> checkpoint B
 ```
 
+When `state` is absent, `I` is the canonical empty overlay and `B = S`. An
+unchanged invocation still exports a valid cumulative identity state `S -> S`
+with an empty operation list and an empty checkpoint diff `S -> S` when the
+Workflow declares `export`. These artifacts are explicit internal Workflow
+lineage, not evidence that a Worker edited the tree. V1 defines no merge or
+join operation; a future join must consume exact state artifacts explicitly
+and define conflict semantics separately.
+
 During one A2A invocation the Worker produces effective tree `F`:
 
 - `diff` and `changed_paths` describe `B -> F`;
@@ -370,6 +378,15 @@ not authoritative reconstruction.
 AgentTemplate selects an exact subset by normal Toolset allowlist. Tool
 implementations receive narrow `WorkspaceReader`, `WorkspaceWriter` and
 `WorkspaceChanges` handles, never raw fsspec objects or host paths.
+
+`openapi@1` declares optional read access for provenance checks. When a project
+workspace is present, every `evidence_files` path is validated against one
+`WorkspaceReader` snapshot—the same logical tree exposed through
+`filesystem@1`. It must not inspect `AllocationWorkspace` scratch in that mode.
+Without a project workspace, the Toolset retains the legacy
+`source-analysis@1` compatibility path below allocation-private
+`scratch/source`. The two sources are never combined and project-workspace
+presence always takes precedence, including for a missing path.
 
 The read-only `code-analysis@1` Toolset consumes the same `WorkspaceReader`
 snapshot boundary. Its portable Tree-sitter operations and local-only

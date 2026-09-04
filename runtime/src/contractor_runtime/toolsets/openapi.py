@@ -24,6 +24,10 @@ from contractor_runtime.adapters.http_proxy import ProxySubprocessLauncher
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.probe import executable_responds
+from contractor_runtime.projectfs.storage import (
+    WorkspaceReader,
+    WorkspaceStorageError,
+)
 from contractor_runtime.toolsets.artifact_visibility import (
     artifact_observation_cursor,
     clear_artifact_observations,
@@ -82,6 +86,7 @@ BASE_DOCUMENT: dict[str, Any] = {
 
 class OpenAPIToolsetFactory:
     ref = "openapi@1"
+    workspace_access = "read"
     exported_tools = frozenset(
         {
             "load_openapi",
@@ -128,7 +133,7 @@ class OpenAPIToolsetFactory:
         workspace: AllocationWorkspace,
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
-        project_workspace: Any = None,
+        project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
         del run_id
         unknown = sorted(set(selected) - self.exported_tools)
@@ -141,7 +146,13 @@ class OpenAPIToolsetFactory:
         launcher = adapter_handles.tool_subprocess
         if launcher is not None and not isinstance(launcher, ProxySubprocessLauncher):
             raise TypeError("openapi@1 received an invalid subprocess handle")
-        session = _OpenAPISession(client, namespace, workspace, launcher)
+        session = _OpenAPISession(
+            client,
+            namespace,
+            workspace,
+            launcher,
+            project_workspace=project_workspace,
+        )
         secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
             "load_openapi": lambda: LoadOpenAPITool(session, client, metrics, secrets),
@@ -185,10 +196,13 @@ class _OpenAPISession:
         namespace: str,
         workspace: AllocationWorkspace,
         launcher: ProxySubprocessLauncher | None,
+        *,
+        project_workspace: WorkspaceReader | None = None,
     ) -> None:
         self._client = client
         self._namespace = namespace
         self._source_root = workspace.path / "source"
+        self._project_workspace = project_workspace
         self._launcher = launcher
         self._lock = asyncio.Lock()
         self._document: dict[str, Any] | None = None
@@ -353,7 +367,7 @@ class _OpenAPISession:
         normalized = _validate_api_path(path)
         if not isinstance(path_item, dict):
             raise ValueError("path_item must be an object")
-        validated_evidence = self._validate_evidence(evidence_files)
+        validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(path_item)
         candidate["x-path-files"] = validated_evidence
         _validate_path_item(candidate)
@@ -420,7 +434,7 @@ class _OpenAPISession:
         _validate_component_name(name)
         if not isinstance(component, dict):
             raise ValueError("component must be an object")
-        validated_evidence = self._validate_evidence(evidence_files)
+        validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(component)
         candidate["x-component-files"] = validated_evidence
         _validate_component(normalized, candidate)
@@ -461,13 +475,14 @@ class _OpenAPISession:
             }
 
     async def validate(self) -> dict[str, Any]:
+        project_evidence_paths = await self._project_evidence_paths()
         async with self._lock:
             document, artifact = self._require_document()
             rendered = _dump_document(document).decode("utf-8")
             structural_errors: list[str] = []
             try:
                 _validate_document(document, require_provenance=True)
-                self._validate_current_provenance(document)
+                self._validate_current_provenance(document, project_evidence_paths)
             except ValueError as error:
                 structural_errors.append(str(error))
             if self._launcher is None:
@@ -547,14 +562,35 @@ class _OpenAPISession:
             revision=self._revision,
         )
 
-    def _validate_evidence(self, evidence_files: list[str]) -> list[str]:
+    async def _validate_evidence(self, evidence_files: list[str]) -> list[str]:
+        return self._validate_evidence_from_paths(
+            evidence_files,
+            await self._project_evidence_paths(),
+        )
+
+    async def _project_evidence_paths(self) -> frozenset[str] | None:
+        if self._project_workspace is None:
+            return None
+        try:
+            snapshot = await self._project_workspace.snapshot()
+        except WorkspaceStorageError:
+            raise ValueError("project workspace is unavailable for OpenAPI evidence") from None
+        return frozenset([file.path for file in snapshot.files] + list(snapshot.binary_paths))
+
+    def _validate_evidence_from_paths(
+        self,
+        evidence_files: list[str],
+        project_evidence_paths: frozenset[str] | None,
+    ) -> list[str]:
         if not isinstance(evidence_files, list) or not evidence_files:
             raise ValueError("at least one source evidence file is required")
         if len(evidence_files) > 100:
             raise ValueError("source evidence exceeds the 100-file limit")
-        root = self._source_root.resolve()
-        if self._source_root.is_symlink() or not self._source_root.is_dir():
-            raise ValueError("open_source_archive must materialize source before mutation")
+        root = None
+        if project_evidence_paths is None:
+            root = self._source_root.resolve()
+            if self._source_root.is_symlink() or not self._source_root.is_dir():
+                raise ValueError("open_source_archive must materialize source before mutation")
         result: list[str] = []
         seen: set[str] = set()
         for raw in evidence_files:
@@ -563,24 +599,35 @@ class _OpenAPISession:
                 raise ValueError("OpenAPI provenance must reference implementation source files")
             if normalized in seen:
                 continue
-            candidate = self._source_root.joinpath(*PurePosixPath(normalized).parts)
-            resolved = candidate.resolve()
-            if (
-                not resolved.is_relative_to(root)
-                or candidate.is_symlink()
-                or not candidate.is_file()
-            ):
-                raise ValueError(f"source evidence file does not exist: {normalized}")
+            if project_evidence_paths is not None:
+                if normalized not in project_evidence_paths:
+                    raise ValueError(f"source evidence file does not exist: {normalized}")
+            else:
+                assert root is not None
+                candidate = self._source_root.joinpath(*PurePosixPath(normalized).parts)
+                resolved = candidate.resolve()
+                if (
+                    not resolved.is_relative_to(root)
+                    or candidate.is_symlink()
+                    or not candidate.is_file()
+                ):
+                    raise ValueError(f"source evidence file does not exist: {normalized}")
             seen.add(normalized)
             result.append(normalized)
         return result
 
-    def _validate_current_provenance(self, document: dict[str, Any]) -> None:
+    def _validate_current_provenance(
+        self,
+        document: dict[str, Any],
+        project_evidence_paths: frozenset[str] | None,
+    ) -> None:
         for path_item in document["paths"].values():
-            self._validate_evidence(path_item["x-path-files"])
+            self._validate_evidence_from_paths(path_item["x-path-files"], project_evidence_paths)
         for values in document.get("components", {}).values():
             for component in values.values():
-                self._validate_evidence(component["x-component-files"])
+                self._validate_evidence_from_paths(
+                    component["x-component-files"], project_evidence_paths
+                )
 
 
 class _BaseOpenAPITool:

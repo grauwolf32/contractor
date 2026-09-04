@@ -21,6 +21,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.factories import built_in_factories
+from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.toolsets.openapi import (
     MAX_DOCUMENT_BYTES,
     MAX_DOCUMENT_DEPTH,
@@ -140,6 +141,47 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
         assert SECRET not in serialized_metrics
         assert "operationId" not in serialized_metrics
         assert state.metrics.counters["tool_calls.validate_openapi"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_project_workspace_is_authoritative_for_openapi_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        scratch_source = tmp_path / "source"
+        scratch_source.mkdir()
+        (scratch_source / "scratch-only.py").write_text("legacy = True\n")
+        project = StaticWorkspaceReader({"src/app.py": "@app.get('/health')\ndef health(): ...\n"})
+        client = MemoryArtifactClient()
+        tools = await make_tools(
+            tmp_path,
+            client,
+            WorkerState(),
+            namespace="openapi",
+            project_workspace=project,
+        )
+        monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
+
+        await tools["initialize_openapi"](title="Workspace API")
+        component = await tools["upsert_openapi_component"](
+            "schemas",
+            "HealthResponse",
+            {"type": "object", "properties": {"ok": {"type": "boolean"}}},
+            ["src/app.py"],
+        )
+        assert component["name"] == "HealthResponse"
+        validation = await tools["validate_openapi"]()
+        assert validation["valid"]
+        assert project.snapshot_calls == 2
+
+        with pytest.raises(ValueError, match="source evidence file does not exist"):
+            await tools["upsert_openapi_component"](
+                "schemas",
+                "LegacyOnly",
+                {"type": "object"},
+                ["scratch-only.py"],
+            )
 
     asyncio.run(scenario())
 
@@ -582,6 +624,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
             )
 
     asyncio.run(scenario())
+    assert OpenAPIToolsetFactory.workspace_access == "read"
     assert built_in_factories(tmp_path).toolsets["openapi@1"].exported_tools == {
         "load_openapi",
         "initialize_openapi",
@@ -610,6 +653,7 @@ async def make_tools(
     state: WorkerState,
     *,
     namespace: str,
+    project_workspace: Any = None,
 ) -> dict[str, Any]:
     factory = OpenAPIToolsetFactory(lambda _allocation, _settings: client)
     selected = await factory.create_selected(
@@ -620,6 +664,7 @@ async def make_tools(
         runtime_settings=runtime_settings(),
         workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
         state=state,
+        project_workspace=project_workspace,
     )
     return dict(selected)
 
@@ -672,6 +717,28 @@ class StoredArtifact:
     revision: str
     media_type: str
     data: bytes = field(repr=False)
+
+
+class StaticWorkspaceReader:
+    def __init__(self, files: dict[str, str]) -> None:
+        self._files = dict(files)
+        self.snapshot_calls = 0
+
+    async def snapshot(self) -> WorkspaceSnapshot:
+        self.snapshot_calls += 1
+        return WorkspaceSnapshot(
+            directories=("src",),
+            files=tuple(
+                WorkspaceTextFile(
+                    path=path,
+                    text=text,
+                    size=len(text.encode("utf-8")),
+                )
+                for path, text in sorted(self._files.items())
+            ),
+            binary_paths=(),
+            digest="sha256:" + "0" * 64,
+        )
 
 
 class MemoryArtifactClient:
