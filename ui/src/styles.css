@@ -2294,10 +2294,16 @@ code {
 
 .artifact-ref-link {
   display: grid;
+  min-width: 0;
   gap: 0.25rem;
   border-top: 1px solid var(--line);
   padding-top: 0.6rem;
   text-decoration: none;
+}
+
+.artifact-ref-link code {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .artifact-ref-link strong {
@@ -2366,7 +2372,10 @@ code {
 }
 
 .run-output-detail-link {
-  display: inline-block;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 0.78rem;
   font-weight: 750;
   text-decoration: none;
@@ -2601,8 +2610,15 @@ code {
   font-weight: 800;
 }
 
+.result-record,
+.termination-record {
+  min-width: 0;
+}
+
 .result-record p,
 .termination-record p {
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0.4rem 0;
   line-height: 1.5;
 }
