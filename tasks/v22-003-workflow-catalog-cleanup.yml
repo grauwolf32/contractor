@@ -3,8 +3,8 @@ id: V22-003
 title: Remove historical Workflows and isolate process fixtures
 milestone: workflow-catalog-consolidation
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: ca537a26f667ef0334aa53e8f9860f6ddda0d0c7
 depends_on: [V22-002]
 languages: [yaml, go, markdown]
 
@@ -69,4 +69,3 @@ tests:
   - {name: workspace-runtime, command: "cd runtime && uv run pytest -W error tests/test_workspace_state.py tests/test_workspace_auto_export.py", covers: [A3]}
   - {name: shared-memory-e2e, command: "make test-shared-memory-e2e", covers: [A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A3, A4]}
-
