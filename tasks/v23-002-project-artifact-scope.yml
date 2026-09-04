@@ -3,8 +3,8 @@ id: V23-002
 title: Add ProjectScope to ArtifactStore and the public Project Artifact API
 milestone: project-workspaces-mvp
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 91799337e928c34d6ad5c282648a5dca5f3a4973
 depends_on: [V23-001]
 languages: [go, sql, yaml]
 
@@ -54,4 +54,3 @@ tests:
   - {name: artifact-unit, command: "go test ./internal/artifacts ./internal/httpapi/public", covers: [A1, A2, A3]}
   - {name: race, command: "go test -race ./internal/artifacts ./internal/httpapi/public", covers: [A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
