@@ -3,8 +3,8 @@ id: V23-008
 title: Add the owner-scoped global WorkflowRun Queue read model and UI
 milestone: project-workspaces-operations
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: ee0906cf8d5f92cda55100e537be5498c87ccb94
 depends_on: [V23-003]
 languages: [go, sql, yaml, typescript]
 
@@ -50,4 +50,3 @@ tests:
   - {name: server, command: "go test ./internal/runstore ./internal/httpapi/public", covers: [A1, A2]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2]}
-
