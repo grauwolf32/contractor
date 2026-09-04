@@ -291,6 +291,11 @@ describe("Run routes", () => {
       await screen.findByRole("link", { name: "run-first" }),
     ).toBeInTheDocument();
     const user = userEvent.setup();
+    const labelFilters =
+      document.querySelector<HTMLDetailsElement>(".run-label-filters");
+    expect(labelFilters?.open).toBe(false);
+    await user.click(screen.getByText("Metadata & eval filters"));
+    expect(labelFilters?.open).toBe(true);
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(
       await screen.findByRole("link", { name: "run-second" }),
@@ -393,6 +398,10 @@ describe("Run routes", () => {
     expect(
       await screen.findByRole("link", { name: "run-leg-a" }),
     ).toBeInTheDocument();
+    expect(
+      document.querySelector<HTMLDetailsElement>(".run-label-filters")?.open,
+    ).toBe(true);
+    expect(screen.getByLabelText("2 active filters")).toBeInTheDocument();
     const firstRow = screen
       .getByRole("link", { name: "run-leg-a" })
       .closest("tr");

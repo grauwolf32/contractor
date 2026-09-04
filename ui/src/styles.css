@@ -1807,16 +1807,117 @@ code {
 }
 
 .run-label-filters {
-  display: grid;
-  gap: 0.8rem;
   margin: 1rem 0;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  padding: 1rem 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface-subtle);
 }
 
-.run-label-filters h4 {
+.run-label-filters > summary {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color 120ms ease;
+}
+
+.run-label-filters > summary::-webkit-details-marker {
+  display: none;
+}
+
+.run-label-filters > summary:hover {
+  background: var(--surface-raised);
+}
+
+.run-label-filters > summary::after {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: none;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  content: "";
+  transform: rotate(45deg);
+  transition: transform 140ms ease;
+}
+
+.run-label-filters[open] > summary {
+  border-bottom: 1px solid var(--line);
+  background: #10161e;
+}
+
+.run-label-filters[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.run-label-filter-title {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.run-label-filter-title strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.run-label-filter-title small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.run-label-filter-count {
+  display: inline-flex;
+  margin-left: auto;
+  align-items: baseline;
+  gap: 0.25rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  padding: 0.25rem 0.55rem;
+  white-space: nowrap;
+}
+
+.run-label-filter-count strong {
+  color: var(--muted-strong);
+  font-size: 0.78rem;
+}
+
+.run-label-filter-count.has-active {
+  border-color: #52622d;
+  background: var(--accent-dark);
+}
+
+.run-label-filter-count.has-active strong {
+  color: var(--accent);
+}
+
+.run-label-filter-count small {
+  font-size: 0.65rem;
+}
+
+.run-label-filter-body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.run-label-filter-body > .muted-copy,
+.run-label-filter-empty {
   margin: 0;
+}
+
+.run-label-filter-empty {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.run-label-filter-recovery {
+  justify-self: start;
 }
 
 .run-eval-filter,

@@ -76,6 +76,9 @@ function RunLabelFilters({
   onReplace: (selectors: readonly RunMetadataLabelSelector[]) => void;
 }) {
   const [validationError, setValidationError] = useState<string | undefined>();
+  const [filtersOpen, setFiltersOpen] = useState(
+    selectors.length > 0 || parseError !== undefined,
+  );
   const fingerprint = selectors.map(selectorToken).join("\u0000");
 
   function addExact(event: FormEvent<HTMLFormElement>): void {
@@ -137,112 +140,130 @@ function RunLabelFilters({
   }
 
   return (
-    <div className="run-label-filters">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Exact conjunctive selectors</p>
-          <h4>Run metadata label filters</h4>
-        </div>
-        <span>
-          {selectors.length}/{RUN_METADATA_LABEL_LIMIT} active
+    <details
+      className="run-label-filters"
+      open={filtersOpen}
+      onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <span className="run-label-filter-title">
+          <strong>Metadata &amp; eval filters</strong>
+          <small>Exact, URL-synced selectors</small>
         </span>
-      </div>
-      <p className="muted-copy">
-        Every active key=value pair must match. Values are exact and may contain
-        “=”. Filters are URL-visible; do not use labels for secrets.
-      </p>
-      <form className="run-eval-filter" key={fingerprint} onSubmit={applyEval}>
-        <label>
-          Eval name
-          <input
-            name="evalName"
-            type="text"
-            defaultValue={firstSelectorValue(selectors, "eval.name")}
-          />
-        </label>
-        <label>
-          Eval ID
-          <input
-            name="evalID"
-            type="text"
-            defaultValue={firstSelectorValue(selectors, "eval.id")}
-          />
-        </label>
-        <label>
-          Eval leg
-          <input
-            name="evalLeg"
-            type="text"
-            defaultValue={firstSelectorValue(selectors, "eval.leg")}
-          />
-        </label>
-        <button className="secondary-button" type="submit">
-          Apply eval filters
-        </button>
-      </form>
-      <form className="run-exact-label-filter" onSubmit={addExact}>
-        <label>
-          Exact label key
-          <input name="labelKey" type="text" autoComplete="off" />
-        </label>
-        <label>
-          Exact label value
-          <input name="labelValue" type="text" autoComplete="off" />
-        </label>
-        <button
-          className="secondary-button"
-          type="submit"
-          disabled={selectors.length >= RUN_METADATA_LABEL_LIMIT}
+        <span
+          className={`run-label-filter-count ${selectors.length > 0 ? "has-active" : ""}`}
+          aria-label={`${selectors.length} ${selectors.length === 1 ? "active filter" : "active filters"}`}
         >
-          Add exact filter
-        </button>
-      </form>
-      {parseError === undefined && validationError === undefined ? null : (
-        <p className="field-error" role="alert">
-          {parseError ?? validationError}
+          <strong>{selectors.length}</strong>
+          <small>
+            {selectors.length === 1 ? "active filter" : "active filters"}
+          </small>
+        </span>
+      </summary>
+      <div className="run-label-filter-body">
+        <p className="muted-copy">
+          Every active key=value pair must match. Values are exact and may
+          contain “=”. Filters are URL-visible; do not use labels for secrets.
         </p>
-      )}
-      {parseError === undefined ? null : (
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => onReplace([])}
+        <form
+          className="run-eval-filter"
+          key={fingerprint}
+          onSubmit={applyEval}
         >
-          Clear malformed metadata filters
-        </button>
-      )}
-      {selectors.length === 0 ? (
-        <p className="compact-empty">No metadata label filters.</p>
-      ) : (
-        <div className="run-active-label-filters">
-          {selectors.map((selector) => (
-            <span
-              className="run-active-label-filter"
-              key={selectorToken(selector)}
-            >
-              <code>{selectorToken(selector)}</code>
-              <button
-                type="button"
-                aria-label={`Remove filter ${selectorToken(selector)}`}
-                onClick={() => remove(selector)}
-              >
-                ×
-              </button>
-            </span>
-          ))}
+          <label>
+            Eval name
+            <input
+              name="evalName"
+              type="text"
+              defaultValue={firstSelectorValue(selectors, "eval.name")}
+            />
+          </label>
+          <label>
+            Eval ID
+            <input
+              name="evalID"
+              type="text"
+              defaultValue={firstSelectorValue(selectors, "eval.id")}
+            />
+          </label>
+          <label>
+            Eval leg
+            <input
+              name="evalLeg"
+              type="text"
+              defaultValue={firstSelectorValue(selectors, "eval.leg")}
+            />
+          </label>
+          <button className="secondary-button" type="submit">
+            Apply eval filters
+          </button>
+        </form>
+        <form className="run-exact-label-filter" onSubmit={addExact}>
+          <label>
+            Exact label key
+            <input name="labelKey" type="text" autoComplete="off" />
+          </label>
+          <label>
+            Exact label value
+            <input name="labelValue" type="text" autoComplete="off" />
+          </label>
           <button
             className="secondary-button"
-            type="button"
-            onClick={() => {
-              onReplace([]);
-              setValidationError(undefined);
-            }}
+            type="submit"
+            disabled={selectors.length >= RUN_METADATA_LABEL_LIMIT}
           >
-            Clear metadata filters
+            Add exact filter
           </button>
-        </div>
-      )}
-    </div>
+        </form>
+        {parseError === undefined && validationError === undefined ? null : (
+          <p className="field-error" role="alert">
+            {parseError ?? validationError}
+          </p>
+        )}
+        {parseError === undefined ? null : (
+          <button
+            className="secondary-button run-label-filter-recovery"
+            type="button"
+            onClick={() => onReplace([])}
+          >
+            Clear malformed metadata filters
+          </button>
+        )}
+        {selectors.length === 0 ? (
+          <p className="run-label-filter-empty">
+            No metadata filters applied — all Runs are included.
+          </p>
+        ) : (
+          <div className="run-active-label-filters">
+            {selectors.map((selector) => (
+              <span
+                className="run-active-label-filter"
+                key={selectorToken(selector)}
+              >
+                <code>{selectorToken(selector)}</code>
+                <button
+                  type="button"
+                  aria-label={`Remove filter ${selectorToken(selector)}`}
+                  onClick={() => remove(selector)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                onReplace([]);
+                setValidationError(undefined);
+              }}
+            >
+              Clear metadata filters
+            </button>
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -336,6 +357,7 @@ export function RunListRoute() {
           </label>
         </div>
         <RunLabelFilters
+          key={encodedLabelSelectors.join("\u0000")}
           selectors={decoded.selectors}
           parseError={decoded.error}
           onReplace={replaceLabelSelectors}
