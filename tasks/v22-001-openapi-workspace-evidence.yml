@@ -3,8 +3,8 @@ id: V22-001
 title: Bind OpenAPI evidence validation to the project workspace
 milestone: workflow-catalog-consolidation
 priority: P0
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: e4cebab3cf9861697c959a409b32821da0a98fac
 depends_on: [V11-011, V21-001]
 languages: [python, markdown]
 
@@ -62,4 +62,3 @@ tests:
   - {name: openapi-toolset, command: "cd runtime && uv run pytest -W error tests/test_openapi_toolset.py", covers: [A1, A2, A3]}
   - {name: runtime, command: "cd runtime && uv run pytest -W error tests", covers: [A1, A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
