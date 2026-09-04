@@ -974,6 +974,20 @@ tbody tr:hover {
   background: #18202b80;
 }
 
+.run-list-id-link {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.run-list-state-cell {
+  white-space: nowrap;
+}
+
+.run-list-mobile-label {
+  display: none;
+}
+
 code {
   max-width: 100%;
   overflow-wrap: anywhere;
@@ -2022,6 +2036,7 @@ code {
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .run-triage {
@@ -3534,6 +3549,70 @@ code {
 
   .responsive-table td:first-child a {
     font-weight: 750;
+  }
+
+  .run-list-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem 0.75rem;
+    padding: 0.85rem;
+  }
+
+  .run-list-table td {
+    display: block;
+    width: auto;
+    border: 0;
+    padding: 0;
+  }
+
+  .run-list-table td::before {
+    display: none;
+  }
+
+  .run-list-table .run-list-id-cell {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .run-list-table .run-list-state-cell {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .run-list-table .run-list-workflow-cell,
+  .run-list-table .run-list-updated-cell,
+  .run-list-table .run-list-labels-cell {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: 4.3rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  .run-list-table .run-list-created-cell,
+  .run-list-table .run-list-finished-cell,
+  .run-list-table .run-list-labels-empty {
+    display: none;
+  }
+
+  .run-list-mobile-label {
+    display: inline;
+    color: var(--muted);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .run-list-workflow-cell code,
+  .run-list-updated-cell time {
+    min-width: 0;
+    font-size: 0.76rem;
+  }
+
+  .run-list-updated-cell time {
+    color: var(--muted-strong);
   }
 
   .table-scroll:has(.responsive-table) {

@@ -19,6 +19,12 @@ import { RunMetadataLabelChips, StateBadge } from "./components";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
 
+function compactRunId(runId: string): string {
+  return runId.length <= 24
+    ? runId
+    : `${runId.slice(0, 12)}…${runId.slice(-8)}`;
+}
+
 function decodeLabelSelectors(
   values: readonly string[],
 ): RunMetadataLabelSelector[] {
@@ -379,7 +385,7 @@ export function RunListRoute() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="responsive-table">
+            <table className="responsive-table run-list-table">
               <thead>
                 <tr>
                   <th>Run</th>
@@ -394,30 +400,55 @@ export function RunListRoute() {
               <tbody>
                 {query.data.items.map((run) => (
                   <tr key={run.runId}>
-                    <td data-label="Run">
-                      <Link to={`/runs/${encodeURIComponent(run.runId)}`}>
-                        {run.runId}
+                    <td className="run-list-id-cell" data-label="Run">
+                      <Link
+                        className="run-list-id-link"
+                        to={`/runs/${encodeURIComponent(run.runId)}`}
+                        aria-label={run.runId}
+                        title={run.runId}
+                      >
+                        {compactRunId(run.runId)}
                       </Link>
                     </td>
-                    <td data-label="Workflow">
+                    <td
+                      className="run-list-workflow-cell"
+                      data-label="Workflow"
+                    >
+                      <span className="run-list-mobile-label">Workflow</span>
                       <code>{run.workflow}</code>
                     </td>
-                    <td data-label="State">
+                    <td className="run-list-state-cell" data-label="State">
                       <StateBadge state={run.state} />
                     </td>
-                    <td data-label="Run metadata labels">
+                    <td
+                      className={`run-list-labels-cell ${Object.keys(run.labels).length === 0 ? "run-list-labels-empty" : ""}`}
+                      data-label="Run metadata labels"
+                    >
+                      <span className="run-list-mobile-label">Labels</span>
                       <RunMetadataLabelChips labels={run.labels} />
                     </td>
-                    <td data-label="Created">
-                      {formatTimestamp(run.createdAt)}
+                    <td className="run-list-created-cell" data-label="Created">
+                      <time dateTime={run.createdAt}>
+                        {formatTimestamp(run.createdAt)}
+                      </time>
                     </td>
-                    <td data-label="Updated">
-                      {formatTimestamp(run.updatedAt)}
+                    <td className="run-list-updated-cell" data-label="Updated">
+                      <span className="run-list-mobile-label">Updated</span>
+                      <time dateTime={run.updatedAt}>
+                        {formatTimestamp(run.updatedAt)}
+                      </time>
                     </td>
-                    <td data-label="Finished">
-                      {run.finishedAt === undefined
-                        ? "—"
-                        : formatTimestamp(run.finishedAt)}
+                    <td
+                      className="run-list-finished-cell"
+                      data-label="Finished"
+                    >
+                      {run.finishedAt === undefined ? (
+                        "—"
+                      ) : (
+                        <time dateTime={run.finishedAt}>
+                          {formatTimestamp(run.finishedAt)}
+                        </time>
+                      )}
                     </td>
                   </tr>
                 ))}

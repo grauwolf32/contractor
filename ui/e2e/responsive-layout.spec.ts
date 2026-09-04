@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const API_VERSION = "contractor.public.v1";
-const RUN_ID = "run-responsive";
+const RUN_ID = "run_0123456789abcdef0123456789abcdef";
 const LONG_REVISION = `rev_${"a".repeat(64)}`;
 
 function apiHeaders(): Record<string, string> {
@@ -110,6 +110,23 @@ async function installRunAPI(page: Page, uiOrigin: string): Promise<void> {
       await fulfillJson(route, { items: [], page: { hasMore: false } });
       return;
     }
+    if (url.pathname === "/v1/runs") {
+      await fulfillJson(route, {
+        items: [
+          {
+            runId: RUN_ID,
+            workflow: "responsive-layout-with-a-long-name@1",
+            state: "succeeded",
+            labels: {},
+            createdAt: "2026-09-04T08:00:00Z",
+            updatedAt: "2026-09-04T08:01:00Z",
+            finishedAt: "2026-09-04T08:01:00Z",
+          },
+        ],
+        page: { hasMore: false },
+      });
+      return;
+    }
     await route.fulfill({ status: 404, body: "not found" });
   });
 }
@@ -135,4 +152,34 @@ test("Run detail stays within a 320px viewport", async ({ page }, testInfo) => {
       })),
     )
     .toEqual({ viewport: 320, document: 320 });
+});
+
+test("Run list prioritizes compact facts on narrow screens", async ({
+  page,
+}, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  const uiOrigin = new URL(configuredBaseURL).origin;
+  await page.setViewportSize({ width: 320, height: 568 });
+  await installRunAPI(page, uiOrigin);
+
+  await page.goto("/runs");
+  const runLink = page.getByRole("link", { name: RUN_ID });
+  await expect(runLink).toBeVisible();
+  await expect(runLink).toHaveText("run_01234567…89abcdef");
+  await expect(runLink).toHaveAttribute("title", RUN_ID);
+
+  const row = runLink.locator("xpath=ancestor::tr");
+  await expect(row).toHaveCSS("display", "grid");
+  await expect(row.locator(".run-list-workflow-cell")).toBeVisible();
+  await expect(row.locator(".run-list-updated-cell")).toBeVisible();
+  await expect(row.locator(".run-list-created-cell")).toBeHidden();
+  await expect(row.locator(".run-list-finished-cell")).toBeHidden();
+  await expect(row.locator(".run-list-labels-cell")).toBeHidden();
+  await expect(row.locator(".state-badge")).toHaveCSS("white-space", "nowrap");
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBe(320);
 });
