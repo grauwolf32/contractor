@@ -76,6 +76,22 @@ describe("Run draft idempotency", () => {
     expect(keyring.keyFor(changed)).toBe("run-label-2");
   });
 
+  it("never reuses one key across standalone and Project endpoints", () => {
+    const generate = vi
+      .fn<() => string>()
+      .mockReturnValueOnce("run-endpoint-1")
+      .mockReturnValueOnce("run-endpoint-2");
+    const keyring = new RunDraftKeyring(generate);
+    const request: CreateRunRequest = { workflow: "workflow@1" };
+
+    expect(keyring.keyFor(request, "standalone")).toBe("run-endpoint-1");
+    expect(keyring.keyFor(request, "project:project_example")).toBe(
+      "run-endpoint-2",
+    );
+    expect(keyring.matches(request, "standalone")).toBe(false);
+    expect(keyring.matches(request, "project:project_example")).toBe(true);
+  });
+
   it("rejects an unsafe key generator", () => {
     const keyring = new RunDraftKeyring(() => "bad key");
     expect(() => keyring.keyFor({ workflow: "workflow@1" })).toThrow(

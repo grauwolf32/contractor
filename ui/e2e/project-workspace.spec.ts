@@ -2,6 +2,28 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 
 const API_VERSION = "contractor.public.v1";
 const PROJECT_ID = "project_browser_example";
+const RUNTIME_CONFIGURATION = {
+  default: {
+    label: "default",
+    bindingRevision: "1",
+    config: {
+      name: "contractor-empty",
+      version: "1",
+      digest: `sha256:${"0".repeat(64)}`,
+    },
+  },
+  labels: [],
+};
+
+interface ProjectAPIFixtureOptions {
+  artifactStoredInitially?: boolean;
+  exposeWorkflow?: boolean;
+  runRequests?: Array<{
+    url: string;
+    headers: Record<string, string>;
+    body: unknown;
+  }>;
+}
 
 function headers(extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -45,8 +67,9 @@ async function installProjectAPI(
     headers: Record<string, string>;
     body: Buffer;
   }>,
+  options: ProjectAPIFixtureOptions = {},
 ): Promise<void> {
-  let artifactStored = false;
+  let artifactStored = options.artifactStoredInitially ?? false;
   const project = {
     projectId: PROJECT_ID,
     kind: "project",
@@ -67,6 +90,21 @@ async function installProjectAPI(
     current: true,
     frozen: false,
     createdAt: "2026-09-01T10:01:00Z",
+  };
+  const workflow = {
+    ref: { name: "openapi-from-source", version: "1" },
+    entryStage: "analyze",
+    parameters: {},
+    inputs: {
+      source: { required: true, mediaTypes: ["application/zip"] },
+    },
+    outputs: {
+      openapi: {
+        required: true,
+        mediaTypes: ["application/yaml"],
+        primary: true,
+      },
+    },
   };
   await page.route("**/runtime-config.json", async (route) => {
     await route.fulfill({
@@ -110,6 +148,20 @@ async function installProjectAPI(
       await fulfillJSON(route, { items: [project], page: { hasMore: false } });
       return;
     }
+    if (url.pathname === "/v1/workflows") {
+      await fulfillJSON(route, {
+        items: options.exposeWorkflow ? [workflow] : [],
+        page: { hasMore: false },
+      });
+      return;
+    }
+    if (
+      url.pathname === "/v1/workflows/openapi-from-source/versions/1" &&
+      options.exposeWorkflow
+    ) {
+      await fulfillJSON(route, { ...workflow, stages: {} });
+      return;
+    }
     if (url.pathname === `/v1/projects/${PROJECT_ID}`) {
       await fulfillJSON(route, project, 200, { etag: '"1"' });
       return;
@@ -147,7 +199,53 @@ async function installProjectAPI(
       );
       return;
     }
-    if (url.pathname === `/v1/projects/${PROJECT_ID}/runs`) {
+    if (
+      url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
+      request.method() === "POST"
+    ) {
+      options.runRequests?.push({
+        url: request.url(),
+        headers: request.headers(),
+        body: request.postDataJSON(),
+      });
+      await fulfillJSON(
+        route,
+        {
+          runId: "run_project_browser",
+          projectId: PROJECT_ID,
+          state: "initializing",
+          runtimeLabels: [],
+          labels: {},
+          runtimeConfiguration: RUNTIME_CONFIGURATION,
+        },
+        202,
+      );
+      return;
+    }
+    if (
+      url.pathname === `/v1/projects/${PROJECT_ID}/runs` &&
+      request.method() === "GET"
+    ) {
+      await fulfillJSON(route, { items: [], page: { hasMore: false } });
+      return;
+    }
+    if (url.pathname === "/v1/runs/run_project_browser") {
+      await fulfillJSON(route, {
+        runId: "run_project_browser",
+        projectId: PROJECT_ID,
+        workflow: "openapi-from-source@1",
+        state: "initializing",
+        runtimeLabels: [],
+        labels: {},
+        runtimeConfiguration: RUNTIME_CONFIGURATION,
+        attempts: [],
+        transitions: [],
+        outputs: {},
+        outputPublications: [],
+      });
+      return;
+    }
+    if (url.pathname === "/v1/runs/run_project_browser/artifacts") {
       await fulfillJSON(route, { items: [], page: { hasMore: false } });
       return;
     }
@@ -235,4 +333,51 @@ test("Project dashboard remains usable at 320px", async ({
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBe(320);
+});
+
+test("Project recommendation launches an exact Project Run", async ({
+  page,
+}, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  const uiOrigin = new URL(configuredBaseURL).origin;
+  const apiOrigin = "http://127.0.0.3:8080";
+  const runRequests: NonNullable<ProjectAPIFixtureOptions["runRequests"]> = [];
+  await installProjectAPI(page, uiOrigin, apiOrigin, [], {
+    artifactStoredInitially: true,
+    exposeWorkflow: true,
+    runRequests,
+  });
+
+  await openProjectFromShell(page);
+  await page.getByRole("button", { name: "Run openapi-from-source@1" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "openapi-from-source@1",
+  });
+  await expect(
+    dialog.getByRole("combobox", { name: /source required/ }),
+  ).toHaveValue("sources/browser-source@revision-browser-1");
+  await dialog
+    .getByRole("button", { name: "Start Project Workflow Run" })
+    .click();
+
+  await expect(page).toHaveURL(/\/runs\/run_project_browser$/);
+  await expect(
+    page.getByRole("heading", { name: "run_project_browser" }),
+  ).toBeVisible();
+  expect(runRequests).toHaveLength(1);
+  expect(new URL(runRequests[0]!.url).origin).toBe(apiOrigin);
+  expect(runRequests[0]!.headers["idempotency-key"]).toMatch(/^run-ui-/);
+  expect(runRequests[0]!.body).toMatchObject({
+    workflow: "openapi-from-source@1",
+    artifacts: {
+      source: {
+        namespace: "sources",
+        name: "browser-source",
+        revision: "revision-browser-1",
+      },
+    },
+  });
 });

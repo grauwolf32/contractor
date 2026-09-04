@@ -9,6 +9,7 @@ import { Link, useNavigate } from "react-router";
 import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
+import { listProjectArtifacts } from "../../api/project-artifacts";
 import {
   listRuntimeLabels,
   type RuntimeLabelBinding,
@@ -19,6 +20,7 @@ import {
   type RunMetadataLabelDraft,
 } from "../../api/run-metadata-labels";
 import {
+  createProjectRun,
   createRun,
   listConfigurations,
   listCredentials,
@@ -340,7 +342,15 @@ function ConsumerOverrides({
   );
 }
 
-export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
+export function WorkflowRunForm({
+  workflow,
+  projectId,
+  initialArtifactSelections = {},
+}: {
+  workflow: WorkflowResource;
+  projectId?: string;
+  initialArtifactSelections?: Readonly<Record<string, string>>;
+}) {
   const api = usePublicAPI();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -357,7 +367,7 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   );
   const [artifactSelections, setArtifactSelections] = useState<
     Record<string, string>
-  >({});
+  >({ ...initialArtifactSelections });
   const [overrides, setOverrides] = useState<ExecutionOverrideDraft>(
     emptyExecutionOverrides,
   );
@@ -369,10 +379,18 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
   const [executionOptionsOpen, setExecutionOptionsOpen] = useState(false);
 
   const artifactInventory = useInfiniteQuery({
-    queryKey: queryKeys.artifacts.picker,
+    queryKey:
+      projectId === undefined
+        ? queryKeys.artifacts.picker
+        : queryKeys.projects.artifacts.picker(projectId),
     initialPageParam: INITIAL_CURSOR as string | null,
     queryFn: ({ pageParam }) =>
-      listArtifacts(api, pageParam === null ? {} : { cursor: pageParam }),
+      projectId === undefined
+        ? listArtifacts(api, pageParam === null ? {} : { cursor: pageParam })
+        : listProjectArtifacts(api, {
+            projectId,
+            ...(pageParam === null ? {} : { cursor: pageParam }),
+          }),
     getNextPageParam: nextCursor,
   });
   const modelPolicyInventory = useInfiniteQuery({
@@ -474,9 +492,22 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     }: {
       request: CreateRunRequest;
       idempotencyKey: string;
-    }) => createRun(api, request, idempotencyKey),
+    }) =>
+      projectId === undefined
+        ? createRun(api, request, idempotencyKey)
+        : createProjectRun(api, projectId, request, idempotencyKey),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
+      if (projectId !== undefined) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.projects.runs(projectId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.projects.artifacts.all(projectId),
+          }),
+        ]);
+      }
       await navigate(`/runs/${encodeURIComponent(result.runId)}`);
     },
   });
@@ -604,7 +635,10 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     }
     mutation.mutate({
       request: validation.request,
-      idempotencyKey: keyring.keyFor(validation.request),
+      idempotencyKey: keyring.keyFor(
+        validation.request,
+        projectId === undefined ? "standalone" : `project:${projectId}`,
+      ),
     });
   }
 
@@ -612,7 +646,10 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
     mutation.error instanceof PublicAPIError && mutation.error.status === 0;
   const exactRetry =
     currentValidation.request !== undefined &&
-    keyring.matches(currentValidation.request);
+    keyring.matches(
+      currentValidation.request,
+      projectId === undefined ? "standalone" : `project:${projectId}`,
+    );
   const plannerSupported = Object.values(workflow.stages).some(
     (stage) => stage.executionConfig.planner !== undefined,
   );
@@ -669,7 +706,11 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
       <div className="section-heading run-draft-heading">
         <div>
           <p className="eyebrow">Run setup</p>
-          <h3>Start Workflow Run</h3>
+          <h3>
+            {projectId === undefined
+              ? "Start Workflow Run"
+              : "Start Project Workflow Run"}
+          </h3>
           <p className="run-draft-intro">
             Complete the declared inputs. Optional settings keep the published
             Workflow defaults until you change them.
@@ -758,7 +799,10 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
       </fieldset>
 
       <fieldset className="run-draft-section">
-        <legend>Exact UserScope Artifact inputs</legend>
+        <legend>
+          Exact {projectId === undefined ? "UserScope" : "ProjectScope"}{" "}
+          Artifact inputs
+        </legend>
         {artifactInventory.error === null ? null : (
           <ErrorNotice error={artifactInventory.error} />
         )}
@@ -839,7 +883,16 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
                     {!artifactInventory.isPending && compatible.length === 0 ? (
                       <p className="field-guidance">
                         No loaded revision is compatible.{" "}
-                        <Link to="/artifacts">Upload one</Link>.
+                        <Link
+                          to={
+                            projectId === undefined
+                              ? "/artifacts"
+                              : `/projects/${encodeURIComponent(projectId)}#project-artifacts`
+                          }
+                        >
+                          Upload one
+                        </Link>
+                        .
                       </p>
                     ) : null}
                   </div>
@@ -1120,12 +1173,16 @@ export function WorkflowRunForm({ workflow }: { workflow: WorkflowResource }) {
           }
         >
           {mutation.isPending
-            ? "Submitting…"
+            ? projectId === undefined
+              ? "Submitting…"
+              : "Starting Project Run…"
             : responseLost && exactRetry
               ? "Retry exact request"
               : responseLost
                 ? "Start changed draft with a new key"
-                : "Start Workflow Run"}
+                : projectId === undefined
+                  ? "Start Workflow Run"
+                  : "Start Project Workflow Run"}
         </button>
       </div>
     </form>

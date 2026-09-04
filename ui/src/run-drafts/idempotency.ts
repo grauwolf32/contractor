@@ -41,8 +41,8 @@ export class RunDraftKeyring {
     this.#generate = generate;
   }
 
-  keyFor(request: CreateRunRequest): string {
-    const canonical = canonicalRunRequest(request);
+  keyFor(request: CreateRunRequest, endpointIdentity = "standalone"): string {
+    const canonical = `${endpointIdentity}\u0000${canonicalRunRequest(request)}`;
     if (canonical === this.#canonical && this.#key !== undefined) {
       return this.#key;
     }
@@ -55,7 +55,10 @@ export class RunDraftKeyring {
     return key;
   }
 
-  matches(request: CreateRunRequest): boolean {
-    return canonicalRunRequest(request) === this.#canonical;
+  matches(request: CreateRunRequest, endpointIdentity = "standalone"): boolean {
+    return (
+      `${endpointIdentity}\u0000${canonicalRunRequest(request)}` ===
+      this.#canonical
+    );
   }
 }

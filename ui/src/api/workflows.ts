@@ -135,6 +135,43 @@ export async function createRun(
       body: request,
     }),
   );
+  return safeCreateRunResponse(result, undefined);
+}
+
+export async function createProjectRun(
+  api: PublicAPI,
+  projectId: string,
+  request: CreateRunRequest,
+  idempotencyKey: string,
+): Promise<CreateRunResponse> {
+  if (!RESOURCE_ID_PATTERN.test(projectId)) {
+    throw new TypeError("Project ID is invalid");
+  }
+  const mutationHeaders = api.mutationHeaders({ idempotencyKey });
+  const validatedKey = mutationHeaders.get("Idempotency-Key");
+  if (validatedKey === null) {
+    throw new TypeError("Project Run creation requires an idempotency key");
+  }
+  const result = await api.request((client) =>
+    client.POST("/v1/projects/{projectId}/runs", {
+      params: {
+        path: { projectId },
+        header: { "Idempotency-Key": validatedKey },
+      },
+      body: request,
+    }),
+  );
+  return safeCreateRunResponse(result, projectId);
+}
+
+function safeCreateRunResponse(
+  result: {
+    data?: CreateRunResponse;
+    error?: unknown;
+    response: Response;
+  },
+  expectedProjectId: string | undefined,
+): CreateRunResponse {
   const response = requireData(result);
   if (
     result.response.status !== 202 ||
@@ -151,6 +188,13 @@ export async function createRun(
     throw invalidRunResponse(result.response.status);
   }
   if (
+    (expectedProjectId === undefined && response.projectId !== undefined) ||
+    (expectedProjectId !== undefined &&
+      response.projectId !== expectedProjectId)
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+  if (
     !Array.isArray(response.runtimeLabels) ||
     response.runtimeLabels.some(
       (label, index) =>
@@ -163,6 +207,9 @@ export async function createRun(
   }
   return {
     runId: response.runId,
+    ...(response.projectId === undefined
+      ? {}
+      : { projectId: response.projectId }),
     state: response.state,
     runtimeLabels: [...response.runtimeLabels],
     labels: safeRunMetadataLabels(response.labels),

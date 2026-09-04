@@ -975,6 +975,82 @@ describe("Run routes", () => {
     expect(view.container.textContent).not.toMatch(/prompt|tool arguments/i);
   });
 
+  it("shows exact Project output publication receipts without changing Run outcome", async () => {
+    const projectRun = runFixture({
+      projectId: "project-payment-service",
+      state: "succeeded",
+      eventCursor: undefined,
+      activeStageExecutionId: undefined,
+      outputPublications: [
+        {
+          output: "openapi",
+          status: "published",
+          source: {
+            namespace: "outputs",
+            name: "openapi",
+            revision: "run-output-r1",
+          },
+          target: {
+            namespace: "outputs",
+            name: "openapi",
+            revision: "project-output-r1",
+          },
+          createdAt: "2026-08-31T12:05:00Z",
+        },
+        {
+          output: "docs",
+          status: "failed",
+          source: {
+            namespace: "outputs",
+            name: "docs",
+            revision: "run-docs-r1",
+          },
+          errorCode: "artifact_conflict",
+          errorMessage: "The Project binding already changed.",
+          createdAt: "2026-08-31T12:05:01Z",
+        },
+      ],
+      finishedAt: "2026-08-31T12:05:01Z",
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const shared = sessionOrArtifacts(request);
+        if (shared !== undefined) {
+          return shared;
+        }
+        if (new URL(request.url).pathname === "/v1/runs/run-router") {
+          return apiResponse(projectRun);
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+
+    renderRunApplication(api, "/runs/run-router");
+
+    const panel = (
+      await screen.findByRole("heading", {
+        name: "Reusable output status",
+      })
+    ).closest("section");
+    expect(panel).not.toBeNull();
+    expect(within(panel as HTMLElement).getByText("published")).toBeVisible();
+    expect(within(panel as HTMLElement).getByText("failed")).toBeVisible();
+    expect(panel).toHaveTextContent("source outputs/openapi@run-output-r1");
+    expect(
+      within(panel as HTMLElement).getByRole("link", {
+        name: "target outputs/openapi@project-output-r1",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project-payment-service/artifacts/outputs/openapi?revision=project-output-r1",
+    );
+    expect(panel).toHaveTextContent("artifact_conflict");
+    expect(panel).toHaveTextContent("The Project binding already changed.");
+    expect(screen.getByText("succeeded")).toBeInTheDocument();
+  });
+
   it("inspects exact RunScope metadata, versions, lineage, and safe preview", async () => {
     const metadata = {
       artifact: {

@@ -2,6 +2,7 @@ export const queryKeys = {
   session: ["auth", "session"] as const,
   workflows: {
     all: ["workflows"] as const,
+    picker: ["workflows", "picker"] as const,
     list: (cursor?: string) => ["workflows", "list", cursor ?? null] as const,
     detail: (name: string, version: string) =>
       ["workflows", "detail", name, version] as const,
@@ -14,6 +15,8 @@ export const queryKeys = {
     artifacts: {
       all: (projectId: string) =>
         ["projects", "detail", projectId, "artifacts"] as const,
+      picker: (projectId: string) =>
+        ["projects", "detail", projectId, "artifacts", "picker"] as const,
       list: (
         projectId: string,
         namespace: string | undefined,

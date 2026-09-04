@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
 import {
+  createProjectRun,
   createRun,
   getWorkflow,
   listConfigurations,
@@ -148,6 +149,61 @@ describe("Workflow API", () => {
     expect(captured?.headers.get("Idempotency-Key")).toBe("draft-exact-1");
     expect(captured?.headers.get("X-CSRF-Token")).toBe("a".repeat(43));
     await expect(captured?.clone().json()).resolves.toEqual(request);
+  });
+
+  it("creates a Project Run only through its scope-bound endpoint", async () => {
+    let captured: Request | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        captured = input instanceof Request ? input : new Request(input);
+        return response(
+          {
+            runId: "run_project_example",
+            projectId: "project_example",
+            state: "initializing",
+            runtimeLabels: [],
+            labels: {},
+            runtimeConfiguration: {
+              default: {
+                label: "default",
+                bindingRevision: "1",
+                config: {
+                  name: "contractor-empty",
+                  version: "1",
+                  digest: `sha256:${"0".repeat(64)}`,
+                },
+              },
+              labels: [],
+            },
+          },
+          202,
+        );
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+    const request: CreateRunRequest = {
+      workflow: "openapi-from-workspace@4",
+      artifacts: {
+        source: {
+          namespace: "sources",
+          name: "service",
+          revision: "revision-1",
+        },
+      },
+    };
+
+    await expect(
+      createProjectRun(api, "project_example", request, "project-run-1"),
+    ).resolves.toMatchObject({
+      runId: "run_project_example",
+      projectId: "project_example",
+    });
+    expect(new URL(captured!.url).pathname).toBe(
+      "/v1/projects/project_example/runs",
+    );
+    expect(captured?.headers.get("Idempotency-Key")).toBe("project-run-1");
+    expect(await captured?.clone().json()).toEqual(request);
   });
 
   it("does not retry a Run mutation after response loss", async () => {

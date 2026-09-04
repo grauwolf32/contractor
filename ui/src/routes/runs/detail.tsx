@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
@@ -304,6 +304,16 @@ function RunTimestamps({ run }: { run: RunStatus }) {
           <code>{run.workflow}</code>
         </dd>
       </div>
+      {run.projectId === undefined ? null : (
+        <div>
+          <dt>Project</dt>
+          <dd>
+            <Link to={`/projects/${encodeURIComponent(run.projectId)}`}>
+              <code>{run.projectId}</code>
+            </Link>
+          </dd>
+        </div>
+      )}
       {values.map(([label, value]) =>
         value === undefined ? null : (
           <div key={label}>
@@ -313,6 +323,72 @@ function RunTimestamps({ run }: { run: RunStatus }) {
         ),
       )}
     </dl>
+  );
+}
+
+function RunOutputPublications({ run }: { run: RunStatus }) {
+  const projectId = run.projectId;
+  if (projectId === undefined) {
+    return null;
+  }
+  return (
+    <section className="panel run-output-publications">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">ProjectScope publication</p>
+          <h3>Reusable output status</h3>
+        </div>
+        <Link
+          to={`/projects/${encodeURIComponent(projectId)}#project-artifacts`}
+        >
+          Open Project →
+        </Link>
+      </div>
+      {run.outputPublications.length === 0 ? (
+        <div className="compact-empty">
+          {isTerminalRunState(run.state)
+            ? "No present declared output required a publication receipt."
+            : "Publication is recorded only after successful terminal output freezing."}
+        </div>
+      ) : (
+        <ul className="run-output-publication-list">
+          {run.outputPublications.map((publication) => (
+            <li key={`${publication.output}:${publication.source.revision}`}>
+              <div>
+                <strong>{publication.output}</strong>
+                <span
+                  className={`publication-status publication-${publication.status}`}
+                >
+                  {publication.status.replaceAll("_", " ")}
+                </span>
+              </div>
+              <span>
+                source{" "}
+                <code>
+                  {publication.source.namespace}/{publication.source.name}@
+                  {publication.source.revision}
+                </code>
+              </span>
+              {publication.target === undefined ? null : (
+                <Link
+                  to={`/projects/${encodeURIComponent(projectId)}/artifacts/${encodeURIComponent(publication.target.namespace)}/${encodeURIComponent(publication.target.name)}?revision=${encodeURIComponent(publication.target.revision)}`}
+                >
+                  target {publication.target.namespace}/
+                  {publication.target.name}@{publication.target.revision}
+                </Link>
+              )}
+              {publication.errorMessage === undefined ? null : (
+                <p>
+                  <code>{publication.errorCode ?? "publication_failed"}</code>{" "}
+                  {publication.errorMessage}
+                </p>
+              )}
+              <small>{formatTimestamp(publication.createdAt)}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -492,6 +568,28 @@ function LoadedRunDetail({
   run: RunStatus;
   snapshotVersion: number;
 }) {
+  const queryClient = useQueryClient();
+  const invalidatedPublication = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (run.projectId === undefined || run.state !== "succeeded") {
+      return;
+    }
+    const identity = `${run.runId}:${run.finishedAt ?? run.updatedAt ?? "terminal"}`;
+    if (invalidatedPublication.current === identity) {
+      return;
+    }
+    invalidatedPublication.current = identity;
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.projects.artifacts.all(run.projectId),
+    });
+  }, [
+    queryClient,
+    run.finishedAt,
+    run.projectId,
+    run.runId,
+    run.state,
+    run.updatedAt,
+  ]);
   const liveKey = `${run.eventCursor?.generation ?? "none"}:${run.eventCursor?.sequence ?? "none"}`;
   const triage = deriveRunTriage(run);
   return (
@@ -516,6 +614,7 @@ function LoadedRunDetail({
       )}
       <RunBindings run={run} />
       <RunOutputGallery runId={run.runId} outputs={run.outputs} />
+      <RunOutputPublications run={run} />
       <LiveAttempts
         key={`${liveKey}:${snapshotVersion}`}
         run={run}

@@ -31,6 +31,7 @@ import {
   ProjectRegion,
 } from "./common";
 import type { ShortcutDefinition } from "./shortcuts";
+import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
 function ProjectMetadataEditor({ project }: { project: Project }) {
   const api = usePublicAPI();
@@ -487,6 +488,7 @@ export function ProjectDetailRoute() {
           >
             <a href="#project-overview">Overview</a>
             <a href="#project-artifacts">Artifacts</a>
+            <a href="#project-workflows">Workflows</a>
             <a href="#project-runs">Runs</a>
           </nav>
           <ProjectRegion
@@ -500,6 +502,7 @@ export function ProjectDetailRoute() {
             />
           </ProjectRegion>
           <ProjectArtifactRegion projectId={project.data.projectId} />
+          <ProjectWorkflowRecommendations projectId={project.data.projectId} />
           <ProjectRunsRegion projectId={project.data.projectId} />
         </>
       )}

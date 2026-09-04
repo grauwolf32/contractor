@@ -3755,6 +3755,238 @@ code {
   margin: 0;
 }
 
+.project-workflow-count {
+  flex: none;
+  border: 1px solid #52622d;
+  border-radius: 999px;
+  background: var(--accent-dark);
+  color: var(--accent);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.project-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.project-workflow-grid.is-all {
+  margin-top: 0;
+  padding: 1rem;
+}
+
+.project-workflow-card {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: #0d1219;
+  padding: 1rem;
+}
+
+.project-workflow-card.is-compatible {
+  border-color: #46552f;
+  background: linear-gradient(145deg, #111a10, #0d1219 55%);
+}
+
+.project-workflow-card.is-blocked {
+  opacity: 0.78;
+}
+
+.project-workflow-card h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+.project-workflow-card > button {
+  align-self: end;
+  justify-self: start;
+}
+
+.project-workflow-inputs {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.project-workflow-inputs > div {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  border-bottom: 1px solid #ffffff0e;
+  padding-bottom: 0.35rem;
+}
+
+.project-workflow-inputs dt,
+.project-workflow-inputs dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.project-workflow-inputs dt {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.project-workflow-inputs dt strong {
+  color: var(--accent);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+
+.project-workflow-inputs dd,
+.project-workflow-fact,
+.project-workflow-output-copy,
+.project-workflow-missing {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.project-workflow-fact,
+.project-workflow-missing {
+  margin: 0;
+}
+
+.project-workflow-output-copy {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.project-workflow-output-copy > span {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.project-workflow-missing {
+  border-left: 2px solid var(--danger);
+  color: #d8a9a5;
+  padding-left: 0.65rem;
+}
+
+.project-all-workflows {
+  margin-top: 1.2rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: #0c1016;
+}
+
+.project-all-workflows > summary {
+  display: flex;
+  min-height: 3.8rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.project-all-workflows > summary::-webkit-details-marker {
+  display: none;
+}
+
+.project-all-workflows > summary > span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.project-all-workflows > summary > span:last-child {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.project-all-workflows > summary small {
+  color: var(--muted);
+}
+
+.project-workflow-dialog {
+  width: min(100%, 68rem);
+}
+
+.project-workflow-dialog .run-draft {
+  margin-top: 1.25rem;
+}
+
+.run-output-publications {
+  margin: 1.2rem 0;
+}
+
+.run-output-publication-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-output-publication-list li {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: #0c1016;
+  padding: 0.8rem;
+  color: var(--muted-strong);
+  font-size: 0.78rem;
+}
+
+.run-output-publication-list li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.run-output-publication-list p,
+.run-output-publication-list small {
+  margin: 0;
+}
+
+.run-output-publication-list p {
+  color: var(--danger);
+}
+
+.run-output-publication-list small {
+  color: var(--muted);
+}
+
+.publication-status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.publication-published {
+  border-color: #47776e;
+  color: var(--success);
+}
+
+.publication-already_present {
+  border-color: #76642d;
+  color: var(--warning);
+}
+
+.publication-failed {
+  border-color: #753f42;
+  color: var(--danger);
+}
+
 .spinner {
   width: 1.8rem;
   height: 1.8rem;
@@ -3799,6 +4031,10 @@ code {
 
   .project-shortcut-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .project-workflow-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -4055,6 +4291,13 @@ code {
     border-bottom: 0;
     border-left: 0;
     border-radius: 1rem 1rem 0 0;
+  }
+
+  .project-workflow-inputs > div,
+  .project-all-workflows > summary,
+  .run-output-publication-list li > div {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .quick-start-panel {

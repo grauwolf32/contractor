@@ -85,6 +85,9 @@ describe("Project routes", () => {
         if (url.pathname.endsWith("/artifacts")) {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
         if (url.pathname.endsWith("/runs")) {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
@@ -177,6 +180,9 @@ describe("Project routes", () => {
             { status: 201, headers: { ETag: '"revision-1"' } },
           );
         }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
         if (url.pathname.endsWith("/runs")) {
           return jsonResponse({ items: [], page: { hasMore: false } });
         }
@@ -234,6 +240,9 @@ describe("Project routes", () => {
             },
             { status: 500 },
           );
+        }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
         }
         if (url.pathname.endsWith("/runs")) {
           return jsonResponse({ items: [], page: { hasMore: false } });
@@ -325,6 +334,262 @@ describe("Project routes", () => {
     expect(await screen.findByText("Project documentation")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Upload exact update" }),
+    ).toBeEnabled();
+  });
+
+  it("recommends compatible Workflows and launches through the Project endpoint", async () => {
+    const requests: Request[] = [];
+    const source = {
+      artifact: {
+        namespace: "sources",
+        name: "payment-service",
+        revision: "revision-source-1",
+      },
+      mediaType: "application/zip",
+      size: 3,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-01T10:10:00Z",
+    };
+    const workflowSummaries = [
+      {
+        ref: { name: "openapi-from-source", version: "1" },
+        entryStage: "analyze",
+        parameters: {},
+        inputs: {
+          source: { required: true, mediaTypes: ["application/zip"] },
+        },
+        outputs: {
+          openapi: {
+            required: true,
+            mediaTypes: ["application/yaml"],
+            primary: true,
+          },
+        },
+      },
+      {
+        ref: { name: "likec4-from-source", version: "1" },
+        entryStage: "analyze",
+        parameters: {},
+        inputs: {
+          source: { required: true, mediaTypes: ["application/zip"] },
+        },
+        outputs: {
+          likec4: {
+            required: true,
+            mediaTypes: ["text/vnd.likec4"],
+            primary: true,
+          },
+        },
+      },
+    ];
+    const runtimeConfiguration = {
+      default: {
+        label: "default",
+        bindingRevision: "1",
+        config: {
+          name: "contractor-empty",
+          version: "1",
+          digest: `sha256:${"0".repeat(64)}`,
+        },
+      },
+      labels: [],
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return jsonResponse(session);
+        }
+        if (url.pathname === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (url.pathname === "/v1/projects/project_example/artifacts") {
+          return jsonResponse({ items: [source], page: { hasMore: false } });
+        }
+        if (
+          url.pathname === "/v1/projects/project_example/runs" &&
+          request.method === "GET"
+        ) {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (
+          url.pathname === "/v1/projects/project_example/runs" &&
+          request.method === "POST"
+        ) {
+          return jsonResponse(
+            {
+              runId: "run_project_recommended",
+              projectId: "project_example",
+              state: "initializing",
+              runtimeLabels: [],
+              labels: {},
+              runtimeConfiguration,
+            },
+            { status: 202 },
+          );
+        }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({
+            items: workflowSummaries,
+            page: { hasMore: false },
+          });
+        }
+        if (url.pathname === "/v1/workflows/openapi-from-source/versions/1") {
+          return jsonResponse({
+            ...workflowSummaries[0],
+            stages: {},
+          });
+        }
+        if (url.pathname === "/v1/runs/run_project_recommended") {
+          return jsonResponse({
+            runId: "run_project_recommended",
+            projectId: "project_example",
+            workflow: "openapi-from-source@1",
+            state: "initializing",
+            runtimeLabels: [],
+            labels: {},
+            runtimeConfiguration,
+            attempts: [],
+            transitions: [],
+            outputs: {},
+            outputPublications: [],
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const { router } = renderProjectApplication(
+      api,
+      "/projects/project_example",
+    );
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Run openapi-from-source@1",
+      }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Run likec4-from-source@1" }),
+    ).toBeEnabled();
+    await user.click(
+      screen.getByRole("button", { name: "Run openapi-from-source@1" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "openapi-from-source@1",
+    });
+    expect(
+      within(dialog).getByRole("combobox", { name: /source required/ }),
+    ).toHaveValue("sources/payment-service@revision-source-1");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Start Project Workflow Run",
+      }),
+    );
+
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        "/runs/run_project_recommended",
+      ),
+    );
+    const create = requests.find(
+      (request) =>
+        request.method === "POST" &&
+        new URL(request.url).pathname === "/v1/projects/project_example/runs",
+    )!;
+    expect(create.headers.get("Idempotency-Key")).toMatch(/^run-ui-/);
+    expect(await create.json()).toMatchObject({
+      workflow: "openapi-from-source@1",
+      artifacts: {
+        source: source.artifact,
+      },
+    });
+  });
+
+  it("suppresses an existing primary result only from Recommended", async () => {
+    const source = {
+      artifact: {
+        namespace: "sources",
+        name: "payment-service",
+        revision: "revision-source-1",
+      },
+      mediaType: "application/zip",
+      size: 3,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-01T10:10:00Z",
+    };
+    const existingOutput = {
+      artifact: {
+        namespace: "outputs",
+        name: "openapi",
+        revision: "revision-openapi-1",
+      },
+      mediaType: "application/yaml",
+      size: 30,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-01T10:11:00Z",
+    };
+    const workflow = {
+      ref: { name: "openapi-from-source", version: "1" },
+      entryStage: "analyze",
+      parameters: {},
+      inputs: {
+        source: { required: true, mediaTypes: ["application/zip"] },
+      },
+      outputs: {
+        openapi: {
+          required: true,
+          mediaTypes: ["application/yaml"],
+          primary: true,
+        },
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return jsonResponse(session);
+        }
+        if (url.pathname === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (url.pathname === "/v1/projects/project_example/artifacts") {
+          return jsonResponse({
+            items: [source, existingOutput],
+            page: { hasMore: false },
+          });
+        }
+        if (url.pathname === "/v1/projects/project_example/runs") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({ items: [workflow], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderProjectApplication(api, "/projects/project_example");
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByText("No new Workflow result is recommended."),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Run openapi-from-source@1" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByText("All workflows"));
+    expect(
+      screen.getByRole("button", {
+        name: "Run again openapi-from-source@1",
+      }),
     ).toBeEnabled();
   });
 });
