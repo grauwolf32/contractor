@@ -3,8 +3,8 @@ id: V25-007
 title: Collect exact check results and finalize Audit coverage
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "873e931c1e82174c03da7671cc9ebc315b83d40b"
 depends_on: [V25-002, V25-006]
 languages: [go, sql]
 
@@ -31,6 +31,7 @@ scope:
     - Retain imported package/evidence revisions through create-only Audit-managed ProjectScope bindings and lineage/receipt records.
     - Commit exactly one AuditCollectionReceipt for accepted, missing-output, invalid-result, failed or cancelled terminal outcomes and retain bounded safe technical error details.
     - Record every execution-item attempt independently; settle an item after accepted/non-retryable/exhausted disposition or return it to ready when bounded retry remains.
+    - Retain validated causal checklist origins as exact package revision/digest and entry key/version on inventory items and accepted results; keep standards mappings separate from source attribution.
     - Validate the exact frozen output revision observed at terminal collection; a later current binding revision neither replaces nor invalidates it.
     - Compute operation/checklist coverage including not-tested, inconclusive, exclusions, N/A and zero-denominator semantics.
     - Generate and retain one exact machine-readable report plus bounded human-readable summary for a one-round Audit.
@@ -44,6 +45,7 @@ requirements:
   - {id: R3, text: Failed/cancelled Runs and empty inventories cannot produce a clean or 100-percent verdict.}
   - {id: R4, text: Import failure never rewrites the child WorkflowRun outcome.}
   - {id: R5, text: A retryable unsuccessful attempt does not settle its AuditItem; only settled items open the round barrier.}
+  - {id: R6, text: Every checklist result remains attributable to its exact source entry and execution-item attempt without parsing narrative output or consulting the mutable catalog.}
 
 acceptance_criteria:
   - id: A1
@@ -57,7 +59,7 @@ acceptance_criteria:
   - id: A3
     given: Source Runs are later deleted after release.
     when: Report/evidence are read.
-    then: Retained exact Audit data and provenance remain available.
+    then: Retained exact Audit data, checklist package and entry identity, Workflow identity/digest and all attempt provenance remain available without live Run or catalog joins.
   - id: A4
     given: A failed or invalid first attempt with retry budget remaining.
     when: Collection commits and Controller reconciles again.
@@ -65,4 +67,4 @@ acceptance_criteria:
 
 tests:
   - {name: importer, command: "go test ./internal/auditimport ./internal/auditcontroller", covers: [A1, A2, A4]}
-  - {name: postgres, command: "go test -tags=integration ./internal/auditimport", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "go test -tags=integration ./internal/artifacts ./internal/auditstore ./internal/auditcontroller ./internal/auditservice ./internal/httpapi/public", covers: [A1, A2, A3, A4]}
