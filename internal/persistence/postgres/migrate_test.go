@@ -455,6 +455,41 @@ func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testi
 	}
 }
 
+func TestSchedulerSettingsMigrationIsNarrowSeededAndProtected(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var settings migration
+	for _, item := range items {
+		if item.name == "000037_scheduler_settings.sql" {
+			settings = item
+			break
+		}
+	}
+	if settings.name == "" {
+		t.Fatal("Scheduler settings migration is not embedded")
+	}
+	contents := strings.ToLower(string(settings.contents))
+	for _, required := range []string{
+		"create table scheduler_settings",
+		"max_concurrent_runs between 1 and 32",
+		"revision numeric(20, 0)",
+		"values (true, 1, 1)",
+		"scheduler_settings_protect_mutation",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Scheduler settings migration does not contain %q", required)
+		}
+	}
+	for _, forbidden := range []string{"owner_id", "project_id", "workflow", "json", "key text", "value text"} {
+		if strings.Contains(contents, forbidden) {
+			t.Fatalf("Scheduler settings migration contains generic or scoped field %q", forbidden)
+		}
+	}
+}
+
 func TestInvalidDatabaseConfigurationIsRedacted(t *testing.T) {
 	t.Parallel()
 
