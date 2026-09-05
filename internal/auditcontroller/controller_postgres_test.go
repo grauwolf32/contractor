@@ -26,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -363,8 +364,9 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	}
 
 	auditService, err := auditservice.New(auditservice.Options{
-		Pool: harness.pool, Profiles: harness.snapshot, LLMCredentials: controllerCredentialLookup{},
-		CredentialGuard: controllerCredentialGuard{}, RuntimeCredentials: controllerRuntimeCredentials{},
+		Pool: harness.pool, Profiles: harness.snapshot,
+		TransactionLLMCredentials: controllerTransactionCredentialLookup(),
+		CredentialGuard:           controllerCredentialGuard{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -463,8 +465,9 @@ func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T)
 		t.Fatal(err)
 	}
 	service, err := auditservice.New(auditservice.Options{
-		Pool: harness.pool, Profiles: harness.snapshot, LLMCredentials: controllerCredentialLookup{},
-		CredentialGuard: controllerCredentialGuard{}, RuntimeCredentials: controllerRuntimeCredentials{},
+		Pool: harness.pool, Profiles: harness.snapshot,
+		TransactionLLMCredentials: controllerTransactionCredentialLookup(),
+		CredentialGuard:           controllerCredentialGuard{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -570,8 +573,9 @@ func newPostgresControllerHarness(
 	}
 	guard := controllerCredentialGuard{}
 	auditService, err := auditservice.New(auditservice.Options{
-		Pool: pool, Profiles: snapshot, LLMCredentials: controllerCredentialLookup{},
-		CredentialGuard: guard, RuntimeCredentials: controllerRuntimeCredentials{},
+		Pool: pool, Profiles: snapshot,
+		TransactionLLMCredentials: controllerTransactionCredentialLookup(),
+		CredentialGuard:           guard,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -601,7 +605,16 @@ func newPostgresControllerHarness(
 		SkillInitializationAvailable: true,
 		PublicTransaction: func(ctx context.Context, fn func(runservice.PublicRunWriter, *artifacts.Service) error) error {
 			return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-				return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+				lookup, bindErr := runtimeconfig.BindTransactionLLMCredentialLookup(
+					tx, controllerTransactionCredentialLookup(),
+				)
+				if bindErr != nil {
+					return bindErr
+				}
+				return fn(
+					runstore.NewRunCreationPostgresStore(tx, lookup),
+					artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+				)
 			})
 		},
 		AuditTransaction: func(ctx context.Context, fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error) error {
@@ -692,6 +705,12 @@ type controllerCredentialLookup struct{}
 
 func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (config.CredentialMetadata, error) {
 	return config.CredentialMetadata{}, fmt.Errorf("credential is unavailable")
+}
+
+func controllerTransactionCredentialLookup() runtimeconfig.TransactionLLMCredentialLookupFactory {
+	return runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		func(pgx.Tx) (config.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
+	)
 }
 
 type controllerCredentialGuard struct{}

@@ -344,8 +344,20 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 			return txErr
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
-		store := runstore.NewPostgresStore(tx)
-		pinned, pinErr := store.PinRuntimeLabels(ctx, []string{"run-debug"}, nil)
+		development, providerErr := NewStaticProvider(nil)
+		if providerErr != nil {
+			return providerErr
+		}
+		factory, providerErr := NewTransactionLookupFactory(development)
+		if providerErr != nil {
+			return providerErr
+		}
+		lookup, providerErr := runtimeconfig.BindTransactionLLMCredentialLookup(tx, factory)
+		if providerErr != nil {
+			return providerErr
+		}
+		store := runstore.NewRunCreationPostgresStore(tx, lookup)
+		pinned, pinErr := store.PinRuntimeLabels(ctx, []string{"run-debug"})
 		if pinErr != nil {
 			return pinErr
 		}

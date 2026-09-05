@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -619,14 +618,14 @@ type fakeRunStore struct {
 	outputPublications map[string][]runstore.RunOutputPublication
 	queueControls      map[string]runstore.OwnerQueueControl
 	projects           *fakeProjectStore
-	pinRuntimeLabels   func(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
+	pinRuntimeLabels   func(context.Context, []string) (runtimeconfig.RunSnapshot, error)
 }
 
 func (f *fakeRunStore) PinRuntimeLabels(
-	ctx context.Context, labels []string, credentials config.CredentialLookup,
+	ctx context.Context, labels []string,
 ) (runtimeconfig.RunSnapshot, error) {
 	if f.pinRuntimeLabels != nil {
-		return f.pinRuntimeLabels(ctx, labels, credentials)
+		return f.pinRuntimeLabels(ctx, labels)
 	}
 	if len(labels) != 0 {
 		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound

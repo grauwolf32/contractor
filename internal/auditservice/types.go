@@ -33,26 +33,20 @@ type CredentialReferenceGuard interface {
 	WithRunCreation(context.Context, func() error) error
 }
 
-type RuntimeCredentialValidator interface {
-	ValidateRuntimeCredential(context.Context, string, ...string) error
-}
-
 type Options struct {
-	Pool               *pgxpool.Pool
-	Profiles           ProfileCatalog
-	LLMCredentials     config.CredentialLookup
-	CredentialGuard    CredentialReferenceGuard
-	RuntimeCredentials RuntimeCredentialValidator
-	Now                func() time.Time
+	Pool                      *pgxpool.Pool
+	Profiles                  ProfileCatalog
+	TransactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+	CredentialGuard           CredentialReferenceGuard
+	Now                       func() time.Time
 }
 
 type Service struct {
-	pool               *pgxpool.Pool
-	profiles           ProfileCatalog
-	llmCredentials     config.CredentialLookup
-	credentialGuard    CredentialReferenceGuard
-	runtimeCredentials RuntimeCredentialValidator
-	now                func() time.Time
+	pool                      *pgxpool.Pool
+	profiles                  ProfileCatalog
+	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+	credentialGuard           CredentialReferenceGuard
+	now                       func() time.Time
 }
 
 type ProfileSelector struct {

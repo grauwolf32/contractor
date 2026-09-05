@@ -55,7 +55,7 @@ type PlannerPlanReader interface {
 
 type RunWriter interface {
 	PinRuntimeLabels(
-		context.Context, []string, config.CredentialLookup,
+		context.Context, []string,
 	) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, runstore.CreateRunParams) (runstore.WorkflowRun, error)
 	CreateRunIdempotent(

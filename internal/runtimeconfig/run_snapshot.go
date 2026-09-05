@@ -7,7 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 const MaximumRunLabels = 32
@@ -53,24 +53,28 @@ func NormalizeRunLabels(source []string) ([]string, error) {
 	return result, nil
 }
 
-// PinRunSnapshot must be called with a transaction-backed DBTX. It locks all
+// PinRunSnapshot must be called with the owning PostgreSQL transaction and a
+// credential lookup bound through that same transaction. It locks all
 // selected binding rows in lexical order, validates exact immutable versions
 // and same-layer conflicts, then returns a compact safe snapshot for the caller
 // to insert with the WorkflowRun in the same transaction. Exact bodies remain
 // reachable through immutable refs in runtime_config_versions.
 func PinRunSnapshot(
 	ctx context.Context,
-	db persistencepostgres.DBTX,
+	tx pgx.Tx,
 	explicitLabels []string,
 	runtimeCredentials RuntimeCredentialValidator,
-	llmCredentials config.CredentialLookup,
+	llmCredentials TransactionLLMCredentialLookup,
 ) (RunSnapshot, error) {
 	labels, err := NormalizeRunLabels(explicitLabels)
 	if err != nil {
 		return RunSnapshot{}, err
 	}
 	allLabels := append([]string{DefaultLabel}, labels...)
-	repository := NewRepository(db)
+	if tx == nil {
+		return RunSnapshot{}, invalid("Run RuntimeConfig pinning requires a PostgreSQL transaction")
+	}
+	repository := NewRepository(tx)
 	bindings, err := repository.LockBindings(ctx, allLabels)
 	if err != nil {
 		return RunSnapshot{}, err

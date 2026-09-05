@@ -2,7 +2,11 @@ package runtimeconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -14,6 +18,62 @@ const (
 
 type RuntimeCredentialValidator interface {
 	ValidateRuntimeCredential(context.Context, string, ...string) error
+}
+
+// TransactionLLMCredentialLookupFactory binds every database-backed metadata
+// lookup to the transaction which will persist the resulting Run snapshot.
+// Implementations may also include process-local providers, but must not
+// acquire another pooled PostgreSQL connection.
+type TransactionLLMCredentialLookupFactory interface {
+	ForTransaction(pgx.Tx) (config.CredentialLookup, error)
+}
+
+// TransactionLLMCredentialLookup is deliberately constructible only through
+// BindTransactionLLMCredentialLookup. PinRunSnapshot accepts this concrete
+// wrapper so a caller cannot accidentally pass the process-wide, pool-backed
+// credential provider while already holding a transaction connection.
+type TransactionLLMCredentialLookup struct {
+	lookup config.CredentialLookup
+}
+
+func BindTransactionLLMCredentialLookup(
+	tx pgx.Tx,
+	factory TransactionLLMCredentialLookupFactory,
+) (TransactionLLMCredentialLookup, error) {
+	if tx == nil || factory == nil {
+		return TransactionLLMCredentialLookup{}, errors.New("transaction LLM credential lookup is not configured")
+	}
+	lookup, err := factory.ForTransaction(tx)
+	if err != nil {
+		return TransactionLLMCredentialLookup{}, fmt.Errorf("bind transaction LLM credential lookup: %w", err)
+	}
+	if lookup == nil {
+		return TransactionLLMCredentialLookup{}, errors.New("transaction LLM credential lookup factory returned nil")
+	}
+	return TransactionLLMCredentialLookup{lookup: lookup}, nil
+}
+
+func (l TransactionLLMCredentialLookup) LookupLLMCredential(
+	ctx context.Context,
+	credentialID string,
+) (config.CredentialMetadata, error) {
+	if l.lookup == nil {
+		return config.CredentialMetadata{}, errors.New("transaction LLM credential lookup is not bound")
+	}
+	return l.lookup.LookupLLMCredential(ctx, credentialID)
+}
+
+// TransactionLLMCredentialLookupFactoryFunc keeps tests and non-PostgreSQL
+// composition explicit without weakening the production transaction boundary.
+type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (config.CredentialLookup, error)
+
+func (f TransactionLLMCredentialLookupFactoryFunc) ForTransaction(
+	tx pgx.Tx,
+) (config.CredentialLookup, error) {
+	if f == nil {
+		return nil, errors.New("transaction LLM credential lookup factory is nil")
+	}
+	return f(tx)
 }
 
 type CredentialReferenceBarrier interface {

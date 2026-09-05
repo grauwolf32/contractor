@@ -213,6 +213,10 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure development LLM credentials: %w", err)
 	}
+	transactionCredentialLookup, err := credentials.NewTransactionLookupFactory(developmentCredentialProvider)
+	if err != nil {
+		return fmt.Errorf("configure transaction-bound LLM credential lookup: %w", err)
+	}
 	credentialProvider, err := credentials.NewCompositeProvider(
 		developmentCredentialProvider, encryptedCredentialProvider,
 	)
@@ -457,8 +461,9 @@ func RunCLI(
 	}
 	defer eventHub.Close()
 	auditService, err := auditservice.New(auditservice.Options{
-		Pool: pool, Profiles: configurationManager, LLMCredentials: credentialProvider,
-		CredentialGuard: credentialLifecycle, RuntimeCredentials: runtimeCredentialLifecycle,
+		Pool: pool, Profiles: configurationManager,
+		TransactionLLMCredentials: transactionCredentialLookup,
+		CredentialGuard:           credentialLifecycle,
 	})
 	if err != nil {
 		return fmt.Errorf("configure Audit service: %w", err)
@@ -475,8 +480,14 @@ func RunCLI(
 			return persistencepostgres.InTx(
 				transactionContext, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead},
 				func(tx pgx.Tx) error {
+					txLookup, bindErr := runtimeconfig.BindTransactionLLMCredentialLookup(
+						tx, transactionCredentialLookup,
+					)
+					if bindErr != nil {
+						return bindErr
+					}
 					return fn(
-						runstore.NewPostgresStore(tx),
+						runstore.NewRunCreationPostgresStore(tx, txLookup),
 						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 					)
 				},
@@ -540,9 +551,11 @@ func RunCLI(
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
 		Operations:             registry, OperationsInvalidator: registry, Events: eventHub,
-		Transactions: postgresPublicUnitOfWork{pool: pool},
-		BearerToken:  cfg.PublicBearerToken,
-		RunNotifier:  workflowScheduler, Logger: logger,
+		Transactions: postgresPublicUnitOfWork{
+			pool: pool, transactionLLMCredentials: transactionCredentialLookup,
+		},
+		BearerToken: cfg.PublicBearerToken,
+		RunNotifier: workflowScheduler, Logger: logger,
 		ProjectDeletionNotifier: projectDeletionController,
 		RunSkills:               &runSkillInitializer{pool: pool},
 	})
@@ -655,15 +668,24 @@ func NewHandler(publicAPI ...http.Handler) http.Handler {
 	return mux
 }
 
-type postgresPublicUnitOfWork struct{ pool *pgxpool.Pool }
+type postgresPublicUnitOfWork struct {
+	pool                      *pgxpool.Pool
+	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
+}
 
 func (u postgresPublicUnitOfWork) Do(
 	ctx context.Context,
 	fn func(publicapi.RunWriter, *artifacts.Service) error,
 ) error {
 	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+		txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+			tx, u.transactionLLMCredentials,
+		)
+		if err != nil {
+			return err
+		}
 		return fn(
-			runstore.NewPostgresStore(tx),
+			runstore.NewRunCreationPostgresStore(tx, txLookup),
 			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
 		)
 	})

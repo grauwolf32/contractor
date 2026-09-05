@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -1292,8 +1293,8 @@ func TestPostgresRunRuntimeLabelsPinExactBindingsAcrossConcurrentRebind(t *testi
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	txStore := NewPostgresStore(tx)
-	pinned, err := txStore.PinRuntimeLabels(ctx, []string{"debug"}, nil)
+	txStore := newRunCreationTestStore(t, tx, pinTestLLMCredentials{})
+	pinned, err := txStore.PinRuntimeLabels(ctx, []string{"debug"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1346,7 +1347,7 @@ WHERE run_id = 'run-runtime-label-old'`); persistencepostgres.SQLState(err) != "
 	if err != nil {
 		t.Fatal(err)
 	}
-	newPinned, err := NewPostgresStore(newTx).PinRuntimeLabels(ctx, []string{"debug"}, nil)
+	newPinned, err := newRunCreationTestStore(t, newTx, pinTestLLMCredentials{}).PinRuntimeLabels(ctx, []string{"debug"})
 	_ = newTx.Rollback(ctx)
 	if err != nil || newPinned.Default.Config != defaultB || newPinned.Labels[0].Config != debugB ||
 		newPinned.Default.BindingRevision != 3 || newPinned.Labels[0].BindingRevision != 2 {
@@ -1441,6 +1442,32 @@ func (pinTestRuntimeCredentials) ValidateRuntimeCredential(context.Context, stri
 
 func (pinTestRuntimeCredentials) WithCredentialReferences(_ context.Context, fn func() error) error {
 	return fn()
+}
+
+type pinTestLLMCredentials struct{}
+
+func (pinTestLLMCredentials) LookupLLMCredential(
+	context.Context, string,
+) (config.CredentialMetadata, error) {
+	return config.CredentialMetadata{}, errors.New("LLM credential unavailable")
+}
+
+func newRunCreationTestStore(
+	t *testing.T,
+	tx pgx.Tx,
+	lookup config.CredentialLookup,
+) *PostgresStore {
+	t.Helper()
+	bound, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+		tx,
+		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (config.CredentialLookup, error) { return lookup, nil },
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return NewRunCreationPostgresStore(tx, bound)
 }
 
 func createTestRun(t *testing.T, ctx context.Context, store *PostgresStore, runID string) WorkflowRun {

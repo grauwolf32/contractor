@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -21,7 +20,7 @@ var credentialRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,2
 // Repository is the durable boundary used by the public API and Scheduler.
 // PostgresStore implements it for both a pool and an explicit pgx transaction.
 type Repository interface {
-	PinRuntimeLabels(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
+	PinRuntimeLabels(context.Context, []string) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
 	CreateAuditRun(context.Context, CreateAuditRunParams) (WorkflowRun, error)
@@ -132,9 +131,12 @@ LIMIT $2`, credentialID, limit)
 }
 
 // PostgresStore never starts a transaction. Pass a pgx.Tx to NewPostgresStore
-// when multiple repository operations must share one atomic boundary.
+// when general repository operations must share one atomic boundary. Runtime
+// label pinning additionally requires NewRunCreationPostgresStore.
 type PostgresStore struct {
-	db persistencepostgres.DBTX
+	db                persistencepostgres.DBTX
+	runCreationTx     pgx.Tx
+	runLLMCredentials runtimeconfig.TransactionLLMCredentialLookup
 }
 
 var _ Repository = (*PostgresStore)(nil)
@@ -143,11 +145,24 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+// NewRunCreationPostgresStore is the only constructor which enables Runtime
+// label pinning. The concrete transaction-bound lookup prevents a global
+// pool-backed credential provider from being used inside the owning tx.
+func NewRunCreationPostgresStore(
+	tx pgx.Tx,
+	llmCredentials runtimeconfig.TransactionLLMCredentialLookup,
+) *PostgresStore {
+	return &PostgresStore{db: tx, runCreationTx: tx, runLLMCredentials: llmCredentials}
+}
+
 func (s *PostgresStore) PinRuntimeLabels(
-	ctx context.Context, labels []string, llmCredentials config.CredentialLookup,
+	ctx context.Context, labels []string,
 ) (runtimeconfig.RunSnapshot, error) {
+	if s == nil || s.runCreationTx == nil {
+		return runtimeconfig.RunSnapshot{}, errors.New("Runtime label pinning requires a Run-creation transaction store")
+	}
 	return runtimeconfig.PinRunSnapshot(
-		ctx, s.db, labels, runtimeCredentialValidator{s.db}, llmCredentials,
+		ctx, s.runCreationTx, labels, runtimeCredentialValidator{s.db}, s.runLLMCredentials,
 	)
 }
 

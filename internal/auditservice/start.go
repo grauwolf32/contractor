@@ -13,9 +13,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -103,20 +105,28 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-
-	workflowCredentialIDs, skillRefs, skillSets, err := s.validateProfileDependencies(ctx, profile)
+	txLLMCredentials, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+		tx, s.transactionLLMCredentials,
+	)
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	runs := runstore.NewPostgresStore(tx)
-	runtimeSnapshot, err := runs.PinRuntimeLabels(ctx, selection.RuntimeLabels, s.llmCredentials)
+
+	workflowCredentialIDs, skillRefs, skillSets, err := s.validateProfileDependencies(
+		ctx, profile, txLLMCredentials,
+	)
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	runs := runstore.NewRunCreationPostgresStore(tx, txLLMCredentials)
+	runtimeSnapshot, err := runs.PinRuntimeLabels(ctx, selection.RuntimeLabels)
 	if err != nil {
 		return StartedAudit{}, err
 	}
 	projectTarget := cloneProjectTarget(project.HTTPTarget)
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
-		if err := s.runtimeCredentials.ValidateRuntimeCredential(
+		if err := credentials.NewRuntimeCredentialRepository(tx).ValidateRuntimeCredential(
 			ctx, projectTarget.Credential.CredentialID, string(projectTarget.Credential.Kind),
 		); err != nil {
 			return StartedAudit{}, err
@@ -241,7 +251,9 @@ func (s *Service) startInTransaction(
 }
 
 func (s *Service) validateProfileDependencies(
-	ctx context.Context, profile config.ResolvedAuditProfile,
+	ctx context.Context,
+	profile config.ResolvedAuditProfile,
+	llmCredentials config.CredentialLookup,
 ) ([]string, []contracts.ArtifactRef, [][]string, error) {
 	credentialSets := make([][]string, 0, len(profile.Workflows))
 	skillsByName := make(map[string]contracts.ArtifactRef)
@@ -253,7 +265,7 @@ func (s *Service) validateProfileDependencies(
 	sort.Strings(roles)
 	for _, role := range roles {
 		workflow := profile.Workflows[role].Workflow
-		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, s.llmCredentials); err != nil {
+		if err := config.ValidateResolvedWorkflowCredentials(ctx, workflow, llmCredentials); err != nil {
 			return nil, nil, nil, err
 		}
 		ids, err := config.ResolvedWorkflowCredentialIDs(workflow)

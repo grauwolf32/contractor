@@ -70,7 +70,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 &fakeAuditManagement{},
 		Runs:                   runs, Artifacts: service,
-		Transactions: integrationUnitOfWork{pool: pool},
+		Transactions: integrationUnitOfWork{pool: pool, credentials: managedCredentials},
 		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,
 		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
@@ -293,11 +293,26 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	}
 }
 
-type integrationUnitOfWork struct{ pool *pgxpool.Pool }
+type integrationUnitOfWork struct {
+	pool        *pgxpool.Pool
+	credentials config.CredentialLookup
+}
 
 func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artifacts.Service) error) error {
 	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return fn(runstore.NewPostgresStore(tx), artifacts.NewService(artifacts.NewPostgresRepository(tx)))
+		lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+			tx,
+			runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+				func(pgx.Tx) (config.CredentialLookup, error) { return u.credentials, nil },
+			),
+		)
+		if err != nil {
+			return err
+		}
+		return fn(
+			runstore.NewRunCreationPostgresStore(tx, lookup),
+			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+		)
 	})
 }
 

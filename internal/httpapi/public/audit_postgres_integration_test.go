@@ -17,6 +17,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
@@ -33,11 +35,13 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
 		LLMGateway: gateway.Ref, Unrestricted: true,
 	}
-	runtimeCredentials := newFakeRuntimeCredentialManagement()
 	audits, err := auditservice.New(auditservice.Options{
-		Pool: pool, Profiles: configuration, LLMCredentials: managedCredentials,
-		CredentialGuard: managedCredentials, RuntimeCredentials: runtimeCredentials,
-		Now: func() time.Time { return time.Date(2026, 9, 5, 20, 0, 0, 0, time.UTC) },
+		Pool: pool, Profiles: configuration,
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (config.CredentialLookup, error) { return managedCredentials, nil },
+		),
+		CredentialGuard: managedCredentials,
+		Now:             func() time.Time { return time.Date(2026, 9, 5, 20, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
 		t.Fatal(err)

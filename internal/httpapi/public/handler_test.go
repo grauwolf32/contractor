@@ -1157,7 +1157,7 @@ func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T)
 	}
 	pinCalls := 0
 	fixture.runs.pinRuntimeLabels = func(
-		_ context.Context, labels []string, _ config.CredentialLookup,
+		_ context.Context, labels []string,
 	) (runtimeconfig.RunSnapshot, error) {
 		pinCalls++
 		if strings.Join(labels, ",") != "debug,trace" {
@@ -1190,7 +1190,7 @@ func TestCreateRunPinsCanonicalLabelsAndReplaySkipsCurrentBindings(t *testing.T)
 
 	// Simulate removal of both mutable bindings after the original commit.
 	fixture.runs.pinRuntimeLabels = func(
-		context.Context, []string, config.CredentialLookup,
+		context.Context, []string,
 	) (runtimeconfig.RunSnapshot, error) {
 		pinCalls++
 		return runtimeconfig.RunSnapshot{}, runtimeconfig.ErrNotFound

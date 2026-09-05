@@ -89,7 +89,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 				if catalogErr != nil {
 					return catalogErr
 				}
-				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels, s.llmCredentials)
+				runtimeSnapshot, pinErr := runs.PinRuntimeLabels(ctx, normalized.RuntimeLabels)
 				if pinErr != nil {
 					return pinErr
 				}

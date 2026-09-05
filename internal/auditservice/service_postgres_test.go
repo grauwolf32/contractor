@@ -16,8 +16,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -39,9 +41,12 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	guard := &countingCredentialGuard{}
 	service, err := New(Options{
-		Pool: pool, Profiles: profiles, LLMCredentials: credentials,
-		CredentialGuard: guard, RuntimeCredentials: acceptingRuntimeCredentials{},
-		Now: func() time.Time { return time.Date(2026, 9, 5, 18, 0, 0, 0, time.UTC) },
+		Pool: pool, Profiles: profiles,
+		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
+		),
+		CredentialGuard: guard,
+		Now:             func() time.Time { return time.Date(2026, 9, 5, 18, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -211,6 +216,96 @@ SELECT count(*)
 	}
 }
 
+func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+	profiles := loadAuditServiceProfiles(t)
+	gateway, err := profiles.LLMGateway("test-gateway@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	development, err := managedcredentials.NewStaticProvider([]managedcredentials.StaticEntry{{
+		Metadata: config.CredentialMetadata{
+			Ref:        contracts.LLMCredentialRef{CredentialID: "development-worker"},
+			LLMGateway: gateway.Ref, Unrestricted: true,
+		},
+		Token: contracts.NewSecretString("development-test-token"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transactionCredentials, err := managedcredentials.NewTransactionLookupFactory(development)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	limitedConfig := pool.Config()
+	limitedConfig.MaxConns = 2
+	limited, err := pgxpool.NewWithConfig(ctx, limitedConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer limited.Close()
+	service, err := New(Options{
+		Pool: limited, Profiles: profiles,
+		TransactionLLMCredentials: transactionCredentials,
+		CredentialGuard:           &countingCredentialGuard{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-saturated-audit", OwnerID: "owner-saturated-audit",
+		Kind: projectstore.KindProject, Name: "Saturated Audit",
+		IdempotencyKey: "project-saturated-audit", RequestDigest: serviceTestDigest("saturated-project"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checklist := writeChecklist(t, ctx, projectArtifacts, "saturated", "automatic")
+	draft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-saturated", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile:        ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:         map[string]contracts.ArtifactRef{"checklist": checklist.Ref},
+		Scope:          Scope{Objective: "Exercise transaction-bound credential validation"},
+		IdempotencyKey: "create-saturated-audit", RequestDigest: serviceTestDigest("saturated-create"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	listener, err := limited.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Release()
+	if _, err := listener.Exec(ctx, `LISTEN contractor_audit_transaction_test`); err != nil {
+		t.Fatal(err)
+	}
+	startCtx, startCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer startCancel()
+	started, err := service.Start(startCtx, StartParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision,
+		IdempotencyKey: "start-saturated-audit", RequestDigest: serviceTestDigest("saturated-start"),
+	})
+	if err != nil {
+		t.Fatalf("start Audit with one LISTEN connection and one transaction: %v", err)
+	}
+	if started.Audit.State != auditstore.AuditActive || len(started.Items) != 1 {
+		t.Fatalf("started saturated Audit = %+v", started)
+	}
+}
+
 type switchableProfileCatalog struct {
 	mu        sync.Mutex
 	snapshot  *config.Snapshot
@@ -287,12 +382,6 @@ func (g *countingCredentialGuard) callsCount() int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.calls
-}
-
-type acceptingRuntimeCredentials struct{}
-
-func (acceptingRuntimeCredentials) ValidateRuntimeCredential(context.Context, string, ...string) error {
-	return nil
 }
 
 func writeChecklist(

@@ -223,11 +223,25 @@ func newPlacementFixture(
 	if err != nil {
 		t.Fatal(err)
 	}
-	pinned, err := runtimeconfig.PinRunSnapshot(ctx, pool, runLabels, catalog, llmCredentials)
+	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := runstore.NewPostgresStore(pool)
+	defer func() { _ = tx.Rollback(ctx) }()
+	txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
+		tx,
+		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			func(pgx.Tx) (workflowconfig.CredentialLookup, error) { return llmCredentials, nil },
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := runtimeconfig.PinRunSnapshot(ctx, tx, runLabels, catalog, txLookup)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := runstore.NewPostgresStore(tx)
 	runID := "run-placement"
 	if _, err := store.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: runID, OwnerID: "user-placement", WorkflowName: workflow.Ref.Name,
@@ -241,6 +255,10 @@ func newPlacementFixture(
 	); err != nil {
 		t.Fatal(err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	store = runstore.NewPostgresStore(pool)
 	stageExecutionID := "stage-placement"
 	if _, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: stageExecutionID, RunID: runID, StageName: workflow.EntryStage, Attempt: 1,

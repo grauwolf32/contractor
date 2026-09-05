@@ -18,8 +18,8 @@ import (
 )
 
 func New(options Options) (*Service, error) {
-	if options.Pool == nil || options.Profiles == nil || options.LLMCredentials == nil ||
-		options.CredentialGuard == nil || options.RuntimeCredentials == nil {
+	if options.Pool == nil || options.Profiles == nil || options.TransactionLLMCredentials == nil ||
+		options.CredentialGuard == nil {
 		return nil, errors.New("Audit service dependencies are incomplete")
 	}
 	if options.Now == nil {
@@ -27,10 +27,9 @@ func New(options Options) (*Service, error) {
 	}
 	return &Service{
 		pool: options.Pool, profiles: options.Profiles,
-		llmCredentials:     options.LLMCredentials,
-		credentialGuard:    options.CredentialGuard,
-		runtimeCredentials: options.RuntimeCredentials,
-		now:                options.Now,
+		transactionLLMCredentials: options.TransactionLLMCredentials,
+		credentialGuard:           options.CredentialGuard,
+		now:                       options.Now,
 	}, nil
 }
 

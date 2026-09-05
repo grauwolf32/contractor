@@ -27,7 +27,7 @@ type RunReader interface {
 }
 
 type PublicRunWriter interface {
-	PinRuntimeLabels(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
+	PinRuntimeLabels(context.Context, []string) (runtimeconfig.RunSnapshot, error)
 	CreateRunIdempotent(context.Context, runstore.CreateRunIdempotentParams) (runstore.WorkflowRun, bool, error)
 	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
 	TransitionRun(context.Context, string, runstore.WorkflowRunState, runstore.WorkflowRunState, runstore.Reason) (runstore.WorkflowRun, error)
