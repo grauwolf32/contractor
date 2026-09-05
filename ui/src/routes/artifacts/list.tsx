@@ -17,6 +17,8 @@ import {
   formatTimestamp,
 } from "./common";
 
+const EXCLUDED_SKILL_NAMESPACE = "skills";
+
 export function ArtifactListRoute() {
   const api = usePublicAPI();
   const [namespaceDraft, setNamespaceDraft] = useState("");
@@ -29,10 +31,15 @@ export function ArtifactListRoute() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const cursor = cursors.at(-1);
   const query = useQuery({
-    queryKey: queryKeys.artifacts.list(namespace, cursor),
+    queryKey: queryKeys.artifacts.list(
+      namespace,
+      cursor,
+      EXCLUDED_SKILL_NAMESPACE,
+    ),
     queryFn: () =>
       listArtifacts(api, {
         ...(namespace === undefined ? {} : { namespace }),
+        excludeNamespace: EXCLUDED_SKILL_NAMESPACE,
         ...(cursor === undefined ? {} : { cursor }),
       }),
   });
@@ -80,6 +87,11 @@ export function ArtifactListRoute() {
           <small>{uploadOpen ? "Close form" : "Create a new binding"}</small>
         </summary>
         <ArtifactWriteForm
+          excludedNamespace={{
+            namespace: EXCLUDED_SKILL_NAMESPACE,
+            destination: "/skills",
+            label: "Skills",
+          }}
           onWritten={(result) => {
             setWritten(result);
             setCursors([undefined]);
@@ -104,6 +116,9 @@ export function ArtifactListRoute() {
           <div>
             <p className="eyebrow">UserScope</p>
             <h3>Current bindings</h3>
+            <small className="muted-copy">
+              Skill packages live in the <Link to="/skills">Skills</Link> tab.
+            </small>
           </div>
           <form className="inline-form" onSubmit={applyFilter}>
             <label>

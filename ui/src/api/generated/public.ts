@@ -3231,6 +3231,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 namespace?: components["schemas"]["ArtifactName"];
+                /** @description Omit one exact namespace before ordering and pagination. */
+                excludeNamespace?: components["schemas"]["ArtifactName"];
             };
             header?: never;
             path?: never;

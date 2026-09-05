@@ -214,6 +214,11 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 			return err
 		}
 	}
+	if query.ExcludeNamespace != nil {
+		if err := validateComponent(*query.ExcludeNamespace); err != nil {
+			return err
+		}
+	}
 	if (query.AfterNamespace == "") != (query.AfterName == "") {
 		return ErrInvalidName
 	}

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -76,6 +76,7 @@ describe("Artifact routes", () => {
           return jsonResponse(session);
         }
         if (url.pathname === "/v1/artifacts" && request.method === "GET") {
+          expect(url.searchParams.get("excludeNamespace")).toBe("skills");
           if (url.searchParams.get("cursor") === "cursor-next") {
             return jsonResponse({
               items: [
@@ -140,12 +141,14 @@ describe("Artifact routes", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByText("Create a new binding"));
-    await user.type(screen.getByLabelText("Name"), "source");
-    const fileInput = screen.getByLabelText(/Local file/);
-    await user.upload(
-      fileInput,
-      new File(["zip"], "source.zip", { type: "application/zip" }),
-    );
+    const file = new File(["zip"], "source.zip", {
+      type: "application/zip",
+    });
+    const dropTarget = screen.getByText("Drop a file here").parentElement;
+    expect(dropTarget).not.toBeNull();
+    fireEvent.drop(dropTarget!, { dataTransfer: { files: [file] } });
+    expect(screen.getByLabelText("Name")).toHaveValue("source");
+    expect(screen.getByLabelText("Media type")).toHaveValue("application/zip");
     await user.click(screen.getByRole("button", { name: "Create binding" }));
 
     await vi.waitFor(() => {
@@ -197,7 +200,7 @@ describe("Artifact routes", () => {
     await user.click(screen.getByText("Create a new binding"));
     await user.type(screen.getByLabelText("Name"), "source");
     await user.upload(
-      screen.getByLabelText(/Local file/),
+      screen.getByLabelText("Drop a file here"),
       new File(["next"], "source.txt", { type: "text/plain" }),
     );
     await user.click(screen.getByRole("button", { name: "Create binding" }));
@@ -211,6 +214,54 @@ describe("Artifact routes", () => {
     expect(requests.filter((request) => request.method === "PUT")).toHaveLength(
       1,
     );
+  });
+
+  it("keeps Skill packages on the dedicated Skills surface", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return jsonResponse(session);
+        }
+        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
+          expect(url.searchParams.get("excludeNamespace")).toBe("skills");
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected test request ${request.method} ${url}`);
+      }),
+    );
+    renderArtifactApplication(api, "/artifacts");
+    await screen.findByText("No Artifact bindings found.");
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Create a new binding"));
+    const uploadForm = screen
+      .getByRole("heading", { name: "Upload Artifact" })
+      .closest("form");
+    expect(uploadForm).not.toBeNull();
+    const namespace = within(uploadForm!).getByLabelText("Namespace");
+    await user.clear(namespace);
+    await user.type(namespace, "skills");
+    await user.upload(
+      within(uploadForm!).getByLabelText("Drop a file here"),
+      new File(["zip"], "reviewed-skill.zip", {
+        type: "application/vnd.contractor.agent-skill+zip",
+      }),
+    );
+    await user.click(
+      within(uploadForm!).getByRole("button", { name: "Create binding" }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByRole("link", { name: "Skills" })).toHaveAttribute(
+      "href",
+      "/skills",
+    );
+    expect(requests.some((request) => request.method === "PUT")).toBe(false);
   });
 
   it("renders exact history/lineage and escapes bounded preview text", async () => {

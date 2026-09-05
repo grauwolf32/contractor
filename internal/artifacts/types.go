@@ -88,10 +88,11 @@ type Metadata struct {
 }
 
 type BindingPageQuery struct {
-	Namespace      *string
-	AfterNamespace string
-	AfterName      string
-	Limit          int
+	Namespace        *string
+	ExcludeNamespace *string
+	AfterNamespace   string
+	AfterName        string
+	Limit            int
 }
 
 type VersionPageQuery struct {

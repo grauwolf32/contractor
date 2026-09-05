@@ -294,6 +294,39 @@ func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
 	}
 }
 
+func TestPostgresIntegrationListMetadataExcludesNamespaceBeforeLimit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	service := NewService(NewPostgresRepository(pool))
+	user, err := service.User("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range []ArtifactRef{
+		{Namespace: "docs", Name: "first"},
+		{Namespace: "skills", Name: "hidden"},
+		{Namespace: "zeta", Name: "last"},
+	} {
+		if _, err := user.Write(
+			ctx, ref, Payload{MediaType: "text/plain", Data: []byte(ref.Name)}, nil,
+		); err != nil {
+			t.Fatalf("write %s/%s: %v", ref.Namespace, ref.Name, err)
+		}
+	}
+	excluded := "skills"
+	items, err := user.ListMetadata(ctx, BindingPageQuery{
+		ExcludeNamespace: &excluded,
+		Limit:            2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 || items[0].Ref.Namespace != "docs" || items[1].Ref.Namespace != "zeta" {
+		t.Fatalf("excluded Artifact page = %+v", items)
+	}
+}
+
 func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

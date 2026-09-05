@@ -530,6 +530,59 @@ func TestArtifactQueriesPreserveExactHistoryLineageAndRunOwnership(t *testing.T)
 	}
 }
 
+func TestUserArtifactNamespaceExclusionPrecedesPagination(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, _ := fixture.artifacts.User("user-1")
+	for _, ref := range []contracts.ArtifactRef{
+		{Namespace: "docs", Name: "first"},
+		{Namespace: "skills", Name: "hidden"},
+		{Namespace: "zeta", Name: "last"},
+	} {
+		if _, err := user.Write(
+			t.Context(), ref,
+			artifacts.Payload{MediaType: "text/plain", Data: []byte(ref.Name)}, nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	first := serveQuery(t, fixture.handler, "/v1/artifacts?excludeNamespace=skills&limit=1")
+	var firstPage artifactPageResponse
+	decodeQueryResponse(t, first, &firstPage)
+	if first.Code != http.StatusOK || len(firstPage.Items) != 1 ||
+		firstPage.Items[0].Ref.Namespace != "docs" || !firstPage.Page.HasMore ||
+		firstPage.Page.NextCursor == nil {
+		t.Fatalf("first excluded page = %d, %+v", first.Code, firstPage)
+	}
+	second := serveQuery(
+		t, fixture.handler,
+		"/v1/artifacts?excludeNamespace=skills&limit=1&cursor="+
+			url.QueryEscape(*firstPage.Page.NextCursor),
+	)
+	var secondPage artifactPageResponse
+	decodeQueryResponse(t, second, &secondPage)
+	if second.Code != http.StatusOK || len(secondPage.Items) != 1 ||
+		secondPage.Items[0].Ref.Namespace != "zeta" || secondPage.Page.HasMore {
+		t.Fatalf("second excluded page = %d, %+v", second.Code, secondPage)
+	}
+
+	exactSkills := serveQuery(t, fixture.handler, "/v1/artifacts?namespace=skills")
+	var skillPage artifactPageResponse
+	decodeQueryResponse(t, exactSkills, &skillPage)
+	if exactSkills.Code != http.StatusOK || len(skillPage.Items) != 1 ||
+		skillPage.Items[0].Ref.Name != "hidden" {
+		t.Fatalf("exact Skill page = %d, %+v", exactSkills.Code, skillPage)
+	}
+
+	wrongFilterCursor := serveQuery(
+		t, fixture.handler,
+		"/v1/artifacts?limit=1&cursor="+url.QueryEscape(*firstPage.Page.NextCursor),
+	)
+	if wrongFilterCursor.Code != http.StatusBadRequest {
+		t.Fatalf("cursor without exclusion = %d: %s", wrongFilterCursor.Code, wrongFilterCursor.Body.String())
+	}
+}
+
 func TestQueryRoutesDoNotImplicitlyServeHEAD(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	for _, target := range []string{

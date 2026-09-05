@@ -18,7 +18,7 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "user-artifacts")
+	h.listArtifactBindings(w, r, store, "user-artifacts", true)
 }
 
 func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +66,7 @@ func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "run-artifacts:"+runID)
+	h.listArtifactBindings(w, r, store, "run-artifacts:"+runID, false)
 }
 
 func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
@@ -138,9 +138,17 @@ func (h *handler) ownedRunArtifactStore(r *http.Request) (artifacts.ScopedStore,
 }
 
 func (h *handler) listArtifactBindings(
-	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, cursorPrefix string,
+	w http.ResponseWriter,
+	r *http.Request,
+	store artifacts.ScopedStore,
+	cursorPrefix string,
+	allowNamespaceExclusion bool,
 ) {
-	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "namespace")
+	allowedQuery := []string{"namespace"}
+	if allowNamespaceExclusion {
+		allowedQuery = append(allowedQuery, "excludeNamespace")
+	}
+	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, allowedQuery...)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -158,12 +166,24 @@ func (h *handler) listArtifactBindings(
 	if namespace != nil {
 		cursorKind += ":" + *namespace
 	}
+	var excludeNamespace *string
+	if values, present := query["excludeNamespace"]; present {
+		value := values[0]
+		if err := validatePublicArtifactName(value); err != nil {
+			h.handleError(w, err)
+			return
+		}
+		excludeNamespace = &value
+		cursorKind += ":exclude:" + value
+	}
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	pageQuery := artifacts.BindingPageQuery{Namespace: namespace, Limit: limit + 1}
+	pageQuery := artifacts.BindingPageQuery{
+		Namespace: namespace, ExcludeNamespace: excludeNamespace, Limit: limit + 1,
+	}
 	if len(cursor) != 0 {
 		pageQuery.AfterNamespace, pageQuery.AfterName = cursor[0], cursor[1]
 	}

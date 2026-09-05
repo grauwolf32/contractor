@@ -73,9 +73,11 @@ JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($3::text IS NULL OR binding.namespace = $3)
-  AND ($4::text = '' OR (binding.namespace, binding.name) > ($4, $5))
+  AND ($4::text IS NULL OR binding.namespace <> $4)
+  AND ($5::text = '' OR (binding.namespace, binding.name) > ($5, $6))
 ORDER BY binding.namespace, binding.name
-LIMIT $6`, scope.kind, scope.id, query.Namespace, query.AfterNamespace, query.AfterName, query.Limit)
+LIMIT $7`, scope.kind, scope.id, query.Namespace, query.ExcludeNamespace,
+		query.AfterNamespace, query.AfterName, query.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list artifact metadata: %w", err)
 	}

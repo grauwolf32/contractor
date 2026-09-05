@@ -16,7 +16,7 @@ func (h *handler) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "project-artifacts:"+projectID)
+	h.listArtifactBindings(w, r, store, "project-artifacts:"+projectID, false)
 }
 
 func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {

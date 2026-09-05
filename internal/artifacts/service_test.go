@@ -120,6 +120,25 @@ func TestTrustedOperationsRequireExactRefs(t *testing.T) {
 	}
 }
 
+func TestBindingPageQueryValidatesExcludedNamespace(t *testing.T) {
+	t.Parallel()
+
+	valid := "skills"
+	if err := validateBindingPageQuery(BindingPageQuery{
+		ExcludeNamespace: &valid,
+		Limit:            10,
+	}); err != nil {
+		t.Fatalf("valid excluded namespace: %v", err)
+	}
+	invalid := "skills/packages"
+	if err := validateBindingPageQuery(BindingPageQuery{
+		ExcludeNamespace: &invalid,
+		Limit:            10,
+	}); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid excluded namespace error = %v, want %v", err, ErrInvalidName)
+	}
+}
+
 func TestProjectOutputPublicationRequiresMatchingExactRunOutput(t *testing.T) {
 	t.Parallel()
 

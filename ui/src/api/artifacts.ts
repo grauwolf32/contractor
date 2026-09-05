@@ -50,6 +50,7 @@ export type ExactArtifactRef = components["schemas"]["ExactArtifactRef"];
 
 export interface ArtifactPageRequest {
   namespace?: string;
+  excludeNamespace?: string;
   cursor?: string;
 }
 
@@ -173,6 +174,9 @@ export async function listArtifacts(
           ...(request.namespace === undefined
             ? {}
             : { namespace: request.namespace }),
+          ...(request.excludeNamespace === undefined
+            ? {}
+            : { excludeNamespace: request.excludeNamespace }),
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
         },
       },

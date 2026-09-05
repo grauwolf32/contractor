@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useId, useState } from "react";
+import { type DragEvent, type FormEvent, useId, useRef, useState } from "react";
+import { Link } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
@@ -12,6 +13,7 @@ import {
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
 import { queryKeys } from "../../api/query-keys";
+import { artifactFileStem, inferredArtifactMediaType } from "./artifact-file";
 
 export function formatBytes(size: number): string {
   if (size < 1024) {
@@ -26,6 +28,73 @@ export function formatBytes(size: number): string {
 export function formatTimestamp(value: string): string {
   const parsed = new Date(value);
   return Number.isNaN(parsed.valueOf()) ? value : parsed.toLocaleString();
+}
+
+export function ArtifactFileDrop({
+  file,
+  inputRevision,
+  onSelect,
+}: {
+  file: File | null;
+  inputRevision?: number;
+  onSelect: (file: File | undefined) => void;
+}) {
+  const copyId = useId();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  function receiveDrop(event: DragEvent<HTMLDivElement>): void {
+    event.preventDefault();
+    setDragging(false);
+    onSelect(event.dataTransfer.files[0]);
+  }
+
+  return (
+    <div
+      className={
+        dragging ? "artifact-file-drop is-dragging" : "artifact-file-drop"
+      }
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragOver={(event) => event.preventDefault()}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setDragging(false);
+        }
+      }}
+      onDrop={receiveDrop}
+    >
+      <input
+        key={inputRevision}
+        ref={fileInput}
+        className="visually-hidden"
+        name="file"
+        type="file"
+        aria-labelledby={copyId}
+        onChange={(event) => onSelect(event.target.files?.[0])}
+      />
+      <span className="artifact-file-drop-mark" aria-hidden="true">
+        ↑
+      </span>
+      <strong id={copyId}>
+        {file === null ? "Drop a file here" : file.name}
+      </strong>
+      <small>
+        {file === null
+          ? "or choose one local file, up to 16 MiB"
+          : `${formatBytes(file.size)} · ready to upload`}
+      </small>
+      <button
+        className="secondary-button"
+        type="button"
+        onClick={() => fileInput.current?.click()}
+      >
+        {file === null ? "Choose file" : "Choose another file"}
+      </button>
+    </div>
+  );
 }
 
 export function ErrorNotice({
@@ -109,12 +178,18 @@ export function ArtifactWriteForm({
   fixedIdentity,
   fixedNamespace,
   fixedMediaType,
+  excludedNamespace,
   expectedRevision,
   onWritten,
 }: {
   fixedIdentity?: { namespace: string; name: string };
   fixedNamespace?: string;
   fixedMediaType?: string;
+  excludedNamespace?: {
+    namespace: string;
+    destination: string;
+    label: string;
+  };
   expectedRevision?: string;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
@@ -130,6 +205,7 @@ export function ArtifactWriteForm({
   );
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [excludedNamespaceError, setExcludedNamespaceError] = useState(false);
   const [inputRevision, setInputRevision] = useState(0);
   const mutation = useMutation({
     mutationFn: (request: ArtifactWriteRequest) => writeArtifact(api, request),
@@ -154,24 +230,30 @@ export function ArtifactWriteForm({
   });
 
   function selectFile(selected: File | undefined): void {
-    setFile(selected ?? null);
-    if (
-      fixedMediaType === undefined &&
-      selected?.type !== undefined &&
-      selected.type !== "" &&
-      MEDIA_TYPE_PATTERN.test(selected.type)
-    ) {
-      setMediaType(selected.type);
+    const next = selected ?? null;
+    setFile(next);
+    mutation.reset();
+    setValidationError(null);
+    setExcludedNamespaceError(false);
+    if (next === null) {
+      return;
+    }
+    if (fixedIdentity === undefined && name.trim() === "") {
+      setName(artifactFileStem(next.name));
+    }
+    if (fixedMediaType === undefined) {
+      setMediaType(inferredArtifactMediaType(next, mediaType));
     }
   }
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setValidationError(null);
+    setExcludedNamespaceError(false);
     mutation.reset();
     const effectiveNamespace =
-      fixedIdentity?.namespace ?? fixedNamespace ?? namespace;
-    const effectiveName = fixedIdentity?.name ?? name;
+      fixedIdentity?.namespace ?? fixedNamespace ?? namespace.trim();
+    const effectiveName = fixedIdentity?.name ?? name.trim();
     const effectiveMediaType = fixedMediaType ?? mediaType;
     if (
       !ARTIFACT_NAME_PATTERN.test(effectiveNamespace) ||
@@ -180,6 +262,10 @@ export function ArtifactWriteForm({
       setValidationError(
         "Namespace and name must use 1–128 letters, digits, dot, dash, or underscore.",
       );
+      return;
+    }
+    if (effectiveNamespace === excludedNamespace?.namespace) {
+      setExcludedNamespaceError(true);
       return;
     }
     if (!MEDIA_TYPE_PATTERN.test(effectiveMediaType)) {
@@ -219,7 +305,12 @@ export function ArtifactWriteForm({
         </div>
         {update ? <code>If-Match: &quot;{expectedRevision}&quot;</code> : null}
       </div>
-      <div className="form-grid">
+      <ArtifactFileDrop
+        file={file}
+        inputRevision={inputRevision}
+        onSelect={selectFile}
+      />
+      <div className="form-grid artifact-fields">
         <label>
           Namespace
           <input
@@ -254,19 +345,19 @@ export function ArtifactWriteForm({
             onChange={(event) => setMediaType(event.target.value)}
           />
         </label>
-        <label>
-          Local file (maximum 16 MiB)
-          <input
-            key={inputRevision}
-            name="file"
-            type="file"
-            onChange={(event) => selectFile(event.target.files?.[0])}
-          />
-        </label>
       </div>
       {validationError === null ? null : (
         <p className="form-error" role="alert">
           {validationError}
+        </p>
+      )}
+      {!excludedNamespaceError || excludedNamespace === undefined ? null : (
+        <p className="form-error" role="alert">
+          The {excludedNamespace.namespace} namespace is managed in the{" "}
+          <Link to={excludedNamespace.destination}>
+            {excludedNamespace.label}
+          </Link>{" "}
+          tab.
         </p>
       )}
       {mutation.error === null ? null : (

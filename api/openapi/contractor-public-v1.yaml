@@ -810,6 +810,10 @@ paths:
         - name: namespace
           in: query
           schema: {$ref: '#/components/schemas/ArtifactName'}
+        - name: excludeNamespace
+          in: query
+          description: Omit one exact namespace before ordering and pagination.
+          schema: {$ref: '#/components/schemas/ArtifactName'}
       responses:
         '200':
           description: Stable Artifact page

@@ -248,7 +248,7 @@ describe("Evals and global Skills routes", () => {
     );
     await user.type(screen.getByLabelText("Name"), "new-skill");
     await user.upload(
-      screen.getByLabelText(/Local file/),
+      screen.getByLabelText("Drop a file here"),
       new File(["zip"], "new-skill.zip", { type: "application/zip" }),
     );
     await user.click(screen.getByRole("button", { name: "Create binding" }));

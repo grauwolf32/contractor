@@ -55,11 +55,16 @@ describe("Artifact API", () => {
       }),
     );
     await expect(
-      listArtifacts(api, { namespace: "projects", cursor: "cursor-1" }),
+      listArtifacts(api, {
+        namespace: "projects",
+        excludeNamespace: "skills",
+        cursor: "cursor-1",
+      }),
     ).resolves.toMatchObject({ items: [metadata] });
     const url = new URL(captured?.url ?? "http://invalid");
     expect(url.pathname).toBe("/v1/artifacts");
     expect(url.searchParams.get("namespace")).toBe("projects");
+    expect(url.searchParams.get("excludeNamespace")).toBe("skills");
     expect(url.searchParams.get("cursor")).toBe("cursor-1");
     expect(url.searchParams.get("limit")).toBe("50");
   });

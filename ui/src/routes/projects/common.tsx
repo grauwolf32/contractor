@@ -1,11 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  type DragEvent,
   type FormEvent,
   type ReactNode,
   useEffect,
   useId,
-  useRef,
   useState,
 } from "react";
 
@@ -21,7 +19,11 @@ import {
   type ProjectArtifactWriteRequest,
 } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
-import { ErrorNotice, formatBytes } from "../artifacts/common";
+import {
+  artifactFileStem,
+  inferredArtifactMediaType,
+} from "../artifacts/artifact-file";
+import { ArtifactFileDrop, ErrorNotice } from "../artifacts/common";
 import {
   PROJECT_ARTIFACT_SHORTCUTS,
   type ProjectArtifactShortcut,
@@ -113,44 +115,6 @@ export function ProjectArtifactShortcutGrid({
   );
 }
 
-function fileStem(filename: string): string {
-  const basename = filename.replace(/^.*[\\/]/, "");
-  const extension = basename.lastIndexOf(".");
-  const stem = extension > 0 ? basename.slice(0, extension) : basename;
-  const normalized = stem
-    .normalize("NFKD")
-    .replace(/[^A-Za-z0-9_.-]+/g, "-")
-    .replace(/^[^A-Za-z0-9]+/, "")
-    .slice(0, 128);
-  return normalized === "" ? "artifact" : normalized;
-}
-
-function inferredMediaType(file: File, fallback: string): string {
-  if (MEDIA_TYPE_PATTERN.test(file.type)) {
-    return file.type;
-  }
-  const lower = file.name.toLowerCase();
-  if (lower.endsWith(".yaml") || lower.endsWith(".yml")) {
-    return "application/yaml";
-  }
-  if (lower.endsWith(".json")) {
-    return "application/json";
-  }
-  if (lower.endsWith(".md")) {
-    return "text/markdown";
-  }
-  if (lower.endsWith(".diff") || lower.endsWith(".patch")) {
-    return "text/x-diff";
-  }
-  if (lower.endsWith(".c4") || lower.endsWith(".likec4")) {
-    return "text/vnd.likec4";
-  }
-  if (lower.endsWith(".zip")) {
-    return "application/zip";
-  }
-  return fallback;
-}
-
 export function ProjectArtifactWriteForm({
   projectId,
   suggested,
@@ -169,7 +133,6 @@ export function ProjectArtifactWriteForm({
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const formHeading = useId();
-  const fileInput = useRef<HTMLInputElement>(null);
   const [namespace, setNamespace] = useState(
     fixedIdentity?.namespace ?? suggested?.namespace ?? "artifacts",
   );
@@ -178,7 +141,6 @@ export function ProjectArtifactWriteForm({
     suggested?.mediaType ?? "application/octet-stream",
   );
   const [file, setFile] = useState<File | null>(null);
-  const [dragging, setDragging] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: (request: ProjectArtifactWriteRequest) =>
@@ -205,15 +167,9 @@ export function ProjectArtifactWriteForm({
       return;
     }
     if (fixedIdentity === undefined && name === "") {
-      setName(fileStem(next.name));
+      setName(artifactFileStem(next.name));
     }
-    setMediaType(inferredMediaType(next, mediaType));
-  }
-
-  function receiveDrop(event: DragEvent<HTMLDivElement>): void {
-    event.preventDefault();
-    setDragging(false);
-    selectFile(event.dataTransfer.files[0]);
+    setMediaType(inferredArtifactMediaType(next, mediaType));
   }
 
   function submit(event: FormEvent<HTMLFormElement>): void {
@@ -272,49 +228,7 @@ export function ProjectArtifactWriteForm({
         {update ? <code>If-Match: &quot;{expectedRevision}&quot;</code> : null}
       </div>
 
-      <div
-        className={`project-file-drop ${dragging ? "is-dragging" : ""}`}
-        onDragEnter={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragOver={(event) => event.preventDefault()}
-        onDragLeave={(event) => {
-          if (
-            !event.currentTarget.contains(event.relatedTarget as Node | null)
-          ) {
-            setDragging(false);
-          }
-        }}
-        onDrop={receiveDrop}
-      >
-        <input
-          ref={fileInput}
-          className="visually-hidden"
-          name="file"
-          type="file"
-          aria-labelledby={`${formHeading}-file-copy`}
-          onChange={(event) => selectFile(event.target.files?.[0])}
-        />
-        <span className="project-file-drop-mark" aria-hidden="true">
-          ↑
-        </span>
-        <strong id={`${formHeading}-file-copy`}>
-          {file === null ? "Drop a file here" : file.name}
-        </strong>
-        <small>
-          {file === null
-            ? "or choose one local file, up to 16 MiB"
-            : `${formatBytes(file.size)} · ready to upload`}
-        </small>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => fileInput.current?.click()}
-        >
-          {file === null ? "Choose file" : "Choose another file"}
-        </button>
-      </div>
+      <ArtifactFileDrop file={file} onSelect={selectFile} />
 
       <div className="form-grid project-artifact-fields">
         <label>

@@ -3814,7 +3814,7 @@ code {
   place-items: center;
 }
 
-.project-file-drop {
+.artifact-file-drop {
   display: grid;
   min-height: 11rem;
   align-content: center;
@@ -3830,12 +3830,12 @@ code {
     background-color 120ms ease;
 }
 
-.project-file-drop.is-dragging {
+.artifact-file-drop.is-dragging {
   border-color: var(--accent);
   background: var(--accent-dark);
 }
 
-.project-file-drop-mark {
+.artifact-file-drop-mark {
   display: grid;
   width: 2.5rem;
   height: 2.5rem;
@@ -3848,11 +3848,11 @@ code {
   place-items: center;
 }
 
-.project-file-drop small {
+.artifact-file-drop small {
   color: var(--muted);
 }
 
-.project-file-drop button {
+.artifact-file-drop button {
   margin-top: 0.6rem;
 }
 

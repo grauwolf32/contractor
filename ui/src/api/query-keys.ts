@@ -103,8 +103,18 @@ export const queryKeys = {
   artifacts: {
     all: ["artifacts"] as const,
     picker: ["artifacts", "picker"] as const,
-    list: (namespace: string | undefined, cursor: string | undefined) =>
-      ["artifacts", "list", namespace ?? null, cursor ?? null] as const,
+    list: (
+      namespace: string | undefined,
+      cursor: string | undefined,
+      excludeNamespace?: string,
+    ) =>
+      [
+        "artifacts",
+        "list",
+        namespace ?? null,
+        excludeNamespace ?? null,
+        cursor ?? null,
+      ] as const,
     metadata: (namespace: string, name: string, revision?: string) =>
       ["artifacts", "metadata", namespace, name, revision ?? null] as const,
     versions: (namespace: string, name: string, cursor?: string) =>

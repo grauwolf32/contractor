@@ -438,6 +438,7 @@ func (f *fakeArtifactRepository) ListMetadata(
 	for key, read := range f.current {
 		if key.kind != scope.Kind() || key.id != scope.ID() ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
+			query.ExcludeNamespace != nil && key.namespace == *query.ExcludeNamespace ||
 			query.AfterNamespace != "" && (key.namespace < query.AfterNamespace ||
 				key.namespace == query.AfterNamespace && key.name <= query.AfterName) {
 			continue
