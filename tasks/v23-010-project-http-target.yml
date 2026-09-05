@@ -3,8 +3,8 @@ id: V23-010
 title: Resolve Project HTTP target credentials only into AllocationSpec
 milestone: project-workspaces-operations
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: d4eee1b9786acdce1a52c8c10841d3eae9b9e1d8
 depends_on: [V23-003]
 languages: [go, sql, yaml, python, typescript]
 
@@ -35,7 +35,7 @@ scope:
     - Multiple named targets, OAuth browser flow, proxy-credential reuse or generic secret interpolation.
 
 requirements:
-  - {id: R1, text: Plaintext exists server-side only inside bounded credential-use callbacks after placement.}
+  - {id: R1, text: Decryption happens only inside bounded credential-use callbacks after placement; materialized settings remain ephemeral and are cleared after transport.}
   - {id: R2, text: Authorization is injected only for the configured exact origin and never on redirects to another origin.}
   - {id: R3, text: Runtime exposes no model tool or state field that reads the credential.}
 
@@ -58,4 +58,3 @@ tests:
   - {name: runtime, command: "cd runtime && uv run pytest -W error", covers: [A1, A2, A3]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
