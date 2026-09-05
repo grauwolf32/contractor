@@ -3,7 +3,8 @@ id: V24-004
 title: Hard-delete released terminal Runs and their complete RunScope
 milestone: workspace-lifecycle-controls
 priority: P1
-status: pending
+status: completed
+implementation_commit: caeff574dd0a954177511b5349b57205ee20ee60
 depends_on: [V6-002, V23-005, V24-002]
 languages: [go, sql, yaml, typescript]
 
@@ -56,4 +57,3 @@ tests:
   - {name: public, command: "go test ./internal/httpapi/public", covers: [A1, A3]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
