@@ -80,6 +80,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}",
 		"DELETE /v1/operations/runtime-credentials/{credentialId}",
 		"DELETE /v1/operations/runtime-labels/{label}",
+		"DELETE /v1/runs/{runId}",
 		"GET /v1/artifacts",
 		"GET /v1/artifacts/{namespace}/{name}",
 		"GET /v1/artifacts/{namespace}/{name}/lineage",
@@ -711,6 +712,10 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 	getOutput := newPublicContractRequest(http.MethodGet, "/v1/runs/run_fixed/outputs/result", nil)
 	if response := serveAndValidatePublicContract(t, router, fixture.handler, getOutput, true); response.Code != http.StatusOK {
 		t.Fatalf("download Run output = %d: %s", response.Code, response.Body.String())
+	}
+	deleteRun := newPublicContractRequest(http.MethodDelete, "/v1/runs/run_fixed", nil)
+	if response := serveAndValidatePublicContract(t, router, fixture.handler, deleteRun, true); response.Code != http.StatusNoContent {
+		t.Fatalf("delete Run = %d: %s", response.Code, response.Body.String())
 	}
 
 	badRequest := newPublicContractRequest(http.MethodGet, "/v1/runs/run_fixed?unexpected=true", nil)

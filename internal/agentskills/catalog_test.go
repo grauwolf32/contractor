@@ -378,7 +378,7 @@ func (r *memoryArtifactRepository) ForkInput(context.Context, artifacts.Scope, a
 func (r *memoryArtifactRepository) BindOutputExact(context.Context, artifacts.Scope, string, artifacts.ArtifactRef, *string) (artifacts.ForkResult, error) {
 	return artifacts.ForkResult{}, artifacts.ErrQueryUnsupported
 }
-func (r *memoryArtifactRepository) PinExact(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef, _ artifacts.PinKind, _ string) error {
+func (r *memoryArtifactRepository) PinExact(_ context.Context, _ string, scope artifacts.Scope, ref artifacts.ArtifactRef, _ artifacts.PinKind, _ string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if ref.Revision == nil {

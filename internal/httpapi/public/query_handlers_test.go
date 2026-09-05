@@ -139,13 +139,15 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	terminal := serveQuery(t, fixture.handler, "/v1/runs?lifecycle=terminal")
 	var terminalPage runPageResponse
 	decodeQueryResponse(t, terminal, &terminalPage)
-	if terminal.Code != http.StatusOK || len(terminalPage.Items) != 1 || terminalPage.Items[0].RunID != "run-old" {
+	if terminal.Code != http.StatusOK || len(terminalPage.Items) != 1 ||
+		terminalPage.Items[0].RunID != "run-old" || !terminalPage.Items[0].Deletable {
 		t.Fatalf("terminal Run page = status %d, %+v", terminal.Code, terminalPage)
 	}
 	active := serveQuery(t, fixture.handler, "/v1/runs?lifecycle=active")
 	var activePage runPageResponse
 	decodeQueryResponse(t, active, &activePage)
-	if active.Code != http.StatusOK || len(activePage.Items) != 1 || activePage.Items[0].RunID != "run-new" {
+	if active.Code != http.StatusOK || len(activePage.Items) != 1 ||
+		activePage.Items[0].RunID != "run-new" || activePage.Items[0].Deletable {
 		t.Fatalf("active Run page = status %d, %+v", active.Code, activePage)
 	}
 	intersection := serveQuery(t, fixture.handler, "/v1/runs?lifecycle=terminal&state=running")
@@ -477,7 +479,7 @@ func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) 
 	}
 	var result runStatusResponse
 	decodeQueryResponse(t, response, &result)
-	if result.Parameters["objective"] != "copy safely" || result.Inputs["source"].Revision == nil ||
+	if result.Deletable || result.Parameters["objective"] != "copy safely" || result.Inputs["source"].Revision == nil ||
 		result.EventCursor == nil || result.EventCursor.Sequence != "17" ||
 		result.ActiveStageExecutionID == nil || *result.ActiveStageExecutionID != "stage-detail" ||
 		len(result.Attempts) != 1 || result.Attempts[0].Objective != stage.Objective ||

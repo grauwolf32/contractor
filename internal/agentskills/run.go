@@ -141,7 +141,7 @@ func (c *Catalog) PinRunSources(
 			continue
 		}
 		if pinErr := c.service.PinExact(
-			ctx, scope, *skill.Source, artifacts.PinRunInput, runID+":skill:"+skill.Name,
+			ctx, runID, scope, *skill.Source, artifacts.PinRunInput, runID+":skill:"+skill.Name,
 		); pinErr != nil {
 			return runSkillError(CodeArtifactUnavailable, skill.Name, true)
 		}
@@ -222,7 +222,7 @@ func (c *Catalog) InitializeRun(
 		}
 		skill.Artifact = exactRefPointer(fork.TargetRef)
 		if pinErr := c.service.PinExact(
-			ctx, runScope, *skill.Artifact, artifacts.PinRunInput,
+			ctx, runID, runScope, *skill.Artifact, artifacts.PinRunInput,
 			runID+":skill-fork:"+skill.Name,
 		); pinErr != nil {
 			return nil, runSkillError(CodeForkFailed, skill.Name, true)

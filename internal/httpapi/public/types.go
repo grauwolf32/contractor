@@ -32,6 +32,7 @@ type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
 	ListRunQueue(context.Context, runstore.ListRunQueueParams) ([]runstore.WorkflowRunQueueItem, error)
 	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
 	UpdateOwnerQueueControl(context.Context, runstore.UpdateOwnerQueueControlParams) (runstore.OwnerQueueControl, error)
@@ -404,6 +405,7 @@ type runStatusResponse struct {
 	ProjectID              *string                           `json:"projectId,omitempty"`
 	Workflow               string                            `json:"workflow"`
 	State                  runstore.WorkflowRunState         `json:"state"`
+	Deletable              bool                              `json:"deletable"`
 	RuntimeLabels          []string                          `json:"runtimeLabels"`
 	Labels                 runstore.RunMetadataLabels        `json:"labels"`
 	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`
@@ -486,6 +488,7 @@ type runSummaryResponse struct {
 	ProjectID  *string                    `json:"projectId,omitempty"`
 	Workflow   string                     `json:"workflow"`
 	State      runstore.WorkflowRunState  `json:"state"`
+	Deletable  bool                       `json:"deletable"`
 	Labels     runstore.RunMetadataLabels `json:"labels"`
 	CreatedAt  time.Time                  `json:"createdAt"`
 	UpdatedAt  time.Time                  `json:"updatedAt"`
@@ -891,4 +894,9 @@ type runtimeLabelInUseDetailsResponse struct {
 type credentialInUseDetailsResponse struct {
 	Kind   string   `json:"kind"`
 	RunIDs []string `json:"runIds"`
+}
+
+type runNotDeletableDetailsResponse struct {
+	Kind   string                         `json:"kind"`
+	Reason runstore.RunNotDeletableReason `json:"reason"`
 }

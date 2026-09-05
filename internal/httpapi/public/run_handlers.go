@@ -122,7 +122,8 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 		items = append(items, runSummaryResponse{
 			RunID: run.RunID, ProjectID: run.ProjectID,
 			Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-			State:    run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			State:    run.State, Deletable: run.Deletable,
+			CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			Labels: run.MetadataLabels.Clone(), FinishedAt: run.FinishedAt,
 		})
 	}
@@ -551,6 +552,21 @@ func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
+		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
+		h.handleError(w, errInvalidRequest)
+		return
+	}
+	if err := h.dependencies.Runs.DeleteReleasedTerminalRun(
+		r.Context(), principalUserID(r.Context()), r.PathValue("runID"),
+	); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func validateRunInputs(workflow config.ResolvedWorkflow, request createRunRequest) error {
 	for name := range request.Parameters {
 		if _, ok := workflow.Parameters[name]; !ok {
@@ -659,6 +675,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	attempts := make([]stageAttemptResponse, 0, len(executions))
 	var activeExecutionID *string
+	deletable := runstore.RunLifecycleTerminal.Includes(run.State)
 	for _, execution := range executions {
 		var stage config.ResolvedStage
 		if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
@@ -708,6 +725,11 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			h.handleError(w, allocationErr)
 			return
 		}
+		for _, allocation := range allocations {
+			if allocation.ReleaseCompletedAt == nil {
+				deletable = false
+			}
+		}
 		runtimeConfiguration := stageRuntimeConfigurationReadModel(allocations)
 		if !terminalStageState(execution.State) {
 			value := execution.StageExecutionID
@@ -747,7 +769,8 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runStatusResponse{
 		RunID: run.RunID, ProjectID: run.ProjectID,
 		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
-		State:    run.State, RuntimeLabels: append([]string{}, run.RuntimeLabels...),
+		State:    run.State, Deletable: deletable,
+		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),
 		Labels:               run.MetadataLabels.Clone(),
 		RuntimeConfiguration: runtimeConfigReadModel(run.RuntimeConfig),
 		ProjectHTTPTarget:    cloneHTTPOriginTarget(run.ProjectHTTPTarget),

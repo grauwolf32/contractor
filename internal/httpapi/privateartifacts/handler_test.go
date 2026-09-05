@@ -812,7 +812,7 @@ func (*memoryRepository) BindOutputExact(context.Context, artifacts.Scope, strin
 	return artifacts.ForkResult{}, errors.New("not implemented")
 }
 
-func (*memoryRepository) PinExact(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.PinKind, string) error {
+func (*memoryRepository) PinExact(context.Context, string, artifacts.Scope, artifacts.ArtifactRef, artifacts.PinKind, string) error {
 	return errors.New("not implemented")
 }
 

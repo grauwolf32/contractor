@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useEffect, useId, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
@@ -10,6 +10,7 @@ import {
   type RunMetadataLabelSelector,
 } from "../../api/run-metadata-labels";
 import {
+  deleteRun,
   listRuns,
   TERMINAL_RUN_STATES,
   type WorkflowRunState,
@@ -22,6 +23,74 @@ import {
 import { RunMetadataLabelChips, StateBadge } from "./components";
 
 const EVAL_FILTER_KEYS = ["purpose", "eval.name", "eval.id", "eval.leg"];
+
+function DeleteRunDialog({
+  runId,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  runId: string;
+  pending: boolean;
+  error: Error | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const heading = useId();
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape" && !pending) {
+        onCancel();
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onCancel, pending]);
+
+  return (
+    <div className="project-dialog-backdrop" role="presentation">
+      <section
+        className="project-dialog run-delete-dialog panel"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={heading}
+      >
+        <div className="project-dialog-heading">
+          <div>
+            <p className="eyebrow">Permanent action</p>
+            <h2 id={heading}>Delete completed Run?</h2>
+          </div>
+        </div>
+        <p>
+          This permanently removes Run <code>{runId}</code>, its execution
+          history, and all Run-owned Artifacts. Shared source Artifacts and
+          published Project outputs are retained.
+        </p>
+        {error === null ? null : <ErrorNotice error={error} />}
+        <div className="run-delete-dialog-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            autoFocus
+            disabled={pending}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            disabled={pending}
+            onClick={onConfirm}
+          >
+            {pending ? "Deleting…" : "Delete Run"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 function compactRunId(runId: string): string {
   return runId.length <= 24
@@ -279,6 +348,7 @@ function RunLabelFilters({
 
 export function CompletedRunsPanel() {
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get("state");
   const state = TERMINAL_RUN_STATES.find(
@@ -287,6 +357,7 @@ export function CompletedRunsPanel() {
   const [cursors, setCursors] = useState<Array<string | undefined>>([
     undefined,
   ]);
+  const [deleteTarget, setDeleteTarget] = useState<string | undefined>();
   const cursor = cursors.at(-1);
   const encodedLabelSelectors = searchParams.getAll("label");
   const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors);
@@ -301,6 +372,16 @@ export function CompletedRunsPanel() {
         labelSelectors: decoded.selectors,
       }),
     enabled: decoded.error === undefined,
+  });
+  const deletion = useMutation({
+    mutationFn: (runId: string) => deleteRun(api, runId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.runs.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all }),
+      ]);
+      setDeleteTarget(undefined);
+    },
   });
 
   function replaceLabelSelectors(
@@ -391,6 +472,9 @@ export function CompletedRunsPanel() {
                 <th>Created</th>
                 <th>Updated</th>
                 <th>Finished</th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -440,6 +524,36 @@ export function CompletedRunsPanel() {
                       </time>
                     )}
                   </td>
+                  <td className="run-list-actions-cell" data-label="Actions">
+                    {run.deletable === true ? (
+                      <button
+                        className="run-delete-trigger"
+                        type="button"
+                        aria-label={`Delete Run ${run.runId}`}
+                        title="Delete completed Run"
+                        onClick={() => {
+                          deletion.reset();
+                          setDeleteTarget(run.runId);
+                        }}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          width="18"
+                          height="18"
+                        >
+                          <path
+                            d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -460,6 +574,18 @@ export function CompletedRunsPanel() {
         }
         onNext={(next) => setCursors((current) => [...current, next])}
       />
+      {deleteTarget === undefined ? null : (
+        <DeleteRunDialog
+          runId={deleteTarget}
+          pending={deletion.isPending}
+          error={deletion.error}
+          onCancel={() => {
+            deletion.reset();
+            setDeleteTarget(undefined);
+          }}
+          onConfirm={() => deletion.mutate(deleteTarget)}
+        />
+      )}
     </div>
   );
 }

@@ -333,7 +333,11 @@ export interface paths {
         get: operations["getRun"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Permanently delete one released terminal Run and its Run-owned data
+         * @description Only terminal Runs whose Runtime allocations are fully released are deletable. UserScope and ProjectScope source Artifacts and independently published ProjectScope outputs are retained.
+         */
+        delete: operations["deleteRun"];
         options?: never;
         head?: never;
         patch?: never;
@@ -994,12 +998,18 @@ export interface components {
             message: string;
             retryable: boolean;
             requestId: components["schemas"]["RequestId"];
-            details?: components["schemas"]["CredentialInUseDetails"] | components["schemas"]["RuntimeCredentialInUseDetails"] | components["schemas"]["RuntimeLabelInUseDetails"];
+            details?: components["schemas"]["CredentialInUseDetails"] | components["schemas"]["RuntimeCredentialInUseDetails"] | components["schemas"]["RuntimeLabelInUseDetails"] | components["schemas"]["RunNotDeletableDetails"];
         };
         CredentialInUseDetails: {
             /** @constant */
             kind: "credential_in_use";
             runIds: components["schemas"]["ResourceId"][];
+        };
+        RunNotDeletableDetails: {
+            /** @constant */
+            kind: "run_not_deletable";
+            /** @enum {unknown} */
+            reason: "run_not_terminal" | "allocation_release_pending";
         };
         RuntimeCredentialInUseDetails: {
             /** @constant */
@@ -1441,6 +1451,8 @@ export interface components {
             projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
+            /** @description True only while the Run is terminal and every Runtime allocation is released. */
+            deletable: boolean;
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
@@ -1474,6 +1486,8 @@ export interface components {
             projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
+            /** @description True only while the Run is terminal and every Runtime allocation is released. */
+            deletable: boolean;
             labels: components["schemas"]["RunMetadataLabels"];
             /** Format: date-time */
             createdAt: string;
@@ -3105,6 +3119,31 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    deleteRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
         };
     };

@@ -404,7 +404,7 @@ func (f *fakeArtifactRepository) BindOutputExact(
 	return artifacts.ForkResult{SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}, nil
 }
 
-func (*fakeArtifactRepository) PinExact(context.Context, artifacts.Scope, artifacts.ArtifactRef, artifacts.PinKind, string) error {
+func (*fakeArtifactRepository) PinExact(context.Context, string, artifacts.Scope, artifacts.ArtifactRef, artifacts.PinKind, string) error {
 	return nil
 }
 
@@ -709,7 +709,8 @@ func (f *fakeRunStore) ListRuns(
 			RunID: run.RunID, ProjectID: run.ProjectID,
 			WorkflowName: run.WorkflowName, WorkflowVersion: run.WorkflowVersion,
 			MetadataLabels: run.MetadataLabels.Clone(),
-			State:          run.State, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
+			State:          run.State, Deletable: f.runDeletable(run),
+			CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt,
 			FinishedAt: run.FinishedAt,
 		})
 	}
@@ -723,6 +724,58 @@ func (f *fakeRunStore) ListRuns(
 		result = result[:params.Limit]
 	}
 	return result, nil
+}
+
+func (f *fakeRunStore) runDeletable(run runstore.WorkflowRun) bool {
+	if !runstore.RunLifecycleTerminal.Includes(run.State) {
+		return false
+	}
+	for _, execution := range f.executions[run.RunID] {
+		for _, allocation := range f.allocations[execution.StageExecutionID] {
+			if allocation.ReleaseCompletedAt == nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (f *fakeRunStore) DeleteReleasedTerminalRun(
+	_ context.Context, ownerID string, runID string,
+) error {
+	run, ok := f.runs[runID]
+	if !ok || run.OwnerID != ownerID {
+		return runstore.ErrNotFound
+	}
+	if !runstore.RunLifecycleTerminal.Includes(run.State) {
+		return &runstore.RunNotDeletableError{
+			RunID: runID, Reason: runstore.RunNotTerminal,
+		}
+	}
+	for _, execution := range f.executions[runID] {
+		for _, allocation := range f.allocations[execution.StageExecutionID] {
+			if allocation.ReleaseCompletedAt == nil {
+				return &runstore.RunNotDeletableError{
+					RunID: runID, Reason: runstore.RunAllocationReleasePending,
+				}
+			}
+		}
+	}
+	for _, execution := range f.executions[runID] {
+		delete(f.allocations, execution.StageExecutionID)
+	}
+	delete(f.executions, runID)
+	delete(f.decisions, runID)
+	delete(f.eventCursors, runID)
+	delete(f.runEvents, runID)
+	delete(f.outputPublications, runID)
+	for key, claim := range f.idempotencyClaims {
+		if claim.runID == runID {
+			delete(f.idempotencyClaims, key)
+		}
+	}
+	delete(f.runs, runID)
+	return nil
 }
 
 func (f *fakeRunStore) ListRunQueue(

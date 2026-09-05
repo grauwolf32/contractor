@@ -97,10 +97,10 @@ WITH source_selection AS (
     RETURNING 1
 ), pinned AS (
     INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision
+        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
     )
     SELECT 'run_input', $6 || ':skill:' || $3,
-           $1, $2, 'skills', $3, source_selection.revision
+           $1, $2, 'skills', $3, source_selection.revision, $6
     FROM source_selection, lineage
     ON CONFLICT DO NOTHING
     RETURNING 1

@@ -123,6 +123,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/queue/control", current.getOwnerQueueControl)
 	mux.HandleFunc("PUT /v1/queue/control", current.putOwnerQueueControl)
 	mux.HandleFunc("POST /v1/runs/{runID}/cancel", current.cancelRun)
+	mux.HandleFunc("DELETE /v1/runs/{runID}", current.deleteRun)
 	mux.HandleFunc("GET /v1/runs/{runID}", current.getRun)
 	mux.HandleFunc("GET /v1/runs/{runID}/outputs/{slot}", current.getRunOutput)
 	mux.HandleFunc("GET /v1/runs/{runID}/artifacts", current.listRunArtifacts)

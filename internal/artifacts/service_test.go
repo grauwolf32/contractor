@@ -211,7 +211,7 @@ func (f *fakeRepository) PublishRunOutput(
 	return ForkResult{}, nil
 }
 
-func (f *fakeRepository) PinExact(context.Context, Scope, ArtifactRef, PinKind, string) error {
+func (f *fakeRepository) PinExact(context.Context, string, Scope, ArtifactRef, PinKind, string) error {
 	return nil
 }
 

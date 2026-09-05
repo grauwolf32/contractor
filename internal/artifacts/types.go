@@ -141,7 +141,7 @@ type Repository interface {
 	List(context.Context, Scope, *string) ([]ArtifactRef, error)
 	ForkInput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
 	BindOutputExact(context.Context, Scope, string, ArtifactRef, *string) (ForkResult, error)
-	PinExact(context.Context, Scope, ArtifactRef, PinKind, string) error
+	PinExact(context.Context, string, Scope, ArtifactRef, PinKind, string) error
 	FreezeOutputs(context.Context, Scope) error
 }
 

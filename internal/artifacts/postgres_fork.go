@@ -97,9 +97,9 @@ WITH source_selection AS (
     RETURNING 1
 ), pinned AS (
     INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision
+        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
     )
-    SELECT 'run_input', $7 || ':' || $8, $1, $2, $3, $4, source_selection.revision
+    SELECT 'run_input', $7 || ':' || $8, $1, $2, $3, $4, source_selection.revision, $7
     FROM source_selection, lineage
     ON CONFLICT DO NOTHING
     RETURNING 1
@@ -214,9 +214,9 @@ WITH source_selection AS (
     RETURNING 1
 ), pinned AS (
     INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision
+        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
     )
-    SELECT 'run_output', $2 || ':' || $6, $1, $2, $3, $4, $5
+    SELECT 'run_output', $2 || ':' || $6, $1, $2, $3, $4, $5, $2
     FROM lineage
     ON CONFLICT DO NOTHING
     RETURNING 1
@@ -255,11 +255,15 @@ SELECT
 
 func (r *PostgresRepository) PinExact(
 	ctx context.Context,
+	runID string,
 	scope Scope,
 	ref ArtifactRef,
 	kind PinKind,
 	pinID string,
 ) error {
+	if _, err := RunScope(runID); err != nil {
+		return err
+	}
 	if err := validateScope(scope); err != nil {
 		return err
 	}
@@ -272,28 +276,46 @@ func (r *PostgresRepository) PinExact(
 	if err := validateComponent(pinID); err != nil {
 		return ErrInvalidName
 	}
-	var sourceExists bool
+	var sourceExists, runExists, matched bool
 	err := r.db.QueryRow(ctx, `
 WITH source_selection AS (
     SELECT 1
     FROM artifact_binding_revisions
     WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4 AND revision = $5
+), run_selection AS (
+    SELECT 1 FROM workflow_runs WHERE run_id = $8
 ), inserted AS (
     INSERT INTO artifact_pins (
-        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision
+        pin_kind, pin_id, scope_kind, scope_id, namespace, name, revision, run_id
     )
-    SELECT $6, $7, $1, $2, $3, $4, $5 FROM source_selection
+    SELECT $6, $7, $1, $2, $3, $4, $5, $8
+    FROM source_selection, run_selection
     ON CONFLICT DO NOTHING
     RETURNING 1
+), existing AS (
+    SELECT 1
+    FROM artifact_pins
+    WHERE pin_kind = $6 AND pin_id = $7
+      AND scope_kind = $1 AND scope_id = $2
+      AND namespace = $3 AND name = $4 AND revision = $5
+      AND run_id = $8
 )
-SELECT EXISTS(SELECT 1 FROM source_selection)`,
-		scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision, kind, pinID,
-	).Scan(&sourceExists)
+SELECT EXISTS(SELECT 1 FROM source_selection),
+       EXISTS(SELECT 1 FROM run_selection),
+       EXISTS(SELECT 1 FROM inserted) OR EXISTS(SELECT 1 FROM existing)`,
+		scope.kind, scope.id, ref.Namespace, ref.Name, *ref.Revision, kind, pinID, runID,
+	).Scan(&sourceExists, &runExists, &matched)
 	if err != nil {
 		return fmt.Errorf("pin exact artifact: %w", err)
 	}
 	if !sourceExists {
 		return ErrArtifactNotFound
+	}
+	if !runExists {
+		return ErrInvalidScope
+	}
+	if !matched {
+		return ErrArtifactIntegrity
 	}
 	return nil
 }

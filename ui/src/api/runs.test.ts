@@ -4,6 +4,7 @@ import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
 import {
   cancelRun,
+  deleteRun,
   downloadRunArtifact,
   getRun,
   getRunArtifactLineage,
@@ -54,6 +55,7 @@ describe("Run API", () => {
             runId: "run-1",
             workflow: "workflow@1",
             state: "running",
+            deletable: false,
             runtimeLabels: [],
             labels: {},
             runtimeConfiguration: {
@@ -178,6 +180,29 @@ describe("Run API", () => {
     await expect(cancelRun(api, "run-1", "   ")).rejects.toThrow(
       "Cancellation reason",
     );
+  });
+
+  it("deletes a Run through the CSRF-protected bodyless endpoint", async () => {
+    let captured: Request | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        captured = input instanceof Request ? input : new Request(input);
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "X-Contractor-API-Version": "contractor.public.v1",
+          },
+        });
+      }),
+    );
+    api.csrf.replace("b".repeat(43));
+
+    await expect(deleteRun(api, "run-1")).resolves.toBeUndefined();
+    expect(captured?.method).toBe("DELETE");
+    expect(captured?.url).toBe("http://127.0.0.1:8080/v1/runs/run-1");
+    expect(captured?.headers.get("X-CSRF-Token")).toBe("b".repeat(43));
+    expect(await captured?.clone().text()).toBe("");
   });
 
   it("downloads one exact RunScope revision through the direct API boundary", async () => {

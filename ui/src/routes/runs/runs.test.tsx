@@ -82,6 +82,7 @@ function runFixture(overrides: RunOverrides = {}): RunStatus {
     runId: "run-router",
     workflow: "router-analysis@1",
     state: "running",
+    deletable: false,
     runtimeLabels: [],
     labels: {
       "eval.id": "eval-router-01",
@@ -239,6 +240,97 @@ beforeEach(() => {
 });
 
 describe("Run routes", () => {
+  it("offers confirmed deletion only for server-deletable completed Runs", async () => {
+    const deleteRequests: Request[] = [];
+    let deleted = false;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/runs" && request.method === "GET") {
+          return apiResponse({
+            items: [
+              ...(!deleted
+                ? [
+                    {
+                      runId: "run-delete",
+                      workflow: "router-analysis@1",
+                      state: "succeeded",
+                      deletable: true,
+                      labels: {},
+                      createdAt: "2026-08-31T12:00:00Z",
+                      updatedAt: "2026-08-31T12:01:00Z",
+                      finishedAt: "2026-08-31T12:01:00Z",
+                    },
+                  ]
+                : []),
+              {
+                runId: "run-release-pending",
+                workflow: "router-analysis@1",
+                state: "failed",
+                deletable: false,
+                labels: {},
+                createdAt: "2026-08-31T11:00:00Z",
+                updatedAt: "2026-08-31T11:01:00Z",
+                finishedAt: "2026-08-31T11:01:00Z",
+              },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        if (
+          url.pathname === "/v1/runs/run-delete" &&
+          request.method === "DELETE"
+        ) {
+          deleteRequests.push(request);
+          deleted = true;
+          return new Response(null, {
+            status: 204,
+            headers: {
+              "X-Contractor-API-Version": "contractor.public.v1",
+            },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderRunApplication(api, "/runs?view=completed");
+    const user = userEvent.setup();
+
+    const trigger = await screen.findByRole("button", {
+      name: "Delete Run run-delete",
+    });
+    expect(
+      screen.queryByRole("button", {
+        name: "Delete Run run-release-pending",
+      }),
+    ).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(
+      screen.getByRole("alertdialog", { name: "Delete completed Run?" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(deleteRequests).toHaveLength(0);
+
+    await user.click(trigger);
+    await user.click(screen.getByRole("button", { name: "Delete Run" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("link", { name: "run-delete" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(deleteRequests).toHaveLength(1);
+    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(
+      session.csrfToken,
+    );
+    expect(await deleteRequests[0]?.clone().text()).toBe("");
+  });
+
   it("filters and paginates authoritative Run history", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(

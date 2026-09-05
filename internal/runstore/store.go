@@ -29,6 +29,7 @@ type Repository interface {
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
 	ListRunQueue(context.Context, ListRunQueueParams) ([]WorkflowRunQueueItem, error)
 	GetOwnerQueueControl(context.Context, string) (OwnerQueueControl, error)
 	UpdateOwnerQueueControl(context.Context, UpdateOwnerQueueControlParams) (OwnerQueueControl, error)
@@ -440,7 +441,16 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 	}
 	rows, err := s.db.Query(ctx, `
 WITH page AS (
-    SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
+    SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at,
+           state IN ('succeeded', 'failed', 'cancelled')
+           AND NOT EXISTS (
+               SELECT 1
+               FROM stage_executions AS execution
+               JOIN stage_allocations AS allocation
+                 ON allocation.stage_execution_id = execution.stage_execution_id
+               WHERE execution.run_id = workflow_runs.run_id
+                 AND allocation.release_completed_at IS NULL
+           ) AS deletable
     FROM workflow_runs
     WHERE owner_id = $1
       AND ($2::text IS NULL OR state = $2)
@@ -466,7 +476,7 @@ WITH page AS (
     LIMIT $5
 )
 SELECT page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
-       page.created_at, page.updated_at, page.finished_at,
+       page.created_at, page.updated_at, page.finished_at, page.deletable,
        COALESCE(
            jsonb_object_agg(labels.label_key, labels.label_value ORDER BY labels.label_key)
                FILTER (WHERE labels.label_key IS NOT NULL),
@@ -475,7 +485,7 @@ SELECT page.run_id, page.project_id, page.workflow_name, page.workflow_version, 
 FROM page
 LEFT JOIN workflow_run_metadata_labels AS labels USING (run_id)
 GROUP BY page.run_id, page.project_id, page.workflow_name, page.workflow_version, page.state,
-         page.created_at, page.updated_at, page.finished_at
+         page.created_at, page.updated_at, page.finished_at, page.deletable
 ORDER BY page.created_at DESC, page.run_id DESC`,
 		params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit,
 		selectorKeys, selectorValues, params.ProjectID, lifecycle,
@@ -491,7 +501,7 @@ ORDER BY page.created_at DESC, page.run_id DESC`,
 		var encodedLabels []byte
 		if scanErr := rows.Scan(
 			&run.RunID, &run.ProjectID, &run.WorkflowName, &run.WorkflowVersion, &state,
-			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt, &encodedLabels,
+			&run.CreatedAt, &run.UpdatedAt, &run.FinishedAt, &run.Deletable, &encodedLabels,
 		); scanErr != nil {
 			return nil, fmt.Errorf("scan WorkflowRun summary page: %w", scanErr)
 		}

@@ -1398,6 +1398,82 @@ func TestCancelRunRejectsInvalidOrForeignRequests(t *testing.T) {
 	}
 }
 
+func TestDeleteRunRequiresOwnedReleasedTerminalRun(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	finished := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	fixture.runs.runs["run-delete"] = runstore.WorkflowRun{
+		RunID: "run-delete", OwnerID: "user-1", State: runstore.RunSucceeded, FinishedAt: &finished,
+	}
+	fixture.runs.runs["run-active"] = runstore.WorkflowRun{
+		RunID: "run-active", OwnerID: "user-1", State: runstore.RunRunning,
+	}
+	fixture.runs.runs["run-foreign"] = runstore.WorkflowRun{
+		RunID: "run-foreign", OwnerID: "user-2", State: runstore.RunFailed, FinishedAt: &finished,
+	}
+	fixture.runs.runs["run-release-pending"] = runstore.WorkflowRun{
+		RunID: "run-release-pending", OwnerID: "user-1", State: runstore.RunCancelled, FinishedAt: &finished,
+	}
+	fixture.runs.executions["run-release-pending"] = []runstore.StageExecution{{
+		StageExecutionID: "stage-release-pending", RunID: "run-release-pending",
+	}}
+	fixture.runs.allocations["stage-release-pending"] = []runstore.StageAllocation{{
+		AllocationID: "allocation-release-pending", StageExecutionID: "stage-release-pending",
+	}}
+
+	requestDeletion := func(target string, body []byte) *httptest.ResponseRecorder {
+		t.Helper()
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, authenticatedRequest(
+			http.MethodDelete, target, bytes.NewReader(body),
+		))
+		return response
+	}
+	deleted := requestDeletion("/v1/runs/run-delete", nil)
+	if deleted.Code != http.StatusNoContent || deleted.Body.Len() != 0 {
+		t.Fatalf("delete terminal Run = %d: %s", deleted.Code, deleted.Body.String())
+	}
+	if _, present := fixture.runs.runs["run-delete"]; present {
+		t.Fatal("deleted Run remains in store")
+	}
+
+	if response := requestDeletion("/v1/runs/run-delete", nil); response.Code != http.StatusNotFound {
+		t.Errorf("repeat deletion = %d, want 404: %s", response.Code, response.Body.String())
+	}
+	if response := requestDeletion("/v1/runs/run-foreign", nil); response.Code != http.StatusNotFound {
+		t.Errorf("foreign deletion = %d, want owner-safe 404: %s", response.Code, response.Body.String())
+	}
+	assertNotDeletable := func(runID string, reason runstore.RunNotDeletableReason) {
+		t.Helper()
+		response := requestDeletion("/v1/runs/"+runID, nil)
+		var problem struct {
+			Code    string `json:"code"`
+			Details struct {
+				Kind   string                         `json:"kind"`
+				Reason runstore.RunNotDeletableReason `json:"reason"`
+			} `json:"details"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil ||
+			response.Code != http.StatusConflict || problem.Code != "run_not_deletable" ||
+			problem.Details.Kind != "run_not_deletable" || problem.Details.Reason != reason {
+			t.Errorf("delete %s = status %d problem %+v error %v", runID, response.Code, problem, err)
+		}
+	}
+	assertNotDeletable("run-active", runstore.RunNotTerminal)
+	assertNotDeletable("run-release-pending", runstore.RunAllocationReleasePending)
+	if response := requestDeletion("/v1/runs/run-active?force=true", nil); response.Code != http.StatusBadRequest {
+		t.Errorf("deletion with query = %d, want 400: %s", response.Code, response.Body.String())
+	}
+	if response := requestDeletion("/v1/runs/run-active", []byte(`{}`)); response.Code != http.StatusBadRequest {
+		t.Errorf("deletion with body = %d, want 400: %s", response.Code, response.Body.String())
+	}
+	if _, present := fixture.runs.runs["run-active"]; !present {
+		t.Fatal("rejected deletion removed active Run")
+	}
+	if _, present := fixture.runs.runs["run-release-pending"]; !present {
+		t.Fatal("rejected deletion removed release-pending Run")
+	}
+}
+
 func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())

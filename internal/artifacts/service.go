@@ -392,11 +392,15 @@ func (s *Service) PublishRunOutput(
 
 func (s *Service) PinExact(
 	ctx context.Context,
+	runID string,
 	scope Scope,
 	ref ArtifactRef,
 	kind PinKind,
 	pinID string,
 ) error {
+	if _, err := RunScope(runID); err != nil {
+		return err
+	}
 	if err := validateScope(scope); err != nil {
 		return err
 	}
@@ -409,7 +413,7 @@ func (s *Service) PinExact(
 	if err := validateComponent(pinID); err != nil {
 		return err
 	}
-	return s.repository.PinExact(ctx, scope, ref, kind, pinID)
+	return s.repository.PinExact(ctx, runID, scope, ref, kind, pinID)
 }
 
 func (s *Service) FreezeRunOutputs(ctx context.Context, runID string) error {

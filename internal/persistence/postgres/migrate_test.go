@@ -248,6 +248,38 @@ func TestProjectOutputPublicationMigrationIsExactBoundedAndImmutable(t *testing.
 	}
 }
 
+func TestTerminalRunPurgeMigrationTracksPinOwnershipAndKeepsBypassScoped(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var purge migration
+	for _, item := range items {
+		if item.name == "000032_terminal_run_purge.sql" {
+			purge = item
+			break
+		}
+	}
+	if purge.name == "" {
+		t.Fatal("terminal Run purge migration is not embedded")
+	}
+	contents := string(purge.contents)
+	for _, required := range []string{
+		"ADD COLUMN run_id text",
+		"ALTER COLUMN run_id SET NOT NULL",
+		"REFERENCES workflow_runs(run_id) ON DELETE CASCADE",
+		"artifact_pins_run_idx",
+		"contractor.lifecycle_purge",
+		"IN ('run', 'project')",
+		"TG_OP = 'DELETE' AND contractor_lifecycle_purge_enabled()",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("terminal Run purge migration does not contain %q", required)
+		}
+	}
+}
+
 func TestWorkflowRunQueueMigrationAddsOnlyAPartialReadIndex(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

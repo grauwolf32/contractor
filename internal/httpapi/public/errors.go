@@ -19,6 +19,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var credentialInUse *credentials.CredentialInUseError
 	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
+	var runNotDeletable *runstore.RunNotDeletableError
 	switch {
 	case errors.Is(err, runstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
@@ -82,6 +83,14 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "configuration_conflict", "immutable configuration identity or idempotency key conflicts", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
 		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 16 MiB limit", false)
+	case errors.As(err, &runNotDeletable):
+		writeJSON(w, http.StatusConflict, errorResponse{
+			Code: "run_not_deletable", Message: "Run cannot be deleted yet",
+			Retryable: true, RequestID: requestid.FromResponse(w),
+			Details: &runNotDeletableDetailsResponse{
+				Kind: "run_not_deletable", Reason: runNotDeletable.Reason,
+			},
+		})
 	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen),
 		errors.Is(err, projectstore.ErrConflict),
 		errors.Is(err, runstore.ErrConflict):

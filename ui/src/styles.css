@@ -984,6 +984,28 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+.run-list-actions-cell {
+  width: 3.25rem;
+  text-align: right;
+}
+
+.run-delete-trigger {
+  display: inline-grid;
+  width: 2.35rem;
+  min-height: 2.35rem;
+  border: 1px solid #753f42;
+  background: #2a171b;
+  color: #ff9da4;
+  padding: 0;
+  place-items: center;
+}
+
+.run-delete-trigger:not(:disabled):hover {
+  border-color: #a85c61;
+  background: #3a1d22;
+  color: #ffc0c4;
+}
+
 .run-list-mobile-label {
   display: none;
 }
@@ -3916,6 +3938,28 @@ code {
   place-items: center;
 }
 
+.run-delete-dialog {
+  width: min(100%, 38rem);
+  border-color: #753f42;
+}
+
+.run-delete-dialog > p {
+  margin-bottom: 0;
+  color: var(--muted-strong);
+  line-height: 1.65;
+}
+
+.run-delete-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.25rem;
+}
+
+.run-delete-dialog .danger-button:not(:disabled):hover {
+  background: #d65b62;
+}
+
 .artifact-file-drop {
   display: grid;
   min-height: 11rem;
@@ -4731,6 +4775,13 @@ code {
     justify-self: end;
   }
 
+  .run-list-table .run-list-actions-cell {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+    justify-self: end;
+  }
+
   .run-list-table .run-list-workflow-cell,
   .run-list-table .run-list-updated-cell,
   .run-list-table .run-list-labels-cell,
@@ -4740,6 +4791,12 @@ code {
     grid-template-columns: 4.3rem minmax(0, 1fr);
     align-items: baseline;
     gap: 0.6rem;
+  }
+
+  .run-list-table:has(.run-list-actions-cell) .run-list-workflow-cell,
+  .run-list-table:has(.run-list-actions-cell) .run-list-updated-cell,
+  .run-list-table:has(.run-list-actions-cell) .run-list-labels-cell {
+    grid-column: 1;
   }
 
   .queue-table .queue-context-cell::before {

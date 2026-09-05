@@ -8,12 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	. "github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -129,10 +131,10 @@ WHERE (scope_kind, scope_id, namespace, name, revision) IN (
 	if err != nil || distinctVersions != 1 {
 		t.Fatalf("fork version reuse = (%d, %v), want one internal version", distinctVersions, err)
 	}
-	if err := service.PinExact(ctx, mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
+	if err := service.PinExact(ctx, "run-fork", mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
 		t.Fatalf("pin exact StageContext artifact: %v", err)
 	}
-	if err := service.PinExact(ctx, mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
+	if err := service.PinExact(ctx, "run-fork", mustRunScope(t, "run-fork"), runUpdate.Ref, PinStageContext, "stage-context-1"); err != nil {
 		t.Fatalf("repeat idempotent pin: %v", err)
 	}
 
@@ -394,6 +396,240 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 		ctx, "run-project-output", projectID, "openapi", bound.TargetRef,
 	); !errors.Is(err, ErrArtifactConflict) {
 		t.Fatalf("create-only publication replay error = %v", err)
+	}
+}
+
+func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	projectID := "project-run-delete"
+	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Run deletion", IdempotencyKey: "create-project-run-delete",
+		RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	runID := "run-delete-complete"
+	runParams := runstore.CreateRunIdempotentParams{
+		CreateRunParams: runstore.CreateRunParams{
+			RunID: runID, OwnerID: "user-1", ProjectID: &projectID,
+			WorkflowName: "artifact-copy", WorkflowVersion: "1",
+			WorkflowSchemaVersion: contracts.APIVersion,
+			WorkflowSnapshot:      json.RawMessage(`{"ref":{"name":"artifact-copy","version":"1"}}`),
+			RuntimeConfig:         runtimeconfig.BuiltInRunSnapshot(),
+		},
+		IdempotencyKey: "create-run-delete", RequestDigest: "sha256:" + strings.Repeat("b", 64),
+	}
+	runs := runstore.NewPostgresStore(pool)
+	if _, created, err := runs.CreateRunIdempotent(ctx, runParams); err != nil || !created {
+		t.Fatalf("create deletion Run = created:%t error:%v", created, err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+		runstore.Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	service := NewService(NewPostgresRepository(pool))
+	user, _ := service.User("user-1")
+	project, _ := service.Project(projectID)
+	run, _ := service.Run(runID)
+	userSource, err := user.Write(
+		ctx, ArtifactRef{Namespace: "sources", Name: "user-source"},
+		Payload{MediaType: "text/plain", Data: []byte("retained user source")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectSource, err := project.Write(
+		ctx, ArtifactRef{Namespace: "sources", Name: "project-source"},
+		Payload{MediaType: "text/plain", Data: []byte("retained project source")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ForkInput(ctx, "user-1", userSource.Ref, runID, "user-source"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ForkProjectInput(ctx, projectID, projectSource.Ref, runID, "project-source"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.PinExact(
+		ctx, runID, mustProjectScope(t, projectID), projectSource.Ref,
+		PinStageContext, "stage-run-delete:project-source",
+	); err != nil {
+		t.Fatal(err)
+	}
+	ephemeral, err := run.Write(
+		ctx, ArtifactRef{Namespace: "scratch", Name: "ephemeral"},
+		Payload{MediaType: "text/plain", Data: []byte("run-only bytes")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workerOutput, err := run.Write(
+		ctx, ArtifactRef{Namespace: "builder", Name: "result"},
+		Payload{MediaType: "text/plain", Data: []byte("retained published output")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := service.BindOutputExact(ctx, runID, "result", workerOutput.Ref, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.FreezeRunOutputs(ctx, runID); err != nil {
+		t.Fatal(err)
+	}
+	published, err := service.PublishRunOutput(ctx, runID, projectID, "result", bound.TargetRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, created, err := runs.RecordRunOutputPublication(ctx, runstore.RecordRunOutputPublicationParams{
+		RunID: runID, ProjectID: projectID, OutputName: "result",
+		Status: runstore.OutputPublicationPublished, Source: bound.TargetRef, Target: &published.TargetRef,
+	}); err != nil || !created {
+		t.Fatalf("record output publication = created:%t error:%v", created, err)
+	}
+
+	execution, err := runs.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: "stage-run-delete", RunID: runID, StageName: "copy", Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{}`),
+		StageContextSchemaVersion: contracts.APIVersion, StageContext: runstore.StageContextSnapshot{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO stage_allocations (
+    allocation_id, stage_execution_id, logical_agent_name, namespace,
+    agent_template_ref, worker_runtime_ref, runtime_agent_instance_id
+) VALUES ($1, $2, 'builder', 'builder', '{}'::jsonb, '{}'::jsonb, 'runtime-delete')`,
+		"allocation-run-delete", execution.StageExecutionID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO stage_execution_reports (
+    stage_execution_id, allocation_id, logical_agent_name, report_schema_version, report
+) VALUES ($1, $2, 'builder', $3, $4::jsonb)`,
+		execution.StageExecutionID, "allocation-run-delete", contracts.APIVersion,
+		`{"allocationId":"allocation-run-delete","startedAt":"2026-09-05T08:00:00Z","finishedAt":"2026-09-05T08:01:00Z","complete":true,"counters":{},"errors":[],"truncated":false}`,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
+		runstore.Reason{Code: "completed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal := runstore.RunLifecycleTerminal
+	page, err := runs.ListRuns(ctx, runstore.ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &terminal, Limit: 10,
+	})
+	if err != nil || len(page) != 1 || page[0].Deletable {
+		t.Fatalf("release-pending Run page = (%+v, %v)", page, err)
+	}
+	if err := runs.DeleteReleasedTerminalRun(ctx, "user-2", runID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("foreign deletion error = %v", err)
+	}
+	deleteErr := runs.DeleteReleasedTerminalRun(ctx, "user-1", runID)
+	var notDeletable *runstore.RunNotDeletableError
+	if !errors.As(deleteErr, &notDeletable) ||
+		notDeletable.Reason != runstore.RunAllocationReleasePending {
+		t.Fatalf("release-pending deletion error = %v", deleteErr)
+	}
+	if _, err := run.Read(ctx, ephemeral.Ref); err != nil {
+		t.Fatalf("rejected deletion mutated RunScope: %v", err)
+	}
+	if err := runs.MarkStageAllocationReleased(ctx, "allocation-run-delete"); err != nil {
+		t.Fatal(err)
+	}
+	page, err = runs.ListRuns(ctx, runstore.ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &terminal, Limit: 10,
+	})
+	if err != nil || len(page) != 1 || !page[0].Deletable {
+		t.Fatalf("released Run page = (%+v, %v)", page, err)
+	}
+
+	var ephemeralVersionID, ephemeralBlobDigest string
+	if err := pool.QueryRow(ctx, `
+SELECT revision.version_id, encode(version.blob_sha256, 'hex')
+FROM artifact_binding_revisions AS revision
+JOIN artifact_versions AS version USING (version_id)
+WHERE revision.scope_kind = 'run' AND revision.scope_id = $1
+  AND revision.namespace = 'scratch' AND revision.name = 'ephemeral'
+  AND revision.revision = $2`, runID, *ephemeral.Ref.Revision).Scan(
+		&ephemeralVersionID, &ephemeralBlobDigest,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
+		t.Fatalf("delete released terminal Run: %v", err)
+	}
+	if _, err := runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("deleted Run lookup error = %v", err)
+	}
+	for name, query := range map[string]string{
+		"Run scope": `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'run' AND scope_id = $1`,
+		"Run pins":  `SELECT count(*) FROM artifact_pins WHERE run_id = $1`,
+		"Run lineage": `SELECT count(*) FROM artifact_lineage
+            WHERE (source_scope_kind = 'run' AND source_scope_id = $1)
+               OR (target_scope_kind = 'run' AND target_scope_id = $1)`,
+		"Stage executions":     `SELECT count(*) FROM stage_executions WHERE run_id = $1`,
+		"Publication receipts": `SELECT count(*) FROM workflow_run_output_publications WHERE run_id = $1`,
+	} {
+		var count int
+		if err := pool.QueryRow(ctx, query, runID).Scan(&count); err != nil || count != 0 {
+			t.Errorf("%s after deletion = %d, error %v", name, count, err)
+		}
+	}
+	var reportCount int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM stage_execution_reports
+WHERE stage_execution_id = 'stage-run-delete'`).Scan(&reportCount); err != nil || reportCount != 0 {
+		t.Errorf("Execution reports after deletion = %d, error %v", reportCount, err)
+	}
+	var versionCount, blobCount int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM artifact_versions WHERE version_id = $1`, ephemeralVersionID,
+	).Scan(&versionCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM artifact_blobs WHERE sha256 = decode($1, 'hex')`, ephemeralBlobDigest,
+	).Scan(&blobCount); err != nil {
+		t.Fatal(err)
+	}
+	if versionCount != 0 || blobCount != 0 {
+		t.Fatalf("unreferenced physical Artifact retained: version=%d blob=%d", versionCount, blobCount)
+	}
+	for name, retained := range map[string]struct {
+		store ScopedStore
+		ref   ArtifactRef
+		body  string
+	}{
+		"User source":    {user, userSource.Ref, "retained user source"},
+		"Project source": {project, projectSource.Ref, "retained project source"},
+		"Project output": {project, published.TargetRef, "retained published output"},
+	} {
+		read, err := retained.store.Read(ctx, retained.ref)
+		if err != nil || string(read.Payload.Data) != retained.body {
+			t.Errorf("%s after Run deletion = (%q, %v)", name, read.Payload.Data, err)
+		}
+	}
+	lineage, err := project.ListLineage(ctx, published.TargetRef, LineagePageQuery{Limit: 10})
+	if err != nil || len(lineage) != 0 {
+		t.Fatalf("Project output retained Run lineage = (%+v, %v)", lineage, err)
+	}
+	if _, created, err := runs.CreateRunIdempotent(ctx, runParams); err != nil || !created {
+		t.Fatalf("reuse deleted Run identity = created:%t error:%v", created, err)
 	}
 }
 
@@ -821,6 +1057,15 @@ func isolatedArtifactPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 func mustRunScope(t *testing.T, runID string) Scope {
 	t.Helper()
 	scope, err := RunScope(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return scope
+}
+
+func mustProjectScope(t *testing.T, projectID string) Scope {
+	t.Helper()
+	scope, err := ProjectScope(projectID)
 	if err != nil {
 		t.Fatal(err)
 	}

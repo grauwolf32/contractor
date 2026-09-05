@@ -674,6 +674,26 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteRun
+      tags: [Runs]
+      summary: Permanently delete one released terminal Run and its Run-owned data
+      description: >-
+        Only terminal Runs whose Runtime allocations are fully released are
+        deletable. UserScope and ProjectScope source Artifacts and independently
+        published ProjectScope outputs are retained.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '204': {$ref: '#/components/responses/NoContent'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/runs/{runId}/cancel:
     parameters:
@@ -2140,6 +2160,7 @@ components:
             - {$ref: '#/components/schemas/CredentialInUseDetails'}
             - {$ref: '#/components/schemas/RuntimeCredentialInUseDetails'}
             - {$ref: '#/components/schemas/RuntimeLabelInUseDetails'}
+            - {$ref: '#/components/schemas/RunNotDeletableDetails'}
       example:
         code: invalid_request
         message: request does not satisfy the API contract
@@ -2155,6 +2176,13 @@ components:
           type: array
           maxItems: 128
           items: {$ref: '#/components/schemas/ResourceId'}
+    RunNotDeletableDetails:
+      type: object
+      additionalProperties: false
+      required: [kind, reason]
+      properties:
+        kind: {type: string, const: run_not_deletable}
+        reason: {enum: [run_not_terminal, allocation_release_pending]}
     RuntimeCredentialInUseDetails:
       type: object
       additionalProperties: false
@@ -2824,12 +2852,15 @@ components:
     RunStatus:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs, outputPublications]
+      required: [runId, workflow, state, deletable, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs, outputPublications]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
+        deletable:
+          type: boolean
+          description: True only while the Run is terminal and every Runtime allocation is released.
         runtimeLabels:
           type: array
           maxItems: 32
@@ -2864,12 +2895,15 @@ components:
     RunSummary:
       type: object
       additionalProperties: false
-      required: [runId, workflow, state, labels, createdAt, updatedAt]
+      required: [runId, workflow, state, deletable, labels, createdAt, updatedAt]
       properties:
         runId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
+        deletable:
+          type: boolean
+          description: True only while the Run is terminal and every Runtime allocation is released.
         labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}

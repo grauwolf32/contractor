@@ -57,6 +57,7 @@ func (p *PostgresPersistence) CreateStageWithContext(
 		for _, pin := range sorted {
 			if err := artifactService.PinExact(
 				ctx,
+				params.RunID,
 				scope,
 				pin.Ref,
 				artifacts.PinStageContext,
@@ -95,6 +96,7 @@ func (p *PostgresPersistence) EnterFinalizingWithResult(
 		for _, name := range names {
 			if err := artifactService.PinExact(
 				ctx,
+				execution.RunID,
 				scope,
 				params.Candidate.Artifacts[name],
 				artifacts.PinStageResult,
@@ -498,6 +500,7 @@ func commitNextStage(
 	for _, pin := range pins {
 		if err := artifactService.PinExact(
 			ctx,
+			progression.NextStage.Params.RunID,
 			scope,
 			pin.Ref,
 			artifacts.PinStageContext,

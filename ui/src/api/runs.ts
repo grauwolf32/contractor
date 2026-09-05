@@ -192,6 +192,7 @@ export async function getRun(
     ...(run.projectId === undefined ? {} : { projectId: run.projectId }),
     workflow: run.workflow,
     state: run.state,
+    deletable: run.deletable,
     runtimeLabels: [...run.runtimeLabels],
     labels: safeRunMetadataLabels(run.labels),
     runtimeConfiguration: safeRunRuntimeConfiguration(run.runtimeConfiguration),
@@ -255,6 +256,18 @@ export async function cancelRun(
     throw invalidRunResponse(result.response.status);
   }
   return response;
+}
+
+export async function deleteRun(api: PublicAPI, runId: string): Promise<void> {
+  requireRunID(runId);
+  const result = await api.request((client) =>
+    client.DELETE("/v1/runs/{runId}", {
+      params: { path: { runId } },
+    }),
+  );
+  if (result.response.status !== 204 || result.error !== undefined) {
+    throw publicAPIError(result.response.status, result.error);
+  }
 }
 
 export async function listRunArtifacts(

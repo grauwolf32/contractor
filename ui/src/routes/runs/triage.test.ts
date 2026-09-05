@@ -24,6 +24,7 @@ function runFixture(): RunStatus {
     runId: "run-triage",
     workflow: "review@1",
     state: "running",
+    deletable: false,
     runtimeLabels: [],
     labels: {},
     runtimeConfiguration: {
