@@ -3,7 +3,8 @@ id: V24-001
 title: Separate the global Artifact library from Skills and share file drop
 milestone: workspace-lifecycle-controls
 priority: P1
-status: pending
+status: completed
+implementation_commit: df550cb624bac16561fe2be65dc813611d1a0119
 depends_on: [V23-009]
 languages: [go, yaml, typescript, css]
 
@@ -55,4 +56,3 @@ tests:
   - {name: server, command: "go test ./internal/artifacts ./internal/httpapi/public", covers: [A1, A2]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A2, A3]}
   - {name: build, command: "cd ui && pnpm build", covers: [A1, A2, A3]}
-
