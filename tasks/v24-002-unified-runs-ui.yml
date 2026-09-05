@@ -3,7 +3,8 @@ id: V24-002
 title: Consolidate Queue and completed history into one Runs UI
 milestone: workspace-lifecycle-controls
 priority: P1
-status: pending
+status: completed
+implementation_commit: bc91c34473735b5d0c99d82b021c91293bb38863
 depends_on: [V23-008, V23-009]
 languages: [go, yaml, typescript, css]
 
@@ -53,4 +54,3 @@ tests:
   - {name: server, command: "go test ./internal/runstore ./internal/httpapi/public", covers: [A1, A2]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A3]}
   - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A3]}
-
