@@ -3,8 +3,8 @@ id: V25-009
 title: Add Project Audit creation, progress, coverage and report UI
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "1ed83c00831242a8caa579230a025dbda61bdf0c"
 depends_on: [V25-004, V25-007, V25-008, V25-008A]
 languages: [typescript, react]
 
