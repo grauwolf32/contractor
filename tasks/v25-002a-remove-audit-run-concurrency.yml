@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V25-002A
+title: Remove Audit-specific WorkflowRun concurrency policy
+milestone: audits-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V25-002]
+languages: [go, yaml]
+
+goal: >-
+  Keep Workflow Scheduler as the sole execution-concurrency authority by
+  removing maxActiveRuns from AuditProfile before durable Audit state and
+  public Audit APIs depend on it.
+
+context:
+  correction: >-
+    Audit child work always executes as ordinary WorkflowRuns. The prior
+    maxActiveRuns field counted submitted nonterminal child Runs, including
+    queued Runs, and therefore mixed producer backpressure with execution
+    policy under a misleading public name.
+  replacement: >-
+    V27 provides the global durable maxConcurrentRuns setting. V25-006 derives
+    a Server-owned per-Audit dispatch look-ahead from its current value, while
+    maxSubmittedRuns remains the pinned cumulative Audit work budget.
+
+scope:
+  in:
+    - Remove maxActiveRuns and its Server maximum from AuditProfile YAML, resolved Go types, canonical digest input, cloning and validation.
+    - Make strict AuditProfile decoding reject the removed field instead of retaining a compatibility alias or silent default.
+    - Update valid/invalid fixtures and digest tests so profiles without the field retain deterministic mapping-order-independent resolution.
+    - Keep maxSubmittedRuns as a finite cumulative child-Run-attempt budget and batchSize as the number of logical items in one Run.
+    - Leave no durable Audit migration or public schema containing the removed field.
+  out:
+    - Scheduler settings storage, concurrent Scheduler lanes, Audit Controller dispatch or public Operations UI/API.
+
+requirements:
+  - {id: R1, text: AuditProfile contains no field that controls or appears to control concurrent WorkflowRun execution.}
+  - {id: R2, text: Removal does not weaken item, attempt, deadline, evidence or total submitted-Run bounds.}
+  - {id: R3, text: No legacy alias is accepted because no released durable Audit/API contract depends on this pre-MVP field.}
+
+acceptance_criteria:
+  - id: A1
+    given: A valid AuditProfile without maxActiveRuns.
+    when: The configuration root resolves it repeatedly and with reordered YAML mappings.
+    then: Resolution succeeds with one stable digest and no concurrency field in the source or resolved value.
+  - id: A2
+    given: An AuditProfile that still supplies maxActiveRuns.
+    when: Strict configuration decoding runs.
+    then: Publication fails atomically with an unknown-field error.
+  - id: A3
+    given: Invalid total Run, attempt, item, deadline or evidence budgets.
+    when: The profile is validated after the correction.
+    then: Existing finite Server bounds still reject it.
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

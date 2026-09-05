@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V27-001
+title: Add durable global Workflow Scheduler settings
+milestone: workflow-scheduler-concurrency
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V24-003]
+languages: [go, sql]
+
+goal: >-
+  Add one PostgreSQL-authoritative singleton setting for the maximum number of
+  WorkflowRuns the supported Server Scheduler may actively progress.
+
+context:
+  compatibility: >-
+    Production Scheduler is currently serial. Seed maxConcurrentRuns to one so
+    migration and restart retain exactly that effective behavior until an
+    operator explicitly changes it.
+  boundary: >-
+    This is global deployment state, not Workflow, Run, RuntimeConfig, owner
+    Queue, Project or Audit configuration. The supported topology has one
+    active Server/Scheduler process.
+
+scope:
+  in:
+    - Add the next available forward-only migration with a dedicated typed scheduler_settings singleton, max_concurrent_runs, positive revision and monotonic updated_at; do not introduce a generic key/value or JSON settings bag.
+    - Seed max_concurrent_runs=1 and enforce the closed Server range 1..32 in PostgreSQL and Go validation.
+    - Add a narrow store with authoritative get and exact expected-revision update operations.
+    - Return the unchanged row without a revision/timestamp advance when the requested value already matches under the current revision.
+    - Add migration, validation, CAS-race and restart reads using production PostgreSQL paths.
+  out:
+    - Public HTTP routes, Operations invalidations, UI, Scheduler worker lanes or Audit dispatch.
+
+requirements:
+  - {id: R1, text: The singleton always has one authoritative positive revision and a value in 1..32; absence or corruption fails closed.}
+  - {id: R2, text: Two concurrent expected-revision changes cannot both commit different values.}
+  - {id: R3, text: Migration never changes serial behavior or overwrites an already migrated setting.}
+
+acceptance_criteria:
+  - id: A1
+    given: A database upgraded from the previous migration.
+    when: Scheduler settings are first read.
+    then: Exactly one row reports maxConcurrentRuns one and revision one.
+  - id: A2
+    given: Two writers holding the same current revision.
+    when: They attempt different valid replacements concurrently.
+    then: Exactly one commits and the other receives the store precondition error.
+  - id: A3
+    given: A committed value and a PostgreSQL/Server repository restart.
+    when: A new store reads the singleton.
+    then: It returns the same value, revision and UTC update timestamp.
+  - id: A4
+    given: Zero, a value above 32, an overflowing revision or a missing singleton.
+    when: Store validation executes.
+    then: It rejects the state without substituting a process-local default.
+
+tests:
+  - {name: unit, command: "go test ./internal/settingsstore", covers: [A2, A4]}
+  - {name: postgres, command: "go test -tags=integration ./internal/settingsstore ./internal/persistence/postgres", covers: [A1, A2, A3, A4]}

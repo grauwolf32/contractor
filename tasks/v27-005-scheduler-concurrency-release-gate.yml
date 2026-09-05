@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V27-005
+title: Prove Scheduler concurrency settings across production boundaries
+milestone: workflow-scheduler-concurrency
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V24-006, V27-004]
+languages: [go, sql, python, typescript, yaml]
+
+goal: >-
+  Make configurable WorkflowRun concurrency releasable against real
+  PostgreSQL, Server, two single-slot Runtime Agents and the independent UI.
+
+context:
+  matrix: >-
+    Prove default-one compatibility, dynamic 1-to-2-to-1 resizing, exact
+    Runtime placement, Queue Pause, cancellation, Project deletion, restart,
+    capability defer and Operations UI behavior through production paths.
+  interpretation: >-
+    The setting limits Scheduler execution lanes. It does not promise that N
+    Runs execute when compatible Runtime capacity is lower, and safety/release
+    maintenance may run outside semantic execution lanes.
+
+scope:
+  in:
+    - Add a declarative Scheduler-concurrency conformance/fault matrix bound to named tests.
+    - Add real-PostgreSQL race and restart coverage for setting CAS, lane claims, resize drain, cancellation and maintenance progress.
+    - Add a production-process scenario where two one-Worker Runs use two agents concurrently at limit two and a third waits.
+    - Prove one Stage requiring both agents consumes one Run lane while leaving no capacity for another Stage.
+    - Prove incompatible/capacity-deferred and paused Runs rotate without starving runnable work from another owner.
+    - Race resize with Run cancel, Project delete, lease loss, terminal release and Server shutdown; assert zero leaked claims, allocations and goroutines.
+    - Exercise Operations Settings save, validation, stale revision, reconnect invalidation and restart persistence in the browser.
+    - Update the demo/runbook and aggregate verification target; product migration default remains one even if the demo is explicitly set to two.
+  out:
+    - Load/performance certification, autoscaling, per-owner fairness guarantees, multi-Server distributed semaphores or Runtime multi-slot support.
+
+requirements:
+  - {id: R1, text: Every assertion uses production storage, Scheduler, Control Plane, mTLS Runtime and public API paths rather than a test-only executor.}
+  - {id: R2, text: Observed concurrency never exceeds the configured limit outside documented decrease drain; lower Runtime capacity is represented as waiting rather than failure or silent downgrade.}
+  - {id: R3, text: Existing standalone, Project, Eval, Queue and lifecycle semantics remain ordinary WorkflowRun behavior.}
+
+acceptance_criteria:
+  - id: A1
+    given: A fresh upgraded database and queued Runs.
+    when: Server starts before any settings mutation.
+    then: Exactly one Run execution lane is active and prior serial behavior is preserved.
+  - id: A2
+    given: Two compatible agents, three compatible one-Worker Runs and limit two.
+    when: Scheduler progresses the queue.
+    then: Two distinct Runs execute concurrently, the third waits and all three later complete without duplicate work.
+  - id: A3
+    given: Two active Runs at limit two.
+    when: An operator lowers the value to one while pause/cancel/delete/release events occur.
+    then: Existing work drains or follows its durable control path, no replacement exceeds one and cleanup converges.
+  - id: A4
+    given: A committed setting, lost process-local notifications and Server restart.
+    when: UI reconnects and new Runs arrive.
+    then: Scheduler and UI use the durable value and Operations resynchronization loses no authoritative change.
+
+tests:
+  - {name: process, command: "make test-scheduler-concurrency-e2e", covers: [A1, A2, A3, A4]}
+  - {name: race, command: "go test -race ./internal/scheduler ./internal/settingsstore ./internal/projectlifecycle", covers: [A2, A3]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

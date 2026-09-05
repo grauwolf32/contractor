@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V27-004
+title: Add Workflow scheduling to Operations Settings UI
+milestone: workflow-scheduler-concurrency
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V27-003]
+languages: [typescript, react]
+
+goal: >-
+  Give operators a clear, safe UI for changing the global WorkflowRun
+  concurrency limit without confusing it with Queue Pause or agent capacity.
+
+context:
+  placement: >-
+    Add Operations / Settings at /operations/settings. The first card is
+    Workflow scheduling; Runtime configuration remains per-Run execution
+    configuration and owner Queue Pause remains on Runs / Queue.
+  semantics: >-
+    The saved number is an upper bound on active Scheduler lanes, not the count
+    of durable running records or a promise that enough compatible Runtime
+    Agent slots exist. Do not synthesize a utilization gauge from allocations.
+
+scope:
+  in:
+    - Add Settings to Operations navigation and route a capability-protected /operations/settings page.
+    - Add a Workflow scheduling card with Maximum concurrent Workflow Runs numeric input, saved value, 1..32 validation, Save and reset actions.
+    - Use the GET resource ETag for PUT, disable duplicate submission and represent initial loading, refetch, dirty, pending, success and Server-error states.
+    - On 412, refetch the authoritative resource, preserve no silent overwrite and explain that another update won.
+    - Refetch the settings query on schedulerSettings Operations invalidation and after browser reconnect/resync.
+    - Explain that decreases drain active work, Queue Pause is owner-scoped, one Run may need multiple agents and actual concurrency can be lower.
+    - Add focused route/client/component tests and one browser mutation flow against the real API contract.
+  out:
+    - Current-lane telemetry, Runtime autoscaling, owner/project quotas, priority editing or arbitrary advanced settings forms.
+
+requirements:
+  - {id: R1, text: UI never sends an invalid or stale replacement knowingly and never claims that saving N immediately starts N Runs.}
+  - {id: R2, text: Settings is visible only through the existing Operations capability boundary.}
+  - {id: R3, text: Reload, reconnect and stale-write recovery always return to the authoritative Server value.}
+
+acceptance_criteria:
+  - id: A1
+    given: An authorized operator viewing the saved value one.
+    when: They enter two and save.
+    then: Pending feedback prevents duplicate submission and the card settles on the returned value/revision without a page reload.
+  - id: A2
+    given: Empty, fractional, zero, above-32 or otherwise invalid input.
+    when: The form is edited.
+    then: A precise inline error is shown and no request is issued.
+  - id: A3
+    given: Another client commits a setting change first.
+    when: The stale form submits or receives an Operations invalidation.
+    then: UI refetches, reports the conflict when applicable and does not overwrite the newer value.
+  - id: A4
+    given: API failure or browser reconnect.
+    when: The page remains open.
+    then: The operator can retry/refetch and the explanatory scheduling semantics remain visible.
+
+tests:
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2, A3, A4]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A3, A4]}

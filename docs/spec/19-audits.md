@@ -183,7 +183,6 @@ spec:
     batchSize: 1
     maxItemsPerRound: 100
     maxItemsTotal: 250
-    maxActiveRuns: 4
     maxSubmittedRuns: 500
     maxItemRunAttempts: 2
     deadlineSeconds: 86400
@@ -222,6 +221,12 @@ may accept a bounded batch size greater than one, but the MVP start capability
 requires exactly `batchSize: 1`. Model policies, execution budgets, Runtime
 labels, and credentials are selected by the pinned child execution
 configuration, not by finding content.
+
+AuditProfile has no WorkflowRun concurrency limit. `maxSubmittedRuns` is a
+cumulative budget over every child Run attempt, including retries and later
+rounds; it does not bound simultaneous execution. The global Scheduler setting
+in [20](20-scheduler-concurrency-control.md) is the sole execution-concurrency
+authority for Audit and non-Audit Runs alike.
 
 ### 4.2 Server capabilities and start compatibility
 
@@ -678,7 +683,7 @@ Terminal observation and item settlement are separate durable transitions:
    Exhausted, non-retryable, cancelled, or explicitly excluded items settle
    with their truthful final disposition.
 
-Item lifecycle is therefore `pending -> awaiting-review | ready -> submitted
+Item lifecycle is therefore `pending -> awaiting_review | ready -> submitted
 -> collecting -> ready | settled`. A bounded retry creates a new
 AuditExecution/AuditExecutionItem and preserves every earlier receipt. Only
 settled items participate in the round barrier. Zero items yields an explicit
@@ -686,16 +691,26 @@ empty-inventory reason; it never proves compliance.
 
 ## 11. Submission, queueing, and fairness
 
-Audit uses ordinary WorkflowRuns and the existing owner queue. `maxActiveRuns`
-counts submitted nonterminal child Runs, including those waiting for capacity.
-Controller never reserves Runtime slots or bypasses queue ordering.
+Audit uses ordinary WorkflowRuns and the existing owner queue. The global
+`maxConcurrentRuns` setting in [20](20-scheduler-concurrency-control.md) is the
+only execution limit; Controller never reserves Runtime slots, owns execution
+capacity, or bypasses queue ordering.
 
-Audit pause always blocks new child Run submissions. An optional generic
-Scheduler eligibility gate may also block admission of already-created Audit
-Runs; it must not contain Audit domain semantics. Active Stages drain normally,
-and terminal reconciliation, cancellation, and cleanup proceed through all
-pause states. Until that gate exists, UI wording is exactly “Pause new Audit
-Runs,” not “Pause execution.”
+Controller avoids eagerly filling the queue through an internal per-Audit
+dispatch look-ahead equal to the current global Scheduler value. The window
+counts reserved submission intents plus associated nonterminal child Runs and
+is enforced transactionally across Controller instances. It is Server-owned
+producer backpressure rather than AuditProfile policy, is not pinned at Audit
+start, and changes dynamically. Lowering the global value never cancels already
+submitted Runs; dispatch waits for the outstanding count to drain. The pinned
+`maxSubmittedRuns` budget separately limits total child Run attempts.
+
+Audit pause always blocks new child Run submissions. The generic owner Queue
+Pause gate may also block normal Stage admission of already-created Audit Runs;
+it contains no Audit domain semantics. Active Stages drain normally, and
+terminal reconciliation, cancellation, and cleanup proceed through all pause
+states. Audit-specific UI wording remains exactly “Pause new Audit Runs,” not
+“Pause execution.”
 
 Controller dispatches items by immutable ordinal through a bounded window and
 uses fair age/round-robin selection across Audits. It does not promise optimal
@@ -1042,8 +1057,9 @@ separate idempotent receipt contract and are not implied by artifact writes.
 15. Public Project Artifact mutations cannot alter Audit-managed results.
 16. Partial coverage, exclusions, manual items, and empty inventory are explicit;
     empty inventory never reports 100%.
-17. Concurrent dispatch cannot exceed finite item/proposal/Run limits and unknown
-    crashed consumption is not counted as zero.
+17. Concurrent dispatch cannot exceed the current derived outstanding-Run
+    window or finite item/proposal/total-Run budgets, and unknown crashed
+    consumption is not counted as zero.
 18. Specialist checks wait for compatible Runtime capability without downgrade
     and preserve coverage gaps on exhaustion.
 19. Catalog-visible but unsupported profiles cannot start; profile reads expose
@@ -1088,7 +1104,8 @@ publication.
   [12](12-code-analysis-tools.md), [13](13-taint-annotations.md),
   [14](14-worker-results-and-live-state.md),
   [17](17-projects-and-queue.md), and
-  [18](18-run-and-workspace-lifecycle-controls.md).
+  [18](18-run-and-workspace-lifecycle-controls.md), and
+  [20](20-scheduler-concurrency-control.md).
 - [OWASP Top 10:2025](https://owasp.org/Top10/2025/), verified 2026-09-05.
 - [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/)
   and its [official repository](https://github.com/OWASP/ASVS), including stable

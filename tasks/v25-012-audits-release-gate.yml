@@ -20,13 +20,14 @@ context:
   invariants: >-
     Workflow Scheduler remains the only Run/Stage authority; Audit association
     is durable rather than label-derived; exact evidence survives allowed Run
-    deletion; no pause blocks cleanup; reports never overstate coverage.
+    deletion; global Scheduler concurrency applies unchanged to Audit child
+    Runs; no pause blocks cleanup; reports never overstate coverage.
 
 scope:
   in:
     - Add a declarative Audit conformance/fault matrix bound to named tests.
     - Add real-PostgreSQL crash injection around start, submission, terminal observation, collection receipt, retry-or-settle, review, finalization and deletion.
-    - Add two-Controller and two-Runtime process scenarios with capacity waiting and no silent capability downgrade.
+    - Add two-Controller and two-Runtime process scenarios with the global Scheduler limit, derived Audit dispatch look-ahead, capacity waiting and no silent capability downgrade.
     - Add browser flows for create/start/progress/coverage/findings/review/report/cancel/delete.
     - Prove foreign-owner, stale-revision, package, write-fence, exact Skill pinning, secret-redaction and retained-content boundaries.
     - Reuse and verify the runnable demo configs/fixtures from V25-008A; update the runbook and aggregate verification target.

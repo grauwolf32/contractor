@@ -29,7 +29,7 @@ scope:
     - Group only items with identical pinned Workflow/configuration, baseline/workspace and permission/approval envelopes.
     - Build one immutable ordered execution manifest and require exactly one unique result per member on successful collection.
     - Preserve independent per-item attempt, disposition, evidence, proposal and coverage records across retry/exhaustion.
-    - Enforce maxActiveRuns, maxSubmittedRuns, item and package budgets under concurrent Controllers using Run and item counts separately.
+    - Enforce the current Scheduler-derived dispatch window plus maxSubmittedRuns, item and package budgets under concurrent Controllers using Run and item counts separately.
     - Add metrics comparing preparation/model cost and whole-batch retry amplification without claiming guaranteed savings.
   out:
     - Shared conversational context across checks, cross-permission grouping, dynamic batch mutation or durable partial item checkpoints inside a running Run.

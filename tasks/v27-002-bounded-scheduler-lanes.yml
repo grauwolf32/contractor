@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V27-002
+title: Progress WorkflowRuns through bounded concurrent Scheduler lanes
+milestone: workflow-scheduler-concurrency
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V27-001]
+languages: [go, sql]
+
+goal: >-
+  Replace the serial production Scheduler loop with a dynamically resizable
+  supervisor that safely progresses up to maxConcurrentRuns different Runs.
+
+context:
+  claim_boundary: >-
+    ClaimRunnableRun already uses PostgreSQL FOR UPDATE SKIP LOCKED and an exact
+    renewable claim, so lanes can select distinct Runs without weakening
+    durable ownership. RunOnce remains the single-claim execution primitive.
+  execution_scope: >-
+    The limit counts Scheduler lanes across different WorkflowRuns. One Run
+    still has at most one active StageExecution, and one Stage may require
+    several single-slot Runtime Agent processes while consuming one Run lane.
+
+scope:
+  in:
+    - Make Scheduler.Run supervise at most the durable maxConcurrentRuns lane count while preserving RunOnce as a deterministic compatibility wrapper for one maintenance tick and one claim in focused callers/tests.
+    - Load the setting before first admission, apply increases promptly and periodically reconcile the durable value after lost process-local wake hints.
+    - Drain decreases without cancelling active Run/Planner work and start no replacement attempt while lane count exceeds the new value.
+    - Preserve exact claim renewal/release, in-process cancellation by Run ID, cancelling priority and capacity-defer rotation across lanes.
+    - Extract claim/progression from RunOnce for production lanes and move terminal-release recovery and other single-owner maintenance into bounded dedicated loops where per-lane duplication would be unsafe.
+    - Audit and test every shared Planner factory, allocator, Artifact/credential service, cancellation registry, clock/ID source and production test double for concurrency safety.
+    - Keep owner Queue Pause isolated so a paused/capacity-deferred Run cannot indefinitely occupy every lane or block another owner.
+    - Shut down all lane, claim-renewal and maintenance goroutines without leaking claims or background work.
+  out:
+    - Public settings API/UI, per-owner quotas, queue position, multi-Server distributed capacity or concurrent Stages inside one Run.
+
+requirements:
+  - {id: R1, text: Outside decrease drain no more than the desired number of distinct Runs execute in lanes; during drain no new claim starts at or above the lower value, and no Run ever owns two lanes.}
+  - {id: R2, text: A lower setting drains; only durable cancellation, lease loss or Server shutdown may interrupt active work.}
+  - {id: R3, text: Cancellation, Project deletion, allocation-loss handling, terminal release and cleanup converge independently of normal admission capacity.}
+  - {id: R4, text: PostgreSQL remains the durable ownership authority and correctness never depends on an in-memory wake notification.}
+
+acceptance_criteria:
+  - id: A1
+    given: Three independently blocked runnable Runs and maxConcurrentRuns two.
+    when: The production Scheduler starts.
+    then: Exactly two distinct Runs enter their bounded execution calls and the third waits without duplicate claims.
+  - id: A2
+    given: Active values one, then two, then one.
+    when: The durable setting changes while Runs are waiting and executing.
+    then: The increase admits another Run promptly and the decrease lets current work finish before remaining at one lane.
+  - id: A3
+    given: Paused and capacity-incompatible Runs from one owner plus runnable work from another.
+    when: Multiple lanes repeatedly claim work.
+    then: Deferred work rotates and the runnable owner progresses without a hot loop or starvation caused by the paused owner.
+  - id: A4
+    given: Cancellation, allocation loss, Project deletion or Server shutdown during concurrent Planner/control calls.
+    when: Recovery and claim release complete.
+    then: Every Run converges through its existing durable lifecycle with no leaked lane, claim, allocation or goroutine.
+
+tests:
+  - {name: scheduler, command: "go test -race ./internal/scheduler", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "go test -tags=integration -race ./internal/scheduler ./internal/runstore", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A4]}

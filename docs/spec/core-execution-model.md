@@ -24,6 +24,8 @@ The current working agreement is split across the documents indexed in
 - [WorkflowRun metadata labels](16-run-metadata-labels.md).
 - [Projects, reusable artifacts and global Queue](17-projects-and-queue.md).
 - [Run and workspace lifecycle controls](18-run-and-workspace-lifecycle-controls.md).
+- [Project-bound multi-Run Audits](19-audits.md).
+- [Workflow Scheduler concurrency control](20-scheduler-concurrency-control.md).
 
 This file contains no additional requirements. It remains only so earlier links
 to the former monolithic working document lead to the focused specifications.

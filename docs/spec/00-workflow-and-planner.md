@@ -11,6 +11,10 @@ executes that graph and owns Stage lifecycle. Planner owns decisions inside one
 prepared Stage. Worker runtimes and their heavy dependencies remain outside
 Server, Scheduler and Planner packages.
 
+Across different Runs, the production Scheduler admits the bounded execution
+lanes defined by [20](20-scheduler-concurrency-control.md). This does not change
+the one-active-StageExecution-per-Run rule in this document.
+
 The execution model has no Server-side Task DAG in addition to the Workflow.
 Planner may keep a private plan, but the durable outer unit is a
 `StageExecution`: one attempt with at most one Planner invocation and exactly
@@ -992,9 +996,10 @@ policy explicitly selects failure, retry/escalation paths are exhausted, Run
 initialization fails, or the graph is quiescent without a valid successful
 terminal transition. Graph exhaustion with a missing required output is
 `failed`, not an indefinitely running Run. The first-slice Scheduler executes
-one StageExecution at a time, so a policy-selected failure is committed only
-after that execution is terminal; future parallel-Stage scheduling must add a
-bounded failure-drain state before allowing other active executions.
+one StageExecution at a time per WorkflowRun, so a policy-selected failure is
+committed only after that execution is terminal; future parallel-Stage
+scheduling inside one Run must add a bounded failure-drain state before
+allowing other active executions.
 
 `cancelling -> cancelled` occurs after all active StageExecutions are terminal
 and their Server-side routes and grants are released or durably fenced. An

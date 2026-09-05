@@ -32,6 +32,8 @@ blob backend remain replaceable deployment adapters.
 - [Workspace code-analysis tools](spec/12-code-analysis-tools.md)
 - [Projects, reusable artifacts and global Queue](spec/17-projects-and-queue.md)
 - [Run and workspace lifecycle controls](spec/18-run-and-workspace-lifecycle-controls.md)
+- [Project-bound multi-Run Audits](spec/19-audits.md)
+- [Workflow Scheduler concurrency control](spec/20-scheduler-concurrency-control.md)
 - [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
 ## Research drafts

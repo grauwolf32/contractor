@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V27-003
+title: Expose the Scheduler settings Operations API
+milestone: workflow-scheduler-concurrency
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V27-002]
+languages: [go, openapi, typescript]
+
+goal: >-
+  Let an authorized operator read and CAS-replace the effective global
+  maxConcurrentRuns resource through a conventional singleton REST API.
+
+context:
+  api_shape: >-
+    Use only GET and PUT /v1/operations/settings/scheduler. PUT replaces the
+    complete editable resource and requires one strong If-Match revision; no
+    action endpoint, Run identifier, force query flag, POST or DELETE exists.
+  propagation: >-
+    PostgreSQL is authoritative. After commit, the application wakes the local
+    Scheduler and Operations subscribers, while Scheduler periodic refresh and
+    restart recover if either process-local hint is lost.
+
+scope:
+  in:
+    - Add strict OpenAPI schemas and GET/PUT routes for /v1/operations/settings/scheduler.
+    - Return maxConcurrentRuns, decimal-string revision and updatedAt with Cache-Control no-store and a matching strong ETag.
+    - Require Operations capability, JSON media type, browser CSRF and exactly one strong decimal If-Match on PUT.
+    - Return 401 for unauthenticated access, 403 for missing Operations capability, 415 for unsupported PUT media type, 400 for malformed JSON/schema/header or out-of-range values, and 412 for a well-formed stale revision.
+    - Audit a committed numeric change and emit one typed Operations invalidation with resource schedulerSettings and no resource ID.
+    - Return an exact no-op replacement without revision advance, audit mutation or invalidation.
+    - Extend the Operations event schema/validation and regenerate the typed browser HTTP client.
+  out:
+    - Settings page, utilization telemetry, action endpoints, per-owner access or direct Runtime capacity changes.
+
+requirements:
+  - {id: R1, text: The public resource always represents the durable setting; response loss and stale UI state cannot overwrite a newer revision.}
+  - {id: R2, text: An API update changes only desired future Scheduler admission and never directly mutates Run, Stage or allocation state.}
+  - {id: R3, text: Operations invalidation is a refetch hint, not a second durable settings authority or audit log.}
+
+acceptance_criteria:
+  - id: A1
+    given: An Operations-authorized session and the current ETag.
+    when: It PUTs a valid new value.
+    then: The response, ETag, later GET and active Scheduler converge on one new revision/value and one safe audit/invalidation event.
+  - id: A2
+    given: A missing capability, CSRF failure, missing/malformed/stale If-Match, non-JSON body, unknown field or value outside 1..32.
+    when: PUT is attempted.
+    then: It fails through the bounded public error envelope with the specified 401, 403, 415, 400 or 412 status and leaves durable/effective settings unchanged.
+  - id: A3
+    given: A valid current revision and the already stored value.
+    when: PUT is replayed.
+    then: It returns 200 with the same revision and emits no false mutation or invalidation.
+  - id: A4
+    given: A committed response followed by immediate Server failure.
+    when: Server restarts.
+    then: GET and Scheduler load the committed value without relying on the lost in-memory notifications.
+
+tests:
+  - {name: public, command: "go test ./internal/httpapi/public ./internal/controlplane", covers: [A1, A2, A3]}
+  - {name: contract, command: "make generate && git diff --exit-code -- api/openapi ui/src/api/generated", covers: [A1, A2]}
+  - {name: postgres, command: "go test -tags=integration ./internal/httpapi/public ./internal/scheduler", covers: [A1, A4]}

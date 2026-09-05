@@ -52,6 +52,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [17](17-projects-and-queue.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
 | [18](18-run-and-workspace-lifecycle-controls.md) | Consolidated Runs UI, durable queue pause/resume and safe Run/Project deletion |
 | [19](19-audits.md) | Project-bound multi-Run Audits, deterministic inventories, findings, review, coverage and recovery |
+| [20](20-scheduler-concurrency-control.md) | Durable Operations-controlled concurrency across ordinary WorkflowRuns and Audit dispatch backpressure |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

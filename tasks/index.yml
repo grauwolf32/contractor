@@ -166,6 +166,12 @@ fixed_decisions:
       A periodic PostgreSQL Audit Controller owns immutable rounds, bounded
       child Run intents/imports and truthful coverage. Run metadata labels are
       display hints only; authoritative association is committed with the Run.
+    concurrency: >-
+      AuditProfile has no WorkflowRun concurrency field. Scheduler
+      maxConcurrentRuns is the sole execution limit for ordinary and Audit
+      child Runs; Controller derives a non-pinned per-Audit submission
+      look-ahead from the current global value while maxSubmittedRuns remains a
+      cumulative work budget.
     reporting: >-
       Technical Run outcome, observation, requirement/hypothesis assessment,
       finding triage and Audit completion remain distinct. Empty, partial or
@@ -173,6 +179,19 @@ fixed_decisions:
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
+  scheduler_concurrency:
+    authority: >-
+      One PostgreSQL singleton stores global maxConcurrentRuns in 1..32 with a
+      default of one and revision CAS. It is editable only through Operations
+      GET/PUT /v1/operations/settings/scheduler.
+    execution: >-
+      One supported Server process supervises at most that many concurrently
+      claimed WorkflowRuns. Each Run still has one active StageExecution and
+      Runtime placement may reduce actual utilization.
+    reconfiguration: >-
+      Increases wake new lanes; decreases drain without cancelling active work.
+      Owner Queue Pause, cancellation and safety/release maintenance retain
+      independent semantics.
   memory:
     scope: One Run plus one resolved Agent Namespace
     storage: One canonical memory.<name> RunScope artifact per logical note
@@ -470,6 +489,13 @@ milestones:
       terminal Runs can be safely hard-deleted, Projects can be durably
       cancelled and purged, and the general Artifact library excludes Skills
       while reusing the Project file-drop interaction.
+  - id: workflow-scheduler-concurrency
+    exit_task: V27-005
+    outcome: >-
+      Operations owns one durable global WorkflowRun concurrency limit;
+      Scheduler dynamically drains/resizes bounded lanes across every ordinary
+      Run source while Runtime capacity, owner Queue Pause and safety cleanup
+      retain their separate authority.
   - id: audits-mvp
     exit_task: V25-009
     outcome: >-
@@ -1716,6 +1742,70 @@ audits_planning_review:
       10 and ASVS packages/programs remain separate V26 deliverables because
       their mappings, licensing and evidence contracts need independent gates.
 
+scheduler_concurrency_planning_review:
+  reviewed_on: "2026-09-05"
+  verdict: ready_to_implement_in_dependency_order
+  inspected_baseline:
+    - >-
+      internal/scheduler Scheduler.Run currently invokes RunOnce serially;
+      RunOnce owns one renewable Run claim through the complete bounded
+      lifecycle attempt.
+    - >-
+      ClaimRunnableRun already uses PostgreSQL FOR UPDATE SKIP LOCKED,
+      cancellation-first ordering and updated-at rotation, while owner Queue
+      Pause serializes only normal Stage admission.
+    - >-
+      Each Runtime Agent process has one slot, but one Stage may reserve several
+      compatible agents. The supported deployment has one active Server;
+      multi-Server global coordination remains deferred.
+    - >-
+      Operations already provides capability/CSRF/CAS conventions and typed
+      process-local invalidations, but has no durable general settings resource
+      or Settings route.
+    - >-
+      Audit maxActiveRuns counted reserved/nonterminal child Runs rather than
+      runtime execution. Because Audit children are ordinary WorkflowRuns, that
+      public policy duplicated Scheduler concepts under a misleading name.
+  agreed_contract:
+    - >-
+      Global maxConcurrentRuns in 1..32 is the sole WorkflowRun execution limit
+      for standalone, Project, Evaluation and Audit sources. Default one
+      preserves current behavior.
+    - >-
+      GET/PUT /v1/operations/settings/scheduler is one strict singleton
+      resource with strong revision ETag, CSRF, Operations authorization,
+      no-store reads, audit logging and no action/query-force variants.
+    - >-
+      Scheduler limits concurrent Run claims/progression, not durable running
+      records. Dynamic increases wake lanes and decreases drain; no active Run
+      is cancelled solely by a setting change.
+    - >-
+      Queue Pause stays owner-scoped. Runtime slot compatibility may lower
+      actual concurrency, while cancellation/release/recovery maintenance is
+      never disabled by the semantic lane limit.
+    - >-
+      AuditProfile maxActiveRuns is removed before Audit persistence/API. The
+      Controller derives a per-Audit outstanding submission window from the
+      current global value and retains maxSubmittedRuns only as a cumulative
+      bounded-work budget.
+  dependency_review:
+    - >-
+      V25-002A corrects the already implemented AuditProfile catalog before
+      V25-003 persists snapshots or limits and before V25-006 dispatch exists.
+    - >-
+      V27-001 adds hidden durable settings first; V27-002 consumes them in the
+      production Scheduler; V27-003 then exposes an already effective API;
+      V27-004 adds UI and V27-005 joins all production boundaries.
+    - >-
+      V25-006 depends only on the effective V27-002 backend, not on Operations
+      API/UI, and remains responsible for transactional derived-window dispatch
+      across two Audit Controllers.
+  explicit_non_goals:
+    - Per-owner, Project, Workflow or Audit execution quotas and queue priority.
+    - Automatic limit changes from Runtime Agent count or multi-slot agents.
+    - Multiple active Server/Control Plane replicas or a distributed semaphore.
+    - Concurrent StageExecutions inside one WorkflowRun.
+
 audits_v25_001_implementation_review:
   reviewed_on: "2026-09-05"
   verdict: complete_after_contract_correction
@@ -1740,6 +1830,12 @@ audits_v25_001_implementation_review:
       No production profile is invented before compatible child Workflows
       exist; V25-004 owns compatibility/start gating and V25-008A owns runnable
       repository programs.
+  follow_up:
+    - >-
+      V25-002A removes the pre-MVP maxActiveRuns profile field after the later
+      Scheduler-capacity review established global maxConcurrentRuns as the
+      sole execution limit. This does not rewrite the historical implementation
+      commit recorded here.
   verification:
     - go test ./internal/config ./internal/app
     - go test ./...
@@ -1953,6 +2049,7 @@ tasks:
   - {id: V24-006, file: v24-006-lifecycle-controls-release-gate.yml}
   - {id: V25-001, file: v25-001-audit-profile-catalog.yml}
   - {id: V25-002, file: v25-002-audit-packages-and-inventory.yml}
+  - {id: V25-002A, file: v25-002a-remove-audit-run-concurrency.yml}
   - {id: V25-003, file: v25-003-audit-postgres-store.yml}
   - {id: V25-004, file: v25-004-audit-draft-start-api.yml}
   - {id: V25-005, file: v25-005-trusted-audit-run-service.yml}
@@ -1969,3 +2066,8 @@ tasks:
   - {id: V26-003, file: v26-003-asvs-audit-program.yml}
   - {id: V26-004, file: v26-004-batched-audit-executions.yml}
   - {id: V26-005, file: v26-005-audit-program-library-release-gate.yml}
+  - {id: V27-001, file: v27-001-scheduler-settings-store.yml}
+  - {id: V27-002, file: v27-002-bounded-scheduler-lanes.yml}
+  - {id: V27-003, file: v27-003-scheduler-settings-api.yml}
+  - {id: V27-004, file: v27-004-operations-settings-ui.yml}
+  - {id: V27-005, file: v27-005-scheduler-concurrency-release-gate.yml}

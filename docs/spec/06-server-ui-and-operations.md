@@ -36,6 +36,7 @@ Operations
   -> Allocations
   -> LLM configurations
   -> Credentials
+  -> Settings
 ```
 
 The UI remains domain-neutral. Project artifact tiles may provide familiar
@@ -203,6 +204,13 @@ The page is an observation surface. It cannot force a Runtime Agent to idle,
 reassign an allocation, mark a Stage successful or bypass bounded abort/release.
 Explicit administrative recovery operations, if later required, need separate
 idempotent Server commands and audit contracts.
+
+Operations also contains durable, explicitly editable deployment settings.
+The first such resource is the global Workflow Scheduler concurrency setting
+and its `/operations/settings` UI described by
+[20](20-scheduler-concurrency-control.md). Editing that bounded setting changes
+future Run admission only; it cannot manufacture Run state, force an
+allocation, or bypass Queue pause, cancellation, and cleanup contracts.
 
 The REST snapshot is mutex-consistent with the in-process Control Plane
 registry and carries a random process generation plus an unsigned decimal
@@ -750,10 +758,11 @@ authorization and does not replay older history. Server sends `subscribed`
 before replay, while `unsubscribed` is sent only after that subscription pump
 has stopped, so no later frame can reuse the acknowledged subscription ID.
 
-The `operations` stream reports Runtime Agent, allocation, configuration and
-credential changes, but its cursor is process-local and its notifications are
-not a new audit log. The Operations snapshot response includes its current
-generation and revision. A new subscription is established from that cursor;
+The `operations` stream reports Runtime Agent, allocation, configuration,
+credential and scheduler-settings changes, but its cursor is process-local and
+its notifications are not a new audit log. The Operations snapshot response
+includes its current generation and revision. A new subscription is established
+from that cursor;
 Server restart creates another generation, while a missed revision or an
 unavailable cursor produces `resync_required`. The UI then obtains another
 authenticated REST snapshot before continuing. Server retains only the latest
