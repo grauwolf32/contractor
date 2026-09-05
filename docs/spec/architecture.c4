@@ -27,6 +27,10 @@ specification {
 }
 
 global {
+  predicateGroup withoutContextOnly {
+    exclude * -> * where tag is #contextOnly
+  }
+
   styleGroup ownership {
     style element.tag = #contractor {
       color primary
@@ -66,8 +70,7 @@ model {
   }
 
   workerHttpProxy = system 'Worker HTTP Proxy — Caido or compatible instance' {
-    #external
-    #optional
+    #external #optional
   }
 
   configFilesystem = system 'Published config roots — YAML/text definitions + bundled Skill sources' {
@@ -89,7 +92,11 @@ model {
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
-    runState = storage 'Workflow snapshots / Runs / StageExecutions / semantic results / Run event journal' {
+    projectState = storage 'Projects / targets / lifecycle / deletion claims / create idempotency' {
+      #contractor
+    }
+
+    runState = storage 'Workflow snapshots / Runs / StageExecutions / Queue controls / results / events / create idempotency' {
       #contractor
     }
 
@@ -109,7 +116,7 @@ model {
       #contractor
     }
 
-    artifactVersions = storage 'Artifact versions / scoped logical bindings / CAS' {
+    artifactVersions = storage 'Artifact versions / UserScope, ProjectScope and RunScope bindings / CAS' {
       #contractor
     }
 
@@ -123,666 +130,2012 @@ model {
   }
 
   telemetryBackend = system 'Telemetry Backend — optional' {
-    #external
-    #optional
+    #external #optional
   }
 
   runtimeWorkspaceStorage = system 'Runtime workspace storage — disposable local root or isolated memory' {
-    #external
-    #optional
+    #external #optional
   }
 
   caidoService = system 'Caido — optional forward proxy and GraphQL control API' {
-    #external
-    #optional
+    #external #optional
   }
 
   server = system 'Contractor Server' {
     #contractor
 
-    publicApi = component 'Run API' {
+    productSurface = component 'Product Surface — authenticated Projects, Runs, Queue and Artifacts' {
       #contractor
+
+      publicApi = component 'Projects / Runs / Queue API' {
+        #contractor
+      }
+
+      userArtifactApi = component 'UserScope / ProjectScope Artifact API' {
+        #contractor
+      }
+
+      authApi = component 'Local Login / Session / CSRF API' {
+        #contractor
+      }
+
+      eventApi = component 'Read-only WebSocket Event API' {
+        #contractor
+      }
     }
 
-    userArtifactApi = component 'User Artifact API' {
+    identityConfiguration = component 'Identity and Configuration — immutable execution inputs and secret boundaries' {
       #contractor
+
+      authService = component 'In-memory Local Session + Principal Boundary' {
+        #contractor
+      }
+
+      executionConfigService = component 'Execution Profiles + Model/Gateway Config + Credential Boundary' {
+        #contractor
+      }
+
+      runtimeConfigService = component 'Default + Run/Agent Label Resolver / RuntimeAdapter Credential Boundary' {
+        #contractor
+      }
     }
 
-    operationsApi = component 'Operations / Configuration API' {
+    orchestration = component 'Workflow Orchestration — immutable snapshots, Stage planning and acceptance' {
       #contractor
+
+      workflowCatalog = component 'Workflow Catalog' {
+        #contractor
+      }
+
+      agentTemplateCatalog = component 'AgentTemplate Catalog — versioned behavior definitions' {
+        #contractor
+      }
+
+      skillCatalog = component 'Agent Skill Catalog — validate bundled sources; resolve/fork ordinary owner artifacts' {
+        #contractor
+      }
+
+      workflowScheduler = component 'Workflow Scheduler' {
+        #contractor
+      }
+
+      plannerFactories = component 'PlannerFactory Registry' {
+        #contractor
+      }
+
+      stagePlanner = component 'Stage-local Planner — Passthrough, Streamline or Router ADK' {
+        #contractor
+      }
+
+      plannerSessionService = component 'Database-backed Planner SessionService' {
+        #contractor
+      }
+
+      workerInvokerTools = component 'Validated Current-Subtask Adapter — direct A2A WorkerInvoker' {
+        #contractor
+      }
+
+      plannerStateTools = component 'Typed Planner State Projections — no raw keys' {
+        #contractor
+      }
+
+      plannerArtifactInspector = component 'Planner ArtifactInspector — exact RunScope validation' {
+        #contractor
+      }
+
+      plannerMemoryTools = component 'Planner MemoryTools — thin bound ArtifactStore wrapper / hidden CAS' {
+        #contractor
+      }
     }
 
-    authApi = component 'Local Login / Session / CSRF API' {
+    workspaceLifecycle = component 'Workspace Lifecycle — Projects, owner Queue gate and destructive cleanup' {
       #contractor
+
+      projectStore = component 'Project Store — metadata, target, lifecycle and deletion claims' {
+        #contractor
+      }
+
+      ownerQueueGate = component 'Owner Queue Gate — durable pause and serialized Stage admission' {
+        #contractor
+      }
+
+      projectDeletionController = component 'Project Deletion Controller — restart-safe cancel, drain and purge' {
+        #contractor
+      }
+
+      runStore = component 'Run / Stage Store — lifecycle, Queue projection and terminal Run purge' {
+        #contractor
+      }
     }
 
-    eventApi = component 'Read-only WebSocket Event API' {
+    artifactPlane = component 'Artifact Plane — scoped immutable history, controlled forks and lifecycle purge' {
       #contractor
+
+      artifactService = component 'ArtifactStore Service — UserScope / ProjectScope / RunScope' {
+        #contractor
+      }
+
+      artifactPurger = component 'Controlled Scope Purger — released RunScope / drained ProjectScope only' {
+        #contractor
+      }
+
+      artifactRegistry = component 'Artifact Registry Adapter' {
+        #contractor
+      }
+
+      blobStore = component 'ArtifactBlobStore Adapter' {
+        #contractor
+      }
     }
 
-    authService = component 'In-memory Local Session + Principal Boundary' {
+    runtimeOperations = component 'Runtime Fleet and Operations — placement, private control and telemetry' {
       #contractor
+
+      operationsApi = component 'Operations / Configuration API' {
+        #contractor
+      }
+
+      controlPlane = component 'Control Plane' {
+        #contractor
+      }
+
+      runtimeRegistry = component 'Runtime Agent Registry / Slot Allocator' {
+        #contractor
+      }
+
+      telemetry = component 'Execution Report Collector / optional exporters' {
+        #contractor
+      }
     }
 
-    executionConfigService = component 'Execution Profiles + Model/Gateway Config + Credential Boundary' {
-      #contractor
-    }
+    productSurface.publicApi -> identityConfiguration.authService 'Authenticate session and bind owner principal'
+    productSurface.userArtifactApi -> identityConfiguration.authService 'Authenticate session and bind owner scope'
+    productSurface.authApi -> identityConfiguration.authService 'Verify Argon2id login; issue/revoke session + CSRF'
+    productSurface.eventApi -> identityConfiguration.authService 'Authenticate socket/session/origin and authorize subscriptions'
+    runtimeOperations.operationsApi -> identityConfiguration.authService 'Authenticate session and bind audit actor'
 
-    runtimeConfigService = component 'Default + Run/Agent Label Resolver / RuntimeAdapter Credential Boundary' {
-      #contractor
-    }
+    productSurface.publicApi -> orchestration.workflowScheduler 'Create / cancel Runs and notify runnable work'
+    productSurface.publicApi -> workspaceLifecycle.projectStore 'Create / query / update Projects; begin deletion with If-Match'
+    productSurface.publicApi -> workspaceLifecycle.runStore 'Query/filter Runs and delete released terminal Runs'
+    productSurface.publicApi -> workspaceLifecycle.ownerQueueGate 'Read or CAS-update the owner pause state'
+    productSurface.publicApi -> identityConfiguration.runtimeConfigService 'Pin default + explicit Run-selected Runtime labels'
+    productSurface.userArtifactApi -> artifactPlane.artifactService 'Authenticated UserScope and ProjectScope history / upload / download'
+    productSurface.eventApi -> workspaceLifecycle.runStore 'Replay ordered committed Run lifecycle events'
+    productSurface.eventApi -> orchestration.plannerSessionService 'Stream only committed redacted Planner facts'
+    productSurface.eventApi -> runtimeOperations.runtimeRegistry 'Observe process-local Operations revisions; require resync on gaps'
 
-    workflowCatalog = component 'Workflow Catalog' {
-      #contractor
-    }
+    runtimeOperations.operationsApi -> runtimeOperations.runtimeRegistry 'Read authoritative/observed slot state'
+    runtimeOperations.operationsApi -> identityConfiguration.executionConfigService 'List/publish configs; create/delete managed credentials without raw tokens'
+    runtimeOperations.operationsApi -> identityConfiguration.runtimeConfigService 'Publish RuntimeConfigs; bind labels; assign Agent labels; write-only adapter credentials'
 
-    agentTemplateCatalog = component 'AgentTemplate Catalog — versioned behavior definitions' {
-      #contractor
-    }
+    orchestration.workflowScheduler -> orchestration.workflowCatalog 'Resolve Workflow and select ready StageSpec'
+    orchestration.workflowCatalog -> identityConfiguration.executionConfigService 'Resolve exact digest-bearing escalation profiles'
+    orchestration.workflowScheduler -> orchestration.agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
+    orchestration.workflowScheduler -> orchestration.skillCatalog 'Resolve owner refs once; validate and fork exact packages into RunScope'
+    orchestration.workflowScheduler -> identityConfiguration.executionConfigService 'Resolve immutable per-Run executionConfig'
+    orchestration.workflowScheduler -> workspaceLifecycle.projectStore 'Resolve optional Project snapshot and respect the deleting fence'
+    orchestration.workflowScheduler -> workspaceLifecycle.ownerQueueGate 'Serialize every normal Stage admission against durable pause'
+    orchestration.workflowScheduler -> workspaceLifecycle.runStore 'CAS Run lifecycle; persist attempts, candidates and terminal outcomes'
+    orchestration.workflowScheduler -> runtimeOperations.controlPlane 'Prepare / finalize / abort / release allocations'
+    orchestration.workflowScheduler -> orchestration.plannerFactories 'Select declared PlannerFactory'
+    orchestration.workflowScheduler -> artifactPlane.artifactService 'Fork exact User/Project inputs; bind Run outputs; publish declared Project outputs'
+    orchestration.workflowScheduler -> runtimeOperations.telemetry 'Assemble bounded StageMetrics while finalizing or aborting'
+    orchestration.plannerFactories -> orchestration.stagePlanner 'Construct Passthrough/one-Worker Streamline/logical multi-Worker Router'
+    orchestration.plannerFactories -> identityConfiguration.executionConfigService 'Resolve pinned Planner credential'
+    orchestration.stagePlanner -> orchestration.workerInvokerTools 'Dispatch exact current subtask sequentially; Router selects logical worker_name'
+    orchestration.stagePlanner -> orchestration.plannerStateTools 'Query only explicit projections for the newest correlated Worker completion'
+    orchestration.plannerStateTools -> runtimeOperations.controlPlane 'Read bounded live Worker State through logical prepared handles'
+    orchestration.stagePlanner -> orchestration.plannerArtifactInspector 'Validate exact input, intermediate and candidate refs'
+    orchestration.stagePlanner -> orchestration.plannerSessionService 'Durable request/completion, typed plan projection and redacted ADK facts'
+    orchestration.stagePlanner -> orchestration.plannerMemoryTools 'Stage-bound Streamline/Router MemoryTools; logical Worker view only'
+    orchestration.stagePlanner -> runtimeOperations.telemetry 'Planner ExecutionReport with Run metadata-label trace attributes'
+    orchestration.stagePlanner -> identityConfiguration.runtimeConfigService 'Use pinned default/Run-selected Runtime-label Planner telemetry settings'
+    orchestration.plannerArtifactInspector -> artifactPlane.artifactService 'Read exact metadata inside current RunScope'
+    orchestration.skillCatalog -> artifactPlane.artifactService 'Create missing owner skills/*; resolve current and fork exact revisions into RunScope'
+    orchestration.plannerMemoryTools -> artifactPlane.artifactService 'Reserved memory.* canonical note artifacts; hidden Artifact revisions'
 
-    skillCatalog = component 'Agent Skill Catalog — validate bundled sources; resolve/fork ordinary owner artifacts' {
-      #contractor
-    }
+    workspaceLifecycle.projectDeletionController -> workspaceLifecycle.projectStore 'Claim and durably advance one monotonic deletion phase'
+    workspaceLifecycle.projectDeletionController -> orchestration.workflowScheduler 'Request ordinary cancellation and wait for terminal allocation release'
+    workspaceLifecycle.projectDeletionController -> workspaceLifecycle.runStore 'Delete every released terminal Project Run idempotently'
+    workspaceLifecycle.projectDeletionController -> artifactPlane.artifactPurger 'Purge complete ProjectScope after all Project Runs are gone'
+    workspaceLifecycle.runStore -> artifactPlane.artifactPurger 'Purge complete RunScope inside the locked terminal delete'
 
-    workflowScheduler = component 'Workflow Scheduler' {
-      #contractor
-    }
+    runtimeOperations.controlPlane -> runtimeOperations.runtimeRegistry 'Track live instances / reserve free single slots'
+    runtimeOperations.controlPlane -> identityConfiguration.executionConfigService 'Resolve pinned Worker credentials for RuntimeSettings'
+    runtimeOperations.controlPlane -> identityConfiguration.runtimeConfigService 'Overlay pinned Run config with candidate Agent labels; resolve adapters + secrets'
+    runtimeOperations.controlPlane -> runtimeOperations.telemetry 'Bind allocation final reports and Run metadata labels to trusted execution identity'
 
-    plannerFactories = component 'PlannerFactory Registry' {
-      #contractor
-    }
-
-    stagePlanner = component 'Stage-local Planner — Passthrough, Streamline or Router ADK' {
-      #contractor
-    }
-
-    plannerSessionService = component 'Database-backed Planner SessionService' {
-      #contractor
-    }
-
-    workerInvokerTools = component 'Validated Current-Subtask Adapter — direct A2A WorkerInvoker' {
-      #contractor
-    }
-
-    plannerStateTools = component 'Typed Planner State Projections — no raw keys' {
-      #contractor
-    }
-
-    plannerArtifactInspector = component 'Planner ArtifactInspector — exact RunScope validation' {
-      #contractor
-    }
-
-    controlPlane = component 'Control Plane' {
-      #contractor
-    }
-
-    runtimeRegistry = component 'Runtime Agent Registry / Slot Allocator' {
-      #contractor
-    }
-
-    artifactService = component 'ArtifactStore Service — UserScope / RunScope' {
-      #contractor
-    }
-
-    plannerMemoryTools = component 'Planner MemoryTools — thin bound ArtifactStore wrapper / hidden CAS' {
-      #contractor
-    }
-
-    artifactRegistry = component 'Artifact Registry Adapter' {
-      #contractor
-    }
-
-    blobStore = component 'ArtifactBlobStore Adapter' {
-      #contractor
-    }
-
-    runStore = component 'WorkflowRun / StageExecution Store' {
-      #contractor
-    }
-
-    telemetry = component 'Execution Report Collector / optional exporters' {
-      #contractor
-    }
-
-    publicApi -> workflowScheduler 'Start / query / cancel Workflow Run'
-    userArtifactApi -> artifactService 'Authenticated UserScope operations / explicit output publication'
-    operationsApi -> runtimeRegistry 'Read authoritative/observed slot state'
-    operationsApi -> executionConfigService 'List/publish configs; create/delete managed credentials without raw tokens'
-    operationsApi -> runtimeConfigService 'Publish RuntimeConfigs; bind labels; assign Agent labels; write-only adapter credentials'
-    authApi -> authService 'Verify Argon2id login; issue/revoke session + CSRF'
-    publicApi -> authService 'Authenticate session and bind user principal'
-    userArtifactApi -> authService 'Authenticate session and bind UserScope owner'
-    operationsApi -> authService 'Authenticate session and bind audit actor'
-    eventApi -> authService 'Authenticate socket/session/origin and authorize subscriptions'
-    eventApi -> runStore 'Replay ordered committed Run lifecycle events'
-    eventApi -> plannerSessionService 'Stream only committed redacted Planner facts'
-    eventApi -> runtimeRegistry 'Observe process-local Operations revisions; require resync on gaps'
-    workflowScheduler -> workflowCatalog 'Resolve Workflow and select ready StageSpec'
-    workflowCatalog -> executionConfigService 'Resolve exact digest-bearing escalation profiles'
-    workflowScheduler -> agentTemplateCatalog 'Resolve and pin exact Stage AgentTemplates'
-    workflowScheduler -> skillCatalog 'Resolve owner refs once; validate and fork exact packages into RunScope'
-    workflowScheduler -> executionConfigService 'Resolve immutable per-Run executionConfig'
-    publicApi -> runtimeConfigService 'Pin default + explicit Run-selected Runtime labels in idempotent Run creation'
-    publicApi -> runStore 'Store and exact-filter immutable WorkflowRun metadata labels'
-    workflowScheduler -> controlPlane 'Prepare / finalize / abort / release allocations'
-    workflowScheduler -> plannerFactories 'Select declared PlannerFactory'
-    plannerFactories -> stagePlanner 'Construct Passthrough/one-Worker Streamline/logical multi-Worker Router'
-    plannerFactories -> executionConfigService 'Resolve pinned Planner credential'
-    stagePlanner -> workerInvokerTools 'Dispatch exact current subtask sequentially; Router selects logical worker_name'
-    stagePlanner -> plannerStateTools 'Query only explicit projections for the newest correlated Worker completion'
-    plannerStateTools -> controlPlane 'Read bounded live Worker State through logical prepared handles'
-    workflowScheduler -> runStore 'CAS WorkflowRun lifecycle; persist attempts, candidates and terminal outcomes'
-    workflowScheduler -> artifactService 'Pin/fork inputs and exact owner skills; transactionally bind accepted Run outputs'
-    stagePlanner -> plannerArtifactInspector 'Validate exact input, intermediate and candidate refs'
-    stagePlanner -> plannerSessionService 'Durable request/completion, typed plan projection and redacted ADK facts'
-    stagePlanner -> plannerMemoryTools 'Stage-bound Streamline/Router MemoryTools; logical Worker view only'
-    plannerArtifactInspector -> artifactService 'Read exact metadata inside current RunScope'
-
-    controlPlane -> runtimeRegistry 'Track live instances / reserve free single slots'
-    controlPlane -> executionConfigService 'Resolve pinned Worker credentials for RuntimeSettings'
-    controlPlane -> runtimeConfigService 'Overlay pinned Run config with candidate Agent labels; resolve adapters + secrets'
-    artifactService -> artifactRegistry 'Versions / bindings / CAS / grants / events'
-    artifactService -> blobStore 'Stream immutable content'
-    skillCatalog -> artifactService 'Create missing owner skills/*; resolve current and fork exact revisions into RunScope'
-    plannerMemoryTools -> artifactService 'Reserved memory.* canonical note artifacts; hidden Artifact revisions'
-    controlPlane -> telemetry 'Bind allocation final reports and Run metadata labels to trusted execution identity'
-    workflowScheduler -> telemetry 'Assemble bounded StageMetrics while finalizing or aborting'
-    stagePlanner -> telemetry 'Planner ExecutionReport with Run metadata-label trace attributes'
-    stagePlanner -> runtimeConfigService 'Use pinned default/Run-selected Runtime-label Planner telemetry settings'
+    artifactPlane.artifactService -> artifactPlane.artifactRegistry 'Versions / scoped bindings / CAS / grants / events / output publication'
+    artifactPlane.artifactService -> artifactPlane.blobStore 'Stream immutable content'
+    artifactPlane.artifactPurger -> artifactPlane.artifactRegistry 'Remove complete scope-owned bindings, pins, lineage and unreferenced versions'
+    artifactPlane.artifactPurger -> artifactPlane.blobStore 'Collect only globally unreferenced immutable content'
   }
 
   runtimeAgent = system 'Runtime Agent — N environment-specific single-slot processes' {
     #contractor
 
-    controlEndpoint = component 'Private Control Endpoint' {
+    agentControl = component 'Agent Control — registration, capability truth and exclusive allocation ownership' {
       #contractor
+
+      controlEndpoint = component 'Private Control Endpoint' {
+        #contractor
+      }
+
+      registryClient = component 'Registration / Heartbeat Client' {
+        #contractor
+      }
+
+      capabilityProbe = component 'Bounded startup probes / immutable capability snapshot' {
+        #contractor
+      }
+
+      slotManager = component 'Exclusive Slot / Allocation Context' {
+        #contractor
+      }
     }
 
-    registryClient = component 'Registration / Heartbeat Client' {
+    workerExecution = component 'Worker Execution — A2A, ADK, session lifecycle and trusted observations' {
       #contractor
+
+      a2aServer = component 'Allocation-scoped A2A Server' {
+        #contractor
+      }
+
+      workerRuntime = component 'In-process Worker Runtime — generic adk@1 configured by AgentTemplate' {
+        #contractor
+      }
+
+      workerSessionLifecycle = component 'Worker Session Lifecycle — Stage-pinned isolated/shared; bounded State carry' {
+        #contractor
+      }
+
+      workerState = component 'Canonical Contractor State — bounded live invocation and allocation metrics' {
+        #contractor
+      }
+
+      workerInstrumentation = component 'ADK Worker Instrumentation — typed metrics / observation reducers' {
+        #contractor
+      }
+
+      resultFinalizer = component 'Result Finalizer — mandatory isolated tool-free structured serialization' {
+        #contractor
+      }
+
+      terminalSummarizer = component 'Terminal Summarizer — optional isolated tool-free terminal path' {
+        #contractor #optional
+      }
+
+      executionCollector = component 'Execution / allocation report collector' {
+        #contractor
+      }
     }
 
-    capabilityProbe = component 'Bounded startup probes / immutable capability snapshot' {
+    allocationCapabilities = component 'Allocation Capabilities — narrowed tools, adapters and disposable workspace' {
       #contractor
+
+      adapterHost = component 'Allocation Adapter Host — OTLP / HTTP proxy / Caido clients' {
+        #contractor
+      }
+
+      sandboxManager = component 'SandboxProfile manager — local-workdir@1 initially, lifecycle isolation only' {
+        #contractor
+      }
+
+      workspaceProvider = component 'Workspace Provider — exact Run ZIP hydration / local or memory / overlay' {
+        #contractor #optional
+      }
+
+      filesystemTools = component 'Selected filesystem@1 / edit-files@1 / workspace-changes@1 tools' {
+        #contractor #optional
+      }
+
+      codeAnalysisTools = component 'Selected code-analysis@1 — shallow Tree-sitter / local graph facade' {
+        #contractor #optional
+      }
+
+      taintAnnotationTools = component 'Selected taint-annotations@1 — structured atomic workspace mutations' {
+        #contractor #optional
+      }
+
+      trailmarkChild = component 'Allocation-local Trailmark child — bounded and killable' {
+        #contractor #optional
+      }
+
+      httpCaidoTools = component 'Selected http-tools@1 / caido@1 tools' {
+        #contractor #optional
+      }
+
+      namespaceTools = component 'Explicitly selected Namespace-bound domain tools' {
+        #contractor
+      }
+
+      runArtifactTools = component 'Explicitly selected run-artifacts@1 tools' {
+        #contractor
+      }
+
+      memoryTools = component 'Explicitly selected memory-tools@1 — allocation-bound logical notes' {
+        #contractor
+      }
+
+      skillToolset = component 'Native ADK SkillToolset — exact allocation-selected packages / no remote registry' {
+        #adk
+      }
+
+      artifactClient = component 'Private Artifact API Client / ADK Adapter' {
+        #contractor
+      }
+
+      modelClient = component 'Model Client — optional' {
+        #contractor #optional
+      }
     }
 
-    slotManager = component 'Exclusive Slot / Allocation Context' {
-      #contractor
-    }
+    agentControl.controlEndpoint -> agentControl.slotManager 'Reserve / configure / finalize / abort / release the only slot'
+    agentControl.capabilityProbe -> agentControl.registryClient 'Publish exact usable runtime / Toolset tools / sandbox / RuntimeAdapter refs once per instance'
+    agentControl.slotManager -> allocationCapabilities.adapterHost 'Construct / flush / destroy typed allocation-scoped adapters'
+    agentControl.slotManager -> workerExecution.workerRuntime 'Create / destroy one in-process Worker instance'
+    agentControl.slotManager -> workerExecution.a2aServer 'Activate / deactivate allocation identity and Agent Card'
+    agentControl.slotManager -> workerExecution.workerSessionLifecycle 'Own allocation-local SessionService and carried eligible State'
+    agentControl.slotManager -> workerExecution.workerState 'Create / destroy canonical Contractor State'
+    agentControl.slotManager -> allocationCapabilities.sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
+    agentControl.slotManager -> allocationCapabilities.workspaceProvider 'Hydrate exact Run artifacts; create / discard one private WorkspaceSession'
+    agentControl.capabilityProbe -> allocationCapabilities.workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
+    agentControl.capabilityProbe -> allocationCapabilities.codeAnalysisTools 'Probe offline Tree-sitter subset and local-only Trailmark subset'
+    agentControl.capabilityProbe -> allocationCapabilities.taintAnnotationTools 'Probe complete offline Tree-sitter annotation surface'
 
-    a2aServer = component 'Allocation-scoped A2A Server' {
-      #contractor
-    }
+    workerExecution.a2aServer -> workerExecution.workerRuntime 'Validate and deliver one sequential A2A Task for the active allocation'
+    workerExecution.workerRuntime -> workerExecution.workerSessionLifecycle 'Acquire shared or fresh isolated session only after admission'
+    workerExecution.workerSessionLifecycle -> workerExecution.workerState 'Rehydrate Contractor State; snapshot bounded eligible ADK State; carry no isolated events'
+    workerExecution.workerRuntime -> workerExecution.resultFinalizer 'Serialize every ordinary terminal text in a separate ephemeral session'
+    workerExecution.workerRuntime -> workerExecution.terminalSummarizer 'At a configured boundary, run one independent terminal summary instead'
+    workerExecution.workerRuntime -> workerExecution.workerInstrumentation 'Emit ADK run / model / tool callback boundaries'
+    workerExecution.workerInstrumentation -> workerExecution.workerState 'Reduce bounded invocation observations and allocation metrics'
+    workerExecution.workerInstrumentation -> workerExecution.executionCollector 'Project bounded metrics for the final report'
+    agentControl.controlEndpoint -> workerExecution.workerState 'Read immutable Contractor-owned snapshot for Control Plane only'
+    agentControl.controlEndpoint -> workerExecution.executionCollector 'Finalize or abort cached reports without semantic work'
 
-    workerRuntime = component 'In-process Worker Runtime — ADK initially, configured by AgentTemplate' {
-      #contractor
-    }
+    workerExecution.workerRuntime -> allocationCapabilities.namespaceTools 'Construct only AgentTemplate-selected domain tools for fixed Namespace'
+    workerExecution.workerRuntime -> allocationCapabilities.runArtifactTools 'Construct selected list/read/write operations; grant remains authoritative'
+    workerExecution.workerRuntime -> allocationCapabilities.memoryTools 'Construct selected shared-note operations for fixed Namespace'
+    workerExecution.workerRuntime -> allocationCapabilities.filesystemTools 'Construct only selected operations over narrowed Reader / Writer / ChangeSet handles'
+    workerExecution.workerRuntime -> allocationCapabilities.codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
+    workerExecution.workerRuntime -> allocationCapabilities.taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
+    workerExecution.workerRuntime -> allocationCapabilities.httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
+    workerExecution.workerRuntime -> allocationCapabilities.skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
+    workerExecution.workerRuntime -> allocationCapabilities.artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'
+    workerExecution.workerRuntime -> allocationCapabilities.modelClient 'Semantic Worker model calls when required'
+    workerExecution.resultFinalizer -> allocationCapabilities.modelClient 'Exactly one same-budget structured-output call'
+    workerExecution.terminalSummarizer -> allocationCapabilities.modelClient 'Exactly one independently budgeted summary call'
 
-    workerState = component 'In-memory Worker Session / State' {
-      #contractor
-    }
-
-    workerInstrumentation = component 'ADK Worker Instrumentation — typed metrics / observation reducers' {
-      #contractor
-    }
-
-    executionCollector = component 'Execution / allocation report collector' {
-      #contractor
-    }
-
-    adapterHost = component 'Allocation Adapter Host — OTLP / HTTP proxy / Caido clients' {
-      #contractor
-    }
-
-    sandboxManager = component 'SandboxProfile manager — local-workdir@1 initially, lifecycle isolation only' {
-      #contractor
-    }
-
-    workspaceProvider = component 'Workspace Provider — exact Run ZIP hydration / local or memory / overlay' {
-      #contractor
-      #optional
-    }
-
-    filesystemTools = component 'Selected filesystem@1 / edit-files@1 / workspace-changes@1 tools' {
-      #contractor
-      #optional
-    }
-
-    codeAnalysisTools = component 'Selected code-analysis@1 — shallow Tree-sitter / local graph facade' {
-      #contractor
-      #optional
-    }
-
-    taintAnnotationTools = component 'Selected taint-annotations@1 — structured atomic workspace mutations' {
-      #contractor
-      #optional
-    }
-
-    trailmarkChild = component 'Allocation-local Trailmark child — bounded and killable' {
-      #contractor
-      #optional
-    }
-
-    httpCaidoTools = component 'Selected http-tools@1 / caido@1 tools' {
-      #contractor
-      #optional
-    }
-
-    namespaceTools = component 'Explicitly selected Namespace-bound domain tools' {
-      #contractor
-    }
-
-    runArtifactTools = component 'Explicitly selected run-artifacts@1 tools' {
-      #contractor
-    }
-
-    memoryTools = component 'Explicitly selected memory-tools@1 — allocation-bound logical notes' {
-      #contractor
-    }
-
-    skillToolset = component 'Native ADK SkillToolset — exact allocation-selected packages / no remote registry' {
-      #adk
-    }
-
-    artifactClient = component 'Private Artifact API Client / ADK Adapter' {
-      #contractor
-    }
-
-    modelClient = component 'Model Client — optional' {
-      #contractor
-      #optional
-    }
-
-    controlEndpoint -> slotManager 'Reserve / configure / finalize / abort / release the only slot'
-    capabilityProbe -> registryClient 'Publish exact usable runtime / Toolset tools / sandbox / RuntimeAdapter refs once per instance'
-    slotManager -> adapterHost 'Construct / flush / destroy typed allocation-scoped adapters'
-    slotManager -> workerRuntime 'Create / destroy one in-process Worker instance'
-    slotManager -> a2aServer 'Activate / deactivate allocation identity and Agent Card'
-    slotManager -> workerState 'Create / destroy allocation-local Session and State'
-    slotManager -> sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
-    capabilityProbe -> workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
-    capabilityProbe -> codeAnalysisTools 'Probe offline Tree-sitter subset and local-only Trailmark subset'
-    capabilityProbe -> taintAnnotationTools 'Probe complete offline Tree-sitter annotation surface'
-    slotManager -> workspaceProvider 'Hydrate exact Run artifacts; create / discard one private WorkspaceSession'
-    a2aServer -> workerRuntime 'Deliver sequential A2A Tasks for active allocation'
-    workerRuntime -> workerState 'Read / update in-memory allocation State'
-    workerRuntime -> workerInstrumentation 'Emit ADK run / model / tool callback boundaries'
-    workerInstrumentation -> workerState 'Reduce bounded invocation observations and allocation metrics'
-    workerInstrumentation -> executionCollector 'Project bounded metrics for the final report'
-    controlEndpoint -> workerState 'Read immutable Contractor-owned snapshot for Control Plane only'
-    controlEndpoint -> executionCollector 'Finalize or abort cached reports without semantic work'
-    workerRuntime -> namespaceTools 'Construct only AgentTemplate-selected domain tools for fixed Namespace'
-    workerRuntime -> runArtifactTools 'Construct selected list/read/write operations; grant remains authoritative'
-    workerRuntime -> memoryTools 'Construct selected shared-note operations for fixed Namespace'
-    workerRuntime -> filesystemTools 'Construct only selected operations over narrowed Reader / Writer / ChangeSet handles'
-    workerRuntime -> codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
-    workerRuntime -> taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
-    workerRuntime -> httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
-    workerRuntime -> skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
-    namespaceTools -> artifactClient 'Logical reads / immutable writes / CAS'
-    runArtifactTools -> artifactClient 'Read/write/list with explicit CAS preconditions'
-    memoryTools -> artifactClient 'Canonical memory.* artifacts with hidden CAS; no model-visible ref/revision'
-    workerRuntime -> artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'
-    workerRuntime -> modelClient 'Model calls when required'
-    adapterHost -> modelClient 'Inject allocation-scoped proxy / telemetry transports'
-    adapterHost -> namespaceTools 'Inject proxy-aware clients only into selected tools'
-    adapterHost -> httpCaidoTools 'Inject optional forward-proxy and mandatory typed Caido handles'
-    filesystemTools -> workspaceProvider 'Relative run_workdir paths only; no raw local path or backend selection'
-    codeAnalysisTools -> workspaceProvider 'Read exact effective managed-text snapshots; no provider root'
-    codeAnalysisTools -> trailmarkChild 'Materialize bounded private mirror and issue typed graph queries'
-    taintAnnotationTools -> workspaceProvider 'Resolve current function syntax and atomically update one managed-text file'
-    workspaceProvider -> artifactClient 'Read exact ZIP/state and auto-export cumulative state/diff'
-    workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
-    httpCaidoTools -> artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
-    httpCaidoTools -> caidoService 'Target HTTP via optional proxy; call static GraphQL operations through typed adapter'
+    allocationCapabilities.namespaceTools -> allocationCapabilities.artifactClient 'Logical reads / immutable writes / CAS'
+    allocationCapabilities.runArtifactTools -> allocationCapabilities.artifactClient 'Read/write/list with explicit CAS preconditions'
+    allocationCapabilities.memoryTools -> allocationCapabilities.artifactClient 'Canonical memory.* artifacts with hidden CAS; no model-visible ref/revision'
+    allocationCapabilities.adapterHost -> allocationCapabilities.modelClient 'Inject allocation-scoped proxy / telemetry transports'
+    allocationCapabilities.adapterHost -> allocationCapabilities.namespaceTools 'Inject proxy-aware clients only into selected tools'
+    allocationCapabilities.adapterHost -> allocationCapabilities.httpCaidoTools 'Inject optional forward-proxy and mandatory typed Caido handles'
+    allocationCapabilities.filesystemTools -> allocationCapabilities.workspaceProvider 'Relative run_workdir paths only; no raw local path or backend selection'
+    allocationCapabilities.codeAnalysisTools -> allocationCapabilities.workspaceProvider 'Read exact effective managed-text snapshots; no provider root'
+    allocationCapabilities.codeAnalysisTools -> allocationCapabilities.trailmarkChild 'Materialize bounded private mirror and issue typed graph queries'
+    allocationCapabilities.taintAnnotationTools -> allocationCapabilities.workspaceProvider 'Resolve current function syntax and atomically update one managed-text file'
+    allocationCapabilities.workspaceProvider -> allocationCapabilities.artifactClient 'Read exact ZIP/state and auto-export cumulative state/diff'
+    allocationCapabilities.workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
+    allocationCapabilities.httpCaidoTools -> allocationCapabilities.artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
+    allocationCapabilities.httpCaidoTools -> caidoService 'Target HTTP via optional proxy; call static GraphQL operations through typed adapter'
   }
 
   browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
-  browser -> server.authApi 'Direct login / session / logout with credentialed CORS'
-  browser -> server.publicApi 'Direct authenticated Workflow and Run queries/mutations'
-  browser -> server.userArtifactApi 'Direct Artifact queries/uploads/downloads'
-  browser -> server.operationsApi 'Direct Runtime visibility and configuration management'
-  browser -> server.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
+  browser -> server.productSurface.authApi 'Direct login / session / logout with credentialed CORS'
+  browser -> server.productSurface.publicApi 'Direct authenticated Project, Run and Queue queries/mutations'
+  browser -> server.productSurface.userArtifactApi 'Direct UserScope / ProjectScope Artifact queries/uploads/downloads'
+  browser -> server.runtimeOperations.operationsApi 'Direct Runtime visibility and configuration management'
+  browser -> server.productSurface.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
-  apiClient -> server.authApi 'Authenticate through the same local session contract when needed'
-  apiClient -> server.publicApi 'Submit / query / cancel Run'
-  apiClient -> server.userArtifactApi 'Upload / read / list UserScope; publish authorized Run output'
+  apiClient -> server.productSurface.authApi 'Authenticate through the same local session contract when needed'
+  apiClient -> server.productSurface.publicApi 'Manage Projects, Queue and Runs without the UI'
+  apiClient -> server.productSurface.userArtifactApi 'Upload / read / list UserScope or ProjectScope artifacts'
 
-  runtimeAgent.registryClient -> server.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
-  server.controlPlane -> runtimeAgent.controlEndpoint 'Control Plane mTLS: prepare / state snapshot / finalize / abort / release'
-  server.workerInvokerTools -> runtimeAgent.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
-  runtimeAgent.artifactClient -> server.artifactService 'Agent mTLS + allocation ID: RunScope operations; no DB/S3 credentials'
+  runtimeAgent.agentControl.registryClient -> server.runtimeOperations.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
+  server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint 'Control Plane mTLS: prepare / state snapshot / finalize / abort / release'
+  server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
+  runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService 'Agent mTLS + allocation ID: RunScope operations; no owner/Project/DB/S3 authority'
 
-  server.artifactRegistry -> artifactDatabase 'Transactional registry writes and reads'
-  server.blobStore -> blobBackend 'Immutable blob operations'
-  server.runStore -> artifactDatabase.runState 'Durable WorkflowRun and StageExecution state'
-  server.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion, typed plans and redacted ADK facts'
-  server.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
+  server.workspaceLifecycle.projectStore -> artifactDatabase.projectState 'Persist Project metadata, targets, lifecycle and deletion claims'
+  server.workspaceLifecycle.ownerQueueGate -> artifactDatabase.runState 'Persist owner pause state at the Stage-admission serialization boundary'
+  server.workspaceLifecycle.runStore -> artifactDatabase.runState 'Persist Runs, StageExecutions, queue projection, labels and idempotency'
+  server.orchestration.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion, typed plans and redacted ADK facts'
+  server.artifactPlane.artifactRegistry -> artifactDatabase 'Transactional scoped registry writes and reads'
+  server.artifactPlane.blobStore -> blobBackend 'Immutable blob operations'
+  server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
-  runtimeAgent.executionCollector -> server.controlPlane 'Trusted allocation final report'
-  runtimeAgent.adapterHost -> telemetryBackend 'Content-free bounded OTLP export when selected'
-  runtimeAgent.adapterHost -> workerHttpProxy 'Selected Worker LLM/tool HTTP only; private Contractor traffic bypasses'
+  runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane 'Trusted allocation final report'
+  runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend 'Content-free bounded OTLP export when selected'
+  runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy 'Selected Worker LLM/tool HTTP only; private Contractor traffic bypasses'
 
-  server.stagePlanner -> llmGateway 'Streamline/Router calls with resolved Planner policy/Gateway/credential'
-  runtimeAgent.modelClient -> llmGateway 'Worker calls with Control Plane-supplied resolved URL/token'
-  server.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys; Gateway enforces submitted key policy'
+  server.orchestration.stagePlanner -> llmGateway 'Streamline/Router calls with resolved Planner policy/Gateway/credential'
+  runtimeAgent.allocationCapabilities.modelClient -> llmGateway 'Worker/finalizer/summarizer calls with Control Plane-supplied resolved URL/token'
+  server.identityConfiguration.executionConfigService -> llmGateway 'Create/delete LiteLLM virtual keys; Gateway enforces submitted key policy'
   llmGateway -> llmProvider 'Provider requests'
 
-  server.telemetry -> telemetryBackend 'Export when configured'
-  server.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
-  server.agentTemplateCatalog -> configFilesystem 'Load versioned templates and resolved instruction resources'
-  server.skillCatalog -> configFilesystem 'Validate and deterministically package bundled skill source trees before readiness'
-  server.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
-  server.runtimeConfigService -> artifactDatabase.runtimeConfiguration 'Store immutable configs, CAS bindings and durable Agent labels'
-  server.runtimeConfigService -> artifactDatabase.credentials 'Store/resolve encrypted adapter credentials just in time'
-  server.runtimeConfigService -> credentialMasterKey 'Decrypt selected allocation/Planner adapter credentials just in time'
-  server.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
-  server.executionConfigService -> gatewayAdminBindings 'Resolve exact Gateway binding; read LiteLLM master key at startup'
-  server.authService -> localAuthBootstrap 'Read one user ID, username and Argon2id hash at startup'
+  server.runtimeOperations.telemetry -> telemetryBackend 'Export when configured'
+  server.identityConfiguration.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
+  server.orchestration.agentTemplateCatalog -> configFilesystem 'Load versioned templates and resolved instruction resources'
+  server.orchestration.skillCatalog -> configFilesystem 'Validate and deterministically package bundled skill source trees before readiness'
+  server.identityConfiguration.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
+  server.identityConfiguration.runtimeConfigService -> artifactDatabase.runtimeConfiguration 'Store immutable configs, CAS bindings and durable Agent labels'
+  server.identityConfiguration.runtimeConfigService -> artifactDatabase.credentials 'Store/resolve encrypted adapter credentials just in time'
+  server.identityConfiguration.runtimeConfigService -> credentialMasterKey 'Decrypt selected allocation/Planner adapter credentials just in time'
+  server.identityConfiguration.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
+  server.identityConfiguration.executionConfigService -> gatewayAdminBindings 'Resolve exact Gateway binding; read LiteLLM master key at startup'
+  server.identityConfiguration.authService -> localAuthBootstrap 'Read one user ID, username and Argon2id hash at startup'
 }
+// Contractor v2 — readable static views
+// Usage: replace the original static views (index through runtimeConfiguration)
+// with the views below. Keep specification, global, model and all dynamic views.
+// This file depends on the original model and global groups; it is not standalone.
+// Alternatively place it next to the model AFTER removing duplicate static views.
+// Existing view IDs and navigation targets are preserved; focused views are added.
+// Each view selects existing model relationships and provides short display titles.
+// Detailed model titles and relationship contracts remain in the original source.
+// LikeC4 syntax reference: https://likec4.dev/dsl/views/predicates/
+// No rendering was performed in this environment.
 
 views {
+  global style ownership
+
+  // Keep optional components readable; mark optionality explicitly in titles.
+  style element.tag = #optional {
+    opacity 100%
+  }
+
   view index {
-    title 'Contractor v2 — System Context'
+    title '01 / System Context'
+    description 'Primary deployables and data paths. Configs, secrets and optional infrastructure have dedicated views.'
 
-    include browser
-    include apiClient
-    include webUi
-    include server
-    include runtimeAgent
-    include artifactDatabase
-    include blobBackend
-    include llmGateway
-    include llmProvider
-    include workerHttpProxy
-    include configFilesystem
-    include credentialMasterKey
-    include gatewayAdminBindings
-    include localAuthBootstrap
-    include telemetryBackend
+    include browser with {
+      title 'User Browser'
+    }
+    include webUi with {
+      title 'Web UI'
+    }
+    include server with {
+      title 'Contractor Server'
+      navigateTo serverOverview
+    }
+    include apiClient with {
+      title 'API Client'
+    }
+    include runtimeAgent with {
+      title 'Runtime Agent'
+      navigateTo runtimeOverview
+    }
+    include artifactDatabase with {
+      title 'PostgreSQL'
+    }
+    include blobBackend with {
+      title 'Artifact Blobs'
+    }
+    include llmGateway with {
+      title 'LLM Gateway'
+    }
+    include llmProvider with {
+      title 'Model Provider'
+    }
 
-    global style ownership
-    autoLayout LeftRight
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include browser -> webUi with {
+      title 'Load SPA'
+    }
+    include browser -> server with {
+      title 'HTTPS API / WebSocket'
+    }
+    include apiClient -> server with {
+      title 'Authenticated API'
+    }
+    include server -> runtimeAgent with {
+      title 'mTLS control / A2A'
+    }
+    include runtimeAgent -> server with {
+      title 'Registration / Run artifacts'
+    }
+    include server -> artifactDatabase with {
+      title 'Transactional state'
+    }
+    include server -> blobBackend with {
+      title 'Immutable blobs'
+    }
+    include server -> llmGateway with {
+      title 'Planner / key management'
+    }
+    include runtimeAgent -> llmGateway with {
+      title 'Worker model calls'
+    }
+    include llmGateway -> llmProvider with {
+      title 'Provider requests'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view platformOverview {
+    title '02 / Platform Responsibilities'
+    description 'Server domains collaborate with a collapsed Runtime. Explore each domain for implementation details.'
+
+    include server.productSurface with {
+      title 'Product APIs'
+      navigateTo productSurface
+    }
+    include server.identityConfiguration with {
+      title 'Identity & Configuration'
+      navigateTo runtimeConfiguration
+    }
+    include server.workspaceLifecycle with {
+      title 'Projects & Queue'
+      navigateTo workspaceLifecycle
+    }
+    include server.orchestration with {
+      title 'Workflow Orchestration'
+      navigateTo stageExecution
+    }
+    include server.artifactPlane with {
+      title 'Artifact Storage'
+      navigateTo artifacts
+    }
+    include server.runtimeOperations with {
+      title 'Runtime Operations'
+      navigateTo controlPlane
+    }
+    include runtimeAgent with {
+      title 'Runtime Agent'
+      navigateTo runtimeOverview
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.productSurface -> server.identityConfiguration with {
+      title 'Authenticate'
+    }
+    include server.productSurface -> server.workspaceLifecycle with {
+      title 'Projects / Runs / Queue'
+    }
+    include server.productSurface -> server.orchestration with {
+      title 'Create / cancel Runs'
+    }
+    include server.productSurface -> server.artifactPlane with {
+      title 'Owner artifacts'
+    }
+    include server.orchestration -> server.workspaceLifecycle with {
+      title 'Admission / lifecycle'
+    }
+    include server.orchestration -> server.artifactPlane with {
+      title 'Pin inputs / publish outputs'
+    }
+    include server.orchestration -> server.runtimeOperations with {
+      title 'Prepare / finalize'
+    }
+    include server.runtimeOperations -> runtimeAgent with {
+      title 'Private control'
+    }
+    include runtimeAgent -> server.artifactPlane with {
+      title 'Allocation-bound RunScope'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout TopBottom 100 70
+  }
+
+  view serverOverview {
+    title '03 / Server Subsystems'
+    description 'Internal responsibilities. Storage and Runtime protocols are shown in focused views.'
+
+    include server.productSurface with {
+      title 'Product APIs'
+      navigateTo productSurface
+    }
+    include server.identityConfiguration with {
+      title 'Identity & Configuration'
+      navigateTo runtimeConfiguration
+    }
+    include server.workspaceLifecycle with {
+      title 'Projects & Queue'
+      navigateTo workspaceLifecycle
+    }
+    include server.orchestration with {
+      title 'Workflow Orchestration'
+      navigateTo stageExecution
+    }
+    include server.artifactPlane with {
+      title 'Artifact Storage'
+      navigateTo artifacts
+    }
+    include server.runtimeOperations with {
+      title 'Runtime Operations'
+      navigateTo controlPlane
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.productSurface -> server.identityConfiguration with {
+      title 'Sessions / pinned config'
+    }
+    include server.productSurface -> server.workspaceLifecycle with {
+      title 'Projects / Runs / Queue'
+    }
+    include server.productSurface -> server.orchestration with {
+      title 'Run requests'
+    }
+    include server.productSurface -> server.artifactPlane with {
+      title 'Owner artifacts'
+    }
+    include server.orchestration -> server.identityConfiguration with {
+      title 'Execution inputs'
+    }
+    include server.orchestration -> server.workspaceLifecycle with {
+      title 'Stage admission / lifecycle'
+    }
+    include server.orchestration -> server.runtimeOperations with {
+      title 'Allocations / reports'
+    }
+    include server.orchestration -> server.artifactPlane with {
+      title 'Inputs / outputs / memory'
+    }
+    include server.workspaceLifecycle -> server.orchestration with {
+      title 'Cancel and drain'
+    }
+    include server.workspaceLifecycle -> server.artifactPlane with {
+      title 'Released scope purge'
+    }
+    include server.runtimeOperations -> server.identityConfiguration with {
+      title 'Credentials / Runtime settings'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout TopBottom 100 70
+  }
+
+  view runtimeOverview {
+    title '04 / Runtime Agent Subsystems'
+    description 'One process owns one slot. Agent Control owns allocation resources and Worker lifecycle.'
+
+    include server with {
+      title 'Contractor Server'
+      navigateTo serverOverview
+    }
+    include runtimeAgent.agentControl with {
+      title 'Agent Control'
+      navigateTo controlPlane
+    }
+    include runtimeAgent.workerExecution with {
+      title 'Worker Execution'
+      navigateTo runtimeLifecycle
+    }
+    include runtimeAgent.allocationCapabilities with {
+      title 'Allocation Capabilities'
+      navigateTo runtimeFilesystems
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server -> runtimeAgent.agentControl with {
+      title 'mTLS control'
+    }
+    include runtimeAgent.agentControl -> server with {
+      title 'Register / heartbeat'
+    }
+    include server -> runtimeAgent.workerExecution with {
+      title 'Allocation A2A'
+    }
+    include runtimeAgent.agentControl -> runtimeAgent.workerExecution with {
+      title 'Own Worker / sessions / State'
+    }
+    include runtimeAgent.agentControl -> runtimeAgent.allocationCapabilities with {
+      title 'Prepare / destroy resources'
+    }
+    include runtimeAgent.workerExecution -> runtimeAgent.allocationCapabilities with {
+      title 'Selected tools / models'
+    }
+    include runtimeAgent.allocationCapabilities -> server with {
+      title 'RunScope artifacts'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view productSurface {
+    title 'Surface / Browser and API'
+    description 'The browser calls Go APIs directly. Node serves the SPA bundle only. Operations and events have separate views.'
+
+    include browser with {
+      title 'User Browser'
+    }
+    include webUi with {
+      title 'Web UI'
+    }
+    include server.productSurface.authApi with {
+      title 'Login & Session API'
+    }
+    include apiClient with {
+      title 'API Client'
+    }
+    include server.productSurface.publicApi with {
+      title 'Projects / Runs / Queue API'
+    }
+    include server.productSurface.userArtifactApi with {
+      title 'Owner Artifact API'
+    }
+    include server.identityConfiguration.authService with {
+      title 'Session & Principal Boundary'
+    }
+    include server.workspaceLifecycle with {
+      title 'Projects & Queue'
+      navigateTo workspaceLifecycle
+    }
+    include server.orchestration with {
+      title 'Workflow Orchestration'
+      navigateTo stageExecution
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include browser -> webUi with {
+      title 'Load SPA'
+    }
+    include browser -> server.productSurface.authApi with {
+      title 'Login / session / logout'
+    }
+    include apiClient -> server.productSurface.authApi with {
+      title 'Same session contract'
+    }
+    include browser -> server.productSurface.publicApi with {
+      title 'Projects / Runs / Queue'
+    }
+    include apiClient -> server.productSurface.publicApi with {
+      title 'Projects / Runs / Queue'
+    }
+    include browser -> server.productSurface.userArtifactApi with {
+      title 'Owner artifacts'
+    }
+    include apiClient -> server.productSurface.userArtifactApi with {
+      title 'Owner artifacts'
+    }
+    include server.productSurface.authApi -> server.identityConfiguration.authService with {
+      title 'Argon2id / session / CSRF'
+    }
+    include server.productSurface.publicApi -> server.identityConfiguration.authService with {
+      title 'Bind owner principal'
+    }
+    include server.productSurface.userArtifactApi -> server.identityConfiguration.authService with {
+      title 'Bind owner scope'
+    }
+    include server.productSurface.publicApi -> server.workspaceLifecycle with {
+      title 'Project / Run / Queue state'
+    }
+    include server.productSurface.publicApi -> server.orchestration with {
+      title 'Create / cancel Runs'
+    }
+    include server.productSurface.userArtifactApi -> server.artifactPlane.artifactService with {
+      title 'UserScope / ProjectScope'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view productEvents {
+    title 'Surface / Read-only Events'
+    description 'Committed Run events and redacted Planner facts are replayable; Operations revisions are process-local and require resync on gaps.'
+
+    include browser with {
+      title 'User Browser'
+    }
+    include server.productSurface.eventApi with {
+      title 'WebSocket Events'
+    }
+    include server.identityConfiguration.authService with {
+      title 'Session & Principal Boundary'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run / Stage Store'
+    }
+    include server.orchestration.plannerSessionService with {
+      title 'Planner Sessions'
+    }
+    include server.runtimeOperations.runtimeRegistry with {
+      title 'Agent Registry & Slots'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include browser -> server.productSurface.eventApi with {
+      title 'Authenticated WebSocket'
+    }
+    include server.productSurface.eventApi -> server.identityConfiguration.authService with {
+      title 'Session / origin / subscriptions'
+    }
+    include server.productSurface.eventApi -> server.workspaceLifecycle.runStore with {
+      title 'Replay committed lifecycle events'
+    }
+    include server.productSurface.eventApi -> server.orchestration.plannerSessionService with {
+      title 'Committed redacted facts'
+    }
+    include server.productSurface.eventApi -> server.runtimeOperations.runtimeRegistry with {
+      title 'Operations invalidation'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view workspaceLifecycle {
+    title 'Lifecycle / Projects, Queue and Cleanup'
+    description 'Pause gates normal Stage admission. Deletion reuses ordinary cancellation and purges only released or drained scopes.'
+
+    include server.productSurface.publicApi with {
+      title 'Projects / Runs / Queue API'
+    }
+    include server.workspaceLifecycle.projectStore with {
+      title 'Project Store'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run / Stage Store'
+    }
+    include server.workspaceLifecycle.ownerQueueGate with {
+      title 'Owner Queue Gate'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include server.workspaceLifecycle.projectDeletionController with {
+      title 'Project Deletion Controller'
+    }
+    include server.artifactPlane.artifactPurger with {
+      title 'Scope Purger'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.productSurface.publicApi -> server.workspaceLifecycle.projectStore with {
+      title 'Create / query / deletion fence'
+    }
+    include server.productSurface.publicApi -> server.workspaceLifecycle.runStore with {
+      title 'Query / terminal delete'
+    }
+    include server.productSurface.publicApi -> server.workspaceLifecycle.ownerQueueGate with {
+      title 'Read / CAS pause'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.projectStore with {
+      title 'Snapshot / deleting fence'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.ownerQueueGate with {
+      title 'Serialize Stage admission'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.runStore with {
+      title 'CAS lifecycle'
+    }
+    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.projectStore with {
+      title 'Claim deletion phase'
+    }
+    include server.workspaceLifecycle.projectDeletionController -> server.orchestration.workflowScheduler with {
+      title 'Cancel / await release'
+    }
+    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.runStore with {
+      title 'Delete released Project Runs'
+    }
+    include server.workspaceLifecycle.projectDeletionController -> server.artifactPlane.artifactPurger with {
+      title 'Purge drained ProjectScope'
+    }
+    include server.workspaceLifecycle.runStore -> server.artifactPlane.artifactPurger with {
+      title 'Purge locked terminal RunScope'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout TopBottom 100 70
   }
 
   view stageExecution {
-    title 'Contractor v2 — Prepared Stage Execution'
+    title 'Execution / Stage Preparation'
+    description 'Resolve immutable inputs, serialize admission and prepare allocations. Planner invocation and acceptance have separate views.'
 
-    include server
-    include server.publicApi
-    include server.workflowCatalog
-    include server.agentTemplateCatalog
-    include server.skillCatalog
-    include server.workflowScheduler
-    include server.plannerFactories
-    include server.stagePlanner
-    include server.plannerSessionService
-    include server.workerInvokerTools
-    include server.plannerStateTools
-    include server.plannerMemoryTools
-    include server.controlPlane
-    include server.runtimeRegistry
-    include server.runtimeConfigService
-    include server.runStore
-    include server.telemetry
+    include server.productSurface.publicApi with {
+      title 'Projects / Runs / Queue API'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include server.orchestration.workflowCatalog with {
+      title 'Workflow Catalog'
+    }
+    include server.orchestration.agentTemplateCatalog with {
+      title 'AgentTemplate Catalog'
+    }
+    include server.orchestration.skillCatalog with {
+      title 'Skill Catalog'
+    }
+    include server.identityConfiguration.executionConfigService with {
+      title 'Execution Configs & Credentials'
+    }
+    include server.workspaceLifecycle.projectStore with {
+      title 'Project Store'
+    }
+    include server.workspaceLifecycle.ownerQueueGate with {
+      title 'Owner Queue Gate'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run / Stage Store'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include server.orchestration.plannerFactories with {
+      title 'Planner Factories'
+    }
+    include server.orchestration.stagePlanner with {
+      title 'Stage Planner'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.controlEndpoint
-    include runtimeAgent.registryClient
-    include runtimeAgent.slotManager
-    include runtimeAgent.a2aServer
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.workerState
-    include runtimeAgent.workerInstrumentation
-    include runtimeAgent.executionCollector
-    include runtimeAgent.adapterHost
-    include runtimeAgent.memoryTools
-    include runtimeAgent.skillToolset
-    include runtimeAgent.artifactClient
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.productSurface.publicApi -> server.orchestration.workflowScheduler with {
+      title 'Create / cancel / wake'
+    }
+    include server.orchestration.workflowScheduler -> server.orchestration.workflowCatalog with {
+      title 'Select ready StageSpec'
+    }
+    include server.orchestration.workflowScheduler -> server.orchestration.agentTemplateCatalog with {
+      title 'Pin AgentTemplates'
+    }
+    include server.orchestration.workflowScheduler -> server.orchestration.skillCatalog with {
+      title 'Pin exact Skill packages'
+    }
+    include server.orchestration.workflowScheduler -> server.identityConfiguration.executionConfigService with {
+      title 'Pin executionConfig'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.projectStore with {
+      title 'Project snapshot / fence'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.ownerQueueGate with {
+      title 'Serialize admission'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.runStore with {
+      title 'Persist attempts / lifecycle'
+    }
+    include server.orchestration.workflowScheduler -> server.runtimeOperations.controlPlane with {
+      title 'Prepare / finalize / release'
+    }
+    include server.orchestration.workflowScheduler -> server.orchestration.plannerFactories with {
+      title 'Select PlannerFactory'
+    }
+    include server.orchestration.plannerFactories -> server.orchestration.stagePlanner with {
+      title 'Construct Stage Planner'
+    }
+    global predicate withoutContextOnly
 
-    exclude * -> * where tag is #contextOnly
-
-    global style ownership
-    autoLayout LeftRight
+    autoLayout TopBottom 100 70
   }
 
   view plannerAndA2A {
-    title 'Contractor v2 — Planner and A2A Worker Boundary'
+    title 'Execution / Planner and Worker'
+    description 'Planner owns subtasks; Runtime owns Worker completion. Scheduler accepts the StageResult in stageCompletionFlow.'
 
-    include server
-    include server.workflowScheduler
-    include server.plannerFactories
-    include server.stagePlanner
-    include server.plannerSessionService
-    include server.workerInvokerTools
-    include server.plannerStateTools
-    include server.plannerMemoryTools
+    include server.orchestration.plannerFactories with {
+      title 'Planner Factories'
+    }
+    include server.orchestration.stagePlanner with {
+      title 'Stage Planner'
+    }
+    include server.orchestration.workerInvokerTools with {
+      title 'Current-Subtask Invoker'
+    }
+    include runtimeAgent.workerExecution.a2aServer with {
+      title 'Allocation A2A Server'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include server.orchestration.plannerSessionService with {
+      title 'Planner Sessions'
+    }
+    include server.orchestration.plannerStateTools with {
+      title 'Typed State Projections'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include runtimeAgent.agentControl.controlEndpoint with {
+      title 'Private Control Endpoint'
+    }
+    include runtimeAgent.workerExecution.workerState with {
+      title 'Canonical Worker State'
+    }
+    include llmGateway with {
+      title 'LLM Gateway'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.a2aServer
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.workerState
-    include runtimeAgent.workerInstrumentation
-    include runtimeAgent.executionCollector
-    include runtimeAgent.adapterHost
-    include runtimeAgent.memoryTools
-    include runtimeAgent.skillToolset
-    include runtimeAgent.artifactClient
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.orchestration.plannerFactories -> server.orchestration.stagePlanner with {
+      title 'Construct Planner'
+    }
+    include server.orchestration.stagePlanner -> server.orchestration.workerInvokerTools with {
+      title 'Exact current subtask'
+    }
+    include server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer with {
+      title 'mTLS / URI SAN / allocation A2A'
+    }
+    include runtimeAgent.workerExecution.a2aServer -> runtimeAgent.workerExecution.workerRuntime with {
+      title 'One sequential task'
+    }
+    include server.orchestration.stagePlanner -> server.orchestration.plannerSessionService with {
+      title 'Durable requests / completions'
+    }
+    include server.orchestration.stagePlanner -> server.orchestration.plannerStateTools with {
+      title 'Typed completion projections'
+    }
+    include server.orchestration.plannerStateTools -> server.runtimeOperations.controlPlane with {
+      title 'Bounded live State'
+    }
+    include server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint with {
+      title 'mTLS State snapshot'
+    }
+    include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.workerExecution.workerState with {
+      title 'Immutable canonical State'
+    }
+    include server.orchestration.stagePlanner -> llmGateway with {
+      title 'Pinned Planner policy'
+    }
+    global predicate withoutContextOnly
 
-    include llmGateway
-    include telemetryBackend
-    include workerHttpProxy
+    autoLayout LeftRight 100 70
+  }
 
-    exclude * -> * where tag is #contextOnly
+  view plannerArtifacts {
+    title 'Execution / Planner Artifacts and Memory'
+    description 'Planner access is bound to the current Stage and exact RunScope. Memory tools hide Artifact revisions.'
 
-    global style ownership
-    autoLayout LeftRight
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+    include server.orchestration.stagePlanner with {
+      title 'Stage Planner'
+    }
+    include server.orchestration.plannerArtifactInspector with {
+      title 'Artifact Inspector'
+    }
+    include server.orchestration.plannerMemoryTools with {
+      title 'Planner Memory Tools'
+    }
+    include server.orchestration.plannerSessionService with {
+      title 'Planner Sessions'
+    }
+    include artifactDatabase.plannerSessions with {
+      title 'Planner Session Records'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.orchestration.workflowScheduler -> server.artifactPlane.artifactService with {
+      title 'Fork inputs / bind outputs / publish'
+    }
+    include server.orchestration.stagePlanner -> server.orchestration.plannerArtifactInspector with {
+      title 'Validate exact refs'
+    }
+    include server.orchestration.plannerArtifactInspector -> server.artifactPlane.artifactService with {
+      title 'Current RunScope metadata'
+    }
+    include server.orchestration.stagePlanner -> server.orchestration.plannerMemoryTools with {
+      title 'Stage-bound logical notes'
+    }
+    include server.orchestration.plannerMemoryTools -> server.artifactPlane.artifactService with {
+      title 'Canonical memory.* / hidden CAS'
+    }
+    include server.orchestration.stagePlanner -> server.orchestration.plannerSessionService with {
+      title 'Typed plans / redacted facts'
+    }
+    include server.orchestration.plannerSessionService -> artifactDatabase.plannerSessions with {
+      title 'Persist recovery state'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
   }
 
   view runtimeLifecycle {
-    title 'Contractor v2 — Single-process Runtime Agent / Worker Lifecycle'
+    title 'Runtime / Allocation Lifecycle'
+    description 'Exclusive ownership, resource preparation and teardown. Session internals and capabilities have dedicated views.'
 
-    include server
-    include server.workflowScheduler
-    include server.agentTemplateCatalog
-    include server.skillCatalog
-    include server.controlPlane
-    include server.runtimeRegistry
-    include server.runtimeConfigService
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include runtimeAgent.agentControl.controlEndpoint with {
+      title 'Private Control Endpoint'
+    }
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Exclusive Allocation Slot'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include runtimeAgent.workerExecution.a2aServer with {
+      title 'Allocation A2A Server'
+    }
+    include runtimeAgent.workerExecution.workerSessionLifecycle with {
+      title 'Worker Session Lifecycle'
+    }
+    include runtimeAgent.workerExecution.workerState with {
+      title 'Canonical Worker State'
+    }
+    include runtimeAgent.allocationCapabilities.sandboxManager with {
+      title 'Sandbox Lifecycle'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Workspace Provider (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Allocation Adapter Host'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.controlEndpoint
-    include runtimeAgent.registryClient
-    include runtimeAgent.slotManager
-    include runtimeAgent.sandboxManager
-    include runtimeAgent.a2aServer
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.workerState
-    include runtimeAgent.workerInstrumentation
-    include runtimeAgent.executionCollector
-    include runtimeAgent.adapterHost
-    include runtimeAgent.workspaceProvider
-    include runtimeAgent.filesystemTools
-    include runtimeAgent.codeAnalysisTools
-    include runtimeAgent.taintAnnotationTools
-    include runtimeAgent.trailmarkChild
-    include runtimeAgent.memoryTools
-    include runtimeAgent.skillToolset
-    include runtimeAgent.artifactClient
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint with {
+      title 'Prepare / finalize / abort / release'
+    }
+    include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.agentControl.slotManager with {
+      title 'Own the single slot'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.workerRuntime with {
+      title 'Create / destroy Worker'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.a2aServer with {
+      title 'Activate allocation identity'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.workerSessionLifecycle with {
+      title 'Own allocation sessions'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.workerState with {
+      title 'Create / destroy State'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.sandboxManager with {
+      title 'Fresh workdir / cleanup fence'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Hydrate / discard workspace'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Construct / flush / destroy'
+    }
+    global predicate withoutContextOnly
 
-    exclude * -> * where tag is #contextOnly
+    autoLayout TopBottom 100 70
+  }
 
-    global style ownership
-    autoLayout LeftRight
+  view workerSessions {
+    title 'Runtime / Sessions and Result Paths'
+    description 'Stage mode applies to the main session. Finalizer and optional summarizer use separate ephemeral, tool-free sessions.'
+
+    include runtimeAgent.workerExecution.a2aServer with {
+      title 'Allocation A2A Server'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include runtimeAgent.workerExecution.workerSessionLifecycle with {
+      title 'Worker Session Lifecycle'
+    }
+    include runtimeAgent.workerExecution.workerState with {
+      title 'Canonical Worker State'
+    }
+    include runtimeAgent.workerExecution.workerInstrumentation with {
+      title 'Worker Instrumentation'
+    }
+    include runtimeAgent.workerExecution.resultFinalizer with {
+      title 'Result Finalizer'
+    }
+    include runtimeAgent.workerExecution.terminalSummarizer with {
+      title 'Terminal Summarizer (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.modelClient with {
+      title 'Model Client (optional)'
+    }
+    include llmGateway with {
+      title 'LLM Gateway'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include runtimeAgent.workerExecution.a2aServer -> runtimeAgent.workerExecution.workerRuntime with {
+      title 'Admit sequential invocation'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.workerSessionLifecycle with {
+      title 'Acquire shared / isolated session'
+    }
+    include runtimeAgent.workerExecution.workerSessionLifecycle -> runtimeAgent.workerExecution.workerState with {
+      title 'Rehydrate / bounded carry'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.workerInstrumentation with {
+      title 'ADK callbacks'
+    }
+    include runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.workerExecution.workerState with {
+      title 'Reduce observations'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.resultFinalizer with {
+      title 'Ordinary structured result'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.terminalSummarizer with {
+      title 'Configured terminal summary'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.modelClient with {
+      title 'Semantic turns'
+    }
+    include runtimeAgent.workerExecution.resultFinalizer -> runtimeAgent.allocationCapabilities.modelClient with {
+      title 'One call / remaining budget'
+    }
+    include runtimeAgent.workerExecution.terminalSummarizer -> runtimeAgent.allocationCapabilities.modelClient with {
+      title 'One call / separate budget'
+    }
+    include runtimeAgent.allocationCapabilities.modelClient -> llmGateway with {
+      title 'Pinned URL / token'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
   }
 
   view runtimeFilesystems {
-    title 'Contractor v2 — Runtime-only Project Filesystems and Edit Tools'
+    title 'Runtime / Workspaces and File Tools'
+    description 'Selected tools receive narrowed handles and relative run_workdir paths. Workspace storage is allocation-local and disposable.'
 
-    include runtimeAgent
-    include runtimeAgent.capabilityProbe
-    include runtimeAgent.slotManager
-    include runtimeAgent.sandboxManager
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.workspaceProvider
-    include runtimeAgent.filesystemTools
-    include runtimeAgent.codeAnalysisTools
-    include runtimeAgent.taintAnnotationTools
-    include runtimeAgent.trailmarkChild
-    include runtimeAgent.executionCollector
-    include runtimeWorkspaceStorage
-    include caidoService
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Exclusive Allocation Slot'
+    }
+    include runtimeAgent.allocationCapabilities.sandboxManager with {
+      title 'Sandbox Lifecycle'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Workspace Provider (optional)'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include runtimeAgent.allocationCapabilities.filesystemTools with {
+      title 'Filesystem & Edit Tools (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Private Artifact Client'
+    }
+    include runtimeWorkspaceStorage with {
+      title 'Workspace Storage (optional)'
+    }
+    include runtimeAgent.agentControl.capabilityProbe with {
+      title 'Startup Capability Probes'
+    }
 
-    exclude * -> * where tag is #contextOnly
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.sandboxManager with {
+      title 'Fresh workdir / cleanup fence'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Hydrate / discard'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.filesystemTools with {
+      title 'Selected Reader / Writer operations'
+    }
+    include runtimeAgent.allocationCapabilities.filesystemTools -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Relative paths / narrowed handles'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Exact ZIP / state / cumulative export'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider -> runtimeWorkspaceStorage with {
+      title 'Isolated local / memory storage'
+    }
+    include runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Probe usable tool subset'
+    }
+    global predicate withoutContextOnly
 
-    global style ownership
-    autoLayout LeftRight
+    autoLayout LeftRight 100 70
   }
 
   view runtimeCodeAnalysis {
-    title 'Contractor v2 — Workspace Code Analysis Capability and Lifecycle'
+    title 'Runtime / Code Analysis and Annotations'
+    description 'Code analysis is read-only. Taint tools perform structured atomic mutations. Trailmark runs as a bounded, killable local child.'
 
-    include server
-    include server.workflowScheduler
-    include server.controlPlane
-    include server.runtimeRegistry
-    include runtimeAgent
-    include runtimeAgent.capabilityProbe
-    include runtimeAgent.slotManager
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.workspaceProvider
-    include runtimeAgent.codeAnalysisTools
-    include runtimeAgent.taintAnnotationTools
-    include runtimeAgent.trailmarkChild
-    include runtimeWorkspaceStorage
+    include runtimeAgent.agentControl.capabilityProbe with {
+      title 'Startup Capability Probes'
+    }
+    include runtimeAgent.allocationCapabilities.codeAnalysisTools with {
+      title 'Code Analysis (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.taintAnnotationTools with {
+      title 'Taint Annotations (optional)'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Workspace Provider (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.trailmarkChild with {
+      title 'Trailmark Child (optional)'
+    }
 
-    exclude * -> * where tag is #contextOnly
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.allocationCapabilities.codeAnalysisTools with {
+      title 'Probe offline subset'
+    }
+    include runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.allocationCapabilities.taintAnnotationTools with {
+      title 'Probe annotation surface'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.codeAnalysisTools with {
+      title 'Selected read-only operations'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.taintAnnotationTools with {
+      title 'Selected structured mutations'
+    }
+    include runtimeAgent.allocationCapabilities.codeAnalysisTools -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Exact managed-text snapshot'
+    }
+    include runtimeAgent.allocationCapabilities.codeAnalysisTools -> runtimeAgent.allocationCapabilities.trailmarkChild with {
+      title 'Private mirror / typed queries'
+    }
+    include runtimeAgent.allocationCapabilities.taintAnnotationTools -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Atomic one-file mutation'
+    }
+    global predicate withoutContextOnly
 
-    global style ownership
-    autoLayout LeftRight
+    autoLayout LeftRight 100 70
+  }
+
+  view runtimeAdapters {
+    title 'Runtime / Network Adapters'
+    description 'Adapters mediate selected external traffic. Private Contractor control and Artifact API traffic bypass Worker HTTP proxies.'
+
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Exclusive Allocation Slot'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Allocation Adapter Host'
+    }
+    include runtimeAgent.allocationCapabilities.modelClient with {
+      title 'Model Client (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.namespaceTools with {
+      title 'Namespace Tools'
+    }
+    include runtimeAgent.allocationCapabilities.httpCaidoTools with {
+      title 'HTTP / Caido Tools (optional)'
+    }
+    include workerHttpProxy with {
+      title 'Worker HTTP Proxy (optional)'
+    }
+    include telemetryBackend with {
+      title 'Telemetry (optional)'
+    }
+    include llmGateway with {
+      title 'LLM Gateway'
+    }
+    include caidoService with {
+      title 'Caido (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Private Artifact Client'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Allocation-scoped adapters'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.modelClient with {
+      title 'Proxy / telemetry transports'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.namespaceTools with {
+      title 'Proxy-aware selected clients'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.httpCaidoTools with {
+      title 'Typed HTTP / Caido handles'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy with {
+      title 'Selected external HTTP only'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend with {
+      title 'Bounded content-free OTLP'
+    }
+    include runtimeAgent.allocationCapabilities.modelClient -> llmGateway with {
+      title 'Pinned model route'
+    }
+    include runtimeAgent.allocationCapabilities.httpCaidoTools -> caidoService with {
+      title 'Target HTTP / static GraphQL'
+    }
+    include runtimeAgent.allocationCapabilities.httpCaidoTools -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Persist bounded response bodies'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
   }
 
   view artifacts {
-    title 'Contractor v2 — ArtifactStore Scopes, Forks and Run Namespaces'
+    title 'Artifacts / Scopes and Durable Storage'
+    description 'Owner APIs expose UserScope and ProjectScope. Runtime has allocation-bound RunScope access only.'
 
-    include apiClient
-    include server
-    include server.userArtifactApi
-    include server.skillCatalog
-    include server.workflowScheduler
-    include server.stagePlanner
-    include server.plannerArtifactInspector
-    include server.artifactService
-    include server.plannerMemoryTools
-    include server.artifactRegistry
-    include server.blobStore
+    include server.productSurface.userArtifactApi with {
+      title 'Owner Artifact API'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Private Artifact Client'
+    }
+    include server.artifactPlane.artifactRegistry with {
+      title 'Artifact Registry'
+    }
+    include server.artifactPlane.blobStore with {
+      title 'Blob Store'
+    }
+    include artifactDatabase with {
+      title 'PostgreSQL'
+    }
+    include blobBackend with {
+      title 'Artifact Blobs'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.namespaceTools
-    include runtimeAgent.runArtifactTools
-    include runtimeAgent.memoryTools
-    include runtimeAgent.skillToolset
-    include runtimeAgent.artifactClient
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.productSurface.userArtifactApi -> server.artifactPlane.artifactService with {
+      title 'Owner history / upload / download'
+    }
+    include server.orchestration.workflowScheduler -> server.artifactPlane.artifactService with {
+      title 'Fork exact inputs / publish outputs'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService with {
+      title 'mTLS / allocation ID / RunScope'
+    }
+    include server.artifactPlane.artifactService -> server.artifactPlane.artifactRegistry with {
+      title 'Versions / bindings / CAS / grants'
+    }
+    include server.artifactPlane.artifactService -> server.artifactPlane.blobStore with {
+      title 'Immutable content'
+    }
+    include server.artifactPlane.artifactRegistry -> artifactDatabase with {
+      title 'Transactional scoped registry'
+    }
+    include server.artifactPlane.blobStore -> blobBackend with {
+      title 'Immutable blob operations'
+    }
+    global predicate withoutContextOnly
 
-    include artifactDatabase
-    include artifactDatabase.artifactVersions
-    include artifactDatabase.artifactEvents
-    include blobBackend
+    autoLayout LeftRight 100 70
+  }
 
-    exclude * -> * where tag is #contextOnly
+  view artifactCleanup {
+    title 'Artifacts / Released Scope Purge'
+    description 'Remove a complete released RunScope or drained ProjectScope. Collect content only when globally unreferenced.'
 
-    global style ownership
-    autoLayout LeftRight
+    include server.workspaceLifecycle.projectDeletionController with {
+      title 'Project Deletion Controller'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run / Stage Store'
+    }
+    include server.artifactPlane.artifactPurger with {
+      title 'Scope Purger'
+    }
+    include server.artifactPlane.artifactRegistry with {
+      title 'Artifact Registry'
+    }
+    include server.artifactPlane.blobStore with {
+      title 'Blob Store'
+    }
+    include artifactDatabase with {
+      title 'PostgreSQL'
+    }
+    include blobBackend with {
+      title 'Artifact Blobs'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.runStore with {
+      title 'Delete released Project Runs'
+    }
+    include server.workspaceLifecycle.projectDeletionController -> server.artifactPlane.artifactPurger with {
+      title 'Purge drained ProjectScope'
+    }
+    include server.workspaceLifecycle.runStore -> server.artifactPlane.artifactPurger with {
+      title 'Locked terminal RunScope purge'
+    }
+    include server.artifactPlane.artifactPurger -> server.artifactPlane.artifactRegistry with {
+      title 'Remove owned graph / unreferenced versions'
+    }
+    include server.artifactPlane.artifactPurger -> server.artifactPlane.blobStore with {
+      title 'Collect globally unreferenced blobs'
+    }
+    include server.artifactPlane.artifactRegistry -> artifactDatabase with {
+      title 'Transactional registry'
+    }
+    include server.artifactPlane.blobStore -> blobBackend with {
+      title 'Blob operations'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view workerArtifacts {
+    title 'Artifacts / Worker Tools'
+    description 'Tool selection narrows operations; allocation grants remain authoritative. Memory tools hide refs and revisions.'
+
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include runtimeAgent.allocationCapabilities.namespaceTools with {
+      title 'Namespace Tools'
+    }
+    include runtimeAgent.allocationCapabilities.runArtifactTools with {
+      title 'Run Artifact Tools'
+    }
+    include runtimeAgent.allocationCapabilities.memoryTools with {
+      title 'Worker Memory Tools'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Private Artifact Client'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.namespaceTools with {
+      title 'Selected Namespace tools'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.runArtifactTools with {
+      title 'Selected Run artifact tools'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.memoryTools with {
+      title 'Selected logical note tools'
+    }
+    include runtimeAgent.allocationCapabilities.namespaceTools -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Logical reads / writes / CAS'
+    }
+    include runtimeAgent.allocationCapabilities.runArtifactTools -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'List / read / write / explicit CAS'
+    }
+    include runtimeAgent.allocationCapabilities.memoryTools -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'memory.* / hidden CAS'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService with {
+      title 'Allocation-bound RunScope'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
   }
 
   view controlPlane {
-    title 'Contractor v2 — Control Plane and Single-slot Runtime Fleet'
+    title 'Operations / Runtime Fleet'
+    description 'Startup capability truth and live availability drive placement. Each Runtime process exposes one exclusive slot.'
 
-    include server
-    include server.workflowScheduler
-    include server.agentTemplateCatalog
-    include server.controlPlane
-    include server.runtimeRegistry
-    include server.runtimeConfigService
+    include server.runtimeOperations.operationsApi with {
+      title 'Operations & Config API'
+    }
+    include server.runtimeOperations.runtimeRegistry with {
+      title 'Agent Registry & Slots'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include runtimeAgent.agentControl.capabilityProbe with {
+      title 'Startup Capability Probes'
+    }
+    include runtimeAgent.agentControl.registryClient with {
+      title 'Registration & Heartbeat'
+    }
+    include runtimeAgent.agentControl.controlEndpoint with {
+      title 'Private Control Endpoint'
+    }
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Exclusive Allocation Slot'
+    }
+    include server.identityConfiguration.runtimeConfigService with {
+      title 'Runtime Configs & Labels'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.controlEndpoint
-    include runtimeAgent.registryClient
-    include runtimeAgent.slotManager
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.adapterHost
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.runtimeOperations.operationsApi -> server.runtimeOperations.runtimeRegistry with {
+      title 'Authoritative / observed slots'
+    }
+    include server.orchestration.workflowScheduler -> server.runtimeOperations.controlPlane with {
+      title 'Prepare / finalize / release'
+    }
+    include server.runtimeOperations.controlPlane -> server.runtimeOperations.runtimeRegistry with {
+      title 'Reserve a free slot'
+    }
+    include runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.agentControl.registryClient with {
+      title 'Immutable usable capabilities'
+    }
+    include runtimeAgent.agentControl.registryClient -> server.runtimeOperations.controlPlane with {
+      title 'mTLS register / heartbeat / ack'
+    }
+    include server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint with {
+      title 'mTLS allocation control'
+    }
+    include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.agentControl.slotManager with {
+      title 'Exclusive allocation ownership'
+    }
+    include server.runtimeOperations.controlPlane -> server.identityConfiguration.runtimeConfigService with {
+      title 'Overlay Agent labels / adapters'
+    }
+    global predicate withoutContextOnly
 
-    exclude * -> * where tag is #contextOnly
+    autoLayout LeftRight 100 70
+  }
 
-    global style ownership
-    autoLayout LeftRight
+  view executionTelemetry {
+    title 'Operations / Reports and Telemetry'
+    description 'Trusted Contractor reports are durable. Optional exporters send bounded, content-free telemetry.'
+
+    include runtimeAgent.workerExecution.workerInstrumentation with {
+      title 'Worker Instrumentation'
+    }
+    include runtimeAgent.workerExecution.executionCollector with {
+      title 'Allocation Reports'
+    }
+    include runtimeAgent.agentControl.controlEndpoint with {
+      title 'Private Control Endpoint'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include server.runtimeOperations.telemetry with {
+      title 'Execution Reports'
+    }
+    include server.orchestration.stagePlanner with {
+      title 'Stage Planner'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include artifactDatabase.executionReports with {
+      title 'Reports & StageMetrics'
+    }
+    include telemetryBackend with {
+      title 'Telemetry (optional)'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Allocation Adapter Host'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.workerExecution.executionCollector with {
+      title 'Bounded Worker metrics'
+    }
+    include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.workerExecution.executionCollector with {
+      title 'Finalize / abort cached report'
+    }
+    include runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane with {
+      title 'Trusted allocation report'
+    }
+    include server.runtimeOperations.controlPlane -> server.runtimeOperations.telemetry with {
+      title 'Bind trusted identity / Run labels'
+    }
+    include server.orchestration.stagePlanner -> server.runtimeOperations.telemetry with {
+      title 'Planner ExecutionReport'
+    }
+    include server.orchestration.workflowScheduler -> server.runtimeOperations.telemetry with {
+      title 'Bounded StageMetrics'
+    }
+    include server.runtimeOperations.telemetry -> artifactDatabase.executionReports with {
+      title 'Persist reports / metrics'
+    }
+    include server.runtimeOperations.telemetry -> telemetryBackend with {
+      title 'Optional export'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend with {
+      title 'Optional bounded OTLP'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
   }
 
   view agentSkills {
-    title 'Contractor v2 — Owner Artifact Skill Update, Run Pinning and ADK Loading'
+    title 'Artifacts / Skill Pinning and Loading'
+    description 'Bundled sources become owner artifacts. Runs pin exact packages; Worker prepare loads only allocation-selected packages.'
 
-    include browser
-    include apiClient
-    include server
-    include server.userArtifactApi
-    include server.agentTemplateCatalog
-    include server.skillCatalog
-    include server.workflowScheduler
-    include server.artifactService
-    include server.artifactRegistry
-    include server.blobStore
+    include server.orchestration.skillCatalog with {
+      title 'Skill Catalog'
+    }
+    include configFilesystem with {
+      title 'Published Configs & Skills'
+    }
+    include server.productSurface.userArtifactApi with {
+      title 'Owner Artifact API'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include server.orchestration.agentTemplateCatalog with {
+      title 'AgentTemplate Catalog'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'ADK Worker Runtime'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Private Artifact Client'
+    }
+    include runtimeAgent.allocationCapabilities.skillToolset with {
+      title 'ADK SkillToolset'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.controlEndpoint
-    include runtimeAgent.slotManager
-    include runtimeAgent.workerRuntime
-    include runtimeAgent.skillToolset
-    include runtimeAgent.artifactClient
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.orchestration.skillCatalog -> configFilesystem with {
+      title 'Validate / package before readiness'
+    }
+    include server.productSurface.userArtifactApi -> server.artifactPlane.artifactService with {
+      title 'Owner Skill updates'
+    }
+    include server.orchestration.workflowScheduler -> server.orchestration.agentTemplateCatalog with {
+      title 'Pin selected behavior'
+    }
+    include server.orchestration.workflowScheduler -> server.orchestration.skillCatalog with {
+      title 'Resolve once / fork exact packages'
+    }
+    include server.orchestration.skillCatalog -> server.artifactPlane.artifactService with {
+      title 'Owner skills/* / exact Run copies'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Prepare-time exact Skill reads'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService with {
+      title 'Allocation-bound RunScope'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.skillToolset with {
+      title 'Load selected exact packages'
+    }
+    global predicate withoutContextOnly
 
-    include artifactDatabase
-    include artifactDatabase.artifactVersions
-    include artifactDatabase.artifactEvents
-    include blobBackend
-    include configFilesystem
-
-    exclude * -> * where tag is #contextOnly
-
-    global style ownership
-    autoLayout LeftRight
+    autoLayout LeftRight 100 70
   }
 
   view runtimeConfiguration {
-    title 'Contractor v2 — Label-driven Runtime Configuration'
+    title 'Operations / Configuration and Labels'
+    description 'Immutable configs and revisioned labels are pinned into execution inputs. Bootstrap secrets are shown separately.'
 
-    include browser
-    include server
-    include server.publicApi
-    include server.operationsApi
-    include server.runtimeConfigService
-    include server.workflowScheduler
-    include server.stagePlanner
-    include server.controlPlane
-    include server.runtimeRegistry
+    include browser with {
+      title 'User Browser'
+    }
+    include server.runtimeOperations.operationsApi with {
+      title 'Operations & Config API'
+    }
+    include server.identityConfiguration.authService with {
+      title 'Session & Principal Boundary'
+    }
+    include server.identityConfiguration.executionConfigService with {
+      title 'Execution Configs & Credentials'
+    }
+    include server.identityConfiguration.runtimeConfigService with {
+      title 'Runtime Configs & Labels'
+    }
+    include server.productSurface.publicApi with {
+      title 'Projects / Runs / Queue API'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include server.orchestration.stagePlanner with {
+      title 'Stage Planner'
+    }
+    include artifactDatabase.runtimeConfiguration with {
+      title 'Runtime Configs & Bindings'
+    }
+    include configFilesystem with {
+      title 'Published Configs & Skills'
+    }
 
-    include runtimeAgent
-    include runtimeAgent.registryClient
-    include runtimeAgent.controlEndpoint
-    include runtimeAgent.capabilityProbe
-    include runtimeAgent.slotManager
-    include runtimeAgent.adapterHost
-    include runtimeAgent.modelClient
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include browser -> server.runtimeOperations.operationsApi with {
+      title 'Manage config / Runtime visibility'
+    }
+    include server.runtimeOperations.operationsApi -> server.identityConfiguration.authService with {
+      title 'Authenticate / audit actor'
+    }
+    include server.runtimeOperations.operationsApi -> server.identityConfiguration.executionConfigService with {
+      title 'Publish configs / manage credentials'
+    }
+    include server.runtimeOperations.operationsApi -> server.identityConfiguration.runtimeConfigService with {
+      title 'Configs / bindings / Agent labels'
+    }
+    include server.productSurface.publicApi -> server.identityConfiguration.runtimeConfigService with {
+      title 'Pin default / selected Run labels'
+    }
+    include server.orchestration.workflowScheduler -> server.identityConfiguration.executionConfigService with {
+      title 'Pin executionConfig'
+    }
+    include server.runtimeOperations.controlPlane -> server.identityConfiguration.runtimeConfigService with {
+      title 'Overlay candidate Agent labels'
+    }
+    include server.orchestration.stagePlanner -> server.identityConfiguration.runtimeConfigService with {
+      title 'Pinned Planner telemetry settings'
+    }
+    include server.identityConfiguration.runtimeConfigService -> artifactDatabase.runtimeConfiguration with {
+      title 'Immutable configs / CAS bindings'
+    }
+    include server.identityConfiguration.executionConfigService -> configFilesystem with {
+      title 'Load / publish immutable versions'
+    }
+    global predicate withoutContextOnly
 
-    include artifactDatabase
-    include artifactDatabase.runtimeConfiguration
-    include artifactDatabase.credentials
-    include credentialMasterKey
-    include telemetryBackend
-    include workerHttpProxy
+    autoLayout TopBottom 100 70
+  }
 
-    exclude * -> * where tag is #contextOnly
+  view bootstrapSecrets {
+    title 'Operations / Credentials and Bootstrap'
+    description 'Host bootstrap files remain outside product APIs. Managed credentials are encrypted and resolved only within trusted configuration boundaries.'
 
-    global style ownership
-    autoLayout LeftRight
+    include server.identityConfiguration.authService with {
+      title 'Session & Principal Boundary'
+    }
+    include localAuthBootstrap with {
+      title 'Local Auth Bootstrap'
+    }
+    include server.identityConfiguration.executionConfigService with {
+      title 'Execution Configs & Credentials'
+    }
+    include credentialMasterKey with {
+      title 'Credential Master Key'
+    }
+    include gatewayAdminBindings with {
+      title 'Gateway Admin Secrets'
+    }
+    include artifactDatabase.credentials with {
+      title 'Encrypted Credentials'
+    }
+    include llmGateway with {
+      title 'LLM Gateway'
+    }
+    include server.identityConfiguration.runtimeConfigService with {
+      title 'Runtime Configs & Labels'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Control Plane'
+    }
+    include server.orchestration.plannerFactories with {
+      title 'Planner Factories'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.identityConfiguration.authService -> localAuthBootstrap with {
+      title 'Read user / Argon2id hash at startup'
+    }
+    include server.identityConfiguration.executionConfigService -> credentialMasterKey with {
+      title 'Startup key / decrypt just in time'
+    }
+    include server.identityConfiguration.executionConfigService -> gatewayAdminBindings with {
+      title 'Startup Gateway admin binding'
+    }
+    include server.identityConfiguration.executionConfigService -> artifactDatabase.credentials with {
+      title 'Encrypted pinned credentials'
+    }
+    include server.identityConfiguration.executionConfigService -> llmGateway with {
+      title 'Manage LiteLLM virtual keys'
+    }
+    include server.identityConfiguration.runtimeConfigService -> credentialMasterKey with {
+      title 'Decrypt selected adapter credentials'
+    }
+    include server.identityConfiguration.runtimeConfigService -> artifactDatabase.credentials with {
+      title 'Encrypted adapter credentials'
+    }
+    include server.runtimeOperations.controlPlane -> server.identityConfiguration.executionConfigService with {
+      title 'Resolve pinned Worker credentials'
+    }
+    include server.orchestration.plannerFactories -> server.identityConfiguration.executionConfigService with {
+      title 'Resolve pinned Planner credential'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view durableState {
+    title 'Storage / Server State'
+    description 'PostgreSQL owns lifecycle, planner recovery, configuration and reports. Artifact registry internals remain behind its adapter.'
+
+    include server.workspaceLifecycle.projectStore with {
+      title 'Project Store'
+    }
+    include artifactDatabase.projectState with {
+      title 'Project State'
+    }
+    include server.workspaceLifecycle.ownerQueueGate with {
+      title 'Owner Queue Gate'
+    }
+    include artifactDatabase.runState with {
+      title 'Run / Stage / Queue State'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run / Stage Store'
+    }
+    include server.orchestration.plannerSessionService with {
+      title 'Planner Sessions'
+    }
+    include artifactDatabase.plannerSessions with {
+      title 'Planner Session Records'
+    }
+    include server.identityConfiguration.runtimeConfigService with {
+      title 'Runtime Configs & Labels'
+    }
+    include artifactDatabase.runtimeConfiguration with {
+      title 'Runtime Configs & Bindings'
+    }
+    include server.identityConfiguration.executionConfigService with {
+      title 'Execution Configs & Credentials'
+    }
+    include artifactDatabase.credentials with {
+      title 'Encrypted Credentials'
+    }
+    include server.runtimeOperations.telemetry with {
+      title 'Execution Reports'
+    }
+    include artifactDatabase.executionReports with {
+      title 'Reports & StageMetrics'
+    }
+
+    // Show only the relationships relevant to this view.
+    exclude * -> *
+    include server.workspaceLifecycle.projectStore -> artifactDatabase.projectState with {
+      title 'Project / lifecycle / deletion claims'
+    }
+    include server.workspaceLifecycle.ownerQueueGate -> artifactDatabase.runState with {
+      title 'Durable pause / admission boundary'
+    }
+    include server.workspaceLifecycle.runStore -> artifactDatabase.runState with {
+      title 'Runs / Stages / queue / idempotency'
+    }
+    include server.orchestration.plannerSessionService -> artifactDatabase.plannerSessions with {
+      title 'Recovery / typed plans / redacted facts'
+    }
+    include server.identityConfiguration.runtimeConfigService -> artifactDatabase.runtimeConfiguration with {
+      title 'Immutable configs / CAS bindings'
+    }
+    include server.identityConfiguration.executionConfigService -> artifactDatabase.credentials with {
+      title 'Encrypted credentials'
+    }
+    include server.identityConfiguration.runtimeConfigService -> artifactDatabase.credentials with {
+      title 'Encrypted adapter credentials'
+    }
+    include server.runtimeOperations.telemetry -> artifactDatabase.executionReports with {
+      title 'Reports / accepted StageMetrics'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
   }
 }
