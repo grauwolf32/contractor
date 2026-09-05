@@ -3,8 +3,8 @@ id: V27-001
 title: Add durable global Workflow Scheduler settings
 milestone: workflow-scheduler-concurrency
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "34f42097361804b0e482a97315c987b9228bb01a"
 depends_on: [V24-003]
 languages: [go, sql]
 
