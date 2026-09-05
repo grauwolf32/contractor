@@ -3,8 +3,8 @@ id: V25-002
 title: Validate Audit packages and build deterministic inventories
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 658a88dd68d023e02e78cad8cda93615e3da414e
 depends_on: [V25-001]
 languages: [go, json, yaml]
 

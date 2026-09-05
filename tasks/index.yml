@@ -1746,6 +1746,35 @@ audits_v25_001_implementation_review:
     - make verify
     - contractor-server config validate for configs and configs/e2e
 
+audits_v25_002_implementation_review:
+  reviewed_on: "2026-09-05"
+  verdict: complete
+  implementation_commit: 658a88dd68d023e02e78cad8cda93615e3da414e
+  confirmed:
+    - >-
+      Audit ZIP packages have a canonical strict manifest, content digests,
+      deterministic export and bounded all-in-memory validation that rejects
+      traversal, aliases, special files, bombs and malformed members.
+    - >-
+      Checklist and OpenAPI inventory generation is side-effect free and
+      all-or-nothing. Exact source provenance is separate from normalized JCS
+      inventory identity, and task packages do not duplicate source bytes.
+    - >-
+      OpenAPI operation identity uses the canonical inventory digest plus exact
+      path and method. Local package refs are bounded, selected remote refs
+      reject, and unsupported callback/webhook surfaces remain explicit gaps.
+    - >-
+      Worklist, execution manifest, item task, CheckResultSet, finding proposal,
+      evidence and coverage codecs enforce version, bounds, uniqueness and
+      exact batch membership before persistence or dispatch.
+  verification:
+    - go test ./internal/auditdomain
+    - go test -race ./internal/auditdomain
+    - go test ./internal/auditdomain -run=^$ -fuzz=^FuzzAuditPackage$ -fuzztime=10s
+    - go test ./internal/auditdomain -run=^$ -fuzz=^FuzzOpenAPIInventory$ -fuzztime=10s
+    - make verify
+    - npx --yes likec4@1.56.0 validate docs/spec
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}
