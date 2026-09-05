@@ -6,14 +6,17 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +28,8 @@ import (
 )
 
 const (
-	projectSource = `from fastapi import Depends, FastAPI, HTTPException
+	projectOriginSecret = "PROJECT_ORIGIN_SECRET_MUST_NEVER_REACH_MODEL_OR_SAFE_STATE"
+	projectSource       = `from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 import httpx
 
@@ -62,8 +66,25 @@ paths: {}
 )
 
 type projectRunEvidence struct {
-	lastAllocationID  string
-	runtimeInstanceID string
+	lastAllocationID       string
+	runtimeInstanceByStage map[string]string
+}
+
+type projectResourceResponse struct {
+	ProjectID   string    `json:"projectId"`
+	Kind        string    `json:"kind"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Revision    string    `json:"revision"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	HTTPTarget  *struct {
+		URL        string `json:"url"`
+		Credential *struct {
+			CredentialID string `json:"credentialId"`
+			Kind         string `json:"kind"`
+		} `json:"credential,omitempty"`
+	} `json:"httpTarget,omitempty"`
 }
 
 type persistedBinding struct {
@@ -72,7 +93,7 @@ type persistedBinding struct {
 	frozen    bool
 }
 
-func TestProjectWorkflowsFromWorkspace(t *testing.T) {
+func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 	if testing.Short() {
 		t.Skip("end-to-end process test")
 	}
@@ -82,7 +103,7 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 230*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -105,13 +126,18 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue Control Plane certificate: %v", err)
 	}
-	agentPaths, err := generator.IssueAgent(pkiRoot, "project-workflows-e2e-agent", leaf)
+	openAPIIdentity, err := generator.IssueAgent(pkiRoot, "project-openapi-agent", leaf)
 	if err != nil {
-		t.Fatalf("issue Runtime Agent certificate: %v", err)
+		t.Fatalf("issue OpenAPI Runtime Agent certificate: %v", err)
+	}
+	likeC4Identity, err := generator.IssueAgent(pkiRoot, "project-likec4-agent", leaf)
+	if err != nil {
+		t.Fatalf("issue LikeC4 Runtime Agent certificate: %v", err)
 	}
 
-	validatorBin, validatorLog := installDomainValidators(t, temporaryRoot)
-	gateway := newDomainGateway(llmGatewayToken)
+	openAPIBin, likeC4Bin, validatorLog := installSplitDomainValidators(t, temporaryRoot)
+	gateway := newBlockedDomainGateway(llmGatewayToken, domainGatewayStages())
+	gateway.forbid(projectOriginSecret)
 	t.Cleanup(gateway.close)
 	configRoot := stageE2EConfiguration(
 		t, filepath.Join(repositoryRoot, "configs"),
@@ -119,13 +145,19 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	)
 	publicAddress := freeAddress(t)
 	privateAddress := freeAddress(t)
-	runtimeAddress := freeAddress(t)
+	openAPIRuntimeAddress, likeC4RuntimeAddress := freeAddress(t), freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
 	privateBaseURL := "https://" + privateAddress
-	runtimeBaseURL := "https://" + runtimeAddress
+	openAPIRuntimeBaseURL := "https://" + openAPIRuntimeAddress
+	likeC4RuntimeBaseURL := "https://" + likeC4RuntimeAddress
 	userID := "project-e2e-user-" + randomHex(t, 8)
 	localAuthFile := writeE2ELocalAuth(t, temporaryRoot, userID)
-	server := startProcess(t, "Go Server", repositoryRoot, map[string]string{
+	masterKeyFile := filepath.Join(temporaryRoot, "credential-master-key")
+	masterKey := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x37}, 32))
+	if err := os.WriteFile(masterKeyFile, []byte(masterKey), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	serverEnvironment := map[string]string{
 		"CONTRACTOR_DATABASE_URL":            isolateURL,
 		"CONTRACTOR_CONFIG_ROOT":             configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN":           publicAddress,
@@ -139,7 +171,15 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 		"CONTRACTOR_PUBLIC_BEARER_TOKEN":     publicToken,
 		"CONTRACTOR_LOCAL_AUTH_FILE":         localAuthFile,
 		"CONTRACTOR_BROWSER_ORIGINS":         "https://ui.contractor.invalid",
-	}, serverBinary, "serve")
+	}
+	startServer := func(name string) *childProcess {
+		return startProcess(
+			t, name, repositoryRoot, serverEnvironment,
+			serverBinary, "serve", "--credential-master-key-file", masterKeyFile,
+		)
+	}
+	server := startServer("Go Server")
+	initialServer := server
 
 	publicClient := &http.Client{Timeout: 8 * time.Second}
 	waitForHTTP(t, ctx, server, publicClient, publicBaseURL+"/readyz", http.StatusOK)
@@ -147,40 +187,69 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	if info, statErr := os.Stat(python); statErr != nil || info.IsDir() {
 		t.Fatalf("Python Runtime environment is missing at %s; run 'cd runtime && uv sync --locked'", python)
 	}
-	workRoot := filepath.Join(temporaryRoot, "runtime-work")
-	workspaceRoot := filepath.Join(temporaryRoot, "runtime-project-workspaces")
-	runtimeProcess := startProcess(
-		t, "Python Runtime Agent", filepath.Join(repositoryRoot, "runtime"),
-		map[string]string{
-			"PATH":             validatorBin + string(os.PathListSeparator) + os.Getenv("PATH"),
-			"PYTHONUNBUFFERED": "1",
-		},
-		python, "-m", "contractor_runtime",
-		"--control-plane-url", privateBaseURL,
-		"--advertised-control-url", runtimeBaseURL,
-		"--advertised-a2a-url", runtimeBaseURL,
-		"--ca-file", caPaths.Certificate,
-		"--certificate-file", agentPaths.Certificate,
-		"--private-key-file", agentPaths.PrivateKey,
-		"--listen", runtimeAddress,
-		"--work-root", workRoot,
-		"--workspace-storage", "local",
-		"--workspace-work-root", workspaceRoot,
-		"--request-timeout-seconds", "12",
-		"--shutdown-grace-seconds", "5",
+	openAPIWorkRoot := filepath.Join(temporaryRoot, "runtime-openapi-work")
+	openAPIWorkspaceRoot := filepath.Join(temporaryRoot, "runtime-openapi-workspaces")
+	openAPIRuntime := startProjectRuntime(
+		t, "Python Runtime Agent OpenAPI", repositoryRoot, python, privateBaseURL,
+		openAPIRuntimeAddress, openAPIWorkRoot, openAPIWorkspaceRoot, openAPIBin,
+		caPaths.Certificate, openAPIIdentity,
+	)
+	likeC4WorkRoot := filepath.Join(temporaryRoot, "runtime-likec4-work")
+	likeC4WorkspaceRoot := filepath.Join(temporaryRoot, "runtime-likec4-workspaces")
+	likeC4Runtime := startProjectRuntime(
+		t, "Python Runtime Agent LikeC4", repositoryRoot, python, privateBaseURL,
+		likeC4RuntimeAddress, likeC4WorkRoot, likeC4WorkspaceRoot, likeC4Bin,
+		caPaths.Certificate, likeC4Identity,
 	)
 	controlClient := newMTLSClient(t, caPaths.Certificate, controlPlanePaths)
-	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeBaseURL+"/healthz", http.StatusOK)
+	waitForHTTP(t, ctx, openAPIRuntime, controlClient, openAPIRuntimeBaseURL+"/healthz", http.StatusOK)
+	waitForHTTP(t, ctx, likeC4Runtime, controlClient, likeC4RuntimeBaseURL+"/healthz", http.StatusOK)
+	waitForProcessLog(t, ctx, openAPIRuntime, "runtime agent registered")
+	waitForProcessLog(t, ctx, likeC4Runtime, "runtime agent registered")
+	registered, _ := waitForObservedRuntimeAgents(
+		t, ctx, server, []*childProcess{openAPIRuntime, likeC4Runtime}, publicClient, publicBaseURL,
+		func(agents []observedRuntimeAgent) bool {
+			_, hasOpenAPI := findRuntimeWithTool(agents, "openapi@1", "validate_openapi")
+			_, hasLikeC4 := findRuntimeWithTool(agents, "likec4@1", "validate_likec4")
+			return len(agents) == 2 && hasOpenAPI && hasLikeC4
+		},
+	)
+	openAPIAgent, hasOpenAPI := findRuntimeWithTool(registered, "openapi@1", "validate_openapi")
+	likeC4Agent, hasLikeC4 := findRuntimeWithTool(registered, "likec4@1", "validate_likec4")
+	if !hasOpenAPI || !hasLikeC4 || openAPIAgent.InstanceID == likeC4Agent.InstanceID {
+		t.Fatalf("specialist Runtime capabilities are not distinct: %+v", registered)
+	}
+
+	project := createProjectResource(t, publicClient, publicBaseURL)
+	createProjectOriginCredential(t, publicClient, publicBaseURL)
+	project = updateProjectTarget(
+		t, publicClient, publicBaseURL, project.ProjectID, project.Revision,
+		map[string]any{"url": "https://service.example.test/api", "credential": map[string]string{
+			"credentialId": "project-origin", "kind": "http-origin-bearer@1",
+		}}, http.StatusOK,
+	)
+	if project.Revision != "2" || project.HTTPTarget == nil ||
+		project.HTTPTarget.Credential == nil ||
+		project.HTTPTarget.Credential.CredentialID != "project-origin" {
+		t.Fatalf("attached Project target = %+v", project)
+	}
+	updateProjectTarget(
+		t, publicClient, publicBaseURL, project.ProjectID, "1",
+		map[string]any{"url": "https://stale.example.test"}, http.StatusPreconditionFailed,
+	)
 
 	sourceBytes := projectSourceArchive(t)
-	source := uploadProjectArtifact(
-		t, publicClient, publicBaseURL, "project-source", "application/zip", sourceBytes,
+	source := uploadProjectScopeArtifact(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		"sources", "service", "application/zip", sourceBytes,
 	)
-	openAPISeedRef := uploadProjectArtifact(
-		t, publicClient, publicBaseURL, "project-openapi-seed", "application/yaml", []byte(openAPISeed),
+	openAPISeedRef := uploadProjectScopeArtifact(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		"openapi", "seed", "application/yaml", []byte(openAPISeed),
 	)
-	likeC4SeedRef := uploadProjectArtifact(
-		t, publicClient, publicBaseURL, "project-likec4-seed", "text/plain", []byte(likeC4Seed),
+	likeC4SeedRef := uploadProjectScopeArtifact(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		"likec4", "seed", "text/plain", []byte(likeC4Seed),
 	)
 
 	pool, err := pgxpool.New(ctx, isolateURL)
@@ -189,11 +258,37 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 	}
 	t.Cleanup(pool.Close)
 
-	openAPIRunID := createProjectRun(t, publicClient, publicBaseURL, "openapi-from-workspace@4", map[string]artifactRef{
+	openAPIRunRequest := projectRunRequest("openapi-from-workspace@4", map[string]artifactRef{
 		"source": source, "existing_openapi": openAPISeedRef,
 	})
+	openAPIRunID := postProjectRun(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		"project-e2e-openapi-v4", openAPIRunRequest, false,
+	)
+	select {
+	case <-gateway.blockedRequest():
+	case <-time.After(30 * time.Second):
+		t.Fatalf("OpenAPI Run did not reach the deterministic model gateway\nserver:\n%s", server.logs.redacted())
+	}
+	assertProjectQueueMembership(t, publicClient, publicBaseURL, project, openAPIRunID)
+	replayedOpenAPIRunID := postProjectRun(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		"project-e2e-openapi-v4", openAPIRunRequest, true,
+	)
+	if replayedOpenAPIRunID != openAPIRunID {
+		t.Fatalf("Project Run response-loss replay returned %q, want %q", replayedOpenAPIRunID, openAPIRunID)
+	}
+	gateway.releaseBlockedRequest()
 	openAPIStatus := waitForDomainRun(
-		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, openAPIRunID,
+		t, ctx, server, openAPIRuntime, gateway, publicClient, publicBaseURL, openAPIRunID,
+		likeC4Runtime,
+	)
+	assertRunProjectAndPublications(
+		t, openAPIStatus, project.ProjectID,
+		map[string]string{
+			"openapi": "published", "openapi_validation_report": "published",
+			"workspace_state": "published", "workspace_diff": "published",
+		},
 	)
 	assertProjectRunStatus(
 		t, openAPIStatus,
@@ -233,15 +328,47 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 		},
 	)
 	waitForRuntimeReleased(
-		t, ctx, runtimeProcess, controlClient, runtimeBaseURL,
-		openAPIEvidence.lastAllocationID, workRoot,
+		t, ctx, openAPIRuntime, controlClient, openAPIRuntimeBaseURL,
+		openAPIEvidence.lastAllocationID, openAPIWorkRoot,
+	)
+	assertSpecialistPlacement(
+		t, openAPIEvidence, []string{"openapi_build", "openapi_validate"}, openAPIAgent.InstanceID,
+	)
+	assertProjectInputLineage(t, ctx, pool, project.ProjectID, openAPIRunID, "source", source)
+	assertProjectPublishedOutputLineage(t, ctx, pool, project.ProjectID, openAPIRunID, openAPIStatus)
+	assertProjectArtifactBytes(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		artifactRef{Namespace: "outputs", Name: "openapi"}, openAPIBytes, "application/yaml",
 	)
 
-	likeC4RunID := createProjectRun(t, publicClient, publicBaseURL, "likec4-from-workspace@4", map[string]artifactRef{
+	openAPIRuntime.stop(t)
+	server.stop(t)
+	server = startServer("Go Server after durable restart")
+	waitForHTTP(t, ctx, server, publicClient, publicBaseURL+"/readyz", http.StatusOK)
+	waitForObservedRuntimeAgents(
+		t, ctx, server, []*childProcess{likeC4Runtime}, publicClient, publicBaseURL,
+		func(agents []observedRuntimeAgent) bool {
+			agent, found := findRuntimeWithTool(agents, "likec4@1", "validate_likec4")
+			return found && agent.InstanceID == likeC4Agent.InstanceID && agent.ConfirmedLeaseUntil != nil
+		},
+	)
+
+	likeC4RunRequest := projectRunRequest("likec4-from-workspace@4", map[string]artifactRef{
 		"source": source, "existing_likec4": likeC4SeedRef,
 	})
+	likeC4RunID := postProjectRun(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		"project-e2e-likec4-v4", likeC4RunRequest, false,
+	)
 	likeC4Status := waitForDomainRun(
-		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL, likeC4RunID,
+		t, ctx, server, likeC4Runtime, gateway, publicClient, publicBaseURL, likeC4RunID,
+	)
+	assertRunProjectAndPublications(
+		t, likeC4Status, project.ProjectID,
+		map[string]string{
+			"likec4": "published", "likec4_validation_report": "published",
+			"workspace_state": "already_present", "workspace_diff": "already_present",
+		},
 	)
 	assertProjectRunStatus(
 		t, likeC4Status,
@@ -282,23 +409,41 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 		},
 	)
 	waitForRuntimeReleased(
-		t, ctx, runtimeProcess, controlClient, runtimeBaseURL,
-		likeC4Evidence.lastAllocationID, workRoot,
+		t, ctx, likeC4Runtime, controlClient, likeC4RuntimeBaseURL,
+		likeC4Evidence.lastAllocationID, likeC4WorkRoot,
 	)
-	if !workRootEmpty(workspaceRoot) {
-		t.Fatal("project Workflow Runtime retained an allocation-private workspace")
+	assertSpecialistPlacement(
+		t, likeC4Evidence, []string{"likec4_build", "likec4_validate"}, likeC4Agent.InstanceID,
+	)
+	if openAPIAgent.InstanceID == likeC4Agent.InstanceID {
+		t.Fatal("OpenAPI and LikeC4 specialist work used one Runtime identity")
 	}
-	if openAPIEvidence.runtimeInstanceID != likeC4Evidence.runtimeInstanceID {
-		t.Fatalf("workflows used different Runtime slots: %q != %q",
-			openAPIEvidence.runtimeInstanceID, likeC4Evidence.runtimeInstanceID)
+	if !workRootEmpty(openAPIWorkspaceRoot) || !workRootEmpty(likeC4WorkspaceRoot) {
+		t.Fatal("Project Workflow Runtime retained an allocation-private workspace")
 	}
+	assertProjectInputLineage(t, ctx, pool, project.ProjectID, likeC4RunID, "source", source)
+	assertProjectPublishedOutputLineage(t, ctx, pool, project.ProjectID, likeC4RunID, likeC4Status)
+	var projectRunCount int
+	if err := pool.QueryRow(
+		ctx, `SELECT count(*) FROM workflow_runs WHERE project_id = $1`, project.ProjectID,
+	).Scan(&projectRunCount); err != nil || projectRunCount != 2 {
+		t.Fatalf("Project Run count after response-loss replay = %d (err=%v), want 2", projectRunCount, err)
+	}
+	assertProjectArtifactBytes(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		artifactRef{Namespace: "outputs", Name: "likec4"}, likeC4Bytes, "text/vnd.likec4",
+	)
 
-	assertUserArtifactUnchanged(t, publicClient, publicBaseURL, source, sourceBytes, "application/zip")
-	assertUserArtifactUnchanged(
-		t, publicClient, publicBaseURL, openAPISeedRef, []byte(openAPISeed), "application/yaml",
+	assertProjectArtifactBytes(
+		t, publicClient, publicBaseURL, project.ProjectID, source, sourceBytes, "application/zip",
 	)
-	assertUserArtifactUnchanged(
-		t, publicClient, publicBaseURL, likeC4SeedRef, []byte(likeC4Seed), "text/plain",
+	assertProjectArtifactBytes(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		openAPISeedRef, []byte(openAPISeed), "application/yaml",
+	)
+	assertProjectArtifactBytes(
+		t, publicClient, publicBaseURL, project.ProjectID,
+		likeC4SeedRef, []byte(likeC4Seed), "text/plain",
 	)
 	assertValidatorInvocations(t, validatorLog, 3, 5)
 	if gateway.CompletedStages() != 8 || gateway.Calls() != 58 || len(gateway.Failures()) != 0 {
@@ -309,10 +454,489 @@ func TestProjectWorkflowsFromWorkspace(t *testing.T) {
 		t.Fatalf("gateway observations = %d, want 58", len(observations))
 	}
 
-	for _, secret := range []string{publicToken, llmGatewayToken} {
+	assertRuntimeCredentialInUse(t, publicClient, publicBaseURL, project.ProjectID)
+	project = updateProjectTarget(
+		t, publicClient, publicBaseURL, project.ProjectID, project.Revision, nil, http.StatusOK,
+	)
+	if project.HTTPTarget != nil || project.Revision != "3" {
+		t.Fatalf("detached Project target = %+v", project)
+	}
+	deleteRuntimeCredential(t, publicClient, publicBaseURL, http.StatusNoContent)
+	assertProjectSecretNotRetained(
+		t, ctx, pool, []*childProcess{initialServer, server, openAPIRuntime, likeC4Runtime},
+	)
+
+	for _, secret := range []string{publicToken, llmGatewayToken, projectOriginSecret} {
 		if strings.Contains(server.logs.redacted(), secret) ||
-			strings.Contains(runtimeProcess.logs.redacted(), secret) {
+			strings.Contains(openAPIRuntime.logs.redacted(), secret) ||
+			strings.Contains(likeC4Runtime.logs.redacted(), secret) {
 			t.Fatal("process logs contain a configured secret")
+		}
+	}
+}
+
+func startProjectRuntime(
+	t *testing.T,
+	name, repositoryRoot, python, privateBaseURL, address, workRoot, workspaceRoot, validatorBin, caFile string,
+	identity localpki.Paths,
+) *childProcess {
+	t.Helper()
+	baseURL := "https://" + address
+	return startProcess(
+		t, name, filepath.Join(repositoryRoot, "runtime"),
+		map[string]string{
+			// Deliberately exclude the host's /usr/local and user npm bins so
+			// each process advertises exactly one external validator.
+			"PATH":             validatorBin + string(os.PathListSeparator) + "/usr/bin:/bin",
+			"PYTHONUNBUFFERED": "1",
+		},
+		python, "-m", "contractor_runtime",
+		"--control-plane-url", privateBaseURL,
+		"--advertised-control-url", baseURL,
+		"--advertised-a2a-url", baseURL,
+		"--ca-file", caFile,
+		"--certificate-file", identity.Certificate,
+		"--private-key-file", identity.PrivateKey,
+		"--listen", address,
+		"--work-root", workRoot,
+		"--workspace-storage", "local",
+		"--workspace-work-root", workspaceRoot,
+		"--request-timeout-seconds", "12",
+		"--shutdown-grace-seconds", "5",
+	)
+}
+
+func createProjectResource(t *testing.T, client *http.Client, baseURL string) projectResourceResponse {
+	t.Helper()
+	body := []byte(`{"kind":"project","name":"Widget service","description":"OpenAPI and LikeC4 workspace"}`)
+	request, err := http.NewRequest(http.MethodPost, baseURL+"/v1/projects", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "project-workspace-e2e")
+	response := do(t, client, request, http.StatusCreated)
+	defer response.Body.Close()
+	var project projectResourceResponse
+	decodeResponse(t, response, &project)
+	if project.ProjectID == "" || project.Name != "Widget service" || project.Revision != "1" ||
+		response.Header.Get("ETag") != `"1"` {
+		t.Fatalf("create Project response = %+v headers=%v", project, response.Header)
+	}
+	return project
+}
+
+func createProjectOriginCredential(t *testing.T, client *http.Client, baseURL string) {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"credentialId": "project-origin", "kind": "http-origin-bearer@1",
+		"material": map[string]string{"token": projectOriginSecret},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequest(
+		http.MethodPost, baseURL+"/v1/operations/runtime-credentials", bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "project-origin-create")
+	response := do(t, client, request, http.StatusCreated)
+	defer response.Body.Close()
+	encoded, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte(projectOriginSecret)) || bytes.Contains(encoded, []byte(`"material"`)) {
+		t.Fatalf("Runtime credential response exposed write-only material: %s", encoded)
+	}
+	var metadata struct {
+		CredentialID string `json:"credentialId"`
+		Kind         string `json:"kind"`
+	}
+	if err := json.Unmarshal(encoded, &metadata); err != nil || metadata.CredentialID != "project-origin" ||
+		metadata.Kind != "http-origin-bearer@1" {
+		t.Fatalf("Runtime credential metadata = (%+v, %v)", metadata, err)
+	}
+}
+
+func updateProjectTarget(
+	t *testing.T,
+	client *http.Client,
+	baseURL, projectID, revision string,
+	target any,
+	expectedStatus int,
+) projectResourceResponse {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"httpTarget": target})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := http.NewRequest(
+		http.MethodPatch, baseURL+"/v1/projects/"+url.PathEscape(projectID), bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("If-Match", strconv.Quote(revision))
+	response := do(t, client, request, expectedStatus)
+	defer response.Body.Close()
+	if expectedStatus != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
+		return projectResourceResponse{}
+	}
+	var project projectResourceResponse
+	decodeResponse(t, response, &project)
+	if response.Header.Get("ETag") != strconv.Quote(project.Revision) {
+		t.Fatalf("Project ETag/body revision mismatch: headers=%v project=%+v", response.Header, project)
+	}
+	return project
+}
+
+func uploadProjectScopeArtifact(
+	t *testing.T,
+	client *http.Client,
+	baseURL, projectID, namespace, name, mediaType string,
+	data []byte,
+) artifactRef {
+	t.Helper()
+	target := fmt.Sprintf(
+		"%s/v1/projects/%s/artifacts/%s/%s", baseURL, url.PathEscape(projectID),
+		url.PathEscape(namespace), url.PathEscape(name),
+	)
+	request, err := http.NewRequest(http.MethodPut, target, bytes.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Content-Type", mediaType)
+	request.Header.Set("If-None-Match", "*")
+	response := do(t, client, request, http.StatusCreated)
+	defer response.Body.Close()
+	var payload struct {
+		Artifact  artifactRef `json:"artifact"`
+		MediaType string      `json:"mediaType"`
+		Size      int64       `json:"size"`
+	}
+	decodeResponse(t, response, &payload)
+	if payload.Artifact.Namespace != namespace || payload.Artifact.Name != name ||
+		payload.Artifact.Revision == nil || payload.MediaType != mediaType ||
+		payload.Size != int64(len(data)) {
+		t.Fatalf("Project artifact upload %s/%s returned %+v", namespace, name, payload)
+	}
+	return payload.Artifact
+}
+
+func projectRunRequest(workflow string, inputs map[string]artifactRef) []byte {
+	body, err := json.Marshal(map[string]any{
+		"workflow": workflow,
+		"parameters": map[string]string{
+			"objective": "Model the implemented API, architecture, and trust boundaries",
+		},
+		"artifacts": inputs,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return body
+}
+
+func postProjectRun(
+	t *testing.T,
+	client *http.Client,
+	baseURL, projectID, idempotencyKey string,
+	body []byte,
+	wantReplay bool,
+) string {
+	t.Helper()
+	request, err := http.NewRequest(
+		http.MethodPost, baseURL+"/v1/projects/"+url.PathEscape(projectID)+"/runs", bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", idempotencyKey)
+	response := do(t, client, request, http.StatusAccepted)
+	defer response.Body.Close()
+	if got := response.Header.Get("Idempotency-Replayed"); (got == "true") != wantReplay {
+		t.Fatalf("Project Run replay header = %q, want replay=%t", got, wantReplay)
+	}
+	var payload runCreateResponse
+	decodeResponse(t, response, &payload)
+	if payload.RunID == "" || payload.ProjectID == nil || *payload.ProjectID != projectID ||
+		payload.State != "initializing" && payload.State != "running" {
+		t.Fatalf("create Project Run response = %+v", payload)
+	}
+	return payload.RunID
+}
+
+func assertProjectQueueMembership(
+	t *testing.T,
+	client *http.Client,
+	baseURL string,
+	project projectResourceResponse,
+	runID string,
+) {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodGet, baseURL+"/v1/queue?membership=project&limit=100", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	response := do(t, client, request, http.StatusOK)
+	defer response.Body.Close()
+	var page struct {
+		Items []struct {
+			RunID   string `json:"runId"`
+			Project *struct {
+				ProjectID string `json:"projectId"`
+				Name      string `json:"name"`
+			} `json:"project"`
+		} `json:"items"`
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil || json.Unmarshal(body, &page) != nil {
+		t.Fatalf("decode Project Queue response: %v body=%s", err, body)
+	}
+	for _, item := range page.Items {
+		if item.RunID == runID && item.Project != nil &&
+			item.Project.ProjectID == project.ProjectID && item.Project.Name == project.Name {
+			return
+		}
+	}
+	t.Fatalf("Project Run %s is absent from Project Queue: %+v", runID, page.Items)
+}
+
+func assertRunProjectAndPublications(
+	t *testing.T,
+	status runStatus,
+	projectID string,
+	want map[string]string,
+) {
+	t.Helper()
+	if status.ProjectID == nil || *status.ProjectID != projectID {
+		t.Fatalf("Run Project = %v, want %s", status.ProjectID, projectID)
+	}
+	if len(status.OutputPublications) != len(want) {
+		t.Fatalf("output publications = %+v, want %v", status.OutputPublications, want)
+	}
+	seen := make(map[string]bool, len(status.OutputPublications))
+	for _, publication := range status.OutputPublications {
+		wantStatus, expected := want[publication.Output]
+		if !expected || publication.Status != wantStatus || publication.Source.Revision == nil ||
+			publication.ErrorCode != "" || publication.ErrorMessage != "" {
+			t.Fatalf("unexpected output publication: %+v (want %v)", publication, want)
+		}
+		if publication.Status == "published" {
+			if publication.Target == nil || publication.Target.Namespace != "outputs" ||
+				publication.Target.Name != publication.Output || publication.Target.Revision == nil {
+				t.Fatalf("published output has no exact Project target: %+v", publication)
+			}
+		} else if publication.Target != nil {
+			t.Fatalf("already-present output unexpectedly claims a target: %+v", publication)
+		}
+		seen[publication.Output] = true
+	}
+	for output := range want {
+		if !seen[output] {
+			t.Fatalf("output %q has no publication result", output)
+		}
+	}
+}
+
+func assertSpecialistPlacement(
+	t *testing.T,
+	evidence projectRunEvidence,
+	stages []string,
+	wantInstanceID string,
+) {
+	t.Helper()
+	for _, stage := range stages {
+		if got := evidence.runtimeInstanceByStage[stage]; got != wantInstanceID {
+			t.Fatalf("Stage %s used Runtime %q, want specialist %q", stage, got, wantInstanceID)
+		}
+	}
+}
+
+func assertProjectInputLineage(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	projectID, runID, slot string,
+	source artifactRef,
+) {
+	t.Helper()
+	if source.Revision == nil {
+		t.Fatal("Project input lineage assertion requires an exact source")
+	}
+	var sourceScopeKind, sourceScopeID, sourceNamespace, sourceName, sourceRevision string
+	err := pool.QueryRow(ctx, `
+SELECT source_scope_kind, source_scope_id, source_namespace, source_name, source_revision
+FROM artifact_lineage
+WHERE target_scope_kind = 'run' AND target_scope_id = $1
+  AND target_namespace = 'inputs' AND target_name = $2
+  AND lineage_kind = 'input_fork'`, runID, slot).Scan(
+		&sourceScopeKind, &sourceScopeID, &sourceNamespace, &sourceName, &sourceRevision,
+	)
+	if err != nil || sourceScopeKind != "project" || sourceScopeID != projectID ||
+		sourceNamespace != source.Namespace || sourceName != source.Name || sourceRevision != *source.Revision {
+		t.Fatalf("Project input lineage = %s/%s:%s/%s@%s (err=%v), want %s/%s@%s",
+			sourceScopeKind, sourceScopeID, sourceNamespace, sourceName, sourceRevision, err,
+			source.Namespace, source.Name, *source.Revision)
+	}
+}
+
+func assertProjectPublishedOutputLineage(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	projectID, runID string,
+	status runStatus,
+) {
+	t.Helper()
+	for _, publication := range status.OutputPublications {
+		if publication.Status != "published" {
+			continue
+		}
+		if publication.Target == nil || publication.Target.Revision == nil || publication.Source.Revision == nil {
+			t.Fatalf("publication is not exact: %+v", publication)
+		}
+		var sourceScopeKind, sourceScopeID, sourceNamespace, sourceName, sourceRevision string
+		err := pool.QueryRow(ctx, `
+SELECT source_scope_kind, source_scope_id, source_namespace, source_name, source_revision
+FROM artifact_lineage
+WHERE target_scope_kind = 'project' AND target_scope_id = $1
+  AND target_namespace = 'outputs' AND target_name = $2 AND target_revision = $3
+  AND lineage_kind = 'project_output_publish'`,
+			projectID, publication.Output, *publication.Target.Revision,
+		).Scan(&sourceScopeKind, &sourceScopeID, &sourceNamespace, &sourceName, &sourceRevision)
+		if err != nil || sourceScopeKind != "run" || sourceScopeID != runID ||
+			sourceNamespace != publication.Source.Namespace || sourceName != publication.Source.Name ||
+			sourceRevision != *publication.Source.Revision {
+			t.Fatalf("Project output lineage for %s = %s/%s:%s/%s@%s (err=%v), want %+v",
+				publication.Output, sourceScopeKind, sourceScopeID, sourceNamespace, sourceName,
+				sourceRevision, err, publication.Source)
+		}
+	}
+}
+
+func assertProjectArtifactBytes(
+	t *testing.T,
+	client *http.Client,
+	baseURL, projectID string,
+	ref artifactRef,
+	want []byte,
+	wantMediaType string,
+) {
+	t.Helper()
+	target := fmt.Sprintf(
+		"%s/v1/projects/%s/artifacts/%s/%s", baseURL, url.PathEscape(projectID),
+		url.PathEscape(ref.Namespace), url.PathEscape(ref.Name),
+	)
+	if ref.Revision != nil {
+		target += "?revision=" + url.QueryEscape(*ref.Revision)
+	}
+	data, mediaType := download(t, client, target)
+	if !bytes.Equal(data, want) || mediaType != wantMediaType {
+		t.Fatalf("Project artifact %s/%s changed: media=%q bytes_equal=%v",
+			ref.Namespace, ref.Name, mediaType, bytes.Equal(data, want))
+	}
+}
+
+func assertRuntimeCredentialInUse(
+	t *testing.T,
+	client *http.Client,
+	baseURL, projectID string,
+) {
+	t.Helper()
+	request, err := http.NewRequest(
+		http.MethodDelete, baseURL+"/v1/operations/runtime-credentials/project-origin", nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Idempotency-Key", "project-origin-delete-attached")
+	response := do(t, client, request, http.StatusConflict)
+	defer response.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil || !bytes.Contains(body, []byte(projectID)) || bytes.Contains(body, []byte(projectOriginSecret)) {
+		t.Fatalf("attached credential delete response = %s (err=%v)", body, err)
+	}
+}
+
+func deleteRuntimeCredential(t *testing.T, client *http.Client, baseURL string, expectedStatus int) {
+	t.Helper()
+	request, err := http.NewRequest(
+		http.MethodDelete, baseURL+"/v1/operations/runtime-credentials/project-origin", nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer "+publicToken)
+	request.Header.Set("Idempotency-Key", "project-origin-delete-detached")
+	response := do(t, client, request, expectedStatus)
+	response.Body.Close()
+}
+
+func assertProjectSecretNotRetained(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	processes []*childProcess,
+) {
+	t.Helper()
+	var ciphertext []byte
+	if err := pool.QueryRow(ctx, `
+SELECT ciphertext FROM runtime_credentials WHERE credential_id = 'project-origin'`,
+	).Scan(&ciphertext); err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(ciphertext, []byte(projectOriginSecret)) {
+		t.Fatal("encrypted Runtime credential row contains plaintext")
+	}
+	for name, query := range map[string]string{
+		"Project": `SELECT coalesce(string_agg(row_to_json(p)::text, ''), '') FROM projects p`,
+		"Run":     `SELECT coalesce(string_agg(row_to_json(r)::text, ''), '') FROM workflow_runs r`,
+		"allocation": `SELECT coalesce(string_agg(runtime_configuration::text, ''), '')
+FROM stage_allocations`,
+	} {
+		var retained string
+		if err := pool.QueryRow(ctx, query).Scan(&retained); err != nil {
+			t.Fatalf("scan %s safe state: %v", name, err)
+		}
+		if strings.Contains(retained, projectOriginSecret) {
+			t.Fatalf("%s safe state retained Project origin plaintext", name)
+		}
+	}
+	rows, err := pool.Query(ctx, `SELECT payload FROM artifact_blobs`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(payload, []byte(projectOriginSecret)) {
+			t.Fatal("artifact payload retained Project origin plaintext")
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	for _, process := range processes {
+		if strings.Contains(process.logs.redacted(), projectOriginSecret) {
+			t.Fatalf("%s logs retained Project origin plaintext", process.name)
 		}
 	}
 }
@@ -401,6 +1025,31 @@ printf '{"valid":true,"errors":[],"stats":{"fixture":true}}\n'
 	return bin, logPath
 }
 
+func installSplitDomainValidators(t *testing.T, root string) (string, string, string) {
+	t.Helper()
+	combined, logPath := installDomainValidators(t, root)
+	openAPIBin := filepath.Join(root, "openapi-validator-bin")
+	likeC4Bin := filepath.Join(root, "likec4-validator-bin")
+	for _, directory := range []string{openAPIBin, likeC4Bin} {
+		if err := os.Mkdir(directory, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for source, target := range map[string]string{
+		filepath.Join(combined, "vacuum"): filepath.Join(openAPIBin, "vacuum"),
+		filepath.Join(combined, "likec4"): filepath.Join(likeC4Bin, "likec4"),
+	} {
+		content, err := os.ReadFile(source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(target, content, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return openAPIBin, likeC4Bin, logPath
+}
+
 func shellSingleQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
@@ -477,6 +1126,7 @@ func waitForDomainRun(
 	gateway *domainGateway,
 	client *http.Client,
 	baseURL, runID string,
+	additionalRuntimes ...*childProcess,
 ) runStatus {
 	t.Helper()
 	ticker := time.NewTicker(150 * time.Millisecond)
@@ -507,7 +1157,8 @@ func waitForDomainRun(
 					gateway.Failures())
 			}
 		}
-		for _, process := range []*childProcess{server, runtimeProcess} {
+		processes := append([]*childProcess{server, runtimeProcess}, additionalRuntimes...)
+		for _, process := range processes {
 			if exited, processErr := process.exited(); exited {
 				t.Fatalf("%s exited while Run was active: %v\n%s", process.name, processErr,
 					process.logs.redacted(publicToken, llmGatewayToken))
@@ -561,7 +1212,7 @@ func assertProjectRunDurable(
 	if err != nil || len(executions) != len(stages) {
 		t.Fatalf("StageExecutions = (%+v, %v), want %d", executions, err, len(stages))
 	}
-	instanceID := ""
+	runtimeInstanceByStage := make(map[string]string, len(executions))
 	lastAllocationID := ""
 	for index, execution := range executions {
 		if execution.StageName != stages[index] || execution.Attempt != 1 ||
@@ -576,13 +1227,10 @@ func assertProjectRunDurable(
 			t.Fatalf("allocations for %s = (%+v, %v)", execution.StageName, allocations, allocationErr)
 		}
 		allocation := allocations[0]
-		if instanceID == "" {
-			instanceID = allocation.RuntimeAgentInstanceID
+		if allocation.RuntimeAgentInstanceID == "" {
+			t.Fatalf("Stage %s allocation has no Runtime identity", execution.StageName)
 		}
-		if allocation.RuntimeAgentInstanceID != instanceID {
-			t.Fatalf("Stage %s changed Runtime slot: %q != %q",
-				execution.StageName, allocation.RuntimeAgentInstanceID, instanceID)
-		}
+		runtimeInstanceByStage[execution.StageName] = allocation.RuntimeAgentInstanceID
 		lastAllocationID = allocation.AllocationID
 		reports, reportErr := store.ListStageExecutionReports(ctx, execution.StageExecutionID)
 		if reportErr != nil || len(reports) != 1 ||
@@ -696,10 +1344,12 @@ WHERE target_scope_kind = 'run' AND target_scope_id = $1
 				output, sourceNamespace, sourceName, sourceRevision, err, outputRef)
 		}
 	}
-	if instanceID == "" || lastAllocationID == "" {
+	if len(runtimeInstanceByStage) != len(stages) || lastAllocationID == "" {
 		t.Fatal("durable executions did not identify the Runtime allocation")
 	}
-	return projectRunEvidence{lastAllocationID: lastAllocationID, runtimeInstanceID: instanceID}
+	return projectRunEvidence{
+		lastAllocationID: lastAllocationID, runtimeInstanceByStage: runtimeInstanceByStage,
+	}
 }
 
 func loadPersistedBindings(

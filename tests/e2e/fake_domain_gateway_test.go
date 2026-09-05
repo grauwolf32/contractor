@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -116,6 +117,7 @@ type domainGateway struct {
 	calls        int
 	failures     []string
 	observations []domainGatewayObservation
+	forbidden    []string
 
 	blockNext  bool
 	blocked    chan struct{}
@@ -203,6 +205,16 @@ func (g *domainGateway) CompletedStages() int {
 	return g.stageIndex
 }
 
+func (g *domainGateway) forbid(values ...string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, value := range values {
+		if value != "" {
+			g.forbidden = append(g.forbidden, value)
+		}
+	}
+}
+
 func newBlockedDomainGateway(token string, stages []domainGatewayStage) *domainGateway {
 	gateway := &domainGateway{
 		token: token, stages: stages, blockNext: true,
@@ -236,6 +248,20 @@ func (g *domainGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&request); err != nil {
 		g.writeFailure(w, http.StatusBadRequest, "invalid OpenAI request")
 		return
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		g.writeFailure(w, http.StatusBadRequest, "cannot inspect OpenAI request")
+		return
+	}
+	g.mu.Lock()
+	forbidden := append([]string(nil), g.forbidden...)
+	g.mu.Unlock()
+	for _, value := range forbidden {
+		if bytes.Contains(encoded, []byte(value)) {
+			g.writeFailure(w, http.StatusBadRequest, "OpenAI request exposed forbidden material")
+			return
+		}
 	}
 	if !g.awaitInitialRelease(r.Context()) {
 		return

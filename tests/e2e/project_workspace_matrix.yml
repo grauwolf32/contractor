@@ -1,0 +1,92 @@
+schema_version: "1.0"
+
+policy:
+  ownership: >-
+    Project, ProjectScope, Project Run membership and Queue projections are
+    always resolved through the authenticated owner. A foreign identifier is
+    indistinguishable from a missing resource.
+  exact_lineage: >-
+    Every Project input fork and successful output publication records the
+    exact source and target revisions. Project metadata cannot change a pinned
+    Run or participate in Runtime capability placement.
+  finite_recovery: >-
+    Request replay, stale CAS, publication races, Server restart and Runtime
+    cleanup have deterministic bounded outcomes and never change Run success.
+  secret_retention: >-
+    Project target credentials are write-only encrypted material. Public
+    resources, model requests, artifacts, logs and durable safe snapshots may
+    retain only the credential reference.
+
+cases:
+  - id: project_create_replay_and_cas
+    category: cas_replay
+    requirements: [A1, A2]
+    expected: Exact create replay returns one Project and stale metadata CAS changes nothing.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestProjectCreateReplayListGetAndCASUpdate}
+  - id: owner_scoped_project_artifacts
+    category: ownership
+    requirements: [A1, A2]
+    expected: Project artifact routes require ownership and preserve exact historical reads.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact}
+  - id: owner_scoped_project_runs
+    category: ownership
+    requirements: [A2]
+    expected: Foreign Projects fail safely and cannot capture a standalone idempotency key.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestProjectRunRejectsForeignProjectAndCannotReplayStandaloneKey}
+  - id: immutable_project_run_membership
+    category: lineage
+    requirements: [A1, A2]
+    expected: Project Run creation forks exact inputs and pins immutable Project membership.
+    test: {source: internal/httpapi/public/handler_test.go, symbol: TestProjectRunForksExactProjectInputAndKeepsImmutableMembership}
+  - id: postgres_exact_input_fork
+    category: lineage
+    requirements: [A1, A2]
+    expected: Current and historical Project revisions fork exactly without changing their source binding.
+    test: {source: internal/artifacts/postgres_integration_test.go, symbol: TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions}
+  - id: create_only_publication_race
+    category: publication_race
+    requirements: [A1, A2]
+    expected: Concurrent Runs both succeed while exactly one creates the Project output binding.
+    test: {source: internal/scheduler/postgres_integration_test.go, symbol: TestPostgresProjectOutputPublicationRaceKeepsBothRunsSucceeded}
+  - id: publication_transaction_recovery
+    category: publication_race
+    requirements: [A2]
+    expected: A rolled-back terminal transaction leaves no receipt and a retry publishes once.
+    test: {source: internal/scheduler/postgres_integration_test.go, symbol: TestPostgresProjectOutputPublicationRollsBackWithTerminalTransactionAndRetries}
+  - id: project_target_is_not_placement_metadata
+    category: placement
+    requirements: [A1]
+    expected: Target plaintext is resolved only for a selected Worker that exposes http_request.
+    test: {source: internal/scheduler/scheduler_test.go, symbol: TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt}
+  - id: runtime_exact_origin_secret_boundary
+    category: secrets
+    requirements: [A1, A2]
+    expected: Authorization is exact-origin only and disappears with allocation cleanup.
+    test: {source: runtime/tests/test_http_toolset.py, symbol: test_project_authorization_is_exact_origin_hidden_and_erased}
+  - id: production_process_recovery
+    category: process_recovery
+    requirements: [A1, A2]
+    expected: PostgreSQL, restarted Go Server and two specialist Python Runtimes complete independent OpenAPI and LikeC4 Project Runs.
+    test: {source: tests/e2e/project_workflows_test.go, symbol: TestProjectWorkspaceLifecycleAcrossProductionProcesses}
+  - id: production_browser_workspace
+    category: browser
+    requirements: [A1, A3]
+    expected: The independently served browser UI creates a Project, uploads inputs, launches a compatible Workflow and inspects its publication.
+    test: {source: tests/ui-stack/stack_test.go, symbol: TestBrowserOperationsStack}
+  - id: standalone_regression
+    category: standalone_regression
+    requirements: [A3]
+    expected: A standalone Run still forks UserScope input and executes without a hidden Project.
+    test: {source: tests/e2e/e2e_test.go, symbol: TestLocalGoToPythonArtifactCopy}
+  - id: owner_scoped_global_queue
+    category: ownership
+    requirements: [A1, A3]
+    expected: Queue membership filters are owner-scoped and terminal Runs disappear from the read model.
+    test: {source: internal/httpapi/public/query_handlers_test.go, symbol: TestRunQueueIsOwnedStableFilteredAndDropsTerminalRuns}
+
+gates:
+  - {id: matrix, command: make test-project-workspaces-matrix}
+  - {id: hardening, command: make test-project-workspaces-hardening}
+  - {id: process, command: make test-project-workspaces-e2e}
+  - {id: browser, command: make test-ui-stack}
+  - {id: release, command: make test-project-workspaces-release}

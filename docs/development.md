@@ -233,12 +233,14 @@ creates a temporary deployment CA, uses an isolated PostgreSQL schema, and
 replaces only the external OpenAI-compatible LLM Gateway with a deterministic
 loopback fake.
 
-The project-workflow end-to-end gate extends the same production boundary to
-all eight OpenAPI and LikeC4 Stage executions. It uses one reusable Runtime slot,
-a generated source ZIP and optional seeds, deterministic function-calling model
-responses, and fixed child `vacuum`/`likec4` executables. It verifies real domain
-tools, exact artifact lineage, frozen outputs, metrics, and workspace cleanup;
-it does not score model quality.
+The Project-workspace end-to-end gate extends the same production boundary to
+all eight OpenAPI and LikeC4 Stage executions. It uses one Project, two
+certificate-distinct specialist Runtime Agents, a generated source ZIP and
+optional seeds, deterministic function-calling model responses, and isolated
+`vacuum`/`likec4` executable paths. It verifies Project Run replay, Queue
+visibility, Server restart, capability placement, exact input/output lineage,
+create-only publication, encrypted target credentials, metrics and workspace
+cleanup; it does not score model quality.
 
 An additional opt-in live quality gate runs the same production Server and
 Runtime against a real OpenAI-compatible Gateway and the real validators. It
@@ -298,11 +300,54 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/cont
   make test-runtime-configuration-e2e
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
-  make test-project-workflows
+  make test-project-workspaces-e2e
 
 CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
   make test-ui-stack
 ```
+
+For the complete Project release gate, including race/ownership tests, the two
+Runtime process scenario and the independently served browser UI, run:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-project-workspaces-release
+```
+
+## Project workspace walkthrough
+
+Open the independent UI, choose **Projects**, and create a Project. The Project
+detail page is the reusable workspace; creating a Project does not start a Run
+and a standalone Workflow remains available from **Workflows**.
+
+Use the **Sources** shortcut to upload a ZIP to a stable Project binding such as
+`sources/service`. Optional **OpenAPI**, **LikeC4**, **Docs**, **Diffs**, and
+**Other** shortcuts only prefill namespace and media type—the identity remains
+editable and arbitrary Project artifacts are allowed. Skills remain global
+UserScope artifacts and are managed from **Skills**, never copied into a
+Project.
+
+The **Recommended Workflows** panel enables only Workflows whose required input
+media types can be satisfied by current Project bindings. Select
+`openapi-from-workspace@4` or `likec4-from-workspace@4`, review the exact
+revision chosen for each input, and start the Project Run. While it is active,
+the same Run appears in the top-level **Queue** with its safe Project identity.
+Queue is a lifecycle read model, not a second scheduler or a promise of numeric
+position.
+
+After success, return to the Project. Frozen Run outputs are published
+create-only under `outputs/<workflow-output-name>` and retain exact lineage to
+the Run revision. If a primary output already exists, the Workflow moves from
+the recommended list to **All workflows** as an explicit **Run again** action;
+the UI never prevents deliberate recomputation.
+
+An optional Project application target is configured from **Application
+target**. The URL and RuntimeCredential reference are safe metadata. Basic or
+Bearer material is accepted only by the write-only credential form, encrypted
+in PostgreSQL, and resolved into allocation-private settings only when the
+selected AgentTemplate actually exposes `http_request`. It is never a Project
+artifact and is not sent to Planner, unrelated Workers, model requests or UI
+query state.
 
 ## Environment-specific Runtime Agent capabilities
 
@@ -1035,7 +1080,7 @@ No external LM Studio, Caido instance, internet target or cloud credential is
 part of this gate. The fake services inject response loss, schema errors,
 oversized bodies and secret canaries deterministically.
 
-## OpenAPI from a project workspace
+## OpenAPI from a standalone Run workspace
 
 `openapi-from-workspace@4` runs four serial Stages: graph-backed dependency
 discovery, graph-backed project discovery, incremental OpenAPI construction,
@@ -1066,9 +1111,12 @@ Workspace hydration deliberately rejects path traversal, absolute/backslash
 paths, duplicate entries, symbolic/special entries, encrypted members and
 configured file/archive limits.
 
-Upload the source as a UserScope artifact. The Run creation transaction copies
+This CLI example intentionally exercises the standalone path. Upload the source
+as a UserScope artifact; the Run creation transaction copies
 the exact revision to `inputs/source`; Workers never read the UserScope binding
-directly.
+directly. For reusable ProjectScope inputs and automatic output publication,
+use the Project flow above and submit the same body to
+`POST /v1/projects/{project_id}/runs`.
 
 ```shell
 SOURCE_REF="$(curl --fail --silent --show-error -X PUT \
@@ -1167,7 +1215,7 @@ coordination happens only through exact exported artifacts in a later
 allocation. Keep the local `workRoot` private to the Runtime OS identity: a
 same-UID process with write access is part of that host's trust boundary.
 
-## LikeC4 from a project workspace
+## LikeC4 from a standalone Run workspace
 
 `likec4-from-workspace@4` reuses the same graph-backed dependency and project
 discovery contracts as the OpenAPI Workflow, then builds and repair-validates

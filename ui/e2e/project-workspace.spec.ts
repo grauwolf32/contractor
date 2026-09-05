@@ -278,7 +278,8 @@ test("Project file-drop uploads exact bytes directly to Go API", async ({
     throw new Error("Playwright baseURL is required");
   }
   const uiOrigin = new URL(configuredBaseURL).origin;
-  const apiOrigin = "http://127.0.0.3:8080";
+  const apiOrigin =
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
   const uploads: Array<{
     url: string;
     headers: Record<string, string>;
@@ -324,7 +325,12 @@ test("Project dashboard remains usable at 320px", async ({
   }
   const uiOrigin = new URL(configuredBaseURL).origin;
   await page.setViewportSize({ width: 320, height: 568 });
-  await installProjectAPI(page, uiOrigin, "http://127.0.0.3:8080", []);
+  await installProjectAPI(
+    page,
+    uiOrigin,
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
+    [],
+  );
 
   await openProjectFromShell(page);
   await expect(page.getByRole("button", { name: "Other" })).toBeVisible();
@@ -343,7 +349,8 @@ test("Project recommendation launches an exact Project Run", async ({
     throw new Error("Playwright baseURL is required");
   }
   const uiOrigin = new URL(configuredBaseURL).origin;
-  const apiOrigin = "http://127.0.0.3:8080";
+  const apiOrigin =
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
   const runRequests: NonNullable<ProjectAPIFixtureOptions["runRequests"]> = [];
   await installProjectAPI(page, uiOrigin, apiOrigin, [], {
     artifactStoredInitially: true,

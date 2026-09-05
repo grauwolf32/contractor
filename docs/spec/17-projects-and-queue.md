@@ -312,3 +312,26 @@ Workflow read-only, but cannot own, copy or override them.
 9. Secret target auth uses RuntimeCredential and appears in plaintext only in
    allocation-private RuntimeSettings after placement.
 10. Queue is a read model over WorkflowRun lifecycle, not a second Scheduler.
+
+## First-release conformance
+
+The executable conformance inventory is
+`tests/e2e/project_workspace_matrix.yml`. Every listed case names a repository
+test symbol; the matrix test fails if an ownership, exact-lineage, recovery,
+placement, secret, browser, publication-race or standalone-regression category
+is missing.
+
+The production process gate uses real PostgreSQL, one restarted Go Server and
+two certificate-distinct Python Runtime Agents. Their fixed startup
+environments expose `validate_openapi` and `validate_likec4` on different
+agents. One Project launches the two Workflows independently, while the gate
+checks request replay, stale Project CAS, Queue membership, exact input forks,
+create-only output publication, Runtime cleanup and safe target-credential
+retention. Project metadata must not make an otherwise incompatible Runtime a
+placement candidate.
+
+The browser gate keeps one standalone Run as regression coverage, then creates
+a Project through the independently served Node UI, uploads exact inputs,
+launches a recommended Project Workflow, observes it in Queue and verifies the
+published primary output and explicit **Run again** state. These gates are
+aggregated by `make test-project-workspaces-release`.

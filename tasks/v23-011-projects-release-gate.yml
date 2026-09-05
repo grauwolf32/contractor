@@ -15,8 +15,9 @@ goal: >-
 context:
   scenario: >-
     Create a Project, upload one source ZIP, run compatible OpenAPI and LikeC4
-    Workflows, observe global Queue, inspect automatic Project outputs, reuse an
-    exact output as a later input, and preserve standalone/eval behavior.
+    Workflows, observe global Queue, inspect exact automatic Project-output
+    lineage, and preserve standalone/eval behavior without implying Workflow
+    joins in the first release.
   failures: >-
     Cover response loss, concurrent output publication, Server restart,
     Runtime loss, stale ETags, foreign ownership and target-secret redaction.

@@ -217,6 +217,40 @@ async function uploadArtifact(
   ).toBeVisible();
 }
 
+async function uploadProjectArtifact(
+  page: Page,
+  shortcut: "Sources" | "OpenAPI",
+  input: {
+    namespace: string;
+    name: string;
+    mediaType: string;
+    path?: string;
+    payload?: Buffer;
+  },
+) {
+  await page.getByRole("button", { name: shortcut, exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: shortcut });
+  if (input.path !== undefined) {
+    await dialog.getByLabel("Drop a file here").setInputFiles(input.path);
+  } else {
+    await dialog.getByLabel("Drop a file here").setInputFiles({
+      name: `${input.name}.yaml`,
+      mimeType: input.mediaType,
+      buffer: input.payload ?? Buffer.from(""),
+    });
+  }
+  await dialog.getByLabel("Namespace", { exact: true }).fill(input.namespace);
+  await dialog.getByLabel("Name", { exact: true }).fill(input.name);
+  await dialog.getByLabel("Media type", { exact: true }).fill(input.mediaType);
+  await dialog.getByRole("button", { name: "Create binding" }).click();
+  await expect(
+    page.getByRole("link", {
+      name: `${input.namespace}/${input.name}`,
+      exact: true,
+    }),
+  ).toBeVisible();
+}
+
 async function startRun(
   page: Page,
   workflow: string,
@@ -240,6 +274,13 @@ async function startRun(
     );
   }
   let metadataIndex = 0;
+  if (Object.keys(metadataLabels).length > 0) {
+    await openDetails(
+      page.locator("details.run-draft-disclosure").filter({
+        has: page.getByText("Run metadata", { exact: true }),
+      }),
+    );
+  }
   for (const [key, value] of Object.entries(metadataLabels)) {
     metadataIndex += 1;
     await page.getByRole("button", { name: "Add metadata label" }).click();
@@ -427,18 +468,6 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
 
   await page.goto("/artifacts");
   await uploadArtifact(page, {
-    name: "ui-stack-source",
-    mediaType: "application/zip",
-    path: sourceArchive,
-  });
-  await uploadArtifact(page, {
-    name: "ui-stack-openapi-seed",
-    mediaType: "application/yaml",
-    payload: Buffer.from(
-      "openapi: 3.0.3\ninfo:\n  title: UI Stack\n  version: 1.0.0\npaths: {}\n",
-    ),
-  });
-  await uploadArtifact(page, {
     name: "ui-stack-text",
     mediaType: "text/plain",
     payload: Buffer.from("browser-driven streamline input\n"),
@@ -540,6 +569,11 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     "They do not select Runtime infrastructure",
   );
   await page.goto("/runs");
+  await openDetails(
+    page.locator("details.run-label-filters").filter({
+      has: page.getByText("Metadata & eval filters", { exact: true }),
+    }),
+  );
   await page.getByLabel("Eval ID").fill("ui-stack-eval-01");
   await page.getByLabel("Eval leg").fill("a");
   await page.getByRole("button", { name: "Apply eval filters" }).click();
@@ -565,15 +599,55 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     "browser-driven streamline input\n",
   );
 
-  const openAPIRunID = await startRun(
-    page,
-    "openapi-from-workspace@4",
-    { objective: "Model the browser fixture API and trust boundary" },
-    {
-      source: "ui-stack-source",
-      existing_openapi: "ui-stack-openapi-seed",
-    },
-  );
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "New Project" }).click();
+  const projectForm = page.locator("form.project-create-form");
+  await projectForm
+    .getByLabel("Name", { exact: true })
+    .fill("UI Stack Workspace");
+  await projectForm
+    .getByLabel("Description", { exact: true })
+    .fill("Production browser Project workflow fixture");
+  await projectForm.getByRole("button", { name: "Create Project" }).click();
+  await expect(page).toHaveURL(/\/projects\/project_[A-Za-z0-9_-]+$/);
+  await expect(
+    page.getByRole("heading", { name: "UI Stack Workspace" }),
+  ).toBeVisible();
+  const projectURL = page.url();
+
+  await uploadProjectArtifact(page, "Sources", {
+    namespace: "sources",
+    name: "ui-stack-source",
+    mediaType: "application/zip",
+    path: sourceArchive,
+  });
+  await uploadProjectArtifact(page, "OpenAPI", {
+    namespace: "openapi",
+    name: "ui-stack-openapi-seed",
+    mediaType: "application/yaml",
+    payload: Buffer.from(
+      "openapi: 3.0.3\ninfo:\n  title: UI Stack\n  version: 1.0.0\npaths: {}\n",
+    ),
+  });
+
+  await page
+    .getByRole("button", { name: "Run openapi-from-workspace@4" })
+    .click();
+  const workflowDialog = page.getByRole("dialog", {
+    name: "openapi-from-workspace@4",
+  });
+  await workflowDialog.getByLabel("Include optional objective").check();
+  await workflowDialog
+    .locator('input[name="parameter-objective"]')
+    .fill("Model the browser fixture API and trust boundary");
+  await workflowDialog
+    .getByRole("button", { name: "Start Project Workflow Run" })
+    .click();
+  await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
+  const openAPIRunID = new URL(page.url()).pathname.split("/").at(-1)!;
+  await page.getByRole("link", { name: "Queue", exact: true }).click();
+  await expect(page.getByRole("link", { name: openAPIRunID })).toBeVisible();
+  await page.goto(`/runs/${openAPIRunID}`);
   try {
     await expect(
       page.locator(".run-triage").getByText("succeeded", { exact: true }),
@@ -628,6 +702,15 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   const openAPIBytes = await readFile(await openAPIDownload.path());
   expect(openAPIBytes.toString()).toContain("/widgets/{widget_id}");
   expect(openAPIRunID).toMatch(/^run_/);
+
+  await page.goto(projectURL);
+  await expect(
+    page.getByRole("link", { name: "outputs/openapi", exact: true }),
+  ).toBeVisible();
+  await openDetails(page.locator("details.project-all-workflows"));
+  await expect(
+    page.getByRole("button", { name: "Run again openapi-from-workspace@4" }),
+  ).toBeVisible();
 
   await page.goto("/operations/configurations");
   const workerRow = page
