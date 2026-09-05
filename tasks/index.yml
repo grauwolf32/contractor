@@ -1871,6 +1871,27 @@ audits_v25_002_implementation_review:
     - make verify
     - npx --yes likec4@1.56.0 validate docs/spec
 
+audits_v25_002a_implementation_review:
+  reviewed_on: "2026-09-05"
+  verdict: complete
+  implementation_commit: bec404577257fd94da90c7f7973a746366edce40
+  confirmed:
+    - >-
+      AuditProfile no longer exposes maxActiveRuns in its YAML source or
+      resolved policy. Strict decoding rejects the removed pre-MVP field
+      instead of preserving a compatibility alias.
+    - >-
+      Finite item, attempt, deadline, evidence and cumulative submitted-Run
+      budgets remain unchanged; global Workflow Scheduler concurrency is the
+      only execution-capacity authority.
+    - >-
+      The Audit persistence schema introduced by V25-003 is required to omit
+      the removed policy while retaining durable cumulative and outstanding
+      Run counters for later bounded dispatch reconciliation.
+  verification:
+    - go test -count=1 ./internal/config ./internal/app
+    - make verify
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}

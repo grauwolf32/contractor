@@ -3,8 +3,8 @@ id: V25-002A
 title: Remove Audit-specific WorkflowRun concurrency policy
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: bec404577257fd94da90c7f7973a746366edce40
 depends_on: [V25-002]
 languages: [go, yaml]
 
