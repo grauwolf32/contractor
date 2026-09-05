@@ -80,7 +80,7 @@ async function installAPI(page: Page, origin: string): Promise<void> {
           {
             runId: "run-browser-leg-a",
             projectId: EVAL_ID,
-            workflow: "openapi-from-workspace@4",
+            workflow: "openapi-from-workspace@5",
             state: "succeeded",
             labels: {
               purpose: "eval",

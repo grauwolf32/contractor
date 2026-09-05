@@ -63,8 +63,8 @@ func TestRepositoryCurrentProjectWorkflowsSelectGraphAnalysis(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 	for _, selector := range []string{
-		"openapi-from-workspace@4",
-		"likec4-from-workspace@4",
+		"openapi-from-workspace@5",
+		"likec4-from-workspace@5",
 		"likec4-from-workspace-streamline@2",
 	} {
 		workflow, err := snapshot.Workflow(selector)

@@ -12,7 +12,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("openapi-from-workspace@4")
+	workflow, err := snapshot.Workflow("openapi-from-workspace@5")
 	if err != nil {
 		t.Fatalf("resolve OpenAPI Workflow: %v", err)
 	}

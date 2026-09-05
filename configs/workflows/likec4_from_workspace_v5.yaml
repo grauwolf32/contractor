@@ -2,8 +2,8 @@ apiVersion: contractor/v1alpha1
 kind: Workflow
 
 metadata:
-  name: openapi-from-workspace
-  version: "4"
+  name: likec4-from-workspace
+  version: "5"
 
 spec:
   parameters:
@@ -14,16 +14,16 @@ spec:
     source:
       required: true
       mediaTypes: [application/zip]
-    existing_openapi:
+    existing_likec4:
       required: false
-      mediaTypes: [application/yaml, application/json]
+      mediaTypes: [text/vnd.likec4, text/plain]
 
   outputs:
-    openapi:
+    likec4:
       required: true
       primary: true
-      mediaTypes: [application/yaml]
-    openapi_validation_report:
+      mediaTypes: [text/vnd.likec4]
+    likec4_validation_report:
       required: true
       mediaTypes: [text/markdown]
     workspace_state:
@@ -35,6 +35,7 @@ spec:
 
   executionConfig:
     workers:
+      modelPolicy: domain_worker@2
       llmGateway: local-litellm@1
       credential: development-worker
 
@@ -90,7 +91,7 @@ spec:
               fail: {}
 
     project_discovery:
-      objective: Map project structure, API surface, security controls, and runtime integrations
+      objective: Map project structure, architecture, security controls, and runtime integrations
       instructions:
         ref: instructions/project-discovery-planner.md
       planner: passthrough@1
@@ -136,7 +137,7 @@ spec:
             mediaTypes: [text/x-diff]
       on:
         succeeded:
-          next: openapi_build
+          next: likec4_build
         failed:
           retry:
             maxAttempts: 2
@@ -148,15 +149,15 @@ spec:
             then:
               fail: {}
 
-    openapi_build:
-      objective: Build an evidence-linked OpenAPI document for the implemented inbound HTTP API
+    likec4_build:
+      objective: Build an evidence-linked single-file LikeC4 architecture model for the project
       instructions:
-        ref: instructions/openapi-build-planner.md
+        ref: instructions/likec4-build-planner.md
       planner: passthrough@1
       agents:
         builder:
-          template: workspace_openapi_builder@1
-          namespace: openapi
+          template: workspace_likec4_builder@1
+          namespace: likec4
       context:
         artifacts:
           source:
@@ -171,9 +172,9 @@ spec:
             namespace: analysis
             name: project
             required: true
-          existing_openapi:
+          existing_likec4:
             namespace: inputs
-            name: existing_openapi
+            name: existing_likec4
             required: false
           prior_workspace_state:
             namespace: analysis
@@ -191,10 +192,10 @@ spec:
             diff: workspace_diff
       result:
         artifacts:
-          openapi:
+          architecture:
             required: true
-            mediaTypes: [application/yaml]
-            from: {namespace: openapi, name: openapi}
+            mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
           workspace_state:
             required: true
             mediaTypes: [application/vnd.contractor.workspace-overlay+json]
@@ -203,27 +204,27 @@ spec:
             mediaTypes: [text/x-diff]
       on:
         succeeded:
-          next: openapi_validate
+          next: likec4_validate
         failed:
           retry:
-            maxAttempts: 4
+            maxAttempts: 6
             then:
               fail: {}
         interrupted:
           retry:
-            maxAttempts: 4
+            maxAttempts: 6
             then:
               fail: {}
 
-    openapi_validate:
-      objective: Validate and minimally repair the candidate OpenAPI document against source evidence
+    likec4_validate:
+      objective: Validate and minimally repair the candidate LikeC4 model against source evidence
       instructions:
-        ref: instructions/openapi-validate-planner.md
+        ref: instructions/likec4-validate-planner.md
       planner: passthrough@1
       agents:
         validator:
-          template: workspace_openapi_validator@1
-          namespace: openapi
+          template: workspace_likec4_validator@1
+          namespace: likec4
       context:
         artifacts:
           source:
@@ -238,12 +239,12 @@ spec:
             namespace: analysis
             name: project
             required: true
-          openapi_candidate:
-            namespace: openapi
-            name: openapi
+          architecture_candidate:
+            namespace: likec4
+            name: architecture
             required: true
           prior_workspace_state:
-            namespace: openapi
+            namespace: likec4
             name: workspace_state
             required: true
         workspace:
@@ -258,14 +259,14 @@ spec:
             diff: workspace_diff
       result:
         artifacts:
-          openapi:
+          architecture:
             required: true
-            mediaTypes: [application/yaml]
-            from: {namespace: openapi, name: openapi}
+            mediaTypes: [text/vnd.likec4]
+            from: {namespace: likec4, name: architecture}
           validation_report:
             required: true
             mediaTypes: [text/markdown]
-            from: {namespace: openapi, name: validation-report}
+            from: {namespace: likec4, name: validation-report}
           workspace_state:
             required: true
             mediaTypes: [application/vnd.contractor.workspace-overlay+json]
@@ -273,18 +274,16 @@ spec:
             required: true
             mediaTypes: [text/x-diff]
       workflowOutputs:
-        openapi: openapi
-        openapi_validation_report: validation_report
+        likec4: architecture
+        likec4_validation_report: validation_report
         workspace_state: workspace_state
         workspace_diff: workspace_diff
       on:
         succeeded:
           succeed: {}
         failed:
-          escalate:
-            maxAttempts: 1
-            executionConfig:
-              ref: strong-oas-review@1
+          retry:
+            maxAttempts: 2
             then:
               fail: {}
         interrupted:

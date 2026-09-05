@@ -51,7 +51,7 @@ function queueItem(
 ) {
   return {
     runId,
-    workflow: "openapi-from-workspace@4",
+    workflow: "openapi-from-workspace@5",
     state,
     labels: {},
     eventCursor: { generation: `events-${runId}`, sequence: "1" },

@@ -54,7 +54,7 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 		}
 	}
 
-	detail := serveQuery(t, fixture.handler, "/v1/workflows/openapi-from-workspace/versions/4")
+	detail := serveQuery(t, fixture.handler, "/v1/workflows/openapi-from-workspace/versions/5")
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
 	}
@@ -75,7 +75,7 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := snapshot.Workflow("openapi-from-workspace@4")
+	resolved, err := snapshot.Workflow("openapi-from-workspace@5")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 		t.Fatalf("Workflow detail leaked instruction text or endpoint: %s", detail.Body.String())
 	}
 
-	skillDetail := serveQuery(t, fixture.handler, "/v1/workflows/likec4-from-workspace/versions/4")
+	skillDetail := serveQuery(t, fixture.handler, "/v1/workflows/likec4-from-workspace/versions/5")
 	if skillDetail.Code != http.StatusOK {
 		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())
 	}

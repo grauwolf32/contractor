@@ -1302,7 +1302,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"workflow":"openapi-from-workspace@4","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source-archive"}}}`)
+	body := []byte(`{"workflow":"openapi-from-workspace@5","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source-archive"}}}`)
 	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, request)
@@ -1667,7 +1667,7 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow, err := snapshot.Workflow("openapi-from-workspace@4")
+	workflow, err := snapshot.Workflow("openapi-from-workspace@5")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -39,8 +39,8 @@ repository contains the runnable Go Server/Python Runtime Agent MVP plus:
 - namespace-bound, CAS-backed OpenAPI construction with source provenance and
   Vacuum validation;
 - namespace-bound, CAS-backed LikeC4 editing with direct CLI validation;
-- executable four-Stage `openapi-from-workspace@4` and
-  `likec4-from-workspace@4` Workflow configurations plus the modeled-Planner
+- executable four-Stage `openapi-from-workspace@5` and
+  `likec4-from-workspace@5` Workflow configurations plus the modeled-Planner
   `likec4-from-workspace-streamline@2` variant;
 - an opt-in production-stack live-model quality gate and explicit two-Stage
   variants for caller-supplied reviewed analysis reports;
@@ -164,7 +164,7 @@ Workflow assigns the bundled LikeC4 Skill to its builder and validator Workers:
 
 ```shell
 jq -n --argjson source "$SOURCE_REF" --arg objective 'Model the architecture' \
-  '{workflow:"likec4-from-workspace@4",parameters:{objective:$objective},artifacts:{source:$source}}' | \
+  '{workflow:"likec4-from-workspace@5",parameters:{objective:$objective},artifacts:{source:$source}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-skilled-$(date +%s)" \
@@ -329,7 +329,7 @@ Project.
 
 The **Recommended Workflows** panel enables only Workflows whose required input
 media types can be satisfied by current Project bindings. Select
-`openapi-from-workspace@4` or `likec4-from-workspace@4`, review the exact
+`openapi-from-workspace@5` or `likec4-from-workspace@5`, review the exact
 revision chosen for each input, and start the Project Run. While it is active,
 the same Run appears in the top-level **Queue** with its safe Project identity.
 Queue is a lifecycle read model, not a second scheduler or a promise of numeric
@@ -1082,7 +1082,7 @@ oversized bodies and secret canaries deterministically.
 
 ## OpenAPI from a standalone Run workspace
 
-`openapi-from-workspace@4` runs four serial Stages: graph-backed dependency
+`openapi-from-workspace@5` runs four serial Stages: graph-backed dependency
 discovery, graph-backed project discovery, incremental OpenAPI construction,
 and final validation/repair. Each Stage gets its own allocation and reconstructs
 one private workspace from the exact source and cumulative overlay state. The
@@ -1145,7 +1145,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$OPENAPI_SEED_REF" \
   --arg objective 'Document the implemented public HTTP API' \
-  '{workflow:"openapi-from-workspace@4",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
+  '{workflow:"openapi-from-workspace@5",parameters:{objective:$objective},artifacts:{source:$source,existing_openapi:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: openapi-run-$(date +%s)" \
@@ -1217,7 +1217,7 @@ same-UID process with write access is part of that host's trust boundary.
 
 ## LikeC4 from a standalone Run workspace
 
-`likec4-from-workspace@4` reuses the same graph-backed dependency and project
+`likec4-from-workspace@5` reuses the same graph-backed dependency and project
 discovery contracts as the OpenAPI Workflow, then builds and repair-validates
 one single-file architecture model. Reports, the model and cumulative overlay
 state cross Stage boundaries as exact artifact revisions; no Worker relies on
@@ -1259,7 +1259,7 @@ RUN_ID="$(jq -n \
   --argjson source "$SOURCE_REF" \
   --argjson seed "$LIKEC4_SEED_REF" \
   --arg objective 'Model the implemented architecture and trust boundaries' \
-  '{workflow:"likec4-from-workspace@4",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
+  '{workflow:"likec4-from-workspace@5",parameters:{objective:$objective},artifacts:{source:$source,existing_likec4:$seed}}' | \
   curl --fail --silent --show-error \
     -H "Authorization: Bearer $CONTRACTOR_API_TOKEN" \
     -H "Idempotency-Key: likec4-run-$(date +%s)" \
@@ -1364,17 +1364,19 @@ CONTRACTOR_WORKFLOWS_LIVE_MODEL='project-workflow-model' \
 ```
 
 Allow up to 30 minutes for each four-Stage workflow, plus setup and cleanup.
-`domain_worker@1` permits up to 16,384 output tokens per model response and one
-Worker invocation permits at most 24 model calls, 96 tool calls, and 250,000
-provider-reported cumulative tokens. Actual model/tool/token counters are
-reported by Stage in the Run status. On failure,
+The passthrough workspace Workflows select `domain_worker@2`: each Worker
+invocation permits up to 16,384 output tokens per response, 24 model calls, 96
+tool calls, and 500,000 provider-reported cumulative tokens. The retained
+`domain_worker@1` policy has the same call and response bounds with a 250,000
+cumulative-token limit. Actual model/tool/token counters are reported by Stage
+in the Run status. On failure,
 the harness writes bounded generated documents, analysis reports, predicate
 codes, and counters below ignored `.local/eval-results/`. It deliberately does
 not persist the source archive, Gateway URL/token, prompts, or provider response
 bodies. A successful run removes its isolated schema, certificates, processes,
 and Runtime workspaces without retaining evaluation artifacts.
 During local diagnosis only, set `CONTRACTOR_WORKFLOWS_LIVE_ONLY` to either
-`openapi-from-workspace@4` or `likec4-from-workspace@4`; the default and documented
+`openapi-from-workspace@5` or `likec4-from-workspace@5`; the default and documented
 quality gate always execute both.
 
 ## Worker invocation budgets

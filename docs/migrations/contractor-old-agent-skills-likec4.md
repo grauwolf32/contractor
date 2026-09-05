@@ -60,7 +60,7 @@ archived. Deleted identities are never reused.
 
 The current archive-backed entry is `likec4-from-analysis@3`, using
 `likec4_builder@2` and `likec4_validator@2`. The current source-to-document
-entries are `likec4-from-workspace@4` and
+entries are `likec4-from-workspace@5` and
 `likec4-from-workspace-streamline@2`; their workspace-specific builder and
 validator templates also select `skills/likec4`. Dependency/project discovery
 uses `workspace_source_graph_analyst@1` and remains unskilled.

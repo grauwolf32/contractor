@@ -19,9 +19,9 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 		"artifact-copy@1",
 		"likec4-from-analysis@3",
 		"likec4-from-workspace-streamline@2",
-		"likec4-from-workspace@4",
+		"likec4-from-workspace@5",
 		"openapi-from-analysis@2",
-		"openapi-from-workspace@4",
+		"openapi-from-workspace@5",
 		"security-analysis@2",
 		"taint-trace-from-workspace@2",
 	}
@@ -30,8 +30,9 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 	}
 	for _, superseded := range []string{
 		"likec4-from-analysis@2", "likec4-from-workspace-streamline@1",
-		"likec4-from-workspace@3", "openapi-from-analysis@1",
-		"openapi-from-workspace@3", "security-analysis@1",
+		"likec4-from-workspace@3", "likec4-from-workspace@4",
+		"openapi-from-analysis@1", "openapi-from-workspace@3",
+		"openapi-from-workspace@4", "security-analysis@1",
 		"taint-trace-from-workspace@1",
 	} {
 		if _, err := snapshot.Workflow(superseded); err == nil {

@@ -52,7 +52,7 @@ func TestRepositoryCurrentLikeC4WorkflowsPinSkilledTemplates(t *testing.T) {
 		validatorTemplate string
 	}{
 		{"likec4-from-analysis@3", "likec4_build", "likec4_validate", "likec4_builder@2", "likec4_validator@2"},
-		{"likec4-from-workspace@4", "likec4_build", "likec4_validate", "workspace_likec4_builder@1", "workspace_likec4_validator@1"},
+		{"likec4-from-workspace@5", "likec4_build", "likec4_validate", "workspace_likec4_builder@1", "workspace_likec4_validator@1"},
 		{"likec4-from-workspace-streamline@2", "likec4_build", "likec4_validate", "workspace_likec4_builder@1", "workspace_likec4_validator@1"},
 	}
 	for _, test := range workflows {

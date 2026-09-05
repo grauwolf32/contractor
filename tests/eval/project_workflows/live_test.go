@@ -222,7 +222,7 @@ func loadLiveSettings(t *testing.T) (liveSettings, bool) {
 		gatewayURL:   strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_URL")),
 		gatewayToken: os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_GATEWAY_TOKEN"),
 		model:        strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_MODEL")),
-		workflows:    []string{"openapi-from-workspace@4", "likec4-from-workspace@4"},
+		workflows:    []string{"openapi-from-workspace@5", "likec4-from-workspace@5"},
 	}
 	if settings.databaseURL == "" || settings.gatewayURL == "" || settings.model == "" {
 		return liveSettings{}, false
@@ -240,7 +240,7 @@ func loadLiveSettings(t *testing.T) (liveSettings, bool) {
 	}
 	if selected := strings.TrimSpace(os.Getenv("CONTRACTOR_WORKFLOWS_LIVE_ONLY")); selected != "" {
 		switch selected {
-		case "openapi-from-workspace@4", "likec4-from-workspace@4":
+		case "openapi-from-workspace@5", "likec4-from-workspace@5":
 			settings.workflows = []string{selected}
 		default:
 			t.Fatal("CONTRACTOR_WORKFLOWS_LIVE_ONLY is not a supported live Workflow")
@@ -393,7 +393,7 @@ func evaluateLiveWorkflow(
 	}
 
 	switch workflow {
-	case "openapi-from-workspace@4":
+	case "openapi-from-workspace@5":
 		var document, report []byte
 		var documentErr, reportErr error
 		if status.State == string(runstore.RunSucceeded) {
@@ -417,7 +417,7 @@ func evaluateLiveWorkflow(
 		if reportErr == nil {
 			evidence.Files["openapi-validation-report.md"] = boundedLiveArtifact(report)
 		}
-	case "likec4-from-workspace@4":
+	case "likec4-from-workspace@5":
 		var document, report []byte
 		var documentErr, reportErr error
 		if status.State == string(runstore.RunSucceeded) {

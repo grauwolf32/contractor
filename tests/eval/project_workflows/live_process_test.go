@@ -311,6 +311,7 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target, model, gatewayU
 			return err
 		}
 		if relative == filepath.Join("model-policies", "domain_worker.yaml") ||
+			relative == filepath.Join("model-policies", "domain_worker_v2.yaml") ||
 			relative == filepath.Join("model-policies", "strong_domain_worker.yaml") {
 			encoded, _ := jsonString(model)
 			marker := "model: worker-model"

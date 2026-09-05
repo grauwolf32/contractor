@@ -60,7 +60,7 @@ describe("Evals and global Skills routes", () => {
       {
         runId: "run-eval-a",
         projectId: evaluation.projectId,
-        workflow: "openapi-from-workspace@4",
+        workflow: "openapi-from-workspace@5",
         state: "succeeded",
         labels: {
           purpose: "eval",
@@ -78,7 +78,7 @@ describe("Evals and global Skills routes", () => {
       {
         runId: "run-eval-b",
         projectId: evaluation.projectId,
-        workflow: "openapi-from-workspace@4",
+        workflow: "openapi-from-workspace@5",
         state: "running",
         labels: {
           purpose: "eval",
@@ -94,7 +94,7 @@ describe("Evals and global Skills routes", () => {
       {
         runId: "run-eval-unassigned",
         projectId: evaluation.projectId,
-        workflow: "likec4-from-workspace@4",
+        workflow: "likec4-from-workspace@5",
         state: "failed",
         labels: { purpose: "eval" },
         createdAt: "2026-09-05T08:09:00Z",

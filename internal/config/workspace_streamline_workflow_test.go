@@ -9,7 +9,7 @@ func TestRepositoryLikeC4WorkspaceStreamlinePreservesCurrentContract(t *testing.
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	baseline, err := snapshot.Workflow("likec4-from-workspace@4")
+	baseline, err := snapshot.Workflow("likec4-from-workspace@5")
 	if err != nil {
 		t.Fatal(err)
 	}

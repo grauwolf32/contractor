@@ -10,7 +10,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	workflow, err := snapshot.Workflow("likec4-from-workspace@4")
+	workflow, err := snapshot.Workflow("likec4-from-workspace@5")
 	if err != nil {
 		t.Fatalf("resolve LikeC4 Workflow: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestRepositoryLikeC4WorkflowTopology(t *testing.T) {
 	assertBoundedRetry(t, validate.On.Failed, 2)
 	assertBoundedRetry(t, validate.On.Interrupted, 2)
 
-	openapi, err := snapshot.Workflow("openapi-from-workspace@4")
+	openapi, err := snapshot.Workflow("openapi-from-workspace@5")
 	if err != nil {
 		t.Fatal(err)
 	}

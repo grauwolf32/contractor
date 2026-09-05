@@ -25,7 +25,7 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 		publishedValidation string
 	}{
 		{
-			ref: "openapi-from-workspace@4",
+			ref: "openapi-from-workspace@5",
 			domainStages: map[string]string{
 				"dependency_discovery": "workspace_source_graph_analyst",
 				"project_discovery":    "workspace_source_graph_analyst",
@@ -38,7 +38,7 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 			publishedValidation: "openapi_validation_report",
 		},
 		{
-			ref: "likec4-from-workspace@4",
+			ref: "likec4-from-workspace@5",
 			domainStages: map[string]string{
 				"dependency_discovery": "workspace_source_graph_analyst",
 				"project_discovery":    "workspace_source_graph_analyst",
@@ -100,6 +100,37 @@ func TestRepositoryWorkspaceWorkflowsUseCumulativeOverlayState(t *testing.T) {
 				t.Fatalf("final outputs = %+v", final.WorkflowOutputs)
 			}
 		})
+	}
+}
+
+func TestRepositoryPassthroughWorkspaceWorkflowsUseExpandedWorkerBudget(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	policy, err := snapshot.ModelPolicy("domain_worker@2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if policy.MaxOutputTokens != 16384 || policy.MaxModelCalls != 24 ||
+		policy.MaxToolCalls != 96 || policy.MaxTotalTokens != 500000 {
+		t.Fatalf("expanded domain Worker policy = %+v", policy)
+	}
+
+	for _, selector := range []string{"openapi-from-workspace@5", "likec4-from-workspace@5"} {
+		workflow, workflowErr := snapshot.Workflow(selector)
+		if workflowErr != nil {
+			t.Fatal(workflowErr)
+		}
+		for stageName, stage := range workflow.Stages {
+			for agentName, execution := range stage.ExecutionConfig.Agents {
+				if execution.ModelPolicy.Ref != policy.Ref {
+					t.Fatalf("%s Stage %s agent %s policy = %+v, want %+v", selector, stageName, agentName, execution.ModelPolicy.Ref, policy.Ref)
+				}
+				if execution.Origins.ModelPolicy != "workflow.executionConfig.workers" {
+					t.Fatalf("%s Stage %s agent %s policy origin = %q", selector, stageName, agentName, execution.Origins.ModelPolicy)
+				}
+			}
+		}
 	}
 }
 

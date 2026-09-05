@@ -3,7 +3,7 @@
 This directory contains the executable default configuration. Its current
 user-facing Workflow set is:
 
-- `openapi-from-workspace@4` and `likec4-from-workspace@4` for four-Stage local
+- `openapi-from-workspace@5` and `likec4-from-workspace@5` for four-Stage local
   graph-backed analysis and document generation;
 - `likec4-from-workspace-streamline@2` for the same LikeC4 contract with a
   modeled single-Worker Planner;
@@ -33,9 +33,15 @@ eleven bounded structural operations. They wait for a Runtime Agent whose
 positive capability includes the complete local Trailmark graph surface; there
 is no automatic downgrade to shallow analysis.
 
+The passthrough workspace Workflows pin `domain_worker@2`. It retains the
+24-model-call, 96-tool-call, and 16,384-token per-response bounds from
+`domain_worker@1`, while raising the cumulative provider-reported token budget
+from 250,000 to 500,000 so a completed artifact still has room for terminal
+result finalization.
+
 `likec4-from-workspace-streamline@2` retains the exact graph-backed workspace,
 artifact handoffs, cumulative state/diff and output contract of
-`likec4-from-workspace@4`, but uses `streamline@1` for every Stage. Its modeled
+`likec4-from-workspace@5`, but uses `streamline@1` for every Stage. Its modeled
 Planners use `project_planner@1`; its Workers use `project_worker@1`. Choose it
 when each semantic Stage benefits from explicit ordered subtask decomposition;
 the passthrough variant remains the simpler default when one Worker invocation

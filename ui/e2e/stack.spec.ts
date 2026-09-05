@@ -631,10 +631,10 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   });
 
   await page
-    .getByRole("button", { name: "Run openapi-from-workspace@4" })
+    .getByRole("button", { name: "Run openapi-from-workspace@5" })
     .click();
   const workflowDialog = page.getByRole("dialog", {
-    name: "openapi-from-workspace@4",
+    name: "openapi-from-workspace@5",
   });
   await workflowDialog.getByLabel("Include optional objective").check();
   await workflowDialog
@@ -678,7 +678,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     );
   }
   await expect(
-    page.locator(".run-metadata").getByText("openapi-from-workspace@4", {
+    page.locator(".run-metadata").getByText("openapi-from-workspace@5", {
       exact: true,
     }),
   ).toBeVisible();
@@ -709,7 +709,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   ).toBeVisible();
   await openDetails(page.locator("details.project-all-workflows"));
   await expect(
-    page.getByRole("button", { name: "Run again openapi-from-workspace@4" }),
+    page.getByRole("button", { name: "Run again openapi-from-workspace@5" }),
   ).toBeVisible();
 
   await page.goto("/operations/configurations");
