@@ -71,9 +71,10 @@ type AuditInventory struct {
 type AuditWorkflowInputSource string
 
 const (
-	AuditInputFromAudit          AuditWorkflowInputSource = "audit-input"
-	AuditInputFromItemPackage    AuditWorkflowInputSource = "item-package"
-	AuditInputFromRetainedOutput AuditWorkflowInputSource = "retained-output"
+	AuditInputFromAudit             AuditWorkflowInputSource = "audit-input"
+	AuditInputFromItemPackage       AuditWorkflowInputSource = "item-package"
+	AuditInputFromExecutionManifest AuditWorkflowInputSource = "execution-manifest"
+	AuditInputFromRetainedOutput    AuditWorkflowInputSource = "retained-output"
 )
 
 type AuditWorkflowInputMapping struct {
@@ -488,6 +489,13 @@ func resolveAuditWorkflowInputMapping(
 		}
 		if !mediaTypesIntersect([]string{auditTaskPackageMediaType}, slot.MediaTypes) {
 			return AuditWorkflowInputMapping{}, fmt.Errorf("%s Workflow input does not accept %s", field, auditTaskPackageMediaType)
+		}
+	case AuditInputFromExecutionManifest:
+		if mapping.Name != "" || mapping.Role != "" {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s execution-manifest forbids name and role", field)
+		}
+		if !mediaTypesIntersect([]string{"application/json"}, slot.MediaTypes) {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s Workflow input does not accept application/json", field)
 		}
 	case AuditInputFromRetainedOutput:
 		if validateAuditMapKey(field+".role", mapping.Role) != nil ||

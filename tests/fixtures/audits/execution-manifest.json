@@ -1,0 +1,1 @@
+{"items":[{"inputs":[],"item_key":"check-authz","ordinal":0,"subject_key":"check-authz","task_package_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","task_package_id":"task-check-authz","task_ref":{"name":"task-check-authz","namespace":"audit-fixture","revision":"task-r1"}}],"schema":"contractor.audit.execution-manifest.v1"}

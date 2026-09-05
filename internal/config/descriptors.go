@@ -51,6 +51,9 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"audit-results@1": {
+				Tools: []string{"submit_check_result"},
+			},
 			"caido@1": {
 				Tools: []string{
 					"caido_automate_results", "caido_automate_run", "caido_history",

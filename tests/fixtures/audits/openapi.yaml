@@ -1,0 +1,30 @@
+openapi: 3.0.3
+info:
+  title: Audit fixture API
+  version: 1.0.0
+paths:
+  /widgets/{widget_id}:
+    get:
+      operationId: getWidget
+      parameters:
+        - in: path
+          name: widget_id
+          required: true
+          schema: {type: string}
+      responses:
+        "200": {description: Widget response}
+      callbacks:
+        widgetUpdated:
+          '{$request.body#/callbackUrl}':
+            post:
+              responses:
+                "204": {description: Accepted}
+    delete:
+      operationId: deleteWidget
+      responses:
+        "204": {description: Deleted}
+webhooks:
+  auditEvent:
+    post:
+      responses:
+        "204": {description: Accepted}

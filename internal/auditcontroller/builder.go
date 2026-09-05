@@ -66,19 +66,6 @@ func (b *PinnedSubmissionBuilder) Prepare(
 		return PreparedSubmission{}, invalidSubmission("item task does not match its execution manifest")
 	}
 
-	runInputs, memberInputs, err := resolveInputs(binding, baseline, manifestItem, task)
-	if err != nil {
-		return PreparedSubmission{}, err
-	}
-	parameters, err := resolveParameters(binding, baseline.Scope, item)
-	if err != nil {
-		return PreparedSubmission{}, err
-	}
-	skills, err := selectSkills(binding.Workflow, baseline.Skills)
-	if err != nil {
-		return PreparedSubmission{}, err
-	}
-
 	manifestItem.Ordinal = 0
 	manifest := auditdomain.ExecutionManifest{
 		Schema: auditdomain.ExecutionManifestSchema,
@@ -100,6 +87,20 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	}
 	if manifestArtifact.Digest != manifestDigest {
 		return PreparedSubmission{}, invalidSubmission("stored execution manifest digest differs")
+	}
+	runInputs, memberInputs, err := resolveInputs(
+		binding, baseline, manifestItem, task, manifestArtifact,
+	)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	parameters, err := resolveParameters(binding, baseline.Scope, item)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	skills, err := selectSkills(binding.Workflow, baseline.Skills)
+	if err != nil {
+		return PreparedSubmission{}, err
 	}
 
 	attemptText := strconv.Itoa(attempt)
@@ -180,6 +181,7 @@ func resolveInputs(
 	baseline auditservice.BaselineSnapshot,
 	manifest auditdomain.ExecutionItem,
 	task auditstore.ExactArtifact,
+	executionManifest auditstore.ExactArtifact,
 ) (map[string]auditstore.ExactArtifact, []auditstore.ExactArtifact, error) {
 	manifestInputs := make(map[string]auditdomain.ExactInput, len(manifest.Inputs))
 	for _, input := range manifest.Inputs {
@@ -198,6 +200,8 @@ func resolveInputs(
 		switch mapping.Source {
 		case config.AuditInputFromItemPackage:
 			runInputs[slot] = task
+		case config.AuditInputFromExecutionManifest:
+			runInputs[slot] = executionManifest
 		case config.AuditInputFromAudit:
 			descriptor, present := baseline.Inputs[mapping.Name]
 			if !present {

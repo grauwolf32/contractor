@@ -1,0 +1,16 @@
+schema: contractor.audit.checklist.v1
+items:
+  - key: check-authz
+    version: "1"
+    statement: Object lookup is preceded by an authorization decision.
+    applicability: Applies to the authenticated widget lookup endpoint.
+    allowed_methods: [static-trace]
+    required_evidence: [source-trace]
+    review_policy: automatic
+  - key: check-error-path
+    version: "1"
+    statement: Downstream failures are converted into an explicit bounded response.
+    applicability: Applies when the inventory dependency is unavailable.
+    allowed_methods: [static-trace]
+    required_evidence: [error-path]
+    review_policy: automatic

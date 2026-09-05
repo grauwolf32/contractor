@@ -237,7 +237,10 @@ func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 		t.Fatal(err)
 	}
 	targets := map[string]bool{"stride": true, "trace": true, "vuln-scan": true, "vulns": true}
-	traceAssigned := false
+	wantedAssignments := map[string]map[string]bool{
+		"audit_source_checker.yaml":    {"trace": false},
+		"workspace_taint_analyst.yaml": {"trace": false},
+	}
 	for _, entry := range entries {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".yaml" {
 			continue
@@ -256,16 +259,23 @@ func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 		}
 		for _, skill := range document.Spec.Skills {
 			if targets[skill.Name] {
-				if entry.Name() == "workspace_taint_analyst.yaml" && skill.Name == "trace" {
-					traceAssigned = true
-					continue
+				if assignments, allowed := wantedAssignments[entry.Name()]; allowed {
+					if _, allowed = assignments[skill.Name]; allowed {
+						assignments[skill.Name] = true
+						continue
+					}
 				}
 				t.Errorf("AgentTemplate %s unexpectedly selects skills/%s", entry.Name(), skill.Name)
 			}
 		}
 	}
-	if !traceAssigned {
-		t.Error("workspace_taint_analyst.yaml does not select skills/trace")
+	for template, assignments := range wantedAssignments {
+		for skill, assigned := range assignments {
+			if assigned {
+				continue
+			}
+			t.Errorf("%s does not select skills/%s", template, skill)
+		}
 	}
 }
 

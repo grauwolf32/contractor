@@ -2577,7 +2577,7 @@ components:
       additionalProperties: false
       required: [source]
       properties:
-        source: {enum: [audit-input, item-package, retained-output]}
+        source: {enum: [audit-input, item-package, execution-manifest, retained-output]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
     AuditWorkflowParameterMapping:

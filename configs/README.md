@@ -11,6 +11,8 @@ user-facing Workflow set is:
   has exact dependency and project reports;
 - `security-analysis@2` and `taint-trace-from-workspace@2` for their explicit
   focused analysis contracts;
+- `audit-source-check@1` as the Audit-owned single-item child Workflow used by
+  the `source-checklist@1` and `openapi-operation-trace@1` AuditProfiles;
 - `artifact-copy@1` as the one intentionally published smoke fixture.
 
 Historical source-analysis and earlier workspace/Skill versions are deleted,
@@ -18,6 +20,13 @@ not archived or republished. Existing Runs retain their complete resolved
 Workflow snapshots; a deleted exact identity is never reused. Process-only
 Router/Streamline Memory fixtures live under `configs/e2e` and do not enter the
 default catalog.
+
+The two initial AuditProfiles are deliberately generic, one-round and
+non-certifying. They require an exact source ZIP plus either a custom checklist
+or OpenAPI document. Their child Worker reads the Controller-generated task and
+execution manifest, performs bounded source analysis and uses
+`audit-results@1/submit_check_result` to package a strict result without asking
+the model to reproduce item identities or construct ZIP bytes manually.
 
 Each current workspace Workflow hydrates the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code

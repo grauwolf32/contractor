@@ -173,6 +173,7 @@ spec:
       inputs:
         source: {source: audit-input, name: source}
         task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
       parameters:
         target: {source: item-field, name: subjectKey}
       outputs:
@@ -208,6 +209,9 @@ Workflow:
 - `audit-input` names exist and have at least one compatible media type;
 - `item-package` is accepted only by an artifact slot compatible with the
   versioned Audit package media type;
+- `execution-manifest` maps the Controller-generated exact one-execution
+  manifest into an `application/json` Workflow input without making it part of
+  its own digest-bearing member list;
 - `retained-output` identifies a declared logical output of another bound role
   and cycles are rejected;
 - literal parameter values are bounded strings; item/scope fields come from a
@@ -499,6 +503,15 @@ an `invalid-result`. Evidence may instead reference an exact revision in the
 same RunScope. The importer never follows a path or accepts an unversioned or
 foreign-scope reference. Until finding intake is implemented, a non-empty
 `proposals` array is also rejected rather than silently ignored.
+
+The initial Runtime exposes the optional `audit-results@1` Toolset only when an
+AgentTemplate selects it. `submit_check_result` reads the exact `inputs/task`
+and `inputs/execution_manifest` bindings itself and derives the item key,
+subject key, requested coverage and manifest digest. The model supplies only
+the assessment, summary, completed coverage, explicit gaps and bounded evidence
+summaries. The tool creates the canonical package in the selected agent
+namespace; it does not identify an Audit, select another item, accept evidence
+or bypass the trusted importer.
 
 ### 7.3 WorklistManifest
 

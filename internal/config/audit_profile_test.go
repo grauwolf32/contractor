@@ -1,15 +1,18 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "z-security-review", validAuditProfileYAML("z-security-review"))
 	writeAuditProfile(t, root, "a-security-review", validAuditProfileYAML("a-security-review"))
 
@@ -82,7 +85,7 @@ func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 func TestAuditProfileManagerReadAccessDoesNotAddManagedPublicationKind(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "api-security-review", validAuditProfileYAML("api-security-review"))
 	manager := newTestManager(t, root, filepath.Join(t.TempDir(), "managed"), ManagerOptions{})
 	profile, err := manager.AuditProfile("api-security-review@1")
@@ -94,10 +97,70 @@ func TestAuditProfileManagerReadAccessDoesNotAddManagedPublicationKind(t *testin
 	}
 }
 
+func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
+	t.Parallel()
+
+	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	for _, test := range []struct {
+		ref            string
+		mode           AuditProfileMode
+		implementation string
+		role           string
+		sourceInput    string
+	}{
+		{"source-checklist@1", AuditModeCustomChecklist, "checklist@1", "check", "checklist"},
+		{"openapi-operation-trace@1", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi"},
+	} {
+		test := test
+		t.Run(test.ref, func(t *testing.T) {
+			t.Parallel()
+			profile, err := snapshot.AuditProfile(test.ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := profile.Workflows[test.role]
+			if profile.Mode != test.mode || profile.Inventory.Implementation != test.implementation ||
+				profile.Inventory.SourceInput != test.sourceInput || profile.Inventory.ItemWorkflowRole != test.role ||
+				profile.Execution.MaxRounds != 1 || profile.Execution.BatchSize != 1 ||
+				profile.Interaction.ActiveChecks != AuditActiveChecksProhibited ||
+				profile.Interaction.FindingConfirmation != AuditFindingDisabled ||
+				profile.Interaction.NotApplicable != AuditNotApplicableProfileRule ||
+				profile.Interaction.ReportAcceptance != AuditReportAutomatic {
+				t.Fatalf("repository AuditProfile is not MVP-compatible: %+v", profile)
+			}
+			if binding.Workflow.Ref != (WorkflowRef{Name: "audit-source-check", Version: "1"}) ||
+				binding.Inputs["task"].Source != AuditInputFromItemPackage ||
+				binding.Inputs["execution_manifest"].Source != AuditInputFromExecutionManifest ||
+				binding.Inputs["source"].Source != AuditInputFromAudit || binding.Outputs["result"] != "result" {
+				t.Fatalf("repository Audit Workflow binding is incomplete: %+v", binding)
+			}
+			stage := binding.Workflow.Stages[binding.Workflow.EntryStage]
+			checker := stage.Agents["checker"].Template
+			if checker.Ref.TemplateID != "audit_source_checker" ||
+				!selectedTool(checker.Toolsets, "audit-results@1", "submit_check_result") {
+				t.Fatalf("repository Audit Worker cannot publish result packages: %+v", checker)
+			}
+		})
+	}
+}
+
+func selectedTool(toolsets []contracts.ToolsetSelection, ref, tool string) bool {
+	for _, selection := range toolsets {
+		if selection.Ref.ToolsetID+"@"+selection.Ref.Version == ref {
+			for _, selected := range selection.Tools {
+				if selected == tool {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibility(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyAuditProfileConfigTree(t)
 	manifest := strings.NewReplacer(
 		"batchSize: 1", "batchSize: 2",
 		"activeChecks: prohibited", "activeChecks: approval-required",
@@ -123,14 +186,14 @@ func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibi
 func TestAuditProfileDigestIsSemanticAndPinsWorkflowClosure(t *testing.T) {
 	t.Parallel()
 
-	baselineRoot := copyConfigTree(t)
+	baselineRoot := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, baselineRoot, "api-security-review", validAuditProfileYAML("api-security-review"))
-	presentationRoot := copyConfigTree(t)
+	presentationRoot := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, presentationRoot, "api-security-review", presentationAuditProfileYAML)
-	closureRoot := copyConfigTree(t)
+	closureRoot := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, closureRoot, "api-security-review", validAuditProfileYAML("api-security-review"))
 	appendFile(t, filepath.Join(closureRoot, "instructions/taint-trace-planner.md"), "\n")
-	policyRoot := copyConfigTree(t)
+	policyRoot := copyAuditProfileConfigTree(t)
 	changed := strings.Replace(validAuditProfileYAML("api-security-review"), "maxRounds: 3", "maxRounds: 4", 1)
 	writeAuditProfile(t, policyRoot, "api-security-review", changed)
 
@@ -238,7 +301,7 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			root := copyConfigTree(t)
+			root := copyAuditProfileConfigTree(t)
 			writeAuditProfile(t, root, "api-security-review", test.manifest)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), "audit-profiles/api-security-review.yaml") ||
@@ -252,7 +315,7 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 func TestAuditProfileRejectsRetainedOutputCycles(t *testing.T) {
 	t.Parallel()
 
-	root := copyConfigTree(t)
+	root := copyAuditProfileConfigTree(t)
 	writeAuditProfile(t, root, "cycle-review", retainedCycleAuditProfileYAML)
 	_, err := Load(root, MVPDescriptors())
 	if err == nil || !strings.Contains(err.Error(), "retained-output dependencies contain a cycle") {
@@ -263,7 +326,7 @@ func TestAuditProfileRejectsRetainedOutputCycles(t *testing.T) {
 func TestAuditProfileRejectsManagedRootDocuments(t *testing.T) {
 	t.Parallel()
 
-	operator := copyConfigTree(t)
+	operator := copyAuditProfileConfigTree(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	if _, err := requireStrictRoot(managed, true); err != nil {
 		t.Fatal(err)
@@ -278,6 +341,19 @@ func TestAuditProfileRejectsManagedRootDocuments(t *testing.T) {
 func writeAuditProfile(t *testing.T, root, name, manifest string) {
 	t.Helper()
 	writeFile(t, filepath.Join(root, "audit-profiles", name+".yaml"), []byte(manifest))
+}
+
+func copyAuditProfileConfigTree(t *testing.T) string {
+	t.Helper()
+	root := copyConfigTree(t)
+	directory := filepath.Join(root, "audit-profiles")
+	if err := os.RemoveAll(directory); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 func validAuditProfileYAML(name string) string {

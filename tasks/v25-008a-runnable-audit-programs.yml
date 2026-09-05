@@ -6,7 +6,7 @@ priority: P0
 status: pending
 implementation_commit: null
 depends_on: [V25-002, V25-004, V25-005, V25-006, V25-007, V25-008]
-languages: [go, yaml, json]
+languages: [go, python, yaml, json]
 
 goal: >-
   Provide two concrete production-path Audit programs that the API and UI can
@@ -61,3 +61,4 @@ acceptance_criteria:
 tests:
   - {name: config, command: "go test ./internal/config -run AuditProfile", covers: [A1, A2]}
   - {name: programs, command: "go test ./tests/e2e -run AuditPrograms", covers: [A1, A2, A3]}
+  - {name: process, command: "go test -tags=e2e -timeout=6m ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$'", covers: [A1, A2, A3]}

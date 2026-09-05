@@ -17,6 +17,7 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 	sort.Strings(got)
 	want := []string{
 		"artifact-copy@1",
+		"audit-source-check@1",
 		"likec4-from-analysis@3",
 		"likec4-from-workspace-streamline@2",
 		"likec4-from-workspace@5",

@@ -1,5 +1,6 @@
 schemaVersion: "1.0"
 toolsets:
+  audit-results@1: {}
   caido@1:
     caido_automate_results: [caido-graphql-client]
     caido_automate_run: [caido-graphql-client]
