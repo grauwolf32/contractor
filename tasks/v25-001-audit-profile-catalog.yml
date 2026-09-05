@@ -3,8 +3,8 @@ id: V25-001
 title: Add the strict resolved AuditProfile catalog
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "6042be5c154a7944cec7c08793947598dad478ed"
 depends_on: [V22-003]
 languages: [go, yaml]
 
@@ -62,4 +62,3 @@ acceptance_criteria:
 tests:
   - {name: config, command: "go test ./internal/config", covers: [A1, A2, A3, A4]}
   - {name: aggregate, command: "make verify", covers: [A4]}
-
