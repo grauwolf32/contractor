@@ -28,6 +28,7 @@ scope:
     - Encode closed lifecycle/disposition values with SQL checks and Go validation.
     - Enforce unique round/item ordinals, per-item attempts, execution batch ordinals/membership, null-safe discovery/assessment role attempts, submission keys, non-null Run associations and monotonic per-Audit event sequence.
     - Implement create/get/keyset-list, CAS transition, atomic accepted-round materialization, execution intent/binding, exact terminal observation, collection receipt, retry-or-settle and bounded claim/reconcile queries.
+    - Advance the aggregate Audit revision on every projection-visible child, receipt, coverage, artifact or counter mutation, but not on Controller lease traffic.
     - Model one-to-many AuditExecution to AuditExecutionItem even though the MVP start gate permits batchSize=1 only.
     - Persist finite total submitted-Run budgets but no Audit-specific WorkflowRun concurrency setting; keep reservation counters needed by the later derived dispatch window.
     - Serialize create/start/dispatch mutations with the existing Project active/deleting fence.
@@ -40,6 +41,7 @@ requirements:
   - {id: R3, text: No table permits one Run or submission intent to bind to two AuditExecutions, or one item attempt to bind to two executions.}
   - {id: R4, text: Claim expiry alone cannot let a stale epoch commit.}
   - {id: R5, text: Terminal Run observation does not settle an item; one durable collection receipt records every accepted, missing, invalid, failed or cancelled attempt before retry-or-settle.}
+  - {id: R6, text: A strong Audit revision/ETag cannot remain unchanged while any field in its bounded public projection changes.}
 
 acceptance_criteria:
   - id: A1

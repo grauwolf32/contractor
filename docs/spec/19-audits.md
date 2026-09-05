@@ -787,10 +787,13 @@ Public WebSocket is not an internal completion bus.
 ## 13. Budgets and bounds
 
 Every Audit has finite maxima for rounds, items per round, total items,
-proposals, submitted Runs, simultaneous Runs, wall time, package bytes, and
+proposals, cumulative submitted Run attempts, wall time, package bytes, and
 retained evidence bytes. A submission reserves budget in the same transaction
 as its intent; replay never consumes twice. Reserved and committed consumption
-are recorded separately.
+are recorded separately, together with the current outstanding intent/Run
+count used by the Server-owned dispatch window. AuditProfile has no
+simultaneous-Run maximum; global Scheduler concurrency remains the sole
+execution-capacity limit.
 
 Model, token, Tool, HTTP, and context limits remain enforced by each pinned
 child execution policy. Collected monetary/token metrics can be incomplete
@@ -955,6 +958,13 @@ and after browser reconnect. Audit WebSocket subscriptions, authorization,
 cursor/sequence replay, and resync are deferred as one complete later transport
 feature; the existing Run event socket is not treated as an Audit invalidation
 contract.
+
+The Audit revision advances for every projection-visible lifecycle, Round,
+item, execution, receipt, coverage, retained-artifact, or budget-counter
+mutation. Controller claim acquire/renew/release is internal lease traffic and
+does not advance the public revision. Consequently an unchanged strong ETag
+means the complete bounded Audit projection is unchanged, not merely that the
+top-level lifecycle state is unchanged.
 
 ## 18. End-to-end examples
 

@@ -314,6 +314,49 @@ func TestProjectDeletionMigrationIsDurableClaimedAndFenced(t *testing.T) {
 	}
 }
 
+func TestAuditStateMigrationPinsAttemptsReceiptsClaimsAndProjectFence(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var auditState migration
+	for _, item := range items {
+		if item.name == "000034_audit_state.sql" {
+			auditState = item
+			break
+		}
+	}
+	if auditState.name == "" {
+		t.Fatal("Audit state migration is not embedded")
+	}
+	contents := strings.ToLower(string(auditState.contents))
+	for _, required := range []string{
+		"create table audits",
+		"create table audit_rounds",
+		"create table audit_items",
+		"create table audit_executions",
+		"create table audit_execution_items",
+		"create table audit_collection_receipts",
+		"create table audit_controller_claims",
+		"audit_executions_run_unique",
+		"audit_executions_role_attempt_unique",
+		"audit_execution_items_item_attempt unique",
+		"unique (execution_id)",
+		"outstanding_run_count",
+		"contractor_require_active_audit_project",
+		"for share",
+		"audit_collection_receipts_protect_immutable",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Audit state migration does not contain %q", required)
+		}
+	}
+	if strings.Contains(contents, "max_active_runs") {
+		t.Fatal("Audit state migration retains removed Audit-specific Run concurrency")
+	}
+}
+
 func TestWorkflowRunQueueMigrationAddsOnlyAPartialReadIndex(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()
