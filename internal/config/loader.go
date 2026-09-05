@@ -24,6 +24,7 @@ type loader struct {
 	executionConfigs map[string]ResolvedExecutionConfigProfile
 	templates        map[string]contracts.ResolvedAgentTemplate
 	workflows        map[string]ResolvedWorkflow
+	auditProfiles    map[string]ResolvedAuditProfile
 	sources          map[string]ConfigurationSource
 }
 
@@ -101,6 +102,7 @@ func loadConfigurationRoots(
 		executionConfigs: make(map[string]ResolvedExecutionConfigProfile),
 		templates:        make(map[string]contracts.ResolvedAgentTemplate),
 		workflows:        make(map[string]ResolvedWorkflow),
+		auditProfiles:    make(map[string]ResolvedAuditProfile),
 		sources:          make(map[string]ConfigurationSource),
 	}
 	if err := current.loadInstructionResources(); err != nil {
@@ -121,9 +123,12 @@ func loadConfigurationRoots(
 	if err := current.loadWorkflows(); err != nil {
 		return nil, err
 	}
+	if err := current.loadAuditProfiles(); err != nil {
+		return nil, err
+	}
 	return newSnapshot(
 		current.workflows, current.templates, current.policies, current.gateways,
-		current.executionConfigs, current.instructions, current.sources,
+		current.executionConfigs, current.auditProfiles, current.instructions, current.sources,
 	), nil
 }
 

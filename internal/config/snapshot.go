@@ -15,6 +15,7 @@ type Snapshot struct {
 	policies         map[string]contracts.ResolvedModelPolicy
 	gateways         map[string]contracts.ResolvedLLMGatewayConfig
 	executionConfigs map[string]ResolvedExecutionConfigProfile
+	auditProfiles    map[string]ResolvedAuditProfile
 	instructions     map[string]contracts.ResolvedInstructions
 	sources          map[string]ConfigurationSource
 }
@@ -25,6 +26,7 @@ func newSnapshot(
 	policies map[string]contracts.ResolvedModelPolicy,
 	gateways map[string]contracts.ResolvedLLMGatewayConfig,
 	executionConfigs map[string]ResolvedExecutionConfigProfile,
+	auditProfiles map[string]ResolvedAuditProfile,
 	instructions map[string]contracts.ResolvedInstructions,
 	sources map[string]ConfigurationSource,
 ) *Snapshot {
@@ -34,6 +36,7 @@ func newSnapshot(
 		policies:         make(map[string]contracts.ResolvedModelPolicy, len(policies)),
 		gateways:         make(map[string]contracts.ResolvedLLMGatewayConfig, len(gateways)),
 		executionConfigs: make(map[string]ResolvedExecutionConfigProfile, len(executionConfigs)),
+		auditProfiles:    make(map[string]ResolvedAuditProfile, len(auditProfiles)),
 		instructions:     make(map[string]contracts.ResolvedInstructions, len(instructions)),
 		sources:          make(map[string]ConfigurationSource, len(sources)),
 	}
@@ -52,6 +55,9 @@ func newSnapshot(
 	for key, profile := range executionConfigs {
 		result.executionConfigs[key] = cloneExecutionConfigProfile(profile)
 	}
+	for key, profile := range auditProfiles {
+		result.auditProfiles[key] = cloneAuditProfile(profile)
+	}
 	for key, instructions := range instructions {
 		result.instructions[key] = instructions
 	}
@@ -66,8 +72,34 @@ func (s *Snapshot) Counts() Counts {
 		Workflows: len(s.workflows), AgentTemplates: len(s.templates),
 		ModelPolicies: len(s.policies), LLMGateways: len(s.gateways),
 		ExecutionConfigs: len(s.executionConfigs),
+		AuditProfiles:    len(s.auditProfiles),
 		Instructions:     len(s.instructions),
 	}
+}
+
+// AuditProfile resolves one exact name@version and returns a caller-owned,
+// fully dependency-resolved Server-side profile.
+func (s *Snapshot) AuditProfile(raw string) (ResolvedAuditProfile, error) {
+	selector, err := ParseSelector(raw)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	profile, ok := s.auditProfiles[selector.String()]
+	if !ok {
+		return ResolvedAuditProfile{}, fmt.Errorf("unknown AuditProfile %q", selector)
+	}
+	return cloneAuditProfile(profile), nil
+}
+
+// AuditProfiles returns every profile sorted by exact ref and deeply detached
+// from the immutable Snapshot.
+func (s *Snapshot) AuditProfiles() []ResolvedAuditProfile {
+	keys := sortedMapKeys(s.auditProfiles)
+	result := make([]ResolvedAuditProfile, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, cloneAuditProfile(s.auditProfiles[key]))
+	}
+	return result
 }
 
 // ExecutionConfig resolves one exact id@version and returns a caller-owned,
