@@ -3,8 +3,8 @@ id: V25-004
 title: Expose owner-safe Audit draft, start and query APIs
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "c7632c2228c41f7ed327d23b1da9490de25394cf"
 depends_on: [V25-002, V25-003]
 languages: [go, sql, openapi]
 
