@@ -17,12 +17,13 @@ type ArtifactWritePolicy string
 const WriteInputsAndIntermediates ArtifactWritePolicy = "inputs_and_intermediates"
 
 type BindingRequirement struct {
-	LogicalAgentName string
-	Namespace        string
-	AgentTemplate    contracts.ResolvedAgentTemplate
-	ResolvedSkills   []contracts.ResolvedSkill
-	ExecutionConfig  AllocationExecutionConfig
-	Workspace        *contracts.AllocationWorkspaceSpecV2
+	LogicalAgentName  string
+	Namespace         string
+	WorkerSessionMode contracts.WorkerSessionMode
+	AgentTemplate     contracts.ResolvedAgentTemplate
+	ResolvedSkills    []contracts.ResolvedSkill
+	ExecutionConfig   AllocationExecutionConfig
+	Workspace         *contracts.AllocationWorkspaceSpecV2
 	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
 	// Candidate Agent labels are deliberately resolved later by placement.
 	RuntimeSelection *workflowconfig.ResolvedConsumerExecutionConfig
@@ -96,6 +97,7 @@ type Reservation struct {
 	ControlURL                string
 	A2AURL                    string
 	AgentTemplate             contracts.ResolvedAgentTemplate
+	WorkerSessionMode         contracts.WorkerSessionMode
 	ResolvedSkills            []contracts.ResolvedSkill
 	ExecutionConfig           AllocationExecutionConfig
 	Workspace                 *contracts.AllocationWorkspaceSpecV2

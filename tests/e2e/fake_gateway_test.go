@@ -101,6 +101,38 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	g.bodies = append(g.bodies, append([]byte(nil), body...))
 	nextCall := g.calls + 1
 	g.mu.Unlock()
+	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if isFinalizer {
+		if !requestHasNoModelTools(request) {
+			g.fail(w, http.StatusBadRequest, "Worker result finalizer exposed model-visible tools")
+			return
+		}
+		if finalizerInput.ResultText != "Source artifact copied byte-for-byte" {
+			g.fail(w, http.StatusBadRequest, "Worker result finalizer changed the copy result")
+			return
+		}
+		message, encodeErr := workerResultFinalizerMessage(finalizerInput)
+		if encodeErr != nil {
+			g.fail(w, http.StatusBadRequest, encodeErr.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "chatcmpl-e2e-result-finalizer", "object": "chat.completion",
+			"created": time.Now().Unix(), "model": "worker-model",
+			"choices": []any{map[string]any{
+				"index": 0, "message": message, "finish_reason": "stop",
+			}},
+			"usage": map[string]any{
+				"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10,
+			},
+		})
+		return
+	}
 	expectedTools := append([]string(nil), g.copyTools...)
 	if nextCall > 3 {
 		expectedTools = []string{"read_artifact"}
@@ -137,12 +169,9 @@ func (g *fakeGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			g.fail(w, http.StatusBadRequest, "write_artifact exact result was not returned to the model")
 			return
 		}
-		finalMessage, err := workerModelResultMessage(request, "Source artifact copied byte-for-byte")
-		if err != nil {
-			g.fail(w, http.StatusBadRequest, err.Error())
-			return
+		message = map[string]any{
+			"role": "assistant", "content": "Source artifact copied byte-for-byte",
 		}
-		message = finalMessage
 	default:
 		message = toolCallMessage(fmt.Sprintf("bounded-read-%d", call), "read_artifact", map[string]any{
 			"namespace": "inputs", "name": "source", "revision": nil,

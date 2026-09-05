@@ -681,8 +681,8 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	var activeExecutionID *string
 	deletable := runstore.RunLifecycleTerminal.Includes(run.State)
 	for _, execution := range executions {
-		var stage config.ResolvedStage
-		if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
+		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+		if err != nil {
 			h.handleError(w, fmt.Errorf("decode StageExecution read model: %w", err))
 			return
 		}
@@ -865,8 +865,8 @@ func stageExecutionConfigReadModel(
 	if variant == "" {
 		variant = runstore.StageExecutionConfigBase
 	}
-	var stage config.ResolvedStage
-	if err := json.Unmarshal(execution.StageSpecSnapshot, &stage); err != nil {
+	stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+	if err != nil {
 		return stageExecutionConfigResponse{}, fmt.Errorf(
 			"decode StageExecution executionConfig read model: %w", err,
 		)

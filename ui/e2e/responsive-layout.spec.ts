@@ -50,6 +50,7 @@ async function installRunAPI(page: Page, uiOrigin: string): Promise<void> {
         runId: RUN_ID,
         workflow: "responsive-layout@1",
         state: "succeeded",
+        deletable: true,
         runtimeLabels: [],
         labels: {},
         runtimeConfiguration: {
@@ -117,6 +118,7 @@ async function installRunAPI(page: Page, uiOrigin: string): Promise<void> {
             runId: RUN_ID,
             workflow: "responsive-layout-with-a-long-name@1",
             state: "succeeded",
+            deletable: true,
             labels: {},
             createdAt: "2026-09-04T08:00:00Z",
             updatedAt: "2026-09-04T08:01:00Z",
@@ -165,7 +167,7 @@ test("Run list prioritizes compact facts on narrow screens", async ({
   await page.setViewportSize({ width: 320, height: 568 });
   await installRunAPI(page, uiOrigin);
 
-  await page.goto("/runs");
+  await page.goto("/runs?view=completed");
   const runLink = page.getByRole("link", { name: RUN_ID });
   await expect(runLink).toBeVisible();
   await expect(runLink).toHaveText("run_01234567…89abcdef");

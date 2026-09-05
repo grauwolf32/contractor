@@ -110,9 +110,10 @@ func TestPrivateV2AllocationSpecComposesValidatedSettingsAndProvenance(t *testin
 	value := AllocationSpecV2{
 		APIVersion: active.APIVersion, AllocationID: active.AllocationID, RunID: active.RunID,
 		StageExecutionID: active.StageExecutionID, LogicalAgentName: active.LogicalAgentName,
-		Namespace: active.Namespace, RunMetadataLabels: active.RunMetadataLabels.Clone(),
-		LeaseExpiresAt: active.LeaseExpiresAt,
-		AgentTemplate:  active.AgentTemplate, ResolvedSkills: active.ResolvedSkills,
+		Namespace: active.Namespace, WorkerSessionMode: active.WorkerSessionMode,
+		RunMetadataLabels: active.RunMetadataLabels.Clone(),
+		LeaseExpiresAt:    active.LeaseExpiresAt,
+		AgentTemplate:     active.AgentTemplate, ResolvedSkills: active.ResolvedSkills,
 		ModelPolicy:     active.ModelPolicy,
 		RuntimeSettings: settings, ResolvedRuntimeConfigProvenance: provenance,
 	}

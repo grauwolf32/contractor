@@ -3,8 +3,8 @@ id: V19-001
 title: Add Stage-selected isolated and shared Worker sessions
 milestone: worker-session-modes
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: a4e260a47c6ca2bf746f412861b21127f3eb8928
 depends_on: [V18-003]
 languages: [go, python, yaml, json]
 

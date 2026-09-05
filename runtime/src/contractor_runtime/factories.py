@@ -24,6 +24,7 @@ from contractor_runtime.contracts import (
     ResolvedModelPolicy,
     ResolvedSkill,
     RuntimeSettings,
+    WorkerSessionMode,
     WorkerSummarizerConfig,
 )
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
@@ -78,6 +79,7 @@ class WorkerBuildContext:
     stage_execution_id: str
     logical_agent_name: str
     namespace: str
+    worker_session_mode: WorkerSessionMode
     description: str
     instruction: str
     card_version: str

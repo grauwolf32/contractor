@@ -8,12 +8,13 @@ from typing import Any
 
 import httpx
 import pytest
-from test_http_toolset import FakeArtifactClient, close_tools, create_tools
+from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 
 import contractor_runtime.adapters.caido_graphql as caido_graphql
 import contractor_runtime.toolsets.http_tools as http_tools
 from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
+from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.toolsets.http_tools import HTTPToolError
 
 
@@ -163,6 +164,44 @@ def test_url_header_query_and_body_injection_fail_before_transport(tmp_path: Pat
                 await request(**arguments)
             assert failure.value.code == code
         assert calls == 0
+        await close_tools(tools)
+
+    asyncio.run(scenario())
+
+
+def test_omitted_http_timeout_is_bounded_when_allocation_timeout_exceeds_tool_limit(
+    tmp_path: Path,
+) -> None:
+    observed_timeout: dict[str, float] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        observed_timeout.update(request.extensions["timeout"])
+        return httpx.Response(200, content=b"ok", request=request)
+
+    async def scenario() -> None:
+        artifacts = FakeArtifactClient()
+
+        def direct() -> httpx.AsyncClient:
+            return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+
+        factory = http_tools.HTTPToolsetFactory(
+            lambda _allocation, _settings: artifacts,
+            direct,
+        )
+        settings = RuntimeSettings(
+            llmGatewayUrl="https://gateway.example/v1",
+            llmGatewayToken="gateway-token",
+            artifactApiUrl="https://control.example/private/v1",
+            requestTimeoutSeconds=180,
+        )
+        tools = await make_tools(factory, tmp_path, settings=settings)
+        await tools["http_request"]("https://target.example/")
+        assert observed_timeout == {
+            "connect": 120.0,
+            "read": 120.0,
+            "write": 120.0,
+            "pool": 120.0,
+        }
         await close_tools(tools)
 
     asyncio.run(scenario())

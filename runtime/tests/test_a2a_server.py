@@ -50,6 +50,8 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
         state, service = await allocation_service(tmp_path, model, runtime_capabilities)
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
+        assert service._context is not None and service._context.worker is not None
+        worker = service._context.worker
         card_dict = prepared.worker_handle.agent_card
         card = ParseDict(card_dict, AgentCard())
         assert len(card.skills) == 1
@@ -67,6 +69,11 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
             )
             assert card_response.status_code == 200
             assert card_response.json()["supportedInterfaces"][0]["tenant"] == spec.allocation_id
+            sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
+                app_name=worker._app_name,
+                user_id=worker._user_id,  # type: ignore[attr-defined]
+            )
+            assert sessions.sessions == []
 
             client = ClientFactory(
                 ClientConfig(
@@ -116,6 +123,11 @@ def test_a2a_sdk_round_trip_and_stale_allocation_rejection(
             assert oversized.status_code == 413
             assert oversized.json()["code"] == "request_too_large"
             assert len(model.requests) == 2
+            sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
+                app_name=worker._app_name,
+                user_id=worker._user_id,  # type: ignore[attr-defined]
+            )
+            assert sessions.sessions == []
 
             await service.finalize(
                 FinalizeAllocationRequest(
@@ -149,6 +161,8 @@ def test_concurrent_a2a_message_receives_worker_busy(
         spec = allocation_spec(secret=SECRET)
         prepared = await service.prepare(spec)
         card = ParseDict(prepared.worker_handle.agent_card, AgentCard())
+        assert service._context is not None and service._context.worker is not None
+        worker = service._context.worker
         application = create_app(state, allocation_service=service, require_verified_peer=False)
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=application),
@@ -163,12 +177,27 @@ def test_concurrent_a2a_message_receives_worker_busy(
             ).create(card)
             first = asyncio.create_task(send(client, data_request(spec.allocation_id)))
             await asyncio.wait_for(model.started.wait(), timeout=1)
+            sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
+                app_name=worker._app_name,
+                user_id=worker._user_id,  # type: ignore[attr-defined]
+            )
+            assert len(sessions.sessions) == 1
             busy = await send(client, data_request(spec.allocation_id, message_id="second"))
             assert busy["failure"]["code"] == "worker_busy"
             assert len(model.requests) == 1
+            sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
+                app_name=worker._app_name,
+                user_id=worker._user_id,  # type: ignore[attr-defined]
+            )
+            assert len(sessions.sessions) == 1
             model.release()
             completed = await first
             assert completed["result"]["result"] == "first"
+            sessions = await worker._session_service.list_sessions(  # type: ignore[attr-defined]
+                app_name=worker._app_name,
+                user_id=worker._user_id,  # type: ignore[attr-defined]
+            )
+            assert sessions.sessions == []
             await service.finalize(
                 FinalizeAllocationRequest(
                     apiVersion=API_VERSION,

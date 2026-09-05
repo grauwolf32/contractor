@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -43,8 +42,8 @@ func (i *runSkillInitializer) InitializeRunSkills(
 			return nil
 		}
 
-		var workflow config.ResolvedWorkflow
-		if err := json.Unmarshal(run.WorkflowSnapshot, &workflow); err != nil {
+		workflow, err := config.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+		if err != nil {
 			return invalidPinnedSkillSnapshot()
 		}
 		refs, err := config.WorkflowSkillRefs(workflow)

@@ -523,6 +523,7 @@ func newProductionGrantHandler(
 	}
 	binding := controlplane.BindingRequirement{
 		LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
+		WorkerSessionMode: contracts.WorkerSessionIsolated,
 		ExecutionConfig: controlplane.AllocationExecutionConfig{
 			ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
 		},

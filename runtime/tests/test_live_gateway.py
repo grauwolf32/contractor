@@ -20,6 +20,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     StageContentRequest,
     WorkerModelResult,
+    WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.metrics import MetricsState
@@ -160,6 +161,7 @@ def test_live_worker_result_finalizer_separates_tools_and_schema(tmp_path: Path)
             stage_execution_id="live-stage-execution",
             logical_agent_name="live-worker",
             namespace="live-worker",
+            worker_session_mode=WorkerSessionMode.ISOLATED,
             description="Live result-finalizer compatibility probe",
             instruction=(
                 "Follow the task exactly. The available tool is optional. "

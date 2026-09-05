@@ -75,6 +75,7 @@ type projectResourceResponse struct {
 	Kind        string    `json:"kind"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	Lifecycle   string    `json:"lifecycle"`
 	Revision    string    `json:"revision"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
@@ -520,7 +521,8 @@ func createProjectResource(t *testing.T, client *http.Client, baseURL string) pr
 	defer response.Body.Close()
 	var project projectResourceResponse
 	decodeResponse(t, response, &project)
-	if project.ProjectID == "" || project.Name != "Widget service" || project.Revision != "1" ||
+	if project.ProjectID == "" || project.Name != "Widget service" || project.Lifecycle != "active" ||
+		project.Revision != "1" ||
 		response.Header.Get("ETag") != `"1"` {
 		t.Fatalf("create Project response = %+v headers=%v", project, response.Header)
 	}
@@ -1255,7 +1257,7 @@ func assertProjectRunDurable(
 		}
 		budget := metrics.WorkerBudget
 		if budget == nil || budget.MaxModelCalls != 24 || budget.MaxToolCalls != 96 ||
-			budget.MaxTotalTokens != 250000 || budget.ObservedModelCalls != modelCalls[index] ||
+			budget.MaxTotalTokens != 500000 || budget.ObservedModelCalls != modelCalls[index] ||
 			budget.ObservedToolCalls != workerToolCalls ||
 			budget.ObservedTotalTokens != modelCalls[index]*16 ||
 			budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {

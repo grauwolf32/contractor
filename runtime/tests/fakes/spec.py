@@ -23,6 +23,7 @@ from contractor_runtime.contracts import (
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
+    WorkerSessionMode,
     WorkerSummarizerConfig,
 )
 from contractor_runtime.digests import (
@@ -103,6 +104,7 @@ def allocation_spec(
         stageExecutionId="stage-execution-1",
         logicalAgentName="builder",
         namespace="builder",
+        workerSessionMode=WorkerSessionMode.ISOLATED,
         runMetadataLabels={},
         leaseExpiresAt=datetime.now(UTC) + timedelta(minutes=5),
         agentTemplate=template,

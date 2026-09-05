@@ -3,6 +3,8 @@
 package e2e
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -146,10 +148,53 @@ func requireToolOutput(fragment string) func(map[string]any) error {
 		// fragment cannot occur before the scripted native call; finding it
 		// anywhere in the next model input proves disclosure.
 		if !containsStringFragment(messages, fragment) {
-			return errors.New("native Skill tool response did not match the fixture")
+			return fmt.Errorf(
+				"native Skill tool response did not match the fixture (safe fields: %v)",
+				gatewaySafeScalars(messages),
+			)
 		}
 		return nil
 	}
+}
+
+func gatewaySafeScalars(value any) []string {
+	allowed := map[string]bool{
+		"code": true, "errorCode": true, "error_code": true, "role": true,
+		"status": true, "statusCode": true, "status_code": true,
+	}
+	result := make([]string, 0, 16)
+	var visit func(any)
+	visit = func(current any) {
+		if len(result) >= 32 {
+			return
+		}
+		switch typed := current.(type) {
+		case map[string]any:
+			for key, item := range typed {
+				if allowed[key] {
+					switch scalar := item.(type) {
+					case string, json.Number, float64, bool:
+						result = append(result, fmt.Sprintf("%s=%v", key, scalar))
+					}
+				}
+				visit(item)
+			}
+		case []any:
+			for _, item := range typed {
+				visit(item)
+			}
+		case string:
+			decoder := json.NewDecoder(bytes.NewBufferString(typed))
+			decoder.UseNumber()
+			var decoded any
+			if decoder.Decode(&decoded) == nil {
+				visit(decoded)
+			}
+		}
+	}
+	visit(value)
+	sort.Strings(result)
+	return result
 }
 
 func containsStringFragment(value any, fragment string) bool {

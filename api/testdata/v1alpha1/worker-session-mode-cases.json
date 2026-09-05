@@ -1,0 +1,13 @@
+{
+  "valid": [
+    {"name": "isolated", "value": "isolated"},
+    {"name": "shared", "value": "shared"}
+  ],
+  "invalid": [
+    {"name": "missing", "omit": true},
+    {"name": "null", "value": null},
+    {"name": "empty", "value": ""},
+    {"name": "unknown", "value": "reset"},
+    {"name": "number", "value": 17}
+  ]
+}

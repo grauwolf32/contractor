@@ -38,6 +38,7 @@ from contractor_runtime.contracts import (
     StageContentResult,
     WorkerCompletion,
     WorkerModelResult,
+    WorkerSessionMode,
     WorkspaceCapabilitiesV2,
     decode_private_v2,
     encode_private_v2,
@@ -127,6 +128,16 @@ INVALID_MODELS: dict[str, type[BaseModel]] = {
     "worker-completion-no-variant.json": WorkerCompletion,
     "artifact-read-result-unversioned.json": ArtifactReadResult,
 }
+
+
+def test_stage_content_request_does_not_expose_session_controls() -> None:
+    assert {
+        "session",
+        "session_id",
+        "session_mode",
+        "worker_session_mode",
+    }.isdisjoint(StageContentRequest.model_fields)
+
 
 FIXTURE_SCHEMAS = {
     "agent-state-snapshot": "agent-state.schema.json",
@@ -537,9 +548,41 @@ def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> 
     candidate["leaseExpiresAt"] = datetime.fromisoformat(
         candidate["leaseExpiresAt"].replace("Z", "+00:00")
     )
+    candidate["workerSessionMode"] = WorkerSessionMode.ISOLATED
     allocation = AllocationSpec.model_validate(candidate)
     source["eval.id"] = "changed"
     assert allocation.run_metadata_labels == {"eval.id": "eval_01"}
+
+
+def test_shared_worker_session_mode_cases_match_model_and_schema() -> None:
+    cases = json.loads((FIXTURES / "worker-session-mode-cases.json").read_text())
+    baseline = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
+    schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
+    schemas = {
+        path.name: json.loads(path.read_text(encoding="utf-8"))
+        for path in schema_root.glob("*.schema.json")
+    }
+    registry = Registry().with_resources(
+        [(schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()]
+    )
+    validator = Draft202012Validator(schemas["allocation.schema.json"], registry=registry)
+
+    for case in cases["valid"]:
+        candidate = json.loads(json.dumps(baseline))
+        candidate["workerSessionMode"] = case["value"]
+        allocation = AllocationSpec.model_validate_json(json.dumps(candidate))
+        assert allocation.worker_session_mode.value == case["value"]
+        assert not list(validator.iter_errors(candidate)), case["name"]
+
+    for case in cases["invalid"]:
+        candidate = json.loads(json.dumps(baseline))
+        if case.get("omit"):
+            candidate.pop("workerSessionMode")
+        else:
+            candidate["workerSessionMode"] = case["value"]
+        with pytest.raises(ValidationError):
+            AllocationSpec.model_validate_json(json.dumps(candidate))
+        assert list(validator.iter_errors(candidate)), case["name"]
 
 
 def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:

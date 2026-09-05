@@ -108,7 +108,8 @@ one implementation-defined static operation, never arbitrary model GraphQL.
 - `method`: `GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS`;
 - at most 64 bounded headers and query keys;
 - `body_type`: `none|json|form|text`, with at most 1 MiB encoded request body;
-- timeout 1..120 seconds, capped by allocation settings;
+- timeout 1..120 seconds, capped by allocation settings; when omitted, it is
+  `min(allocation request timeout, 120 seconds)`;
 - `follow_redirects`, with at most 10 redirects and scheme validation at each
   hop.
 

@@ -184,6 +184,11 @@ class AgentObservedState(StrEnum):
     FENCED = "fenced"
 
 
+class WorkerSessionMode(StrEnum):
+    ISOLATED = "isolated"
+    SHARED = "shared"
+
+
 class ReconciliationAction(StrEnum):
     CONTINUE = "continue"
     DRAIN = "drain"
@@ -556,6 +561,7 @@ class AllocationSpec(VersionedWireModel):
     stage_execution_id: str
     logical_agent_name: str
     namespace: str
+    worker_session_mode: WorkerSessionMode
     run_metadata_labels: dict[str, str]
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate

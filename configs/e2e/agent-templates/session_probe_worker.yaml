@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: session_probe_worker
+  version: "1"
+
+spec:
+  description: Returns deterministic session-lifecycle probe results without tools
+  runtime: adk@1
+  instructions:
+    ref: instructions/session-probe-worker.md
+  modelPolicy: worker@1
+  toolsets: []
+  sandboxProfile: local-workdir@1

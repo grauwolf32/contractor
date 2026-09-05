@@ -43,6 +43,7 @@ from contractor_runtime.contracts import (
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
+    WorkerSessionMode,
     WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import WorkerBuildContext
@@ -162,6 +163,94 @@ def test_adk_worker_executes_selected_tools_and_validates_exact_result(tmp_path:
         assert contractor_state["lastCompletedInvocation"]["subtaskId"] == "0"
         serialized = repr(runtime) + repr(state.metrics) + result.model_dump_json(by_alias=True)
         assert SECRET not in serialized
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("mode", "retains_first_conversation"),
+    [
+        (WorkerSessionMode.ISOLATED, False),
+        (WorkerSessionMode.SHARED, True),
+    ],
+)
+def test_adk_worker_stage_session_mode_controls_conversation_history(
+    tmp_path: Path,
+    mode: WorkerSessionMode,
+    retains_first_conversation: bool,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model(
+            [terminal_text("FIRST_SESSION_SENTINEL"), terminal_text("SECOND_RESULT")]
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            model,
+            session_mode=mode,
+        )
+
+        first_request = stage_request().model_copy(update={"objective": "FIRST_OBJECTIVE_SENTINEL"})
+        second_request = stage_request().model_copy(
+            update={"subtask_id": "1", "objective": "SECOND_OBJECTIVE_SENTINEL"}
+        )
+        first = await runtime.invoke(first_request)
+        second = await runtime.invoke(second_request)
+
+        assert first.result is not None and second.result is not None
+        primary_requests = [
+            request for request in model.requests if not request["hasResponseSchema"]
+        ]
+        assert len(primary_requests) == 2
+        second_prompt = primary_requests[1]["contentText"]
+        assert ("FIRST_OBJECTIVE_SENTINEL" in second_prompt) is retains_first_conversation
+        assert ("FIRST_SESSION_SENTINEL" in second_prompt) is retains_first_conversation
+        assert "SECOND_OBJECTIVE_SENTINEL" in second_prompt
+
+        sessions = (
+            await runtime._session_service.list_sessions(
+                app_name=runtime._app_name, user_id=runtime._user_id
+            )
+        ).sessions
+        assert len(sessions) == (1 if mode == WorkerSessionMode.SHARED else 0)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_rejects_oversized_stage_content_before_creating_session(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("must not run")])
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            model,
+            session_mode=WorkerSessionMode.ISOLATED,
+        )
+        assert (
+            await runtime._session_service.list_sessions(
+                app_name=runtime._app_name, user_id=runtime._user_id
+            )
+        ).sessions == []
+
+        completion = await runtime.invoke(
+            stage_request().model_copy(update={"instructions": "x" * (300 * 1024)})
+        )
+
+        assert completion.result is None
+        assert completion.failure is not None
+        assert completion.failure.code == "stage_content_too_large"
+        assert model.requests == []
+        assert (
+            await runtime._session_service.list_sessions(
+                app_name=runtime._app_name, user_id=runtime._user_id
+            )
+        ).sessions == []
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -668,6 +757,7 @@ def test_abort_cancels_active_result_finalizer(tmp_path: Path) -> None:
             {},
             model,
             instrumentation=instrumentation,
+            session_mode=WorkerSessionMode.ISOLATED,
         )
         invocation = asyncio.create_task(runtime.invoke(stage_request()))
         await asyncio.wait_for(model.blocked.wait(), timeout=1)
@@ -681,6 +771,10 @@ def test_abort_cancels_active_result_finalizer(tmp_path: Path) -> None:
         assert state.metrics.counters.get("llm_errors", 0) == 0
         snapshot = await state.snapshot()
         assert snapshot["lastCompletedInvocation"]["phase"] == "cancelled"
+        sessions = await runtime._session_service.list_sessions(
+            app_name=runtime._app_name, user_id=runtime._user_id
+        )
+        assert sessions.sessions == []
         finalizer_spans = [
             span
             for span in instrumentation.spans
@@ -1538,9 +1632,11 @@ async def create_runtime(
     cumulative_budget: int | None = None,
     context_window_tokens: int = 131_072,
     context_window_ratio: float = 0.9,
+    session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
 ) -> AdkWorkerRuntime:
     tmp_path.mkdir(parents=True, exist_ok=True)
     context = build_context(tmp_path, state, tools)
+    context = replace(context, worker_session_mode=session_mode)
     if instrumentation is not None:
         context = replace(
             context,
@@ -1641,6 +1737,7 @@ def build_context(
         stage_execution_id="stage-execution-1",
         logical_agent_name="builder",
         namespace="builder",
+        worker_session_mode=WorkerSessionMode.SHARED,
         description=template.description,
         instruction=template.instructions.text,
         card_version=template.ref.version,

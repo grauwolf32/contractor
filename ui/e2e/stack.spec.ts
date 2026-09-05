@@ -200,9 +200,9 @@ async function uploadArtifact(
   await form.getByLabel("Name", { exact: true }).fill(input.name);
   await form.getByLabel("Media type", { exact: true }).fill(input.mediaType);
   if (input.path !== undefined) {
-    await form.getByLabel(/Local file/).setInputFiles(input.path);
+    await form.getByLabel("Drop a file here").setInputFiles(input.path);
   } else {
-    await form.getByLabel(/Local file/).setInputFiles({
+    await form.getByLabel("Drop a file here").setInputFiles({
       name: `${input.name}.txt`,
       mimeType: input.mediaType,
       buffer: input.payload ?? Buffer.from(""),
@@ -568,7 +568,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(streamlineMetadata).toContainText(
     "They do not select Runtime infrastructure",
   );
-  await page.goto("/runs");
+  await page.goto("/runs?view=completed");
   await openDetails(
     page.locator("details.run-label-filters").filter({
       has: page.getByText("Metadata & eval filters", { exact: true }),
@@ -645,7 +645,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .click();
   await expect(page).toHaveURL(/\/runs\/run_[A-Za-z0-9_-]+$/);
   const openAPIRunID = new URL(page.url()).pathname.split("/").at(-1)!;
-  await page.getByRole("link", { name: "Queue", exact: true }).click();
+  await page.getByRole("link", { name: "Runs", exact: true }).click();
   await expect(page.getByRole("link", { name: openAPIRunID })).toBeVisible();
   await page.goto(`/runs/${openAPIRunID}`);
   try {

@@ -1560,6 +1560,7 @@ func verifyReservations(
 		binding, ok := workflow.stage.Agents[grant.LogicalAgentName]
 		if !ok || grant.RunID != run.RunID || grant.StageExecutionID != execution.StageExecutionID ||
 			grant.Namespace != binding.Namespace || reservation.AgentTemplate.Ref != binding.Template.Ref ||
+			reservation.WorkerSessionMode != workflow.stage.Session ||
 			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() ||
 			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) ||
 			!equalRunMetadataLabels(reservation.RunMetadataLabels, run.MetadataLabels) {

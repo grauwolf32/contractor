@@ -1704,6 +1704,11 @@ export interface components {
             objective: string;
             instructions: components["schemas"]["InstructionsRef"];
             planner: components["schemas"]["PlannerRef"];
+            /**
+             * @description Current Servers always emit the resolved mode; optional here only for additive v1 client compatibility.
+             * @enum {string}
+             */
+            session?: "isolated" | "shared";
             agents: {
                 [key: string]: components["schemas"]["WorkflowAgentBinding"];
             };
@@ -1758,6 +1763,7 @@ export interface components {
          *             "plannerId": "passthrough",
          *             "version": "1"
          *           },
+         *           "session": "isolated",
          *           "agents": {
          *             "builder": {
          *               "template": {

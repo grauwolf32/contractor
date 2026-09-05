@@ -93,6 +93,7 @@ The boundaries are deliberately narrow:
 | Workflow Scheduler | WorkflowRun progression and durable StageExecution lifecycle |
 | Planner | Stage-local decomposition and routing among prepared Workers |
 | AgentTemplate | Immutable, reusable Worker behavior/configuration |
+| Worker session mode | Immutable Stage policy selecting isolated-by-default or explicit shared sequential ADK conversation semantics inside each allocation |
 | Control Plane | Capacity and allocation lifecycle |
 | Runtime Agent | One process and one slot: control client, A2A Server and one in-process Worker runtime while allocated |
 | Runtime label | Control Plane alias selecting an immutable typed infrastructure config for a Run or Runtime Agent |

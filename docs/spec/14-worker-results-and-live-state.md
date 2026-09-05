@@ -363,8 +363,11 @@ stamped `lean@1`.
 
 ## Contractor-owned Worker State
 
-The allocation's ADK Session contains one reserved `contractor` subtree. It is
-the only State surface exported by Runtime:
+Every live allocation-local ADK Session contains one reserved `contractor`
+subtree. In `shared` mode this is the allocation's reused session; in
+`isolated` mode Runtime rehydrates each fresh session from the canonical
+allocation-local `WorkerStateStore`. That canonical subtree is the only State
+surface exported by Runtime:
 
 ```python
 class ContractorWorkerState(BaseModel):

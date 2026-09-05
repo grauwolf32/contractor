@@ -172,7 +172,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	streamline := waitForRoutingRun(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, streamlineRunID,
 	)
-	assertPublicAttemptMetrics(t, streamline, [][2]int64{{6, 5}})
+	assertPublicAttemptMetrics(t, streamline, [][2]int64{{7, 5}})
 	assertRoutingOutput(t, ctx, pool, publicClient, publicBaseURL, streamlineRunID, streamline)
 	streamlineExecutions := requireExecutions(t, ctx, store, streamlineRunID, 1)
 	assertSucceededExecution(t, streamlineExecutions[0], 1)
@@ -187,7 +187,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	routerStatus := waitForRoutingRun(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, routerRunID,
 	)
-	assertPublicAttemptMetrics(t, routerStatus, [][2]int64{{6, 5}})
+	assertPublicAttemptMetrics(t, routerStatus, [][2]int64{{7, 5}})
 	assertRoutingOutput(t, ctx, pool, publicClient, publicBaseURL, routerRunID, routerStatus)
 	routerExecutions := requireExecutions(t, ctx, store, routerRunID, 1)
 	assertSucceededExecution(t, routerExecutions[0], 1)
@@ -195,7 +195,7 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 		t, ctx, store, routerExecutions[0], 2, "builder", "reviewer",
 	)
 	if gateway.ModelCalls("worker-model") != builderCallsBeforeRouter ||
-		gateway.ModelCalls("reviewer-worker-model") != 3 {
+		gateway.ModelCalls("reviewer-worker-model") != 4 {
 		t.Fatalf("Router invoked wrong model: builder=%d->%d reviewer=%d", builderCallsBeforeRouter,
 			gateway.ModelCalls("worker-model"), gateway.ModelCalls("reviewer-worker-model"))
 	}
@@ -210,13 +210,13 @@ func TestRoutingAndEscalationProductionBoundaries(t *testing.T) {
 	escalatedStatus := waitForRoutingRun(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, escalationRunID,
 	)
-	assertPublicAttemptMetrics(t, escalatedStatus, [][2]int64{{1, 1}, {6, 5}})
+	assertPublicAttemptMetrics(t, escalatedStatus, [][2]int64{{1, 1}, {7, 5}})
 	assertRoutingOutput(t, ctx, pool, publicClient, publicBaseURL, escalationRunID, escalatedStatus)
 	assertEscalatedExecution(t, ctx, store, escalationRunID)
 
 	wantModelCalls := map[string]int{
-		"planner-model": 7, "strong-planner-model": 3, "worker-model": 3,
-		"reviewer-worker-model": 3, "strong-worker-model": 3,
+		"planner-model": 7, "strong-planner-model": 3, "worker-model": 4,
+		"reviewer-worker-model": 4, "strong-worker-model": 4,
 	}
 	for modelName, want := range wantModelCalls {
 		if got := gateway.ModelCalls(modelName); got != want {

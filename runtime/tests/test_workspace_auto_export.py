@@ -32,6 +32,7 @@ from contractor_runtime.contracts import (
     WorkerObservations,
     WorkerResult,
     WorkerRuntimeRef,
+    WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.projectfs import (
@@ -391,6 +392,7 @@ def build_context(
         stage_execution_id="stage-export",
         logical_agent_name="editor",
         namespace="editor",
+        worker_session_mode=WorkerSessionMode.SHARED,
         description=template.description,
         instruction=template.instructions.text,
         card_version=template.ref.version,

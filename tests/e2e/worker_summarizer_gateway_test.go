@@ -37,6 +37,7 @@ type summarizerGateway struct {
 	mu             sync.Mutex
 	normalCalls    map[string]int
 	summaryCalls   map[string]int
+	pending        map[string]summarizerFinalizerExpectation
 	captures       []summarizerGatewayCapture
 	failures       []string
 	summaryStarted chan string
@@ -44,9 +45,15 @@ type summarizerGateway struct {
 	releaseOnce    sync.Once
 }
 
+type summarizerFinalizerExpectation struct {
+	Mode   string
+	Result string
+}
+
 func newSummarizerGateway(token string) *summarizerGateway {
 	gateway := &summarizerGateway{
 		token: token, normalCalls: map[string]int{}, summaryCalls: map[string]int{},
+		pending:        map[string]summarizerFinalizerExpectation{},
 		summaryStarted: make(chan string, 16), releaseBlocked: make(chan struct{}),
 	}
 	gateway.server = httptest.NewServer(http.HandlerFunc(gateway.serveHTTP))
@@ -116,17 +123,26 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.fail(w, http.StatusBadRequest, "invalid summarizer Gateway request")
 		return
 	}
-	mode, err := summarizerRequestMode(request)
-	if err != nil {
-		g.fail(w, http.StatusBadRequest, err.Error())
-		return
-	}
 	model, ok := request["model"].(string)
 	if !ok || model == "" {
 		g.fail(w, http.StatusBadRequest, "summarizer Gateway request omitted model")
 		return
 	}
 	model = strings.TrimPrefix(model, "openai/")
+	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if isFinalizer {
+		g.serveResultFinalizer(w, request, model, finalizerInput)
+		return
+	}
+	mode, err := summarizerRequestMode(request)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	isSummary := model == "worker-summarizer-model"
 	if !isSummary && model != "worker-model" {
 		g.fail(w, http.StatusBadRequest, "unexpected summarizer Gateway model alias")
@@ -234,12 +250,59 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.fail(w, http.StatusBadRequest, "unexpected additional normal Worker invocation")
 		return
 	}
-	message, resultErr := workerModelResultMessage(request, "Normal Worker result for "+mode)
-	if resultErr != nil {
-		g.fail(w, http.StatusBadRequest, resultErr.Error())
+	result := "Normal Worker result for " + mode
+	subtaskID, subtaskErr := workerRequestSubtaskID(request)
+	if subtaskErr != nil {
+		g.fail(w, http.StatusBadRequest, subtaskErr.Error())
 		return
 	}
-	g.writeCompletion(w, model, message, "stop", normalUsage(mode, normalCall))
+	g.mu.Lock()
+	if _, exists := g.pending[subtaskID]; exists {
+		g.mu.Unlock()
+		g.fail(w, http.StatusBadRequest, "normal Worker replaced a pending result candidate")
+		return
+	}
+	g.pending[subtaskID] = summarizerFinalizerExpectation{Mode: mode, Result: result}
+	g.mu.Unlock()
+	g.writeCompletion(w, model, map[string]any{
+		"role": "assistant", "content": result,
+	}, "stop", normalUsage(mode, normalCall))
+}
+
+func (g *summarizerGateway) serveResultFinalizer(
+	w http.ResponseWriter,
+	request map[string]any,
+	model string,
+	input workerResultFinalizerInput,
+) {
+	if model != "worker-model" || !requestHasNoModelTools(request) {
+		g.fail(w, http.StatusBadRequest, "invalid Worker result-finalizer model surface")
+		return
+	}
+	if request["response_format"] == nil {
+		g.fail(w, http.StatusBadRequest, "Worker result finalizer omitted its response schema")
+		return
+	}
+	g.mu.Lock()
+	expected, ok := g.pending[input.SubtaskID]
+	if !ok || expected.Result != input.ResultText {
+		g.mu.Unlock()
+		g.fail(w, http.StatusBadRequest, "Worker result finalizer changed or invented a candidate")
+		return
+	}
+	delete(g.pending, input.SubtaskID)
+	g.normalCalls[expected.Mode]++
+	g.captures = append(g.captures, summarizerGatewayCapture{
+		Mode: expected.Mode, Model: model, Tools: []string{}, ResponseSchema: true,
+		MaxOutputTokens: requestInteger(request, "max_completion_tokens", "max_tokens"),
+	})
+	g.mu.Unlock()
+	message, err := workerResultFinalizerMessage(input)
+	if err != nil {
+		g.fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	g.writeCompletion(w, model, message, "stop", summarizerUsage(7, 3, 10))
 }
 
 func (g *summarizerGateway) writeCompletion(

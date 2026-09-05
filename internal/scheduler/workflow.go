@@ -1,11 +1,8 @@
 package scheduler
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"reflect"
 	"sort"
 	"strings"
@@ -31,15 +28,9 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 		len(run.WorkflowSnapshot) > maxWorkflowSnapshotBytes {
 		return executableWorkflow{}, fmt.Errorf("%w: Workflow snapshot version or size is invalid", ErrUnsupportedWorkflow)
 	}
-	var workflow workflowconfig.ResolvedWorkflow
-	decoder := json.NewDecoder(bytes.NewReader(run.WorkflowSnapshot))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&workflow); err != nil {
+	workflow, err := workflowconfig.DecodeResolvedWorkflowSnapshot(run.WorkflowSnapshot)
+	if err != nil {
 		return executableWorkflow{}, fmt.Errorf("%w: decode Workflow snapshot: %v", ErrUnsupportedWorkflow, err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return executableWorkflow{}, fmt.Errorf("%w: Workflow snapshot contains trailing JSON", ErrUnsupportedWorkflow)
 	}
 	if workflow.Ref.Name != run.WorkflowName || workflow.Ref.Version != run.WorkflowVersion ||
 		strings.TrimSpace(workflow.EntryStage) == "" {
@@ -138,15 +129,9 @@ func validatePersistedExecution(
 		execution.StageContextSchemaVersion != contracts.APIVersion {
 		return fmt.Errorf("persisted StageExecution identity differs from the Workflow snapshot")
 	}
-	var persisted workflowconfig.ResolvedStage
-	decoder := json.NewDecoder(bytes.NewReader(execution.StageSpecSnapshot))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&persisted); err != nil {
+	persisted, err := workflowconfig.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
+	if err != nil {
 		return fmt.Errorf("decode persisted Stage spec: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("persisted Stage spec contains trailing JSON")
 	}
 	if !reflect.DeepEqual(persisted, workflow.stage) {
 		return fmt.Errorf("persisted Stage spec differs from the immutable Workflow snapshot")
@@ -224,13 +209,14 @@ func bindingRequirements(
 			return nil, fmt.Errorf("resolve Skills for Agent %q: %w", name, err)
 		}
 		result = append(result, controlplane.BindingRequirement{
-			LogicalAgentName: name,
-			Namespace:        binding.Namespace,
-			AgentTemplate:    binding.Template,
-			ResolvedSkills:   resolvedSkills,
-			ExecutionConfig:  allocationExecutionConfig(stage, name),
-			RuntimeSelection: &selection,
-			Workspace:        contracts.CloneAllocationWorkspaceSpecV2(workspace),
+			LogicalAgentName:  name,
+			Namespace:         binding.Namespace,
+			WorkerSessionMode: stage.Session,
+			AgentTemplate:     binding.Template,
+			ResolvedSkills:    resolvedSkills,
+			ExecutionConfig:   allocationExecutionConfig(stage, name),
+			RuntimeSelection:  &selection,
+			Workspace:         contracts.CloneAllocationWorkspaceSpecV2(workspace),
 		})
 	}
 	return result, nil
