@@ -2,9 +2,7 @@ package e2e
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,15 +10,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type agentSkillsMatrix struct {
 	SchemaVersion string                  `yaml:"schema_version"`
 	Policy        agentSkillsMatrixPolicy `yaml:"policy"`
 	Cases         []agentSkillsMatrixCase `yaml:"cases"`
-	Gates         []agentSkillsMatrixGate `yaml:"gates"`
+	Gates         []matrixGate            `yaml:"gates"`
 }
 
 type agentSkillsMatrixPolicy struct {
@@ -35,11 +31,6 @@ type agentSkillsMatrixCase struct {
 	Faults   []string               `yaml:"faults"`
 	Expected string                 `yaml:"expected"`
 	Test     sharedMemoryMatrixTest `yaml:"test"`
-}
-
-type agentSkillsMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 func TestAgentSkillsHardeningMatrixIsComplete(t *testing.T) {
@@ -139,19 +130,7 @@ func TestAgentSkillsUseOnlyArtifactPlaneInventories(t *testing.T) {
 }
 
 func decodeAgentSkillsMatrix(data []byte) (agentSkillsMatrix, error) {
-	var matrix agentSkillsMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict Agent Skills matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("Agent Skills matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode Agent Skills matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[agentSkillsMatrix](data, "Agent Skills")
 }
 
 func validateAgentSkillsMatrix(repositoryRoot string, matrix agentSkillsMatrix) error {
@@ -191,7 +170,7 @@ func validateAgentSkillsMatrix(repositoryRoot string, matrix agentSkillsMatrix) 
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateSharedMemoryTestOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -206,19 +185,8 @@ func validateAgentSkillsMatrix(repositoryRoot string, matrix agentSkillsMatrix) 
 		}
 	}
 
-	wantGates := []string{"corpus", "hardening", "matrix", "packages", "process", "races", "release", "runtime"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate Agent Skills gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range wantGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required Agent Skills gate %q is absent", gate)
-		}
-	}
-	return nil
+	return validateMatrixGates(
+		"Agent Skills", matrix.Gates,
+		[]string{"corpus", "hardening", "matrix", "packages", "process", "races", "release", "runtime"}, false,
+	)
 }

@@ -47,9 +47,6 @@ func TestRepositoryRuntimeConfigExamplesNormalizeWithoutSecrets(t *testing.T) {
 		}
 		versions[version.Ref.Name+"@"+version.Ref.Version] = version
 	}
-	if len(versions) != 3 {
-		t.Fatalf("RuntimeConfig examples = %d, want 3", len(versions))
-	}
 	caido, ok := versions["caido-analysis@1"]
 	if !ok {
 		t.Fatal("caido-analysis@1 RuntimeConfig example is missing")

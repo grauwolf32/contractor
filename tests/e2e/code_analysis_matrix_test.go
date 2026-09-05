@@ -1,24 +1,19 @@
 package e2e
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type codeAnalysisMatrix struct {
 	SchemaVersion string                   `yaml:"schema_version"`
 	Policy        codeAnalysisMatrixPolicy `yaml:"policy"`
 	Cases         []codeAnalysisMatrixCase `yaml:"cases"`
-	Gates         []codeAnalysisMatrixGate `yaml:"gates"`
+	Gates         []matrixGate             `yaml:"gates"`
 }
 
 type codeAnalysisMatrixPolicy struct {
@@ -39,11 +34,6 @@ type codeAnalysisMatrixCase struct {
 type codeAnalysisMatrixTestOwner struct {
 	Source string `yaml:"source"`
 	Symbol string `yaml:"symbol"`
-}
-
-type codeAnalysisMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 var (
@@ -111,28 +101,12 @@ func TestCodeAnalysisHardeningMatrixIsComplete(t *testing.T) {
 }
 
 func decodeCodeAnalysisMatrix(data []byte) (codeAnalysisMatrix, error) {
-	var matrix codeAnalysisMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict code-analysis matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("code-analysis matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode code-analysis matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[codeAnalysisMatrix](data, "code-analysis")
 }
 
 func mustDecodeCodeAnalysisMatrix(t *testing.T, data []byte) codeAnalysisMatrix {
 	t.Helper()
-	matrix, err := decodeCodeAnalysisMatrix(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return matrix
+	return mustDecodeStrictMatrix[codeAnalysisMatrix](t, data, "code-analysis")
 }
 
 func validateCodeAnalysisMatrix(repositoryRoot string, matrix codeAnalysisMatrix) error {
@@ -173,7 +147,7 @@ func validateCodeAnalysisMatrix(repositoryRoot string, matrix codeAnalysisMatrix
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateCodeAnalysisTestOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -193,45 +167,7 @@ func validateCodeAnalysisMatrix(repositoryRoot string, matrix codeAnalysisMatrix
 		}
 	}
 
-	requiredGates := []string{"e2e", "hardening", "matrix", "runtime"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!slices.Contains(requiredGates, gate.ID) || !strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate code-analysis gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required code-analysis gate %q is absent", gate)
-		}
-	}
-	return nil
-}
-
-func validateCodeAnalysisTestOwner(
-	repositoryRoot string,
-	ref codeAnalysisMatrixTestOwner,
-) error {
-	if ref.Source == "" || ref.Symbol == "" || filepath.IsAbs(ref.Source) ||
-		strings.Contains(ref.Source, "..") {
-		return fmt.Errorf("invalid test reference: %+v", ref)
-	}
-	extension := filepath.Ext(ref.Source)
-	if !slices.Contains([]string{".go", ".py"}, extension) {
-		return fmt.Errorf("unsupported test source: %+v", ref)
-	}
-	data, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(ref.Source)))
-	if err != nil {
-		return fmt.Errorf("read referenced test %q: %w", ref.Source, err)
-	}
-	prefix := "func "
-	if extension == ".py" {
-		prefix = "def "
-	}
-	if !bytes.Contains(data, []byte(prefix+ref.Symbol+"(")) {
-		return fmt.Errorf("%s does not define %s", ref.Source, ref.Symbol)
-	}
-	return nil
+	return validateMatrixGates(
+		"code-analysis", matrix.Gates, []string{"e2e", "hardening", "matrix", "runtime"}, true,
+	)
 }

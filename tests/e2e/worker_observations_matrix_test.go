@@ -1,24 +1,19 @@
 package e2e
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type workerObservationsMatrix struct {
 	SchemaVersion string                         `yaml:"schema_version"`
 	Policy        workerObservationsMatrixPolicy `yaml:"policy"`
 	Cases         []workerObservationsMatrixCase `yaml:"cases"`
-	Gates         []workerObservationsMatrixGate `yaml:"gates"`
+	Gates         []matrixGate                   `yaml:"gates"`
 }
 
 type workerObservationsMatrixPolicy struct {
@@ -39,11 +34,6 @@ type workerObservationsMatrixCase struct {
 type workerObservationsTestOwner struct {
 	Source string `yaml:"source"`
 	Symbol string `yaml:"symbol"`
-}
-
-type workerObservationsMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 var (
@@ -103,35 +93,19 @@ func TestWorkerObservationsHardeningMatrixIsComplete(t *testing.T) {
 	t.Run("missing gate", func(t *testing.T) {
 		broken := mustDecodeWorkerObservationsMatrix(t, data)
 		broken.Gates = slices.DeleteFunc(
-			broken.Gates, func(value workerObservationsMatrixGate) bool { return value.ID == "e2e" },
+			broken.Gates, func(value matrixGate) bool { return value.ID == "e2e" },
 		)
 		requireWorkerObservationsMatrixError(t, repositoryRoot, broken, `gate "e2e"`)
 	})
 }
 
 func decodeWorkerObservationsMatrix(data []byte) (workerObservationsMatrix, error) {
-	var matrix workerObservationsMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict Worker observations matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("Worker observations matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode Worker observations matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[workerObservationsMatrix](data, "Worker observations")
 }
 
 func mustDecodeWorkerObservationsMatrix(t *testing.T, data []byte) workerObservationsMatrix {
 	t.Helper()
-	matrix, err := decodeWorkerObservationsMatrix(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return matrix
+	return mustDecodeStrictMatrix[workerObservationsMatrix](t, data, "Worker observations")
 }
 
 func requireWorkerObservationsMatrixError(
@@ -187,7 +161,7 @@ func validateWorkerObservationsMatrix(
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateWorkerObservationsOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -206,45 +180,8 @@ func validateWorkerObservationsMatrix(
 			return fmt.Errorf("required Worker observations fault %q is absent", fault)
 		}
 	}
-	requiredGates := []string{"e2e", "hardening", "matrix", "release", "runtime"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!slices.Contains(requiredGates, gate.ID) || !strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate Worker observations gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required Worker observations gate %q is absent", gate)
-		}
-	}
-	return nil
-}
-
-func validateWorkerObservationsOwner(
-	repositoryRoot string,
-	owner workerObservationsTestOwner,
-) error {
-	if owner.Source == "" || owner.Symbol == "" || filepath.IsAbs(owner.Source) ||
-		strings.Contains(owner.Source, "..") {
-		return fmt.Errorf("invalid test owner: %+v", owner)
-	}
-	extension := filepath.Ext(owner.Source)
-	if !slices.Contains([]string{".go", ".py"}, extension) {
-		return fmt.Errorf("unsupported test owner: %+v", owner)
-	}
-	data, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(owner.Source)))
-	if err != nil {
-		return fmt.Errorf("read test owner %q: %w", owner.Source, err)
-	}
-	prefix := "func "
-	if extension == ".py" {
-		prefix = "def "
-	}
-	if !bytes.Contains(data, []byte(prefix+owner.Symbol+"(")) {
-		return fmt.Errorf("%s does not define %s", owner.Source, owner.Symbol)
-	}
-	return nil
+	return validateMatrixGates(
+		"Worker observations", matrix.Gates,
+		[]string{"e2e", "hardening", "matrix", "release", "runtime"}, true,
+	)
 }

@@ -1,14 +1,10 @@
 package e2e
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type runtimeConfigurationMatrix struct {
@@ -16,7 +12,7 @@ type runtimeConfigurationMatrix struct {
 	Policy        runtimeConfigurationPolicy     `yaml:"policy"`
 	Mutations     []runtimeConfigurationMutation `yaml:"mutations"`
 	Cases         []runtimeConfigurationCase     `yaml:"cases"`
-	Gates         []runtimeConfigurationGate     `yaml:"gates"`
+	Gates         []matrixGate                   `yaml:"gates"`
 }
 
 type runtimeConfigurationPolicy struct {
@@ -44,21 +40,15 @@ type runtimeConfigurationTest struct {
 	Symbol string `yaml:"symbol"`
 }
 
-type runtimeConfigurationGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
-}
-
 func TestRuntimeConfigurationHardeningMatrixIsComplete(t *testing.T) {
+	repositoryRoot := filepath.Join("..", "..")
 	data, err := os.ReadFile("runtime_configuration_matrix.yml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var matrix runtimeConfigurationMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		t.Fatalf("decode strict Runtime configuration matrix: %v", err)
+	matrix, err := decodeStrictMatrix[runtimeConfigurationMatrix](data, "Runtime configuration")
+	if err != nil {
+		t.Fatal(err)
 	}
 	if matrix.SchemaVersion != "1.0" || matrix.Policy.RealBoundary == "" ||
 		matrix.Policy.FiniteFailure == "" || matrix.Policy.SecretRetention == "" {
@@ -78,7 +68,11 @@ func TestRuntimeConfigurationHardeningMatrixIsComplete(t *testing.T) {
 			t.Fatalf("invalid or duplicate mutation: %+v", mutation)
 		}
 		seenMutations[mutation.ID] = true
-		assertRuntimeConfigurationTest(t, mutation.Test)
+		if err := validateMatrixSymbolOwner(
+			repositoryRoot, mutation.Test.Source, mutation.Test.Symbol,
+		); err != nil {
+			t.Fatalf("mutation %q: %v", mutation.ID, err)
+		}
 	}
 	for _, mutation := range requiredMutations {
 		if !seenMutations[mutation] {
@@ -105,7 +99,9 @@ func TestRuntimeConfigurationHardeningMatrixIsComplete(t *testing.T) {
 			}
 			seenRequirements[requirement] = true
 		}
-		assertRuntimeConfigurationTest(t, item.Test)
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
+			t.Fatalf("case %q: %v", item.ID, err)
+		}
 	}
 	for _, category := range requiredCategories {
 		if !seenCategories[category] {
@@ -118,41 +114,10 @@ func TestRuntimeConfigurationHardeningMatrixIsComplete(t *testing.T) {
 		}
 	}
 
-	requiredGates := []string{"browser", "hardening", "matrix", "process", "release"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!strings.HasPrefix(gate.Command, "make ") {
-			t.Fatalf("invalid or duplicate gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			t.Errorf("release gate %q is absent", gate)
-		}
-	}
-}
-
-func assertRuntimeConfigurationTest(t *testing.T, ref runtimeConfigurationTest) {
-	t.Helper()
-	if ref.Source == "" || ref.Symbol == "" || filepath.IsAbs(ref.Source) ||
-		strings.Contains(ref.Source, "..") {
-		t.Fatalf("invalid test reference: %+v", ref)
-	}
-	extension := filepath.Ext(ref.Source)
-	if !slices.Contains([]string{".go", ".py"}, extension) {
-		t.Fatalf("unsupported test source: %+v", ref)
-	}
-	data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(ref.Source)))
-	if err != nil {
-		t.Fatalf("read referenced test %q: %v", ref.Source, err)
-	}
-	prefix := "func "
-	if extension == ".py" {
-		prefix = "def "
-	}
-	if !bytes.Contains(data, []byte(prefix+ref.Symbol+"(")) {
-		t.Fatalf("%s does not define %s", ref.Source, ref.Symbol)
+	if err := validateMatrixGates(
+		"Runtime configuration", matrix.Gates,
+		[]string{"browser", "hardening", "matrix", "process", "release"}, false,
+	); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -1,21 +1,17 @@
 package e2e
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type projectWorkspaceMatrix struct {
-	SchemaVersion string                        `yaml:"schema_version"`
-	Policy        projectWorkspacePolicy        `yaml:"policy"`
-	Cases         []projectWorkspaceCase        `yaml:"cases"`
-	Gates         []projectWorkspaceReleaseGate `yaml:"gates"`
+	SchemaVersion string                 `yaml:"schema_version"`
+	Policy        projectWorkspacePolicy `yaml:"policy"`
+	Cases         []projectWorkspaceCase `yaml:"cases"`
+	Gates         []matrixGate           `yaml:"gates"`
 }
 
 type projectWorkspacePolicy struct {
@@ -38,21 +34,15 @@ type projectWorkspaceTest struct {
 	Symbol string `yaml:"symbol"`
 }
 
-type projectWorkspaceReleaseGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
-}
-
 func TestProjectWorkspaceHardeningMatrixIsComplete(t *testing.T) {
+	repositoryRoot := filepath.Join("..", "..")
 	data, err := os.ReadFile("project_workspace_matrix.yml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var matrix projectWorkspaceMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		t.Fatalf("decode strict Project workspace matrix: %v", err)
+	matrix, err := decodeStrictMatrix[projectWorkspaceMatrix](data, "Project workspace")
+	if err != nil {
+		t.Fatal(err)
 	}
 	if matrix.SchemaVersion != "1.0" || matrix.Policy.Ownership == "" ||
 		matrix.Policy.ExactLineage == "" || matrix.Policy.FiniteRecovery == "" ||
@@ -80,7 +70,9 @@ func TestProjectWorkspaceHardeningMatrixIsComplete(t *testing.T) {
 			}
 			seenRequirements[requirement] = true
 		}
-		assertProjectWorkspaceTest(t, item.Test)
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
+			t.Fatalf("case %q: %v", item.ID, err)
+		}
 	}
 	for _, category := range requiredCategories {
 		if !seenCategories[category] {
@@ -93,41 +85,10 @@ func TestProjectWorkspaceHardeningMatrixIsComplete(t *testing.T) {
 		}
 	}
 
-	requiredGates := []string{"browser", "hardening", "matrix", "process", "release"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!strings.HasPrefix(gate.Command, "make ") {
-			t.Fatalf("invalid or duplicate Project release gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			t.Errorf("Project release gate %q is absent", gate)
-		}
-	}
-}
-
-func assertProjectWorkspaceTest(t *testing.T, ref projectWorkspaceTest) {
-	t.Helper()
-	if ref.Source == "" || ref.Symbol == "" || filepath.IsAbs(ref.Source) ||
-		strings.Contains(ref.Source, "..") {
-		t.Fatalf("invalid Project workspace test reference: %+v", ref)
-	}
-	extension := filepath.Ext(ref.Source)
-	if !slices.Contains([]string{".go", ".py"}, extension) {
-		t.Fatalf("unsupported Project workspace test source: %+v", ref)
-	}
-	data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(ref.Source)))
-	if err != nil {
-		t.Fatalf("read referenced test %q: %v", ref.Source, err)
-	}
-	prefix := "func "
-	if extension == ".py" {
-		prefix = "def "
-	}
-	if !bytes.Contains(data, []byte(prefix+ref.Symbol+"(")) {
-		t.Fatalf("%s does not define %s", ref.Source, ref.Symbol)
+	if err := validateMatrixGates(
+		"Project release", matrix.Gates,
+		[]string{"browser", "hardening", "matrix", "process", "release"}, false,
+	); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -1,24 +1,19 @@
 package e2e
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type taintAnnotationMatrix struct {
 	SchemaVersion string                      `yaml:"schema_version"`
 	Policy        taintAnnotationMatrixPolicy `yaml:"policy"`
 	Cases         []taintAnnotationMatrixCase `yaml:"cases"`
-	Gates         []taintAnnotationMatrixGate `yaml:"gates"`
+	Gates         []matrixGate                `yaml:"gates"`
 }
 
 type taintAnnotationMatrixPolicy struct {
@@ -39,11 +34,6 @@ type taintAnnotationMatrixCase struct {
 type taintAnnotationMatrixTestOwner struct {
 	Source string `yaml:"source"`
 	Symbol string `yaml:"symbol"`
-}
-
-type taintAnnotationMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 var (
@@ -111,28 +101,12 @@ func TestTaintAnnotationHardeningMatrixIsComplete(t *testing.T) {
 }
 
 func decodeTaintAnnotationMatrix(data []byte) (taintAnnotationMatrix, error) {
-	var matrix taintAnnotationMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict taint-annotation matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("taint-annotation matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode taint-annotation matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[taintAnnotationMatrix](data, "taint-annotation")
 }
 
 func mustDecodeTaintAnnotationMatrix(t *testing.T, data []byte) taintAnnotationMatrix {
 	t.Helper()
-	matrix, err := decodeTaintAnnotationMatrix(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return matrix
+	return mustDecodeStrictMatrix[taintAnnotationMatrix](t, data, "taint-annotation")
 }
 
 func validateTaintAnnotationMatrix(repositoryRoot string, matrix taintAnnotationMatrix) error {
@@ -173,7 +147,7 @@ func validateTaintAnnotationMatrix(repositoryRoot string, matrix taintAnnotation
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateTaintAnnotationTestOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -193,45 +167,7 @@ func validateTaintAnnotationMatrix(repositoryRoot string, matrix taintAnnotation
 		}
 	}
 
-	requiredGates := []string{"e2e", "hardening", "matrix", "runtime"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!slices.Contains(requiredGates, gate.ID) || !strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate taint-annotation gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required taint-annotation gate %q is absent", gate)
-		}
-	}
-	return nil
-}
-
-func validateTaintAnnotationTestOwner(
-	repositoryRoot string,
-	ref taintAnnotationMatrixTestOwner,
-) error {
-	if ref.Source == "" || ref.Symbol == "" || filepath.IsAbs(ref.Source) ||
-		strings.Contains(ref.Source, "..") {
-		return fmt.Errorf("invalid test reference: %+v", ref)
-	}
-	extension := filepath.Ext(ref.Source)
-	if !slices.Contains([]string{".go", ".py"}, extension) {
-		return fmt.Errorf("unsupported test source: %+v", ref)
-	}
-	data, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(ref.Source)))
-	if err != nil {
-		return fmt.Errorf("read referenced test %q: %w", ref.Source, err)
-	}
-	prefix := "func "
-	if extension == ".py" {
-		prefix = "def "
-	}
-	if !bytes.Contains(data, []byte(prefix+ref.Symbol+"(")) {
-		return fmt.Errorf("%s does not define %s", ref.Source, ref.Symbol)
-	}
-	return nil
+	return validateMatrixGates(
+		"taint-annotation", matrix.Gates, []string{"e2e", "hardening", "matrix", "runtime"}, true,
+	)
 }

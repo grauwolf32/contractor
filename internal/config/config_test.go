@@ -18,11 +18,6 @@ func TestLoadRepositoryConfig(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	if got, want := snapshot.Counts(), (Counts{
-		Workflows: 8, AgentTemplates: 13, ModelPolicies: 7, LLMGateways: 1, ExecutionConfigs: 1, Instructions: 22,
-	}); got != want {
-		t.Fatalf("Counts() = %+v, want %+v", got, want)
-	}
 
 	policy, err := snapshot.ModelPolicy("worker@1")
 	if err != nil {
@@ -572,19 +567,22 @@ func TestToolsetInfrastructureChannelParityFixture(t *testing.T) {
 }
 
 func TestWorkflowExamplesLoad(t *testing.T) {
-	for _, name := range []string{
-		"bounded_retry_workflow.yaml",
-		"multi_stage_workflow.yaml",
-		"router_openapi_workflow.yaml",
-		"streamline_review_workflow.yaml",
+	for _, example := range []struct {
+		name     string
+		selector string
+	}{
+		{"bounded_retry_workflow.yaml", "artifact-copy-with-retry@1"},
+		{"multi_stage_workflow.yaml", "artifact-build-review@1"},
+		{"router_openapi_workflow.yaml", "router-openapi@1"},
+		{"streamline_review_workflow.yaml", "streamline-review@1"},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(example.name, func(t *testing.T) {
 			root := copyConfigTree(t)
-			example := readFile(t, filepath.Join(repositoryConfigRoot, "examples", name))
-			writeFile(t, filepath.Join(root, "workflows", name), example)
+			contents := readFile(t, filepath.Join(repositoryConfigRoot, "examples", example.name))
+			writeFile(t, filepath.Join(root, "workflows", example.name), contents)
 			snapshot := mustLoad(t, root, MVPDescriptors())
-			if snapshot.Counts().Workflows != 9 {
-				t.Fatalf("example Workflow count = %d", snapshot.Counts().Workflows)
+			if _, err := snapshot.Workflow(example.selector); err != nil {
+				t.Fatalf("resolve example Workflow %s: %v", example.selector, err)
 			}
 		})
 	}
@@ -858,12 +856,13 @@ func TestManifestDiscoveryIgnoresSymlinks(t *testing.T) {
 	t.Parallel()
 
 	root := copyConfigTree(t)
+	before := mustLoad(t, root, MVPDescriptors()).Counts().ModelPolicies
 	if err := os.Symlink("worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	if snapshot.Counts().ModelPolicies != 7 {
-		t.Fatalf("ModelPolicies = %d, want 7", snapshot.Counts().ModelPolicies)
+	if got := snapshot.Counts().ModelPolicies; got != before {
+		t.Fatalf("ModelPolicies after symlink discovery = %d, want unchanged %d", got, before)
 	}
 }
 

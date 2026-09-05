@@ -16,6 +16,7 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 	operator := copyConfigTree(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	manager := newTestManager(t, operator, managed, ManagerOptions{})
+	before := manager.Counts().ModelPolicies
 
 	request := validPolicyPublication("publish-policy")
 	result, err := manager.Publish(t.Context(), request)
@@ -26,8 +27,8 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 		t.Fatalf("publication result = %+v", result)
 	}
 	assertDigest(t, result.Resource.Ref.Digest)
-	if got := manager.Counts().ModelPolicies; got != 8 {
-		t.Fatalf("current ModelPolicy count = %d, want 8", got)
+	if got := manager.Counts().ModelPolicies; got != before+1 {
+		t.Fatalf("current ModelPolicy count = %d, want baseline+1 (%d)", got, before+1)
 	}
 
 	path := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
@@ -145,6 +146,7 @@ func TestManagerCrashAfterRenameIsRecovered(t *testing.T) {
 
 func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
 	manager := newTestManager(t, copyConfigTree(t), filepath.Join(t.TempDir(), "managed"), ManagerOptions{})
+	before := manager.Counts().ModelPolicies
 	start := make(chan struct{})
 	var wait sync.WaitGroup
 	for range 16 {
@@ -155,12 +157,12 @@ func TestManagerPublicationIsAtomicForConcurrentReaders(t *testing.T) {
 			for range 100 {
 				snapshot := manager.Snapshot()
 				count := snapshot.Counts().ModelPolicies
-				if count != 7 && count != 8 {
+				if count != before && count != before+1 {
 					t.Errorf("reader observed partial count %d", count)
 					return
 				}
 				_, err := snapshot.ModelPolicy("ui-worker@2")
-				if count == 7 && err == nil || count == 8 && err != nil {
+				if count == before && err == nil || count == before+1 && err != nil {
 					t.Errorf("reader observed inconsistent snapshot count=%d err=%v", count, err)
 					return
 				}

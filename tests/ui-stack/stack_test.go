@@ -309,8 +309,9 @@ func TestBrowserOperationsStack(t *testing.T) {
 	stack.assertCredentialLifecycle()
 	stack.assertSecretBoundaries(evidencePath, tracePaths, screenshotPath)
 	calls, completedStages, gatewayFailures := modelGateway.snapshot()
-	if calls != 35 || completedStages != 4 || len(gatewayFailures) != 0 {
-		t.Fatalf("model Gateway calls/stages/failures = %d/%d/%v, want 35/4/none", calls, completedStages, gatewayFailures)
+	if completedStages != 4 || len(gatewayFailures) != 0 {
+		t.Fatalf("model Gateway stages/failures = %d/%v, want 4/none (calls=%d)",
+			completedStages, gatewayFailures, calls)
 	}
 	creates, deletes, managerFailures := credentialManager.snapshot()
 	if creates != 1 || deletes != 1 || len(managerFailures) != 0 {

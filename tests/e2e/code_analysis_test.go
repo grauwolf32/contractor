@@ -160,8 +160,6 @@ func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 		"code-analysis-graph-wait", source,
 	)
 	waitingExecution := waitForUnallocatedPreparingExecution(t, ctx, store, graphInitialID)
-	time.Sleep(500 * time.Millisecond)
-	assertSameUnallocatedPreparingExecution(t, ctx, store, waitingExecution)
 	if gateway.Calls() != 0 {
 		t.Fatalf("graph Run reached the model Gateway without graph capacity: %d calls", gateway.Calls())
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
-func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
+func TestWorkflowQueriesArePaginated(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
 
 	first := serveQuery(t, fixture.handler, "/v1/workflows?limit=1")
@@ -42,6 +42,19 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 	if len(next.Items) != 1 || next.Items[0].Ref == page.Items[0].Ref {
 		t.Fatalf("second Workflow page = %+v", next)
 	}
+}
+
+func TestWorkflowQueriesRejectInvalidParameters(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	first := serveQuery(t, fixture.handler, "/v1/workflows?limit=1")
+	if first.Code != http.StatusOK {
+		t.Fatalf("Workflow cursor fixture = %d: %s", first.Code, first.Body.String())
+	}
+	var page workflowPageResponse
+	decodeQueryResponse(t, first, &page)
+	if page.Page.NextCursor == nil {
+		t.Fatalf("Workflow cursor fixture has no next cursor: %+v", page)
+	}
 
 	for _, target := range []string{
 		"/v1/workflows?limit=201",
@@ -53,8 +66,12 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 			t.Errorf("invalid Workflow query %q = %d: %s", target, response.Code, response.Body.String())
 		}
 	}
+}
 
-	detail := serveQuery(t, fixture.handler, "/v1/workflows/openapi-from-workspace/versions/5")
+func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	resolved := repositoryWorkflowByName(t, "openapi-from-workspace")
+	detail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
 	}
@@ -72,21 +89,17 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 		workflow.Inputs["source"].Primary {
 		t.Fatalf("Workflow primary output projection = %+v", workflow.Outputs)
 	}
-	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
-	if err != nil {
-		t.Fatal(err)
-	}
-	resolved, err := snapshot.Workflow("openapi-from-workspace@5")
-	if err != nil {
-		t.Fatal(err)
-	}
 	unsafeText := resolved.Stages["openapi_build"].Instructions.Text
 	if strings.Contains(detail.Body.String(), unsafeText) || strings.Contains(detail.Body.String(), "llmGatewayUrl") ||
 		strings.Contains(detail.Body.String(), "http://") {
 		t.Fatalf("Workflow detail leaked instruction text or endpoint: %s", detail.Body.String())
 	}
+}
 
-	skillDetail := serveQuery(t, fixture.handler, "/v1/workflows/likec4-from-workspace/versions/5")
+func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
+	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	resolved := repositoryWorkflowByName(t, "likec4-from-workspace")
+	skillDetail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if skillDetail.Code != http.StatusOK {
 		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())
 	}
@@ -97,6 +110,29 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 		skills[0].Name != "likec4" || skills[0].Revision != nil {
 		t.Fatalf("safe Workflow Skill requirements = %+v", skills)
 	}
+}
+
+func repositoryWorkflowByName(t *testing.T, name string) config.ResolvedWorkflow {
+	t.Helper()
+	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var matches []config.ResolvedWorkflow
+	for _, workflow := range snapshot.Workflows() {
+		if workflow.Ref.Name == name {
+			matches = append(matches, workflow)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("repository Workflows named %q = %d, want exactly one current version", name, len(matches))
+	}
+	return matches[0]
+}
+
+func workflowDetailTarget(workflow config.ResolvedWorkflow) string {
+	return "/v1/workflows/" + url.PathEscape(workflow.Ref.Name) +
+		"/versions/" + url.PathEscape(workflow.Ref.Version)
 }
 
 func TestRunListCursorFilterAndOwnership(t *testing.T) {

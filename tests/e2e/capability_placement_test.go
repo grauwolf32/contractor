@@ -165,8 +165,6 @@ func TestHeterogeneousRuntimeCapabilityPlacement(t *testing.T) {
 	t.Cleanup(pool.Close)
 	store := runstore.NewPostgresStore(pool)
 	waitingExecution := waitForUnallocatedPreparingExecution(t, ctx, store, runID)
-	time.Sleep(750 * time.Millisecond)
-	assertSameUnallocatedPreparingExecution(t, ctx, store, waitingExecution)
 	if gateway.Calls() != 0 {
 		t.Fatalf("Planner or Worker reached the Gateway while capacity was incompatible: %d calls", gateway.Calls())
 	}

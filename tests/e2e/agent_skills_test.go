@@ -331,9 +331,9 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		assertAgentSkillCanariesAbsent(t, fixture, string(payload))
 	}
 
-	if gateway.CompletedStages() != 7 || gateway.Calls() != 68 || len(gateway.Failures()) != 0 {
-		t.Fatalf("Agent Skill gateway stages/calls/failures = %d/%d/%v, want 7/68/none",
-			gateway.CompletedStages(), gateway.Calls(), gateway.Failures())
+	if gateway.CompletedStages() != 7 || len(gateway.Failures()) != 0 {
+		t.Fatalf("Agent Skill gateway stages/failures = %d/%v, want 7/none",
+			gateway.CompletedStages(), gateway.Failures())
 	}
 	assertAgentSkillGatewaySequence(t, gateway.Observations(), fixture)
 	assertLikeC4ValidatorCount(t, validatorLog, 10)

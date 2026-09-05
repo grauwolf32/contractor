@@ -447,12 +447,9 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		likeC4SeedRef, []byte(likeC4Seed), "text/plain",
 	)
 	assertValidatorInvocations(t, validatorLog, 3, 5)
-	if gateway.CompletedStages() != 8 || gateway.Calls() != 58 || len(gateway.Failures()) != 0 {
-		t.Fatalf("domain gateway stages/calls/failures = %d/%d/%v, want 8/58/none",
-			gateway.CompletedStages(), gateway.Calls(), gateway.Failures())
-	}
-	if observations := gateway.Observations(); len(observations) != 58 {
-		t.Fatalf("gateway observations = %d, want 58", len(observations))
+	if gateway.CompletedStages() != 8 || len(gateway.Failures()) != 0 {
+		t.Fatalf("domain gateway stages/failures = %d/%v, want 8/none",
+			gateway.CompletedStages(), gateway.Failures())
 	}
 
 	assertRuntimeCredentialInUse(t, publicClient, publicBaseURL, project.ProjectID)

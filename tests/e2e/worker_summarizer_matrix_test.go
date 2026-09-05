@@ -1,24 +1,19 @@
 package e2e
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type workerSummarizerMatrix struct {
 	SchemaVersion string                       `yaml:"schema_version"`
 	Policy        workerSummarizerMatrixPolicy `yaml:"policy"`
 	Cases         []workerSummarizerMatrixCase `yaml:"cases"`
-	Gates         []workerSummarizerMatrixGate `yaml:"gates"`
+	Gates         []matrixGate                 `yaml:"gates"`
 }
 
 type workerSummarizerMatrixPolicy struct {
@@ -34,11 +29,6 @@ type workerSummarizerMatrixCase struct {
 	Faults     []string                    `yaml:"faults"`
 	Expected   string                      `yaml:"expected"`
 	Test       workerObservationsTestOwner `yaml:"test"`
-}
-
-type workerSummarizerMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 var (
@@ -107,35 +97,19 @@ func TestWorkerSummarizerHardeningMatrixIsComplete(t *testing.T) {
 	t.Run("missing release gate", func(t *testing.T) {
 		broken := mustDecodeWorkerSummarizerMatrix(t, data)
 		broken.Gates = slices.DeleteFunc(
-			broken.Gates, func(value workerSummarizerMatrixGate) bool { return value.ID == "release" },
+			broken.Gates, func(value matrixGate) bool { return value.ID == "release" },
 		)
 		requireWorkerSummarizerMatrixError(t, repositoryRoot, broken, `gate "release"`)
 	})
 }
 
 func decodeWorkerSummarizerMatrix(data []byte) (workerSummarizerMatrix, error) {
-	var matrix workerSummarizerMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict Worker summarizer matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("Worker summarizer matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode Worker summarizer matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[workerSummarizerMatrix](data, "Worker summarizer")
 }
 
 func mustDecodeWorkerSummarizerMatrix(t *testing.T, data []byte) workerSummarizerMatrix {
 	t.Helper()
-	matrix, err := decodeWorkerSummarizerMatrix(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return matrix
+	return mustDecodeStrictMatrix[workerSummarizerMatrix](t, data, "Worker summarizer")
 }
 
 func requireWorkerSummarizerMatrixError(
@@ -192,7 +166,7 @@ func validateWorkerSummarizerMatrix(
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateWorkerObservationsOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -211,19 +185,8 @@ func validateWorkerSummarizerMatrix(
 			return fmt.Errorf("required Worker summarizer fault %q is absent", fault)
 		}
 	}
-	requiredGates := []string{"e2e", "hardening", "matrix", "release", "runtime"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!slices.Contains(requiredGates, gate.ID) || !strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate Worker summarizer gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required Worker summarizer gate %q is absent", gate)
-		}
-	}
-	return nil
+	return validateMatrixGates(
+		"Worker summarizer", matrix.Gates,
+		[]string{"e2e", "hardening", "matrix", "release", "runtime"}, true,
+	)
 }

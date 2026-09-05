@@ -1,24 +1,19 @@
 package e2e
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type httpCaidoMatrix struct {
 	SchemaVersion string                `yaml:"schema_version"`
 	Policy        httpCaidoMatrixPolicy `yaml:"policy"`
 	Cases         []httpCaidoMatrixCase `yaml:"cases"`
-	Gates         []httpCaidoMatrixGate `yaml:"gates"`
+	Gates         []matrixGate          `yaml:"gates"`
 }
 
 type httpCaidoMatrixPolicy struct {
@@ -39,11 +34,6 @@ type httpCaidoMatrixCase struct {
 type httpCaidoTestRef struct {
 	Source string `yaml:"source"`
 	Symbol string `yaml:"symbol"`
-}
-
-type httpCaidoMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 var (
@@ -105,28 +95,12 @@ func TestHTTPCaidoHardeningMatrixIsComplete(t *testing.T) {
 }
 
 func decodeHTTPCaidoMatrix(data []byte) (httpCaidoMatrix, error) {
-	var matrix httpCaidoMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict HTTP/Caido matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("HTTP/Caido matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode HTTP/Caido matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[httpCaidoMatrix](data, "HTTP/Caido")
 }
 
 func mustDecodeHTTPCaidoMatrix(t *testing.T, data []byte) httpCaidoMatrix {
 	t.Helper()
-	matrix, err := decodeHTTPCaidoMatrix(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return matrix
+	return mustDecodeStrictMatrix[httpCaidoMatrix](t, data, "HTTP/Caido")
 }
 
 func validateHTTPCaidoMatrix(repositoryRoot string, matrix httpCaidoMatrix) error {
@@ -167,7 +141,7 @@ func validateHTTPCaidoMatrix(repositoryRoot string, matrix httpCaidoMatrix) erro
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateHTTPCaidoTestOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixSymbolOwner(repositoryRoot, item.Test.Source, item.Test.Symbol); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -187,42 +161,8 @@ func validateHTTPCaidoMatrix(repositoryRoot string, matrix httpCaidoMatrix) erro
 		}
 	}
 
-	requiredGates := []string{"architecture", "hardening", "matrix", "process", "release", "runtime"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!slices.Contains(requiredGates, gate.ID) || !strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate HTTP/Caido gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required HTTP/Caido gate %q is absent", gate)
-		}
-	}
-	return nil
-}
-
-func validateHTTPCaidoTestOwner(repositoryRoot string, ref httpCaidoTestRef) error {
-	if ref.Source == "" || ref.Symbol == "" || filepath.IsAbs(ref.Source) ||
-		strings.Contains(ref.Source, "..") {
-		return fmt.Errorf("invalid test reference: %+v", ref)
-	}
-	extension := filepath.Ext(ref.Source)
-	if !slices.Contains([]string{".go", ".py"}, extension) {
-		return fmt.Errorf("unsupported test source: %+v", ref)
-	}
-	data, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(ref.Source)))
-	if err != nil {
-		return fmt.Errorf("read referenced test %q: %w", ref.Source, err)
-	}
-	prefix := "func "
-	if extension == ".py" {
-		prefix = "def "
-	}
-	if !bytes.Contains(data, []byte(prefix+ref.Symbol+"(")) {
-		return fmt.Errorf("%s does not define %s", ref.Source, ref.Symbol)
-	}
-	return nil
+	return validateMatrixGates(
+		"HTTP/Caido", matrix.Gates,
+		[]string{"architecture", "hardening", "matrix", "process", "release", "runtime"}, true,
+	)
 }

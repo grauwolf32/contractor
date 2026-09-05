@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -630,6 +631,64 @@ WHERE stage_execution_id = 'stage-run-delete'`).Scan(&reportCount); err != nil |
 	}
 	if _, created, err := runs.CreateRunIdempotent(ctx, runParams); err != nil || !created {
 		t.Fatalf("reuse deleted Run identity = created:%t error:%v", created, err)
+	}
+}
+
+func TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	const runID = "run-delete-rollback"
+	createArtifactRun(t, ctx, pool, runID, true)
+
+	runs := runstore.NewPostgresStore(pool)
+	service := NewService(NewPostgresRepository(pool))
+	run, _ := service.Run(runID)
+	written, err := run.Write(
+		ctx, ArtifactRef{Namespace: "scratch", Name: "rollback"},
+		Payload{MediaType: "text/plain", Data: []byte("must survive rollback")}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(
+		ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
+		runstore.Reason{Code: "completed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	rollback := errors.New("rollback Run deletion")
+	err = persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		txRuns := runstore.NewPostgresStore(tx)
+		if err := txRuns.DeleteReleasedTerminalRun(ctx, "user-1", runID); err != nil {
+			return err
+		}
+		if _, err := txRuns.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
+			return fmt.Errorf("Run remains visible inside deletion transaction: %v", err)
+		}
+		txService := NewService(NewPostgresRepository(tx))
+		txRun, _ := txService.Run(runID)
+		if _, err := txRun.Read(ctx, written.Ref); !errors.Is(err, ErrArtifactNotFound) {
+			return fmt.Errorf("Run Artifact remains visible inside deletion transaction: %v", err)
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("rollback deletion transaction = %v", err)
+	}
+
+	if restored, err := runs.GetRun(ctx, runID); err != nil || restored.State != runstore.RunSucceeded {
+		t.Fatalf("Run after deletion rollback = (%+v, %v)", restored, err)
+	}
+	if restored, err := run.Read(ctx, written.Ref); err != nil || string(restored.Payload.Data) != "must survive rollback" {
+		t.Fatalf("Run Artifact after deletion rollback = (%q, %v)", restored.Payload.Data, err)
+	}
+	if _, err := pool.Exec(ctx, `
+DELETE FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1`, runID); persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("lifecycle purge bypass leaked after rollback: SQLSTATE=%q error=%v",
+			persistencepostgres.SQLState(err), err)
 	}
 }
 

@@ -1,24 +1,19 @@
 package e2e
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 )
 
 type runMetadataLabelsMatrix struct {
 	SchemaVersion string                        `yaml:"schema_version"`
 	Policy        runMetadataLabelsMatrixPolicy `yaml:"policy"`
 	Cases         []runMetadataLabelsMatrixCase `yaml:"cases"`
-	Gates         []runMetadataLabelsMatrixGate `yaml:"gates"`
+	Gates         []matrixGate                  `yaml:"gates"`
 }
 
 type runMetadataLabelsMatrixPolicy struct {
@@ -40,11 +35,6 @@ type runMetadataLabelsTestOwner struct {
 	Source string `yaml:"source"`
 	Kind   string `yaml:"kind"`
 	Name   string `yaml:"name"`
-}
-
-type runMetadataLabelsMatrixGate struct {
-	ID      string `yaml:"id"`
-	Command string `yaml:"command"`
 }
 
 var (
@@ -112,35 +102,19 @@ func TestRunMetadataLabelsHardeningMatrixIsComplete(t *testing.T) {
 	t.Run("missing gate", func(t *testing.T) {
 		broken := mustDecodeRunMetadataLabelsMatrix(t, data)
 		broken.Gates = slices.DeleteFunc(
-			broken.Gates, func(value runMetadataLabelsMatrixGate) bool { return value.ID == "process" },
+			broken.Gates, func(value matrixGate) bool { return value.ID == "process" },
 		)
 		requireRunMetadataLabelsMatrixError(t, repositoryRoot, broken, `gate "process"`)
 	})
 }
 
 func decodeRunMetadataLabelsMatrix(data []byte) (runMetadataLabelsMatrix, error) {
-	var matrix runMetadataLabelsMatrix
-	decoder := yaml.NewDecoder(bytes.NewReader(data))
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&matrix); err != nil {
-		return matrix, fmt.Errorf("decode strict Run metadata-label matrix: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err == nil {
-		return matrix, errors.New("Run metadata-label matrix contains a trailing YAML document")
-	} else if !errors.Is(err, io.EOF) {
-		return matrix, fmt.Errorf("decode Run metadata-label matrix trailer: %w", err)
-	}
-	return matrix, nil
+	return decodeStrictMatrix[runMetadataLabelsMatrix](data, "Run metadata-label")
 }
 
 func mustDecodeRunMetadataLabelsMatrix(t *testing.T, data []byte) runMetadataLabelsMatrix {
 	t.Helper()
-	matrix, err := decodeRunMetadataLabelsMatrix(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return matrix
+	return mustDecodeStrictMatrix[runMetadataLabelsMatrix](t, data, "Run metadata-label")
 }
 
 func requireRunMetadataLabelsMatrixError(
@@ -197,7 +171,9 @@ func validateRunMetadataLabelsMatrix(
 			return fmt.Errorf("duplicate test owner %q in cases %q and %q", owner, previous, item.ID)
 		}
 		seenOwners[owner] = item.ID
-		if err := validateRunMetadataLabelsOwner(repositoryRoot, item.Test); err != nil {
+		if err := validateMatrixNamedOwner(
+			repositoryRoot, item.Test.Source, item.Test.Kind, item.Test.Name,
+		); err != nil {
 			return fmt.Errorf("case %q: %w", item.ID, err)
 		}
 	}
@@ -216,62 +192,8 @@ func validateRunMetadataLabelsMatrix(
 			return fmt.Errorf("required Run metadata-label fault %q is absent", fault)
 		}
 	}
-	requiredGates := []string{"hardening", "matrix", "process", "release", "ui"}
-	seenGates := map[string]bool{}
-	for _, gate := range matrix.Gates {
-		if gate.ID == "" || gate.Command == "" || seenGates[gate.ID] ||
-			!slices.Contains(requiredGates, gate.ID) || !strings.HasPrefix(gate.Command, "make ") {
-			return fmt.Errorf("invalid or duplicate Run metadata-label gate: %+v", gate)
-		}
-		seenGates[gate.ID] = true
-	}
-	for _, gate := range requiredGates {
-		if !seenGates[gate] {
-			return fmt.Errorf("required Run metadata-label gate %q is absent", gate)
-		}
-	}
-	return nil
-}
-
-func validateRunMetadataLabelsOwner(
-	repositoryRoot string,
-	owner runMetadataLabelsTestOwner,
-) error {
-	if owner.Source == "" || owner.Name == "" || filepath.IsAbs(owner.Source) ||
-		strings.Contains(owner.Source, "..") {
-		return fmt.Errorf("invalid test owner: %+v", owner)
-	}
-	extension := filepath.Ext(owner.Source)
-	expectedExtension := map[string][]string{
-		"go_test":    {".go"},
-		"pytest":     {".py"},
-		"test_title": {".ts", ".tsx"},
-	}
-	allowedExtensions, exists := expectedExtension[owner.Kind]
-	if !exists || !slices.Contains(allowedExtensions, extension) {
-		return fmt.Errorf("unsupported test owner: %+v", owner)
-	}
-	data, err := os.ReadFile(filepath.Join(repositoryRoot, filepath.FromSlash(owner.Source)))
-	if err != nil {
-		return fmt.Errorf("read test owner %q: %w", owner.Source, err)
-	}
-	defined := false
-	switch owner.Kind {
-	case "go_test":
-		defined = bytes.Contains(data, []byte("func "+owner.Name+"("))
-	case "pytest":
-		defined = bytes.Contains(data, []byte("def "+owner.Name+"("))
-	case "test_title":
-		for _, call := range []string{"it", "test"} {
-			for _, quote := range []string{"\"", "'", "`"} {
-				if bytes.Contains(data, []byte(call+"("+quote+owner.Name+quote)) {
-					defined = true
-				}
-			}
-		}
-	}
-	if !defined {
-		return fmt.Errorf("%s does not define %s owner %s", owner.Source, owner.Kind, owner.Name)
-	}
-	return nil
+	return validateMatrixGates(
+		"Run metadata-label", matrix.Gates,
+		[]string{"hardening", "matrix", "process", "release", "ui"}, true,
+	)
 }
