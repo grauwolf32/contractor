@@ -1154,7 +1154,7 @@ def _request_body(body_type: object, body: Any) -> tuple[bytes, str | None]:
 def _timeout(value: object, cap: int) -> float:
     selected: float
     if value is None:
-        selected = float(cap)
+        selected = min(float(cap), 120.0)
     elif type(value) in {int, float}:
         selected = float(value)
     else:

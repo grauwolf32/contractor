@@ -56,6 +56,7 @@ const workflow: WorkflowResource = {
       objective: "Build an OpenAPI contract from the supplied source tree.",
       instructions: { ref: "instructions/openapi-planner.md", digest },
       planner: { plannerId: "passthrough", version: "1" },
+      session: "isolated",
       agents: {
         builder: {
           template: {

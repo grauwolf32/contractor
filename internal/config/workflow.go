@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"go.yaml.in/yaml/v4"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -214,6 +215,10 @@ func (l *loader) resolveStage(
 	if strings.TrimSpace(source.Objective) == "" {
 		return ResolvedStage{}, fmt.Errorf("objective must not be empty or whitespace-only")
 	}
+	session, err := resolveWorkerSessionMode(source.Session)
+	if err != nil {
+		return ResolvedStage{}, fmt.Errorf("session: %w", err)
+	}
 	instructions, err := l.resolveInstructions(source.Instructions)
 	if err != nil {
 		return ResolvedStage{}, fmt.Errorf("instructions: %w", err)
@@ -260,12 +265,27 @@ func (l *loader) resolveStage(
 		Objective:       source.Objective,
 		Instructions:    instructions,
 		Planner:         plannerRef,
+		Session:         session,
 		Agents:          agents,
 		Context:         context,
 		Result:          result,
 		WorkflowOutputs: mappings,
 		On:              transitions,
 	}, nil
+}
+
+func resolveWorkerSessionMode(source yaml.Node) (contracts.WorkerSessionMode, error) {
+	if source.Kind == 0 {
+		return contracts.WorkerSessionIsolated, nil
+	}
+	if source.Kind != yaml.ScalarNode || source.ShortTag() != "!!str" {
+		return "", fmt.Errorf("must be isolated or shared")
+	}
+	mode := contracts.WorkerSessionMode(source.Value)
+	if err := mode.Validate(); err != nil {
+		return "", fmt.Errorf("must be isolated or shared")
+	}
+	return mode, nil
 }
 
 func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map[string]ResolvedAgentBinding, error) {
@@ -731,6 +751,9 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	sort.Strings(names)
 	for _, name := range names {
 		stage := workflow.Stages[name]
+		if err := stage.Session.Validate(); err != nil {
+			return fmt.Errorf("Stage %q: %w", name, err)
+		}
 		if err := validatePlannerAgentCardinality(stage.Planner, len(stage.Agents)); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
 		}

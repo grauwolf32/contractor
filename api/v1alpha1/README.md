@@ -29,6 +29,11 @@ unlabeled Run sends `{}`. Server and Runtime validate the shared 32-entry,
 key-shape and UTF-8 byte bounds; Runtime exposes a detached immutable copy only
 to allocation telemetry, never to Worker instructions, ADK State or tools.
 
+Every `AllocationSpec` carries a required `workerSessionMode` equal to
+`isolated` or `shared`. It is the already-resolved immutable Stage policy; the
+private wire has no omission default and Runtime rejects a missing or unknown
+value before constructing the Worker.
+
 `AllocationSpec.agentTemplate.summarizer`, when present, pins one separately
 digested tool-free ModelPolicy and a normalized context-window trigger. It is part
 of the AgentTemplate digest and uses the same allocation `RuntimeSettings`

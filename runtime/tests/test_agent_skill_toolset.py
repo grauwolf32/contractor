@@ -38,6 +38,7 @@ from contractor_runtime.contracts import (
     SandboxProfileRef,
     StageContentRequest,
     WorkerRuntimeRef,
+    WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.workspace import AllocationWorkspace
@@ -523,6 +524,7 @@ def build_context(
         stage_execution_id="stage-execution-1",
         logical_agent_name="builder",
         namespace="builder",
+        worker_session_mode=WorkerSessionMode.SHARED,
         description=template.description,
         instruction=template.instructions.text,
         card_version=template.ref.version,

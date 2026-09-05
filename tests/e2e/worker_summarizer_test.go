@@ -137,12 +137,12 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 	for _, expectation := range []summarizerProcessExpectation{
 		{workflow: "worker-summarizer@1", mode: "cumulative", state: "succeeded", summarized: true, normalCalls: 1, normalTokens: 20_000},
 		{workflow: "worker-summarizer-context@1", mode: "context-window", state: "succeeded", summarized: true, normalCalls: 1, normalTokens: 7171},
-		{workflow: "worker-summarizer@1", mode: "normal-final", state: "succeeded", normalCalls: 2, normalTokens: 20_000},
+		{workflow: "worker-summarizer@1", mode: "normal-final", state: "succeeded", normalCalls: 3, normalTokens: 20_010},
 		// LiteLLM normalizes an omitted OpenAI usage member to zero-valued
 		// metadata. Runtime recognizes that representation as unavailable and
 		// never guesses it into either soft rule.
-		{workflow: "worker-summarizer@1", mode: "missing-usage", state: "succeeded", normalCalls: 2, normalTokens: 10, tokenUsageUnavailable: 1},
-		{workflow: "worker-summarizer-disabled@1", mode: "disabled", state: "succeeded", normalCalls: 2, normalTokens: 25_010},
+		{workflow: "worker-summarizer@1", mode: "missing-usage", state: "succeeded", normalCalls: 3, normalTokens: 20, tokenUsageUnavailable: 1},
+		{workflow: "worker-summarizer-disabled@1", mode: "disabled", state: "succeeded", normalCalls: 3, normalTokens: 25_020},
 	} {
 		runID, allocationID := runSummarizerProcessScenario(
 			t, ctx, server, runtimeProcess, gateway, publicClient, controlClient,
@@ -157,7 +157,7 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 	for _, expectation := range []summarizerProcessExpectation{
 		{workflow: "worker-summarizer@1", mode: "invalid-summary", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "result_invalid"},
 		{workflow: "worker-summarizer@1", mode: "provider-timeout", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "gateway_unavailable"},
-		{workflow: "worker-summarizer@1", mode: "reuse-after-failure", state: "succeeded", normalCalls: 2, normalTokens: 20_000},
+		{workflow: "worker-summarizer@1", mode: "reuse-after-failure", state: "succeeded", normalCalls: 3, normalTokens: 20_010},
 	} {
 		runID, allocationID := runSummarizerProcessScenario(
 			t, ctx, server, runtimeProcess, gateway, publicClient, controlClient,
@@ -206,7 +206,7 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 		pool, publicBaseURL, runtimeBaseURL, workRoot, input,
 		summarizerProcessExpectation{
 			workflow: "worker-summarizer@1", mode: "reuse-after-cancel",
-			state: "succeeded", normalCalls: 2, normalTokens: 20_000,
+			state: "succeeded", normalCalls: 3, normalTokens: 20_010,
 		},
 	)
 	runIDs = append(runIDs, reuseRunID)

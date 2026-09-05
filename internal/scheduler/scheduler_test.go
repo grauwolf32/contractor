@@ -1204,6 +1204,9 @@ func TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort(t *testing.T) 
 
 func TestSchedulerRetryCreatesThreeFreshAttemptsBeforeSuccess(t *testing.T) {
 	harness := newSchedulerHarness(t)
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.Session = contracts.WorkerSessionShared
+	harness.workflow.Stages[harness.workflow.EntryStage] = stage
 	configureRetryWorkflow(t, harness, 3)
 	harness.artifacts.current["run-1/inputs/source"] = "input-r1"
 	harness.artifacts.values["run-1/inputs/source/input-r2"] = ResolvedArtifact{
@@ -1256,6 +1259,14 @@ func TestSchedulerRetryCreatesThreeFreshAttemptsBeforeSuccess(t *testing.T) {
 		runstore.StageTransitionRetry, runstore.StageTransitionRetry, runstore.StageTransitionSucceed,
 	}) {
 		t.Fatalf("retry decisions = %v", got)
+	}
+	if len(harness.workers.preparedReservations) != 3 {
+		t.Fatalf("retry prepared batches = %d, want 3", len(harness.workers.preparedReservations))
+	}
+	for index, batch := range harness.workers.preparedReservations {
+		if len(batch) != 1 || batch[0].WorkerSessionMode != contracts.WorkerSessionShared {
+			t.Fatalf("retry allocation[%d] session mode = %+v, want shared", index, batch)
+		}
 	}
 }
 
@@ -1322,6 +1333,9 @@ func TestSchedulerRetryCancellationPreventsNewAttempt(t *testing.T) {
 
 func TestSchedulerEscalatesNonRetryableFailureWithPinnedConfigurationAfterRestart(t *testing.T) {
 	harness := newSchedulerHarness(t)
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	stage.Session = contracts.WorkerSessionShared
+	harness.workflow.Stages[harness.workflow.EntryStage] = stage
 	strongPolicy := configureEscalationWorkflow(t, harness, "failed", 1)
 	harness.planners.results = []contracts.StageContentResult{
 		failedStageResult("permanent", false),
@@ -1370,6 +1384,14 @@ func TestSchedulerEscalatesNonRetryableFailureWithPinnedConfigurationAfterRestar
 		harness.workers.preparedSettings[0]["builder"].ModelPolicy.Ref == strongPolicy.Ref ||
 		harness.workers.preparedSettings[1]["builder"].ModelPolicy.Ref != strongPolicy.Ref {
 		t.Fatalf("effective Worker policies = %+v", harness.workers.preparedSettings)
+	}
+	if len(harness.workers.preparedReservations) != 2 {
+		t.Fatalf("escalation prepared batches = %d, want 2", len(harness.workers.preparedReservations))
+	}
+	for index, batch := range harness.workers.preparedReservations {
+		if len(batch) != 1 || batch[0].WorkerSessionMode != contracts.WorkerSessionShared {
+			t.Fatalf("escalation allocation[%d] session mode = %+v, want shared", index, batch)
+		}
 	}
 }
 
@@ -2388,7 +2410,8 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
-		AgentTemplate: binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
+		WorkerSessionMode: binding.WorkerSessionMode,
+		AgentTemplate:     binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
 		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
@@ -2412,8 +2435,9 @@ func (a *memoryAllocator) reservation(stageExecutionID string) controlplane.Rese
 		RunID: "run-1", StageExecutionID: stageExecutionID,
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: binding.Namespace, AgentTemplate: binding.Template,
-			ResolvedSkills:  []contracts.ResolvedSkill{},
-			ExecutionConfig: allocationExecutionConfig(a.workflow.Stages[a.workflow.EntryStage], "builder"),
+			WorkerSessionMode: a.workflow.Stages[a.workflow.EntryStage].Session,
+			ResolvedSkills:    []contracts.ResolvedSkill{},
+			ExecutionConfig:   allocationExecutionConfig(a.workflow.Stages[a.workflow.EntryStage], "builder"),
 		}},
 	})
 }

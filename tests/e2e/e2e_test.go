@@ -59,6 +59,7 @@ type runStatus struct {
 	ProjectID              *string                `json:"projectId,omitempty"`
 	Workflow               string                 `json:"workflow"`
 	State                  string                 `json:"state"`
+	Deletable              bool                   `json:"deletable"`
 	RuntimeLabels          []string               `json:"runtimeLabels"`
 	Labels                 map[string]string      `json:"labels"`
 	RuntimeConfiguration   json.RawMessage        `json:"runtimeConfiguration"`

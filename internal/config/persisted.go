@@ -1,0 +1,93 @@
+package config
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
+
+// DecodeResolvedWorkflowSnapshot strictly decodes immutable Run authority.
+// Snapshots written before Worker session modes existed are the only boundary
+// where an absent Stage session means shared; newly authored Workflows are
+// normalized to an explicit isolated value before persistence.
+func DecodeResolvedWorkflowSnapshot(data []byte) (ResolvedWorkflow, error) {
+	var workflow ResolvedWorkflow
+	if err := decodeStrictSnapshot(data, &workflow); err != nil {
+		return ResolvedWorkflow{}, err
+	}
+	var shape struct {
+		Stages map[string]json.RawMessage `json:"stages"`
+	}
+	if err := json.Unmarshal(data, &shape); err != nil {
+		return ResolvedWorkflow{}, err
+	}
+	if len(shape.Stages) != len(workflow.Stages) {
+		return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage map is invalid")
+	}
+	for name, stage := range workflow.Stages {
+		raw, ok := shape.Stages[name]
+		if !ok {
+			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q is absent", name)
+		}
+		if err := normalizePersistedStageSession(raw, &stage); err != nil {
+			return ResolvedWorkflow{}, fmt.Errorf("persisted Workflow Stage %q: %w", name, err)
+		}
+		workflow.Stages[name] = stage
+	}
+	return workflow, nil
+}
+
+// DecodeResolvedStageSnapshot applies the same legacy boundary to the Stage
+// copy retained by StageExecution.
+func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
+	var stage ResolvedStage
+	if err := decodeStrictSnapshot(data, &stage); err != nil {
+		return ResolvedStage{}, err
+	}
+	if err := normalizePersistedStageSession(data, &stage); err != nil {
+		return ResolvedStage{}, err
+	}
+	return stage, nil
+}
+
+func decodeStrictSnapshot(data []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("persisted snapshot contains trailing JSON")
+	}
+	return nil
+}
+
+func normalizePersistedStageSession(data []byte, stage *ResolvedStage) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	raw, present := fields["session"]
+	if !present {
+		stage.Session = contracts.WorkerSessionShared
+		return nil
+	}
+	if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return fmt.Errorf("session must be isolated or shared")
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("session must be isolated or shared")
+	}
+	mode := contracts.WorkerSessionMode(value)
+	if err := mode.Validate(); err != nil {
+		return err
+	}
+	stage.Session = mode
+	return nil
+}

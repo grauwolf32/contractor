@@ -390,7 +390,7 @@ For one allocation the Runtime Agent:
 1. reserves its only slot and validates `AllocationSpec` against its frozen
    startup runtime, Toolset/tool, SandboxProfile and RuntimeAdapter capability
    snapshot, including the effective digest-bearing ModelPolicy and exact
-   `resolvedSkills` manifest;
+   `resolvedSkills` manifest and mandatory `workerSessionMode`;
 2. constructs the selected allocation-scoped infrastructure adapters and
    validates their typed handle set before creating any sandbox, Toolset or
    Worker resource;
@@ -615,7 +615,9 @@ After reserving the full set, Control Plane creates one globally unique
 `allocation_id` and one complete AllocationSpec per logical Stage Agent binding,
 including that binding's effective ModelPolicy and resolved RuntimeSettings
 plus exact label/config provenance and the exact Run-pinned `resolvedSkills`
-manifest from [09], then may initialize those Runtime Agents concurrently. Planner
+manifest from [09] and the Stage's pinned `workerSessionMode`, then may initialize
+those Runtime Agents concurrently. The mode participates in reservation replay
+identity: a retry of the same `stage_execution_id` cannot reinterpret it. Planner
 starts only after every Runtime Agent reports ready and Control Plane can return
 the complete `WorkerHandle` map.
 
@@ -690,6 +692,14 @@ released or unknown ID are rejected.
 Planner cannot expand or replace the prepared set during the invocation.
 Changing the set requires a new StageExecution decision by Workflow Scheduler
 under the Workflow policy.
+
+Allocation identity, A2A Task/context identity, Contractor Worker invocation
+identity and ADK session identity are four separate domains. Runtime creates
+opaque ADK session IDs according to the pinned Stage mode; none is derived from,
+equal by contract to, or exposed through the allocation ID, A2A payload,
+WorkerCompletion, Agent Card, public API or Planner tools. A rejected request
+therefore cannot infer whether a prior session exists. The allocation-local
+session and State lifecycle is owned by [04](04-execution-lifecycle-and-metrics.md).
 
 ## Allocation-scoped A2A endpoint
 
@@ -840,3 +850,8 @@ managed AgentTemplate service are not prerequisites.
 24. Runtime exposes live Worker State only through the read-only
     allocation-correlated Control Plane endpoint; no private request can write
     an arbitrary ADK State key or replace pinned allocation configuration.
+25. Every AllocationSpec carries the Stage's explicit immutable Worker session
+    mode. Reservation replay with another mode conflicts rather than replacing
+    an existing allocation.
+26. Allocation, A2A Task/context, Contractor invocation and ADK session IDs are
+    distinct; only Runtime may create or observe the ADK session identity.

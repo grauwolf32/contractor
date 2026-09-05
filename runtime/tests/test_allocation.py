@@ -25,6 +25,7 @@ from contractor_runtime.contracts import (
     ToolsetRef,
     ToolsetSelection,
     WorkerRuntimeRef,
+    WorkerSessionMode,
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
@@ -617,6 +618,7 @@ def make_spec(
         stageExecutionId="stage-execution-1",
         logicalAgentName="builder",
         namespace="builder",
+        workerSessionMode=WorkerSessionMode.ISOLATED,
         runMetadataLabels={},
         leaseExpiresAt=NOW + timedelta(seconds=60),
         agentTemplate=template,

@@ -325,7 +325,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, pinnedOld.RunID,
 	)
 	if oldStatus.State != "succeeded" || len(pinnedOld.RuntimeConfiguration.Labels) != 1 ||
-		pinnedOld.RuntimeConfiguration.Labels[0].Config != caidoOld || oldProxy.requests() != 3 ||
+		pinnedOld.RuntimeConfiguration.Labels[0].Config != caidoOld || oldProxy.requests() != 4 ||
 		newProxy.requests() != 0 {
 		t.Fatalf("active caido allocation was not pinned: create=%+v old/new requests=%d/%d",
 			pinnedOld, oldProxy.requests(), newProxy.requests())
@@ -338,7 +338,7 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 	)
 	if newStatus.State != "succeeded" || len(pinnedNew.RuntimeConfiguration.Labels) != 1 ||
 		pinnedNew.RuntimeConfiguration.Labels[0].BindingRevision != "2" ||
-		pinnedNew.RuntimeConfiguration.Labels[0].Config != caidoNew || newProxy.requests() != 3 {
+		pinnedNew.RuntimeConfiguration.Labels[0].Config != caidoNew || newProxy.requests() != 4 {
 		t.Fatalf("later caido allocation did not use rebound config: create=%+v requests=%d", pinnedNew, newProxy.requests())
 	}
 	if failures := append(oldProxy.failures(), newProxy.failures()...); len(failures) != 0 {

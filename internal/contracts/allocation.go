@@ -165,6 +165,7 @@ type AllocationSpec struct {
 	StageExecutionID  string                `json:"stageExecutionId"`
 	LogicalAgentName  string                `json:"logicalAgentName"`
 	Namespace         string                `json:"namespace"`
+	WorkerSessionMode WorkerSessionMode     `json:"workerSessionMode"`
 	RunMetadataLabels RunMetadataLabels     `json:"runMetadataLabels"`
 	LeaseExpiresAt    time.Time             `json:"leaseExpiresAt"`
 	AgentTemplate     ResolvedAgentTemplate `json:"agentTemplate"`
@@ -188,6 +189,9 @@ func (s AllocationSpec) Validate() error {
 	}
 	if strings.Contains(s.Namespace, "/") {
 		return invalidf("namespace must not contain slash")
+	}
+	if err := s.WorkerSessionMode.Validate(); err != nil {
+		return err
 	}
 	if err := s.RunMetadataLabels.Validate(); err != nil {
 		return err

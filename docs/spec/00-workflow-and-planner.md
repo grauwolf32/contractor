@@ -263,6 +263,7 @@ spec:
       instructions:
         ref: instructions/build-openapi.md
       planner: passthrough@1
+      session: isolated
       agents:
         builder:
           template: oas_builder@2
@@ -282,6 +283,7 @@ spec:
       instructions:
         ref: instructions/review-openapi.md
       planner: streamline@1
+      session: shared
       agents:
         reviewer:
           template: oas_reviewer@1
@@ -618,6 +620,42 @@ Workflow transitions, budgets, artifact grants, RuntimeSettings or platform
 safety constraints. Worker-wide reusable behavior remains in the selected
 `AgentTemplate`; Stage instructions do not mutate that template.
 
+### Stage Worker session policy
+
+Each Stage has one Worker `session` policy shared by all of its logical Agent
+bindings:
+
+```yaml
+session: isolated  # or shared
+```
+
+The authoring field is optional only to keep ordinary Workflow YAML concise.
+Omission in a newly loaded Workflow resolves to `isolated` before the resolved
+Workflow can be snapshotted. An explicit value must be the exact YAML string
+`isolated` or `shared`; null, an empty or unknown string, a number, sequence or
+mapping is invalid. Resolved Workflow and Stage snapshots and the public
+Workflow read model always contain the effective value.
+
+`isolated` gives every admitted sequential Worker invocation a fresh ADK
+conversation while retaining only the bounded eligible allocation-local State
+defined in [04](04-execution-lifecycle-and-metrics.md). `shared` deliberately
+keeps one conversation for sequential invocations sent to the same logical
+Worker allocation. In a Router Stage, `shared` still never joins conversations
+between logical Workers: each binding owns a distinct allocation and session
+service.
+
+The policy is immutable Stage semantics. Retry and escalation create new
+StageExecutions and allocations but retain the Stage's selected mode; an
+executionConfig override cannot change it. Planner, its dispatch tools and
+`StageContentRequest` carry no session override, reset operation or ADK session
+identifier.
+
+The sole compatibility exception is persisted execution authority written
+before this field existed. A stored Workflow or Stage snapshot in which the
+field is genuinely absent decodes as `shared`, matching the pre-feature
+behavior. Explicit null, empty or unknown persisted values remain invalid.
+This legacy decode rule never applies to newly authored YAML or AllocationSpec.
+
 ### Artifact slots and mappings
 
 Workflow artifact contracts have three distinct levels:
@@ -652,6 +690,7 @@ spec:
       instructions:
         ref: instructions/build-openapi.md
       planner: passthrough@1
+      session: isolated
       agents:
         oas_builder:
           template: oas_builder@2

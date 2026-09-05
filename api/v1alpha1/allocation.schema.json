@@ -210,7 +210,7 @@
     "allocationSpec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "runMetadataLabels", "leaseExpiresAt", "agentTemplate", "resolvedSkills", "modelPolicy", "runtimeSettings"],
+      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "workerSessionMode", "runMetadataLabels", "leaseExpiresAt", "agentTemplate", "resolvedSkills", "modelPolicy", "runtimeSettings"],
       "properties": {
         "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
         "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
@@ -218,6 +218,7 @@
         "stageExecutionId": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "logicalAgentName": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "workerSessionMode": {"enum": ["isolated", "shared"]},
         "runMetadataLabels": {"$ref": "#/$defs/runMetadataLabels"},
         "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},
         "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},

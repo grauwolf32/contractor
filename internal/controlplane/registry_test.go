@@ -398,6 +398,15 @@ func TestReservationRetryReturnsSameAllocationsAndGrantLifecycleIsExact(t *testi
 	if err != nil || retry[0].Grant.AllocationID != first[0].Grant.AllocationID || retry[0].Grant.RuntimeInstanceID != first[0].Grant.RuntimeInstanceID {
 		t.Fatalf("reservation retry = (%+v, %v), first %+v", retry, err, first)
 	}
+	if first[0].WorkerSessionMode != contracts.WorkerSessionIsolated {
+		t.Fatalf("reserved Worker session mode = %q", first[0].WorkerSessionMode)
+	}
+	changed := request
+	changed.Bindings = append([]BindingRequirement(nil), request.Bindings...)
+	changed.Bindings[0].WorkerSessionMode = contracts.WorkerSessionShared
+	if _, err := registry.ReserveAll(changed); !errors.Is(err, ErrReservationConflict) {
+		t.Fatalf("session-mode-changing replay error = %v", err)
+	}
 	allocationID := first[0].Grant.AllocationID
 	grant, err := registry.GetGrant(allocationID)
 	if err != nil || grant.ReadPolicy != ReadCurrentRun || grant.WritePolicy != WriteInputsAndIntermediates || grant.WriteFenced {
@@ -1158,9 +1167,10 @@ func testBinding(
 		t.Fatal(err)
 	}
 	return BindingRequirement{
-		LogicalAgentName: logicalAgentName,
-		Namespace:        namespace,
-		AgentTemplate:    template,
+		LogicalAgentName:  logicalAgentName,
+		Namespace:         namespace,
+		WorkerSessionMode: contracts.WorkerSessionIsolated,
+		AgentTemplate:     template,
 		ExecutionConfig: AllocationExecutionConfig{
 			ModelPolicy: template.ModelPolicy.Ref,
 			LLMGateway:  gateway.Ref,

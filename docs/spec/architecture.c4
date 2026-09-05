@@ -398,7 +398,7 @@ model {
     slotManager -> adapterHost 'Construct / flush / destroy typed allocation-scoped adapters'
     slotManager -> workerRuntime 'Create / destroy one in-process Worker instance'
     slotManager -> a2aServer 'Activate / deactivate allocation identity and Agent Card'
-    slotManager -> workerState 'Create / destroy allocation-local Session and State'
+    slotManager -> workerState 'Create / destroy allocation-local SessionService, sessions and canonical State'
     slotManager -> sandboxManager 'Prepare fresh allocation workdir; clean before idle or remain fenced'
     capabilityProbe -> workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
     capabilityProbe -> codeAnalysisTools 'Probe offline Tree-sitter subset and local-only Trailmark subset'

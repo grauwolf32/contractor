@@ -19,7 +19,7 @@ from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
+from google.adk.sessions import BaseSessionService
 from google.adk.tools import FunctionTool
 from google.genai import types
 from pydantic import ValidationError
@@ -71,6 +71,10 @@ from contractor_runtime.projectfs import (
 from contractor_runtime.result_finalizer import (
     ResultFinalizerFailure,
     WorkerResultFinalizer,
+)
+from contractor_runtime.session_lifecycle import (
+    WorkerSessionLifecycle,
+    WorkerSessionLifecycleError,
 )
 from contractor_runtime.summarizer import (
     SummarizerFailure,
@@ -290,6 +294,7 @@ class AdkWorkerRuntime:
         *,
         model_factory: ModelFactory = gateway_model,
         workspace_exporter: WorkspaceAutoExporter | None = None,
+        session_service: BaseSessionService | None = None,
     ) -> None:
         self.allocation_id = context.allocation_id
         self._context = context
@@ -297,10 +302,15 @@ class AdkWorkerRuntime:
         self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
-        self._session_service = InMemorySessionService()
-        self._session_id = context.allocation_id
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
+        self._session_lifecycle = WorkerSessionLifecycle(
+            mode=context.worker_session_mode,
+            app_name=self._app_name,
+            user_id=self._user_id,
+            service=session_service,
+        )
+        self._session_service = self._session_lifecycle.service
         self._accepting = True
         self._invoke_lock = asyncio.Lock()
         self._active_task: asyncio.Task[Any] | None = None
@@ -370,12 +380,18 @@ class AdkWorkerRuntime:
         self._a2a_application = build_worker_a2a_application(self, self._card)
 
     async def start(self) -> None:
-        state = await self._worker_state.snapshot()
-        await self._session_service.create_session(
-            app_name=self._app_name,
-            user_id=self._user_id,
-            session_id=self._session_id,
-            state={"contractor": state},
+        # Sessions are invocation resources. Invalid, stale, draining and busy
+        # A2A requests therefore cannot create one during allocation prepare.
+        return None
+
+    @property
+    def _session_id(self) -> str:
+        """Compatibility-only test view; session identity is not a wire contract."""
+
+        return (
+            self._session_lifecycle.active_session_id
+            or self._session_lifecycle.shared_session_id
+            or ""
         )
 
     @property
@@ -438,6 +454,57 @@ class AdkWorkerRuntime:
             )
         await self._invoke_lock.acquire()
         self._active_task = asyncio.current_task()
+        if not self._accepting:
+            try:
+                return await self._untracked_failure_completion(
+                    "worker_draining", "Worker is no longer accepting A2A work", True
+                )
+            finally:
+                self._active_task = None
+                self._invoke_lock.release()
+        encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
+        if len(encoded_request) > MAX_STAGE_REQUEST_JSON_BYTES:
+            try:
+                return await self._untracked_failure_completion(
+                    "stage_content_too_large",
+                    "StageContentRequest exceeds the Worker limit",
+                    False,
+                )
+            finally:
+                self._active_task = None
+                self._invoke_lock.release()
+        try:
+            session_id = await self._session_lifecycle.begin_invocation(
+                await self._worker_state.snapshot()
+            )
+        except asyncio.CancelledError:
+            if self._session_lifecycle.failed:
+                self._accepting = False
+            self._active_task = None
+            self._invoke_lock.release()
+            raise
+        except WorkerSessionLifecycleError as error:
+            self._accepting = False
+            try:
+                return await self._untracked_failure_completion(
+                    "worker_session_lifecycle_failed",
+                    f"Worker session lifecycle failed ({error.code})",
+                    True,
+                )
+            finally:
+                self._active_task = None
+                self._invoke_lock.release()
+        except Exception:
+            self._accepting = False
+            try:
+                return await self._untracked_failure_completion(
+                    "worker_session_lifecycle_failed",
+                    "Worker session lifecycle failed (state_snapshot_failed)",
+                    True,
+                )
+            finally:
+                self._active_task = None
+                self._invoke_lock.release()
         policy = self._context.model_policy
         budget = _InvocationBudget(
             max_model_calls=policy.max_model_calls,
@@ -469,18 +536,7 @@ class AdkWorkerRuntime:
                 )
                 exportable = False
             else:
-                encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode(
-                    "utf-8"
-                )
-                if len(encoded_request) > MAX_STAGE_REQUEST_JSON_BYTES:
-                    outcome = _failure(
-                        "stage_content_too_large",
-                        "StageContentRequest exceeds the Worker limit",
-                        False,
-                    )
-                    exportable = False
-                else:
-                    outcome, exportable = await self._run_adk(request, invocation_id)
+                outcome, exportable = await self._run_adk(request, invocation_id, session_id)
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
@@ -519,11 +575,21 @@ class AdkWorkerRuntime:
             invocation_phase = "failed"
         finally:
             try:
-                state_snapshot = await self._finish_invocation_state(
-                    invocation_id,
-                    request.subtask_id,
-                    invocation_phase,
-                )
+                try:
+                    state_snapshot = await self._finish_invocation_state(
+                        invocation_id,
+                        request.subtask_id,
+                        invocation_phase,
+                        session_id,
+                    )
+                except WorkerSessionLifecycleError as error:
+                    self._accepting = False
+                    state_snapshot = await self._worker_state.snapshot()
+                    outcome = _failure(
+                        "worker_session_lifecycle_failed",
+                        f"Worker session lifecycle failed ({error.code})",
+                        True,
+                    )
             finally:
                 self._active_budget = None
                 self._active_task = None
@@ -563,6 +629,7 @@ class AdkWorkerRuntime:
         self,
         request: StageContentRequest,
         invocation_id: str,
+        session_id: str,
     ) -> tuple[WorkerResult | WorkerFailure, bool]:
         runner = self._runner
         if runner is None:
@@ -582,7 +649,7 @@ class AdkWorkerRuntime:
             try:
                 async for event in runner.run_async(
                     user_id=self._user_id,
-                    session_id=self._session_id,
+                    session_id=session_id,
                     invocation_id=invocation_id,
                     new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
                 ):
@@ -949,11 +1016,7 @@ class AdkWorkerRuntime:
                 except Exception as error:
                     failures.append(error)
             try:
-                await self._session_service.delete_session(
-                    app_name=self._app_name,
-                    user_id=self._user_id,
-                    session_id=self._session_id,
-                )
+                await self._session_lifecycle.close()
             except Exception as error:
                 failures.append(error)
             agent_skills = self._agent_skills
@@ -981,27 +1044,31 @@ class AdkWorkerRuntime:
         invocation_id: str,
         subtask_id: str,
         phase: InvocationPhase,
+        session_id: str,
     ) -> dict[str, Any]:
         async def finish() -> dict[str, Any]:
-            snapshot = await self._plugin.complete_invocation(
-                invocation_id=invocation_id,
-                phase=phase,
-            )
-            if snapshot is None:
-                metrics = _empty_invocation_metrics()
-                await self._worker_state.begin_invocation(
-                    invocation_id=invocation_id,
-                    subtask_id=subtask_id,
-                    metrics=metrics,
-                    summarizer_enabled=self._context.summarizer is not None,
-                )
-                snapshot = await self._worker_state.complete_invocation(
+            try:
+                snapshot = await self._plugin.complete_invocation(
                     invocation_id=invocation_id,
                     phase=phase,
-                    metrics=metrics,
                 )
-            await self._sync_worker_state(snapshot)
-            return snapshot
+                if snapshot is None:
+                    metrics = _empty_invocation_metrics()
+                    await self._worker_state.begin_invocation(
+                        invocation_id=invocation_id,
+                        subtask_id=subtask_id,
+                        metrics=metrics,
+                        summarizer_enabled=self._context.summarizer is not None,
+                    )
+                    snapshot = await self._worker_state.complete_invocation(
+                        invocation_id=invocation_id,
+                        phase=phase,
+                        metrics=metrics,
+                    )
+                await self._sync_worker_state(snapshot, session_id)
+                return snapshot
+            finally:
+                await self._session_lifecycle.finish_invocation()
 
         task = asyncio.create_task(finish(), name="worker-invocation-state-finalize")
         try:
@@ -1016,7 +1083,6 @@ class AdkWorkerRuntime:
     ) -> WorkerCompletion:
         self._metrics.record_outcome("failed")
         snapshot = await self._worker_state.sync_metrics()
-        await self._sync_worker_state(snapshot)
         return WorkerCompletion(
             apiVersion=API_VERSION,
             failure=_failure(code, message, retryable),
@@ -1024,11 +1090,19 @@ class AdkWorkerRuntime:
             stateRevision=snapshot["stateRevision"],
         )
 
-    async def _sync_worker_state(self, snapshot: dict[str, Any] | None = None) -> None:
+    async def _sync_worker_state(
+        self,
+        snapshot: dict[str, Any] | None = None,
+        session_id: str | None = None,
+    ) -> None:
         if snapshot is None:
             snapshot = await self._worker_state.sync_metrics()
+        if session_id is None:
+            session_id = self._session_lifecycle.active_session_id
+        if session_id is None:
+            return
         session = await self._session_service.get_session(
-            app_name=self._app_name, user_id=self._user_id, session_id=self._session_id
+            app_name=self._app_name, user_id=self._user_id, session_id=session_id
         )
         if session is None:
             return

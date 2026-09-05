@@ -112,7 +112,7 @@ func workflowResourceReadModel(workflow config.ResolvedWorkflow) workflowResourc
 			Instructions: instructionsRefResponse{
 				Ref: stage.Instructions.Ref, Digest: stage.Instructions.Digest,
 			},
-			Planner: stage.Planner, Agents: agents,
+			Planner: stage.Planner, Session: stage.Session, Agents: agents,
 			ExecutionConfig:  resolvedStageExecutionConfigReadModel(stage.ExecutionConfig),
 			ContextArtifacts: stage.Context.Artifacts,
 			ResultArtifacts:  stage.Result.Artifacts,

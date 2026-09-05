@@ -227,6 +227,51 @@ allocations finish (or cancel them), confirm every Runtime slot is released,
 then replace the Server and all Runtime Agents together. Do not attempt a
 rolling upgrade with live allocations.
 
+## Worker session mode upgrade
+
+`workerSessionMode` is another mandatory private AllocationSpec field. The Go
+Server, every Python Runtime Agent and the generated UI/API contract must be
+deployed in lockstep; an old Runtime rejects the new field and a new Runtime
+rejects its absence. The deployment procedure is:
+
+1. pause new Run admission and let current Stage allocations finish, or cancel
+   them through the normal bounded abort path;
+2. confirm that Operations shows no authoritative allocation and every Runtime
+   slot has completed release reconciliation;
+3. take the normal PostgreSQL backup, then stop Server and Runtime Agents;
+4. deploy Server, Runtime Agents and UI from the same release and restart them;
+5. validate configuration and run the focused gate below before resuming
+   admission.
+
+No data migration rewrites existing WorkflowRun or StageExecution snapshots.
+The new Server decodes a genuinely absent `session` field in those persisted
+pre-feature snapshots as `shared`, preserving their original conversation
+behavior. Newly loaded YAML with omitted `session` instead resolves and stores
+explicit `isolated`; explicit `shared` remains available when a Stage needs one
+sequential conversation. Explicit null, empty and unknown values fail in both
+authoring and persisted data.
+
+A binary-only rollback after admitting a new Run is unsafe because old Server
+code does not understand the explicit field in its immutable snapshots. Before
+resuming admission, rollback may replace the whole lockstep release. Afterward,
+use a forward fix or restore the pre-upgrade database backup together with the
+old binaries; never delete the field manually from selected rows.
+
+Run the focused verification before release:
+
+```shell
+go test -race ./internal/config/... ./internal/scheduler/... \
+  ./internal/controlplane/... ./internal/httpapi/public/...
+make verify-wire-contracts
+make test-wire-cross-language
+make test-worker-session-modes-e2e
+```
+
+The process gate exercises default-isolated and explicit-shared Stages through
+the real Scheduler, Control Plane, private allocation transport and Python
+Runtime, including sequential invocations, allocation cleanup and Runtime-slot
+reuse.
+
 The automated MVP test is the shortest proof that the actual Go Server and
 Python Runtime Agent interoperate. It starts both production entry points,
 creates a temporary deployment CA, uses an isolated PostgreSQL schema, and

@@ -5,6 +5,7 @@
   "stageExecutionId": "019c-stage-1",
   "logicalAgentName": "builder",
   "namespace": "builder",
+  "workerSessionMode": "isolated",
   "runMetadataLabels": {"purpose": "eval", "eval.id": "eval_01"},
   "leaseExpiresAt": "2026-08-29T10:01:00Z",
   "agentTemplate": {

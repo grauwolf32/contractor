@@ -100,6 +100,7 @@ func (c *RuntimeControlClient) Prepare(
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
+		WorkerSessionMode: reservation.WorkerSessionMode,
 		RunMetadataLabels: reservation.RunMetadataLabels.Clone(),
 		LeaseExpiresAt:    wireTime(reservation.LeaseExpiresAt), AgentTemplate: cloneAgentTemplate(reservation.AgentTemplate),
 		ResolvedSkills: contracts.CloneResolvedSkills(resolvedSkills),

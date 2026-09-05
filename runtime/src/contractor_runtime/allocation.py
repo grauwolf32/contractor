@@ -289,6 +289,7 @@ class AllocationService:
                         stage_execution_id=spec.stage_execution_id,
                         logical_agent_name=spec.logical_agent_name,
                         namespace=spec.namespace,
+                        worker_session_mode=spec.worker_session_mode,
                         description=spec.agent_template.description,
                         instruction=spec.agent_template.instructions.text,
                         card_version=spec.agent_template.ref.version,

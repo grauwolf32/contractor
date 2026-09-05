@@ -457,6 +457,7 @@ func (r *InMemoryRegistry) reserveAll(
 		reservation := Reservation{
 			Grant: grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
 			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
+			WorkerSessionMode:         binding.WorkerSessionMode,
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			Workspace:                 contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
@@ -1152,6 +1153,9 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.AgentTemplate.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid AgentTemplate for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
+		if err := binding.WorkerSessionMode.Validate(); err != nil {
+			return "", nil, fmt.Errorf("%w: invalid Worker session mode for %q", ErrInvalidRequest, binding.LogicalAgentName)
+		}
 		resolvedSkills := binding.ResolvedSkills
 		if resolvedSkills == nil && len(binding.AgentTemplate.Skills) == 0 {
 			resolvedSkills = []contracts.ResolvedSkill{}
@@ -1181,11 +1185,12 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		seen[binding.LogicalAgentName] = struct{}{}
 		bindings[index] = BindingRequirement{
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
-			AgentTemplate:    cloneAgentTemplate(binding.AgentTemplate),
-			ResolvedSkills:   contracts.CloneResolvedSkills(resolvedSkills),
-			ExecutionConfig:  cloneAllocationExecutionConfig(binding.ExecutionConfig),
-			RuntimeSelection: cloneRuntimeSelection(binding.RuntimeSelection),
-			Workspace:        contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
+			WorkerSessionMode: binding.WorkerSessionMode,
+			AgentTemplate:     cloneAgentTemplate(binding.AgentTemplate),
+			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
+			ExecutionConfig:   cloneAllocationExecutionConfig(binding.ExecutionConfig),
+			RuntimeSelection:  cloneRuntimeSelection(binding.RuntimeSelection),
+			Workspace:         contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
 		}
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })

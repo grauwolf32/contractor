@@ -34,9 +34,17 @@ type routingGateway struct {
 	mu           sync.Mutex
 	steps        map[string]int
 	modelCalls   map[string]int
+	requests     int
 	observations []routingGatewayObservation
 	stateUsages  map[string]workerObservationUsage
+	pending      map[string]routingFinalizerExpectation
 	failures     []string
+}
+
+type routingFinalizerExpectation struct {
+	Scenario string
+	Model    string
+	Result   string
 }
 
 type workerObservationUsage struct {
@@ -57,6 +65,7 @@ func newRoutingGateway(token string) *routingGateway {
 	result := &routingGateway{
 		token: token, steps: map[string]int{}, modelCalls: map[string]int{},
 		stateUsages: map[string]workerObservationUsage{},
+		pending:     map[string]routingFinalizerExpectation{},
 	}
 	result.server = httptest.NewServer(http.HandlerFunc(result.serveHTTP))
 	return result
@@ -143,6 +152,13 @@ func (g *routingGateway) next(
 	if marshalErr != nil {
 		return nil, "", "", 0, marshalErr
 	}
+	finalizerInput, isFinalizer, finalizerErr := decodeWorkerResultFinalizerRequest(request)
+	if finalizerErr != nil {
+		return nil, "", "", 0, finalizerErr
+	}
+	if isFinalizer {
+		return g.finalizeWorkerResult(modelName, request, finalizerInput)
+	}
 	payload := string(encoded)
 	scenario, mode, worker, detectErr := routingScenario(modelName, payload)
 	if detectErr != nil {
@@ -198,15 +214,31 @@ func (g *routingGateway) next(
 	step := g.steps[scenario] + 1
 	g.steps[scenario] = step
 	g.modelCalls[modelName]++
-	call = 0
-	for _, count := range g.modelCalls {
-		call += count
-	}
+	g.requests++
+	call = g.requests
 	g.mu.Unlock()
 
 	message, finishReason, tool, buildErr := routingResponse(scenario, step, request)
 	if buildErr != nil {
 		return nil, "", "", 0, buildErr
+	}
+	if worker && tool == "<final>" {
+		subtaskID, subtaskErr := workerRequestSubtaskID(request)
+		candidate, candidateOK := message["content"].(string)
+		if subtaskErr != nil || !candidateOK || candidate == "" {
+			return nil, "", "", 0, fmt.Errorf("%s produced an invalid Worker candidate", scenario)
+		}
+		g.mu.Lock()
+		if _, exists := g.pending[subtaskID]; exists {
+			g.mu.Unlock()
+			return nil, "", "", 0, fmt.Errorf("%s replaced a pending Worker candidate", scenario)
+		}
+		g.pending[subtaskID] = routingFinalizerExpectation{
+			Scenario: scenario,
+			Model:    modelName,
+			Result:   candidate,
+		}
+		g.mu.Unlock()
 	}
 	g.mu.Lock()
 	if usage, workerName, ok := completedObservationUsage(scenario, step, request); ok {
@@ -217,6 +249,41 @@ func (g *routingGateway) next(
 	})
 	g.mu.Unlock()
 	return message, finishReason, modelName, call, nil
+}
+
+func (g *routingGateway) finalizeWorkerResult(
+	modelName string,
+	request map[string]any,
+	input workerResultFinalizerInput,
+) (map[string]any, string, string, int, error) {
+	if !requestHasNoModelTools(request) {
+		return nil, "", "", 0, errors.New("routing result finalizer exposed model-visible tools")
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	expected, ok := g.pending[input.SubtaskID]
+	if !ok {
+		return nil, "", "", 0, errors.New("routing result finalizer has no pending Worker candidate")
+	}
+	if expected.Model != modelName || expected.Result != input.ResultText {
+		return nil, "", "", 0, fmt.Errorf(
+			"%s result finalizer changed its Worker candidate or model", expected.Scenario,
+		)
+	}
+	message, err := workerResultFinalizerMessage(input)
+	if err != nil {
+		return nil, "", "", 0, err
+	}
+	delete(g.pending, input.SubtaskID)
+	g.modelCalls[modelName]++
+	g.requests++
+	g.observations = append(g.observations, routingGatewayObservation{
+		Scenario: expected.Scenario,
+		Model:    modelName,
+		Step:     g.steps[expected.Scenario] + 1,
+		Tool:     "<result-finalizer>",
+	})
+	return message, "stop", modelName, g.requests, nil
 }
 
 func routingScenario(modelName, payload string) (scenario string, mode string, worker bool, err error) {
@@ -496,8 +563,9 @@ func observationWorkerResponse(
 			if _, ok := lastExactArtifact(request, "review", "report"); !ok {
 				return nil, "", "", errors.New("observation reviewer did not observe exact report")
 			}
-			message, err := workerModelResultMessage(request, fixture.ReviewerReport)
-			return message, "stop", "<final>", err
+			return map[string]any{
+				"role": "assistant", "content": fixture.ReviewerReport,
+			}, "stop", "<final>", nil
 		}
 		return nil, "", "", fmt.Errorf("%s exceeded its three-call Worker script", scenario)
 	}
@@ -543,8 +611,9 @@ func observationWorkerResponse(
 		if _, ok := lastExactArtifact(request, "builder", "report"); !ok {
 			return nil, "", "", errors.New("observation builder did not observe exact report")
 		}
-		message, err := workerModelResultMessage(request, fixture.BuilderReport)
-		return message, "stop", "<final>", err
+		return map[string]any{
+			"role": "assistant", "content": fixture.BuilderReport,
+		}, "stop", "<final>", nil
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its six-call Worker script", scenario)
 	}
@@ -690,14 +759,14 @@ func requireObservationPage(
 
 func observationBuilderUsage() workerObservationUsage {
 	return workerObservationUsage{
-		ModelCalls: 6, ToolCalls: 5, TotalTokens: 108,
+		ModelCalls: 7, ToolCalls: 5, TotalTokens: 126,
 		Tools: map[string]int64{"edit": 1, "grep": 1, "read_file": 2, "write_text_artifact": 1},
 	}
 }
 
 func observationReviewerUsage() workerObservationUsage {
 	return workerObservationUsage{
-		ModelCalls: 3, ToolCalls: 2, TotalTokens: 54,
+		ModelCalls: 4, ToolCalls: 2, TotalTokens: 72,
 		Tools: map[string]int64{"read_file": 1, "write_text_artifact": 1},
 	}
 }
@@ -875,8 +944,9 @@ func routingWorkerResponse(
 		if !ok {
 			return nil, "", "", fmt.Errorf("%s did not observe write_artifact revision", scenario)
 		}
-		message, err := workerModelResultMessage(request, scenario+" copied the source")
-		return message, "stop", "<final>", err
+		return map[string]any{
+			"role": "assistant", "content": scenario + " copied the source",
+		}, "stop", "<final>", nil
 	default:
 		return nil, "", "", fmt.Errorf("%s exceeded its three-call script", scenario)
 	}

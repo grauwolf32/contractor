@@ -1,0 +1,62 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: worker-session-streamline
+  version: "1"
+
+spec:
+  parameters: {}
+  inputs: {}
+  outputs: {}
+
+  executionConfig:
+    planner:
+      modelPolicy: planner@1
+      llmGateway: local-litellm@1
+      credential: development-planner
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: isolated
+  stages:
+    isolated:
+      objective: SESSION_MODE_STREAMLINE_ISOLATED_STAGE
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: session_probe_worker@1
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          next: after
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
+
+    after:
+      objective: SESSION_MODE_STREAMLINE_AFTER_STAGE
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: streamline@1
+      agents:
+        builder:
+          template: session_probe_worker@1
+      context:
+        artifacts: {}
+      result:
+        artifacts: {}
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

@@ -3258,6 +3258,10 @@ components:
         objective: {type: string, minLength: 1, maxLength: 65536}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
         planner: {$ref: '#/components/schemas/PlannerRef'}
+        session:
+          type: string
+          enum: [isolated, shared]
+          description: Current Servers always emit the resolved mode; optional here only for additive v1 client compatibility.
         agents:
           type: object
           minProperties: 1
@@ -3294,6 +3298,7 @@ components:
               ref: instructions/copy-planner.md
               digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
             planner: {plannerId: passthrough, version: '1'}
+            session: isolated
             agents:
               builder:
                 template:

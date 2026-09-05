@@ -837,6 +837,7 @@ type workflowStageResponse struct {
 	Objective        string                                  `json:"objective"`
 	Instructions     instructionsRefResponse                 `json:"instructions"`
 	Planner          config.PlannerRef                       `json:"planner"`
+	Session          contracts.WorkerSessionMode             `json:"session"`
 	Agents           map[string]workflowAgentBindingResponse `json:"agents"`
 	ExecutionConfig  resolvedStageExecutionConfigResponse    `json:"executionConfig"`
 	ContextArtifacts map[string]config.ContextArtifact       `json:"contextArtifacts"`

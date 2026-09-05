@@ -75,6 +75,7 @@ type projectResourceResponse struct {
 	Kind        string    `json:"kind"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	Lifecycle   string    `json:"lifecycle"`
 	Revision    string    `json:"revision"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
@@ -520,7 +521,8 @@ func createProjectResource(t *testing.T, client *http.Client, baseURL string) pr
 	defer response.Body.Close()
 	var project projectResourceResponse
 	decodeResponse(t, response, &project)
-	if project.ProjectID == "" || project.Name != "Widget service" || project.Revision != "1" ||
+	if project.ProjectID == "" || project.Name != "Widget service" || project.Lifecycle != "active" ||
+		project.Revision != "1" ||
 		response.Header.Get("ETag") != `"1"` {
 		t.Fatalf("create Project response = %+v headers=%v", project, response.Header)
 	}

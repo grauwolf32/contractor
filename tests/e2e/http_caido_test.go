@@ -247,7 +247,9 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	assertHTTPCaidoAllocation(
 		t, httpInitialAllocation, httpPrincipal.RuntimeAgentID, contracts.RuntimeAdapterHTTPProxy,
 	)
-	assertHTTPCaidoReport(t, operations, publicClient, publicBaseURL, httpInitialStatus, httpCaidoHTTPReport)
+	assertHTTPCaidoReport(
+		t, operations, publicClient, publicBaseURL, httpInitialStatus, "report", httpCaidoHTTPReport,
+	)
 	assertHTTPBodyArtifact(t, operations, publicClient, publicBaseURL, httpInitial.RunID)
 
 	oldRun := createHTTPCaidoRun(
@@ -274,7 +276,9 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 		t, oldAllocation, caidoPrincipal.RuntimeAgentID, contracts.RuntimeAdapterCaidoGraphQL,
 	)
 	assertAgentLabelPin(t, oldAllocation, "agent-caido", 1, oldConfig)
-	assertHTTPCaidoReport(t, operations, publicClient, publicBaseURL, oldStatus, httpCaidoCaidoReport)
+	assertHTTPCaidoReport(
+		t, operations, publicClient, publicBaseURL, oldStatus, "security_report", httpCaidoCaidoReport,
+	)
 
 	// The Caido release acknowledgement remains unavailable here. A separate
 	// HTTP Run must still claim and finish on the other physical slot.
@@ -290,7 +294,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 		t, httpUnrelatedAllocation, httpPrincipal.RuntimeAgentID, contracts.RuntimeAdapterHTTPProxy,
 	)
 	assertHTTPCaidoReport(
-		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, httpCaidoHTTPReport,
+		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, "report", httpCaidoHTTPReport,
 	)
 	assertHTTPBodyArtifact(t, operations, publicClient, publicBaseURL, httpUnrelated.RunID)
 
@@ -323,7 +327,9 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 		t, newAllocation, caidoPrincipal.RuntimeAgentID, contracts.RuntimeAdapterCaidoGraphQL,
 	)
 	assertAgentLabelPin(t, newAllocation, "agent-caido", 2, newConfig)
-	assertHTTPCaidoReport(t, operations, publicClient, publicBaseURL, newStatus, httpCaidoCaidoReport)
+	assertHTTPCaidoReport(
+		t, operations, publicClient, publicBaseURL, newStatus, "security_report", httpCaidoCaidoReport,
+	)
 
 	finalAgents, finalSnapshot := waitForObservedRuntimeAgents(
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
@@ -452,15 +458,16 @@ func assertHTTPCaidoReport(
 	client *http.Client,
 	baseURL string,
 	status runStatus,
+	outputName string,
 	want string,
 ) {
 	t.Helper()
 	if status.State != "succeeded" || len(status.Attempts) != 1 ||
-		status.Attempts[0].State != "succeeded" || status.Outputs["security_report"].Revision == nil {
+		status.Attempts[0].State != "succeeded" || status.Outputs[outputName].Revision == nil {
 		t.Fatalf("HTTP/Caido terminal status = %+v", status)
 	}
 	data, mediaType := download(
-		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/security_report",
+		t, client, baseURL+"/v1/runs/"+url.PathEscape(status.RunID)+"/outputs/"+url.PathEscape(outputName),
 	)
 	if string(data) != want || mediaType != "text/markdown" {
 		t.Fatalf("HTTP/Caido report = (%q, %q), want (%q, text/markdown)", data, mediaType, want)

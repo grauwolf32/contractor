@@ -61,7 +61,8 @@ func TestWorkflowQueriesArePaginatedAndSafe(t *testing.T) {
 	var workflow workflowResourceResponse
 	decodeQueryResponse(t, detail, &workflow)
 	stage := workflow.Stages["openapi_build"]
-	if stage.Objective == "" || stage.Instructions.Ref != "instructions/openapi-build-planner.md" ||
+	if stage.Objective == "" || stage.Session != contracts.WorkerSessionIsolated ||
+		stage.Instructions.Ref != "instructions/openapi-build-planner.md" ||
 		stage.Instructions.Digest == "" || stage.Agents["builder"].Template.TemplateID != "workspace_openapi_builder" ||
 		stage.Agents["builder"].Skills == nil ||
 		stage.ExecutionConfig.Agents["builder"].Origins.LLMGateway == "" {

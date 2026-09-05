@@ -42,12 +42,14 @@ type codeAnalysisGateway struct {
 	server *httptest.Server
 	token  string
 
-	mu        sync.Mutex
-	scenarios []codeAnalysisScenario
-	scenario  int
-	step      int
-	calls     int
-	failures  []string
+	mu               sync.Mutex
+	scenarios        []codeAnalysisScenario
+	scenario         int
+	step             int
+	calls            int
+	failures         []string
+	pendingFinalizer string
+	pendingScenario  string
 }
 
 type codeAnalysisScenario struct {
@@ -148,6 +150,34 @@ func (g *codeAnalysisGateway) next(
 ) (map[string]any, string, int, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	finalizerInput, isFinalizer, err := decodeWorkerResultFinalizerRequest(request)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	if isFinalizer {
+		if g.pendingFinalizer == "" {
+			return nil, "", 0, errors.New("unexpected code-analysis result finalizer")
+		}
+		if !requestHasNoModelTools(request) {
+			return nil, "", 0, errors.New("code-analysis result finalizer exposed model-visible tools")
+		}
+		if finalizerInput.ResultText != g.pendingFinalizer {
+			return nil, "", 0, fmt.Errorf(
+				"%s result finalizer changed its Worker candidate", g.pendingScenario,
+			)
+		}
+		message, encodeErr := workerResultFinalizerMessage(finalizerInput)
+		if encodeErr != nil {
+			return nil, "", 0, encodeErr
+		}
+		g.pendingFinalizer = ""
+		g.pendingScenario = ""
+		g.calls++
+		return message, "stop", g.calls, nil
+	}
+	if g.pendingFinalizer != "" {
+		return nil, "", 0, fmt.Errorf("%s result finalizer was skipped", g.pendingScenario)
+	}
 	if g.scenario >= len(g.scenarios) {
 		return nil, "", 0, errors.New("unexpected additional code-analysis invocation")
 	}
@@ -178,10 +208,10 @@ func (g *codeAnalysisGateway) next(
 		if !ok {
 			return nil, "", 0, fmt.Errorf("%s final response did not observe analysis/report", scenario.name)
 		}
-		message, err = workerModelResultMessage(request, "Code analysis fixture completed")
-		if err != nil {
-			return nil, "", 0, err
-		}
+		const candidate = "Code analysis fixture completed"
+		message = map[string]any{"role": "assistant", "content": candidate}
+		g.pendingFinalizer = candidate
+		g.pendingScenario = scenario.name
 		reason = "stop"
 	} else {
 		arguments, err := step.arguments(request)

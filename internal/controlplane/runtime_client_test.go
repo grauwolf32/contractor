@@ -197,6 +197,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		t.Fatalf("handle/request = (%+v, %+v)", handle, received.Spec)
 	}
 	if received.Spec.AgentTemplate.Ref != template.Ref ||
+		received.Spec.WorkerSessionMode != contracts.WorkerSessionIsolated ||
 		!reflect.DeepEqual(received.Spec.RunMetadataLabels, reservation.RunMetadataLabels) ||
 		received.Spec.AgentTemplate.ModelPolicy.Ref != template.ModelPolicy.Ref ||
 		received.Spec.AgentTemplate.Summarizer == nil ||
@@ -781,7 +782,8 @@ func testReservation(
 			RunID:             "run_1", StageExecutionID: "stage_1", LogicalAgentName: logicalName,
 			Namespace: logicalName, ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
 		},
-		ControlURL: controlURL, A2AURL: a2aURL, AgentTemplate: template, LeaseExpiresAt: lease,
+		ControlURL: controlURL, A2AURL: a2aURL, WorkerSessionMode: contracts.WorkerSessionIsolated,
+		AgentTemplate: template, LeaseExpiresAt: lease,
 	}
 }
 

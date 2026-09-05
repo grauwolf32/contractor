@@ -282,12 +282,53 @@ decides whether a fresh StageExecution should retry.
 
 ### Worker
 
-An ADK-based Worker uses an in-memory SessionService inside the Runtime Agent
-process; that SessionService and its State are created and destroyed with the
-allocation. A non-ADK Worker runtime provides equivalent execution/report
-behavior without exposing an ADK contract. Runtime Agent receives no database
-credentials, and its A2A Task/session mapping remains an implementation detail
-within the allocation.
+An ADK-based Worker uses one allocation-local in-memory SessionService inside
+the Runtime Agent process. The immutable Stage selects `isolated` or `shared`,
+and AllocationSpec carries that explicit mode to the generic `adk@1` runtime.
+The mode is not a WorkerRuntime factory ref and does not create a second
+behavior-specific implementation. A non-ADK Worker runtime provides equivalent
+execution/report behavior without exposing an ADK contract. Runtime Agent
+receives no database credentials, and its A2A Task/session mapping remains an
+implementation detail within the allocation.
+
+Sessions are lazy invocation resources. Runtime creates none while preparing
+the allocation. A request must first pass A2A payload, tenant and lease
+validation, the accepting-versus-draining check and the single-invocation lock.
+Invalid, stale, draining and concurrent-busy requests are rejected without
+creating a session. Once admitted:
+
+- `shared` creates at most one opaque session and reuses it for every sequential
+  invocation in that allocation. Its ADK events and eligible State survive an
+  ordinary success, modeled Worker failure or budget failure until allocation
+  shutdown;
+- `isolated` creates a new opaque session for every invocation and supplies its
+  ID explicitly to Runner and State synchronization. It copies no prior event,
+  deletes the completed session inside the shielded invocation finalizer and
+  releases the invocation lock only after that deletion succeeds.
+
+In isolated mode Runtime carries a deep copy of eligible State from one
+completed invocation to the next invocation of the same allocation. The
+combined JSON encoding of that non-Contractor State is at most 4 MiB. Ordinary
+unprefixed State plus ADK `app:` and `user:` State is eligible; `temp:` State is
+discarded, and no event is converted into State. App/user maps remain owned by
+the same allocation-local service and are never process-global. Values that
+cannot be copied or encoded safely, or that exceed the bound, fail closed.
+
+The `contractor` subtree is never carried from the ADK session snapshot. Every
+new isolated session receives it only from the latest canonical
+`WorkerStateStore` revision. Thus a model, tool or stale session cannot replace
+the trusted metrics/observation reducer. Allocation secrets likewise never
+enter either carried State or conversation events.
+
+State already committed by ADK is snapshotted after success, modeled failure,
+budget failure or cancellation. Snapshot and isolated-session deletion execute
+as part of the existing cancellation-shielded invocation finalizer. Failure to
+create, snapshot, bound or delete a session fences the Worker from subsequent
+work. Finalize, abort and release retry cleanup idempotently; the Runtime slot
+cannot be reused until all owned sessions, carried values, app/user maps and
+session identifiers are cleared. If bounded cleanup cannot prove this before
+the control deadline, the allocation remains fenced and the Runtime process is
+not reused.
 
 An ADK Worker reserves one bounded `contractor` subtree in its in-memory State.
 One instrumentation plugin feeds separate allocation metrics and
@@ -299,9 +340,10 @@ schema. The exact state, observation and endpoint contracts are owned by
 [14](14-worker-results-and-live-state.md).
 
 When Agent Skills are selected, ADK's allocation-local activated-skill State is
-separate from the reserved `contractor` subtree, remains process-local and is
-destroyed with Worker. It is neither copied into MemoryTools nor persisted as
-resumable Session state.
+separate from the reserved `contractor` subtree and remains process-local. Its
+eligible ordinary/app/user values may follow the bounded isolated-session carry
+rule above, but it is never copied into MemoryTools or persisted durably and is
+destroyed with Worker.
 The package/ref lifecycle and allowed telemetry projection are defined by
 [09](09-agent-skills.md).
 

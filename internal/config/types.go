@@ -207,6 +207,7 @@ type ResolvedStage struct {
 	Objective       string                          `json:"objective"`
 	Instructions    contracts.ResolvedInstructions  `json:"instructions"`
 	Planner         PlannerRef                      `json:"planner"`
+	Session         contracts.WorkerSessionMode     `json:"session"`
 	Agents          map[string]ResolvedAgentBinding `json:"agents"`
 	ExecutionConfig ResolvedStageExecutionConfig    `json:"executionConfig"`
 	Context         StageContext                    `json:"context"`
@@ -384,6 +385,7 @@ type stageSource struct {
 	Objective       string                        `yaml:"objective"`
 	Instructions    *instructionsRefSource        `yaml:"instructions"`
 	Planner         string                        `yaml:"planner"`
+	Session         yaml.Node                     `yaml:"session,omitempty"`
 	Agents          map[string]agentBindingSource `yaml:"agents"`
 	Context         *stageContextSource           `yaml:"context,omitempty"`
 	Result          *stageResultSource            `yaml:"result,omitempty"`

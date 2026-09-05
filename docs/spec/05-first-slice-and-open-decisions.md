@@ -112,6 +112,9 @@ This slice must demonstrate:
   exact text/digest in the Run snapshot, and PassthroughPlanner combines
   objective and instructions into one deterministic Worker task while keeping
   parameters and artifact refs structured;
+- every Stage accepts only `session: isolated|shared`; new omission resolves to
+  explicit `isolated`, pre-feature persisted snapshots alone decode omission as
+  `shared`, and retry or escalation retains the pinned mode;
 - every AgentTemplate has a mandatory configuration-root-relative Worker
   `instructions.ref`; its resolved text contributes to the template digest and
   reaches Runtime Agent inside AllocationSpec rather than through
@@ -237,6 +240,11 @@ This slice must demonstrate:
 - Runtime Agent finalizes and destroys its in-process Worker instance through
   its private control endpoint and returns bounded reports before terminal
   acceptance;
+- the generic `adk@1` Worker lazily creates allocation-local sessions only for
+  admitted invocations; isolated mode carries at most 4 MiB of eligible deep-
+  copied State without events while shared mode retains one conversation, and
+  either mode clears every session, app/user value and identifier before slot
+  reuse;
 - the same private endpoint supports idempotent bounded abort without requiring
   A2A `CancelTask` to succeed or reach a terminal Task state;
 - private Control Plane/Runtime Agent traffic uses the deployment CA for mTLS;
@@ -556,3 +564,9 @@ The HTTP/Caido increment is successful when one label retargets a Caido-backed
 Run without changing AgentTemplate, only compatible Runtime Agents are chosen,
 generic target HTTP statuses remain observable through direct/proxied paths,
 and all response/session/credential bounds survive release and slot reuse.
+
+The Worker-session increment is successful when new omitted Stage authoring is
+observably isolated, an explicit shared Stage preserves sequential conversation
+history, eligible State crosses only invocation boundaries inside the same
+allocation, and cleanup/failure tests prove that no event, State value or
+session identity survives allocation release or Runtime-slot reuse.

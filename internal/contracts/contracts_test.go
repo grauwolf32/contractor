@@ -147,6 +147,59 @@ func TestAllocationRunMetadataLabelCasesAreStrictAndDetached(t *testing.T) {
 	}
 }
 
+func TestAllocationWorkerSessionModeCasesAreStrict(t *testing.T) {
+	t.Parallel()
+
+	type modeCase struct {
+		Name  string          `json:"name"`
+		Value json.RawMessage `json:"value"`
+		Omit  bool            `json:"omit"`
+	}
+	var cases struct {
+		Valid   []modeCase `json:"valid"`
+		Invalid []modeCase `json:"invalid"`
+	}
+	path := filepath.Join("..", "..", "api", "testdata", "v1alpha1", "worker-session-mode-cases.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	var baseline map[string]json.RawMessage
+	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec.json"), &baseline); err != nil {
+		t.Fatal(err)
+	}
+	decode := func(candidate modeCase) error {
+		copy := make(map[string]json.RawMessage, len(baseline))
+		for key, value := range baseline {
+			copy[key] = append(json.RawMessage(nil), value...)
+		}
+		if candidate.Omit {
+			delete(copy, "workerSessionMode")
+		} else {
+			copy["workerSessionMode"] = candidate.Value
+		}
+		encoded, marshalErr := json.Marshal(copy)
+		if marshalErr != nil {
+			return marshalErr
+		}
+		_, decodeErr := DecodeStrict[AllocationSpec](encoded)
+		return decodeErr
+	}
+	for _, candidate := range cases.Valid {
+		if err := decode(candidate); err != nil {
+			t.Errorf("valid case %q failed: %v", candidate.Name, err)
+		}
+	}
+	for _, candidate := range cases.Invalid {
+		if err := decode(candidate); err == nil {
+			t.Errorf("invalid case %q was accepted", candidate.Name)
+		}
+	}
+}
+
 func TestAllocationResolvedSkillsRejectsEveryManifestMismatch(t *testing.T) {
 	t.Parallel()
 
@@ -343,6 +396,17 @@ func TestDecodeStrictRejectsTrailingJSON(t *testing.T) {
 	input := append(readFixture(t, "valid", "stage-content-request.json"), []byte(" {}")...)
 	if _, err := DecodeStrict[StageContentRequest](input); err == nil {
 		t.Fatal("trailing JSON value was accepted")
+	}
+}
+
+func TestStageContentRequestDoesNotExposeSessionControls(t *testing.T) {
+	t.Parallel()
+
+	typeOfRequest := reflect.TypeOf(StageContentRequest{})
+	for _, field := range []string{"Session", "SessionID", "SessionMode", "WorkerSessionMode"} {
+		if _, ok := typeOfRequest.FieldByName(field); ok {
+			t.Fatalf("StageContentRequest unexpectedly exposes %s", field)
+		}
 	}
 }
 
