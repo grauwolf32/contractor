@@ -1,3 +1,6 @@
+// Target architecture for docs/spec/00–20 and tasks/index.yml.
+// V25–V27 additions include planned work; dashed #planned elements are not yet
+// implemented. Task files remain authoritative for delivery status.
 specification {
   element actor {
     style {
@@ -24,6 +27,7 @@ specification {
   tag external
   tag optional
   tag contextOnly
+  tag planned
 }
 
 global {
@@ -44,6 +48,9 @@ global {
     }
     style element.tag = #optional {
       opacity 60%
+    }
+    style element.tag = #planned {
+      border dashed
     }
   }
 }
@@ -100,6 +107,14 @@ model {
       #contractor
     }
 
+    auditState = storage 'Audits / immutable Rounds + Items / Executions + ExecutionItems / intents / receipts / holds / revisions + events' {
+      #contractor
+    }
+
+    schedulerSettings = storage 'scheduler_settings — global maxConcurrentRuns 1..32, default 1 / revision / updatedAt' {
+      #contractor #planned
+    }
+
     plannerSessions = storage 'Contractor Planner Sessions — completion recovery + typed plans + redacted ADK facts' {
       #contractor
     }
@@ -144,11 +159,15 @@ model {
   server = system 'Contractor Server' {
     #contractor
 
-    productSurface = component 'Product Surface — authenticated Projects, Runs, Queue and Artifacts' {
+    productSurface = component 'Product Surface — authenticated Projects, Audits, Runs, Queue and Artifacts' {
       #contractor
 
       publicApi = component 'Projects / Runs / Queue API' {
         #contractor
+      }
+
+      auditApi = component 'Audit / read-only AuditProfile API — owner commands, exact review decisions and revision polling' {
+        #contractor #planned
       }
 
       userArtifactApi = component 'UserScope / ProjectScope Artifact API' {
@@ -199,6 +218,18 @@ model {
         #contractor
       }
 
+      runService = component 'Trusted Run Service — ordinary creation + atomic pinned AuditExecution association' {
+        #contractor #planned
+      }
+
+      schedulerSupervisor = component 'Scheduler Supervisor — bounded concurrent Run lanes; resize by drain' {
+        #contractor #planned
+      }
+
+      schedulerMaintenance = component 'Scheduler Maintenance — bounded loss polling, terminal release and cleanup outside Run lanes' {
+        #contractor #planned
+      }
+
       plannerFactories = component 'PlannerFactory Registry' {
         #contractor
       }
@@ -225,6 +256,49 @@ model {
 
       plannerMemoryTools = component 'Planner MemoryTools — thin bound ArtifactStore wrapper / hidden CAS' {
         #contractor
+      }
+    }
+
+    // Spec 19 / V25: catalog, package/inventory validation and core store exist;
+    // API, dispatch, import and lifecycle integration remain delivery work.
+    auditCoordination = component 'Audit Coordination — Project-bound multi-Run program; PostgreSQL reconciliation' {
+      #contractor
+
+      profileCatalog = component 'AuditProfile Catalog — exact resolved Workflow closures + Server compatibility' {
+        #contractor
+      }
+
+      packageInventory = component 'Audit Packages + Deterministic Inventory — checklist / OpenAPI; bounded ordered manifests' {
+        #contractor
+      }
+
+      auditStore = component 'Audit Store — epoch-fenced claims, revisions, intents, receipts and exact holds' {
+        #contractor
+      }
+
+      auditService = component 'Audit Service — atomic baseline start, capability gate, pause/cancel/delete fences' {
+        #contractor #planned
+      }
+
+      auditController = component 'Audit Controller — periodic reconcile, bounded dispatch, collection and round barriers' {
+        #contractor #planned
+      }
+
+      resultImporter = component 'Audit Result Import + Coverage — exact terminal receipt, per-item disposition and retained evidence' {
+        #contractor #planned
+      }
+
+      findingIntake = component 'Private Finding Intake — allocation/invocation-bound proposals, evidence pins and replay receipts' {
+        #contractor #planned
+      }
+
+      reviewService = component 'Audit Review — authenticated exact-subject decisions, finding triage and next-round approval' {
+        #contractor #planned
+      }
+
+      // V26: curated programs and batchSize > 1 are later delivery increments.
+      standardCatalog = component 'Audit Standard Catalog — exact licensed packages + evidence mappings; Top 10 / ASVS programs' {
+        #contractor #planned
       }
     }
 
@@ -271,8 +345,12 @@ model {
     runtimeOperations = component 'Runtime Fleet and Operations — placement, private control and telemetry' {
       #contractor
 
-      operationsApi = component 'Operations / Configuration API' {
+      operationsApi = component 'Operations / Configuration / Scheduler Settings API' {
         #contractor
+      }
+
+      schedulerSettingsService = component 'Scheduler Settings Service — global typed singleton; GET / PUT with strong If-Match' {
+        #contractor #planned
       }
 
       controlPlane = component 'Control Plane' {
@@ -289,12 +367,18 @@ model {
     }
 
     productSurface.publicApi -> identityConfiguration.authService 'Authenticate session and bind owner principal'
+    productSurface.auditApi -> identityConfiguration.authService 'Authorize owner and ordinary Project; CSRF, idempotency and revision CAS'
     productSurface.userArtifactApi -> identityConfiguration.authService 'Authenticate session and bind owner scope'
     productSurface.authApi -> identityConfiguration.authService 'Verify Argon2id login; issue/revoke session + CSRF'
     productSurface.eventApi -> identityConfiguration.authService 'Authenticate socket/session/origin and authorize subscriptions'
     runtimeOperations.operationsApi -> identityConfiguration.authService 'Authenticate session and bind audit actor'
 
-    productSurface.publicApi -> orchestration.workflowScheduler 'Create / cancel Runs and notify runnable work'
+    productSurface.publicApi -> orchestration.workflowScheduler 'Cancel Runs and notify runnable work'
+    productSurface.publicApi -> orchestration.runService 'Create ordinary standalone, Project and Evaluation Runs'
+    productSurface.auditApi -> auditCoordination.profileCatalog 'List exact read-only profiles and current Server compatibility'
+    productSurface.auditApi -> auditCoordination.auditService 'Create / start / pause new Audit Runs / resume / cancel / delete'
+    productSurface.auditApi -> auditCoordination.auditStore 'Poll authoritative Audit/items/coverage/report projections by revision; no Audit WebSocket'
+    productSurface.auditApi -> auditCoordination.reviewService 'Submit authenticated exact-subject decisions and explicit evidence imports'
     productSurface.publicApi -> workspaceLifecycle.projectStore 'Create / query / update Projects; begin deletion with If-Match'
     productSurface.publicApi -> workspaceLifecycle.runStore 'Query/filter Runs and delete released terminal Runs'
     productSurface.publicApi -> workspaceLifecycle.ownerQueueGate 'Read or CAS-update the owner pause state'
@@ -303,10 +387,27 @@ model {
     productSurface.eventApi -> workspaceLifecycle.runStore 'Replay ordered committed Run lifecycle events'
     productSurface.eventApi -> orchestration.plannerSessionService 'Stream only committed redacted Planner facts'
     productSurface.eventApi -> runtimeOperations.runtimeRegistry 'Observe process-local Operations revisions; require resync on gaps'
+    productSurface.eventApi -> runtimeOperations.schedulerSettingsService 'Observe schedulerSettings invalidation hints; refetch on reconnect/resync'
 
     runtimeOperations.operationsApi -> runtimeOperations.runtimeRegistry 'Read authoritative/observed slot state'
     runtimeOperations.operationsApi -> identityConfiguration.executionConfigService 'List/publish configs; create/delete managed credentials without raw tokens'
     runtimeOperations.operationsApi -> identityConfiguration.runtimeConfigService 'Publish RuntimeConfigs; bind labels; assign Agent labels; write-only adapter credentials'
+    runtimeOperations.operationsApi -> runtimeOperations.schedulerSettingsService 'GET / PUT /v1/operations/settings/scheduler; Operations capability + CSRF + If-Match'
+    runtimeOperations.schedulerSettingsService -> orchestration.schedulerSupervisor 'Post-commit wake hint; increase promptly, decrease drains'
+    orchestration.schedulerSupervisor -> runtimeOperations.schedulerSettingsService 'Load before admission; periodically reconcile durable desired limit'
+    orchestration.schedulerSupervisor -> workspaceLifecycle.runStore 'Distinct renewable Run claims via FOR UPDATE SKIP LOCKED; priority cancellation and defer rotation'
+    orchestration.schedulerSupervisor -> orchestration.workflowScheduler 'At most maxConcurrentRuns bounded progression attempts; one claim and at most one active Stage per Run'
+    orchestration.schedulerSupervisor -> orchestration.schedulerMaintenance 'Own dedicated bounded maintenance loops outside execution lanes'
+    orchestration.schedulerMaintenance -> runtimeOperations.controlPlane 'Poll allocation loss and recover terminal releases independently of pause or lane capacity'
+    orchestration.schedulerMaintenance -> runtimeOperations.telemetry 'Clean expired telemetry independently of semantic execution'
+    orchestration.runService -> orchestration.workflowScheduler 'Commit ordinary Run creation through existing lifecycle and wake runnable work'
+    orchestration.runService -> workspaceLifecycle.runStore 'Atomic Run, immutable labels and idempotency; trusted AuditExecution association when present'
+    orchestration.runService -> workspaceLifecycle.projectStore 'Serialize creation with ordinary Project deletion fence'
+    orchestration.runService -> identityConfiguration.executionConfigService 'Ordinary resolution or start-pinned Audit Workflow closure; credential lifecycle barriers'
+    orchestration.runService -> identityConfiguration.runtimeConfigService 'Ordinary Run resolution or exact start-pinned Audit RuntimeConfig snapshot'
+    orchestration.runService -> orchestration.skillCatalog 'Ordinary exact skill resolution or retained start-pinned Audit packages; never re-resolve current Audit skills'
+    orchestration.runService -> artifactPlane.artifactService 'Fork exact inputs, manifests and Skills into ordinary RunScope'
+    orchestration.runService -> auditCoordination.auditStore 'Commit trusted submission identity and Run association in the same transaction'
 
     orchestration.workflowScheduler -> orchestration.workflowCatalog 'Resolve Workflow and select ready StageSpec'
     orchestration.workflowCatalog -> identityConfiguration.executionConfigService 'Resolve exact digest-bearing escalation profiles'
@@ -318,7 +419,7 @@ model {
     orchestration.workflowScheduler -> workspaceLifecycle.runStore 'CAS Run lifecycle; persist attempts, candidates and terminal outcomes'
     orchestration.workflowScheduler -> runtimeOperations.controlPlane 'Prepare / finalize / abort / release allocations'
     orchestration.workflowScheduler -> orchestration.plannerFactories 'Select declared PlannerFactory'
-    orchestration.workflowScheduler -> artifactPlane.artifactService 'Fork exact User/Project inputs; bind Run outputs; publish declared Project outputs'
+    orchestration.workflowScheduler -> artifactPlane.artifactService 'Fork exact inputs; freeze Run outputs; publish ordinary Project outputs; audit-managed skips outputs/<slot>'
     orchestration.workflowScheduler -> runtimeOperations.telemetry 'Assemble bounded StageMetrics while finalizing or aborting'
     orchestration.plannerFactories -> orchestration.stagePlanner 'Construct Passthrough/one-Worker Streamline/logical multi-Worker Router'
     orchestration.plannerFactories -> identityConfiguration.executionConfigService 'Resolve pinned Planner credential'
@@ -334,11 +435,44 @@ model {
     orchestration.skillCatalog -> artifactPlane.artifactService 'Create missing owner skills/*; resolve current and fork exact revisions into RunScope'
     orchestration.plannerMemoryTools -> artifactPlane.artifactService 'Reserved memory.* canonical note artifacts; hidden Artifact revisions'
 
+    auditCoordination.profileCatalog -> orchestration.workflowCatalog 'Resolve exact Workflow closures after dependency loading; no Audit-specific Scheduler branches'
+    auditCoordination.auditService -> workspaceLifecycle.projectStore 'Start/dispatch fence: active ordinary Project only; no standalone or Evaluation Audits'
+    auditCoordination.auditService -> auditCoordination.profileCatalog 'Recheck exact profile and input-dependent Server compatibility at start'
+    auditCoordination.auditService -> auditCoordination.packageInventory 'Validate exact Project inputs; deterministically freeze complete first worklist'
+    auditCoordination.auditService -> identityConfiguration.runtimeConfigService 'Pin one Run RuntimeConfig snapshot; Agent labels remain allocation-time'
+    auditCoordination.auditService -> orchestration.skillCatalog 'Pin and retain exact child Workflow Skill revisions/digests at start'
+    auditCoordination.auditService -> identityConfiguration.executionConfigService 'Acquire future-dispatch credential holds distinct from evidence retention'
+    auditCoordination.auditService -> artifactPlane.artifactService 'Pin exact Project baseline and source Skill packages; no AuditScope'
+    auditCoordination.auditService -> auditCoordination.auditStore 'Atomically persist profile/baseline/scope, immutable round/items, holds and lifecycle CAS'
+    auditCoordination.auditController -> auditCoordination.auditStore 'Periodic epoch-fenced reconciliation; reserve stable submission intents and cumulative maxSubmittedRuns budget'
+    auditCoordination.auditController -> runtimeOperations.schedulerSettingsService 'Transactional per-Audit look-ahead = current maxConcurrentRuns; count intents + nonterminal children; no pinned concurrency policy'
+    auditCoordination.auditController -> orchestration.runService 'Replay stable intent with start-pinned Workflow/Runtime/Skill snapshots; internal audit-managed publication'
+    auditCoordination.auditController -> workspaceLifecycle.runStore 'Read authoritative child terminal outcome/version; notifications are wake hints only'
+    auditCoordination.auditController -> auditCoordination.resultImporter 'Collect every terminal execution before retry/settlement; one receipt even for missing, invalid, failed or cancelled output'
+    auditCoordination.auditController -> auditCoordination.packageInventory 'Freeze ordered execution manifest; MVP one item, V26 bounded compatible batches'
+    auditCoordination.auditController -> auditCoordination.reviewService 'Apply exact authorized decisions; discovery/assessment/next rounds only after capability and barrier checks'
+    auditCoordination.auditController -> orchestration.workflowScheduler 'Request ordinary child cancellation; wait for terminal release while paused or deleting'
+    auditCoordination.auditController -> identityConfiguration.executionConfigService 'Release dispatch holds only after dispatch closes and submission intents resolve'
+    auditCoordination.resultImporter -> auditCoordination.packageInventory 'Validate frozen manifest digest, complete item membership and versioned evidence contract'
+    auditCoordination.resultImporter -> artifactPlane.artifactService 'Retain exact accepted outputs/proposals in protected create-only Audit-managed ProjectScope bindings'
+    auditCoordination.resultImporter -> auditCoordination.auditStore 'Commit receipt + each attempt disposition + exact links/holds; truthful coverage gaps, independent of Run success'
+    auditCoordination.findingIntake -> runtimeOperations.controlPlane 'Derive allocation/Run provenance, selected Toolset and invocation; never trust audit.* labels'
+    auditCoordination.findingIntake -> artifactPlane.artifactService 'Under durable grant/write fence: atomic proposal artifact, exact Run evidence pins and receipt'
+    auditCoordination.findingIntake -> auditCoordination.auditStore 'Replay correlated submission digest; optional trusted Audit admission, never automatic confirmation'
+    auditCoordination.reviewService -> auditCoordination.auditStore 'CAS/idempotent decisions bind actor + exact subject revision/digest; waiting holds no execution resources'
+    auditCoordination.reviewService -> auditCoordination.resultImporter 'Validate and retain explicitly selected human evidence or ordinary-Run proposals'
+    auditCoordination.standardCatalog -> artifactPlane.artifactService 'Seed reserved read-only canonical packages; pin exact standard revision/digest and source/license provenance'
+    auditCoordination.profileCatalog -> auditCoordination.standardCatalog 'V26 exact Top 10/ASVS identifiers and evidence mappings; no model-authored standard authority'
+    auditCoordination.auditService -> auditCoordination.standardCatalog 'V26 retain exact standard package set at start'
+    auditCoordination.auditController -> artifactPlane.artifactService 'After cancel/drain/collection: release Audit evidence holds and purge only Audit-managed Project bindings'
+
     workspaceLifecycle.projectDeletionController -> workspaceLifecycle.projectStore 'Claim and durably advance one monotonic deletion phase'
+    workspaceLifecycle.projectDeletionController -> auditCoordination.auditService 'Close Audit dispatch, cancel/drain/collect and release Audit holds before Run/Project purge'
     workspaceLifecycle.projectDeletionController -> orchestration.workflowScheduler 'Request ordinary cancellation and wait for terminal allocation release'
     workspaceLifecycle.projectDeletionController -> workspaceLifecycle.runStore 'Delete every released terminal Project Run idempotently'
     workspaceLifecycle.projectDeletionController -> artifactPlane.artifactPurger 'Purge complete ProjectScope after all Project Runs are gone'
     workspaceLifecycle.runStore -> artifactPlane.artifactPurger 'Purge complete RunScope inside the locked terminal delete'
+    workspaceLifecycle.runStore -> auditCoordination.auditStore 'Require terminal release + exact collection receipt for Audit child deletion; retain tombstone provenance and dispose ordinary proposal pins'
 
     runtimeOperations.controlPlane -> runtimeOperations.runtimeRegistry 'Track live instances / reserve free single slots'
     runtimeOperations.controlPlane -> identityConfiguration.executionConfigService 'Resolve pinned Worker credentials for RuntimeSettings'
@@ -445,6 +579,10 @@ model {
         #contractor #optional
       }
 
+      securityFindingsTools = component 'Selected security-findings@1 — finding proposals only; no model-selectable Audit/Project identity' {
+        #contractor #optional #planned
+      }
+
       namespaceTools = component 'Explicitly selected Namespace-bound domain tools' {
         #contractor
       }
@@ -501,6 +639,7 @@ model {
     workerExecution.workerRuntime -> allocationCapabilities.codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
     workerExecution.workerRuntime -> allocationCapabilities.taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
     workerExecution.workerRuntime -> allocationCapabilities.httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
+    workerExecution.workerRuntime -> allocationCapabilities.securityFindingsTools 'Construct only explicitly selected proposal tool; no Run creation, approval or final assessment'
     workerExecution.workerRuntime -> allocationCapabilities.skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     workerExecution.workerRuntime -> allocationCapabilities.artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'
     workerExecution.workerRuntime -> allocationCapabilities.modelClient 'Semantic Worker model calls when required'
@@ -526,22 +665,27 @@ model {
   browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
   browser -> server.productSurface.authApi 'Direct login / session / logout with credentialed CORS'
   browser -> server.productSurface.publicApi 'Direct authenticated Project, Run and Queue queries/mutations'
+  browser -> server.productSurface.auditApi 'Project Audits UI: bounded revision polling, lifecycle commands, coverage/findings/reviews/report'
   browser -> server.productSurface.userArtifactApi 'Direct UserScope / ProjectScope Artifact queries/uploads/downloads'
   browser -> server.runtimeOperations.operationsApi 'Direct Runtime visibility and configuration management'
   browser -> server.productSurface.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.productSurface.authApi 'Authenticate through the same local session contract when needed'
   apiClient -> server.productSurface.publicApi 'Manage Projects, Queue and Runs without the UI'
+  apiClient -> server.productSurface.auditApi 'Read exact profiles; manage owner Audits and exact human decisions'
   apiClient -> server.productSurface.userArtifactApi 'Upload / read / list UserScope or ProjectScope artifacts'
 
   runtimeAgent.agentControl.registryClient -> server.runtimeOperations.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
   server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint 'Control Plane mTLS: prepare / state snapshot / finalize / abort / release'
   server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
   runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService 'Agent mTLS + allocation ID: RunScope operations; no owner/Project/DB/S3 authority'
+  runtimeAgent.allocationCapabilities.securityFindingsTools -> server.auditCoordination.findingIntake 'mTLS POST /private/v1/allocations/{allocation_id}/finding-proposals with trusted invocation/submission IDs'
 
   server.workspaceLifecycle.projectStore -> artifactDatabase.projectState 'Persist Project metadata, targets, lifecycle and deletion claims'
   server.workspaceLifecycle.ownerQueueGate -> artifactDatabase.runState 'Persist owner pause state at the Stage-admission serialization boundary'
-  server.workspaceLifecycle.runStore -> artifactDatabase.runState 'Persist Runs, StageExecutions, queue projection, labels and idempotency'
+  server.workspaceLifecycle.runStore -> artifactDatabase.runState 'Persist Runs, StageExecutions, queue projection, immutable exact-match labels and idempotency; empty label value differs from absent key'
+  server.auditCoordination.auditStore -> artifactDatabase.auditState 'Transactional claims/epochs, immutable manifests, execution-item attempts, receipts, coverage and retention provenance'
+  server.runtimeOperations.schedulerSettingsService -> artifactDatabase.schedulerSettings 'Authoritative singleton GET / revision CAS; equal-value update is a no-op; restart reads durable value'
   server.orchestration.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion, typed plans and redacted ADK facts'
   server.artifactPlane.artifactRegistry -> artifactDatabase 'Transactional scoped registry writes and reads'
   server.artifactPlane.blobStore -> blobBackend 'Immutable blob operations'
@@ -560,6 +704,8 @@ model {
   server.identityConfiguration.executionConfigService -> configFilesystem 'Load union / atomically publish immutable versions'
   server.orchestration.agentTemplateCatalog -> configFilesystem 'Load versioned templates and resolved instruction resources'
   server.orchestration.skillCatalog -> configFilesystem 'Validate and deterministically package bundled skill source trees before readiness'
+  server.auditCoordination.profileCatalog -> configFilesystem 'Load seventh YAML/text subtree audit-profiles after Workflow resolution; no generic managed publication'
+  server.auditCoordination.standardCatalog -> configFilesystem 'V26 operator-owned non-YAML configs/audit-standards sources; exact licensed packages'
   server.identityConfiguration.executionConfigService -> artifactDatabase.credentials 'Store/resolve encrypted pinned credentials'
   server.identityConfiguration.runtimeConfigService -> artifactDatabase.runtimeConfiguration 'Store immutable configs, CAS bindings and durable Agent labels'
   server.identityConfiguration.runtimeConfigService -> artifactDatabase.credentials 'Store/resolve encrypted adapter credentials just in time'
@@ -568,16 +714,9 @@ model {
   server.identityConfiguration.executionConfigService -> gatewayAdminBindings 'Resolve exact Gateway binding; read LiteLLM master key at startup'
   server.identityConfiguration.authService -> localAuthBootstrap 'Read one user ID, username and Argon2id hash at startup'
 }
-// Contractor v2 — readable static views
-// Usage: replace the original static views (index through runtimeConfiguration)
-// with the views below. Keep specification, global, model and all dynamic views.
-// This file depends on the original model and global groups; it is not standalone.
-// Alternatively place it next to the model AFTER removing duplicate static views.
-// Existing view IDs and navigation targets are preserved; focused views are added.
-// Each view selects existing model relationships and provides short display titles.
-// Detailed model titles and relationship contracts remain in the original source.
-// LikeC4 syntax reference: https://likec4.dev/dsl/views/predicates/
-// No rendering was performed in this environment.
+// Focused views select model relationships and shorten their display titles.
+// Existing navigation IDs are preserved. Dashed #planned components describe
+// specified delivery work, not currently available product functionality.
 
 views {
   global style ownership
@@ -677,6 +816,10 @@ views {
       title 'Workflow Orchestration'
       navigateTo stageExecution
     }
+    include server.auditCoordination with {
+      title 'Audit Coordination'
+      navigateTo audits
+    }
     include server.artifactPlane with {
       title 'Artifact Storage'
       navigateTo artifacts
@@ -700,6 +843,15 @@ views {
     }
     include server.productSurface -> server.orchestration with {
       title 'Create / cancel Runs'
+    }
+    include server.productSurface -> server.auditCoordination with {
+      title 'Audits / profiles / review'
+    }
+    include server.auditCoordination -> server.orchestration with {
+      title 'Pinned ordinary child Runs'
+    }
+    include server.auditCoordination -> server.artifactPlane with {
+      title 'Exact baseline / retained evidence'
     }
     include server.productSurface -> server.artifactPlane with {
       title 'Owner artifacts'
@@ -744,6 +896,10 @@ views {
       title 'Workflow Orchestration'
       navigateTo stageExecution
     }
+    include server.auditCoordination with {
+      title 'Audit Coordination'
+      navigateTo audits
+    }
     include server.artifactPlane with {
       title 'Artifact Storage'
       navigateTo artifacts
@@ -763,6 +919,18 @@ views {
     }
     include server.productSurface -> server.orchestration with {
       title 'Run requests'
+    }
+    include server.productSurface -> server.auditCoordination with {
+      title 'Owner Audit commands / reads'
+    }
+    include server.auditCoordination -> server.orchestration with {
+      title 'Create / cancel ordinary Runs'
+    }
+    include server.auditCoordination -> server.artifactPlane with {
+      title 'Pinned inputs / retained evidence'
+    }
+    include server.auditCoordination -> server.runtimeOperations with {
+      title 'Global dispatch look-ahead'
     }
     include server.productSurface -> server.artifactPlane with {
       title 'Owner artifacts'
@@ -861,6 +1029,10 @@ views {
     include server.productSurface.publicApi with {
       title 'Projects / Runs / Queue API'
     }
+    include server.productSurface.auditApi with {
+      title 'Audit / Profile / Review API'
+      navigateTo audits
+    }
     include server.productSurface.userArtifactApi with {
       title 'Owner Artifact API'
     }
@@ -892,6 +1064,15 @@ views {
     }
     include browser -> server.productSurface.publicApi with {
       title 'Projects / Runs / Queue'
+    }
+    include browser -> server.productSurface.auditApi with {
+      title 'Audits / revision polling'
+    }
+    include apiClient -> server.productSurface.auditApi with {
+      title 'Owner Audit API'
+    }
+    include server.productSurface.auditApi -> server.identityConfiguration.authService with {
+      title 'Owner / Project / CSRF'
     }
     include apiClient -> server.productSurface.publicApi with {
       title 'Projects / Runs / Queue'
@@ -926,7 +1107,7 @@ views {
 
   view productEvents {
     title 'Surface / Read-only Events'
-    description 'Committed Run events and redacted Planner facts are replayable; Operations revisions are process-local and require resync on gaps.'
+    description 'Run events and redacted Planner facts are replayable. Operations settings invalidations are refetch hints; Audit projections use separate bounded polling.'
 
     include browser with {
       title 'User Browser'
@@ -946,6 +1127,10 @@ views {
     include server.runtimeOperations.runtimeRegistry with {
       title 'Agent Registry & Slots'
     }
+    include server.runtimeOperations.schedulerSettingsService with {
+      title 'Scheduler Settings'
+      navigateTo schedulerConcurrency
+    }
 
     // Show only the relationships relevant to this view.
     exclude * -> *
@@ -964,6 +1149,9 @@ views {
     include server.productSurface.eventApi -> server.runtimeOperations.runtimeRegistry with {
       title 'Operations invalidation'
     }
+    include server.productSurface.eventApi -> server.runtimeOperations.schedulerSettingsService with {
+      title 'schedulerSettings / refetch on resync'
+    }
     global predicate withoutContextOnly
 
     autoLayout LeftRight 100 70
@@ -971,7 +1159,7 @@ views {
 
   view workspaceLifecycle {
     title 'Lifecycle / Projects, Queue and Cleanup'
-    description 'Pause gates normal Stage admission. Deletion reuses ordinary cancellation and purges only released or drained scopes.'
+    description 'Owner pause gates normal Stage admission. Project deletion first drains Audits; Audit child Run deletion requires terminal release and a collection receipt.'
 
     include server.productSurface.publicApi with {
       title 'Projects / Runs / Queue API'
@@ -993,6 +1181,13 @@ views {
     }
     include server.artifactPlane.artifactPurger with {
       title 'Scope Purger'
+    }
+    include server.auditCoordination.auditService with {
+      title 'Audit Lifecycle'
+      navigateTo auditCollection
+    }
+    include server.auditCoordination.auditStore with {
+      title 'Audit Collection / Retention Gate'
     }
 
     // Show only the relationships relevant to this view.
@@ -1018,6 +1213,12 @@ views {
     include server.workspaceLifecycle.projectDeletionController -> server.workspaceLifecycle.projectStore with {
       title 'Claim deletion phase'
     }
+    include server.workspaceLifecycle.projectDeletionController -> server.auditCoordination.auditService with {
+      title 'Close dispatch / drain / release holds'
+    }
+    include server.workspaceLifecycle.runStore -> server.auditCoordination.auditStore with {
+      title 'Require receipt / retain provenance'
+    }
     include server.workspaceLifecycle.projectDeletionController -> server.orchestration.workflowScheduler with {
       title 'Cancel / await release'
     }
@@ -1037,13 +1238,17 @@ views {
 
   view stageExecution {
     title 'Execution / Stage Preparation'
-    description 'Resolve immutable inputs, serialize admission and prepare allocations. Planner invocation and acceptance have separate views.'
+    description 'Create ordinary Runs through the shared service, then serialize Stage admission and prepare allocations. Global lane limits have a dedicated view.'
 
     include server.productSurface.publicApi with {
       title 'Projects / Runs / Queue API'
     }
     include server.orchestration.workflowScheduler with {
       title 'Workflow Scheduler'
+      navigateTo schedulerConcurrency
+    }
+    include server.orchestration.runService with {
+      title 'Trusted Run Service'
     }
     include server.orchestration.workflowCatalog with {
       title 'Workflow Catalog'
@@ -1079,7 +1284,13 @@ views {
     // Show only the relationships relevant to this view.
     exclude * -> *
     include server.productSurface.publicApi -> server.orchestration.workflowScheduler with {
-      title 'Create / cancel / wake'
+      title 'Cancel / wake'
+    }
+    include server.productSurface.publicApi -> server.orchestration.runService with {
+      title 'Create ordinary Run'
+    }
+    include server.orchestration.runService -> server.orchestration.workflowScheduler with {
+      title 'Commit creation / wake'
     }
     include server.orchestration.workflowScheduler -> server.orchestration.workflowCatalog with {
       title 'Select ready StageSpec'
@@ -1118,7 +1329,7 @@ views {
 
   view plannerAndA2A {
     title 'Execution / Planner and Worker'
-    description 'Planner owns subtasks; Runtime owns Worker completion. Scheduler accepts the StageResult in stageCompletionFlow.'
+    description 'Planner owns Stage-local subtasks; Runtime owns Worker completion. Scheduler alone accepts the StageResult; Audit coordination stays outside this boundary.'
 
     include server.orchestration.plannerFactories with {
       title 'Planner Factories'
@@ -1622,7 +1833,7 @@ views {
 
   view artifactCleanup {
     title 'Artifacts / Released Scope Purge'
-    description 'Remove a complete released RunScope or drained ProjectScope. Collect content only when globally unreferenced.'
+    description 'Purge released RunScope only after any required Audit collection receipt; drain Audit holds before ProjectScope purge. Collect content only when globally unreferenced.'
 
     include server.workspaceLifecycle.projectDeletionController with {
       title 'Project Deletion Controller'
@@ -2064,9 +2275,407 @@ views {
     autoLayout LeftRight 100 70
   }
 
+  view audits {
+    title 'Audits / Coordination and Ordinary Runs'
+    description 'Spec 19 / V25. One Project-bound coordinator uses ordinary Runs. MVP is one immutable round and one item per execution; dashed components are planned.'
+
+    include server.productSurface.auditApi with {
+      title 'Audit API'
+    }
+    include server.auditCoordination.auditService with {
+      title 'Baseline & Lifecycle'
+      navigateTo auditBaseline
+    }
+    include server.auditCoordination.auditStore with {
+      title 'Audit Store'
+    }
+    include server.auditCoordination.auditController with {
+      title 'Audit Controller'
+    }
+    include server.orchestration.runService with {
+      title 'Trusted Run Service'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run / Stage Store'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Workflow Scheduler'
+      navigateTo schedulerConcurrency
+    }
+    include server.auditCoordination.resultImporter with {
+      title 'Collection & Coverage'
+      navigateTo auditCollection
+    }
+    include artifactDatabase.auditState with {
+      title 'PostgreSQL Audit State'
+    }
+
+    exclude * -> *
+    include server.productSurface.auditApi -> server.auditCoordination.auditService with {
+      title 'Owner commands / revision CAS'
+    }
+    include server.productSurface.auditApi -> server.auditCoordination.auditStore with {
+      title 'Bounded revision polling'
+    }
+    include server.auditCoordination.auditService -> server.auditCoordination.auditStore with {
+      title 'Immutable baseline / fences'
+    }
+    include server.auditCoordination.auditController -> server.auditCoordination.auditStore with {
+      title 'Epoch claims / stable intents / budgets'
+    }
+    include server.auditCoordination.auditController -> server.orchestration.runService with {
+      title 'Submit or recover pinned ordinary Run'
+    }
+    include server.orchestration.runService -> server.auditCoordination.auditStore with {
+      title 'Atomic trusted association'
+    }
+    include server.orchestration.runService -> server.orchestration.workflowScheduler with {
+      title 'Ordinary creation / wake'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.runStore with {
+      title 'Run / Stage lifecycle authority'
+    }
+    include server.auditCoordination.auditController -> server.workspaceLifecycle.runStore with {
+      title 'Observe exact terminal outcome'
+    }
+    include server.auditCoordination.auditController -> server.auditCoordination.resultImporter with {
+      title 'Collect before retry or settlement'
+    }
+    include server.auditCoordination.resultImporter -> server.auditCoordination.auditStore with {
+      title 'Receipt / item disposition / gaps'
+    }
+    include server.auditCoordination.auditStore -> artifactDatabase.auditState with {
+      title 'Durable authority / recovery'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view auditBaseline {
+    title 'Audits / Exact Baseline and Catalogs'
+    description 'Spec 19 / V25-001–005; V26 standards catalog is planned. Start rechecks capabilities and pins all future child inputs; later mutable bindings cannot change the baseline.'
+
+    include server.productSurface.auditApi with {
+      title 'Read-only Profile / Start API'
+    }
+    include server.auditCoordination.auditService with {
+      title 'Atomic Audit Start'
+    }
+    include server.auditCoordination.profileCatalog with {
+      title 'AuditProfile Catalog'
+    }
+    include server.auditCoordination.packageInventory with {
+      title 'Packages & Deterministic Inventory'
+    }
+    include server.workspaceLifecycle.projectStore with {
+      title 'Project Lifecycle Fence'
+    }
+    include server.orchestration.skillCatalog with {
+      title 'Exact Skill Packages'
+    }
+    include server.identityConfiguration.runtimeConfigService with {
+      title 'Run RuntimeConfig Snapshot'
+    }
+    include server.identityConfiguration.executionConfigService with {
+      title 'Credential Dispatch Holds'
+    }
+    include server.auditCoordination.auditStore with {
+      title 'Pinned Audit Baseline'
+    }
+    include server.auditCoordination.standardCatalog with {
+      title 'V26 Standard Catalog'
+      navigateTo auditReviewAndPrograms
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+
+    exclude * -> *
+    include server.productSurface.auditApi -> server.auditCoordination.profileCatalog with {
+      title 'Exact version / compatibility projection'
+    }
+    include server.productSurface.auditApi -> server.auditCoordination.auditService with {
+      title 'Start with exact Project inputs'
+    }
+    include server.auditCoordination.auditService -> server.workspaceLifecycle.projectStore with {
+      title 'Active ordinary Project only'
+    }
+    include server.auditCoordination.auditService -> server.auditCoordination.profileCatalog with {
+      title 'Recheck static + input capabilities'
+    }
+    include server.auditCoordination.auditService -> server.auditCoordination.packageInventory with {
+      title 'Freeze complete deterministic inventory'
+    }
+    include server.auditCoordination.auditService -> server.orchestration.skillCatalog with {
+      title 'Retain exact revisions / digests'
+    }
+    include server.auditCoordination.auditService -> server.identityConfiguration.runtimeConfigService with {
+      title 'Pin Run config; Agent overlay stays later'
+    }
+    include server.auditCoordination.auditService -> server.identityConfiguration.executionConfigService with {
+      title 'Hold credentials for future dispatch'
+    }
+    include server.auditCoordination.auditService -> server.artifactPlane.artifactService with {
+      title 'Retain exact baseline / Skills'
+    }
+    include server.auditCoordination.auditService -> server.auditCoordination.auditStore with {
+      title 'Atomic snapshots / first round / holds'
+    }
+    include server.auditCoordination.profileCatalog -> server.auditCoordination.standardCatalog with {
+      title 'V26 exact identifiers / evidence mappings'
+    }
+    include server.auditCoordination.standardCatalog -> server.artifactPlane.artifactService with {
+      title 'Reserved read-only versioned packages'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view auditCollection {
+    title 'Audits / Results, Retention and Deletion'
+    description 'Spec 19 / V25-007–008 and V26-004. Every terminal execution gets a receipt. Full manifest membership is checked before per-item settlement; Run success is independent of assessment.'
+
+    include server.auditCoordination.auditController with {
+      title 'Audit Controller'
+    }
+    include server.auditCoordination.resultImporter with {
+      title 'Result Import & Coverage'
+    }
+    include server.auditCoordination.packageInventory with {
+      title 'Manifest / Evidence Validation'
+    }
+    include server.auditCoordination.auditStore with {
+      title 'Receipts / Item Attempts / Exact Holds'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'UserScope / ProjectScope / RunScope'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Run Deletion Gate'
+    }
+    include server.workspaceLifecycle.projectDeletionController with {
+      title 'Project Deletion'
+    }
+    include server.auditCoordination.auditService with {
+      title 'Audit Cancel / Delete'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Ordinary Child Cancellation'
+    }
+    include server.identityConfiguration.executionConfigService with {
+      title 'Credential Holds'
+    }
+
+    exclude * -> *
+    include server.auditCoordination.auditController -> server.auditCoordination.packageInventory with {
+      title 'One item MVP; compatible batches in V26'
+    }
+    include server.auditCoordination.auditController -> server.auditCoordination.resultImporter with {
+      title 'Observe / collect every terminal attempt'
+    }
+    include server.auditCoordination.resultImporter -> server.auditCoordination.packageInventory with {
+      title 'Exact digest / complete result set'
+    }
+    include server.auditCoordination.resultImporter -> server.artifactPlane.artifactService with {
+      title 'Protected create-only Project evidence'
+    }
+    include server.auditCoordination.resultImporter -> server.auditCoordination.auditStore with {
+      title 'Receipt / retry-or-settle / truthful gaps'
+    }
+    include server.workspaceLifecycle.runStore -> server.auditCoordination.auditStore with {
+      title 'Require collection receipt / retain tombstone'
+    }
+    include server.workspaceLifecycle.projectDeletionController -> server.auditCoordination.auditService with {
+      title 'Drain Audits before Project purge'
+    }
+    include server.auditCoordination.auditService -> server.auditCoordination.auditStore with {
+      title 'Close dispatch / lifecycle fence'
+    }
+    include server.auditCoordination.auditController -> server.orchestration.workflowScheduler with {
+      title 'Cancel / wait for terminal release'
+    }
+    include server.auditCoordination.auditController -> server.identityConfiguration.executionConfigService with {
+      title 'Release resolved dispatch holds'
+    }
+    include server.auditCoordination.auditController -> server.artifactPlane.artifactService with {
+      title 'Release evidence only on Audit deletion'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view auditReviewAndPrograms {
+    title 'Audits / Finding Proposals, Review and Programs'
+    description 'Planned V25-010–011 / V26. Workers propose; authenticated decisions bind exact subjects. Top 10 risk scenarios and ASVS requirements retain versioned evidence and explicit gaps.'
+
+    include browser with {
+      title 'Owner / Human Reviewer'
+    }
+    include server.productSurface.auditApi with {
+      title 'Audit Review API'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'Worker'
+    }
+    include runtimeAgent.allocationCapabilities.securityFindingsTools with {
+      title 'Optional security-findings@1'
+    }
+    include server.auditCoordination.findingIntake with {
+      title 'Private Finding Intake'
+    }
+    include server.auditCoordination.reviewService with {
+      title 'Exact Human Decisions'
+    }
+    include server.auditCoordination.auditStore with {
+      title 'Proposals / Findings / Review Decisions'
+    }
+    include server.auditCoordination.auditController with {
+      title 'Round / Assessment Barriers'
+    }
+    include server.auditCoordination.standardCatalog with {
+      title 'Top 10 / ASVS Package Catalog'
+    }
+    include server.auditCoordination.profileCatalog with {
+      title 'Versioned Audit Programs'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'Exact Artifacts & Evidence'
+    }
+
+    exclude * -> *
+    include browser -> server.productSurface.auditApi with {
+      title 'Review / triage through owner API'
+    }
+    include server.productSurface.auditApi -> server.auditCoordination.reviewService with {
+      title 'Exact subject revision / idempotency'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.securityFindingsTools with {
+      title 'Selected proposal tool only'
+    }
+    include runtimeAgent.allocationCapabilities.securityFindingsTools -> server.auditCoordination.findingIntake with {
+      title 'mTLS + trusted invocation / submission'
+    }
+    include server.auditCoordination.findingIntake -> server.artifactPlane.artifactService with {
+      title 'Atomic proposal / evidence pin / fence'
+    }
+    include server.auditCoordination.findingIntake -> server.auditCoordination.auditStore with {
+      title 'Replay receipt / trusted provenance'
+    }
+    include server.auditCoordination.reviewService -> server.auditCoordination.auditStore with {
+      title 'Actor decision; no held allocation'
+    }
+    include server.auditCoordination.auditController -> server.auditCoordination.reviewService with {
+      title 'Approved discovery / assessment / rounds'
+    }
+    include server.auditCoordination.profileCatalog -> server.auditCoordination.standardCatalog with {
+      title 'Exact standards / curated mappings'
+    }
+    include server.auditCoordination.standardCatalog -> server.artifactPlane.artifactService with {
+      title 'Version / digest / license provenance'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view schedulerConcurrency {
+    title 'Execution / Global Concurrency and Audit Backpressure'
+    description 'Spec 20 / V27, planned. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
+
+    include browser with {
+      title 'Operations / Settings UI'
+    }
+    include server.runtimeOperations.operationsApi with {
+      title 'Operations Settings API'
+    }
+    include server.runtimeOperations.schedulerSettingsService with {
+      title 'Scheduler Settings Service'
+    }
+    include artifactDatabase.schedulerSettings with {
+      title 'Durable Global Limit / Revision'
+    }
+    include server.orchestration.schedulerSupervisor with {
+      title 'Scheduler Supervisor'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Bounded Run Progression'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Exclusive Renewable Run Claims'
+    }
+    include server.workspaceLifecycle.ownerQueueGate with {
+      title 'Owner Pause Gate'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Runtime Placement'
+      navigateTo controlPlane
+    }
+    include server.orchestration.schedulerMaintenance with {
+      title 'Independent Maintenance'
+    }
+    include server.auditCoordination.auditController with {
+      title 'Audit Submission Backpressure'
+      navigateTo audits
+    }
+
+    exclude * -> *
+    include browser -> server.runtimeOperations.operationsApi with {
+      title 'GET / PUT with ETag / If-Match'
+    }
+    include server.runtimeOperations.operationsApi -> server.runtimeOperations.schedulerSettingsService with {
+      title 'Operations capability / CSRF / CAS'
+    }
+    include server.runtimeOperations.schedulerSettingsService -> artifactDatabase.schedulerSettings with {
+      title 'Persist 1..32; same value is no-op'
+    }
+    include server.runtimeOperations.schedulerSettingsService -> server.orchestration.schedulerSupervisor with {
+      title 'Post-commit wake; decrease drains'
+    }
+    include server.orchestration.schedulerSupervisor -> server.runtimeOperations.schedulerSettingsService with {
+      title 'Startup read / periodic refresh'
+    }
+    include server.orchestration.schedulerSupervisor -> server.workspaceLifecycle.runStore with {
+      title 'SKIP LOCKED / renew / release'
+    }
+    include server.orchestration.schedulerSupervisor -> server.orchestration.workflowScheduler with {
+      title 'At most N concurrent Run attempts'
+    }
+    include server.orchestration.workflowScheduler -> server.workspaceLifecycle.ownerQueueGate with {
+      title 'Normal Stage admission only'
+    }
+    include server.orchestration.workflowScheduler -> server.runtimeOperations.controlPlane with {
+      title 'One Stage may need several slots'
+    }
+    include server.orchestration.schedulerSupervisor -> server.orchestration.schedulerMaintenance with {
+      title 'Dedicated bounded loops'
+    }
+    include server.orchestration.schedulerMaintenance -> server.runtimeOperations.controlPlane with {
+      title 'Loss / terminal release outside lanes'
+    }
+    include server.auditCoordination.auditController -> server.runtimeOperations.schedulerSettingsService with {
+      title 'Current N look-ahead: intents + children'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
   view durableState {
     title 'Storage / Server State'
-    description 'PostgreSQL owns lifecycle, planner recovery, configuration and reports. Artifact registry internals remain behind its adapter.'
+    description 'PostgreSQL owns Run/Audit lifecycle, Planner recovery, global Scheduler settings, configuration and reports. Artifact registry internals remain behind its adapter.'
+
+    include server.auditCoordination.auditStore with {
+      title 'Audit Store'
+      navigateTo audits
+    }
+    include artifactDatabase.auditState with {
+      title 'Audit State / Receipts / Holds'
+    }
+    include server.runtimeOperations.schedulerSettingsService with {
+      title 'Scheduler Settings'
+      navigateTo schedulerConcurrency
+    }
+    include artifactDatabase.schedulerSettings with {
+      title 'Global Limit / Revision'
+    }
 
     include server.workspaceLifecycle.projectStore with {
       title 'Project Store'
@@ -2112,6 +2721,12 @@ views {
     exclude * -> *
     include server.workspaceLifecycle.projectStore -> artifactDatabase.projectState with {
       title 'Project / lifecycle / deletion claims'
+    }
+    include server.auditCoordination.auditStore -> artifactDatabase.auditState with {
+      title 'Claims / manifests / receipts / coverage'
+    }
+    include server.runtimeOperations.schedulerSettingsService -> artifactDatabase.schedulerSettings with {
+      title 'Typed singleton / revision CAS'
     }
     include server.workspaceLifecycle.ownerQueueGate -> artifactDatabase.runState with {
       title 'Durable pause / admission boundary'
