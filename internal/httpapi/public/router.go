@@ -1,6 +1,7 @@
 package public
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,9 +10,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/runservice"
 )
 
 type handler struct {
@@ -36,6 +39,26 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
 		return nil, fmt.Errorf("public API dependencies are incomplete")
+	}
+	if dependencies.RunCreator == nil {
+		creator, err := runservice.New(runservice.Options{
+			Runs: dependencies.Runs, Workflows: dependencies.Config,
+			LLMCredentials: dependencies.Credentials, CredentialGuard: dependencies.ManagedCredentials,
+			RuntimeCredentials: dependencies.RuntimeCredentials, Projects: dependencies.Projects,
+			SkillInitializationAvailable: dependencies.RunSkills != nil,
+			PublicTransaction: func(
+				ctx context.Context,
+				fn func(runservice.PublicRunWriter, *artifacts.Service) error,
+			) error {
+				return dependencies.Transactions.Do(ctx, func(runs RunWriter, service *artifacts.Service) error {
+					return fn(runs, service)
+				})
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure public Run creation: %w", err)
+		}
+		dependencies.RunCreator = creator
 	}
 	bearerToken := dependencies.BearerToken.Reveal()
 	if bearerToken == "" || len(bearerToken) > 4096 {

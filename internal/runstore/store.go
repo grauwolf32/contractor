@@ -24,6 +24,7 @@ type Repository interface {
 	PinRuntimeLabels(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
 	CreateRun(context.Context, CreateRunParams) (WorkflowRun, error)
 	CreateRunIdempotent(context.Context, CreateRunIdempotentParams) (WorkflowRun, bool, error)
+	CreateAuditRun(context.Context, CreateAuditRunParams) (WorkflowRun, error)
 	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error
 	CompleteRunSkillInitialization(context.Context, string, []contracts.RunSkillSnapshot) error
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)

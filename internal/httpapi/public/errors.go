@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -129,6 +130,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, artifacts.ErrReservedNamespace), errors.Is(err, contracts.ErrValidation),
 		errors.Is(err, runstore.ErrInvalid), errors.Is(err, projectstore.ErrInvalid),
 		errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid),
+		errors.Is(err, runservice.ErrInvalid),
 		errors.Is(err, config.ErrInvalidConfigurationKind),
 		errors.Is(err, config.ErrInvalidPublication), errors.Is(err, credentials.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)

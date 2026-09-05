@@ -317,6 +317,99 @@ SELECT `+prefixedExecutionColumns("changed")+` FROM changed`,
 	return Execution{}, ErrPrecondition
 }
 
+// GetRunCreationIntent locks the exact claim, Audit and Execution used by one
+// trusted child-Run submission. Submitted executions remain readable so a
+// response-loss replay can return the already-associated Run without touching
+// mutable configuration.
+func (s *PostgresStore) GetRunCreationIntent(
+	ctx context.Context,
+	claim ControllerClaim,
+	executionID string,
+) (RunCreationIntent, error) {
+	if err := validateClaimIdentity(claim); err != nil {
+		return RunCreationIntent{}, err
+	}
+	if err := validateID("executionID", executionID); err != nil {
+		return RunCreationIntent{}, err
+	}
+	var result RunCreationIntent
+	execution, err := scanExecutionWithOwner(s.db.QueryRow(ctx, `
+SELECT audit.owner_id, audit.project_id, `+prefixedExecutionColumns("execution")+`
+  FROM audit_executions AS execution
+  JOIN audits AS audit USING (audit_id)
+  JOIN audit_controller_claims AS claim USING (audit_id)
+ WHERE execution.audit_id = $1 AND execution.execution_id = $4
+   AND claim.holder_id = $2 AND claim.epoch = $3
+   AND claim.expires_at > clock_timestamp()
+ FOR UPDATE OF claim, audit, execution`,
+		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
+	), &result.OwnerID, &result.ProjectID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
+			return RunCreationIntent{}, liveErr
+		} else if !live {
+			return RunCreationIntent{}, ErrClaimLost
+		}
+		return RunCreationIntent{}, ErrNotFound
+	}
+	if err != nil {
+		return RunCreationIntent{}, fmt.Errorf("read Audit Run creation intent: %w", err)
+	}
+	result.Execution = execution
+	result.Items, err = s.ListExecutionItems(ctx, executionID)
+	if err != nil {
+		return RunCreationIntent{}, err
+	}
+	return result, nil
+}
+
+func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution, error) {
+	var execution Execution
+	var encodedRef []byte
+	var state string
+	var role string
+	var roleAttempt *int
+	var outcome *string
+	var terminalSequence *int64
+	if err := row.Scan(
+		ownerID, projectID,
+		&execution.ExecutionID, &execution.AuditID, &execution.RoundID,
+		&role, &roleAttempt, &encodedRef,
+		&execution.Manifest.Digest, &execution.SubmissionKey, &execution.RequestDigest,
+		&execution.RunID, &state, &outcome,
+		&execution.TerminalRunGeneration, &terminalSequence,
+		&execution.TerminalObservedAt, &execution.CreatedAt, &execution.UpdatedAt,
+	); err != nil {
+		return Execution{}, err
+	}
+	execution.Role = ExecutionRole(role)
+	execution.State = ExecutionState(state)
+	execution.RoleAttempt = roleAttempt
+	if err := json.Unmarshal(encodedRef, &execution.Manifest.Ref); err != nil || execution.Manifest.Ref.ValidateExact() != nil {
+		return Execution{}, errors.New("stored Audit execution manifest ref is invalid")
+	}
+	if validateDigest("stored execution manifest digest", execution.Manifest.Digest) != nil ||
+		validateDigest("stored execution request digest", execution.RequestDigest) != nil ||
+		!execution.Role.Valid() || !execution.State.Valid() {
+		return Execution{}, errors.New("stored Audit execution is invalid")
+	}
+	if outcome != nil {
+		value := TerminalOutcome(*outcome)
+		if !value.Valid() {
+			return Execution{}, errors.New("stored Audit execution terminal outcome is invalid")
+		}
+		execution.TerminalOutcome = &value
+	}
+	if terminalSequence != nil {
+		if *terminalSequence < 0 {
+			return Execution{}, errors.New("stored Audit execution terminal sequence is invalid")
+		}
+		value := uint64(*terminalSequence)
+		execution.TerminalRunSequence = &value
+	}
+	return execution, nil
+}
+
 func (s *PostgresStore) ObserveTerminal(
 	ctx context.Context,
 	params ObserveTerminalParams,

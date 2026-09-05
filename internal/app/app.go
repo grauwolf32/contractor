@@ -38,6 +38,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/scheduler"
@@ -458,11 +459,49 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Audit service: %w", err)
 	}
+	runCreationService, err := runservice.New(runservice.Options{
+		Runs: runstore.NewPostgresStore(pool), Workflows: configurationManager,
+		LLMCredentials: credentialProvider, CredentialGuard: credentialLifecycle,
+		RuntimeCredentials: runtimeCredentialLifecycle, Projects: projectstore.NewPostgresStore(pool),
+		SkillInitializationAvailable: true,
+		PublicTransaction: func(
+			transactionContext context.Context,
+			fn func(runservice.PublicRunWriter, *artifacts.Service) error,
+		) error {
+			return persistencepostgres.InTx(
+				transactionContext, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead},
+				func(tx pgx.Tx) error {
+					return fn(
+						runstore.NewPostgresStore(tx),
+						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+					)
+				},
+			)
+		},
+		AuditTransaction: func(
+			transactionContext context.Context,
+			fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error,
+		) error {
+			return persistencepostgres.InTx(
+				transactionContext, pool, pgx.TxOptions{},
+				func(tx pgx.Tx) error {
+					return fn(
+						runstore.NewPostgresStore(tx),
+						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
+						auditstore.NewPostgresStore(tx),
+					)
+				},
+			)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("configure trusted Run service: %w", err)
+	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
 		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
-		Runs: runstore.NewPostgresStore(pool), Artifacts: artifactService,
+		Runs: runstore.NewPostgresStore(pool), RunCreator: runCreationService, Artifacts: artifactService,
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
 		RuntimeAgentPrincipals: principalOperations,

@@ -13,6 +13,7 @@ const workflowRunColumns = `
 run_id, owner_id, project_id, workflow_name, workflow_version,
 workflow_schema_version, workflow_snapshot, parameters,
 runtime_labels, runtime_config_snapshot, project_http_target_snapshot, skill_snapshot,
+publication_mode, audit_execution_id, audit_submission_key,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
@@ -38,6 +39,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		&result.RunID, &result.OwnerID, &result.ProjectID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
 		&result.RuntimeLabels, &runtimeConfig, &projectHTTPTarget, &skillSnapshot,
+		&result.PublicationMode, &result.AuditExecutionID, &result.AuditSubmissionKey,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt,
@@ -46,6 +48,17 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		return WorkflowRun{}, err
 	}
 	result.State = WorkflowRunState(state)
+	if !result.PublicationMode.Valid() {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun publication mode: invalid value")
+	}
+	if result.PublicationMode == PublicationOrdinary &&
+		(result.AuditExecutionID != nil || result.AuditSubmissionKey != nil) {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun Audit association: ordinary Run carries Audit authority")
+	}
+	if result.PublicationMode == PublicationAuditManaged &&
+		(result.AuditExecutionID == nil || result.AuditSubmissionKey == nil) {
+		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun Audit association: managed Run is incomplete")
+	}
 	if cancellation != nil {
 		var decoded WorkflowRunCancellation
 		if err := json.Unmarshal(cancellation, &decoded); err != nil {

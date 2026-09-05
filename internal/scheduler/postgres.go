@@ -554,14 +554,21 @@ func publishProjectOutputs(
 	outputContracts map[string]workflowconfig.ArtifactSlot,
 ) error {
 	var projectID *string
+	var publicationMode runstore.OutputPublicationMode
 	if err := tx.QueryRow(ctx, `
-SELECT project_id
+SELECT project_id, publication_mode
 FROM workflow_runs
-WHERE run_id = $1`, runID).Scan(&projectID); err != nil {
+WHERE run_id = $1`, runID).Scan(&projectID, &publicationMode); err != nil {
 		return fmt.Errorf("resolve WorkflowRun Project for output publication: %w", err)
 	}
 	if projectID == nil {
 		return nil
+	}
+	if publicationMode == runstore.PublicationAuditManaged {
+		return nil
+	}
+	if publicationMode != runstore.PublicationOrdinary {
+		return fmt.Errorf("WorkflowRun output publication mode is invalid")
 	}
 
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))

@@ -45,6 +45,21 @@ func (l WorkflowRunLifecycle) Includes(state WorkflowRunState) bool {
 	}
 }
 
+// OutputPublicationMode is immutable WorkflowRun authority. Ordinary Runs
+// publish accepted outputs into their owning Project, while Audit-managed Runs
+// leave frozen outputs in RunScope for the Audit collector to import under
+// collision-free protected names.
+type OutputPublicationMode string
+
+const (
+	PublicationOrdinary     OutputPublicationMode = "ordinary"
+	PublicationAuditManaged OutputPublicationMode = "audit-managed"
+)
+
+func (m OutputPublicationMode) Valid() bool {
+	return m == PublicationOrdinary || m == PublicationAuditManaged
+}
+
 type StageExecutionState string
 
 const (
@@ -83,6 +98,9 @@ type WorkflowRun struct {
 	RuntimeConfig             runtimeconfig.RunSnapshot
 	ProjectHTTPTarget         *contracts.HTTPOriginTargetRef
 	SkillSnapshot             []contracts.RunSkillSnapshot
+	PublicationMode           OutputPublicationMode
+	AuditExecutionID          *string
+	AuditSubmissionKey        *string
 	State                     WorkflowRunState
 	StateReason               Reason
 	CancellationSchemaVersion *string
@@ -235,6 +253,15 @@ type CreateRunIdempotentParams struct {
 	CreateRunParams
 	IdempotencyKey string
 	RequestDigest  string
+}
+
+// CreateAuditRunParams is intentionally separate from public idempotent Run
+// creation. Only the trusted Run Service may supply the immutable Audit
+// association and its already-durable submission key.
+type CreateAuditRunParams struct {
+	CreateRunParams
+	AuditExecutionID   string
+	AuditSubmissionKey string
 }
 
 // ListRunsParams is a stable newest-first owner query. BeforeCreatedAt and

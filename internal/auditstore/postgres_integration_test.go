@@ -193,8 +193,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	if err != nil || !inserted || execution.State != ExecutionIntent {
 		t.Fatalf("create execution intent = (%+v, %t, %v)", execution, inserted, err)
 	}
-	insertTestRun(t, ctx, pool, "run-one", create.OwnerID, project.ProjectID)
-	execution, err = store.BindRun(ctx, BindRunParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: "run-one"})
+	execution, err = insertAndBindTestRun(t, ctx, pool, claim, execution, "run-one", create.OwnerID, project.ProjectID)
 	if err != nil || execution.State != ExecutionSubmitted {
 		t.Fatalf("bind execution Run = (%+v, %v)", execution, err)
 	}
@@ -240,8 +239,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	insertTestRun(t, ctx, pool, "run-two", create.OwnerID, project.ProjectID)
-	if _, err = store.BindRun(ctx, BindRunParams{Claim: claim, ExecutionID: executionTwo.ExecutionID, RunID: "run-two"}); err != nil {
+	if _, err = insertAndBindTestRun(t, ctx, pool, claim, executionTwo, "run-two", create.OwnerID, project.ProjectID); err != nil {
 		t.Fatal(err)
 	}
 	generation, sequence = terminateTestRun(t, ctx, pool, "run-two", "failed")
@@ -355,9 +353,14 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	insertTestRun(t, ctx, pool, "run-three", create.OwnerID, project.ProjectID)
+	if err := insertTestRun(ctx, pool, "run-three", create.OwnerID, project.ProjectID, nil); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = store.BindRun(ctx, BindRunParams{Claim: newClaim, ExecutionID: executionThree.ExecutionID, RunID: "run-three"}); !errors.Is(err, ErrPrecondition) {
 		t.Fatalf("bind while Audit is paused error = %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM workflow_runs WHERE run_id = 'run-three'`); err != nil {
+		t.Fatal(err)
 	}
 	if _, _, err = store.Transition(ctx, TransitionParams{
 		OwnerID: create.OwnerID, AuditID: create.AuditID,
@@ -366,7 +369,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.BindRun(ctx, BindRunParams{Claim: newClaim, ExecutionID: executionThree.ExecutionID, RunID: "run-three"}); err != nil {
+	if _, err = insertAndBindTestRun(t, ctx, pool, newClaim, executionThree, "run-three", create.OwnerID, project.ProjectID); err != nil {
 		t.Fatal(err)
 	}
 	generation, sequence = terminateTestRun(t, ctx, pool, "run-three", "succeeded")
@@ -428,7 +431,9 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	insertTestRun(t, ctx, pool, "run-project-fence", create.OwnerID, project.ProjectID)
+	if err := insertTestRun(ctx, pool, "run-project-fence", create.OwnerID, project.ProjectID, nil); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{ProjectID: project.ProjectID, OwnerID: create.OwnerID, ExpectedRevision: project.Revision}); err != nil {
 		t.Fatal(err)
 	}
@@ -488,19 +493,59 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	}
 }
 
-func insertTestRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, runID, ownerID, projectID string) {
+func insertAndBindTestRun(
+	t *testing.T,
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	claim ControllerClaim,
+	execution Execution,
+	runID string,
+	ownerID string,
+	projectID string,
+) (Execution, error) {
 	t.Helper()
-	_, err := pool.Exec(ctx, `
+	var bound Execution
+	err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if err := insertTestRun(ctx, tx, runID, ownerID, projectID, &execution); err != nil {
+			return err
+		}
+		var err error
+		bound, err = NewPostgresStore(tx).BindRun(ctx, BindRunParams{
+			Claim: claim, ExecutionID: execution.ExecutionID, RunID: runID,
+		})
+		return err
+	})
+	return bound, err
+}
+
+func insertTestRun(
+	ctx context.Context,
+	db persistencepostgres.DBTX,
+	runID string,
+	ownerID string,
+	projectID string,
+	execution *Execution,
+) error {
+	publicationMode := "ordinary"
+	var executionID, submissionKey *string
+	if execution != nil {
+		publicationMode = "audit-managed"
+		executionID = &execution.ExecutionID
+		submissionKey = &execution.SubmissionKey
+	}
+	_, err := db.Exec(ctx, `
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot, state, state_reason_code
+    runtime_labels, runtime_config_snapshot, publication_mode,
+    audit_execution_id, audit_submission_key, state, state_reason_code
 ) VALUES ($1, $2, $3, 'audit-check', '1', 'contractor/v1alpha1',
           '{}'::jsonb, '{}'::jsonb, ARRAY[]::text[], $4::jsonb,
-          'initializing', 'created')`, runID, ownerID, projectID, auditTestRuntimeSnapshot)
-	if err != nil {
-		t.Fatalf("insert test WorkflowRun: %v", err)
-	}
+          $5, $6, $7, 'initializing', 'created')`,
+		runID, ownerID, projectID, auditTestRuntimeSnapshot,
+		publicationMode, executionID, submissionKey,
+	)
+	return err
 }
 
 func terminateTestRun(

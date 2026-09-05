@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -12,13 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/agentskills"
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -236,193 +232,29 @@ func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	ownerID := principalUserID(r.Context())
-	storedRun, replayed, err := h.dependencies.Runs.LookupRunIdempotency(
-		r.Context(), ownerID, idempotencyKey, requestDigest,
-	)
+	result, err := h.dependencies.RunCreator.CreatePublic(r.Context(), runservice.PublicCreateParams{
+		OwnerID: ownerID, ProjectID: projectID, Workflow: request.Workflow,
+		ExecutionConfig: request.ExecutionConfig, RuntimeLabels: []string(request.RuntimeLabels),
+		MetadataLabels: metadataLabels, Parameters: request.Parameters, Inputs: request.Artifacts,
+		IdempotencyKey: idempotencyKey, RequestDigest: requestDigest,
+		NewRunID: func() (string, error) { return h.dependencies.NewID("run_") },
+	})
 	if err != nil {
 		h.handleError(w, err)
 		return
-	}
-	if replayed {
-		w.Header().Set("Idempotency-Replayed", "true")
-		writeJSON(w, http.StatusAccepted, createRunReadModel(storedRun))
-		return
-	}
-	runID, err := h.dependencies.NewID("run_")
-	if err != nil {
-		h.handleError(w, fmt.Errorf("generate Run ID: %w", err))
-		return
-	}
-
-	created := false
-	storedRun = runstore.WorkflowRun{}
-	var skillRefs []contracts.ArtifactRef
-	var templateSkillSets [][]string
-	var projectHTTPTarget *contracts.HTTPOriginTargetRef
-	createPinnedRun := func() error {
-		return h.dependencies.ManagedCredentials.WithRunCreation(r.Context(), func() error {
-			workflow, resolveErr := h.dependencies.Config.ResolveRunWorkflow(
-				r.Context(), request.Workflow, request.ExecutionConfig, h.dependencies.Credentials,
-			)
-			if resolveErr != nil {
-				return fmt.Errorf("%w: invalid Workflow or executionConfig selection: %v", errInvalidRequest, resolveErr)
-			}
-			if err := validateRunInputs(workflow, request); err != nil {
-				return err
-			}
-			skillRefs, resolveErr = config.WorkflowSkillRefs(workflow)
-			if resolveErr != nil {
-				return fmt.Errorf("%w: invalid Workflow Skill selection: %v", errInvalidRequest, resolveErr)
-			}
-			templateSkillSets = config.WorkflowSkillSets(workflow)
-			if len(skillRefs) > 0 && h.dependencies.RunSkills == nil {
-				return fmt.Errorf("Run Skill initializer is not configured")
-			}
-			workflowSnapshot, err := json.Marshal(workflow)
-			if err != nil {
-				return fmt.Errorf("encode resolved Workflow: %w", err)
-			}
-			return h.dependencies.Transactions.Do(r.Context(), func(runs RunWriter, artifactService *artifacts.Service) error {
-				skillCatalog, catalogErr := agentskills.NewCatalog(artifactService)
-				if catalogErr != nil {
-					return catalogErr
-				}
-				runtimeConfig, pinErr := runs.PinRuntimeLabels(
-					r.Context(), []string(request.RuntimeLabels), h.dependencies.Credentials,
-				)
-				if pinErr != nil {
-					return pinErr
-				}
-				var selectedSkills []contracts.RunSkillSnapshot
-				if len(skillRefs) > 0 {
-					selectedSkills, catalogErr = skillCatalog.SelectRunSources(r.Context(), ownerID, skillRefs)
-					if catalogErr != nil {
-						return catalogErr
-					}
-					if catalogErr = agentskills.ValidateSelectedLimits(selectedSkills, templateSkillSets); catalogErr != nil {
-						return catalogErr
-					}
-				}
-				var createErr error
-				storedRun, created, createErr = runs.CreateRunIdempotent(
-					r.Context(), runstore.CreateRunIdempotentParams{
-						CreateRunParams: runstore.CreateRunParams{
-							RunID: runID, OwnerID: ownerID,
-							ProjectID:    projectID,
-							WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
-							WorkflowSchemaVersion: contracts.APIVersion,
-							WorkflowSnapshot:      workflowSnapshot,
-							Parameters:            cloneParameters(request.Parameters),
-							MetadataLabels:        metadataLabels,
-							RuntimeConfig:         runtimeConfig,
-							ProjectHTTPTarget:     projectHTTPTarget,
-						},
-						IdempotencyKey: idempotencyKey,
-						RequestDigest:  requestDigest,
-					},
-				)
-				if createErr != nil {
-					return createErr
-				}
-				if !created {
-					return nil
-				}
-				if len(selectedSkills) > 0 {
-					if err := runs.SetRunSkillSelections(r.Context(), runID, selectedSkills); err != nil {
-						return err
-					}
-					if err := skillCatalog.PinRunSources(r.Context(), ownerID, runID, selectedSkills); err != nil {
-						return err
-					}
-				}
-
-				slots := sortedArtifactSlots(request.Artifacts)
-				for _, slot := range slots {
-					var forked artifacts.ForkResult
-					var err error
-					if projectID == nil {
-						forked, err = artifactService.ForkInput(
-							r.Context(), ownerID, request.Artifacts[slot], runID, slot,
-						)
-					} else {
-						forked, err = artifactService.ForkProjectInput(
-							r.Context(), *projectID, request.Artifacts[slot], runID, slot,
-						)
-					}
-					if err != nil {
-						return err
-					}
-					if !acceptsMediaType(workflow.Inputs[slot].MediaTypes, forked.MediaType) {
-						return fmt.Errorf("%w: input %q has unsupported media type", errInvalidRequest, slot)
-					}
-				}
-				if len(selectedSkills) == 0 {
-					storedRun, err = runs.TransitionRun(
-						r.Context(), runID, runstore.RunInitializing, runstore.RunRunning,
-						runstore.Reason{Code: "initialized"},
-					)
-					return err
-				}
-				storedRun.SkillSnapshot = append([]contracts.RunSkillSnapshot(nil), selectedSkills...)
-				storedRun.StateReason = runstore.Reason{Code: runstore.SkillInitializationPendingReason}
-				return nil
-			})
-		})
-	}
-	if projectID == nil {
-		err = createPinnedRun()
-	} else if h.dependencies.RuntimeCredentials == nil {
-		err = errors.New("Runtime credential service is not configured")
-	} else {
-		err = h.dependencies.RuntimeCredentials.WithCredentialReferences(r.Context(), func() error {
-			project, projectErr := h.dependencies.Projects.Get(r.Context(), ownerID, *projectID)
-			if projectErr != nil {
-				return projectErr
-			}
-			if project.Lifecycle == projectstore.LifecycleDeleting {
-				return projectstore.ErrDeleting
-			}
-			projectHTTPTarget = cloneHTTPOriginTarget(project.HTTPTarget)
-			if projectHTTPTarget != nil && projectHTTPTarget.Credential != nil {
-				if validateErr := h.dependencies.RuntimeCredentials.ValidateRuntimeCredential(
-					r.Context(), projectHTTPTarget.Credential.CredentialID,
-					string(projectHTTPTarget.Credential.Kind),
-				); validateErr != nil {
-					return validateErr
-				}
-			}
-			return createPinnedRun()
-		})
-	}
-	if err != nil {
-		if !errors.Is(err, runstore.ErrConflict) && persistencepostgres.SQLState(err) != "40001" {
-			h.handleError(w, err)
-			return
-		}
-		// A concurrent idempotency winner may commit after the REPEATABLE READ
-		// snapshot began. Re-read after rollback before returning a conflict.
-		var recovered bool
-		storedRun, recovered, _ = h.dependencies.Runs.LookupRunIdempotency(
-			r.Context(), ownerID, idempotencyKey, requestDigest,
-		)
-		if !recovered {
-			h.handleError(w, err)
-			return
-		}
-		created = false
 	}
 	// Skill package validation and RunScope forking are intentionally deferred
 	// to Scheduler recovery. The creation transaction above has already pinned
 	// one complete exact owner-source outcome, so returning the initializing Run
 	// neither holds the HTTP request on bounded archive work nor permits a later
 	// owner binding update to change what recovery will read.
-	if created && h.dependencies.RunNotifier != nil {
+	if result.Created && h.dependencies.RunNotifier != nil {
 		h.dependencies.RunNotifier.Wake()
 	}
-	if !created {
+	if result.Replayed {
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
-	writeJSON(w, http.StatusAccepted, createRunReadModel(storedRun))
+	writeJSON(w, http.StatusAccepted, createRunReadModel(result.Run))
 }
 
 func createRunReadModel(run runstore.WorkflowRun) createRunResponse {

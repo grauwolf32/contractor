@@ -25,6 +25,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -90,6 +91,10 @@ type UnitOfWork interface {
 
 type RunNotifier interface {
 	Wake()
+}
+
+type RunCreationService interface {
+	CreatePublic(context.Context, runservice.PublicCreateParams) (runservice.CreateResult, error)
 }
 
 type RunSkillInitializer interface {
@@ -189,6 +194,7 @@ type Dependencies struct {
 	Projects                ProjectManagement
 	Audits                  AuditManagement
 	Runs                    RunReader
+	RunCreator              RunCreationService
 	PlannerPlans            PlannerPlanReader
 	Metrics                 MetricsReader
 	Operations              OperationsReader

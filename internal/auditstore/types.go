@@ -467,6 +467,16 @@ type BindRunParams struct {
 	RunID       string
 }
 
+// RunCreationIntent is the claim-bound immutable authority consumed by the
+// trusted Run Service. It contains no secret material and is never exposed by
+// the owner-facing repository or public API.
+type RunCreationIntent struct {
+	OwnerID   string
+	ProjectID string
+	Execution Execution
+	Items     []ExecutionItem
+}
+
 type ObserveTerminalParams struct {
 	Claim       ControllerClaim
 	ExecutionID string
@@ -594,6 +604,7 @@ type ControllerRepository interface {
 	TransitionClaimed(context.Context, ClaimedTransitionParams) (Audit, error)
 	TransitionRound(context.Context, RoundTransitionParams) (Round, error)
 	CreateExecutionIntent(context.Context, CreateExecutionIntentParams) (Execution, bool, error)
+	GetRunCreationIntent(context.Context, ControllerClaim, string) (RunCreationIntent, error)
 	BindRun(context.Context, BindRunParams) (Execution, error)
 	ObserveTerminal(context.Context, ObserveTerminalParams) (Execution, error)
 	ObserveSubmissionFailure(context.Context, ObserveSubmissionFailureParams) (Execution, error)
