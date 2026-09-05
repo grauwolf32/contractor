@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V25-007
+title: Import exact check results and finalize Audit coverage
+milestone: audits-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V25-002, V25-006]
+languages: [go, sql]
+
+goal: >-
+  Convert frozen child Run outputs into retained Audit evidence and a truthful
+  coverage/report projection without conflating technical and semantic outcomes.
+
+context:
+  retention: >-
+    Audit introduces no ArtifactStore scope. Trusted import validates a frozen
+    Run output, creates protected Audit-specific ProjectScope bindings and an
+    immutable receipt, then lets later Run deletion preserve Audit evidence.
+  semantics: >-
+    Run success only permits import. The importer validates item/subject/evidence
+    correlation and records accepted, invalid-result, inconclusive and gap
+    states independently.
+
+scope:
+  in:
+    - Add staging plus atomic validation/acceptance for exact frozen result packages.
+    - Retain imported package/evidence revisions through create-only Audit-managed ProjectScope bindings and lineage/receipt records.
+    - Settle each item exactly once and retain safe technical error details for failed/cancelled Runs.
+    - Compute operation/checklist coverage including not-tested, inconclusive, exclusions, N/A and zero-denominator semantics.
+    - Generate and retain one exact machine-readable report plus bounded human-readable summary for a one-round Audit.
+    - Expose coverage/report reads in public OpenAPI and generated client.
+  out:
+    - Confirmed findings, human decisions, discovery or another Round.
+
+requirements:
+  - {id: R1, text: Import is idempotent by execution/output digest/kind and partial staging is never visible.}
+  - {id: R2, text: Foreign refs, changed bindings, wrong item keys, missing evidence and schema-valid semantic mismatches are rejected as invalid-result.}
+  - {id: R3, text: Failed/cancelled Runs and empty inventories cannot produce a clean or 100-percent verdict.}
+  - {id: R4, text: Import failure never rewrites the child WorkflowRun outcome.}
+
+acceptance_criteria:
+  - id: A1
+    given: Valid, invalid, failed and inconclusive child outcomes.
+    when: The Controller reaches the barrier.
+    then: Every item settles once and report counts/gaps preserve each distinction.
+  - id: A2
+    given: Response loss or crash around staging and receipt commit.
+    when: Reconcile repeats.
+    then: One retained exact revision and one import receipt result.
+  - id: A3
+    given: Source Runs are later deleted after release.
+    when: Report/evidence are read.
+    then: Retained exact Audit data and provenance remain available.
+
+tests:
+  - {name: importer, command: "go test ./internal/auditimport ./internal/auditcontroller", covers: [A1, A2]}
+  - {name: postgres, command: "go test -tags=integration ./internal/auditimport", covers: [A2, A3]}
+

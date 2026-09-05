@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V25-011
+title: Add finding triage, exact human review and bounded multiple rounds
+milestone: audits-iterative
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V25-008, V25-010]
+languages: [go, sql, openapi, typescript]
+
+goal: >-
+  Extend the fixed-round Audit into a bounded iterative assessment whose new
+  work and sensitive actions remain policy-controlled and reviewable.
+
+context:
+  review_authority: >-
+    Only an authenticated API decision over an exact subject revision/digest
+    has authority. Model text and artifacts can propose but never approve.
+  round_barrier: >-
+    Accepted Round items are immutable. New finding hypotheses enter an inbox,
+    then a fully validated proposed worklist for the next Round. No proposal can
+    extend the current barrier.
+
+scope:
+  in:
+    - Persist review requests/decisions with CAS, idempotency, expiry, actor/rationale and exact subject correlation.
+    - Add finding triage states, non-destructive duplicate links and owner import of exact ordinary-Run proposals.
+    - Add bounded discovery and assessment AuditExecutions using pinned role Workflows.
+    - Validate and accept at most maxRounds immutable worklists with item/Run/proposal/evidence budgets.
+    - Add waiting_review transitions that hold no allocation or Controller claim.
+    - Add Findings/Reviews UI and proposed-versus-confirmed report sections.
+  out:
+    - Automatic semantic deduplication, unapproved active exploitation, cross-Project imports or universal compliance claims.
+
+requirements:
+  - {id: R1, text: A decision for an old subject digest cannot authorize a newer plan/action/report.}
+  - {id: R2, text: Profile policy may strengthen model-requested approval and can never be weakened by it.}
+  - {id: R3, text: Duplicate links are acyclic within one Audit and preserve every original proposal/finding.}
+  - {id: R4, text: Limit/deadline exhaustion closes generation with explicit gaps and bounded finalization.}
+
+acceptance_criteria:
+  - id: A1
+    given: Proposals arrive before, during and after a Round barrier.
+    when: Assessment completes.
+    then: Current item count is unchanged and only accepted next-Round work executes.
+  - id: A2
+    given: Approval expires or plan revision changes.
+    when: Controller reconciles.
+    then: No active check starts until a valid exact decision exists.
+  - id: A3
+    given: A source Run proposal is imported by its owner.
+    when: Project/scope/evidence are compatible.
+    then: Provenance is retained and triage never trusts source labels or claims.
+
+tests:
+  - {name: server, command: "go test -race ./internal/auditcontroller ./internal/auditstore ./internal/httpapi/public -run 'Audit|Review|Finding'", covers: [A1, A2, A3]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
+

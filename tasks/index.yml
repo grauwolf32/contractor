@@ -146,6 +146,29 @@ fixed_decisions:
       Released terminal Runs may be hard-deleted with complete RunScope data;
       Project deletion durably cancels/drains all Runs and purges ProjectScope.
       Both purge paths collect only globally unreferenced artifact content.
+  audits:
+    boundary: >-
+      Audit is one owner/ordinary-Project-bound durable coordinator of ordinary
+      WorkflowRuns, exact evidence, findings and human decisions. Workflow
+      Scheduler remains the only Run/Stage authority and Runtime has no Project
+      or Audit control authority.
+    reproducibility: >-
+      Start pins exact Project input revisions, the complete resolved
+      AuditProfile and child Workflow closures, one exact Run RuntimeConfig
+      snapshot and durable credential usage holds. Later catalog, Run-label or
+      credential mutation cannot silently change future child Runs.
+    artifacts: >-
+      There is no AuditScope. Trusted import retains exact accepted outputs in
+      protected create-only Audit-managed ProjectScope bindings; child Runtime
+      processes receive only ordinary exact RunScope forks.
+    execution: >-
+      A periodic PostgreSQL Audit Controller owns immutable rounds, bounded
+      child Run intents/imports and truthful coverage. Run metadata labels are
+      display hints only; authoritative association is committed with the Run.
+    reporting: >-
+      Technical Run outcome, observation, requirement/hypothesis assessment,
+      finding triage and Audit completion remain distinct. Empty, partial or
+      inconclusive work never implies a clean security or compliance verdict.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -446,6 +469,24 @@ milestones:
       terminal Runs can be safely hard-deleted, Projects can be durably
       cancelled and purged, and the general Artifact library excludes Skills
       while reusing the Project file-drop interaction.
+  - id: audits-mvp
+    exit_task: V25-009
+    outcome: >-
+      A Project owner selects exact baseline artifacts, starts a deterministic
+      checklist or OpenAPI Audit, observes bounded ordinary child Runs and
+      receives retained truthful coverage/report data through the independent UI.
+  - id: audits-iterative
+    exit_task: V25-011
+    outcome: >-
+      Explicit Workers can durably propose findings while authenticated exact
+      review and immutable bounded rounds turn accepted hypotheses into later
+      checks without granting models scheduling or approval authority.
+  - id: audits-hardening
+    exit_task: V25-012
+    outcome: >-
+      PostgreSQL/mTLS/browser fault gates prove idempotent multi-Controller
+      recovery, isolation, retention, lifecycle cleanup and non-certifying
+      security reporting without regressing ordinary execution.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
@@ -1577,6 +1618,57 @@ project_workspaces_planning_review:
       Automatic publication of technical outputs grows ProjectScope history;
       Project retention and explicit Workflow composition are deferred.
 
+audits_planning_review:
+  reviewed_on: "2026-09-05"
+  verdict: ready_to_implement_in_dependency_order
+  implementation_baseline: 4d4849e
+  checks:
+    - >-
+      Audit is not a Project kind, Workflow subtype, Planner mode, Scheduler
+      branch or ArtifactStore scope. It is a Project-bound durable coordinator
+      that creates ordinary pinned Runs through a trusted service.
+    - >-
+      Exact baseline ArtifactRefs require revisions. Audit start retains the
+      complete resolved profile/workflow/Run-runtime closure and credential
+      holds, closing mutable catalog, Run-label and credential-deletion gaps
+      between later rounds. Physical Agent labels retain normal allocation-time
+      semantics.
+    - >-
+      User-settable audit.* Run labels are limited to search/telemetry. Database
+      association committed atomically with child Run creation is the only
+      authority and prevents label spoofing or orphan recovery ambiguity.
+    - >-
+      Existing create-only Project outputs cannot host repeated result/proposal
+      slots. A trusted audit-managed publication mode suppresses generic
+      publication while exact Audit import creates protected namespaced
+      ProjectScope bindings; no AuditScope or Runtime Project authority appears.
+    - >-
+      The first vertical slice is deterministic and one-round: strict profile,
+      packages/inventory, store/API, trusted Run creation, reconcile/import,
+      lifecycle and UI. Finding intake and human/multi-round behavior follow
+      only after the retention and cancellation boundaries exist.
+    - >-
+      OWASP Top 10:2025 is treated as risk awareness, while stable ASVS 5.0.0
+      identifiers are version-qualified. Neither incomplete automation nor an
+      empty inventory can be rendered as certification or complete compliance.
+    - >-
+      Every V25 task repeats its context and acceptance tests for an implementer
+      who has not read docs/spec. Completed tasks must record the full hash of
+      their final implementation commit under implementation_commit.
+  accepted_risks:
+    - >-
+      AuditProfile is operator-loaded and read-only in the first increment;
+      managed/public profile authoring waits for an explicit API and licensing
+      contract.
+    - >-
+      Aggregate monetary/token totals remain advisory until conservative
+      cross-Run reservations exist. Exact per-Run execution budgets remain
+      enforced by current Workflow/ModelPolicy machinery.
+    - >-
+      The MVP supports deterministic checklist/OpenAPI inventory and one Round.
+      Model discovery, finding confirmation and multiple rounds are deliberately
+      isolated in later tasks rather than hidden inside the first Controller.
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}
@@ -1753,3 +1845,15 @@ tasks:
   - {id: V24-004, file: v24-004-terminal-run-deletion.yml}
   - {id: V24-005, file: v24-005-project-deletion.yml}
   - {id: V24-006, file: v24-006-lifecycle-controls-release-gate.yml}
+  - {id: V25-001, file: v25-001-audit-profile-catalog.yml}
+  - {id: V25-002, file: v25-002-audit-packages-and-inventory.yml}
+  - {id: V25-003, file: v25-003-audit-postgres-store.yml}
+  - {id: V25-004, file: v25-004-audit-draft-start-api.yml}
+  - {id: V25-005, file: v25-005-trusted-audit-run-service.yml}
+  - {id: V25-006, file: v25-006-one-round-audit-controller.yml}
+  - {id: V25-007, file: v25-007-audit-import-and-coverage.yml}
+  - {id: V25-008, file: v25-008-audit-lifecycle-and-retention.yml}
+  - {id: V25-009, file: v25-009-audits-ui.yml}
+  - {id: V25-010, file: v25-010-security-findings-intake.yml}
+  - {id: V25-011, file: v25-011-audit-review-and-multiround.yml}
+  - {id: V25-012, file: v25-012-audits-release-gate.yml}
