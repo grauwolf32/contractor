@@ -11,6 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -197,6 +198,15 @@ type RunSkillInitializer interface {
 	InitializeRunSkills(context.Context, string) (runstore.WorkflowRun, error)
 }
 
+// SchedulerSettingsReader is the PostgreSQL-authoritative desired lane limit.
+// Implementations must be safe for periodic reads while Operations mutates the
+// same resource.
+type SchedulerSettingsReader interface {
+	GetSchedulerSettings(context.Context) (settingsstore.SchedulerSettings, error)
+}
+
+// Clock implementations may be injected without their own synchronization;
+// Scheduler serializes method calls shared by lanes and maintenance loops.
 type Clock interface {
 	Now() time.Time
 	After(time.Duration) <-chan time.Time
@@ -220,6 +230,7 @@ type Options struct {
 	RuntimeCredentials     RuntimeCredentialResolver
 	PlannerTelemetry       PlannerTelemetryRegistry
 	RunSkills              RunSkillInitializer
+	Settings               SchedulerSettingsReader
 	TelemetrySecrets       []string
 	MetricsCleanupInterval time.Duration
 	MetricsCleanupBatch    int

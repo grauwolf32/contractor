@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -1016,6 +1017,26 @@ func TestTerminalReleaseRecoveryRetriesOnlyRemainingLiveAllocations(t *testing.T
 	}
 }
 
+func TestTerminalReleaseRecoverySkipsStageOwnedByRunLane(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	execution := harness.persistedExecution(t, runstore.StageSucceeded)
+	harness.store.stages = []runstore.StageExecution{execution}
+	harness.store.run.State = runstore.RunSucceeded
+	harness.installRecordedReservation(execution.StageExecutionID)
+	if !harness.scheduler.beginTerminalRelease(execution.StageExecutionID) {
+		t.Fatal("failed to acquire terminal release gate")
+	}
+	defer harness.scheduler.endTerminalRelease(execution.StageExecutionID)
+
+	worked, err := harness.scheduler.recoverTerminalRelease(context.Background())
+	if err != nil || worked {
+		t.Fatalf("busy terminal release recovery = (%v, %v), want (false, nil)", worked, err)
+	}
+	if harness.workers.releaseCalls != 0 {
+		t.Fatalf("recovery duplicated in-flight Runtime release: calls=%d", harness.workers.releaseCalls)
+	}
+}
+
 func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
 	return runstore.StageAllocation{
 		AllocationID: reservation.Grant.AllocationID, StageExecutionID: reservation.Grant.StageExecutionID,
@@ -1790,6 +1811,9 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 			return contracts.NewSecretString("test-token"), nil
 		}),
 		Clock: clock,
+		Settings: staticSchedulerSettings{value: settingsstore.SchedulerSettings{
+			MaxConcurrentRuns: 1, Revision: 1, UpdatedAt: clock.now,
+		}},
 		NewID: func(prefix string) (string, error) {
 			idSequence++
 			return fmt.Sprintf("%s%d", prefix, idSequence), nil
@@ -1878,6 +1902,15 @@ type staticClock struct{ now time.Time }
 func (c staticClock) Now() time.Time { return c.now }
 func (staticClock) After(time.Duration) <-chan time.Time {
 	return make(chan time.Time)
+}
+
+type staticSchedulerSettings struct {
+	value settingsstore.SchedulerSettings
+	err   error
+}
+
+func (s staticSchedulerSettings) GetSchedulerSettings(context.Context) (settingsstore.SchedulerSettings, error) {
+	return s.value, s.err
 }
 
 type memorySchedulerStore struct {

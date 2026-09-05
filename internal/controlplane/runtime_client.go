@@ -759,7 +759,9 @@ type RuntimeBatchController struct {
 	runtime        RuntimeLifecycle
 	registry       AllocationRegistry
 	now            func() time.Time
+	nowMu          sync.Mutex
 	newID          func(string) (string, error)
+	idMu           sync.Mutex
 	cleanupTimeout time.Duration
 }
 
@@ -956,7 +958,7 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 	reason := contracts.TerminationError{
 		Code: "allocation_batch_preparation_failed", Message: "Stage allocation batch preparation failed", Retryable: true,
 	}
-	deadline := c.now().Add(c.cleanupTimeout)
+	deadline := c.currentTime().Add(c.cleanupTimeout)
 	var failures []error
 	safeReason := safeTerminationReason(reason)
 	for _, reservation := range reservations {
@@ -971,7 +973,7 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 	abortIDs := make([]string, len(reservations))
 	abortIDErrors := make([]error, len(reservations))
 	for index := range reservations {
-		abortIDs[index], abortIDErrors[index] = c.newID("abort_")
+		abortIDs[index], abortIDErrors[index] = c.nextID("abort_")
 	}
 	type cleanupResult struct {
 		report              contracts.AllocationFinalReport
@@ -1025,6 +1027,18 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func (c *RuntimeBatchController) nextID(prefix string) (string, error) {
+	c.idMu.Lock()
+	defer c.idMu.Unlock()
+	return c.newID(prefix)
+}
+
+func (c *RuntimeBatchController) currentTime() time.Time {
+	c.nowMu.Lock()
+	defer c.nowMu.Unlock()
+	return c.now()
 }
 
 type runtimeCallResult[T any] struct {

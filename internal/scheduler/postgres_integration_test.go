@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -107,6 +108,7 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 		PollInterval: time.Second, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
 		PlannerTimeout: 20 * time.Second, FinalizationTimeout: 5 * time.Second, AbortTimeout: 5 * time.Second,
 		RuntimeSettings: testSchedulerRuntimeSettings(), Credentials: credentialProvider, Clock: clock,
+		Settings: settingsstore.NewPostgresStore(pool),
 		NewID: func(prefix string) (string, error) {
 			sequence++
 			return prefix + strings.Repeat("x", sequence), nil

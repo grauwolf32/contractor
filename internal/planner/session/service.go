@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -41,6 +42,7 @@ type Options struct {
 type Service struct {
 	store Store
 	newID func(string) (string, error)
+	idMu  sync.Mutex
 }
 
 func New(store Store, options Options) (*Service, error) {
@@ -72,7 +74,7 @@ func (s *Service) Begin(
 		if err != nil {
 			return planner.SessionStart{}, err
 		}
-		startedEventID, err := s.newID("planner_event_")
+		startedEventID, err := s.nextID("planner_event_")
 		if err != nil {
 			return planner.SessionStart{}, fmt.Errorf("generate Planner started event ID: %w", err)
 		}
@@ -444,7 +446,7 @@ func (s *Service) append(
 	kind planner.PlannerEventKind,
 	runFields *plannerRunEventData,
 ) error {
-	eventID, err := s.newID("planner_event_")
+	eventID, err := s.nextID("planner_event_")
 	if err != nil {
 		return fmt.Errorf("generate Planner event ID: %w", err)
 	}
@@ -470,17 +472,23 @@ func (s *Service) append(
 }
 
 func (s *Service) newIdentity(stageExecutionID string) (planner.SessionIdentity, error) {
-	sessionID, err := s.newID("planner_session_")
+	sessionID, err := s.nextID("planner_session_")
 	if err != nil {
 		return planner.SessionIdentity{}, fmt.Errorf("generate Planner session ID: %w", err)
 	}
-	invocationID, err := s.newID("planner_invocation_")
+	invocationID, err := s.nextID("planner_invocation_")
 	if err != nil {
 		return planner.SessionIdentity{}, fmt.Errorf("generate Planner invocation ID: %w", err)
 	}
 	return planner.SessionIdentity{
 		SessionID: sessionID, StageExecutionID: stageExecutionID, InvocationID: invocationID,
 	}, nil
+}
+
+func (s *Service) nextID(prefix string) (string, error) {
+	s.idMu.Lock()
+	defer s.idMu.Unlock()
+	return s.newID(prefix)
 }
 
 const (

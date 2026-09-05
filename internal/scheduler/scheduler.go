@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -54,6 +55,12 @@ type Scheduler struct {
 	wake        chan struct{}
 	activeMu    sync.Mutex
 	active      map[string]context.CancelCauseFunc
+	idMu        sync.Mutex
+	clockMu     sync.Mutex
+	runMu       sync.Mutex
+	running     bool
+	releaseMu   sync.Mutex
+	releasing   map[string]struct{}
 }
 
 func New(
@@ -66,7 +73,7 @@ func New(
 	options Options,
 ) (*Scheduler, error) {
 	if store == nil || persistence == nil || artifactResolver == nil || allocator == nil ||
-		workers == nil || planners == nil {
+		workers == nil || planners == nil || options.Settings == nil {
 		return nil, fmt.Errorf("Scheduler dependencies are incomplete")
 	}
 	applyOptionDefaults(&options)
@@ -83,6 +90,7 @@ func New(
 		store: store, persistence: persistence, artifacts: artifactResolver,
 		allocator: allocator, workers: workers, planners: planners, options: options,
 		wake: make(chan struct{}, 1), active: make(map[string]context.CancelCauseFunc),
+		releasing: make(map[string]struct{}),
 	}, nil
 }
 
@@ -164,40 +172,106 @@ func (s *Scheduler) interruptRun(runID string, cause error) {
 	}
 }
 
-// Run serves claims serially. One Scheduler instance therefore executes one
-// Stage at a time; PostgreSQL claims still protect against another process.
+// Run supervises the PostgreSQL-authoritative number of concurrent Run lanes.
+// Each lane owns at most one durable claim, while maintenance remains outside
+// the semantic execution limit so cancellation and release can always drain.
 func (s *Scheduler) Run(ctx context.Context) error {
-	monitorContext, cancelMonitor := context.WithCancel(ctx)
+	if !s.beginProductionRun() {
+		return errors.New("Workflow Scheduler is already running")
+	}
+	defer s.endProductionRun()
+
+	desired, err := s.readConcurrentRunLimit(ctx)
+	if ctx.Err() != nil {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load Workflow Scheduler concurrency setting: %w", err)
+	}
+	monitorContext, cancelMonitor := context.WithCancel(context.WithoutCancel(ctx))
 	var monitor sync.WaitGroup
-	monitor.Add(2)
+	monitor.Add(3)
 	go func() {
 		defer monitor.Done()
 		s.monitorAllocationLosses(monitorContext)
 	}()
 	go func() {
 		defer monitor.Done()
+		s.monitorTerminalRelease(monitorContext)
+	}()
+	go func() {
+		defer monitor.Done()
 		s.monitorMetricsRetention(monitorContext)
 	}()
+
+	type laneResult struct {
+		worked bool
+		err    error
+	}
+	results := make(chan laneResult, settingsstore.MaximumConcurrentRuns)
+	var lanes sync.WaitGroup
+	activeLanes := 0
+	admissionHealthy := true
+	startLane := func() {
+		activeLanes++
+		lanes.Add(1)
+		go func() {
+			defer lanes.Done()
+			worked, laneErr := s.progressOneClaim(ctx)
+			results <- laneResult{worked: worked, err: laneErr}
+		}()
+	}
+	fillLanes := func() {
+		for admissionHealthy && ctx.Err() == nil && activeLanes < desired {
+			startLane()
+		}
+	}
 	defer func() {
+		lanes.Wait()
 		cancelMonitor()
 		monitor.Wait()
 	}()
+	fillLanes()
+	refresh := s.after(s.options.PollInterval)
 	for {
-		worked, err := s.RunOnce(ctx)
-		if ctx.Err() != nil {
-			return nil
-		}
-		if err != nil && !errors.Is(err, ErrDeferred) {
-			s.options.Logger.Error("Workflow Scheduler iteration failed", "error", err)
-		}
-		if worked && err == nil {
-			continue
-		}
 		select {
 		case <-ctx.Done():
 			return nil
+		case result := <-results:
+			activeLanes--
+			if result.err != nil && !errors.Is(result.err, ErrDeferred) && ctx.Err() == nil {
+				s.options.Logger.Error("Workflow Scheduler lane failed", "error", result.err)
+			}
+			// Preserve the serial loop's eager progression only after useful,
+			// successful work. No-work and deferred attempts wait for a bounded
+			// poll/wake so incompatible Runs cannot create a hot loop.
+			if result.worked && result.err == nil && admissionHealthy &&
+				ctx.Err() == nil && activeLanes < desired {
+				startLane()
+			}
 		case <-s.wake:
-		case <-s.options.Clock.After(s.options.PollInterval):
+			next, refreshErr := s.readConcurrentRunLimit(ctx)
+			if refreshErr != nil {
+				admissionHealthy = false
+				if ctx.Err() == nil {
+					s.options.Logger.Error("refresh Workflow Scheduler concurrency setting failed", "error", refreshErr)
+				}
+				continue
+			}
+			desired, admissionHealthy = next, true
+			fillLanes()
+		case <-refresh:
+			refresh = s.after(s.options.PollInterval)
+			next, refreshErr := s.readConcurrentRunLimit(ctx)
+			if refreshErr != nil {
+				admissionHealthy = false
+				if ctx.Err() == nil {
+					s.options.Logger.Error("refresh Workflow Scheduler concurrency setting failed", "error", refreshErr)
+				}
+				continue
+			}
+			desired, admissionHealthy = next, true
+			fillLanes()
 		}
 	}
 }
@@ -209,7 +283,17 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	if terminalReleaseErr != nil {
 		s.options.Logger.Warn("terminal allocation release recovery failed", "error", terminalReleaseErr)
 	}
-	claimID, err := s.options.NewID("claim_")
+	worked, err := s.progressOneClaim(ctx)
+	if !worked && err == nil {
+		return released && terminalReleaseErr == nil, nil
+	}
+	return worked, err
+}
+
+// progressOneClaim is the production lane primitive. It owns exactly one
+// claim/progression/release cycle and performs no global maintenance.
+func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
+	claimID, err := s.newID("claim_")
 	if err != nil {
 		return false, fmt.Errorf("generate Scheduler claim ID: %w", err)
 	}
@@ -217,7 +301,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	run, err := s.store.ClaimRunnableRun(claimContext, claimID, s.options.ClaimDuration)
 	cancelClaim()
 	if errors.Is(err, runstore.ErrNoWork) {
-		return released && terminalReleaseErr == nil, nil
+		return false, nil
 	}
 	if err != nil {
 		return false, err
@@ -278,13 +362,79 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	return true, err
 }
 
+func (s *Scheduler) readConcurrentRunLimit(ctx context.Context) (int, error) {
+	readContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
+	defer cancel()
+	settings, err := s.options.Settings.GetSchedulerSettings(readContext)
+	if err != nil {
+		return 0, err
+	}
+	if settings.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
+		settings.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns ||
+		settings.Revision == 0 || settings.UpdatedAt.IsZero() {
+		return 0, settingsstore.ErrInvariant
+	}
+	return settings.MaxConcurrentRuns, nil
+}
+
+func (s *Scheduler) beginProductionRun() bool {
+	s.runMu.Lock()
+	defer s.runMu.Unlock()
+	if s.running {
+		return false
+	}
+	s.running = true
+	return true
+}
+
+func (s *Scheduler) endProductionRun() {
+	s.runMu.Lock()
+	s.running = false
+	s.runMu.Unlock()
+}
+
+func (s *Scheduler) newID(prefix string) (string, error) {
+	s.idMu.Lock()
+	defer s.idMu.Unlock()
+	return s.options.NewID(prefix)
+}
+
+func (s *Scheduler) now() time.Time {
+	s.clockMu.Lock()
+	defer s.clockMu.Unlock()
+	return s.options.Clock.Now()
+}
+
+func (s *Scheduler) after(duration time.Duration) <-chan time.Time {
+	s.clockMu.Lock()
+	defer s.clockMu.Unlock()
+	return s.options.Clock.After(duration)
+}
+
 func (s *Scheduler) monitorAllocationLosses(ctx context.Context) {
 	for {
 		s.pollAllocationLosses()
 		select {
 		case <-ctx.Done():
 			return
-		case <-s.options.Clock.After(s.options.LeaseScanInterval):
+		case <-s.after(s.options.LeaseScanInterval):
+		}
+	}
+}
+
+func (s *Scheduler) monitorTerminalRelease(ctx context.Context) {
+	for {
+		worked, err := s.recoverTerminalRelease(ctx)
+		if err != nil && ctx.Err() == nil {
+			s.options.Logger.Warn("terminal allocation release recovery failed", "error", err)
+		}
+		if worked && err == nil {
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-s.after(s.options.PollInterval):
 		}
 	}
 }
@@ -293,7 +443,7 @@ func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
 	for {
 		cleanupContext, cancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 		deleted, err := s.store.CleanupExpiredTelemetry(
-			cleanupContext, s.options.Clock.Now(), s.options.MetricsCleanupBatch,
+			cleanupContext, s.now(), s.options.MetricsCleanupBatch,
 		)
 		cancel()
 		if err != nil && ctx.Err() == nil {
@@ -304,7 +454,7 @@ func (s *Scheduler) monitorMetricsRetention(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-s.options.Clock.After(s.options.MetricsCleanupInterval):
+		case <-s.after(s.options.MetricsCleanupInterval):
 		}
 	}
 }
@@ -343,7 +493,7 @@ func (s *Scheduler) renewClaim(
 			return
 		case <-stop:
 			return
-		case <-s.options.Clock.After(interval):
+		case <-s.after(interval):
 		}
 		renewContext, renewCancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 		err := s.store.RenewRunClaim(renewContext, runID, claimID, s.options.ClaimDuration)
@@ -580,7 +730,7 @@ func (s *Scheduler) buildStageCreation(
 	previousExecutionID *string,
 	configuration stageExecutionConfiguration,
 ) (NextStageCreation, error) {
-	stageExecutionID, err := s.options.NewID("stage_execution_")
+	stageExecutionID, err := s.newID("stage_execution_")
 	if err != nil {
 		return NextStageCreation{}, fmt.Errorf("generate StageExecution ID: %w", err)
 	}
@@ -678,7 +828,7 @@ func (s *Scheduler) prepareAndPlan(
 	stageDeadline := s.stageDeadline(execution)
 	reservations, fresh, err := s.liveOrNewReservations(ctx, run, workflow, execution)
 	if errors.Is(err, controlplane.ErrInsufficientCapacity) {
-		if !s.options.Clock.Now().Before(stageDeadline) {
+		if !s.now().Before(stageDeadline) {
 			return s.beginAbort(ctx, run, workflow, execution, nil, stageDeadlineFailure())
 		}
 		return ErrDeferred
@@ -696,7 +846,7 @@ func (s *Scheduler) prepareAndPlan(
 	if err != nil {
 		return err
 	}
-	if !s.options.Clock.Now().Before(stageDeadline) {
+	if !s.now().Before(stageDeadline) {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, stageDeadlineFailure())
 	}
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
@@ -728,7 +878,7 @@ func (s *Scheduler) prepareAndPlan(
 	if cause := context.Cause(ctx); errors.Is(cause, ErrAllocationLeaseLost) {
 		return cause
 	}
-	if !s.options.Clock.Now().Before(stageDeadline) {
+	if !s.now().Before(stageDeadline) {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, stageDeadlineFailure())
 	}
 
@@ -805,11 +955,11 @@ func (s *Scheduler) prepareAndPlan(
 			Code: "allocation_fence_failed", Message: "Stage allocations could not be write-fenced", Retryable: true,
 		})
 	}
-	finalizationID, err := s.options.NewID("finalization_")
+	finalizationID, err := s.newID("finalization_")
 	if err != nil {
 		return err
 	}
-	deadline := s.options.Clock.Now().Add(s.options.FinalizationTimeout)
+	deadline := s.now().Add(s.options.FinalizationTimeout)
 	transitionContext, cancelTransition := context.WithTimeout(ctx, s.options.OperationTimeout)
 	err = s.persistence.EnterFinalizingWithResult(transitionContext, runstore.EnterFinalizingParams{
 		StageExecutionID:    execution.StageExecutionID,
@@ -838,7 +988,7 @@ func (s *Scheduler) stageDeadline(execution runstore.StageExecution) time.Time {
 		// Legacy embeddings and focused in-memory stores created before the
 		// durable timestamp contract receive one finite budget from observation.
 		// PostgreSQL StageExecutions always use their immutable database time.
-		startedAt = s.options.Clock.Now()
+		startedAt = s.now()
 	}
 	return startedAt.Add(s.options.PlannerTimeout)
 }
@@ -1302,7 +1452,7 @@ func (s *Scheduler) flushPlannerTelemetry(
 	if s.options.FinalizationTimeout < bound {
 		bound = s.options.FinalizationTimeout
 	}
-	if remaining := stageDeadline.Sub(s.options.Clock.Now()); remaining < bound {
+	if remaining := stageDeadline.Sub(s.now()); remaining < bound {
 		bound = remaining
 	}
 	result := telemetry.PlannerExportResult{Attempted: true, ErrorCode: "flush_timeout"}
@@ -1741,17 +1891,17 @@ func (s *Scheduler) beginTermination(
 	if err := s.fenceRecordedAllocations(ctx, execution.StageExecutionID, reservations); err != nil {
 		return fmt.Errorf("write-fence Stage allocations: %w", err)
 	}
-	abortID, err := s.options.NewID("abort_")
+	abortID, err := s.newID("abort_")
 	if err != nil {
 		return err
 	}
-	deadline := s.options.Clock.Now().Add(s.options.AbortTimeout)
+	deadline := s.now().Add(s.options.AbortTimeout)
 	phase := runstore.TerminationPreparing
 	if execution.State == runstore.StageRunning {
 		phase = runstore.TerminationRunning
 	}
 	termination.Phase = phase
-	termination.OccurredAt = s.options.Clock.Now()
+	termination.OccurredAt = s.now()
 	transitionContext, cancelTransition := context.WithTimeout(ctx, s.options.OperationTimeout)
 	err = s.persistence.EnterAbortingWithTermination(
 		transitionContext,
@@ -1831,7 +1981,7 @@ func (s *Scheduler) resumeAborting(
 	}
 	_ = s.fenceRecordedAllocations(context.WithoutCancel(ctx), execution.StageExecutionID, reservations)
 	var reports map[string]contracts.AllocationFinalReport
-	if len(reservations) > 0 && execution.AbortDeadline.After(s.options.Clock.Now()) {
+	if len(reservations) > 0 && execution.AbortDeadline.After(s.now()) {
 		abortContext, cancelAbort := context.WithDeadline(ctx, *execution.AbortDeadline)
 		var err error
 		reports, err = s.workers.AbortAll(
@@ -1922,7 +2072,7 @@ func (s *Scheduler) resumeFinalizing(
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
 	}
 	var reports map[string]contracts.AllocationFinalReport
-	if len(reservations) > 0 && execution.FinalizationDeadline.After(s.options.Clock.Now()) {
+	if len(reservations) > 0 && execution.FinalizationDeadline.After(s.now()) {
 		finalizeContext, cancelFinalize := context.WithDeadline(ctx, *execution.FinalizationDeadline)
 		var err error
 		reports, err = s.workers.FinalizeAll(
@@ -2199,7 +2349,7 @@ func (s *Scheduler) persistReports(
 	for _, reservation := range reservations {
 		byName[reservation.Grant.LogicalAgentName] = reservation
 	}
-	finishedAt := s.options.Clock.Now().UTC().Round(0)
+	finishedAt := s.now().UTC().Round(0)
 	startedAt := execution.CreatedAt.UTC().Round(0)
 	if execution.PlannerStartedAt != nil {
 		startedAt = execution.PlannerStartedAt.UTC().Round(0)
@@ -2277,7 +2427,7 @@ func (s *Scheduler) persistPlannerReport(
 		startedAt = execution.PlannerStartedAt.UTC().Round(0)
 	}
 	if startedAt.IsZero() {
-		startedAt = s.options.Clock.Now().UTC().Round(0)
+		startedAt = s.now().UTC().Round(0)
 	}
 	finishedAt := startedAt
 	if report.Metrics.DurationMS != nil {
@@ -2405,6 +2555,24 @@ func (s *Scheduler) releaseTerminal(
 	if len(reservations) == 0 {
 		return nil
 	}
+	if !s.beginTerminalRelease(stageExecutionID) {
+		// Another lane or the recovery monitor owns this exact release. Durable
+		// release markers make its failure retryable without duplicate Runtime
+		// control calls from this process.
+		return nil
+	}
+	defer s.endTerminalRelease(stageExecutionID)
+	return s.releaseTerminalOwned(stageExecutionID, reservations)
+}
+
+// releaseTerminalOwned performs the Runtime calls after the caller has
+// acquired the per-Stage release gate. Keeping recovery under the same gate
+// prevents it from mistaking another lane's in-flight release for completed
+// work and immediately rescanning the same durable rows.
+func (s *Scheduler) releaseTerminalOwned(
+	stageExecutionID string,
+	reservations []controlplane.Reservation,
+) error {
 	var failures []error
 	for _, reservation := range reservations {
 		markContext, cancelMark := context.WithTimeout(context.Background(), s.options.OperationTimeout)
@@ -2447,6 +2615,22 @@ func (s *Scheduler) releaseTerminal(
 	return errors.Join(failures...)
 }
 
+func (s *Scheduler) beginTerminalRelease(stageExecutionID string) bool {
+	s.releaseMu.Lock()
+	defer s.releaseMu.Unlock()
+	if _, active := s.releasing[stageExecutionID]; active {
+		return false
+	}
+	s.releasing[stageExecutionID] = struct{}{}
+	return true
+}
+
+func (s *Scheduler) endTerminalRelease(stageExecutionID string) {
+	s.releaseMu.Lock()
+	delete(s.releasing, stageExecutionID)
+	s.releaseMu.Unlock()
+}
+
 func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
 	listContext, cancelList := context.WithTimeout(ctx, s.options.OperationTimeout)
 	executions, err := s.store.ListTerminalStageExecutionsWithAllocations(listContext)
@@ -2455,56 +2639,72 @@ func (s *Scheduler) recoverTerminalRelease(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	for _, execution := range executions {
-		allocationContext, cancelAllocations := context.WithTimeout(ctx, s.options.OperationTimeout)
-		allocations, err := s.store.ListStageAllocations(
-			allocationContext, execution.StageExecutionID,
-		)
-		cancelAllocations()
-		if err != nil {
-			return true, err
+		if !s.beginTerminalRelease(execution.StageExecutionID) {
+			// A Run lane already owns this exact cleanup. Do not report work:
+			// the monitor must wait rather than hot-loop over unchanged rows.
+			continue
 		}
-		worked := false
-		reservations := make([]controlplane.Reservation, 0, len(allocations))
-		var failures []error
-		for _, allocation := range allocations {
-			if allocation.ReleaseCompletedAt != nil {
-				continue
-			}
-			worked = true
-			markContext, cancelMark := context.WithTimeout(ctx, s.options.OperationTimeout)
-			markErr := s.store.MarkStageAllocationReleaseAttempt(markContext, allocation.AllocationID)
+		worked, recoveryErr := func() (bool, error) {
+			defer s.endTerminalRelease(execution.StageExecutionID)
+			return s.recoverTerminalExecution(ctx, execution)
+		}()
+		if worked || recoveryErr != nil {
+			return worked, recoveryErr
+		}
+	}
+	return false, nil
+}
+
+func (s *Scheduler) recoverTerminalExecution(
+	ctx context.Context,
+	execution runstore.StageExecution,
+) (bool, error) {
+	allocationContext, cancelAllocations := context.WithTimeout(ctx, s.options.OperationTimeout)
+	allocations, err := s.store.ListStageAllocations(
+		allocationContext, execution.StageExecutionID,
+	)
+	cancelAllocations()
+	if err != nil {
+		return true, err
+	}
+	worked := false
+	reservations := make([]controlplane.Reservation, 0, len(allocations))
+	var failures []error
+	for _, allocation := range allocations {
+		if allocation.ReleaseCompletedAt != nil {
+			continue
+		}
+		worked = true
+		markContext, cancelMark := context.WithTimeout(ctx, s.options.OperationTimeout)
+		markErr := s.store.MarkStageAllocationReleaseAttempt(markContext, allocation.AllocationID)
+		cancelMark()
+		if markErr != nil {
+			failures = append(failures, markErr)
+		}
+		reservation, reservationErr := s.allocator.GetReservation(allocation.AllocationID)
+		if errors.Is(reservationErr, controlplane.ErrAllocationNotFound) {
+			markContext, cancelMark = context.WithTimeout(ctx, s.options.OperationTimeout)
+			markErr = s.store.MarkStageAllocationReleased(markContext, allocation.AllocationID)
 			cancelMark()
 			if markErr != nil {
 				failures = append(failures, markErr)
 			}
-			reservation, reservationErr := s.allocator.GetReservation(allocation.AllocationID)
-			if errors.Is(reservationErr, controlplane.ErrAllocationNotFound) {
-				markContext, cancelMark = context.WithTimeout(ctx, s.options.OperationTimeout)
-				markErr = s.store.MarkStageAllocationReleased(markContext, allocation.AllocationID)
-				cancelMark()
-				if markErr != nil {
-					failures = append(failures, markErr)
-				}
-				continue
-			}
-			if reservationErr != nil {
-				failures = append(failures, reservationErr)
-				continue
-			}
-			if err := verifyTerminalReleaseReservation(execution, allocation, reservation); err != nil {
-				failures = append(failures, err)
-				continue
-			}
-			reservations = append(reservations, reservation)
+			continue
 		}
-		if len(reservations) != 0 {
-			failures = append(failures, s.releaseTerminal(execution.StageExecutionID, reservations))
+		if reservationErr != nil {
+			failures = append(failures, reservationErr)
+			continue
 		}
-		if worked {
-			return true, errors.Join(failures...)
+		if err := verifyTerminalReleaseReservation(execution, allocation, reservation); err != nil {
+			failures = append(failures, err)
+			continue
 		}
+		reservations = append(reservations, reservation)
 	}
-	return false, nil
+	if len(reservations) != 0 {
+		failures = append(failures, s.releaseTerminalOwned(execution.StageExecutionID, reservations))
+	}
+	return worked, errors.Join(failures...)
 }
 
 func verifyTerminalReleaseReservation(

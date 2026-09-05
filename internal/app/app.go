@@ -42,6 +42,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/scheduler"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -420,6 +421,7 @@ func RunCLI(
 			RuntimeCredentials: runtimeCredentialLifecycle,
 			PlannerTelemetry:   plannerTelemetryRegistry,
 			RunSkills:          &runSkillInitializer{pool: pool},
+			Settings:           settingsstore.NewPostgresStore(pool),
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
