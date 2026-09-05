@@ -266,10 +266,31 @@ type ListParams struct {
 	OwnerID         string
 	ProjectID       *string
 	State           *AuditState
+	ProfileName     *string
+	ProfileVersion  *string
 	BeforeCreatedAt *time.Time
 	BeforeAuditID   string
 	Limit           int
 }
+
+type ListItemsParams struct {
+	OwnerID           string
+	AuditID           string
+	RoundID           *string
+	State             *ItemState
+	SubjectKey        *string
+	AfterRoundOrdinal *int
+	AfterItemOrdinal  *int
+	AfterItemID       string
+	Limit             int
+}
+
+type MutationOperation string
+
+const (
+	MutationCreate MutationOperation = "audit.create"
+	MutationStart  MutationOperation = "audit.start"
+)
 
 type TransitionParams struct {
 	OwnerID          string
@@ -534,6 +555,7 @@ type CoverageRow struct {
 	AuditID    string
 	RoundID    string
 	ItemID     string
+	Ordinal    int
 	ItemKey    string
 	SubjectKey string
 	Coverage   Coverage
@@ -554,9 +576,11 @@ type ReconcileSnapshot struct {
 
 // OwnerRepository never accepts an untrusted owner in stored payloads.
 type OwnerRepository interface {
+	LookupMutationReplay(context.Context, string, MutationOperation, string, string) (Audit, bool, error)
 	CreateDraft(context.Context, CreateDraftParams) (Audit, bool, error)
 	Get(context.Context, string, string) (Audit, error)
 	List(context.Context, ListParams) ([]Audit, error)
+	ListItemsPage(context.Context, ListItemsParams) ([]Item, error)
 	Transition(context.Context, TransitionParams) (Audit, bool, error)
 	MaterializeRound(context.Context, MaterializeRoundParams) (Audit, bool, error)
 }

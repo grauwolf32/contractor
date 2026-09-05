@@ -55,6 +55,57 @@ func (s *PostgresStore) ListItems(ctx context.Context, auditID string) ([]Item, 
 	return s.listItems(ctx, auditID, 0)
 }
 
+// ListItemsPage is the owner-safe, filter-before-keyset projection used by the
+// public API. Controller reconciliation deliberately keeps its separate
+// bounded non-settled scan below.
+func (s *PostgresStore) ListItemsPage(
+	ctx context.Context, params ListItemsParams,
+) ([]Item, error) {
+	if err := validateListItems(params); err != nil {
+		return nil, err
+	}
+	var state *string
+	if params.State != nil {
+		value := string(*params.State)
+		state = &value
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT `+prefixedItemColumns("item")+`
+  FROM audit_items AS item
+  JOIN audit_rounds AS round USING (round_id, audit_id)
+  JOIN audits AS audit USING (audit_id)
+ WHERE audit.owner_id = $1 AND item.audit_id = $2
+   AND ($3::text IS NULL OR item.round_id = $3)
+   AND ($4::text IS NULL OR item.state = $4)
+   AND ($5::text IS NULL OR item.subject_key = $5)
+   AND ($6::integer IS NULL OR (round.ordinal, item.ordinal, item.item_id) > ($6, $7, $8))
+ ORDER BY round.ordinal, item.ordinal, item.item_id
+ LIMIT $9`, params.OwnerID, params.AuditID, params.RoundID, state,
+		params.SubjectKey, params.AfterRoundOrdinal, params.AfterItemOrdinal,
+		params.AfterItemID, params.Limit)
+	if err != nil {
+		return nil, fmt.Errorf("list owner Audit items: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Item, 0, params.Limit)
+	for rows.Next() {
+		item, scanErr := scanItem(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan owner Audit item: %w", scanErr)
+		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate owner Audit items: %w", err)
+	}
+	if len(result) == 0 {
+		if _, err := s.Get(ctx, params.OwnerID, params.AuditID); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) listItems(ctx context.Context, auditID string, limit int) ([]Item, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
@@ -205,7 +256,7 @@ func (s *PostgresStore) ListCoverage(
 		return nil, invalidf("coverage page is invalid")
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT coverage.audit_id, coverage.round_id, coverage.item_id,
+SELECT coverage.audit_id, coverage.round_id, coverage.item_id, item.ordinal,
        coverage.item_key, coverage.subject_key, coverage.status,
        coverage.requested, coverage.completed, coverage.gaps,
        coverage.rationale, coverage.result_ref, coverage.result_digest,
@@ -226,7 +277,7 @@ SELECT coverage.audit_id, coverage.round_id, coverage.item_id,
 		var requested, completed, gaps, resultRef []byte
 		var resultDigest *string
 		if err := rows.Scan(
-			&row.AuditID, &row.RoundID, &row.ItemID, &row.ItemKey,
+			&row.AuditID, &row.RoundID, &row.ItemID, &row.Ordinal, &row.ItemKey,
 			&row.SubjectKey, &status, &requested, &completed, &gaps,
 			&row.Coverage.Rationale, &resultRef, &resultDigest, &row.UpdatedAt,
 		); err != nil {

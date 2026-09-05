@@ -31,7 +31,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		dependencies.Credentials == nil || dependencies.ManagedCredentials == nil || dependencies.Runs == nil ||
 		dependencies.RuntimeConfigs == nil || dependencies.RuntimeCredentials == nil ||
 		dependencies.RuntimeAgentPrincipals == nil ||
-		dependencies.Projects == nil ||
+		dependencies.Projects == nil || dependencies.Audits == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
 		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
@@ -87,6 +87,14 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage", current.listProjectArtifactLineage)
 	mux.HandleFunc("POST /v1/projects/{projectId}/runs", current.createProjectRun)
 	mux.HandleFunc("GET /v1/projects/{projectId}/runs", current.listProjectRuns)
+	mux.HandleFunc("GET /v1/audit-profiles", current.listAuditProfiles)
+	mux.HandleFunc("GET /v1/audit-profiles/{name}/versions/{version}", current.getAuditProfile)
+	mux.HandleFunc("POST /v1/projects/{projectId}/audits", current.createAudit)
+	mux.HandleFunc("GET /v1/projects/{projectId}/audits", current.listProjectAudits)
+	mux.HandleFunc("GET /v1/audits/{auditId}", current.getAudit)
+	mux.HandleFunc("POST /v1/audits/{auditId}/start", current.startAudit)
+	mux.HandleFunc("GET /v1/audits/{auditId}/items", current.listAuditItems)
+	mux.HandleFunc("GET /v1/audits/{auditId}/coverage", current.listAuditCoverage)
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
 	mux.HandleFunc("POST /v1/configurations/{kind}", current.publishConfiguration)
 	mux.HandleFunc("GET /v1/configurations/{kind}/{name}/versions/{version}", current.getConfiguration)
@@ -175,6 +183,13 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/projects/{projectId}/artifacts/{namespace}/{name}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/projects/{projectId}/artifacts", current.methodNotAllowed)
 	mux.HandleFunc("/v1/projects/{projectId}/runs", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audit-profiles/{name}/versions/{version}", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audit-profiles", current.methodNotAllowed)
+	mux.HandleFunc("/v1/projects/{projectId}/audits", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audits/{auditId}/start", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audits/{auditId}/items", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audits/{auditId}/coverage", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audits/{auditId}", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
 	return withAPIVersion(current.withRequestID(current.cors(current.authenticate(mux), mux))), nil

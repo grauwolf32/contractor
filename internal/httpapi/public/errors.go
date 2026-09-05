@@ -6,6 +6,9 @@ import (
 	"net/http"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -18,9 +21,23 @@ import (
 func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var credentialInUse *credentials.CredentialInUseError
 	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
+	var auditUnsupported *auditservice.UnsupportedError
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
 	var runNotDeletable *runstore.RunNotDeletableError
 	switch {
+	case errors.Is(err, auditstore.ErrPrecondition):
+		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
+	case errors.As(err, &auditUnsupported):
+		writeJSON(w, http.StatusUnprocessableEntity, errorResponse{
+			Code: "audit_profile_unsupported", Message: "AuditProfile requires unsupported Server capabilities",
+			Retryable: false, RequestID: requestid.FromResponse(w),
+			Details: &auditUnsupportedDetailsResponse{
+				Kind:    "audit_profile_unsupported",
+				Reasons: append([]auditservice.CompatibilityReason(nil), auditUnsupported.Reasons...),
+			},
+		})
+	case auditdomain.ErrorCode(err) != "":
+		h.writeError(w, http.StatusUnprocessableEntity, auditdomain.ErrorCode(err), "Audit input could not be processed", false)
 	case errors.Is(err, runstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, projectstore.ErrPrecondition):
@@ -56,6 +73,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 				BindingLabels: append([]string(nil), runtimeCredentialInUse.Usage.BindingLabels...),
 				ProjectIDs:    append([]string(nil), runtimeCredentialInUse.Usage.ProjectIDs...),
 				RunIDs:        append([]string(nil), runtimeCredentialInUse.Usage.RunIDs...),
+				AuditIDs:      append([]string(nil), runtimeCredentialInUse.Usage.AuditIDs...),
 				AllocationIDs: append([]string(nil), runtimeCredentialInUse.Usage.AllocationIDs...),
 			},
 		})
@@ -67,10 +85,11 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusBadRequest, "runtime_config_invalid", "Runtime credential request is invalid", false)
 	case errors.As(err, &credentialInUse):
 		writeJSON(w, http.StatusConflict, errorResponse{
-			Code: "credential_in_use", Message: "credential is pinned by a non-terminal Run",
+			Code: "credential_in_use", Message: "credential is pinned by a non-terminal Run or Audit",
 			Retryable: false, RequestID: requestid.FromResponse(w),
 			Details: &credentialInUseDetailsResponse{
 				Kind: "credential_in_use", RunIDs: append([]string(nil), credentialInUse.RunIDs...),
+				AuditIDs: append([]string(nil), credentialInUse.AuditIDs...),
 			},
 		})
 	case errors.Is(err, credentials.ErrGatewayUnavailable), errors.Is(err, credentials.ErrManagerUnavailable):
@@ -92,14 +111,16 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 			},
 		})
 	case errors.Is(err, projectstore.ErrDeleting), errors.Is(err, runstore.ErrProjectDeleting),
+		errors.Is(err, auditstore.ErrProjectDeleting),
 		errors.Is(err, artifacts.ErrScopeDeleting):
 		h.writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen),
 		errors.Is(err, projectstore.ErrConflict),
-		errors.Is(err, runstore.ErrConflict):
+		errors.Is(err, runstore.ErrConflict), errors.Is(err, auditstore.ErrConflict):
 		h.writeError(w, http.StatusConflict, "conflict", "resource state changed; retry with the current revision", true)
 	case errors.Is(err, artifacts.ErrArtifactNotFound), errors.Is(err, projectstore.ErrNotFound),
 		errors.Is(err, runstore.ErrNotFound),
+		errors.Is(err, auditstore.ErrNotFound), errors.Is(err, auditservice.ErrProfileNotFound),
 		errors.Is(err, config.ErrConfigurationNotFound):
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, errInvalidRequest), errors.Is(err, artifacts.ErrInvalidScope),
@@ -107,6 +128,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, artifacts.ErrExactRevisionRequired),
 		errors.Is(err, artifacts.ErrReservedNamespace), errors.Is(err, contracts.ErrValidation),
 		errors.Is(err, runstore.ErrInvalid), errors.Is(err, projectstore.ErrInvalid),
+		errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid),
 		errors.Is(err, config.ErrInvalidConfigurationKind),
 		errors.Is(err, config.ErrInvalidPublication), errors.Is(err, credentials.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)

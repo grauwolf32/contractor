@@ -187,6 +187,32 @@ func TestCredentialDeletionRejectsPinnedRunThenDeletesAndReplays(t *testing.T) {
 	}
 }
 
+func TestCredentialDeletionRejectsAuditDispatchHold(t *testing.T) {
+	pool, ctx := lifecycleTestPool(t)
+	manager := newFakeGatewayManager()
+	holds := staticAuditDispatchHolds{auditIDs: []string{"audit-z", "audit-a"}}
+	fixture := newLifecycleFixture(t, pool, manager, ServiceOptions{Audits: holds})
+	if err := fixture.service.Recover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	create := fixture.createRequest("managed-audit-hold", "create-audit-hold")
+	if _, err := fixture.service.Create(ctx, create); err != nil {
+		t.Fatal(err)
+	}
+	_, err := fixture.service.Delete(ctx, DeleteRequest{
+		CredentialID: create.CredentialID, IdempotencyKey: "delete-audit-hold", ActorID: "user-1",
+	})
+	var inUse *CredentialInUseError
+	if !errors.As(err, &inUse) || len(inUse.RunIDs) != 0 ||
+		len(inUse.AuditIDs) != 2 || inUse.AuditIDs[0] != "audit-a" || inUse.AuditIDs[1] != "audit-z" {
+		t.Fatalf("Audit-held deletion error = %#v", err)
+	}
+	if manager.deleteCalls() != 0 || countOperations(t, ctx, pool, OperationDelete) != 0 {
+		t.Fatalf("Audit-held deletion had side effects: manager=%d operations=%d",
+			manager.deleteCalls(), countOperations(t, ctx, pool, OperationDelete))
+	}
+}
+
 func TestCredentialLifecycleRecoversDeleteCrashAndBlocksRunCreation(t *testing.T) {
 	pool, ctx := lifecycleTestPool(t)
 	manager := newFakeGatewayManager()
@@ -380,7 +406,8 @@ func newLifecycleFixtureWithCipher(
 	var ids atomic.Int32
 	options := ServiceOptions{
 		Pool: pool, Gateways: staticGatewayLookup{gateway: gateway}, Managers: registry,
-		Runs: runstore.NewPostgresStore(pool), Cipher: cipher, Barrier: overrides.Barrier,
+		Runs: runstore.NewPostgresStore(pool), Audits: overrides.Audits,
+		Cipher: cipher, Barrier: overrides.Barrier,
 		Now: time.Now,
 		NewID: func(prefix string) (string, error) {
 			return fmt.Sprintf("%s%d", prefix, ids.Add(1)), nil
@@ -393,6 +420,14 @@ func newLifecycleFixtureWithCipher(
 		t.Fatal(err)
 	}
 	return lifecycleFixture{service: service, cipher: cipher, gateway: gateway}
+}
+
+type staticAuditDispatchHolds struct{ auditIDs []string }
+
+func (h staticAuditDispatchHolds) ListHeldAuditIDsByLLMCredential(
+	context.Context, string, int,
+) ([]string, error) {
+	return append([]string(nil), h.auditIDs...), nil
 }
 
 func (f lifecycleFixture) createRequest(credentialID, key string) CreateRequest {

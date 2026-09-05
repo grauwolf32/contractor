@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -598,6 +599,52 @@ func validateRunCredentials(
 		}
 	}
 	return nil
+}
+
+// ValidateResolvedWorkflowCredentials revalidates every base and escalation
+// credential selected by an already-resolved Workflow. Audit start uses this
+// without consulting the mutable Workflow catalog again.
+func ValidateResolvedWorkflowCredentials(
+	ctx context.Context, workflow ResolvedWorkflow, lookup CredentialLookup,
+) error {
+	if err := ValidateWorkflowGraph(workflow); err != nil {
+		return err
+	}
+	return validateRunCredentials(ctx, workflow, lookup)
+}
+
+// ResolvedWorkflowCredentialIDs returns the canonical exact credential-ID set
+// retained by a resolved Workflow, including escalation variants.
+func ResolvedWorkflowCredentialIDs(workflow ResolvedWorkflow) ([]string, error) {
+	if err := ValidateWorkflowGraph(workflow); err != nil {
+		return nil, err
+	}
+	selected := make(map[string]struct{})
+	for _, stageName := range sortedPatchKeys(workflow.Stages) {
+		stage := workflow.Stages[stageName]
+		configs := []ResolvedStageExecutionConfig{stage.ExecutionConfig}
+		for _, action := range []TransitionAction{stage.On.Failed, stage.On.Interrupted} {
+			if action.Kind == TransitionEscalate && action.Escalate != nil {
+				configs = append(configs, action.Escalate.ExecutionConfig.Effective)
+			}
+		}
+		for _, execution := range configs {
+			if execution.Planner != nil && execution.Planner.Credential != nil {
+				selected[execution.Planner.Credential.CredentialID] = struct{}{}
+			}
+			for _, consumer := range execution.Agents {
+				if consumer.Credential != nil {
+					selected[consumer.Credential.CredentialID] = struct{}{}
+				}
+			}
+		}
+	}
+	result := make([]string, 0, len(selected))
+	for credentialID := range selected {
+		result = append(result, credentialID)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 
 func validateStageExecutionConfigCredentials(

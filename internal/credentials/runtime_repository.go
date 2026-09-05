@@ -320,6 +320,27 @@ LIMIT $2`, credentialID, limit)
 	if runRows.Err() != nil {
 		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Run snapshots")
 	}
+	auditRows, err := r.db.Query(ctx, `
+SELECT audit_id
+FROM audits
+WHERE hold_state = 'held'
+  AND (baseline_snapshot->'runtimeCredentialIds') ? $1
+ORDER BY created_at, audit_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential Audit holds")
+	}
+	defer auditRows.Close()
+	for auditRows.Next() {
+		var auditID string
+		if err := auditRows.Scan(&auditID); err != nil {
+			return RuntimeCredentialUsage{}, errors.New("read Runtime credential Audit hold")
+		}
+		usage.AuditIDs = append(usage.AuditIDs, auditID)
+	}
+	if auditRows.Err() != nil {
+		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Audit holds")
+	}
 	allocationRows, err := r.db.Query(ctx, `
 SELECT a.allocation_id
 FROM stage_allocations a

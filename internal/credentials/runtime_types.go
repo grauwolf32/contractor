@@ -218,11 +218,13 @@ type RuntimeCredentialUsage struct {
 	BindingLabels []string
 	ProjectIDs    []string
 	RunIDs        []string
+	AuditIDs      []string
 	AllocationIDs []string
 }
 
 func (u RuntimeCredentialUsage) Empty() bool {
-	return len(u.BindingLabels) == 0 && len(u.ProjectIDs) == 0 && len(u.RunIDs) == 0 && len(u.AllocationIDs) == 0
+	return len(u.BindingLabels) == 0 && len(u.ProjectIDs) == 0 && len(u.RunIDs) == 0 &&
+		len(u.AuditIDs) == 0 && len(u.AllocationIDs) == 0
 }
 
 type RuntimeCredentialInUseError struct{ Usage RuntimeCredentialUsage }
@@ -367,6 +369,7 @@ func normalizeRuntimeUsage(value RuntimeCredentialUsage, maximum int) RuntimeCre
 	value.BindingLabels = normalize(value.BindingLabels)
 	value.ProjectIDs = normalize(value.ProjectIDs)
 	value.RunIDs = normalize(value.RunIDs)
+	value.AuditIDs = normalize(value.AuditIDs)
 	value.AllocationIDs = normalize(value.AllocationIDs)
 	return value
 }

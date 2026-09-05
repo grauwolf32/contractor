@@ -18,10 +18,15 @@ const (
 // ToolsetDescriptor is the Server-visible part of one runtime ToolsetFactory.
 // Tools are the final model-visible names exported by that exact version.
 // InfrastructureChannels contains only tools with a non-empty fixed channel
-// set; an absent tool is local/artifact-only.
+// set; an absent tool is local/artifact-only. ActiveCheckTools and
+// FindingProposalTools are closed Server-side effect classifications used by
+// Audit compatibility checks; model text and tool names are never trusted to
+// infer those effects at start time.
 type ToolsetDescriptor struct {
 	Tools                  []string
 	InfrastructureChannels map[string][]ToolInfrastructureChannel
+	ActiveCheckTools       []string
+	FindingProposalTools   []string
 }
 
 // Descriptors enumerates code-backed factories that configuration is allowed
@@ -64,6 +69,9 @@ func MVPDescriptors() Descriptors {
 					"caido_workflow_list":     {CaidoGraphQLClient},
 					"caido_workflow_run":      {CaidoGraphQLClient},
 				},
+				ActiveCheckTools: []string{
+					"caido_automate_run", "caido_replay", "caido_workflow_run",
+				},
 			},
 			"code-analysis@1": {
 				Tools: []string{
@@ -88,6 +96,7 @@ func MVPDescriptors() Descriptors {
 				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
 					"http_request": {RuntimeHTTPClient},
 				},
+				ActiveCheckTools: []string{"http_request"},
 			},
 			"memory-tools@1": {
 				Tools: []string{
@@ -202,9 +211,44 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 			}
 			channels[tool] = selected
 		}
-		result.Toolsets[raw] = ToolsetDescriptor{Tools: tools, InfrastructureChannels: channels}
+		active, err := normalizeToolClassification(raw, "active-check", descriptor.ActiveCheckTools, seen)
+		if err != nil {
+			return Descriptors{}, err
+		}
+		findings, err := normalizeToolClassification(raw, "finding-proposal", descriptor.FindingProposalTools, seen)
+		if err != nil {
+			return Descriptors{}, err
+		}
+		result.Toolsets[raw] = ToolsetDescriptor{
+			Tools: tools, InfrastructureChannels: channels,
+			ActiveCheckTools: active, FindingProposalTools: findings,
+		}
 	}
 
+	return result, nil
+}
+
+func normalizeToolClassification(
+	selector, classification string,
+	values []string,
+	exported map[string]struct{},
+) ([]string, error) {
+	result := append([]string(nil), values...)
+	sort.Strings(result)
+	for index, tool := range result {
+		if _, exists := exported[tool]; !exists {
+			return nil, fmt.Errorf(
+				"Toolset descriptor %q classifies unknown %s tool %q",
+				selector, classification, tool,
+			)
+		}
+		if index > 0 && result[index-1] == tool {
+			return nil, fmt.Errorf(
+				"Toolset descriptor %q has duplicate %s tool %q",
+				selector, classification, tool,
+			)
+		}
+	}
 	return result, nil
 }
 

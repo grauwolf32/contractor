@@ -19,6 +19,57 @@ func NewPostgresStore(db persistencepostgres.DBTX) *PostgresStore {
 	return &PostgresStore{db: db}
 }
 
+// ListHeldAuditIDsByLLMCredential exposes only the durable dispatch-hold
+// projection needed by the managed credential lifecycle. A held Audit keeps
+// its exact baseline dependencies available until dispatch is closed and the
+// hold is explicitly released by the Audit controller.
+func (s *PostgresStore) ListHeldAuditIDsByLLMCredential(
+	ctx context.Context, credentialID string, limit int,
+) ([]string, error) {
+	if err := validateText("credentialID", credentialID, 128, true); err != nil || limit < 1 || limit > 128 {
+		return nil, invalidf("Audit credential hold query is invalid")
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT audit_id
+  FROM audits
+ WHERE hold_state = 'held'
+   AND (baseline_snapshot->'llmCredentialIds') ? $1
+ ORDER BY created_at, audit_id
+ LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("inspect Audit LLM credential holds: %w", err)
+	}
+	defer rows.Close()
+	result := make([]string, 0, limit)
+	for rows.Next() {
+		var auditID string
+		if err := rows.Scan(&auditID); err != nil {
+			return nil, fmt.Errorf("read Audit LLM credential hold: %w", err)
+		}
+		result = append(result, auditID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Audit LLM credential holds: %w", err)
+	}
+	return result, nil
+}
+
+// LookupMutationReplay is the owner-safe pre-resolution boundary used by the
+// public API. A matching replay can be returned even when a mutable profile,
+// credential, Runtime label binding, or Skill binding has since disappeared.
+func (s *PostgresStore) LookupMutationReplay(
+	ctx context.Context,
+	ownerID string,
+	operation MutationOperation,
+	key string,
+	digest string,
+) (Audit, bool, error) {
+	if err := validateMutationReplay(ownerID, operation, key, digest); err != nil {
+		return Audit{}, false, err
+	}
+	return s.lookupAuditReplay(ctx, ownerID, string(operation), key, digest)
+}
+
 const auditColumns = `
 audit_id, owner_id, project_id,
 profile_name, profile_version, profile_digest, profile_snapshot, input_selection,
@@ -183,9 +234,11 @@ SELECT `+auditColumns+`
  WHERE owner_id = $1
    AND ($2::text IS NULL OR project_id = $2)
    AND ($3::text IS NULL OR state = $3)
-   AND ($4::timestamptz IS NULL OR (created_at, audit_id) < ($4, $5))
+   AND ($4::text IS NULL OR (profile_name = $4 AND profile_version = $5))
+   AND ($6::timestamptz IS NULL OR (created_at, audit_id) < ($6, $7))
  ORDER BY created_at DESC, audit_id DESC
- LIMIT $6`, params.OwnerID, params.ProjectID, state,
+ LIMIT $8`, params.OwnerID, params.ProjectID, state,
+		params.ProfileName, params.ProfileVersion,
 		params.BeforeCreatedAt, params.BeforeAuditID, params.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Audits: %w", err)

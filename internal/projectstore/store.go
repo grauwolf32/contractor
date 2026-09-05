@@ -100,6 +100,39 @@ WHERE owner_id = $1 AND project_id = $2`, ownerID, projectID))
 	return project, nil
 }
 
+// LockActiveAuditProject takes the shared Project admission lock before an
+// Audit snapshots Project-owned inputs and target configuration. Project
+// update/deletion therefore cannot commit a different target between the
+// snapshot and Audit baseline commit in the caller-owned transaction.
+func (s *PostgresStore) LockActiveAuditProject(
+	ctx context.Context, ownerID, projectID string,
+) (Project, error) {
+	if err := validateIdentity(ownerID, projectID); err != nil {
+		return Project{}, err
+	}
+	project, err := scanProject(s.db.QueryRow(ctx, `
+SELECT project_id, owner_id, kind, name, description,
+       http_target_url, http_target_credential_id, http_target_credential_kind,
+       lifecycle_state, deletion_phase, deletion_requested_at,
+       revision, created_at, updated_at
+FROM projects
+WHERE owner_id = $1 AND project_id = $2
+FOR SHARE`, ownerID, projectID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, ErrNotFound
+	}
+	if err != nil {
+		return Project{}, fmt.Errorf("lock Audit Project: %w", err)
+	}
+	if project.Kind != KindProject {
+		return Project{}, ErrNotFound
+	}
+	if project.Lifecycle == LifecycleDeleting {
+		return Project{}, ErrDeleting
+	}
+	return project, nil
+}
+
 func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Project, error) {
 	if err := validateList(params); err != nil {
 		return nil, err

@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -161,6 +163,18 @@ type ProjectManagement interface {
 	BeginDeletion(context.Context, projectstore.BeginDeletionParams) (projectstore.Project, bool, error)
 }
 
+type AuditManagement interface {
+	Profiles() []auditservice.ProfileProjection
+	Profile(auditservice.ProfileSelector) (auditservice.ProfileProjection, error)
+	CreateDraft(context.Context, auditservice.CreateDraftParams) (auditstore.Audit, bool, error)
+	Start(context.Context, auditservice.StartParams) (auditservice.StartedAudit, error)
+	Get(context.Context, string, string) (auditstore.Audit, error)
+	List(context.Context, auditstore.ListParams) ([]auditstore.Audit, error)
+	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
+	GetRound(context.Context, string, string, string) (auditstore.Round, error)
+	ListCoverage(context.Context, string, string, string, int, int) ([]auditstore.CoverageRow, error)
+}
+
 type Dependencies struct {
 	Authentication          *auth.Service
 	BrowserOrigins          auth.OriginPolicy
@@ -173,6 +187,7 @@ type Dependencies struct {
 	RuntimeCredentials      RuntimeCredentialManagement
 	RuntimeAgentPrincipals  RuntimeAgentPrincipalManagement
 	Projects                ProjectManagement
+	Audits                  AuditManagement
 	Runs                    RunReader
 	PlannerPlans            PlannerPlanReader
 	Metrics                 MetricsReader
@@ -893,6 +908,7 @@ type runtimeCredentialInUseDetailsResponse struct {
 	BindingLabels []string `json:"bindingLabels"`
 	ProjectIDs    []string `json:"projectIds"`
 	RunIDs        []string `json:"runIds"`
+	AuditIDs      []string `json:"auditIds,omitempty"`
 	AllocationIDs []string `json:"allocationIds"`
 }
 
@@ -902,8 +918,14 @@ type runtimeLabelInUseDetailsResponse struct {
 }
 
 type credentialInUseDetailsResponse struct {
-	Kind   string   `json:"kind"`
-	RunIDs []string `json:"runIds"`
+	Kind     string   `json:"kind"`
+	RunIDs   []string `json:"runIds"`
+	AuditIDs []string `json:"auditIds,omitempty"`
+}
+
+type auditUnsupportedDetailsResponse struct {
+	Kind    string                             `json:"kind"`
+	Reasons []auditservice.CompatibilityReason `json:"reasons"`
 }
 
 type runNotDeletableDetailsResponse struct {

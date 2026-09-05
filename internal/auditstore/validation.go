@@ -121,6 +121,17 @@ func validateList(params ListParams) error {
 	if params.State != nil && !params.State.Valid() {
 		return invalidf("Audit state is invalid")
 	}
+	if (params.ProfileName == nil) != (params.ProfileVersion == nil) {
+		return invalidf("Audit profile filter is incomplete")
+	}
+	if params.ProfileName != nil {
+		if err := validateText("profile name", *params.ProfileName, 128, true); err != nil {
+			return err
+		}
+		if err := validateText("profile version", *params.ProfileVersion, 128, true); err != nil {
+			return err
+		}
+	}
 	if params.Limit < 1 || params.Limit > MaxPageSize {
 		return invalidf("page limit must be between 1 and %d", MaxPageSize)
 	}
@@ -134,6 +145,56 @@ func validateList(params ListParams) error {
 		return validateID("beforeAuditID", params.BeforeAuditID)
 	}
 	return nil
+}
+
+func validateListItems(params ListItemsParams) error {
+	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
+		return err
+	}
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if params.RoundID != nil {
+		if err := validateID("roundID", *params.RoundID); err != nil {
+			return err
+		}
+	}
+	if params.State != nil && !params.State.Valid() {
+		return invalidf("Audit item state is invalid")
+	}
+	if params.SubjectKey != nil {
+		if err := validateText("subjectKey", *params.SubjectKey, 512, true); err != nil {
+			return err
+		}
+	}
+	if params.Limit < 1 || params.Limit > MaxPageSize {
+		return invalidf("item page limit must be between 1 and %d", MaxPageSize)
+	}
+	keysetPresent := params.AfterRoundOrdinal != nil || params.AfterItemOrdinal != nil || params.AfterItemID != ""
+	if keysetPresent && (params.AfterRoundOrdinal == nil || params.AfterItemOrdinal == nil || params.AfterItemID == "") {
+		return invalidf("item keyset is incomplete")
+	}
+	if keysetPresent {
+		if *params.AfterRoundOrdinal < 1 || *params.AfterItemOrdinal < 0 {
+			return invalidf("item keyset ordinal is invalid")
+		}
+		if err := validateID("afterItemID", params.AfterItemID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateMutationReplay(
+	ownerID string, operation MutationOperation, key, digest string,
+) error {
+	if err := validateText("ownerID", ownerID, 256, true); err != nil {
+		return err
+	}
+	if operation != MutationCreate && operation != MutationStart {
+		return invalidf("Audit mutation operation is invalid")
+	}
+	return validateIdempotency(key, digest)
 }
 
 func transitionAllowed(from, to AuditState) bool {

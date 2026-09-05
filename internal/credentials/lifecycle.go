@@ -29,11 +29,12 @@ var (
 )
 
 type CredentialInUseError struct {
-	RunIDs []string
+	RunIDs   []string
+	AuditIDs []string
 }
 
 func (e *CredentialInUseError) Error() string {
-	return "LLM credential is pinned by a non-terminal WorkflowRun"
+	return "LLM credential is pinned by a non-terminal WorkflowRun or Audit dispatch hold"
 }
 
 type GatewayLookup interface {
@@ -42,6 +43,10 @@ type GatewayLookup interface {
 
 type NonTerminalRunLookup interface {
 	ListNonTerminalRunIDsByCredential(context.Context, string, int) ([]string, error)
+}
+
+type AuditDispatchHoldLookup interface {
+	ListHeldAuditIDsByLLMCredential(context.Context, string, int) ([]string, error)
 }
 
 type CreateRequest struct {
@@ -73,6 +78,7 @@ type ServiceOptions struct {
 	Gateways GatewayLookup
 	Managers *ManagerRegistry
 	Runs     NonTerminalRunLookup
+	Audits   AuditDispatchHoldLookup
 	Cipher   *TokenCipher
 	Barrier  *LifecycleBarrier
 	Now      func() time.Time
@@ -93,6 +99,7 @@ type Service struct {
 	gateways    GatewayLookup
 	managers    *ManagerRegistry
 	runs        NonTerminalRunLookup
+	audits      AuditDispatchHoldLookup
 	cipher      *TokenCipher
 	now         func() time.Time
 	newID       func(string) (string, error)
@@ -120,7 +127,7 @@ func NewService(options ServiceOptions) (*Service, error) {
 	}
 	return &Service{
 		pool: options.Pool, repository: NewRepository(options.Pool),
-		gateways: options.Gateways, managers: options.Managers, runs: options.Runs,
+		gateways: options.Gateways, managers: options.Managers, runs: options.Runs, audits: options.Audits,
 		cipher: options.Cipher, barrier: options.Barrier, now: options.Now, newID: options.NewID,
 		afterCreate: options.AfterManagerCreate, afterDelete: options.AfterManagerDelete,
 	}, nil
@@ -336,8 +343,12 @@ func (s *Service) Delete(ctx context.Context, request DeleteRequest) (DeleteResu
 	if err != nil {
 		return DeleteResult{}, errors.New("inspect credential Run references")
 	}
-	if len(runIDs) != 0 {
-		return DeleteResult{}, newCredentialInUseError(runIDs)
+	auditIDs, err := s.listAuditHolds(ctx, request.CredentialID)
+	if err != nil {
+		return DeleteResult{}, err
+	}
+	if len(runIDs) != 0 || len(auditIDs) != 0 {
+		return DeleteResult{}, newCredentialInUseError(runIDs, auditIDs)
 	}
 	if _, _, err := s.resolveManager(record.LLMGateway); err != nil {
 		return DeleteResult{}, err
@@ -498,8 +509,12 @@ func (s *Service) executeDelete(
 	if err != nil {
 		return errors.New("inspect credential Run references")
 	}
-	if len(runIDs) != 0 {
-		return newCredentialInUseError(runIDs)
+	auditIDs, err := s.listAuditHolds(ctx, request.CredentialID)
+	if err != nil {
+		return err
+	}
+	if len(runIDs) != 0 || len(auditIDs) != 0 {
+		return newCredentialInUseError(runIDs, auditIDs)
 	}
 	gateway, manager, err := s.resolveManager(request.LLMGateway)
 	if err != nil {
@@ -528,6 +543,19 @@ func (s *Service) executeDelete(
 		}
 		return repository.CompleteOperation(ctx, operation.OperationID, operationCompletionTime(operation, s.now()))
 	})
+}
+
+func (s *Service) listAuditHolds(ctx context.Context, credentialID string) ([]string, error) {
+	if s.audits == nil {
+		return nil, nil
+	}
+	auditIDs, err := s.audits.ListHeldAuditIDsByLLMCredential(
+		ctx, credentialID, maximumCredentialRunReferences,
+	)
+	if err != nil {
+		return nil, errors.New("inspect credential Audit references")
+	}
+	return auditIDs, nil
 }
 
 func (s *Service) resolveManager(
@@ -684,13 +712,18 @@ func createOperationRequestsEqual(left, right createOperationRequest) bool {
 	return leftErr == nil && rightErr == nil && string(leftJSON) == string(rightJSON)
 }
 
-func newCredentialInUseError(runIDs []string) *CredentialInUseError {
-	result := append([]string(nil), runIDs...)
-	sort.Strings(result)
-	if len(result) > maximumCredentialRunReferences {
-		result = result[:maximumCredentialRunReferences]
+func newCredentialInUseError(runIDs, auditIDs []string) *CredentialInUseError {
+	runs := append([]string(nil), runIDs...)
+	sort.Strings(runs)
+	if len(runs) > maximumCredentialRunReferences {
+		runs = runs[:maximumCredentialRunReferences]
 	}
-	return &CredentialInUseError{RunIDs: result}
+	audits := append([]string(nil), auditIDs...)
+	sort.Strings(audits)
+	if len(audits) > maximumCredentialRunReferences {
+		audits = audits[:maximumCredentialRunReferences]
+	}
+	return &CredentialInUseError{RunIDs: runs, AuditIDs: audits}
 }
 
 func modelPolicyRefKey(ref contracts.ModelPolicyRef) string {

@@ -563,6 +563,7 @@ func newHandlerFixtureWithAuth(
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projects,
+		Audits:                 &fakeAuditManagement{},
 		Runs:                   runs, Artifacts: service, Transactions: unit,
 		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
 		Metrics:                 metrics,

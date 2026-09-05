@@ -16,6 +16,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -238,7 +240,8 @@ func RunCLI(
 	credentialBarrier := credentials.NewLifecycleBarrier()
 	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
 		Pool: pool, Gateways: configurationManager, Managers: credentialManagers,
-		Runs: runstore.NewPostgresStore(pool), Cipher: tokenCipher, Barrier: credentialBarrier,
+		Runs: runstore.NewPostgresStore(pool), Audits: auditstore.NewPostgresStore(pool),
+		Cipher: tokenCipher, Barrier: credentialBarrier,
 	})
 	if err != nil {
 		return fmt.Errorf("configure LLM credential lifecycle: %w", err)
@@ -448,6 +451,13 @@ func RunCLI(
 		return fmt.Errorf("configure public event WebSocket: %w", err)
 	}
 	defer eventHub.Close()
+	auditService, err := auditservice.New(auditservice.Options{
+		Pool: pool, Profiles: configurationManager, LLMCredentials: credentialProvider,
+		CredentialGuard: credentialLifecycle, RuntimeCredentials: runtimeCredentialLifecycle,
+	})
+	if err != nil {
+		return fmt.Errorf("configure Audit service: %w", err)
+	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
@@ -457,6 +467,7 @@ func RunCLI(
 		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
 		RuntimeAgentPrincipals: principalOperations,
 		Projects:               projectstore.NewPostgresStore(pool),
+		Audits:                 auditService,
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
 		Operations:             registry, OperationsInvalidator: registry, Events: eventHub,

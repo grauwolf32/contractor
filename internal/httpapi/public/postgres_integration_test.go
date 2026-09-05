@@ -68,6 +68,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		RuntimeConfigs: runtimeConfigs, RuntimeCredentials: runtimeCredentials,
 		RuntimeAgentPrincipals: runtimePrincipals,
 		Projects:               projectstore.NewPostgresStore(pool),
+		Audits:                 &fakeAuditManagement{},
 		Runs:                   runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool},
 		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,
