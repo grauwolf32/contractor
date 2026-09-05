@@ -8,12 +8,13 @@ import (
 )
 
 var (
-	ErrInvalid      = errors.New("runstore invalid argument")
-	ErrNotFound     = errors.New("runstore resource not found")
-	ErrConflict     = errors.New("runstore optimistic state conflict")
-	ErrNoWork       = errors.New("runstore has no claimable work")
-	ErrPrecondition = errors.New("runstore revision precondition failed")
-	ErrQueuePaused  = errors.New("owner WorkflowRun queue is paused")
+	ErrInvalid         = errors.New("runstore invalid argument")
+	ErrNotFound        = errors.New("runstore resource not found")
+	ErrConflict        = errors.New("runstore optimistic state conflict")
+	ErrNoWork          = errors.New("runstore has no claimable work")
+	ErrPrecondition    = errors.New("runstore revision precondition failed")
+	ErrQueuePaused     = errors.New("owner WorkflowRun queue is paused")
+	ErrProjectDeleting = errors.New("WorkflowRun Project is deleting")
 )
 
 type RunNotDeletableReason string

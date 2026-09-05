@@ -158,35 +158,37 @@ type ProjectManagement interface {
 	Get(context.Context, string, string) (projectstore.Project, error)
 	List(context.Context, projectstore.ListParams) ([]projectstore.Project, error)
 	Update(context.Context, projectstore.UpdateParams) (projectstore.Project, error)
+	BeginDeletion(context.Context, projectstore.BeginDeletionParams) (projectstore.Project, bool, error)
 }
 
 type Dependencies struct {
-	Authentication         *auth.Service
-	BrowserOrigins         auth.OriginPolicy
-	InsecureLoopbackCookie bool
-	Config                 ConfigurationCatalog
-	ConfigurationPublisher ConfigurationPublisher
-	Credentials            config.CredentialLookup
-	ManagedCredentials     ManagedCredentialLifecycle
-	RuntimeConfigs         RuntimeConfigManagement
-	RuntimeCredentials     RuntimeCredentialManagement
-	RuntimeAgentPrincipals RuntimeAgentPrincipalManagement
-	Projects               ProjectManagement
-	Runs                   RunReader
-	PlannerPlans           PlannerPlanReader
-	Metrics                MetricsReader
-	Operations             OperationsReader
-	OperationsInvalidator  OperationsInvalidator
-	Events                 *publicevents.Hub
-	Artifacts              *artifacts.Service
-	Transactions           UnitOfWork
-	BearerToken            contracts.SecretString
-	NewID                  func(string) (string, error)
-	NewRequestID           func() (string, error)
-	RunNotifier            RunNotifier
-	RunSkills              RunSkillInitializer
-	Now                    func() time.Time
-	Logger                 *slog.Logger
+	Authentication          *auth.Service
+	BrowserOrigins          auth.OriginPolicy
+	InsecureLoopbackCookie  bool
+	Config                  ConfigurationCatalog
+	ConfigurationPublisher  ConfigurationPublisher
+	Credentials             config.CredentialLookup
+	ManagedCredentials      ManagedCredentialLifecycle
+	RuntimeConfigs          RuntimeConfigManagement
+	RuntimeCredentials      RuntimeCredentialManagement
+	RuntimeAgentPrincipals  RuntimeAgentPrincipalManagement
+	Projects                ProjectManagement
+	Runs                    RunReader
+	PlannerPlans            PlannerPlanReader
+	Metrics                 MetricsReader
+	Operations              OperationsReader
+	OperationsInvalidator   OperationsInvalidator
+	Events                  *publicevents.Hub
+	Artifacts               *artifacts.Service
+	Transactions            UnitOfWork
+	BearerToken             contracts.SecretString
+	NewID                   func(string) (string, error)
+	NewRequestID            func() (string, error)
+	RunNotifier             RunNotifier
+	ProjectDeletionNotifier RunNotifier
+	RunSkills               RunSkillInitializer
+	Now                     func() time.Time
+	Logger                  *slog.Logger
 }
 
 var errInvalidRequest = errors.New("invalid public API request")
@@ -364,9 +366,16 @@ type projectResponse struct {
 	Name        string                         `json:"name"`
 	Description string                         `json:"description"`
 	HTTPTarget  *contracts.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
+	Lifecycle   projectstore.Lifecycle         `json:"lifecycle"`
+	Deletion    *projectDeletionResponse       `json:"deletion,omitempty"`
 	Revision    string                         `json:"revision"`
 	CreatedAt   time.Time                      `json:"createdAt"`
 	UpdatedAt   time.Time                      `json:"updatedAt"`
+}
+
+type projectDeletionResponse struct {
+	Phase       projectstore.DeletionPhase `json:"phase"`
+	RequestedAt time.Time                  `json:"requestedAt"`
 }
 
 type projectPageResponse struct {

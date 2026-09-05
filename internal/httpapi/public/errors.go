@@ -91,6 +91,9 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 				Kind: "run_not_deletable", Reason: runNotDeletable.Reason,
 			},
 		})
+	case errors.Is(err, projectstore.ErrDeleting), errors.Is(err, runstore.ErrProjectDeleting),
+		errors.Is(err, artifacts.ErrScopeDeleting):
+		h.writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen),
 		errors.Is(err, projectstore.ErrConflict),
 		errors.Is(err, runstore.ErrConflict):

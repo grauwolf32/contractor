@@ -280,6 +280,40 @@ func TestTerminalRunPurgeMigrationTracksPinOwnershipAndKeepsBypassScoped(t *test
 	}
 }
 
+func TestProjectDeletionMigrationIsDurableClaimedAndFenced(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var deletion migration
+	for _, item := range items {
+		if item.name == "000033_project_deletion.sql" {
+			deletion = item
+			break
+		}
+	}
+	if deletion.name == "" {
+		t.Fatal("Project deletion migration is not embedded")
+	}
+	contents := strings.ToLower(string(deletion.contents))
+	for _, required := range []string{
+		"lifecycle_state text not null default 'active'",
+		"deletion_phase text",
+		"deletion_claim_expires_at timestamptz",
+		"projects_deletion_claim_idx",
+		"contractor_require_active_project",
+		"for share",
+		"workflow_runs_project_admission",
+		"artifact_scopes_project_admission",
+		"artifact_bindings_project_admission",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("Project deletion migration does not contain %q", required)
+		}
+	}
+}
+
 func TestWorkflowRunQueueMigrationAddsOnlyAPartialReadIndex(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

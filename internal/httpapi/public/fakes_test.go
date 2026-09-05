@@ -63,7 +63,8 @@ func (f *fakeProjectStore) Create(
 	f.nextTime++
 	project := projectstore.Project{
 		ProjectID: params.ProjectID, OwnerID: params.OwnerID, Kind: params.Kind,
-		Name: params.Name, Description: params.Description, Revision: 1,
+		Name: params.Name, Description: params.Description,
+		Lifecycle: projectstore.LifecycleActive, Revision: 1,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	f.projects[params.ProjectID] = project
@@ -120,6 +121,9 @@ func (f *fakeProjectStore) Update(
 	if !exists || project.OwnerID != params.OwnerID {
 		return projectstore.Project{}, projectstore.ErrNotFound
 	}
+	if project.Lifecycle == projectstore.LifecycleDeleting {
+		return projectstore.Project{}, projectstore.ErrDeleting
+	}
 	if project.Revision != params.ExpectedRevision {
 		return projectstore.Project{}, projectstore.ErrPrecondition
 	}
@@ -134,6 +138,33 @@ func (f *fakeProjectStore) Update(
 	f.nextTime++
 	f.projects[project.ProjectID] = project
 	return project, nil
+}
+
+func (f *fakeProjectStore) BeginDeletion(
+	_ context.Context, params projectstore.BeginDeletionParams,
+) (projectstore.Project, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	project, exists := f.projects[params.ProjectID]
+	if !exists || project.OwnerID != params.OwnerID {
+		return projectstore.Project{}, false, projectstore.ErrNotFound
+	}
+	if project.Lifecycle == projectstore.LifecycleDeleting {
+		return project, false, nil
+	}
+	if project.Revision != params.ExpectedRevision {
+		return projectstore.Project{}, false, projectstore.ErrPrecondition
+	}
+	now := time.Unix(0, f.nextTime).UTC()
+	f.nextTime++
+	project.Lifecycle = projectstore.LifecycleDeleting
+	project.Deletion = &projectstore.Deletion{
+		Phase: projectstore.DeletionCancelling, RequestedAt: now,
+	}
+	project.Revision++
+	project.UpdatedAt = now
+	f.projects[project.ProjectID] = project
+	return project, true, nil
 }
 
 type fakeOperationsReader struct {

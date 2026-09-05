@@ -129,6 +129,26 @@ INSERT INTO runtime_credentials (
 	if err != nil || len(projects) != 1 || projects[0].ProjectID != created.ProjectID {
 		t.Fatalf("Project page = (%+v, %v)", projects, err)
 	}
+	deleting, accepted, err := store.BeginDeletion(ctx, BeginDeletionParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: updated.Revision,
+	})
+	if err != nil || !accepted || deleting.Lifecycle != LifecycleDeleting ||
+		deleting.Deletion == nil || deleting.Deletion.Phase != DeletionCancelling ||
+		deleting.Revision != updated.Revision+1 {
+		t.Fatalf("begin Project deletion = (%+v, %t, %v)", deleting, accepted, err)
+	}
+	replayedDeletion, accepted, err := store.BeginDeletion(ctx, BeginDeletionParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: updated.Revision,
+	})
+	if err != nil || accepted || replayedDeletion.Revision != deleting.Revision {
+		t.Fatalf("replay Project deletion = (%+v, %t, %v)", replayedDeletion, accepted, err)
+	}
+	if _, err := store.Update(ctx, UpdateParams{
+		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: deleting.Revision,
+		Name: "Too late", Description: "fenced",
+	}); !errors.Is(err, ErrDeleting) {
+		t.Fatalf("update deleting Project error = %v", err)
+	}
 }
 
 func isolatedProjectPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {

@@ -3623,6 +3623,27 @@ code {
   transform: translateY(-2px);
 }
 
+.project-card.is-deleting {
+  border-color: #753f42;
+  background: linear-gradient(150deg, #25191b 0, #15171d 52%, #10141b 100%);
+}
+
+.project-card-eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.project-card-eyebrow span {
+  border: 1px solid #753f42;
+  border-radius: 999px;
+  color: var(--danger);
+  padding: 0.16rem 0.42rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
 .project-card-mark {
   display: grid;
   width: 2.6rem;
@@ -3763,6 +3784,60 @@ code {
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   padding: 0.35rem;
   backdrop-filter: blur(0.8rem);
+}
+
+.project-header-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.project-delete-dialog {
+  width: min(100%, 40rem);
+  border-color: #753f42;
+}
+
+.project-delete-dialog > label {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
+}
+
+.project-delete-warning {
+  color: #d8a9a5;
+  line-height: 1.65;
+}
+
+.project-deletion-progress {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 1rem;
+  border-color: #753f42;
+  background: linear-gradient(145deg, #25191b, #121720 62%);
+}
+
+.project-deletion-progress h3 {
+  margin-top: 0.2rem;
+}
+
+.project-deletion-progress p,
+.project-deletion-progress small {
+  color: var(--muted-strong);
+}
+
+.project-deletion-progress .spinner {
+  margin-top: 0.25rem;
+  border-top-color: var(--danger);
+}
+
+.project-deletion-durability {
+  grid-column: 1 / -1;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+  font-size: 0.8rem;
 }
 
 .project-local-navigation a {
@@ -4419,6 +4494,16 @@ code {
   }
 
   .route-header-row > button {
+    width: 100%;
+  }
+
+  .project-header-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .project-header-actions button {
     width: 100%;
   }
 

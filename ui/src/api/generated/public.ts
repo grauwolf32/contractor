@@ -123,7 +123,14 @@ export interface paths {
         get: operations["getProject"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Begin durable deletion of an owned Project
+         * @description Atomically changes an active Project to `deleting`. The ordinary
+         *     Project representation exposes cleanup progress until it becomes 404.
+         *     A retry after a lost accepted response returns the current deleting
+         *     representation.
+         */
+        delete: operations["deleteProject"];
         options?: never;
         head?: never;
         /** CAS-update Project display metadata */
@@ -958,12 +965,23 @@ export interface components {
             url: string;
             credential?: components["schemas"]["HTTPOriginCredentialRef"];
         };
+        /** @enum {string} */
+        ProjectLifecycle: "active" | "deleting";
+        /** @enum {string} */
+        ProjectDeletionPhase: "cancelling" | "draining" | "purging_runs" | "purging_artifacts";
+        ProjectDeletion: {
+            phase: components["schemas"]["ProjectDeletionPhase"];
+            /** Format: date-time */
+            requestedAt: string;
+        };
         Project: {
             projectId: components["schemas"]["ResourceId"];
             kind: components["schemas"]["ProjectKind"];
             name: string;
             description: string;
             httpTarget?: components["schemas"]["ProjectHTTPTarget"];
+            lifecycle: components["schemas"]["ProjectLifecycle"];
+            deletion?: components["schemas"]["ProjectDeletion"];
             revision: string;
             /** Format: date-time */
             createdAt: string;
@@ -2600,6 +2618,43 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    deleteProject: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Project deletion was durably accepted or reconciled */
+            202: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Project"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     updateProject: {
         parameters: {
             query?: never;
@@ -2637,6 +2692,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
         };

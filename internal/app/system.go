@@ -14,6 +14,27 @@ type backgroundRunner interface {
 	Run(context.Context) error
 }
 
+type backgroundRunnerGroup []backgroundRunner
+
+func (g backgroundRunnerGroup) Run(ctx context.Context) error {
+	if len(g) == 0 {
+		return errors.New("background runner group is empty")
+	}
+	groupContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+	results := make(chan error, len(g))
+	for _, runner := range g {
+		go func(current backgroundRunner) { results <- current.Run(groupContext) }(runner)
+	}
+	first := <-results
+	cancel()
+	result := first
+	for remaining := 1; remaining < len(g); remaining++ {
+		result = errors.Join(result, <-results)
+	}
+	return result
+}
+
 // ServeSystem keeps the private mTLS API available while the public listener
 // stops and the Scheduler drains. This lets in-flight allocation cleanup finish
 // before Runtime Agent control and Artifact routes disappear.

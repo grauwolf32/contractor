@@ -78,6 +78,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/projects", current.listProjects)
 	mux.HandleFunc("GET /v1/projects/{projectId}", current.getProject)
 	mux.HandleFunc("PATCH /v1/projects/{projectId}", current.updateProject)
+	mux.HandleFunc("DELETE /v1/projects/{projectId}", current.deleteProject)
 	mux.HandleFunc("GET /v1/projects/{projectId}/artifacts", current.listProjectArtifacts)
 	mux.HandleFunc("PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}", current.putProjectArtifact)
 	mux.HandleFunc("GET /v1/projects/{projectId}/artifacts/{namespace}/{name}", current.getProjectArtifact)

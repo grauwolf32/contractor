@@ -241,6 +241,37 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteProject
+      tags: [Projects]
+      summary: Begin durable deletion of an owned Project
+      description: |
+        Atomically changes an active Project to `deleting`. The ordinary
+        Project representation exposes cleanup progress until it becomes 404.
+        A retry after a lost accepted response returns the current deleting
+        representation.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '202':
+          description: Project deletion was durably accepted or reconciled
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
 
@@ -2074,16 +2105,31 @@ components:
       properties:
         url: {type: string, format: uri, minLength: 8, maxLength: 2048}
         credential: {$ref: '#/components/schemas/HTTPOriginCredentialRef'}
+    ProjectLifecycle:
+      type: string
+      enum: [active, deleting]
+    ProjectDeletionPhase:
+      type: string
+      enum: [cancelling, draining, purging_runs, purging_artifacts]
+    ProjectDeletion:
+      type: object
+      additionalProperties: false
+      required: [phase, requestedAt]
+      properties:
+        phase: {$ref: '#/components/schemas/ProjectDeletionPhase'}
+        requestedAt: {type: string, format: date-time}
     Project:
       type: object
       additionalProperties: false
-      required: [projectId, kind, name, description, revision, createdAt, updatedAt]
+      required: [projectId, kind, name, description, lifecycle, revision, createdAt, updatedAt]
       properties:
         projectId: {$ref: '#/components/schemas/ResourceId'}
         kind: {$ref: '#/components/schemas/ProjectKind'}
         name: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 4096}
         httpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
+        lifecycle: {$ref: '#/components/schemas/ProjectLifecycle'}
+        deletion: {$ref: '#/components/schemas/ProjectDeletion'}
         revision: {type: string, pattern: '^[1-9][0-9]{0,18}$'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}

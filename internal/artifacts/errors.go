@@ -18,6 +18,7 @@ var (
 	ErrArtifactFrozen        = errors.New("artifact binding is frozen")
 	ErrArtifactIntegrity     = errors.New("artifact payload integrity failure")
 	ErrQueryUnsupported      = errors.New("artifact query repository is unavailable")
+	ErrScopeDeleting         = errors.New("artifact Project scope is deleting")
 )
 
 type ConflictError struct {

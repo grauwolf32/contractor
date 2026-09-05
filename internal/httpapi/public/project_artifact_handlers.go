@@ -5,6 +5,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
 func (h *handler) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +44,7 @@ func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
-	store, _, err := h.ownedProjectArtifactStore(r)
+	store, _, err := h.ownedActiveProjectArtifactStore(r)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -86,6 +87,23 @@ func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, artifactWriteResponse{
 		Artifact: result.Ref, MediaType: result.MediaType, Size: result.Size,
 	})
+}
+
+func (h *handler) ownedActiveProjectArtifactStore(
+	r *http.Request,
+) (artifacts.ScopedStore, string, error) {
+	projectID := r.PathValue("projectId")
+	project, err := h.dependencies.Projects.Get(
+		r.Context(), principalUserID(r.Context()), projectID,
+	)
+	if err != nil {
+		return artifacts.ScopedStore{}, "", err
+	}
+	if project.Lifecycle == projectstore.LifecycleDeleting {
+		return artifacts.ScopedStore{}, "", projectstore.ErrDeleting
+	}
+	store, err := h.dependencies.Artifacts.Project(project.ProjectID)
+	return store, project.ProjectID, err
 }
 
 func (h *handler) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Request) {

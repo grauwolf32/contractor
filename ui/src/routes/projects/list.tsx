@@ -182,12 +182,20 @@ function ProjectCollectionRoute({
       ) : (
         <div className="project-card-grid">
           {query.data.items.map((project) => (
-            <article className="panel project-card" key={project.projectId}>
+            <article
+              className={`panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
+              key={project.projectId}
+            >
               <div className="project-card-mark" aria-hidden="true">
                 {presentation.cardMark}
               </div>
               <div>
-                <p className="eyebrow">{presentation.cardEyebrow}</p>
+                <p className="eyebrow project-card-eyebrow">
+                  {presentation.cardEyebrow}
+                  {project.lifecycle === "deleting" ? (
+                    <span>Deletion in progress</span>
+                  ) : null}
+                </p>
                 <h3>
                   <Link
                     to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
@@ -217,7 +225,9 @@ function ProjectCollectionRoute({
                 className="project-card-open"
                 to={`${presentation.detailRoot}/${encodeURIComponent(project.projectId)}`}
               >
-                Open {presentation.cardEyebrow} →
+                {project.lifecycle === "deleting"
+                  ? "View deletion status →"
+                  : `Open ${presentation.cardEyebrow} →`}
               </Link>
             </article>
           ))}

@@ -9,4 +9,5 @@ var (
 	ErrNotFound     = errors.New("projectstore resource not found")
 	ErrConflict     = errors.New("projectstore identity or idempotency conflict")
 	ErrPrecondition = errors.New("projectstore revision precondition failed")
+	ErrDeleting     = errors.New("projectstore Project is deleting")
 )

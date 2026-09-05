@@ -75,6 +75,7 @@ async function installProjectAPI(
     kind: "project",
     name: "Browser workspace",
     description: "Project UI browser fixture",
+    lifecycle: "active",
     revision: "1",
     createdAt: "2026-09-01T10:00:00Z",
     updatedAt: "2026-09-01T10:00:00Z",

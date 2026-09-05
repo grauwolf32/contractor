@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -377,6 +378,9 @@ func (h *handler) createRunFromProject(w http.ResponseWriter, r *http.Request, p
 			project, projectErr := h.dependencies.Projects.Get(r.Context(), ownerID, *projectID)
 			if projectErr != nil {
 				return projectErr
+			}
+			if project.Lifecycle == projectstore.LifecycleDeleting {
+				return projectstore.ErrDeleting
 			}
 			projectHTTPTarget = cloneHTTPOriginTarget(project.HTTPTarget)
 			if projectHTTPTarget != nil && projectHTTPTarget.Credential != nil {

@@ -55,6 +55,9 @@ func (r *PostgresRepository) Write(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
+		if persistencepostgres.SQLState(err) == "55000" {
+			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrScopeDeleting)
+		}
 		if persistencepostgres.SQLState(err) == "23503" {
 			return WriteResult{}, fmt.Errorf("create artifact scope: %w", ErrInvalidScope)
 		}
@@ -118,6 +121,8 @@ FROM inserted_revision, claimed_binding`,
 	}
 	if err != nil {
 		switch persistencepostgres.SQLState(err) {
+		case "55000":
+			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrScopeDeleting)
 		case "23503":
 			return WriteResult{}, fmt.Errorf("write artifact: %w", ErrInvalidScope)
 		case "23505":

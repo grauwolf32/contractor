@@ -21,6 +21,34 @@ const (
 
 func (k Kind) Valid() bool { return k == KindProject || k == KindEvaluation }
 
+type Lifecycle string
+
+const (
+	LifecycleActive   Lifecycle = "active"
+	LifecycleDeleting Lifecycle = "deleting"
+)
+
+func (l Lifecycle) Valid() bool { return l == LifecycleActive || l == LifecycleDeleting }
+
+type DeletionPhase string
+
+const (
+	DeletionCancelling       DeletionPhase = "cancelling"
+	DeletionDraining         DeletionPhase = "draining"
+	DeletionPurgingRuns      DeletionPhase = "purging_runs"
+	DeletionPurgingArtifacts DeletionPhase = "purging_artifacts"
+)
+
+func (p DeletionPhase) Valid() bool {
+	return p == DeletionCancelling || p == DeletionDraining ||
+		p == DeletionPurgingRuns || p == DeletionPurgingArtifacts
+}
+
+type Deletion struct {
+	Phase       DeletionPhase
+	RequestedAt time.Time
+}
+
 type Project struct {
 	ProjectID   string
 	OwnerID     string
@@ -28,6 +56,8 @@ type Project struct {
 	Name        string
 	Description string
 	HTTPTarget  *contracts.HTTPOriginTargetRef
+	Lifecycle   Lifecycle
+	Deletion    *Deletion
 	Revision    uint64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -50,6 +80,12 @@ type UpdateParams struct {
 	Name             string
 	Description      string
 	HTTPTarget       *contracts.HTTPOriginTargetRef
+}
+
+type BeginDeletionParams struct {
+	ProjectID        string
+	OwnerID          string
+	ExpectedRevision uint64
 }
 
 type ListParams struct {

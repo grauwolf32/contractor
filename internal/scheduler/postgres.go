@@ -651,7 +651,7 @@ func projectOutputPublicationFailure(err error) (string, string) {
 	switch {
 	case errors.Is(err, artifacts.ErrArtifactNotFound):
 		return "source_unavailable", "The exact frozen Run output is unavailable."
-	case errors.Is(err, artifacts.ErrInvalidScope):
+	case errors.Is(err, artifacts.ErrInvalidScope), errors.Is(err, artifacts.ErrScopeDeleting):
 		return "project_unavailable", "The destination Project is unavailable."
 	default:
 		return "publication_failed", "The Project output could not be published."

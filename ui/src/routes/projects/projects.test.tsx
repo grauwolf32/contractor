@@ -30,6 +30,7 @@ const project = {
   kind: "project",
   name: "Payment service",
   description: "Reusable service analysis",
+  lifecycle: "active",
   revision: "1",
   createdAt: "2026-09-01T10:00:00Z",
   updatedAt: "2026-09-01T10:00:00Z",
@@ -59,6 +60,119 @@ function renderProjectApplication(api: PublicAPI, path: string) {
 }
 
 describe("Project routes", () => {
+  it("confirms the exact name, shows durable progress, and reconciles deletion to 404", async () => {
+    const deleteRequests: Request[] = [];
+    let deleting = false;
+    let complete = false;
+    const deletingProject = {
+      ...project,
+      lifecycle: "deleting",
+      deletion: {
+        phase: "draining",
+        requestedAt: "2026-09-05T10:00:00Z",
+      },
+      revision: "2",
+      updatedAt: "2026-09-05T10:00:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return jsonResponse(session);
+        }
+        if (url.pathname === "/v1/projects/project_example") {
+          if (request.method === "DELETE") {
+            deleteRequests.push(request.clone());
+            deleting = true;
+            return jsonResponse(deletingProject, {
+              status: 202,
+              headers: { ETag: '"2"' },
+            });
+          }
+          if (complete) {
+            return jsonResponse(
+              {
+                code: "not_found",
+                message: "resource was not found",
+                retryable: false,
+                requestId: "request-project-deleted",
+              },
+              { status: 404 },
+            );
+          }
+          const current = deleting ? deletingProject : project;
+          return jsonResponse(current, {
+            headers: { ETag: deleting ? '"2"' : '"1"' },
+          });
+        }
+        if (url.pathname === "/v1/projects") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname.endsWith("/artifacts")) {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname.endsWith("/runs")) {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const { router } = renderProjectApplication(
+      api,
+      "/projects/project_example",
+    );
+    const user = userEvent.setup();
+
+    await screen.findByRole("heading", { name: "Payment service" });
+    await user.click(screen.getByRole("button", { name: "Delete Project" }));
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Delete Payment service?",
+    });
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toHaveFocus();
+    const confirm = within(dialog).getByRole("button", {
+      name: "Delete Project",
+    });
+    expect(confirm).toBeDisabled();
+    await user.type(
+      within(dialog).getByLabelText("Type Payment service to confirm"),
+      "Payment servic",
+    );
+    expect(confirm).toBeDisabled();
+    await user.type(
+      within(dialog).getByLabelText("Type Payment service to confirm"),
+      "e",
+    );
+    await user.click(confirm);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Waiting for Runtime release",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Sources" }),
+    ).not.toBeInTheDocument();
+    expect(deleteRequests).toHaveLength(1);
+    expect(deleteRequests[0]?.headers.get("If-Match")).toBe('"1"');
+    expect(deleteRequests[0]?.headers.get("X-CSRF-Token")).toBe(
+      session.csrfToken,
+    );
+    await expect(deleteRequests[0]?.text()).resolves.toBe("");
+
+    complete = true;
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    await vi.waitFor(() =>
+      expect(router.state.location.pathname).toBe("/projects"),
+    );
+  });
+
   it("creates an owner-scoped Project and opens its dashboard", async () => {
     const requests: Request[] = [];
     const api = new PublicAPI(

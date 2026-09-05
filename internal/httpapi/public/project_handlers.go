@@ -223,6 +223,36 @@ func (h *handler) updateProject(w http.ResponseWriter, r *http.Request) {
 	writeProject(w, http.StatusOK, project)
 }
 
+func (h *handler) deleteProject(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
+		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
+		h.handleError(w, errInvalidRequest)
+		return
+	}
+	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
+		h.handleError(w, fmt.Errorf("%w: Project deletion requires one If-Match", errInvalidRequest))
+		return
+	}
+	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	project, _, err := h.dependencies.Projects.BeginDeletion(r.Context(), projectstore.BeginDeletionParams{
+		ProjectID: r.PathValue("projectId"), OwnerID: principalUserID(r.Context()),
+		ExpectedRevision: revision,
+	})
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if h.dependencies.ProjectDeletionNotifier != nil {
+		h.dependencies.ProjectDeletionNotifier.Wake()
+	}
+	writeProject(w, http.StatusAccepted, project)
+}
+
 func projectRequestDigest(request createProjectRequest) (string, error) {
 	encoded, err := json.Marshal(struct {
 		Kind        projectstore.Kind `json:"kind"`
@@ -242,12 +272,19 @@ func writeProject(w http.ResponseWriter, status int, project projectstore.Projec
 }
 
 func projectReadModel(project projectstore.Project) projectResponse {
-	return projectResponse{
+	result := projectResponse{
 		ProjectID: project.ProjectID, Kind: project.Kind, Name: project.Name,
-		Description: project.Description, Revision: strconv.FormatUint(project.Revision, 10),
+		Description: project.Description, Lifecycle: project.Lifecycle,
+		Revision:   strconv.FormatUint(project.Revision, 10),
 		HTTPTarget: cloneHTTPOriginTarget(project.HTTPTarget),
 		CreatedAt:  project.CreatedAt, UpdatedAt: project.UpdatedAt,
 	}
+	if project.Deletion != nil {
+		result.Deletion = &projectDeletionResponse{
+			Phase: project.Deletion.Phase, RequestedAt: project.Deletion.RequestedAt,
+		}
+	}
+	return result
 }
 
 func cloneHTTPOriginTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {

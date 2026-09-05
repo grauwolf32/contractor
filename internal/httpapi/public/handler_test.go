@@ -139,6 +139,92 @@ func TestProjectCreateReplayListGetAndCASUpdate(t *testing.T) {
 	}
 }
 
+func TestProjectDeleteIsCASDurableIdempotentAndFencesMutations(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	create := authenticatedRequest(
+		http.MethodPost,
+		"/v1/projects",
+		bytes.NewReader([]byte(`{"kind":"project","name":"Payment service"}`)),
+	)
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("Idempotency-Key", "create-project-for-deletion")
+	created := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(created, create)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create Project = %d %s", created.Code, created.Body.String())
+	}
+
+	withoutRevision := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	withoutRevisionResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(withoutRevisionResponse, withoutRevision)
+	if withoutRevisionResponse.Code != http.StatusBadRequest {
+		t.Fatalf("delete without If-Match = %d %s", withoutRevisionResponse.Code, withoutRevisionResponse.Body.String())
+	}
+
+	stale := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	stale.Header.Set("If-Match", `"2"`)
+	staleResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(staleResponse, stale)
+	if staleResponse.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale Project delete = %d %s", staleResponse.Code, staleResponse.Body.String())
+	}
+
+	request := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	request.Header.Set("If-Match", `"1"`)
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	var deleting projectResponse
+	if response.Code != http.StatusAccepted || response.Header().Get("ETag") != `"2"` ||
+		json.Unmarshal(response.Body.Bytes(), &deleting) != nil ||
+		deleting.Lifecycle != projectstore.LifecycleDeleting || deleting.Deletion == nil ||
+		deleting.Deletion.Phase != projectstore.DeletionCancelling {
+		t.Fatalf("delete Project = %d headers=%v body=%s", response.Code, response.Header(), response.Body.String())
+	}
+
+	retry := authenticatedRequest(
+		http.MethodDelete, "/v1/projects/project_fixed", bytes.NewReader(nil),
+	)
+	retry.Header.Set("If-Match", `"1"`)
+	retryResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(retryResponse, retry)
+	if retryResponse.Code != http.StatusAccepted || retryResponse.Body.String() != response.Body.String() {
+		t.Fatalf("reconcile Project delete = %d %s", retryResponse.Code, retryResponse.Body.String())
+	}
+
+	update := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project_fixed", bytes.NewReader([]byte(`{"description":"too late"}`)),
+	)
+	update.Header.Set("Content-Type", "application/json")
+	update.Header.Set("If-Match", `"2"`)
+	updateResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(updateResponse, update)
+	if updateResponse.Code != http.StatusConflict || !strings.Contains(updateResponse.Body.String(), `"project_deleting"`) {
+		t.Fatalf("update deleting Project = %d %s", updateResponse.Code, updateResponse.Body.String())
+	}
+
+	upload := authenticatedRequest(
+		http.MethodPut,
+		"/v1/projects/project_fixed/artifacts/sources/service",
+		bytes.NewReader([]byte("payload")),
+	)
+	upload.Header.Set("Content-Type", "text/plain")
+	upload.Header.Set("If-None-Match", "*")
+	uploadResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(uploadResponse, upload)
+	if uploadResponse.Code != http.StatusConflict || !strings.Contains(uploadResponse.Body.String(), `"project_deleting"`) {
+		t.Fatalf("upload to deleting Project = %d %s", uploadResponse.Code, uploadResponse.Body.String())
+	}
+	if fixture.notifier.calls != 2 {
+		t.Fatalf("Project deletion wake calls = %d, want 2", fixture.notifier.calls)
+	}
+}
+
 func TestProjectHTTPTargetUsesSafeCredentialReferenceAndCASDetach(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
@@ -148,7 +234,8 @@ func TestProjectHTTPTargetUsesSafeCredentialReferenceAndCASDetach(t *testing.T) 
 	}
 	fixture.projects.projects["project-target"] = projectstore.Project{
 		ProjectID: "project-target", OwnerID: "user-1", Kind: projectstore.KindProject,
-		Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+		Lifecycle: projectstore.LifecycleActive,
+		Name:      "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	attach := authenticatedRequest(
 		http.MethodPatch, "/v1/projects/project-target",
@@ -478,14 +565,15 @@ func newHandlerFixtureWithAuth(
 		Projects:               projects,
 		Runs:                   runs, Artifacts: service, Transactions: unit,
 		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
-		Metrics:      metrics,
-		PlannerPlans: plans,
-		BearerToken:  contracts.NewSecretString(testBearerToken),
-		NewID:        func(prefix string) (string, error) { return prefix + "fixed", nil },
-		NewRequestID: func() (string, error) { return "request-fixed", nil },
-		RunNotifier:  notifier,
-		RunSkills:    runSkills,
-		Logger:       logger,
+		Metrics:                 metrics,
+		PlannerPlans:            plans,
+		BearerToken:             contracts.NewSecretString(testBearerToken),
+		NewID:                   func(prefix string) (string, error) { return prefix + "fixed", nil },
+		NewRequestID:            func() (string, error) { return "request-fixed", nil },
+		RunNotifier:             notifier,
+		ProjectDeletionNotifier: notifier,
+		RunSkills:               runSkills,
+		Logger:                  logger,
 		Now: func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
 		},

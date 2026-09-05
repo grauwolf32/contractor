@@ -44,6 +44,9 @@ func (r *PostgresRepository) PublishRunOutput(
 INSERT INTO artifact_scopes (scope_kind, scope_id)
 VALUES ($1, $2)
 ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
+		if persistencepostgres.SQLState(err) == "55000" {
+			return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", ErrScopeDeleting)
+		}
 		if persistencepostgres.SQLState(err) == "23503" {
 			return ForkResult{}, fmt.Errorf("create Project artifact scope: %w", ErrInvalidScope)
 		}
@@ -105,6 +108,8 @@ SELECT
 	).Scan(&sourceExists, &targetCreated, &mediaType, &size)
 	if err != nil {
 		switch persistencepostgres.SQLState(err) {
+		case "55000":
+			return ForkResult{}, fmt.Errorf("publish Project output %q: %w", outputSlot, ErrScopeDeleting)
 		case "23503":
 			return ForkResult{}, fmt.Errorf("publish Project output %q: %w", outputSlot, ErrInvalidScope)
 		case "23505":

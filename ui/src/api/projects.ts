@@ -14,6 +14,9 @@ const RUNTIME_CREDENTIAL_ID_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
 
 export type Project = components["schemas"]["Project"];
 export type ProjectKind = components["schemas"]["ProjectKind"];
+export type ProjectLifecycle = components["schemas"]["ProjectLifecycle"];
+export type ProjectDeletionPhase =
+  components["schemas"]["ProjectDeletionPhase"];
 export type ProjectPage = components["schemas"]["ProjectPage"];
 export type CreateProjectRequest =
   components["schemas"]["CreateProjectRequest"];
@@ -34,6 +37,11 @@ export interface CreateProjectOptions {
 export interface UpdateProjectOptions {
   projectId: string;
   request: UpdateProjectRequest;
+  expectedRevision: string;
+}
+
+export interface DeleteProjectOptions {
+  projectId: string;
   expectedRevision: string;
 }
 
@@ -94,6 +102,14 @@ export function normalizeProjectRequest(
 }
 
 function safeProject(value: Project, status: number): Project {
+  const deletionValid =
+    value.deletion !== undefined &&
+    (value.deletion.phase === "cancelling" ||
+      value.deletion.phase === "draining" ||
+      value.deletion.phase === "purging_runs" ||
+      value.deletion.phase === "purging_artifacts") &&
+    typeof value.deletion.requestedAt === "string" &&
+    value.deletion.requestedAt.length > 0;
   if (
     !PROJECT_ID_PATTERN.test(value.projectId) ||
     (value.kind !== "project" && value.kind !== "evaluation") ||
@@ -102,6 +118,10 @@ function safeProject(value: Project, status: number): Project {
     value.name.length > MAXIMUM_PROJECT_NAME_LENGTH ||
     typeof value.description !== "string" ||
     value.description.length > MAXIMUM_PROJECT_DESCRIPTION_LENGTH ||
+    (value.lifecycle !== "active" && value.lifecycle !== "deleting") ||
+    (value.lifecycle === "active"
+      ? value.deletion !== undefined
+      : !deletionValid) ||
     !PROJECT_REVISION_PATTERN.test(value.revision) ||
     typeof value.createdAt !== "string" ||
     typeof value.updatedAt !== "string"
@@ -265,6 +285,31 @@ export async function updateProject(
   );
   const project = safeProject(requireData(result), result.response.status);
   if (project.projectId !== options.projectId) {
+    throw invalidProjectResponse(result.response.status);
+  }
+  requireETag(result.response, project.revision);
+  return project;
+}
+
+export async function deleteProject(
+  api: PublicAPI,
+  options: DeleteProjectOptions,
+): Promise<Project> {
+  requireProjectID(options.projectId);
+  requireProjectRevision(options.expectedRevision);
+  const result = await api.request((client) =>
+    client.DELETE("/v1/projects/{projectId}", {
+      params: {
+        path: { projectId: options.projectId },
+        header: { "If-Match": `"${options.expectedRevision}"` },
+      },
+    }),
+  );
+  const project = safeProject(requireData(result), result.response.status);
+  if (
+    project.projectId !== options.projectId ||
+    project.lifecycle !== "deleting"
+  ) {
     throw invalidProjectResponse(result.response.status);
   }
   requireETag(result.response, project.revision);

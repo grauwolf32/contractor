@@ -30,6 +30,7 @@ const evaluation = {
   kind: "evaluation",
   name: "OpenAPI regression",
   description: "A/B evaluation workspace",
+  lifecycle: "active",
   revision: "1",
   createdAt: "2026-09-05T08:00:00Z",
   updatedAt: "2026-09-05T08:01:00Z",

@@ -77,6 +77,61 @@ WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
 	return nil
 }
 
+// PurgeProject removes the complete ProjectScope after every Project Run has
+// already crossed the terminal/released deletion boundary. UserScope data and
+// physical content still referenced by another scope remain intact.
+func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) error {
+	scope, err := ProjectScope(projectID)
+	if err != nil {
+		return err
+	}
+	if _, err := p.tx.Exec(
+		ctx, `SELECT set_config('contractor.lifecycle_purge', 'project', true)`,
+	); err != nil {
+		return fmt.Errorf("enable Project lifecycle purge: %w", err)
+	}
+
+	versionIDs, err := p.scopeVersionIDs(ctx, scope)
+	if err != nil {
+		return err
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM workflow_run_output_publications
+WHERE project_id = $1`, projectID); err != nil {
+		return fmt.Errorf("delete Project output publications: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_pins
+WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
+		return fmt.Errorf("delete Project Artifact pins: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_lineage
+WHERE (source_scope_kind = $1 AND source_scope_id = $2)
+   OR (target_scope_kind = $1 AND target_scope_id = $2)`, scope.kind, scope.id); err != nil {
+		return fmt.Errorf("delete Project Artifact lineage: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_bindings
+WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
+		return fmt.Errorf("delete Project Artifact bindings: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_binding_revisions
+WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
+		return fmt.Errorf("delete Project Artifact revisions: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_scopes
+WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
+		return fmt.Errorf("delete Project Artifact scope: %w", err)
+	}
+	if err := p.collectUnreferencedVersions(ctx, versionIDs); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (p *PostgresPurger) scopeVersionIDs(ctx context.Context, scope Scope) ([]string, error) {
 	rows, err := p.tx.Query(ctx, `
 SELECT DISTINCT version_id

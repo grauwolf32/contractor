@@ -34,6 +34,7 @@ import (
 	plannerrouter "github.com/grauwolf32/contractor/internal/planner/router"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
+	"github.com/grauwolf32/contractor/internal/projectlifecycle"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -425,6 +426,15 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Workflow Scheduler: %w", err)
 	}
+	projectDeletionController, err := projectlifecycle.New(
+		pool,
+		runstore.NewPostgresStore(pool),
+		workflowScheduler,
+		projectlifecycle.Options{OperationTimeout: cfg.RuntimeRequestTimeout, Logger: logger},
+	)
+	if err != nil {
+		return fmt.Errorf("configure Project deletion controller: %w", err)
+	}
 	eventListener, err := runstore.NewPostgresRunEventListener(pool)
 	if err != nil {
 		return fmt.Errorf("configure WorkflowRun event listener: %w", err)
@@ -453,7 +463,8 @@ func RunCLI(
 		Transactions: postgresPublicUnitOfWork{pool: pool},
 		BearerToken:  cfg.PublicBearerToken,
 		RunNotifier:  workflowScheduler, Logger: logger,
-		RunSkills: &runSkillInitializer{pool: pool},
+		ProjectDeletionNotifier: projectDeletionController,
+		RunSkills:               &runSkillInitializer{pool: pool},
 	})
 	if err != nil {
 		return fmt.Errorf("configure public API: %w", err)
@@ -493,7 +504,7 @@ func RunCLI(
 		logger,
 		NewHandler(publicHandler),
 		privateHandler,
-		workflowScheduler,
+		backgroundRunnerGroup{workflowScheduler, projectDeletionController},
 	)
 }
 

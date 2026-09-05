@@ -25,6 +25,7 @@ async function installAPI(page: Page, origin: string): Promise<void> {
     kind: "evaluation",
     name: "Browser evaluation",
     description: "Evaluation route fixture",
+    lifecycle: "active",
     revision: "1",
     createdAt: "2026-09-05T08:00:00Z",
     updatedAt: "2026-09-05T08:01:00Z",

@@ -80,6 +80,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}",
 		"DELETE /v1/operations/runtime-credentials/{credentialId}",
 		"DELETE /v1/operations/runtime-labels/{label}",
+		"DELETE /v1/projects/{projectId}",
 		"DELETE /v1/runs/{runId}",
 		"GET /v1/artifacts",
 		"GET /v1/artifacts/{namespace}/{name}",

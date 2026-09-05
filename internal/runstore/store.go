@@ -222,6 +222,9 @@ FROM inserted_run`,
 	)
 	result, err := scanWorkflowRun(row)
 	if err != nil {
+		if persistencepostgres.SQLState(err) == "55000" {
+			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
+		}
 		if persistencepostgres.SQLState(err) == "23505" {
 			return WorkflowRun{}, fmt.Errorf("create WorkflowRun %q: %w", params.RunID, ErrConflict)
 		}
@@ -298,6 +301,9 @@ FROM inserted_run`,
 	if err == nil {
 		result.MetadataLabels = metadataLabels
 		return result, true, nil
+	}
+	if persistencepostgres.SQLState(err) == "55000" {
+		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, ErrProjectDeleting)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun %q: %w", params.RunID, err)

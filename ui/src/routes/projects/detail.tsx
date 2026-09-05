@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useId, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import {
   ARTIFACT_NAME_PATTERN,
   type ArtifactWriteResponse,
 } from "../../api/artifacts";
 import { usePublicAPI } from "../../api/context";
+import { PublicAPIError } from "../../api/error";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import {
   createRuntimeCredential,
@@ -15,6 +16,7 @@ import {
   type RuntimeCredentialMetadata,
 } from "../../api/operations";
 import {
+  deleteProject,
   getProject,
   listProjectRuns,
   MAXIMUM_PROJECT_DESCRIPTION_LENGTH,
@@ -23,6 +25,7 @@ import {
   PROJECT_ID_PATTERN,
   updateProject,
   type Project,
+  type ProjectDeletionPhase,
 } from "../../api/projects";
 import type { RunSummary } from "../../api/runs";
 import { queryKeys } from "../../api/query-keys";
@@ -925,19 +928,193 @@ function ProjectRunsRegion({
   );
 }
 
+const deletionPhaseCopy: Record<
+  ProjectDeletionPhase,
+  { label: string; detail: string }
+> = {
+  cancelling: {
+    label: "Cancelling active Runs",
+    detail:
+      "Every non-terminal Run is receiving the ordinary cancellation request.",
+  },
+  draining: {
+    label: "Waiting for Runtime release",
+    detail:
+      "Cleanup is waiting for Runs to become terminal and allocations to be released.",
+  },
+  purging_runs: {
+    label: "Removing Run history",
+    detail:
+      "Terminal Runs and their Run-owned Artifacts are being permanently removed.",
+  },
+  purging_artifacts: {
+    label: "Removing Project Artifacts",
+    detail:
+      "The remaining ProjectScope history is being purged with reference-safe content cleanup.",
+  },
+};
+
+function DeleteProjectDialog({
+  project,
+  pending,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  project: Project;
+  pending: boolean;
+  error: Error | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const heading = useId();
+  const warning = useId();
+  const [confirmation, setConfirmation] = useState("");
+  const resourceLabel = project.kind === "evaluation" ? "Eval" : "Project";
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape" && !pending) {
+        onCancel();
+      }
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onCancel, pending]);
+  return (
+    <div className="project-dialog-backdrop" role="presentation">
+      <section
+        className="project-dialog project-delete-dialog panel"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={heading}
+        aria-describedby={warning}
+      >
+        <div className="project-dialog-heading">
+          <div>
+            <p className="eyebrow">Permanent workspace deletion</p>
+            <h2 id={heading}>Delete {project.name}?</h2>
+          </div>
+        </div>
+        <p className="project-delete-warning" id={warning}>
+          This cancels every active Run and permanently deletes all Project
+          Runs, execution history, and Project-scoped Artifacts. Shared User
+          Artifacts, Skills, and Runtime credentials are retained.
+        </p>
+        <label>
+          Type <strong>{project.name}</strong> to confirm
+          <input
+            value={confirmation}
+            disabled={pending}
+            autoComplete="off"
+            onChange={(event) => setConfirmation(event.currentTarget.value)}
+          />
+        </label>
+        {error === null ? null : <ErrorNotice error={error} />}
+        <div className="run-delete-dialog-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            autoFocus
+            disabled={pending}
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+          <button
+            className="danger-button"
+            type="button"
+            disabled={pending || confirmation !== project.name}
+            onClick={onConfirm}
+          >
+            {pending ? "Starting deletion…" : `Delete ${resourceLabel}`}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProjectDeletionProgress({ project }: { project: Project }) {
+  const deletion = project.deletion;
+  if (project.lifecycle !== "deleting" || deletion === undefined) {
+    return null;
+  }
+  const copy = deletionPhaseCopy[deletion.phase];
+  return (
+    <div className="panel project-deletion-progress" aria-live="polite">
+      <div className="spinner" aria-hidden="true" />
+      <div>
+        <p className="eyebrow">Deletion in progress</p>
+        <h3>{copy.label}</h3>
+        <p>{copy.detail}</p>
+        <small>Requested {formatTimestamp(deletion.requestedAt)}</small>
+      </div>
+      <p className="project-deletion-durability">
+        You can leave this page. Cleanup is durable and resumes automatically
+        after a Server restart.
+      </p>
+    </div>
+  );
+}
+
 function ProjectWorkspaceRoute({
   expectedKind,
 }: {
   expectedKind: "project" | "evaluation";
 }) {
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { projectId = "" } = useParams();
   const validProject = PROJECT_ID_PATTERN.test(projectId);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const destination = expectedKind === "evaluation" ? "/evals" : "/projects";
   const project = useQuery({
     queryKey: queryKeys.projects.detail(projectId),
     queryFn: () => getProject(api, projectId),
     enabled: validProject,
+    refetchInterval: (query) =>
+      query.state.data?.lifecycle === "deleting" ? 1_000 : false,
+    retry: (failureCount, error) =>
+      !(error instanceof PublicAPIError && error.status === 404) &&
+      failureCount < 2,
   });
+  const deletion = useMutation({
+    mutationFn: (target: Project) =>
+      deleteProject(api, {
+        projectId: target.projectId,
+        expectedRevision: target.revision,
+      }),
+    onSuccess: (deleting) => {
+      setDeleteOpen(false);
+      queryClient.setQueryData(
+        queryKeys.projects.detail(deleting.projectId),
+        deleting,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.list(deleting.kind),
+      });
+    },
+  });
+  const deletionObserved =
+    deletion.data?.lifecycle === "deleting" ||
+    project.data?.lifecycle === "deleting";
+  const activeProject =
+    project.data?.kind === expectedKind && project.data.lifecycle === "active"
+      ? project.data
+      : undefined;
+  const deleteLabel =
+    expectedKind === "evaluation" ? "Delete Eval" : "Delete Project";
+  useEffect(() => {
+    if (
+      deletionObserved &&
+      project.error instanceof PublicAPIError &&
+      project.error.status === 404
+    ) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
+      void navigate(destination, { replace: true });
+    }
+  }, [deletionObserved, destination, navigate, project.error, queryClient]);
 
   if (!validProject) {
     return (
@@ -964,10 +1141,7 @@ function ProjectWorkspaceRoute({
     >
       <header className="route-header-row">
         <div>
-          <Link
-            className="back-link"
-            to={expectedKind === "evaluation" ? "/evals" : "/projects"}
-          >
+          <Link className="back-link" to={destination}>
             ← All {expectedKind === "evaluation" ? "Evals" : "Projects"}
           </Link>
           <p className="eyebrow">
@@ -982,19 +1156,40 @@ function ProjectWorkspaceRoute({
               : "Reusable inputs and published results stay Project-scoped; every Run still receives its own exact immutable copy."}
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={project.isFetching}
-          onClick={() => void project.refetch()}
-        >
-          {project.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="project-header-actions">
+          {activeProject !== undefined ? (
+            <button
+              className="danger-button"
+              type="button"
+              onClick={() => {
+                deletion.reset();
+                setDeleteOpen(true);
+              }}
+            >
+              {deleteLabel}
+            </button>
+          ) : null}
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={project.isFetching}
+            onClick={() => void project.refetch()}
+          >
+            {project.isFetching ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </header>
 
       {project.isPending ? (
         <p className="loading-copy" aria-live="polite">
           Loading Project…
+        </p>
+      ) : deletionObserved &&
+        project.error instanceof PublicAPIError &&
+        project.error.status === 404 ? (
+        <p className="loading-copy" aria-live="polite">
+          Project deleted. Returning to{" "}
+          {expectedKind === "evaluation" ? "Evals" : "Projects"}…
         </p>
       ) : project.error !== null ? (
         <ErrorNotice error={project.error} />
@@ -1008,6 +1203,8 @@ function ProjectWorkspaceRoute({
             )
           }
         />
+      ) : project.data.lifecycle === "deleting" ? (
+        <ProjectDeletionProgress project={project.data} />
       ) : (
         <>
           <nav
@@ -1048,6 +1245,20 @@ function ProjectWorkspaceRoute({
           />
         </>
       )}
+      {deleteOpen && activeProject !== undefined ? (
+        <DeleteProjectDialog
+          project={activeProject}
+          pending={deletion.isPending}
+          error={deletion.error}
+          onCancel={() => {
+            if (!deletion.isPending) {
+              setDeleteOpen(false);
+              deletion.reset();
+            }
+          }}
+          onConfirm={() => deletion.mutate(activeProject)}
+        />
+      ) : null}
     </section>
   );
 }

@@ -4,6 +4,7 @@ import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
 import {
   createProject,
+  deleteProject,
   getProject,
   listProjectRuns,
   listProjects,
@@ -22,6 +23,7 @@ const project: Project = {
   kind: "project",
   name: "Example",
   description: "Reusable inputs",
+  lifecycle: "active",
   revision: "1",
   createdAt: "2026-09-01T10:00:00Z",
   updatedAt: "2026-09-01T10:00:00Z",
@@ -156,6 +158,42 @@ describe("Project API", () => {
         request: { httpTarget: { url: "https://app.example.test/?secret=x" } },
       }),
     ).rejects.toThrow("target URL is invalid");
+  });
+
+  it("begins deletion with a bodyless exact-revision request", async () => {
+    let captured: Request | undefined;
+    const deleting: Project = {
+      ...project,
+      lifecycle: "deleting",
+      deletion: {
+        phase: "cancelling",
+        requestedAt: "2026-09-05T10:00:00Z",
+      },
+      revision: "2",
+      updatedAt: "2026-09-05T10:00:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        captured = input instanceof Request ? input : new Request(input);
+        return response(deleting, {
+          status: 202,
+          headers: { ETag: '"2"' },
+        });
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    await expect(
+      deleteProject(api, {
+        projectId: project.projectId,
+        expectedRevision: project.revision,
+      }),
+    ).resolves.toEqual(deleting);
+    expect(captured?.method).toBe("DELETE");
+    expect(captured?.headers.get("If-Match")).toBe('"1"');
+    expect(captured?.headers.get("X-CSRF-Token")).toBe("a".repeat(43));
+    await expect(captured?.clone().text()).resolves.toBe("");
   });
 
   it("normalizes absent-safe Run labels in the Project history", async () => {
