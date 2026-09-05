@@ -3,8 +3,8 @@ id: V23-011
 title: Prove Project workspace recovery, security and end-to-end UX
 milestone: project-workspaces-operations
 priority: P1
-status: planned
-implementation_commit: null
+status: completed
+implementation_commit: 2aea06392ac8f207715102bb599feacd794179c2
 depends_on: [V23-005, V23-007, V23-008, V23-009, V23-010]
 languages: [go, python, typescript, yaml]
 
