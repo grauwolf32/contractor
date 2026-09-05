@@ -28,6 +28,8 @@ scope:
     - Add bounded discovery and assessment AuditExecutions using pinned role Workflows.
     - Validate and accept at most maxRounds immutable worklists with item/Run/proposal/evidence budgets.
     - Add waiting_review transitions that hold no allocation or Controller claim.
+    - Advertise newly executable review/discovery/multi-round capability codes through AuditProfile projections without changing catalog identity.
+    - Immediately before creating an execution authorized by review, re-read and verify the decision is accepted, unexpired and bound to the exact current plan/action/profile revision; stale earlier checks have no authority.
     - Add Findings/Reviews UI and proposed-versus-confirmed report sections.
   out:
     - Automatic semantic deduplication, unapproved active exploitation, cross-Project imports or universal compliance claims.
@@ -37,6 +39,7 @@ requirements:
   - {id: R2, text: Profile policy may strengthen model-requested approval and can never be weakened by it.}
   - {id: R3, text: Duplicate links are acyclic within one Audit and preserve every original proposal/finding.}
   - {id: R4, text: Limit/deadline exhaustion closes generation with explicit gaps and bounded finalization.}
+  - {id: R5, text: Approval validity is checked transactionally at execution-intent creation, not only when the decision is first recorded or when UI reads it.}
 
 acceptance_criteria:
   - id: A1
@@ -44,8 +47,8 @@ acceptance_criteria:
     when: Assessment completes.
     then: Current item count is unchanged and only accepted next-Round work executes.
   - id: A2
-    given: Approval expires or plan revision changes.
-    when: Controller reconciles.
+    given: Approval expires or plan/profile/action revision changes after an earlier reconcile read.
+    when: Controller attempts to commit the authorized execution intent.
     then: No active check starts until a valid exact decision exists.
   - id: A3
     given: A source Run proposal is imported by its owner.

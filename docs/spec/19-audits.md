@@ -25,16 +25,18 @@ findings, but cannot create Runs, select an Audit, approve work, or mutate Audit
 control state.
 
 The first increment supports a deterministic inventory, one immutable round,
-bounded independent check Runs, PostgreSQL recovery, exact result import, and a
-coverage report. Later increments add finding intake, human review, discovery,
-assessment, and multiple rounds.
+one logical item per execution, bounded independent check Runs, PostgreSQL
+recovery, exact result collection, and a coverage report. The durable model
+already separates items from executions so a later execution may carry a small
+ordered batch without changing item identity. Later increments add finding
+intake, human review, discovery, assessment, multiple rounds, and batching.
 
 ## 2. Ownership boundaries
 
 ```mermaid
 flowchart TD
   U["Authenticated owner"] --> API["Audit API"]
-  API --> DB["PostgreSQL: Audit / Round / Item / Execution"]
+  API --> DB["PostgreSQL: Audit / Round / Item / Execution / Receipt"]
   C["Audit Controller"] <--> DB
   C --> RS["Trusted Run Service"]
   RS --> S["Workflow Scheduler"]
@@ -48,7 +50,7 @@ flowchart TD
 | Participant | Owns | Does not own |
 | --- | --- | --- |
 | Audit API | Owner authorization, commands, review decisions | Stage execution |
-| Audit Controller | Rounds, items, child Run intents, imports, coverage, Audit budgets | A2A dispatch or Runtime placement |
+| Audit Controller | Rounds, items, child Run intents, collection, coverage, Audit budgets | A2A dispatch or Runtime placement |
 | Trusted Run Service | Atomic creation of a pinned ordinary Run and its Audit association | Audit policy or Stage progression |
 | Workflow Scheduler | Run/Stage lifecycle, retry, escalation, output acceptance | ASVS, checklist, or finding semantics |
 | Planner | Decomposition inside one Stage and candidate task/result production | Child Run creation or human approval |
@@ -83,6 +85,11 @@ The following boundaries already exist and are reused without reinterpretation:
   concrete forms rather than re-resolving mutable names or Run-label bindings
   at dispatch. Physical Agent-label settings remain an allocation-time layer,
   exactly as defined in [07](07-runtime-labels-and-infrastructure-config.md).
+- Ordinary Run creation resolves each selected Skill name to an exact package
+  revision and digest. Because Audit child Runs may be created long after
+  start, Audit start must retain that exact Skill package set and the trusted
+  Run Service must consume it without resolving the current `skills/<name>`
+  binding again.
 - Queue pause is an owner-wide Stage-admission gate. Audit coordination must
   continue to reconcile terminal Runs and perform cancellation/cleanup while
   that gate is paused.
@@ -91,8 +98,10 @@ The following boundaries already exist and are reused without reinterpretation:
   trusted Audit child Runs require an internal `audit-managed` publication
   mode. This mode is not accepted from the public Run-create API.
 - Managed LLM and Runtime credential deletion is reference-aware for Runs.
-  Audit start must add equivalent durable usage holds for credentials needed by
-  future child Runs, and terminal deletion must release those holds.
+  Audit start must add equivalent dispatch holds for credentials needed by
+  future child Runs. Those holds end after dispatch is durably closed and all
+  submission intents are resolved; exact evidence/artifact holds have a
+  separate lifetime and remain until Audit deletion.
 
 Everything else in this document is an additive contract. Until its owning
 task is complete, it is not a description of current behavior.
@@ -107,10 +116,11 @@ not affect that Audit.
 
 `audit-profiles` becomes the seventh fixed configuration subtree alongside
 `workflows`, `agent-templates`, `model-policies`, `llm-gateways`,
-`execution-configs`, and `instructions`. The first increment exposes profiles
-through an internal read-only catalog. Generic managed publication and the
-existing `/v1/configurations/{kind}` surface do not accept AuditProfile until a
-separate API/versioning decision is implemented.
+`execution-configs`, and `instructions`. The configuration layer exposes an
+internal read-only catalog; the Audit API adds a dedicated owner-safe read
+projection for exact versions and Server compatibility. Generic managed
+publication and the existing `/v1/configurations/{kind}` surface do not accept
+AuditProfile until a separate API/versioning decision is implemented.
 
 Profile modes compose one mechanism rather than creating Scheduler branches:
 
@@ -167,10 +177,10 @@ spec:
         target: {source: item-field, name: subjectKey}
       outputs:
         result: trace_report
-        proposals: finding_proposals
   execution:
     roundMode: fixed-barrier
-    maxRounds: 3
+    maxRounds: 1
+    batchSize: 1
     maxItemsPerRound: 100
     maxItemsTotal: 250
     maxActiveRuns: 4
@@ -180,10 +190,10 @@ spec:
     maxEvidenceBytes: 67108864
     incompleteRound: assess-with-gaps
   interaction:
-    activeChecks: approval-required
-    findingConfirmation: human-required
-    notApplicable: human-required
-    reportAcceptance: human-required
+    activeChecks: prohibited
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic
 ```
 
 Workflow names in this example are proposed definitions, not claims that they
@@ -206,10 +216,53 @@ Workflow:
 - every output consumed by the Audit importer is required by the child
   Workflow and has a profile-supported package media type.
 
-All numeric limits are finite positive values and are jointly validated.
-Profiles cannot weaken Server-wide maxima. Model policies, execution budgets,
-Runtime labels, and credentials are selected by the pinned child execution
+All numeric limits, including `batchSize`, are finite positive values and are
+jointly validated. Profiles cannot weaken Server-wide maxima. Catalog loading
+may accept a bounded batch size greater than one, but the MVP start capability
+requires exactly `batchSize: 1`. Model policies, execution budgets, Runtime
+labels, and credentials are selected by the pinned child execution
 configuration, not by finding content.
+
+### 4.2 Server capabilities and start compatibility
+
+Catalog validity and executable Server support are deliberately different.
+The read-only catalog may retain a profile before every mechanism it requests
+is installed. Profile reads and draft creation compute a closed, versioned set
+of required Audit capabilities for presentation; start enforces that set
+against the same profile snapshot it pins. A stale UI projection cannot bypass
+the start check.
+
+The one-round MVP supports only deterministic inventory, `maxRounds: 1`,
+`batchSize: 1`, no discovery/assessment role, and interaction policies that do
+not require a person. A Server-compatible passive profile uses `activeChecks:
+prohibited`, `findingConfirmation: disabled`, `notApplicable: profile-rule`,
+and `reportAcceptance: automatic`. `disabled` means finding proposals are not
+an accepted result surface for that profile; it never turns proposals into
+findings implicitly. Start rejects a disabled-finding profile whose resolved
+Workflow outputs or AgentTemplates can emit finding proposals, and similarly
+rejects active-check capabilities under `activeChecks: prohibited`. A Server
+MAY advertise automatic active checks separately,
+but absence of human approval support never downgrades `approval-required` to
+automatic.
+
+Profiles requiring active-check approval, manual applicability, finding
+confirmation, report acceptance, discovery, multiple rounds, or batching stay
+listable but cannot start until their owning capability is present. A
+checklist containing a human-only item is also rejected at start while review
+support is absent, because this requirement depends on the exact selected
+input rather than profile metadata alone. The stable start error is
+`audit_profile_unsupported`; its bounded reason codes distinguish the missing
+capabilities. No unsupported policy is silently ignored or interpreted as an
+automatic decision.
+
+Initial reason codes are `discovery_unsupported`, `assessment_unsupported`,
+`multiple_rounds_unsupported`, `batching_unsupported`,
+`automatic_active_checks_unsupported`,
+`active_check_approval_unsupported`, `finding_confirmation_unsupported`,
+`manual_applicability_unsupported`, `report_acceptance_unsupported`, and
+`manual_item_unsupported`. They describe Server features, not transient Worker
+availability: a successfully started Audit may still wait in the ordinary queue for a
+compatible Runtime Agent.
 
 ## 5. Baseline and scope
 
@@ -225,6 +278,9 @@ freezes:
   exact Run RuntimeConfig snapshot (default plus Audit-selected Runtime labels)
   reused by every child Run; physical Agent labels still resolve only after
   placement;
+- the exact source revision, digest, validated metadata, and limits for every
+  Skill package selected by any pinned child Workflow; later child creation
+  forks these exact packages rather than resolving a current catalog binding;
 - standard version, selected level, and requirement/asset selection rules;
 - limits and human-interaction policy.
 
@@ -249,8 +305,12 @@ erDiagram
   PROJECT ||--o{ AUDIT : contains
   AUDIT ||--o{ AUDIT_ROUND : freezes
   AUDIT_ROUND ||--o{ AUDIT_ITEM : contains
-  AUDIT_ITEM ||--o{ AUDIT_EXECUTION : attempts
+  AUDIT ||--o{ AUDIT_EXECUTION : coordinates
+  AUDIT_ROUND o|--o{ AUDIT_EXECUTION : groups
+  AUDIT_EXECUTION ||--o{ AUDIT_EXECUTION_ITEM : contains
+  AUDIT_ITEM ||--o{ AUDIT_EXECUTION_ITEM : attempts
   AUDIT_EXECUTION o|--o| WORKFLOW_RUN : binds
+  AUDIT_EXECUTION ||--o| AUDIT_COLLECTION_RECEIPT : collects
   AUDIT ||--o{ AUDIT_FINDING : tracks
   AUDIT ||--o{ AUDIT_REVIEW_REQUEST : requests
   AUDIT_REVIEW_REQUEST ||--o{ AUDIT_REVIEW_DECISION : records
@@ -258,10 +318,12 @@ erDiagram
 
 | Record | Minimum durable fields |
 | --- | --- |
-| `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input set, scope snapshot, runtime snapshots, state, revision, current_round_id, deadline, limits/counters, stop reason, timestamps |
+| `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, deadline, limits/counters, stop reason, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
-| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, state, disposition, accepted result ref, last_execution_id |
-| `AuditExecution` | id, audit_id, round_id, optional item_id, role, attempt, submission_key, optional run_id, state, terminal outcome, import receipt |
+| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, state, final disposition, optional accepted result ref, optional last_execution_item_id |
+| `AuditExecution` | id, audit_id, optional round_id, role, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, state, optional terminal Run outcome/version |
+| `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
+| `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
 | `AuditFinding` | id, audit_id, first proposal, current assessment, triage state, optional duplicate target, revision |
 | `AuditProposalReceipt` | id, run_id, allocation_id, invocation_id, submission_id, payload digest, exact proposal ref, optional admitted audit_id, source status |
 | `AuditArtifactLink` | audit_id, logical key, exact retained version, source provenance, display ref, timestamp |
@@ -269,16 +331,29 @@ erDiagram
 | `AuditReviewDecision` | id, request_id, actor_id, decision, exact subject revision/digest, bounded rationale, timestamp |
 | `AuditEvent` | audit_id, monotonic sequence, kind, entity id/revision, bounded safe summary |
 
-Execution roles are `discovery | check | assessment`. A check execution
-requires an item. Discovery and assessment belong to the Audit or Round and do
-not create fake items. Each execution has at most one Run; retries create new
-execution records. One Run can belong to at most one AuditExecution.
+Execution roles are `discovery | check | assessment`. A check execution has an
+ordered set of `AuditExecutionItem` rows; discovery and assessment belong to
+the Audit or Round and do not create fake items. Each execution has at most one
+Run and one immutable execution-input manifest. One Run can belong to at most
+one AuditExecution.
+
+In the MVP every check execution contains exactly one item because the start
+capability requires `batchSize: 1`. This is a policy constraint, not a schema
+shortcut. A later bounded execution may contain several compatible items while
+each item retains its own ordinal, attempt, result, evidence, coverage, and
+settlement. Retry creates a new AuditExecution and a new AuditExecutionItem for
+each retried item; later batching may regroup retries without changing item
+identity. Items with different Workflow/configuration, baseline, workspace, or
+permission envelope cannot share an execution. Workspace reuse never implies a
+shared Worker conversation.
 
 Required uniqueness includes `(audit_id, round.ordinal)`,
 `(round_id, item_key)`, `(round_id, ordinal)`, `submission_key`, non-null
-`run_id`, `(allocation_id, invocation_id, submission_id)`, and
-`(audit_id, event.sequence)`. Check attempts are unique by `(item_id, attempt)`;
-discovery/assessment attempts use explicit PostgreSQL null-safe uniqueness.
+`run_id`, `(execution_id, batch_ordinal)`, `(execution_id, item_id)`,
+`(item_id, item_attempt)`, `(allocation_id, invocation_id, submission_id)`, and
+`(audit_id, event.sequence)`. Discovery/assessment attempts use explicit
+PostgreSQL null-safe uniqueness over Audit, optional Round, role, and
+`role_attempt`.
 
 ### 6.1 Result layers
 
@@ -294,9 +369,10 @@ discovery/assessment attempts use explicit PostgreSQL null-safe uniqueness.
 A succeeded Run never automatically confirms a finding or satisfies a
 requirement. A failed/cancelled Run does not refute a hypothesis. `supported`
 describes evidence; `confirmed` is a policy-authorized triage decision.
-Severity and confidence are distinct fields. The first release requires human
-confirmation; a future profile may allow deterministic auto-confirmation only
-under an explicit evidence contract.
+Severity and confidence are distinct fields. The MVP may disable finding
+production; the first finding-capable release requires human confirmation. A
+future profile may allow deterministic auto-confirmation only under an explicit
+evidence contract.
 
 ## 7. Audit packages and schemas
 
@@ -340,28 +416,37 @@ are rejected when a standards package is configured. Missing mapping is shown
 as unmapped, not interpreted as compliance. `client_key` is scoped to the
 trusted invocation and never becomes a global finding ID.
 
-### 7.2 CheckResult
+### 7.2 CheckResultSet
 
 ```yaml
-schema: contractor.audit.check-result.v1
-item_key: item-017
-subject_key: op-stable-key
-assessment: inconclusive
-summary: Route-to-handler mapping was found, but a required helper could not be resolved.
-evidence_ids: [ev-21]
-coverage:
-  requested: [route-mapping, source-to-sink, validation-path]
-  completed: [route-mapping]
-  gaps: [unresolved-helper]
-proposals: [candidate-local-7]
+schema: contractor.audit.check-results.v1
+execution_manifest_digest: sha256:...
+results:
+  - item_key: item-017
+    subject_key: op-stable-key
+    assessment: inconclusive
+    summary: Route-to-handler mapping was found, but a required helper could not be resolved.
+    evidence_ids: [ev-21]
+    coverage:
+      requested: [route-mapping, source-to-sink, validation-path]
+      completed: [route-mapping]
+      gaps: [unresolved-helper]
+    proposals: [candidate-local-7]
 ```
 
-The importer verifies `item_key` and `subject_key` against the immutable task
-package. The model does not choose the AuditItem receiving the result. Schema
-validity is not semantic evidence acceptance: the importer also checks evidence
-references, requested coverage, and the profile evidence contract. An invalid
-output gives AuditExecution disposition `invalid-result` independently of a
-technically succeeded Run.
+The execution input contains an immutable manifest with an ordered list of
+item keys and exact task/input refs. The importer verifies the manifest digest,
+membership, `item_key`, and `subject_key`; rejects duplicate, foreign, missing,
+or extra results; and requires exactly one result per input item after a
+technically succeeded Run. The model does not choose the AuditItem receiving a
+result. Run success does not imply success for any individual item.
+
+Schema validity is not semantic evidence acceptance: the importer also checks
+evidence references, requested coverage, and the profile evidence contract. An
+invalid or incomplete result set creates a durable invalid collection receipt
+independently of the technically succeeded Run. The MVP result set has exactly
+one member, but this envelope remains unchanged when bounded batches are later
+enabled.
 
 ### 7.3 WorklistManifest
 
@@ -405,21 +490,44 @@ requires a rationale and a policy-authorized decision.
 
 `openapi-operations@1` accepts an exact OpenAPI 3.x JSON or YAML document, or a
 bounded package containing it. Local `$ref` values resolve only inside the
-pinned document/package under cycle, depth, and byte bounds. Remote refs are
-never fetched; the caller must materialize them into the exact package first.
+pinned document/package under cycle, depth, and byte bounds. The generator
+never performs a network request. A remote ref needed to resolve an enumerated
+Path Item, operation, parameter, security declaration, or schema dependency
+rejects the entire inventory before dispatch. Remote refs that occur only in
+unsupported callbacks, webhooks, or other non-selected surfaces are not
+followed and become explicit named coverage gaps.
 
 The first inventory enumerates explicit HTTP operations in `paths`. Callbacks
 and webhooks become named coverage gaps rather than counted checks. Path Item
-refs resolve before enumeration. Operation identity is the tuple
-`(input content digest, exact path template, lowercase HTTP method)`.
-`operationId` is only a display label: missing or duplicate operation IDs do
-not merge operations. Stable keys are generated from the canonical tuple.
-Ordering is UTF-8 lexicographic path followed by a fixed HTTP-method order.
+refs resolve before enumeration. `operationId` is only a display label: missing
+or duplicate operation IDs do not merge operations. Ordering is UTF-8
+lexicographic path followed by a fixed HTTP-method order.
 
-Task packages include the operation, relevant resolved schemas/parameters/
-security declarations, exact source input, and scope. Operation-to-handler
-mapping requires evidence; an unsupported mapping remains an assumption. An
-unmapped endpoint or truncated graph yields an explicit gap/inconclusive result,
+Identity and provenance use separate digests:
+
+- `source_content_digest` is SHA-256 over the exact accepted source artifact
+  bytes. It identifies provenance and changes after reformatting or conversion
+  between JSON and YAML;
+- `canonical_inventory_digest` is SHA-256 over a versioned JCS representation
+  of the normalized inventory basis: enumerated paths/operations, their
+  resolved local dependency closures, and normalized gap descriptors. It
+  excludes source byte identity, mapping presentation order, comments, and
+  `operationId` uniqueness;
+- `operation_key` is SHA-256 over a domain-separated canonical tuple of
+  `canonical_inventory_digest`, the exact path template, and the lowercase
+  HTTP method.
+
+The canonical inventory and operation keys are therefore stable for
+semantically equivalent JSON/YAML inputs and mapping-key reorderings, while
+task packages may differ because they retain exact source provenance. There is
+no circular digest: the inventory basis contains no operation keys and the
+worklist is derived only after its digest is known.
+
+Task packages include both digests, the operation, relevant resolved schemas/
+parameters/security declarations, exact source input, and scope.
+Operation-to-handler mapping requires evidence; an unsupported mapping remains
+an assumption. An unmapped endpoint or truncated graph yields an explicit
+gap/inconclusive result,
 never “no vulnerabilities found.” Taint annotations remain research artifacts,
 not proof of reachability or exploitation.
 
@@ -501,8 +609,9 @@ report yields `failed`. Terminal continuation creates a new Audit with explicit
 baseline provenance.
 
 `completed` means the bounded Audit process closed, not that the application is
-secure. Completion requires all executions terminal/imported, no mandatory open
-review, and retention of every accepted evidence revision. A profile that
+secure. Completion requires a durable collection receipt for every execution,
+every item settled, no mandatory open review, and retention of every accepted
+evidence revision. A profile that
 allows partial completion may close review work as deferred/excluded with a
 visible gap.
 
@@ -511,13 +620,25 @@ Items are immutable after acceptance. Checks settle before one assessment
 execution. A proposed next worklist becomes a new Round only after complete
 validation and any required review.
 
-Item lifecycle is
-`pending -> awaiting-review | ready -> submitted -> collecting -> settled`.
-Settled dispositions are `result-accepted`, `execution-failed`,
-`invalid-result`, `cancelled`, and `excluded`. A bounded retry creates a new
-AuditExecution and preserves the old one. The assessment barrier opens only
-when every expected item is settled. Zero items yields an explicit empty-
-inventory reason; it never proves compliance.
+Terminal observation and item settlement are separate durable transitions:
+
+1. Controller observes an authoritative terminal Run version/outcome, records
+   it on AuditExecution, and moves its items to `collecting`.
+2. Collection validates the exact frozen output when one is expected and
+   always commits one `AuditCollectionReceipt`. Receipt dispositions include
+   `accepted-result`, `missing-output`, `invalid-result`, `execution-failed`,
+   and `execution-cancelled`; a receipt may retain zero evidence revisions.
+3. In that transaction, each AuditExecutionItem records its attempt outcome.
+   An accepted final result settles its AuditItem. A retryable failed/invalid
+   attempt with remaining policy returns the item to `ready`; it is not settled.
+   Exhausted, non-retryable, cancelled, or explicitly excluded items settle
+   with their truthful final disposition.
+
+Item lifecycle is therefore `pending -> awaiting-review | ready -> submitted
+-> collecting -> ready | settled`. A bounded retry creates a new
+AuditExecution/AuditExecutionItem and preserves every earlier receipt. Only
+settled items participate in the round barrier. Zero items yields an explicit
+empty-inventory reason; it never proves compliance.
 
 ## 11. Submission, queueing, and fairness
 
@@ -536,18 +657,28 @@ Controller dispatches items by immutable ordinal through a bounded window and
 uses fair age/round-robin selection across Audits. It does not promise optimal
 multi-host placement.
 
-Submission identity is
-`audit_id / round-or-role / item-or-role / attempt`. The trusted Run Service
-creates the immutable Run, authoritative AuditExecution association, exact
-input forks, skill snapshot, RuntimeConfig snapshot, and credential references
-under the normal Project/credential lifecycle barriers. Direct Scheduler-table
-inserts are forbidden.
+When batching is later enabled, selection groups only items with identical
+pinned Workflow/configuration, baseline/workspace, and permission envelopes.
+The Run receives one immutable ordered manifest and returns one complete result
+set. If it terminates before accepted collection, the retry policy may repeat
+the whole small batch. A normal intermediate artifact write is not durable item
+completion; accepting partial in-flight progress requires the separately
+deferred per-item checkpoint protocol.
+
+Submission identity is derived from `audit_id`, round/role, the immutable
+ordered execution-item/attempt set, and the execution manifest digest. The
+trusted Run Service creates the immutable Run, authoritative AuditExecution
+association, exact input forks, start-pinned exact Skill packages,
+RuntimeConfig snapshot, and credential references under the normal
+Project/credential lifecycle barriers. Direct Scheduler-table inserts are
+forbidden.
 
 An external call uses a durable submission intent and one stable idempotency
 key until the original Run is recovered. The association is committed with Run
 creation, so there is no orphan window based only on labels. Scheduler retry
-and escalation remain inside one Run; Audit-level attempt creates another Run
-only after the previous one is terminal.
+and escalation remain inside one Run; an Audit-level retry creates another Run
+only after the previous execution has a terminal observation and collection
+receipt.
 
 ## 12. Recovery and events
 
@@ -564,10 +695,13 @@ becomes a worklist.
 One reconcile step:
 
 1. obtains a short claim with expiry/epoch and reads Audit/Project fences;
-2. resumes durable submission and import intents;
-3. reads authoritative state and frozen outputs for associated Runs;
-4. imports exact result packages, retains revisions, records receipts, and
-   settles items idempotently;
+2. resumes durable submission and collection intents;
+3. reads authoritative state for associated Runs and records each new exact
+   terminal observation without settling an item;
+4. collects every observed execution exactly once: validates a frozen result
+   set when present, retains accepted revisions, commits a receipt for accepted,
+   missing, invalid, failed, or cancelled output, and then either requeues or
+   settles each item according to its remaining attempt policy;
 5. applies accepted exact review decisions;
 6. creates only the next bounded set of allowed submissions;
 7. creates at most one assessment execution after the barrier;
@@ -575,16 +709,17 @@ One reconcile step:
 
 A claim alone does not authorize stale commits. Every mutation checks epoch or
 revision plus uniqueness constraints. No network/model call occurs under a DB
-row lock. Repeated imports are unique by execution, output digest, and import
-kind. Public WebSocket is not an internal completion bus.
+row lock. Collection is unique by execution and exact terminal Run version;
+accepted output identity additionally includes its exact revision and digest.
+Public WebSocket is not an internal completion bus.
 
 | Fault | Required result |
 | --- | --- |
 | Crash before child Run creation | Durable intent retries |
 | Run created but response lost | Same submission key returns same associated Run |
-| Crash after terminal Run before import | Reconcile imports frozen output |
-| Partial package materialization | Staging is invisible; retry completes or replaces it |
-| Terminal event lost/duplicated/reordered | Controller reads durable Run state and imports once |
+| Crash after terminal Run before collection | Reconcile records the terminal version and one collection receipt |
+| Partial package materialization | Staging is invisible; retry completes or records one invalid receipt |
+| Terminal event lost/duplicated/reordered | Controller reads durable Run state and collects once |
 | Worker dies after `finding` | Committed receipt remains; uncommitted proposal does not |
 | Two Controllers start assessment | Unique execution identity admits one |
 | Cancel races submission | Audit fence chooses; any committed Run joins cancellation set |
@@ -670,14 +805,41 @@ ordinary `outputs/<slot>` publication that would collide across checks. Frozen
 Run outputs remain ordinary accepted outputs. Import failure does not rewrite
 Run success.
 
-An Audit-bound Run cannot be hard-deleted until its accepted outputs have an
-import receipt and all allocations are released. After import, Run deletion is
-allowed; AuditExecution retains outcome, exact retained refs, and tombstone
+An Audit-bound Run cannot be hard-deleted until all allocations have terminally
+released and a durable `AuditCollectionReceipt` records the disposition of its
+exact terminal observation. The receipt is required even when the Run failed or
+was cancelled, produced no output, or produced an invalid package. Accepted
+evidence is retained by exact revision; a receipt with no accepted evidence
+records that fact rather than waiting for an impossible successful import.
+After collection, Run deletion is allowed. AuditExecution and
+AuditExecutionItem retain outcome, exact retained refs when any, and tombstone
 provenance through a nullable non-cascading Run relation.
 
-Deleting an Audit is a durable operation. It first closes dispatch,
-cancels/drains owned Runs, releases credential/evidence holds, and only then
-purges Audit-managed Project bindings and domain rows. Project deletion adds an
+Audit-level credential dispatch holds and evidence holds are not released by
+the same transition. Dispatch holds may be released once dispatch is durably
+closed and no unresolved child submission intent can create another Run.
+Per-Run credential holds follow the ordinary Run lifecycle. Exact Audit
+evidence and accepted proposal pins remain until Audit deletion or an explicit
+later retention policy transfers and releases them.
+
+An ordinary non-Audit Run proposal is pinned by its proposal receipt until it
+is either imported by exact revision into an Audit or durably discarded. Hard
+deleting its source Run atomically marks every unimported proposal discarded,
+releases its proposal/evidence pins, and retains only bounded tombstone
+provenance; an imported proposal is protected by the destination Audit's own
+exact holds. Run deletion therefore cannot leak abandoned proposal pins or
+silently remove evidence already retained by an Audit.
+
+For an Audit child Run, collection accounts for every committed proposal
+receipt before making the Run deletable: an allowed proposal receives an exact
+Audit-owned inbox link/hold, while a profile with finding production disabled
+treats an unexpected proposal result as invalid rather than silently admitting
+it. Source-Run pins may be released only after that durable disposition.
+
+Deleting an Audit is a durable operation. It first closes dispatch and releases
+future-dispatch credential holds, cancels/drains and collects owned Runs,
+releases evidence/accepted-proposal holds, and only then purges Audit-managed
+Project bindings and domain rows. Project deletion adds an
 earlier Audit-cancellation/drain phase before its existing Run and ProjectScope
 purge. No Audit work starts in a deleting Project and no Audit hold survives a
 completed Project purge. Cleanup runs regardless of owner/Audit queue pause.
@@ -689,6 +851,8 @@ Owner comes from authentication and Project membership, never a request body.
 
 | Method and path | Purpose |
 | --- | --- |
+| `GET /v1/audit-profiles` | Paginated exact profile versions with mode, input contract, limits, and Server compatibility |
+| `GET /v1/audit-profiles/{name}/versions/{version}` | One exact read-only profile projection and compatibility reason codes |
 | `POST /v1/projects/{projectId}/audits` | Create idempotent draft from profile and exact input selections |
 | `GET /v1/projects/{projectId}/audits` | Keyset list with state/profile filters |
 | `GET /v1/audits/{auditId}` | Authoritative projection and revision |
@@ -710,11 +874,28 @@ return conflict with bounded stable codes. Nested route IDs must belong to the
 same Audit. Filters apply before keyset pagination. Safe errors/events contain
 no credential, raw provider response, package content, or model transcript.
 
+Profile endpoints are a dedicated read-only projection, not generic managed
+configuration publication. Every item identifies exact name/version/digest and
+returns the declared input contract, mode, standards, execution/interaction
+limits, `serverCompatible`, stable missing-capability reason codes, and whether
+exact input-dependent validation is still required. Compatibility describes
+the current Server only; project artifact and checklist-item compatibility are
+evaluated separately by the draft UI where possible and authoritatively by the
+start transaction. Start always revalidates both.
+
 UI navigation is Project → Audits → Overview / Coverage / Findings / Checks /
 Reviews / Runs / Report. It displays technical Run outcome separately from
 semantic assessment, and proposed findings separately from confirmed findings.
 Generic Runs/Queue UI remains authoritative for execution and links back to the
 Audit; Audit does not create a second Runtime queue.
+
+The MVP UI uses bounded polling of authoritative Audit/profile reads while an
+Audit is nonterminal or deleting, keyed by Audit revision/ETag, and stops when
+the route is inactive or terminal. It refetches immediately after a mutation
+and after browser reconnect. Audit WebSocket subscriptions, authorization,
+cursor/sequence replay, and resync are deferred as one complete later transport
+feature; the existing Run event socket is not treated as an Audit invalidation
+contract.
 
 ## 18. End-to-end examples
 
@@ -740,8 +921,9 @@ Audit; Audit does not create a second Runtime queue.
 ### 18.3 OpenAPI operation tracing
 
 1. Deterministic inventory pins operations and stable keys.
-2. One task package is created per operation; bounded batching is allowed only
-   when each operation retains an independent coverage record.
+2. One task package and AuditItem is created per operation. The MVP dispatches
+   one item per execution; later bounded batching preserves independent results,
+   attempts, evidence, permissions, and coverage for every operation.
 3. Trace Run works against exact source and code-analysis capabilities.
 4. `finding(...)` may register candidates independently of the terminal report.
 5. Barrier closes the current Round before any candidate enters a later one.
@@ -754,15 +936,18 @@ Audit; Audit does not create a second Runtime queue.
 3. Owner imports that exact revision into a compatible Audit or creates a
    finding-verification Audit.
 4. Import retains provenance; Worker never chooses the Project/Audit or starts work.
+5. If the owner instead hard-deletes the source Run, unimported proposals are
+   durably discarded and their pins are released; imported revisions remain
+   held by their destination Audits.
 
 ## 19. Additive implementation changes
 
 | Component | Required change |
 | --- | --- |
-| Configuration | Read-only AuditProfile catalog with resolved Workflow closures and digest |
+| Configuration | Read-only AuditProfile catalog plus owner-safe compatibility projection with resolved Workflow closures and digest |
 | Server model | Audit entities, API, Controller, package/import and intake services |
 | PostgreSQL | Durable work, claims, uniqueness, events, receipts, and retention holds |
-| Run Service | Trusted pinned-snapshot creation, Audit provenance, managed publication, deletion guard |
+| Run Service | Trusted pinned Workflow/Runtime/Skill creation, Audit provenance, managed publication, deletion guard |
 | Scheduler | Optional generic Audit eligibility gate and terminal wake hint; unchanged Stage semantics |
 | Runtime | Selected `security-findings@1` adapter and bounded receipt reconciliation |
 | Artifact plane | Package import, proposal/fence transaction, protected Audit bindings and retention |
@@ -770,21 +955,27 @@ Audit; Audit does not create a second Runtime queue.
 | Frontend | Audit views, review actions, coverage and finding distinctions |
 
 Existing Planners need no Audit awareness. Discovery and assessment Workflows
-produce normal fixed outputs. A future `artifact-iterator@1` may process a small
-fixed batch inside one Stage, but cannot create Runs or replace Audit recovery.
+produce normal fixed outputs. The schema permits a future small fixed batch in
+one ordinary Run through AuditExecutionItem and CheckResultSet, but batching
+cannot create Runs from a Worker, merge permission envelopes, or replace Audit
+recovery. Durable per-item checkpoints inside a still-running Run require a
+separate idempotent receipt contract and are not implied by artifact writes.
 
 ## 20. Acceptance gates
 
 1. Multiple Audit modes coexist in one Project without crossing identities,
    baselines, reports, or queue state.
-2. Exact replay of create/start/submission/import returns the original result;
+2. Exact replay of create/start/submission/collection returns the original result;
    same key with different payload conflicts.
-3. OpenAPI inventory is stable under mapping-key reordering, distinguishes
-   method/path, and ignores `operationId` uniqueness for identity.
+3. OpenAPI canonical inventory and operation keys are stable under equivalent
+   JSON/YAML and mapping-key reordering; exact source-content provenance still
+   differs, method/path remain distinct, and `operationId` is not identity.
 4. An invalid manifest creates zero child Runs; accepted manifests are immutable.
-5. N checks create N logical items and bounded attempts; proposals cannot alter
-   the current barrier.
-6. Crash injection around each submission/import/assessment durable boundary
+5. N checks create N logical items and N execution-item records. With
+   `batchSize: 1` and `maxItemRunAttempts: 1` they create exactly N Runs; bounded
+   retries create additional Runs without creating additional logical items.
+   Proposals cannot alter the current barrier.
+6. Crash injection around each submission/collection/assessment durable boundary
    neither loses work nor creates an extra Run.
 7. Periodic reconcile recovers with all wake hints lost; two Controllers
    converge on the same accepted outcomes.
@@ -794,14 +985,16 @@ fixed batch inside one Stage, but cannot create Runs or replace Audit recovery.
    Audit association, or confirmed finding.
 10. `inconclusive` never confirms a finding; failed Run never satisfies a
     requirement.
-11. Remote OpenAPI refs, oversized packages, foreign evidence, and mixed scopes
-    fail before dispatch/import.
+11. A remote OpenAPI ref required by a selected operation, oversized package,
+    foreign evidence, or mixed scope fails before dispatch/import; unsupported
+    callbacks/webhooks and their untraversed refs become explicit gaps.
 12. Review of an old subject revision cannot authorize a new revision and
     waiting review holds no allocation.
 13. Owner pause, Audit pause, cancel, and Project delete have tested concurrency
     boundaries; all cleanup progresses while paused.
-14. Child Run hard-delete is blocked before import/release and safe after exact
-    retained evidence exists.
+14. Child Run hard-delete is blocked before terminal release and a durable
+    collection receipt, and is safe afterward even for missing, invalid,
+    failed, or cancelled output; accepted exact evidence remains retained.
 15. Public Project Artifact mutations cannot alter Audit-managed results.
 16. Partial coverage, exclusions, manual items, and empty inventory are explicit;
     empty inventory never reports 100%.
@@ -809,27 +1002,34 @@ fixed batch inside one Stage, but cannot create Runs or replace Audit recovery.
     crashed consumption is not counted as zero.
 18. Specialist checks wait for compatible Runtime capability without downgrade
     and preserve coverage gaps on exhaustion.
+19. Catalog-visible but unsupported profiles cannot start; profile reads expose
+    stable compatibility reasons and start rechecks them atomically.
+20. Exact Skill package revisions selected at Audit start are used by later
+    child Runs even after the current Skill binding changes.
 
 ## 21. Delivery increments and deferred work
 
-**Increment 1:** strict AuditProfile catalog; manual checklist and deterministic
-OpenAPI inventory; one fixed immutable Round; bounded check Runs; PostgreSQL
-reconciliation; exact package import/retention; coverage report; mandatory
-ownership, deletion, credential, idempotency, and Run-deletion gates.
+**Increment 1:** strict AuditProfile catalog and compatibility gate;
+deterministic checklist/OpenAPI inventory; one fixed immutable Round;
+`batchSize: 1`; bounded check Runs; PostgreSQL reconciliation; exact collection
+receipts and package retention; coverage report; two executable demo profiles;
+polling UI; mandatory ownership, deletion, Skill/credential, idempotency, and
+Run-deletion gates.
 
 **Increment 2:** `security-findings@1` for Audit and ordinary Runs; finding
 triage; exact human review; bounded discovery/assessment and multiple rounds;
 trace proposal to verification.
 
-**Increment 3:** curated licensed versioned standards packages, richer evidence
-contracts, comparison of Audits for the same system, and retest of accepted
-findings against a new baseline.
+**Increment 3:** curated licensed versioned standards packages and mappings,
+richer evidence contracts, comparison of Audits for the same system, retest of
+accepted findings against a new baseline, and bounded multi-item executions.
 
 Deferred: a generic event-driven workflow language, arbitrary nested Audit
 graphs, mutable accepted worklists, semantic auto-merge, cross-Project analysis,
 multi-owner RBAC, universal compliance certification, unapproved exploitation,
 dynamic Worker-pool expansion, per-model-call recovery, and an external broker
-without demonstrated need.
+without demonstrated need. Partial durable completion of items inside a
+still-running batch is also deferred until its own receipt/pin protocol exists.
 
 The YAML and package examples define domain envelopes, not complete JSON Schema
 or currently installed Workflow definitions. Each production profile must pin

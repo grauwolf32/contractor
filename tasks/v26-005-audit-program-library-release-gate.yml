@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V26-005
+title: Prove curated Audit program provenance and truthful coverage
+milestone: audit-program-library
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V26-002, V26-003]
+languages: [go, sql, typescript, yaml]
+
+goal: >-
+  Release the curated Top 10 and ASVS program library only after exact package,
+  licensing, mapping, review and non-certifying reporting behavior is proven
+  through production paths.
+
+context:
+  matrix: >-
+    Exercise both program families across catalog replacement, mixed automated
+    and manual evidence, missing Runtime capability, human decisions, restart,
+    report reopening and Project/Audit deletion.
+
+scope:
+  in:
+    - Add a declarative cross-program conformance matrix bound to named process, PostgreSQL and browser tests.
+    - Prove exact standard/profile/Workflow/Skill revisions survive current catalog changes and source Run deletion.
+    - Prove every selected denominator item remains represented across gaps, exclusions, manual work and empty findings.
+    - Verify source/license attribution and prohibit unsupported certification/compliance/security language in API and UI reports.
+    - Add runbook/eval fixtures and aggregate verification targets for both programs.
+  out:
+    - Legal advice, certification, performance guarantees, additional standard versions or automated mapping generation.
+
+requirements:
+  - {id: R1, text: Tests use ordinary Audit, Run, Scheduler, Runtime, review and ArtifactStore paths without a report-only shortcut.}
+  - {id: R2, text: Catalog mutation cannot rewrite historical identity, evidence policy, attribution or report content.}
+  - {id: R3, text: A missing finding or unavailable check cannot become a positive compliance/security assertion.}
+
+acceptance_criteria:
+  - id: A1
+    given: Top 10 and ASVS Audits with mixed automatic/manual/inconclusive results.
+    when: They complete and reports render in the browser.
+    then: Exact provenance, denominators, gaps and allowed language match their distinct program semantics.
+  - id: A2
+    given: Server restart, catalog replacement and destructive lifecycle races.
+    when: Audits reconcile or historical reports reopen.
+    then: Results remain reproducible and all pins are retained or released by their specified lifetime.
+
+tests:
+  - {name: process, command: "make test-audit-program-library-e2e", covers: [A1, A2]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test --grep 'audit program library'", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2]}

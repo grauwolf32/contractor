@@ -23,12 +23,18 @@ context:
     rejects unknown YAML fields, publishes immutable Snapshot values, and
     returns caller-owned deep copies. Add audit-profiles as the seventh subtree
     without weakening any of those properties.
+  policy_schema: >-
+    batchSize is required and bounded to 1..64; catalog loading does not enforce
+    the MVP value of one. activeChecks is prohibited|automatic|approval-required,
+    findingConfirmation is disabled|human-required, notApplicable is
+    human-required|profile-rule, and reportAcceptance is
+    automatic|human-required. Executable compatibility is evaluated by V25-004.
 
 scope:
   in:
-    - Define strict AuditProfile source and resolved Go types for mode, standards, inputs, inventory, child Workflow bindings, finite execution limits and interaction policy.
+    - Define strict AuditProfile source and resolved Go types for mode, standards, inputs, inventory, child Workflow bindings, finite execution limits including batchSize, and interaction policy.
     - Load audit-profiles only after all Workflows are fully resolved.
-    - Validate exact refs, required child input/parameter mappings, output mappings, media compatibility, finite positive limits, closed enums and retained-output dependency cycles.
+    - Validate exact refs, required child input/parameter mappings, output mappings, media compatibility, finite positive limits, closed enums including prohibited/disabled passive-MVP policies, and retained-output dependency cycles.
     - Compute a deterministic canonical digest over the resolved profile including exact child Workflow closures.
     - Add Snapshot/Manager AuditProfile and AuditProfiles read accessors, Counts support and deep-copy isolation.
     - Add tracked audit-profiles directories to operator, e2e and config-test roots without inventing a production profile that references nonexistent Workflows.
@@ -40,6 +46,7 @@ requirements:
   - {id: R2, text: Profile lookup requires exact name@version and returned mutations never affect the published Snapshot.}
   - {id: R3, text: Profile digest is independent of YAML mapping order and changes when any effective child Workflow closure or policy field changes.}
   - {id: R4, text: Existing configuration roots and public configuration kinds keep their prior behavior.}
+  - {id: R5, text: Catalog validity does not claim that the current Server can start the profile; start compatibility belongs to V25-004.}
 
 acceptance_criteria:
   - id: A1
@@ -47,7 +54,7 @@ acceptance_criteria:
     when: The configuration root loads.
     then: Its resolved closure, mappings, limits and stable digest are available by exact selector and sorted listing.
   - id: A2
-    given: Unknown Workflows, missing required mappings, incompatible media types, cycles, unknown fields or nonpositive/unbounded limits.
+    given: Unknown Workflows, missing required mappings, incompatible media types, cycles, unknown fields, invalid interaction enums or nonpositive/unbounded limits including batchSize.
     when: The loader validates the root.
     then: Publication fails atomically with no partial Snapshot.
   - id: A3

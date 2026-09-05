@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V26-002
+title: Ship a curated OWASP Top 10 2025 risk-assessment program
+milestone: audit-program-library
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V26-001]
+languages: [go, yaml, json]
+
+goal: >-
+  Provide a reproducible Top 10 2025 risk-awareness Audit program with explicit
+  hypotheses, workflow mappings, evidence contracts and honest coverage.
+
+context:
+  semantics: >-
+    OWASP Top 10 is awareness/risk guidance, not a certifiable exhaustive
+    checklist. Category coverage means only that the configured bounded
+    scenarios were assessed against the pinned baseline and scope.
+  authority: >-
+    Curated mappings are operator-owned package data. Workers may propose
+    evidence/findings but cannot invent category membership or approve active
+    checks.
+
+scope:
+  in:
+    - Package exact Top 10 2025 category identifiers and source/license provenance through V26-001.
+    - Define versioned bounded scenario/hypothesis mappings to existing compatible Workflows, AgentTemplates, Skills and review policies.
+    - Add an exact AuditProfile, fixtures and reports that separate assessed, inconclusive, not-tested and excluded scenarios.
+    - Add human review for sensitive checks and finding confirmation using V25-011 exact decision contracts.
+    - Add production-path API/UI demo and reproducible conformance tests.
+  out:
+    - OWASP certification, exhaustive vulnerability discovery, ASVS verification or automatic exploitation.
+
+requirements:
+  - {id: R1, text: Empty findings or completed execution is never described as Top 10 compliance or application security.}
+  - {id: R2, text: Every category result links to exact selected scenarios, evidence, gaps and package/profile versions.}
+  - {id: R3, text: Missing Workflow or Runtime capability remains not-tested/inconclusive and cannot silently narrow the denominator.}
+
+acceptance_criteria:
+  - id: A1
+    given: A representative Project baseline and selected bounded scope.
+    when: The curated program completes with mixed evidence.
+    then: All ten categories retain explicit assessed/not-tested/gap projections and non-certifying language.
+  - id: A2
+    given: A package/profile/mapping revision changes.
+    when: An earlier Audit report is reopened.
+    then: It still resolves the exact original versions and evidence contracts.
+
+tests:
+  - {name: program, command: "go test ./tests/eval/audit_programs -run Top10", covers: [A1, A2]}
+  - {name: process, command: "make test-top10-audit-e2e", covers: [A1]}

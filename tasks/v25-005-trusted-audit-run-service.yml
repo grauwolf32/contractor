@@ -21,15 +21,17 @@ context:
   provenance: >-
     The Audit caller supplies a validated pinned ResolvedWorkflow and the
     start-pinned Run RuntimeConfig snapshot plus an authoritative
-    AuditExecution identity. Physical Agent labels still resolve at allocation.
-    audit.* metadata labels are derived display hints only.
+    AuditExecution identity, immutable ordered execution manifest and exact
+    start-pinned Skill package snapshots. Physical Agent labels still resolve
+    at allocation. audit.* metadata labels are derived display hints only.
 
 scope:
   in:
     - Extract ordinary Run creation into a service usable by public HTTP and Audit Controller.
     - Add authoritative nullable AuditExecution association and trusted submission key committed atomically with the Run.
-    - Accept only start-pinned Workflow/Runtime snapshots and exact Audit input/task refs from the trusted interface.
-    - Preserve Project deletion, credential, skill validation/forking, input pinning and run-create idempotency barriers.
+    - Accept only start-pinned Workflow/Runtime/Skill snapshots and exact Audit execution-manifest/input/task refs from the trusted interface; the MVP requires one AuditExecutionItem but the interface is batch-shaped.
+    - Preserve Project deletion, credential, Skill validation/forking, input pinning and run-create idempotency barriers.
+    - Fork the exact Skill source revision/digest retained at Audit start and never resolve a later current skills/<name> binding during child Run creation.
     - Add internal publication mode ordinary or audit-managed; public callers cannot request it.
     - Suppress generic outputs/<slot> Project publication only for trusted audit-managed Runs.
   out:
@@ -40,6 +42,7 @@ requirements:
   - {id: R2, text: No child Run can commit without its AuditExecution association and no association can be inferred from labels.}
   - {id: R3, text: The trusted service never accepts raw secret bytes or arbitrary caller-selected publication mode.}
   - {id: R4, text: Project/credential deletion races serialize exactly as ordinary Run creation does today.}
+  - {id: R5, text: Changing or deleting the current Skill binding after Audit start cannot change a child Run or make exact replay re-resolve it.}
 
 acceptance_criteria:
   - id: A1
@@ -54,7 +57,11 @@ acceptance_criteria:
     given: Existing public Run tests.
     when: The refactored service is used.
     then: Standalone/Project behavior is unchanged.
+  - id: A4
+    given: Audit start pinned Skill revision A and the current catalog advances to revision B before dispatch.
+    when: The Controller creates or replays the child Run.
+    then: The Run receives revision A with its original digest and no lookup of current revision B affects identity.
 
 tests:
-  - {name: service, command: "go test ./internal/runservice ./internal/httpapi/public", covers: [A1, A2, A3]}
-  - {name: postgres, command: "go test -tags=integration ./internal/runservice ./internal/runstore", covers: [A1, A2]}
+  - {name: service, command: "go test ./internal/runservice ./internal/httpapi/public", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "go test -tags=integration ./internal/runservice ./internal/runstore", covers: [A1, A2, A4]}

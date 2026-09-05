@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V25-008A
+title: Ship runnable checklist and OpenAPI Audit MVP programs
+milestone: audits-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V25-002, V25-004, V25-005, V25-006, V25-007, V25-008]
+languages: [go, yaml, json]
+
+goal: >-
+  Provide two concrete production-path Audit programs that the API and UI can
+  actually start before the later hardening gate: one custom checklist and one
+  OpenAPI operation trace.
+
+context:
+  catalog: >-
+    V25-001 intentionally added no profile referencing nonexistent Workflows.
+    This task closes that temporary gap after Controller/import contracts exist.
+    Both profiles must be compatible with the current Server capability set:
+    deterministic inventory, maxRounds=1, batchSize=1, no human-only item,
+    active checks prohibited, findings disabled, profile-rule applicability and
+    automatic report acceptance.
+  execution: >-
+    Scenarios use ordinary WorkflowRuns, Scheduler, Runtime capability placement,
+    exact Skill packages and frozen outputs. A deterministic test provider may
+    replace only the external LLM boundary; it must not bypass Run/Stage,
+    package, collection or artifact-retention paths.
+
+scope:
+  in:
+    - Add one operator AuditProfile for a bounded custom checklist and one for deterministic OpenAPI path-operation tracing.
+    - Add or reuse compatible child Workflow, AgentTemplate, instruction, ModelPolicy and Skill selections with explicit required output contracts.
+    - Add exact source/checklist/OpenAPI fixtures plus canonical valid, inconclusive and invalid CheckResultSet examples.
+    - Prove both profiles are reported Server-compatible by the profile API and their fixture artifacts satisfy authoritative start-time input checks.
+    - Run both scenarios through draft/start, ordinary child Run dispatch, terminal collection, coverage/report retention and allowed source-Run deletion.
+    - Document concise demo commands and expected non-certifying output states.
+  out:
+    - Curated OWASP Top 10 or ASVS requirement programs, finding confirmation, human review, multiple rounds or performance claims.
+
+requirements:
+  - {id: R1, text: Demo configuration uses the same strict operator catalog and production services as an owner-created Audit.}
+  - {id: R2, text: Profiles select exact existing dependencies and remain valid under repository config validation; no hidden bootstrap ordering is required.}
+  - {id: R3, text: Valid, inconclusive and invalid fixtures remain distinct through technical Run outcome, collection receipt, coverage and report projection.}
+  - {id: R4, text: Neither program requires an unavailable review/discovery/multi-round capability or claims Top 10/ASVS certification.}
+
+acceptance_criteria:
+  - id: A1
+    given: The repository operator config and a Project containing the checklist/source fixtures.
+    when: The checklist Audit is started through the public API.
+    then: It dispatches ordinary single-item Runs and closes with exact truthful coverage/report artifacts.
+  - id: A2
+    given: The OpenAPI fixture contains multiple methods plus unsupported callback/webhook surface.
+    when: The operation Audit is started.
+    then: Stable operations execute, unsupported surface is a named gap and no network ref fetch occurs.
+  - id: A3
+    given: Valid, inconclusive and invalid result fixtures.
+    when: They pass through terminal collection.
+    then: Each produces its specified receipt/disposition and no invalid output is rendered as a clean result.
+
+tests:
+  - {name: config, command: "go test ./internal/config -run AuditProfile", covers: [A1, A2]}
+  - {name: programs, command: "go test ./tests/e2e -run AuditPrograms", covers: [A1, A2, A3]}

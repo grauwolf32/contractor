@@ -24,29 +24,31 @@ context:
 scope:
   in:
     - Add a Server-hosted Audit Controller with bounded poll, short claim/epoch and clean shutdown.
-    - Select Audits fairly and items by immutable ordinal under maxActiveRuns, maxSubmittedRuns, attempt and deadline budgets.
-    - Create/replay durable AuditExecution submission intents and call the trusted Run Service outside row locks.
-    - Reconcile submitted Runs to collecting/settled technical outcomes without making semantic finding/requirement claims.
+    - Select Audits fairly and items by immutable ordinal under maxActiveRuns, maxSubmittedRuns, attempt and deadline budgets; materialize one AuditExecutionItem per execution under the MVP batchSize=1 gate.
+    - Create/replay durable AuditExecution submission intents with immutable ordered execution manifests and call the trusted Run Service outside row locks.
+    - Observe authoritative terminal Run versions/outcomes, persist them on AuditExecution and move associated items to collecting without settling them.
+    - Dispatch a later retry only after V25-007 records the previous attempt's collection receipt and returns the logical item to ready.
     - Close dispatch on cancellation, deadline or budget and preserve explicit gaps.
     - Add safe Audit events and optional process-local terminal wake hints.
   out:
-    - Result package import/coverage finalization, multi-round assessment, findings and human review.
+    - Result package collection/receipt, item settlement, coverage finalization, multi-round assessment, findings and human review.
 
 requirements:
   - {id: R1, text: One bad Audit or unavailable child dependency cannot block reconciliation of unrelated Audits.}
   - {id: R2, text: Controller performs no long operation under a database lock and every external action has a durable intent.}
-  - {id: R3, text: Two Controllers and stale claims never create more logical attempts or active Runs than configured.}
+  - {id: R3, text: Two Controllers and stale claims never create more execution-item attempts or active Runs than configured and never duplicate a logical item.}
   - {id: R4, text: Owner queue pause affects Scheduler admission but cannot block Controller collection or cancellation.}
+  - {id: R5, text: A terminal Run observation is idempotent technical state only; V25-007 collection receipt owns retry-or-settle.}
 
 acceptance_criteria:
   - id: A1
-    given: N accepted items and two available Runtime Agents.
-    when: maxActiveRuns is two.
-    then: Exactly N associated ordinary Runs execute with no more than two nonterminal at once.
+    given: N accepted items, maxItemRunAttempts is one and two available Runtime Agents.
+    when: batchSize is one and maxActiveRuns is two.
+    then: Exactly N associated ordinary Runs and N execution-item rows execute with no more than two nonterminal Runs at once.
   - id: A2
     given: Crashes before/after intent, Run creation and terminal observation.
     when: Controller restarts without wake hints.
-    then: It converges without orphan or duplicate Runs.
+    then: It converges at submitted or collecting without orphan/duplicate Runs and without prematurely settling an item.
   - id: A3
     given: Concurrent cancel/deadline/dispatch.
     when: Their fences race.

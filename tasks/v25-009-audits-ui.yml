@@ -5,7 +5,7 @@ milestone: audits-mvp
 priority: P0
 status: pending
 implementation_commit: null
-depends_on: [V25-004, V25-007, V25-008]
+depends_on: [V25-004, V25-007, V25-008, V25-008A]
 languages: [typescript, react]
 
 goal: >-
@@ -15,18 +15,21 @@ goal: >-
 context:
   navigation: >-
     Add Project / Audits with Overview, Coverage, Checks, Runs and Report. The UI
-    uses only generated public API types and existing WebSocket invalidation;
-    it is independently built/deployed from the Go Server.
+    uses only generated public API types and bounded revision/ETag polling;
+    Audit WebSocket subscriptions are not part of the MVP. The UI remains
+    independently built/deployed from the Go Server.
   truthfulness: >-
     Technical Run outcome, semantic assessment and Audit completion are distinct.
     Empty, partial and inconclusive coverage must never look like a passing audit.
 
 scope:
   in:
-    - Add Project Audit list/create flow with exact profile and compatible exact artifact selection.
+    - Consume the read-only AuditProfile list/detail API and render exact versions, input contracts, modes, limits, Server compatibility, required input validation and stable incompatibility reasons.
+    - Add Project Audit list/create flow with exact profile and compatible exact artifact selection using the two runnable V25-008A scenarios.
     - Add start, pause-new-runs, resume, cancel and delete controls with revision preconditions and replay-safe feedback.
     - Render baseline/profile versions, state, budgets, coverage rows, explicit gaps, item attempts and child Run backlinks.
     - Render exact downloadable report/evidence links and safe terminal errors.
+    - Poll authoritative nonterminal/deleting Audit projections by revision/ETag, refetch immediately after mutations/reconnect and stop polling inactive or terminal routes.
     - Handle loading/empty/error/refetch states without manual browser refresh.
   out:
     - Findings, human review, standards comparison, report editing or a separate Audit execution queue.
@@ -35,6 +38,7 @@ requirements:
   - {id: R1, text: UI never calculates authoritative Audit state or coverage from Run labels.}
   - {id: R2, text: Actions refresh from Server revision and surface stale-precondition conflicts rather than optimistic divergence.}
   - {id: R3, text: No secret or raw package content is cached in localStorage or route query parameters.}
+  - {id: R4, text: The existing Run WebSocket is not used as an undocumented Audit subscription; polling remains correct if every process-local notification is lost.}
 
 acceptance_criteria:
   - id: A1
@@ -43,7 +47,7 @@ acceptance_criteria:
     then: Required exact selections are clear and invalid start is prevented/explained.
   - id: A2
     given: An Audit progresses through waiting Runs and mixed results.
-    when: WebSocket updates or reconnect occurs.
+    when: Poll responses, mutation completion or browser reconnect occurs.
     then: Overview, checks and coverage converge without reload and preserve distinctions.
   - id: A3
     given: Pause/cancel/delete conflicts or safe errors.

@@ -9,8 +9,9 @@ depends_on: [V25-002, V25-003]
 languages: [go, sql, openapi]
 
 goal: >-
-  Let a Project owner create an Audit draft, select exact Project artifacts,
-  atomically start its immutable baseline, and inspect Audit/items/coverage.
+  Let a Project owner inspect exact AuditProfile versions and compatibility,
+  create an Audit draft, select exact Project artifacts, atomically start its
+  immutable baseline, and inspect Audit/items/coverage.
 
 context:
   exact_inputs: >-
@@ -20,29 +21,44 @@ context:
   configuration: >-
     Start stores the complete resolved AuditProfile, child Workflow closures
     and one exact Run RuntimeConfig snapshot for default plus selected Runtime
-    labels. Physical Agent labels retain their normal allocation-time behavior.
+    labels. It also pins exact Skill package revisions/digests selected by those
+    Workflows. Physical Agent labels retain their normal allocation-time behavior.
+  capability_gate: >-
+    Catalog validity is broader than current executable support. The MVP starts
+    only deterministic maxRounds=1, batchSize=1 profiles whose selected input
+    and interaction policies need no unavailable discovery, review, finding or
+    report-acceptance capability. Stable reason codes are
+    discovery_unsupported, assessment_unsupported, multiple_rounds_unsupported,
+    batching_unsupported, automatic_active_checks_unsupported,
+    active_check_approval_unsupported, finding_confirmation_unsupported,
+    manual_applicability_unsupported, report_acceptance_unsupported and
+    manual_item_unsupported.
 
 scope:
   in:
-    - Extend the single public OpenAPI, generated client and net/http router with create/list/get/start plus item and coverage reads.
+    - Extend the single public OpenAPI, generated client and net/http router with read-only exact AuditProfile list/detail, create/list/get/start plus item and coverage reads.
+    - Profile summaries expose exact name/version/digest, mode, input contracts, bounded policies, serverCompatible, requiresInputValidation and stable current-Server compatibility reason codes without joining generic managed configuration publication.
     - Implement strict JSON, body/query/page bounds, Idempotency-Key, owner-safe 404, stable conflicts and ETag/If-Match revision CAS.
     - Validate ordinary Project kind/lifecycle, exact input revisions, media types and profile-required slots.
-    - Resolve and pin deterministic inventory/worklist plus non-secret target/scope/profile and one Run RuntimeConfig snapshot in the start transaction.
-    - Acquire durable managed-LLM and Runtime-credential usage holds needed by future child Runs.
+    - Resolve and pin deterministic inventory/worklist plus non-secret target/scope/profile, exact Workflow Skill package snapshots and one Run RuntimeConfig snapshot in the start transaction.
+    - Recheck static profile and input-dependent capabilities atomically at start; return audit_profile_unsupported with bounded stable reasons rather than weakening a policy.
+    - For findingConfirmation=disabled, reject profiles whose resolved output mappings or AgentTemplates can emit security-finding proposals; for activeChecks=prohibited, reject selected capabilities classified as active checks.
+    - Acquire durable managed-LLM/Runtime credential dispatch holds and exact Skill pins needed by future child Runs; do not conflate them with later evidence holds.
   out:
     - Child Run dispatch, finding intake, review decisions, UI and multi-round discovery.
 
 requirements:
   - {id: R1, text: Draft start performs no Runtime, model or other outbound call inside its database transaction.}
-  - {id: R2, text: Exact replay works after the selected profile binding or credential becomes unavailable; replay lookup precedes mutable dependency resolution.}
+  - {id: R2, text: Exact replay works after the selected profile, Skill binding or credential becomes unavailable; replay lookup precedes mutable dependency resolution.}
   - {id: R3, text: evaluation Project, standalone Audit, versionless input, foreign Project/ref and deleting Project are rejected safely.}
-  - {id: R4, text: Start is all-or-nothing; an invalid inventory creates no Round or credential hold.}
+  - {id: R4, text: Start is all-or-nothing; an invalid inventory or unsupported capability creates no Round, Skill pin or credential hold.}
+  - {id: R5, text: Listing compatibility is advisory for UX and start rechecks the same requirements against the exact snapshot it commits.}
 
 acceptance_criteria:
   - id: A1
-    given: An owner Project with every required exact artifact.
+    given: An owner Project with every required exact artifact and an MVP-compatible profile.
     when: The owner creates and starts a deterministic Audit.
-    then: One immutable baseline and accepted Round are returned with initial coverage.
+    then: One immutable baseline, exact Skill set and accepted Round are returned with initial coverage.
   - id: A2
     given: A lost response followed by catalog/credential mutation.
     when: The identical create/start request is replayed.
@@ -51,7 +67,11 @@ acceptance_criteria:
     given: Another owner probes known IDs.
     when: They list/get/start the Audit.
     then: Responses reveal no existence or content.
+  - id: A4
+    given: A catalog profile requiring approval, manual-only work, finding confirmation, report acceptance, discovery, multiple rounds or batching unsupported by this Server.
+    when: It is listed and then submitted to start.
+    then: The projection is Server-incompatible with stable reasons and start returns audit_profile_unsupported without durable partial state.
 
 tests:
-  - {name: handlers, command: "go test ./internal/httpapi/public -run Audit", covers: [A1, A2, A3]}
-  - {name: postgres-api, command: "go test -tags=integration ./internal/httpapi/public -run Audit", covers: [A1, A2, A3]}
+  - {name: handlers, command: "go test ./internal/httpapi/public -run Audit", covers: [A1, A2, A3, A4]}
+  - {name: postgres-api, command: "go test -tags=integration ./internal/httpapi/public -run Audit", covers: [A1, A2, A3, A4]}

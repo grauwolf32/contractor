@@ -14,7 +14,7 @@ goal: >-
 
 context:
   matrix: >-
-    Exercise custom checklist and OpenAPI operation profiles, two Controllers,
+    Exercise the V25-008A custom checklist and OpenAPI operation profiles, two Controllers,
     heterogeneous Runtime capabilities, mixed results, findings, human review,
     restart/replay and destructive lifecycle races through production paths.
   invariants: >-
@@ -25,11 +25,11 @@ context:
 scope:
   in:
     - Add a declarative Audit conformance/fault matrix bound to named tests.
-    - Add real-PostgreSQL crash injection around start, submission, terminal observation, import, review, finalization and deletion.
+    - Add real-PostgreSQL crash injection around start, submission, terminal observation, collection receipt, retry-or-settle, review, finalization and deletion.
     - Add two-Controller and two-Runtime process scenarios with capacity waiting and no silent capability downgrade.
     - Add browser flows for create/start/progress/coverage/findings/review/report/cancel/delete.
-    - Prove foreign-owner, stale-revision, package, write-fence, secret-redaction and retained-content boundaries.
-    - Update demo configs/runbook and aggregate verification target.
+    - Prove foreign-owner, stale-revision, package, write-fence, exact Skill pinning, secret-redaction and retained-content boundaries.
+    - Reuse and verify the runnable demo configs/fixtures from V25-008A; update the runbook and aggregate verification target.
   out:
     - Load/performance certification, external brokers, multi-owner sharing or curated standards licensing.
 
@@ -42,7 +42,7 @@ acceptance_criteria:
   - id: A1
     given: Lost/duplicate/reordered wakeups and restart at every durable boundary.
     when: Two Controllers reconcile.
-    then: One bounded logical outcome per item/import/review results.
+    then: One bounded logical outcome per execution-item attempt, collection receipt and review results.
   - id: A2
     given: Mixed checks, exclusions, empty inventory, gaps and proposals.
     when: Report is generated and rendered.
@@ -50,7 +50,7 @@ acceptance_criteria:
   - id: A3
     given: Cancel/Run delete/Project delete plus paused queues and unavailable Runtime.
     when: Recovery continues.
-    then: Work drains without leaked grants, holds, Audit bindings or unrelated blockage.
+    then: Work drains without leaked grants, dispatch/evidence/proposal holds, Audit bindings or unrelated blockage.
   - id: A4
     given: Existing aggregate suites.
     when: The release gate runs.

@@ -19,17 +19,18 @@ context:
     admission pause.
   deletion: >-
     Audit deletion is durable: close dispatch, cancel and drain child Runs,
-    release holds, purge managed bindings and domain rows. Project deletion must
-    perform this phase before its existing Run and ProjectScope purge.
+    collect every terminal disposition, release lifetime-specific holds, purge
+    managed bindings and domain rows. Project deletion must perform this phase
+    before its existing Run and ProjectScope purge.
 
 scope:
   in:
     - Add idempotent CAS pause/resume/cancel/delete commands and safe lifecycle projection.
     - Cancel every owned nonterminal Run with bounded independent progress and wait for existing terminal-release authority.
-    - Block hard deletion of an Audit-bound Run until terminal release and committed output import; preserve nullable tombstone provenance afterward.
+    - Block hard deletion of an Audit-bound Run until terminal release and one durable collection receipt, including failed, cancelled, missing-output and invalid-result cases; preserve nullable tombstone provenance afterward.
     - Reserve protected Audit-managed Project artifact prefixes from generic mutation.
     - Add Audit cancellation/drain/hold-release phases to Project deletion recovery.
-    - Release managed LLM/Runtime credential holds and exact artifact holds only after no future child dispatch is possible.
+    - Release Audit-level managed LLM/Runtime credential dispatch holds after dispatch is durably closed and every submission intent is resolved; retain exact evidence holds independently until Audit deletion.
   out:
     - Human review, multi-round discovery or finding Toolset.
 
@@ -38,12 +39,13 @@ requirements:
   - {id: R2, text: Project purge cannot finish with an Audit Run, credential hold or Audit-managed Project binding left behind.}
   - {id: R3, text: Public generic artifact and Run deletion APIs cannot bypass Audit retention guards.}
   - {id: R4, text: Crash/restart at each deletion phase resumes rather than restarts or skips work.}
+  - {id: R5, text: Cleanup never waits for a successful output import that a failed, cancelled, output-less or invalid Run cannot produce.}
 
 acceptance_criteria:
   - id: A1
-    given: An Audit with active, waiting, terminal-unimported and imported Runs.
+    given: An Audit with active, waiting, terminal-uncollected, accepted, output-less, invalid, failed and cancelled Runs.
     when: Cancel or delete is requested during queue pause.
-    then: All children drain, imports/retention rules hold and cleanup converges.
+    then: All children drain, every terminal Run receives its truthful collection receipt, retention rules hold and cleanup converges.
   - id: A2
     given: Project deletion races Audit start/dispatch/import.
     when: The Project fence commits.

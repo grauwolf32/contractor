@@ -1,0 +1,51 @@
+schema_version: "1.0"
+id: V26-003
+title: Ship a curated OWASP ASVS 5.0 verification program
+milestone: audit-program-library
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V26-001]
+languages: [go, yaml, json]
+
+goal: >-
+  Provide an exact-version ASVS 5.0 verification program whose selected
+  requirement denominator, evidence policy and manual gaps are reproducible.
+
+context:
+  semantics: >-
+    Every reference uses a version-qualified ASVS identifier. Automated checks
+    cover only requirements with an explicit curated evidence contract; manual
+    or documentary requirements remain visible and require exact human review.
+  licensing: >-
+    Requirement content and attribution are distributed only under verified
+    package license metadata from V26-001.
+
+scope:
+  in:
+    - Package exact ASVS 5.0 identifiers, levels, statements and source/license provenance.
+    - Define explicit requirement-to-Workflow/evidence mappings and manual/documentary classifications without model-authored authority.
+    - Add level/scope selection, applicability review, exact AuditProfile versions and truthful requirement coverage/reporting.
+    - Add fixtures containing satisfied, violated, inconclusive, not-tested and policy-approved not-applicable cases.
+    - Add production-path API/UI demo and mapping completeness/conformance tests.
+  out:
+    - ASVS certification, mappings inferred by an LLM, other ASVS versions or universal applicability claims.
+
+requirements:
+  - {id: R1, text: Every selected requirement appears exactly once in the denominator even when no automated Workflow applies.}
+  - {id: R2, text: No requirement becomes satisfied or not-applicable without its versioned evidence contract and required authority.}
+  - {id: R3, text: Reports state exact ASVS version, selected level/scope, automation limits and unresolved manual work.}
+
+acceptance_criteria:
+  - id: A1
+    given: A selected ASVS level with automated and manual requirements.
+    when: The program closes after required decisions.
+    then: Per-requirement states and aggregate coverage retain the entire selected denominator truthfully.
+  - id: A2
+    given: A missing/dangling mapping or wrong-version requirement identifier.
+    when: The package/profile is loaded.
+    then: Publication fails before any Audit can start.
+
+tests:
+  - {name: program, command: "go test ./tests/eval/audit_programs -run ASVS", covers: [A1, A2]}
+  - {name: process, command: "make test-asvs-audit-e2e", covers: [A1]}

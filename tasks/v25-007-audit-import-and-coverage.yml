@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: V25-007
-title: Import exact check results and finalize Audit coverage
+title: Collect exact check results and finalize Audit coverage
 milestone: audits-mvp
 priority: P0
 status: pending
@@ -9,7 +9,8 @@ depends_on: [V25-002, V25-006]
 languages: [go, sql]
 
 goal: >-
-  Convert frozen child Run outputs into retained Audit evidence and a truthful
+  Convert every terminal child Run observation into one durable collection
+  receipt, retain valid exact evidence when present, and produce a truthful
   coverage/report projection without conflating technical and semantic outcomes.
 
 context:
@@ -17,6 +18,8 @@ context:
     Audit introduces no ArtifactStore scope. Trusted import validates a frozen
     Run output, creates protected Audit-specific ProjectScope bindings and an
     immutable receipt, then lets later Run deletion preserve Audit evidence.
+    Failed, cancelled, output-less and invalid Runs also receive a collection
+    receipt with no invented accepted output.
   semantics: >-
     Run success only permits import. The importer validates item/subject/evidence
     correlation and records accepted, invalid-result, inconclusive and gap
@@ -24,9 +27,11 @@ context:
 
 scope:
   in:
-    - Add staging plus atomic validation/acceptance for exact frozen result packages.
+    - Add staging plus atomic validation/acceptance for exact frozen CheckResultSet packages against their immutable ordered execution manifests.
     - Retain imported package/evidence revisions through create-only Audit-managed ProjectScope bindings and lineage/receipt records.
-    - Settle each item exactly once and retain safe technical error details for failed/cancelled Runs.
+    - Commit exactly one AuditCollectionReceipt for accepted, missing-output, invalid-result, failed or cancelled terminal outcomes and retain bounded safe technical error details.
+    - Record every execution-item attempt independently; settle an item after accepted/non-retryable/exhausted disposition or return it to ready when bounded retry remains.
+    - Validate the exact frozen output revision observed at terminal collection; a later current binding revision neither replaces nor invalidates it.
     - Compute operation/checklist coverage including not-tested, inconclusive, exclusions, N/A and zero-denominator semantics.
     - Generate and retain one exact machine-readable report plus bounded human-readable summary for a one-round Audit.
     - Expose coverage/report reads in public OpenAPI and generated client.
@@ -34,25 +39,30 @@ scope:
     - Confirmed findings, human decisions, discovery or another Round.
 
 requirements:
-  - {id: R1, text: Import is idempotent by execution/output digest/kind and partial staging is never visible.}
-  - {id: R2, text: Foreign refs, changed bindings, wrong item keys, missing evidence and schema-valid semantic mismatches are rejected as invalid-result.}
+  - {id: R1, text: Collection is idempotent by execution and exact terminal Run version; accepted output additionally pins exact revision/digest and partial staging is never visible.}
+  - {id: R2, text: Foreign refs, wrong or incomplete batch membership, wrong item keys, missing evidence and schema-valid semantic mismatches are rejected as invalid-result; movement of the current binding is irrelevant to the frozen exact revision.}
   - {id: R3, text: Failed/cancelled Runs and empty inventories cannot produce a clean or 100-percent verdict.}
   - {id: R4, text: Import failure never rewrites the child WorkflowRun outcome.}
+  - {id: R5, text: A retryable unsuccessful attempt does not settle its AuditItem; only settled items open the round barrier.}
 
 acceptance_criteria:
   - id: A1
-    given: Valid, invalid, failed and inconclusive child outcomes.
+    given: Valid, missing, invalid, failed, cancelled and inconclusive child outcomes with maxItemRunAttempts exhausted.
     when: The Controller reaches the barrier.
-    then: Every item settles once and report counts/gaps preserve each distinction.
+    then: Every attempt has one collection receipt, every item settles once and report counts/gaps preserve each distinction.
   - id: A2
     given: Response loss or crash around staging and receipt commit.
     when: Reconcile repeats.
-    then: One retained exact revision and one import receipt result.
+    then: One retained exact revision and one collection receipt result.
   - id: A3
     given: Source Runs are later deleted after release.
     when: Report/evidence are read.
     then: Retained exact Audit data and provenance remain available.
+  - id: A4
+    given: A failed or invalid first attempt with retry budget remaining.
+    when: Collection commits and Controller reconciles again.
+    then: The item returns to ready, a second immutable execution attempt may run, and the round barrier remains closed meanwhile.
 
 tests:
-  - {name: importer, command: "go test ./internal/auditimport ./internal/auditcontroller", covers: [A1, A2]}
-  - {name: postgres, command: "go test -tags=integration ./internal/auditimport", covers: [A2, A3]}
+  - {name: importer, command: "go test ./internal/auditimport ./internal/auditcontroller", covers: [A1, A2, A4]}
+  - {name: postgres, command: "go test -tags=integration ./internal/auditimport", covers: [A1, A2, A3, A4]}

@@ -26,6 +26,7 @@ execution_policy:
   priorities:
     P0: Required for the first runnable MVP.
     P1: Required to harden the MVP into the specified first slice.
+    P2: Planned follow-up that is intentionally outside the first releasable slice.
 
 fixed_decisions:
   server:
@@ -487,6 +488,18 @@ milestones:
       PostgreSQL/mTLS/browser fault gates prove idempotent multi-Controller
       recovery, isolation, retention, lifecycle cleanup and non-certifying
       security reporting without regressing ordinary execution.
+  - id: audit-program-library
+    exit_task: V26-005
+    outcome: >-
+      Exact license-aware standard packages and curated Top 10 2025/ASVS 5.0
+      programs provide reproducible mappings, evidence contracts, denominators
+      and non-certifying reports through production Audit paths.
+  - id: audit-batch-efficiency
+    exit_task: V26-004
+    outcome: >-
+      Small compatible Audit item sets may share one ordinary Run while each
+      logical item retains independent identity, attempts, evidence, authority,
+      coverage and whole-batch recovery semantics.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
@@ -1620,8 +1633,8 @@ project_workspaces_planning_review:
 
 audits_planning_review:
   reviewed_on: "2026-09-05"
-  verdict: ready_to_implement_in_dependency_order
-  implementation_baseline: 4d4849e
+  verdict: corrected_after_contract_review_ready_to_implement_in_dependency_order
+  implementation_baseline: a7b4aa8d8cefc865c16c2be9ce7c554400c4803a
   checks:
     - >-
       Audit is not a Project kind, Workflow subtype, Planner mode, Scheduler
@@ -1648,6 +1661,32 @@ audits_planning_review:
       lifecycle and UI. Finding intake and human/multi-round behavior follow
       only after the retention and cancellation boundaries exist.
     - >-
+      Exact OpenAPI source byte identity is provenance only. Stable operation
+      identity uses a separate normalized canonical inventory digest; required
+      remote dependencies reject inventory while unselected callback/webhook
+      surfaces become gaps and are never fetched.
+    - >-
+      Catalog validity does not imply executable support. Dedicated read-only
+      profile projections report compatibility and start atomically gates
+      unsupported review, discovery, multi-round, batching and input-dependent
+      manual work with stable reason codes.
+    - >-
+      Terminal Run observation only enters collecting. One durable collection
+      receipt covers accepted, missing, invalid, failed or cancelled output and
+      owns retry-or-settle; only settled logical items enter the Round barrier.
+    - >-
+      AuditExecutionItem separates logical AuditItem attempts from WorkflowRun
+      executions now. MVP enforces batchSize=1; later complete-result batching
+      can reuse workspace without merging permissions or conversation state.
+    - >-
+      Run deletion waits for terminal release plus collection, not successful
+      import. Dispatch credential holds, exact Skill pins, Audit evidence holds
+      and ordinary proposal pins have explicitly different release conditions.
+    - >-
+      MVP UI uses authoritative revision/ETag polling. Audit WebSocket sequence,
+      authorization and resync are deferred together rather than inferred from
+      the existing Run event socket.
+    - >-
       OWASP Top 10:2025 is treated as risk awareness, while stable ASVS 5.0.0
       identifiers are version-qualified. Neither incomplete automation nor an
       empty inventory can be rendered as certification or complete compliance.
@@ -1668,6 +1707,14 @@ audits_planning_review:
       The MVP supports deterministic checklist/OpenAPI inventory and one Round.
       Model discovery, finding confirmation and multiple rounds are deliberately
       isolated in later tasks rather than hidden inside the first Controller.
+    - >-
+      V25 stores a batch-ready relational/result shape but executes one item per
+      Run. Whole-batch retry is accepted for the later bounded batching task;
+      durable partial item checkpoints require another receipt protocol.
+    - >-
+      V25-008A supplies runnable generic checklist/OpenAPI examples. Curated Top
+      10 and ASVS packages/programs remain separate V26 deliverables because
+      their mappings, licensing and evidence contracts need independent gates.
 
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
@@ -1853,7 +1900,13 @@ tasks:
   - {id: V25-006, file: v25-006-one-round-audit-controller.yml}
   - {id: V25-007, file: v25-007-audit-import-and-coverage.yml}
   - {id: V25-008, file: v25-008-audit-lifecycle-and-retention.yml}
+  - {id: V25-008A, file: v25-008a-runnable-audit-programs.yml}
   - {id: V25-009, file: v25-009-audits-ui.yml}
   - {id: V25-010, file: v25-010-security-findings-intake.yml}
   - {id: V25-011, file: v25-011-audit-review-and-multiround.yml}
   - {id: V25-012, file: v25-012-audits-release-gate.yml}
+  - {id: V26-001, file: v26-001-audit-standard-package-catalog.yml}
+  - {id: V26-002, file: v26-002-top10-risk-audit-program.yml}
+  - {id: V26-003, file: v26-003-asvs-audit-program.yml}
+  - {id: V26-004, file: v26-004-batched-audit-executions.yml}
+  - {id: V26-005, file: v26-005-audit-program-library-release-gate.yml}

@@ -30,6 +30,8 @@ scope:
     - Persist canonical proposal, evidence holds and idempotent receipt in one transaction.
     - Show proposals on ordinary Run and Audit inbox read projections without confirming them.
     - Reject new submissions after write fence while allowing exact accepted receipt replay.
+    - During Audit child collection, transfer allowed proposal/evidence retention to exact Audit-owned inbox holds before releasing source-Run pins; profiles with findings disabled cannot select this Toolset or admit an unexpected proposal.
+    - Integrate proposal ownership with hard Run deletion: imported exact proposals transfer retention to Audit holds; unimported proposals are durably discarded and their proposal/evidence pins are released atomically with source-Run cleanup.
   out:
     - Semantic deduplication, confirmation, automatic Audit selection or child Run creation.
 
@@ -38,6 +40,7 @@ requirements:
   - {id: R2, text: Generic Artifact API content cannot forge a finding receipt.}
   - {id: R3, text: Same submission and digest replay exactly; same identity with changed content conflicts.}
   - {id: R4, text: Failed source Run does not erase a committed proposal or elevate it to confirmed.}
+  - {id: R5, text: No proposal/evidence pin survives source Run deletion without either an exact destination-Audit hold or a durable discarded tombstone.}
 
 acceptance_criteria:
   - id: A1
@@ -52,8 +55,12 @@ acceptance_criteria:
     given: A stale/foreign Runtime or unselected Toolset.
     when: It submits evidence/proposal data.
     then: It gains no cross-Run read/write or existence oracle.
+  - id: A4
+    given: One imported and one unimported proposal belong to an ordinary terminal Run.
+    when: The owner hard-deletes that Run.
+    then: The imported revision remains under its Audit hold, the unimported proposal is discarded, and all source-owned pins are released without leakage.
 
 tests:
-  - {name: server, command: "go test -race ./internal/findingintake ./internal/httpapi/privateartifacts", covers: [A1, A2, A3]}
+  - {name: server, command: "go test -race ./internal/findingintake ./internal/httpapi/privateartifacts ./internal/runstore", covers: [A1, A2, A3, A4]}
   - {name: runtime, command: "cd runtime && uv run pytest tests -k finding", covers: [A1, A3]}
-  - {name: postgres, command: "go test -tags=integration ./internal/findingintake", covers: [A1, A2]}
+  - {name: postgres, command: "go test -tags=integration ./internal/findingintake", covers: [A1, A2, A4]}

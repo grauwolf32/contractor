@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V26-001
+title: Add a versioned curated Audit standard package catalog
+milestone: audit-program-library
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V25-012]
+languages: [go, yaml, json]
+
+goal: >-
+  Give curated Audit programs an immutable, license-aware source for exact
+  requirement/risk identifiers and evidence contracts instead of embedding
+  standards knowledge in prompts or model memory.
+
+context:
+  storage: >-
+    Reuse the ArtifactStore and deterministic package validation. Operator assets
+    under configs/audit-standards are packaged/seeded through a dedicated
+    read-only catalog analogous to Skills, not accepted by generic Project
+    artifact mutation or managed configuration publication.
+  identity: >-
+    A package has scheme, exact version, source/license provenance, canonical
+    digest and exact artifact revision. Audit start pins the exact package and
+    later catalog changes cannot affect an existing Audit.
+
+scope:
+  in:
+    - Define strict bounded schemas for standard metadata, requirement/risk entries, applicability, allowed methods and versioned evidence contracts.
+    - Add deterministic operator package build/validation and idempotent startup seeding into a reserved read-only artifact namespace.
+    - Add exact lookup/list APIs needed by AuditProfile resolution and owner UI without exposing copyrighted bodies beyond package license policy.
+    - Pin exact standard package revisions/digests at Audit start and retain them through report provenance/deletion.
+    - Reject duplicate/versionless identifiers, dangling mappings, unsupported licenses and package drift atomically.
+  out:
+    - Actual Top 10/ASVS mappings, certification claims, online standard fetching or user-authored global packages.
+
+requirements:
+  - {id: R1, text: Model output and prompt memory can never create or redefine an authoritative standard identifier.}
+  - {id: R2, text: Package source, version and license provenance are exact and survive catalog replacement.}
+  - {id: R3, text: Generic artifact/config APIs cannot overwrite the reserved catalog or bypass validation.}
+
+acceptance_criteria:
+  - id: A1
+    given: A valid versioned package with bounded evidence contracts.
+    when: Server startup seeds and resolves it twice.
+    then: One canonical revision/digest is returned and an Audit can pin it exactly.
+  - id: A2
+    given: Duplicate IDs, dangling mappings, path attacks, excessive data or invalid license metadata.
+    when: The package is validated.
+    then: It is rejected atomically without changing the current catalog.
+
+tests:
+  - {name: catalog, command: "go test ./internal/auditstandards", covers: [A1, A2]}
+  - {name: postgres, command: "go test -tags=integration ./internal/auditstandards", covers: [A1, A2]}

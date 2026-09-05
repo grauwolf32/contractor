@@ -18,40 +18,48 @@ context:
     package-local paths/digests. It reuses current secure archive hydration
     constraints but has Audit-specific schemas and tighter semantic checks.
   identity: >-
-    OpenAPI operation identity is SHA-256 over the exact input content digest,
-    exact path template and lowercase HTTP method. operationId is display data,
-    not identity. Remote refs are forbidden.
+    source_content_digest is SHA-256 over exact input bytes and is provenance.
+    canonical_inventory_digest is SHA-256 over the versioned normalized JCS
+    inventory basis. operation_key hashes that inventory digest, exact path and
+    lowercase method; operationId is display data, not identity.
 
 scope:
   in:
-    - Add versioned strict codecs for worklist, task package, check result, finding proposal, evidence and coverage envelopes.
+    - Add versioned strict codecs for worklist, item task package, ordered execution manifest, complete CheckResultSet, finding proposal, evidence and coverage envelopes.
     - Add bounded ZIP import/export with canonical manifest order, content digests and no external unqualified refs.
     - Add custom-checklist inventory with stable keys, duplicate detection and one initial not-tested coverage row per selected item.
-    - Add OpenAPI 3.x JSON/YAML paths inventory with bounded local ref resolution, deterministic method ordering and explicit webhook/callback/remote-ref gaps.
-    - Generate immutable per-item task packages and validate a complete worklist atomically before returning it.
+    - Add OpenAPI 3.x JSON/YAML paths inventory with separate exact source and canonical inventory digests, bounded local ref resolution and deterministic path/method ordering.
+    - Reject a remote ref required by a selected operation; never fetch it. Record unsupported callbacks/webhooks and remote refs confined to those unselected surfaces as explicit gaps.
+    - Generate immutable per-item task packages plus a batch-ready ordered execution manifest and validate a complete worklist atomically before returning it.
   out:
     - Database writes, WorkflowRun creation, LLM discovery, ASVS package curation or HTTP checks.
 
 requirements:
   - {id: R1, text: All parsers reject unknown schema versions, duplicate keys, traversal, symlinks, special files, bombs and configured count/byte/depth excess.}
   - {id: R2, text: A malformed item or manifest returns no accepted partial inventory.}
-  - {id: R3, text: OpenAPI parsing never performs a network request and records every unsupported surface as a gap.}
-  - {id: R4, text: Reordering JSON/YAML mapping keys cannot alter worklist bytes or stable item keys.}
+  - {id: R3, text: OpenAPI parsing never performs a network request; a remote dependency required by an enumerated operation rejects the inventory while callbacks/webhooks remain explicit gaps.}
+  - {id: R4, text: Equivalent JSON/YAML and mapping-key reordering preserve canonical inventory bytes/digest and operation keys, while exact source provenance and resulting task package bytes may differ.}
+  - {id: R5, text: A CheckResultSet has exactly one unique result for every item in its immutable execution manifest and no foreign or extra item.}
 
 acceptance_criteria:
   - id: A1
-    given: Equivalent OpenAPI JSON and YAML documents with duplicate/missing operationId values.
+    given: Semantically equivalent OpenAPI JSON and YAML documents with reordered mappings and duplicate/missing operationId values.
     when: Inventory is generated.
-    then: Method/path identities and canonical order are stable and distinct.
+    then: Canonical inventory digest, method/path operation keys and order are stable, exact source digests differ, and task packages retain their own provenance.
   - id: A2
     given: A bounded custom checklist.
     when: It is imported.
     then: Every selected item has one immutable task and one not-tested coverage entry.
   - id: A3
-    given: Remote refs, cyclic/deep refs, corrupt ZIPs or oversized members.
+    given: A selected-operation remote dependency, cyclic/deep refs, corrupt ZIPs or oversized members.
     when: Validation runs.
     then: It fails safely before any caller can dispatch work.
+  - id: A4
+    given: A result set with a duplicate, missing, extra or foreign item key.
+    when: It is checked against the immutable execution manifest.
+    then: The entire result set is rejected with no partially accepted item.
 
 tests:
-  - {name: domain, command: "go test ./internal/auditdomain", covers: [A1, A2, A3]}
-  - {name: fuzz, command: "go test ./internal/auditdomain -run 'TestAuditPackage|TestOpenAPIInventory'", covers: [A3]}
+  - {name: domain, command: "go test ./internal/auditdomain", covers: [A1, A2, A3, A4]}
+  - {name: package-fuzz, command: "go test ./internal/auditdomain -run=^$ -fuzz=^FuzzAuditPackage$ -fuzztime=10s", covers: [A3]}
+  - {name: openapi-fuzz, command: "go test ./internal/auditdomain -run=^$ -fuzz=^FuzzOpenAPIInventory$ -fuzztime=10s", covers: [A1, A3]}
