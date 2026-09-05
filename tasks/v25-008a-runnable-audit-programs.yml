@@ -3,8 +3,8 @@ id: V25-008A
 title: Ship runnable checklist and OpenAPI Audit MVP programs
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "fe6c335e8a3a0fddfafe78f35f11967c6118df60"
 depends_on: [V25-002, V25-004, V25-005, V25-006, V25-007, V25-008]
 languages: [go, python, yaml, json]
 
