@@ -22,7 +22,7 @@ WITH candidates AS (
                'active', 'waiting_review', 'paused', 'finalizing', 'cancelling', 'deleting'
            )
        AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
-     ORDER BY audit.updated_at, audit.audit_id
+     ORDER BY claim.epoch, audit.updated_at, audit.audit_id
      FOR UPDATE OF claim SKIP LOCKED
      LIMIT $3
 ), claimed AS (

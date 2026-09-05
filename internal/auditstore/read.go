@@ -196,6 +196,46 @@ SELECT execution_item_id, execution_id, audit_id, round_id, item_id,
 	return result, rows.Err()
 }
 
+// NextItemAttempt returns the next policy attempt for one currently ready
+// item. The value is advisory until CreateExecutionIntent atomically verifies
+// it again; binding this read to a live claim keeps Controller recovery from
+// inspecting another Controller's in-flight Audit.
+func (s *PostgresStore) NextItemAttempt(
+	ctx context.Context, claim ControllerClaim, itemID string,
+) (int, error) {
+	if err := validateClaimIdentity(claim); err != nil {
+		return 0, err
+	}
+	if err := validateID("itemID", itemID); err != nil {
+		return 0, err
+	}
+	var attempt int
+	err := s.db.QueryRow(ctx, `
+SELECT COALESCE(max(member.item_attempt), 0) + 1
+  FROM audit_items AS item
+  JOIN audit_controller_claims AS claim USING (audit_id)
+  LEFT JOIN audit_execution_items AS member ON member.item_id = item.item_id
+ WHERE item.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
+   AND claim.expires_at > clock_timestamp()
+   AND item.item_id = $4 AND item.state = 'ready'
+ GROUP BY item.item_id`, claim.AuditID, claim.HolderID, claim.Epoch, itemID).Scan(&attempt)
+	if err == nil {
+		if attempt < 1 || attempt > 11 {
+			return 0, errors.New("stored Audit item attempt is invalid")
+		}
+		return attempt, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("read next Audit item attempt: %w", err)
+	}
+	if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
+		return 0, liveErr
+	} else if !live {
+		return 0, ErrClaimLost
+	}
+	return 0, ErrPrecondition
+}
+
 // ListEvents returns a forward, bounded cursor page. Sequence zero starts at
 // the first immutable event.
 func (s *PostgresStore) ListEvents(

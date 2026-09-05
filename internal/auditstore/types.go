@@ -604,6 +604,8 @@ type ControllerRepository interface {
 	TransitionClaimed(context.Context, ClaimedTransitionParams) (Audit, error)
 	TransitionRound(context.Context, RoundTransitionParams) (Round, error)
 	CreateExecutionIntent(context.Context, CreateExecutionIntentParams) (Execution, bool, error)
+	NextItemAttempt(context.Context, ControllerClaim, string) (int, error)
+	ListExecutionItems(context.Context, string) ([]ExecutionItem, error)
 	GetRunCreationIntent(context.Context, ControllerClaim, string) (RunCreationIntent, error)
 	BindRun(context.Context, BindRunParams) (Execution, error)
 	ObserveTerminal(context.Context, ObserveTerminalParams) (Execution, error)

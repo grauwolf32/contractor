@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditcontroller"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
@@ -499,6 +500,22 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure trusted Run service: %w", err)
 	}
+	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(artifactService)
+	if err != nil {
+		return fmt.Errorf("configure Audit Controller artifacts: %w", err)
+	}
+	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(auditArtifactAccess)
+	if err != nil {
+		return fmt.Errorf("configure Audit Controller submissions: %w", err)
+	}
+	auditController, err := auditcontroller.New(
+		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool),
+		runCreationService, auditSubmissionBuilder, workflowScheduler,
+		auditcontroller.Options{Logger: logger},
+	)
+	if err != nil {
+		return fmt.Errorf("configure Audit Controller: %w", err)
+	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
@@ -556,7 +573,7 @@ func RunCLI(
 		logger,
 		NewHandler(publicHandler),
 		privateHandler,
-		backgroundRunnerGroup{workflowScheduler, projectDeletionController},
+		backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController},
 	)
 }
 

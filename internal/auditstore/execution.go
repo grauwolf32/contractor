@@ -68,14 +68,17 @@ WITH member_input AS MATERIALIZED (
      FOR UPDATE OF claim
 ), claim_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.current_round_id, audit.batch_size,
-           audit.reserved_run_count, audit.max_submitted_runs,
+           audit.reserved_run_count, audit.outstanding_run_count,
+           audit.max_submitted_runs, settings.max_concurrent_runs,
            contractor_require_active_audit_project(audit.project_id, audit.owner_id)
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
+      CROSS JOIN scheduler_settings AS settings
      WHERE audit.audit_id = $1
+       AND settings.singleton = true
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND audit.deadline_at > clock_timestamp()
-     FOR UPDATE OF audit
+     FOR UPDATE OF audit, settings
 ), round_gate AS MATERIALIZED (
     SELECT round.round_id, round.state
       FROM audit_rounds AS round
@@ -106,7 +109,9 @@ WITH member_input AS MATERIALIZED (
       FROM claim_gate, eligible_members
      WHERE audit.audit_id = claim_gate.audit_id
        AND audit.reserved_run_count = claim_gate.reserved_run_count
+       AND audit.outstanding_run_count = claim_gate.outstanding_run_count
        AND audit.reserved_run_count < audit.max_submitted_runs
+       AND audit.outstanding_run_count < claim_gate.max_concurrent_runs
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND audit.deadline_at > clock_timestamp()
        AND (
