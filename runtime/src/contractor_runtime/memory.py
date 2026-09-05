@@ -13,8 +13,9 @@ import jcs
 SCHEMA_VERSION: Final = "contractor.memory-note/v1"
 MEDIA_TYPE: Final = "application/vnd.contractor.memory-note+json"
 ARTIFACT_NAME_PREFIX: Final = "memory."
+MAXIMUM_ARTIFACT_NAME_BYTES: Final = 128
 MAXIMUM_PAYLOAD_BYTES: Final = 32 * 1024
-MAXIMUM_NAME_BYTES: Final = 128
+MAXIMUM_NAME_BYTES: Final = MAXIMUM_ARTIFACT_NAME_BYTES - len(ARTIFACT_NAME_PREFIX.encode("ascii"))
 MAXIMUM_DESCRIPTION_BYTES: Final = 512
 MAXIMUM_TAGS: Final = 3
 MAXIMUM_TAG_BYTES: Final = 64

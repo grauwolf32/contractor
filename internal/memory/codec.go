@@ -18,15 +18,16 @@ import (
 )
 
 const (
-	SchemaVersion       = "contractor.memory-note/v1"
-	MediaType           = "application/vnd.contractor.memory-note+json"
-	ArtifactNamePrefix  = "memory."
-	MaximumPayloadBytes = 32 * 1024
-	MaximumNameBytes    = 128
-	MaximumDescription  = 512
-	MaximumTags         = 3
-	MaximumTagBytes     = 64
-	MaximumExactOrdinal = uint64(1<<53 - 1)
+	SchemaVersion            = "contractor.memory-note/v1"
+	MediaType                = "application/vnd.contractor.memory-note+json"
+	ArtifactNamePrefix       = "memory."
+	MaximumArtifactNameBytes = 128
+	MaximumPayloadBytes      = 32 * 1024
+	MaximumNameBytes         = MaximumArtifactNameBytes - len(ArtifactNamePrefix)
+	MaximumDescription       = 512
+	MaximumTags              = 3
+	MaximumTagBytes          = 64
+	MaximumExactOrdinal      = uint64(1<<53 - 1)
 )
 
 var (

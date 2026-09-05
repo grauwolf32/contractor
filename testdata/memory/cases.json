@@ -56,14 +56,14 @@
       "id": "exact_utf8_and_ascii_field_bounds",
       "input": {
         "schemaVersion": "contractor.memory-note/v1",
-        "nameRepeat": {"value": "a", "count": 128},
+        "nameRepeat": {"value": "a", "count": 121},
         "content": "x",
         "descriptionRepeat": {"value": "é", "count": 256},
         "tagRepeats": [{"value": "a", "count": 64}],
         "ordinal": 2
       },
-      "canonicalBytes": 814,
-      "canonicalSha256": "206ca61c2e1708c6f0b8d31ac44718e06567fdf8239359973380f6d540cbb01d"
+      "canonicalBytes": 807,
+      "canonicalSha256": "e51860bb7aabfef2bf8f278072df7724ea542024b4e17086828940e936ba4b5e"
     }
   ],
   "invalidInput": [

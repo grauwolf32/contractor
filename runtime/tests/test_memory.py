@@ -10,6 +10,7 @@ import pytest
 
 from contractor_runtime.memory import (
     ARTIFACT_NAME_PREFIX,
+    MAXIMUM_ARTIFACT_NAME_BYTES,
     MAXIMUM_DESCRIPTION_BYTES,
     MAXIMUM_EXACT_ORDINAL,
     MAXIMUM_NAME_BYTES,
@@ -76,6 +77,10 @@ def test_artifact_name_mapping_and_model_projections() -> None:
     assert name_from_artifact("memory.repo_overview") == "repo_overview"
     with pytest.raises(MemoryCodecError):
         name_from_artifact("report.repo_overview")
+    maximum_name = "a" + "b" * (MAXIMUM_NAME_BYTES - 1)
+    assert len(artifact_name(maximum_name)) == MAXIMUM_ARTIFACT_NAME_BYTES
+    with pytest.raises(MemoryCodecError):
+        artifact_name(maximum_name + "b")
 
     note = normalize_note(_base_note())
     created = datetime(2026, 9, 1, 10, tzinfo=UTC)

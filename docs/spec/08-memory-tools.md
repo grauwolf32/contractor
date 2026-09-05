@@ -122,7 +122,8 @@ them as model arguments. They are projected into MemoryNote responses but are
 not duplicated inside every note version.
 
 The complete canonical JSON payload, including schema/name/ordinal fields, is
-at most 32 KiB. Note names are at most 128 ASCII bytes and match
+at most 32 KiB. Note names are at most 121 ASCII bytes so the internal
+`memory.`-prefixed binding remains within the Artifact name limit of 128, and match
 `^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`. Description is at most 512 UTF-8 bytes.
 There are zero to three unique tags; each tag is at most 64 ASCII bytes and
 matches `^[a-z][a-z0-9_-]*$`. Content and append fragments are non-empty UTF-8.

@@ -167,6 +167,14 @@ func TestArtifactNameMappingAndModelProjections(t *testing.T) {
 	if _, err := NameFromArtifact("report.repo_overview"); err == nil {
 		t.Fatal("non-memory binding accepted")
 	}
+	maximumName := "a" + strings.Repeat("b", MaximumNameBytes-1)
+	maximumArtifactName, err := ArtifactName(maximumName)
+	if err != nil || len(maximumArtifactName) != MaximumArtifactNameBytes {
+		t.Fatalf("maximum ArtifactName = (%d bytes, %v)", len(maximumArtifactName), err)
+	}
+	if _, err := ArtifactName(maximumName + "b"); err == nil {
+		t.Fatal("Memory name exceeding the prefixed Artifact limit was accepted")
+	}
 	note, err := Normalize(baseNote())
 	if err != nil {
 		t.Fatal(err)

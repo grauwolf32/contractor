@@ -31,7 +31,7 @@ context:
   memory_contract: >-
     memory-tools@1 exports exactly list_memories, read_memory, write_memory,
     append_memory, search_memory and list_memory_tags. Note names are at most
-    128 ASCII bytes and match ^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$, so old auth/*
+    121 ASCII bytes and match ^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$, so old auth/*
     paths must become explicit names such as auth_creds and auth_endpoints.
 
 scope:
