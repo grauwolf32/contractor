@@ -3,8 +3,8 @@ id: V25-006
 title: Reconcile one immutable Audit round and dispatch bounded checks
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "87c3917880b890a0c905cd0337db2d059ef8b94c"
 depends_on: [V25-004, V25-005, V27-002]
 languages: [go, sql]
 
