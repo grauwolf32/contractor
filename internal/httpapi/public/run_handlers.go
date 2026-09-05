@@ -50,7 +50,7 @@ func (h *handler) listProjectRuns(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
 	query, limit, encodedCursor, err := pageQueryWithRepeated(
-		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state",
+		r.URL.RawQuery, "label", runstore.MaxRunMetadataLabels, "state", "lifecycle",
 	)
 	if err != nil {
 		h.handleError(w, err)
@@ -65,19 +65,28 @@ func (h *handler) listRunsFromProject(w http.ResponseWriter, r *http.Request, pr
 		}
 		state = &candidate
 	}
+	var lifecycle *runstore.WorkflowRunLifecycle
+	if values, present := query["lifecycle"]; present {
+		candidate := runstore.WorkflowRunLifecycle(values[0])
+		if !candidate.Valid() {
+			h.handleError(w, fmt.Errorf("%w: unknown Run lifecycle", errInvalidRequest))
+			return
+		}
+		lifecycle = &candidate
+	}
 	selectors, err := parseRunMetadataLabelSelectors(query["label"])
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	cursorKind := runListCursorKindForProject(state, selectors, projectID)
+	cursorKind := runListCursorKindForProject(state, lifecycle, selectors, projectID)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
 	params := runstore.ListRunsParams{
-		OwnerID: principalUserID(r.Context()), State: state,
+		OwnerID: principalUserID(r.Context()), State: state, Lifecycle: lifecycle,
 		ProjectID: projectID, MetadataLabelSelectors: selectors, Limit: limit + 1,
 	}
 	if len(cursor) != 0 {
@@ -137,13 +146,16 @@ func parseRunMetadataLabelSelectors(values []string) ([]runstore.RunMetadataLabe
 }
 
 func runListCursorKind(
-	state *runstore.WorkflowRunState, selectors []runstore.RunMetadataLabelSelector,
+	state *runstore.WorkflowRunState,
+	lifecycle *runstore.WorkflowRunLifecycle,
+	selectors []runstore.RunMetadataLabelSelector,
 ) string {
-	return runListCursorKindForProject(state, selectors, nil)
+	return runListCursorKindForProject(state, lifecycle, selectors, nil)
 }
 
 func runListCursorKindForProject(
 	state *runstore.WorkflowRunState,
+	lifecycle *runstore.WorkflowRunLifecycle,
 	selectors []runstore.RunMetadataLabelSelector,
 	projectID *string,
 ) string {
@@ -153,6 +165,9 @@ func runListCursorKindForProject(
 	}
 	if state != nil {
 		kind += ":" + string(*state)
+	}
+	if lifecycle != nil {
+		kind += ":lifecycle:" + string(*lifecycle)
 	}
 	if len(selectors) == 0 {
 		return kind

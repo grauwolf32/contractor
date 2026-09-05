@@ -652,6 +652,7 @@ func (f *fakeRunStore) ListRuns(
 	result := make([]runstore.WorkflowRunSummary, 0)
 	for _, run := range f.runs {
 		if run.OwnerID != params.OwnerID || params.State != nil && run.State != *params.State ||
+			params.Lifecycle != nil && !params.Lifecycle.Includes(run.State) ||
 			params.ProjectID != nil && (run.ProjectID == nil || *run.ProjectID != *params.ProjectID) {
 			continue
 		}

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -87,7 +87,7 @@ class QueueWebSocket {
   }
 }
 
-function renderQueueApplication(api: PublicAPI, path = "/queue") {
+function renderQueueApplication(api: PublicAPI, path = "/runs") {
   const router = createMemoryRouter(applicationRoutes(), {
     initialEntries: [path],
   });
@@ -111,7 +111,7 @@ beforeEach(() => {
   QueueWebSocket.instances = [];
 });
 
-describe("Queue route", () => {
+describe("Runs Queue view", () => {
   it("groups all active Run contexts and keeps filters across stable pages", async () => {
     const requests: URL[] = [];
     const api = new PublicAPI(
@@ -188,6 +188,22 @@ describe("Queue route", () => {
     expect(
       screen.queryByRole("columnheader", { name: /^(position|rank|eta)$/i }),
     ).not.toBeInTheDocument();
+    const views = screen.getByRole("navigation", { name: "Run views" });
+    expect(within(views).getByRole("link", { name: /Queue/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      within(views).getByRole("link", { name: /Completed/ }),
+    ).toHaveAttribute("href", "/runs?view=completed");
+    const primary = screen.getByRole("navigation", {
+      name: "Primary navigation",
+    });
+    expect(within(primary).queryByRole("link", { name: "Queue" })).toBeNull();
+    expect(within(primary).getByRole("link", { name: "Runs" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -271,5 +287,39 @@ describe("Queue route", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "run-live" })).toBeNull();
     expect(queueReads).toBeGreaterThan(1);
+  });
+
+  it("redirects legacy Queue links and preserves active filters", async () => {
+    const requests: URL[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue") {
+          requests.push(url);
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    const { router } = renderQueueApplication(
+      api,
+      "/queue?membership=project&state=running",
+    );
+
+    expect(
+      await screen.findByText("No active Runs match this view."),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/runs");
+    expect(router.state.location.search).toBe(
+      "?membership=project&state=running",
+    );
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.searchParams.get("membership")).toBe("project");
+    expect(requests[0]?.searchParams.get("state")).toBe("running");
   });
 });

@@ -9,10 +9,9 @@ const navigation = [
   { to: "/", label: "Home", end: true },
   { to: "/projects", label: "Projects" },
   { to: "/evals", label: "Evals" },
-  { to: "/queue", label: "Queue" },
+  { to: "/runs", label: "Runs" },
   { to: "/workflows", label: "Workflows" },
   { to: "/artifacts", label: "Artifacts" },
-  { to: "/runs", label: "Runs" },
   { to: "/skills", label: "Skills" },
   { to: "/operations", label: "Operations" },
 ] as const;

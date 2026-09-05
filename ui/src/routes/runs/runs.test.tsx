@@ -275,7 +275,7 @@ describe("Run routes", () => {
               {
                 runId: "run-first",
                 workflow: "openapi-from-workspace@4",
-                state: "running",
+                state: "succeeded",
                 labels: {},
                 createdAt: "2026-08-31T12:00:00Z",
                 updatedAt: "2026-08-31T12:01:00Z",
@@ -287,7 +287,7 @@ describe("Run routes", () => {
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
-    renderRunApplication(api, "/runs");
+    renderRunApplication(api, "/runs?view=completed");
     expect(
       await screen.findByRole("link", { name: "run-first" }),
     ).toBeInTheDocument();
@@ -303,9 +303,10 @@ describe("Run routes", () => {
     ).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("State"), "failed");
     expect(
-      await screen.findByText("No Runs match this view."),
+      await screen.findByText("No completed Runs match this view."),
     ).toBeInTheDocument();
     expect(requests.at(-1)?.searchParams.get("state")).toBe("failed");
+    expect(requests.at(-1)?.searchParams.get("lifecycle")).toBe("terminal");
     expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
   });
 
@@ -330,11 +331,12 @@ describe("Run routes", () => {
     renderRunApplication(api, "/runs?state=failed");
 
     expect(
-      await screen.findByText("No Runs match this view."),
+      await screen.findByText("No completed Runs match this view."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("State")).toHaveValue("failed");
     expect(requests).toHaveLength(1);
     expect(requests[0]?.searchParams.get("state")).toBe("failed");
+    expect(requests[0]?.searchParams.get("lifecycle")).toBe("terminal");
   });
 
   it("keeps exact metadata selectors across paging and resets the cursor when they change", async () => {
@@ -376,7 +378,7 @@ describe("Run routes", () => {
               {
                 runId: `run-leg-${leg}`,
                 workflow: "router-analysis@1",
-                state: "running",
+                state: "succeeded",
                 labels: {
                   "eval.id": "eval-group=01",
                   "eval.leg": leg,
@@ -394,7 +396,7 @@ describe("Run routes", () => {
     );
     renderRunApplication(
       api,
-      "/runs?label=eval.id%3Deval-group%3D01&label=eval.leg%3Da",
+      "/runs?view=completed&label=eval.id%3Deval-group%3D01&label=eval.leg%3Da",
     );
     expect(
       await screen.findByRole("link", { name: "run-leg-a" }),

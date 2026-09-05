@@ -1050,6 +1050,8 @@ export interface components {
         /** @enum {unknown} */
         WorkflowRunState: "initializing" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
         /** @enum {unknown} */
+        WorkflowRunLifecycle: "active" | "terminal";
+        /** @enum {unknown} */
         NonTerminalWorkflowRunState: "initializing" | "running" | "cancelling";
         /** @enum {unknown} */
         StageExecutionState: "preparing" | "running" | "finalizing" | "aborting" | "succeeded" | "failed" | "interrupted" | "cancelled";
@@ -2781,6 +2783,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 state?: components["schemas"]["WorkflowRunState"];
+                /** @description Read-only active or terminal state grouping applied before pagination. */
+                lifecycle?: components["schemas"]["WorkflowRunLifecycle"];
                 label?: string[];
             };
             header?: never;
@@ -2882,6 +2886,8 @@ export interface operations {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
                 state?: components["schemas"]["WorkflowRunState"];
+                /** @description Read-only active or terminal state grouping applied before pagination. */
+                lifecycle?: components["schemas"]["WorkflowRunLifecycle"];
                 /** @description Repeat for an exact key/value conjunction. The first decoded '=' separates the metadata-label key from its value; percent-encode value delimiters when constructing the URL. */
                 label?: string[];
             };

@@ -107,7 +107,7 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
   }, [events, queryClient, targetFingerprint]);
 }
 
-export function QueueRoute() {
+export function QueuePanel() {
   const api = usePublicAPI();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get("state");
@@ -147,161 +147,145 @@ export function QueueRoute() {
   }
 
   return (
-    <section className="route-page queue-page">
-      <header className="route-header-row">
+    <div className="panel queue-library run-view-panel">
+      <div className="section-heading queue-heading">
         <div>
-          <p className="eyebrow">Owner-scoped active work</p>
-          <h2>Queue</h2>
-          <p className="lede">
-            One read-only view of standalone, Project, and evaluation Runs that
-            are still in progress.
+          <p className="eyebrow">Display order</p>
+          <h3>Active queue · oldest first</h3>
+          <p className="muted-copy">
+            This stable display order is not Scheduler priority, rank, or an
+            estimated start position.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
-
-      <div className="panel queue-library">
-        <div className="section-heading queue-heading">
-          <div>
-            <p className="eyebrow">Display order</p>
-            <h3>Oldest created first</h3>
-            <p className="muted-copy">
-              This stable display order is not Scheduler priority, rank, or an
-              estimated start position.
-            </p>
-          </div>
-          <div className="queue-filters">
-            <label className="compact-select">
-              State
-              <select
-                value={state ?? ""}
-                onChange={(event) => replaceFilter("state", event.target.value)}
-              >
-                <option value="">All active states</option>
-                {QUEUE_STATES.map((candidate) => (
-                  <option key={candidate} value={candidate}>
-                    {candidate}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="compact-select">
-              Context
-              <select
-                value={membership ?? ""}
-                onChange={(event) =>
-                  replaceFilter("membership", event.target.value)
-                }
-              >
-                <option value="">All contexts</option>
-                {QUEUE_MEMBERSHIPS.map((candidate) => (
-                  <option key={candidate} value={candidate}>
-                    {membershipLabel(candidate)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+        <div className="queue-filters run-view-controls">
+          <label className="compact-select">
+            State
+            <select
+              value={state ?? ""}
+              onChange={(event) => replaceFilter("state", event.target.value)}
+            >
+              <option value="">All active states</option>
+              {QUEUE_STATES.map((candidate) => (
+                <option key={candidate} value={candidate}>
+                  {candidate}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="compact-select">
+            Context
+            <select
+              value={membership ?? ""}
+              onChange={(event) =>
+                replaceFilter("membership", event.target.value)
+              }
+            >
+              <option value="">All contexts</option>
+              {QUEUE_MEMBERSHIPS.map((candidate) => (
+                <option key={candidate} value={candidate}>
+                  {membershipLabel(candidate)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            {query.isFetching ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
-
-        {query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
-            Loading Queue…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No active Runs match this view.</strong>
-            <p>Terminal Runs remain available in execution history.</p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table run-list-table queue-table">
-              <thead>
-                <tr>
-                  <th>Run</th>
-                  <th>Workflow</th>
-                  <th>State</th>
-                  <th>Context</th>
-                  <th>Run metadata labels</th>
-                  <th>Created</th>
-                  <th>Updated</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((item) => (
-                  <tr key={item.runId}>
-                    <td className="run-list-id-cell" data-label="Run">
-                      <Link
-                        className="run-list-id-link"
-                        to={`/runs/${encodeURIComponent(item.runId)}`}
-                        aria-label={item.runId}
-                        title={item.runId}
-                      >
-                        {compactRunId(item.runId)}
-                      </Link>
-                    </td>
-                    <td
-                      className="run-list-workflow-cell"
-                      data-label="Workflow"
-                    >
-                      <span className="run-list-mobile-label">Workflow</span>
-                      <code>{item.workflow}</code>
-                    </td>
-                    <td className="run-list-state-cell" data-label="State">
-                      <StateBadge state={item.state} />
-                    </td>
-                    <td className="queue-context-cell" data-label="Context">
-                      <QueueContext item={item} />
-                    </td>
-                    <td
-                      className={`run-list-labels-cell ${Object.keys(item.labels).length === 0 ? "run-list-labels-empty" : ""}`}
-                      data-label="Run metadata labels"
-                    >
-                      <span className="run-list-mobile-label">Labels</span>
-                      <RunMetadataLabelChips labels={item.labels} />
-                    </td>
-                    <td className="run-list-created-cell" data-label="Created">
-                      <time dateTime={item.createdAt}>
-                        {formatTimestamp(item.createdAt)}
-                      </time>
-                    </td>
-                    <td className="run-list-updated-cell" data-label="Updated">
-                      <span className="run-list-mobile-label">Updated</span>
-                      <time dateTime={item.updatedAt}>
-                        {formatTimestamp(item.updatedAt)}
-                      </time>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <CursorControls
-          label="Queue pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
-        />
       </div>
-    </section>
+
+      {query.isPending ? (
+        <p className="loading-copy" aria-live="polite">
+          Loading Queue…
+        </p>
+      ) : query.error !== null ? (
+        <ErrorNotice error={query.error} />
+      ) : query.data.items.length === 0 ? (
+        <div className="compact-empty">
+          <strong>No active Runs match this view.</strong>
+          <p>Terminal Runs remain available in execution history.</p>
+        </div>
+      ) : (
+        <div className="table-scroll">
+          <table className="responsive-table run-list-table queue-table">
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Workflow</th>
+                <th>State</th>
+                <th>Context</th>
+                <th>Run metadata labels</th>
+                <th>Created</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {query.data.items.map((item) => (
+                <tr key={item.runId}>
+                  <td className="run-list-id-cell" data-label="Run">
+                    <Link
+                      className="run-list-id-link"
+                      to={`/runs/${encodeURIComponent(item.runId)}`}
+                      aria-label={item.runId}
+                      title={item.runId}
+                    >
+                      {compactRunId(item.runId)}
+                    </Link>
+                  </td>
+                  <td className="run-list-workflow-cell" data-label="Workflow">
+                    <span className="run-list-mobile-label">Workflow</span>
+                    <code>{item.workflow}</code>
+                  </td>
+                  <td className="run-list-state-cell" data-label="State">
+                    <StateBadge state={item.state} />
+                  </td>
+                  <td className="queue-context-cell" data-label="Context">
+                    <QueueContext item={item} />
+                  </td>
+                  <td
+                    className={`run-list-labels-cell ${Object.keys(item.labels).length === 0 ? "run-list-labels-empty" : ""}`}
+                    data-label="Run metadata labels"
+                  >
+                    <span className="run-list-mobile-label">Labels</span>
+                    <RunMetadataLabelChips labels={item.labels} />
+                  </td>
+                  <td className="run-list-created-cell" data-label="Created">
+                    <time dateTime={item.createdAt}>
+                      {formatTimestamp(item.createdAt)}
+                    </time>
+                  </td>
+                  <td className="run-list-updated-cell" data-label="Updated">
+                    <span className="run-list-mobile-label">Updated</span>
+                    <time dateTime={item.updatedAt}>
+                      {formatTimestamp(item.updatedAt)}
+                    </time>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <CursorControls
+        label="Queue pages"
+        canGoBack={cursors.length > 1}
+        {...(query.data?.page.hasMore === true &&
+        query.data.page.nextCursor !== undefined
+          ? { nextCursor: query.data.page.nextCursor }
+          : {})}
+        onBack={() =>
+          setCursors((current) =>
+            current.slice(0, Math.max(1, current.length - 1)),
+          )
+        }
+        onNext={(next) => setCursors((current) => [...current, next])}
+      />
+    </div>
   );
 }

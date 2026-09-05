@@ -138,7 +138,7 @@ function AttentionPanel({
           <p className="eyebrow">Needs attention</p>
           <h3>Recent failures</h3>
         </div>
-        <Link to="/runs?state=failed">View failed Runs →</Link>
+        <Link to="/runs?view=completed&state=failed">View failed Runs →</Link>
       </div>
       <p className="action-panel-copy">
         Failed executions among the newest 50 owned Runs.
@@ -218,7 +218,7 @@ function RecentSuccessPanel({
           <p className="eyebrow">Ready to inspect</p>
           <h3>Recent successful Runs</h3>
         </div>
-        <Link to="/runs?state=succeeded">View successes →</Link>
+        <Link to="/runs?view=completed&state=succeeded">View successes →</Link>
       </div>
       <p className="action-panel-copy">
         Open a Run to inspect and render its frozen output Artifacts.
@@ -515,7 +515,7 @@ export function HomeRoute() {
         </Link>
         <Link
           className={`action-metric-card ${recentFailures !== undefined && recentFailures > 0 ? "metric-attention" : ""}`}
-          to="/runs?state=failed"
+          to="/runs?view=completed&state=failed"
         >
           <span>Recent failures</span>
           <strong>{recentFailures ?? "—"}</strong>

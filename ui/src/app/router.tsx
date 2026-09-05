@@ -14,10 +14,9 @@ import {
   ProjectDetailRoute,
 } from "../routes/projects/detail";
 import { EvaluationListRoute, ProjectListRoute } from "../routes/projects/list";
-import { QueueRoute } from "../routes/queue";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
-import { RunListRoute } from "../routes/runs/list";
+import { LegacyQueueRedirect, RunsRoute } from "../routes/runs";
 import { SkillsRoute } from "../routes/skills";
 import { AllocationListRoute } from "../routes/operations/allocations";
 import { CredentialDetailRoute } from "../routes/operations/credentials/detail";
@@ -73,7 +72,7 @@ export function applicationRoutes(): RouteObject[] {
               path: "/evals/:projectId/artifacts/:namespace/:name",
               element: <EvaluationArtifactDetailRoute />,
             },
-            { path: "/queue", element: <QueueRoute /> },
+            { path: "/queue", element: <LegacyQueueRedirect /> },
             {
               path: "/artifacts",
               element: <ArtifactListRoute />,
@@ -82,7 +81,7 @@ export function applicationRoutes(): RouteObject[] {
               path: "/artifacts/:namespace/:name",
               element: <ArtifactDetailRoute />,
             },
-            { path: "/runs", element: <RunListRoute /> },
+            { path: "/runs", element: <RunsRoute /> },
             { path: "/runs/:runId", element: <RunDetailRoute /> },
             {
               path: "/runs/:runId/artifacts/:namespace/:name",

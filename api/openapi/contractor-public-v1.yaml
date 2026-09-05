@@ -448,6 +448,11 @@ paths:
           in: query
           required: false
           schema: {$ref: '#/components/schemas/WorkflowRunState'}
+        - name: lifecycle
+          in: query
+          required: false
+          description: Read-only active or terminal state grouping applied before pagination.
+          schema: {$ref: '#/components/schemas/WorkflowRunLifecycle'}
         - name: label
           in: query
           required: false
@@ -562,6 +567,11 @@ paths:
           in: query
           required: false
           schema: {$ref: '#/components/schemas/WorkflowRunState'}
+        - name: lifecycle
+          in: query
+          required: false
+          description: Read-only active or terminal state grouping applied before pagination.
+          schema: {$ref: '#/components/schemas/WorkflowRunLifecycle'}
         - name: label
           in: query
           required: false
@@ -2187,6 +2197,8 @@ components:
 
     WorkflowRunState:
       enum: [initializing, running, cancelling, succeeded, failed, cancelled]
+    WorkflowRunLifecycle:
+      enum: [active, terminal]
     NonTerminalWorkflowRunState:
       enum: [initializing, running, cancelling]
     StageExecutionState:

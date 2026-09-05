@@ -9,7 +9,11 @@ import {
   RUN_METADATA_LABEL_LIMIT,
   type RunMetadataLabelSelector,
 } from "../../api/run-metadata-labels";
-import { listRuns, RUN_STATES, type WorkflowRunState } from "../../api/runs";
+import {
+  listRuns,
+  TERMINAL_RUN_STATES,
+  type WorkflowRunState,
+} from "../../api/runs";
 import {
   CursorControls,
   ErrorNotice,
@@ -273,12 +277,13 @@ function RunLabelFilters({
   );
 }
 
-export function RunListRoute() {
+export function CompletedRunsPanel() {
   const api = usePublicAPI();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get("state");
-  const state = RUN_STATES.find((candidate) => candidate === requestedState) as
-    WorkflowRunState | undefined;
+  const state = TERMINAL_RUN_STATES.find(
+    (candidate) => candidate === requestedState,
+  ) as WorkflowRunState | undefined;
   const [cursors, setCursors] = useState<Array<string | undefined>>([
     undefined,
   ]);
@@ -287,10 +292,11 @@ export function RunListRoute() {
   const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors);
   const selectorTokens = decoded.selectors.map(selectorToken);
   const query = useQuery({
-    queryKey: queryKeys.runs.list(state, cursor, selectorTokens),
+    queryKey: queryKeys.runs.list(state, cursor, selectorTokens, "terminal"),
     queryFn: () =>
       listRuns(api, {
         ...(state === undefined ? {} : { state }),
+        lifecycle: "terminal",
         ...(cursor === undefined ? {} : { cursor }),
         labelSelectors: decoded.selectors,
       }),
@@ -311,32 +317,13 @@ export function RunListRoute() {
   }
 
   return (
-    <section className="route-page runs-page">
-      <header className="route-header-row">
+    <div className="panel run-library run-view-panel">
+      <div className="section-heading">
         <div>
-          <p className="eyebrow">Authoritative execution history</p>
-          <h2>Runs</h2>
-          <p className="lede">
-            Lifecycle state comes only from Go Server snapshots. Open a Run to
-            inspect its ordered Stage attempts and live typed Planner plan.
-          </p>
+          <p className="eyebrow">Owner scope</p>
+          <h3>Completed Runs</h3>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching || decoded.error !== undefined}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
-
-      <div className="panel run-library">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Owner scope</p>
-            <h3>Workflow Runs</h3>
-          </div>
+        <div className="run-view-controls">
           <label className="compact-select">
             State
             <select
@@ -353,124 +340,126 @@ export function RunListRoute() {
                 setCursors([undefined]);
               }}
             >
-              <option value="">All states</option>
-              {RUN_STATES.map((candidate) => (
+              <option value="">All terminal states</option>
+              {TERMINAL_RUN_STATES.map((candidate) => (
                 <option key={candidate} value={candidate}>
                   {candidate}
                 </option>
               ))}
             </select>
           </label>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={query.isFetching || decoded.error !== undefined}
+            onClick={() => void query.refetch()}
+          >
+            {query.isFetching ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
-        <RunLabelFilters
-          key={encodedLabelSelectors.join("\u0000")}
-          selectors={decoded.selectors}
-          parseError={decoded.error}
-          onReplace={replaceLabelSelectors}
-        />
-        {decoded.error !== undefined ? (
-          <div className="compact-empty">
-            Clear the malformed metadata filters to load Runs.
-          </div>
-        ) : query.isPending ? (
-          <p className="loading-copy" aria-live="polite">
-            Loading Runs…
-          </p>
-        ) : query.error !== null ? (
-          <ErrorNotice error={query.error} />
-        ) : query.data.items.length === 0 ? (
-          <div className="compact-empty">
-            <strong>No Runs match this view.</strong>
-            <p>Create one from an exact published Workflow.</p>
-          </div>
-        ) : (
-          <div className="table-scroll">
-            <table className="responsive-table run-list-table">
-              <thead>
-                <tr>
-                  <th>Run</th>
-                  <th>Workflow</th>
-                  <th>State</th>
-                  <th>Run metadata labels</th>
-                  <th>Created</th>
-                  <th>Updated</th>
-                  <th>Finished</th>
-                </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((run) => (
-                  <tr key={run.runId}>
-                    <td className="run-list-id-cell" data-label="Run">
-                      <Link
-                        className="run-list-id-link"
-                        to={`/runs/${encodeURIComponent(run.runId)}`}
-                        aria-label={run.runId}
-                        title={run.runId}
-                      >
-                        {compactRunId(run.runId)}
-                      </Link>
-                    </td>
-                    <td
-                      className="run-list-workflow-cell"
-                      data-label="Workflow"
-                    >
-                      <span className="run-list-mobile-label">Workflow</span>
-                      <code>{run.workflow}</code>
-                    </td>
-                    <td className="run-list-state-cell" data-label="State">
-                      <StateBadge state={run.state} />
-                    </td>
-                    <td
-                      className={`run-list-labels-cell ${Object.keys(run.labels).length === 0 ? "run-list-labels-empty" : ""}`}
-                      data-label="Run metadata labels"
-                    >
-                      <span className="run-list-mobile-label">Labels</span>
-                      <RunMetadataLabelChips labels={run.labels} />
-                    </td>
-                    <td className="run-list-created-cell" data-label="Created">
-                      <time dateTime={run.createdAt}>
-                        {formatTimestamp(run.createdAt)}
-                      </time>
-                    </td>
-                    <td className="run-list-updated-cell" data-label="Updated">
-                      <span className="run-list-mobile-label">Updated</span>
-                      <time dateTime={run.updatedAt}>
-                        {formatTimestamp(run.updatedAt)}
-                      </time>
-                    </td>
-                    <td
-                      className="run-list-finished-cell"
-                      data-label="Finished"
-                    >
-                      {run.finishedAt === undefined ? (
-                        "—"
-                      ) : (
-                        <time dateTime={run.finishedAt}>
-                          {formatTimestamp(run.finishedAt)}
-                        </time>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <CursorControls
-          label="Run pages"
-          canGoBack={cursors.length > 1}
-          {...(query.data?.page.hasMore === true &&
-          query.data.page.nextCursor !== undefined
-            ? { nextCursor: query.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
-        />
       </div>
-    </section>
+      <RunLabelFilters
+        key={encodedLabelSelectors.join("\u0000")}
+        selectors={decoded.selectors}
+        parseError={decoded.error}
+        onReplace={replaceLabelSelectors}
+      />
+      {decoded.error !== undefined ? (
+        <div className="compact-empty">
+          Clear the malformed metadata filters to load Runs.
+        </div>
+      ) : query.isPending ? (
+        <p className="loading-copy" aria-live="polite">
+          Loading completed Runs…
+        </p>
+      ) : query.error !== null ? (
+        <ErrorNotice error={query.error} />
+      ) : query.data.items.length === 0 ? (
+        <div className="compact-empty">
+          <strong>No completed Runs match this view.</strong>
+          <p>Terminal Runs appear here after execution finishes.</p>
+        </div>
+      ) : (
+        <div className="table-scroll">
+          <table className="responsive-table run-list-table">
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Workflow</th>
+                <th>State</th>
+                <th>Run metadata labels</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Finished</th>
+              </tr>
+            </thead>
+            <tbody>
+              {query.data.items.map((run) => (
+                <tr key={run.runId}>
+                  <td className="run-list-id-cell" data-label="Run">
+                    <Link
+                      className="run-list-id-link"
+                      to={`/runs/${encodeURIComponent(run.runId)}`}
+                      aria-label={run.runId}
+                      title={run.runId}
+                    >
+                      {compactRunId(run.runId)}
+                    </Link>
+                  </td>
+                  <td className="run-list-workflow-cell" data-label="Workflow">
+                    <span className="run-list-mobile-label">Workflow</span>
+                    <code>{run.workflow}</code>
+                  </td>
+                  <td className="run-list-state-cell" data-label="State">
+                    <StateBadge state={run.state} />
+                  </td>
+                  <td
+                    className={`run-list-labels-cell ${Object.keys(run.labels).length === 0 ? "run-list-labels-empty" : ""}`}
+                    data-label="Run metadata labels"
+                  >
+                    <span className="run-list-mobile-label">Labels</span>
+                    <RunMetadataLabelChips labels={run.labels} />
+                  </td>
+                  <td className="run-list-created-cell" data-label="Created">
+                    <time dateTime={run.createdAt}>
+                      {formatTimestamp(run.createdAt)}
+                    </time>
+                  </td>
+                  <td className="run-list-updated-cell" data-label="Updated">
+                    <span className="run-list-mobile-label">Updated</span>
+                    <time dateTime={run.updatedAt}>
+                      {formatTimestamp(run.updatedAt)}
+                    </time>
+                  </td>
+                  <td className="run-list-finished-cell" data-label="Finished">
+                    {run.finishedAt === undefined ? (
+                      "—"
+                    ) : (
+                      <time dateTime={run.finishedAt}>
+                        {formatTimestamp(run.finishedAt)}
+                      </time>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <CursorControls
+        label="Run pages"
+        canGoBack={cursors.length > 1}
+        {...(query.data?.page.hasMore === true &&
+        query.data.page.nextCursor !== undefined
+          ? { nextCursor: query.data.page.nextCursor }
+          : {})}
+        onBack={() =>
+          setCursors((current) =>
+            current.slice(0, Math.max(1, current.length - 1)),
+          )
+        }
+        onNext={(next) => setCursors((current) => [...current, next])}
+      />
+    </div>
   );
 }

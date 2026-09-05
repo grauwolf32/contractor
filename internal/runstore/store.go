@@ -428,6 +428,14 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 		value := string(*params.State)
 		state = &value
 	}
+	var lifecycle *string
+	if params.Lifecycle != nil {
+		if !params.Lifecycle.Valid() {
+			return nil, invalidf("unknown WorkflowRun lifecycle %q", *params.Lifecycle)
+		}
+		value := string(*params.Lifecycle)
+		lifecycle = &value
+	}
 	rows, err := s.db.Query(ctx, `
 WITH page AS (
     SELECT run_id, project_id, workflow_name, workflow_version, state, created_at, updated_at, finished_at
@@ -436,6 +444,11 @@ WITH page AS (
       AND ($2::text IS NULL OR state = $2)
       AND ($3::timestamptz IS NULL OR (created_at, run_id) < ($3, $4))
       AND ($8::text IS NULL OR project_id = $8)
+      AND (
+          $9::text IS NULL
+          OR ($9 = 'active' AND state IN ('initializing', 'running', 'cancelling'))
+          OR ($9 = 'terminal' AND state IN ('succeeded', 'failed', 'cancelled'))
+      )
       AND (
           cardinality($6::text[]) = 0
           OR (
@@ -463,7 +476,7 @@ GROUP BY page.run_id, page.project_id, page.workflow_name, page.workflow_version
          page.created_at, page.updated_at, page.finished_at
 ORDER BY page.created_at DESC, page.run_id DESC`,
 		params.OwnerID, state, params.BeforeCreatedAt, params.BeforeRunID, params.Limit,
-		selectorKeys, selectorValues, params.ProjectID,
+		selectorKeys, selectorValues, params.ProjectID, lifecycle,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list WorkflowRuns for owner: %w", err)

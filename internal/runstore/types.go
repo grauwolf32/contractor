@@ -21,6 +21,30 @@ const (
 	RunCancelled    WorkflowRunState = "cancelled"
 )
 
+// WorkflowRunLifecycle is a read-only grouping used by owner list queries. It
+// does not add a durable WorkflowRun state.
+type WorkflowRunLifecycle string
+
+const (
+	RunLifecycleActive   WorkflowRunLifecycle = "active"
+	RunLifecycleTerminal WorkflowRunLifecycle = "terminal"
+)
+
+func (l WorkflowRunLifecycle) Valid() bool {
+	return l == RunLifecycleActive || l == RunLifecycleTerminal
+}
+
+func (l WorkflowRunLifecycle) Includes(state WorkflowRunState) bool {
+	switch l {
+	case RunLifecycleActive:
+		return state == RunInitializing || state == RunRunning || state == RunCancelling
+	case RunLifecycleTerminal:
+		return state == RunSucceeded || state == RunFailed || state == RunCancelled
+	default:
+		return false
+	}
+}
+
 type StageExecutionState string
 
 const (
@@ -202,6 +226,7 @@ type ListRunsParams struct {
 	OwnerID                string
 	ProjectID              *string
 	State                  *WorkflowRunState
+	Lifecycle              *WorkflowRunLifecycle
 	MetadataLabelSelectors []RunMetadataLabelSelector
 	BeforeCreatedAt        *time.Time
 	BeforeRunID            string

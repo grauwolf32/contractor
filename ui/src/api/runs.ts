@@ -32,8 +32,15 @@ export const RUN_STATES = [
   "failed",
   "cancelled",
 ] as const satisfies readonly WorkflowRunState[];
+export const TERMINAL_RUN_STATES = [
+  "succeeded",
+  "failed",
+  "cancelled",
+] as const satisfies readonly WorkflowRunState[];
 
 export type WorkflowRunState = components["schemas"]["WorkflowRunState"];
+export type WorkflowRunLifecycle =
+  components["schemas"]["WorkflowRunLifecycle"];
 export type RunPage = components["schemas"]["RunPage"];
 export type RunStatus = components["schemas"]["RunStatus"];
 export type RunSummary = components["schemas"]["RunSummary"];
@@ -45,6 +52,7 @@ export type ArtifactLineagePage = components["schemas"]["ArtifactLineagePage"];
 
 export interface RunPageRequest {
   state?: WorkflowRunState;
+  lifecycle?: WorkflowRunLifecycle;
   cursor?: string;
   labelSelectors?: readonly RunMetadataLabelSelector[];
 }
@@ -131,6 +139,9 @@ export async function listRuns(
         query: {
           limit: RUN_PAGE_SIZE,
           ...(request.state === undefined ? {} : { state: request.state }),
+          ...(request.lifecycle === undefined
+            ? {}
+            : { lifecycle: request.lifecycle }),
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
           ...(labelSelectors.length === 0
             ? {}

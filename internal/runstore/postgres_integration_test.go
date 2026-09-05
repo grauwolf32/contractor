@@ -666,6 +666,78 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 	}
 }
 
+func TestPostgresWorkflowRunLifecycleFilteringIsOwnedIntersectedAndStable(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+
+	terminalOld := createTestRun(t, ctx, store, "run-lifecycle-terminal-old")
+	if _, err := store.TransitionRun(
+		ctx, terminalOld.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	active := createTestRun(t, ctx, store, "run-lifecycle-active")
+	if _, err := store.TransitionRun(
+		ctx, active.RunID, RunInitializing, RunRunning, Reason{Code: "initialized"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	terminalNew := createTestRun(t, ctx, store, "run-lifecycle-terminal-new")
+	if _, err := store.TransitionRun(
+		ctx, terminalNew.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	foreignParams := testRunParams("run-lifecycle-terminal-foreign")
+	foreignParams.OwnerID = "user-2"
+	foreign, err := store.CreateRun(ctx, foreignParams)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.TransitionRun(
+		ctx, foreign.RunID, RunInitializing, RunFailed, Reason{Code: "failed"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	terminal := RunLifecycleTerminal
+	first, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &terminal, Limit: 1,
+	})
+	if err != nil || len(first) != 1 || first[0].RunID != terminalNew.RunID {
+		t.Fatalf("first terminal page = (%+v, %v)", first, err)
+	}
+	second, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &terminal, Limit: 2,
+		BeforeCreatedAt: &first[0].CreatedAt, BeforeRunID: first[0].RunID,
+	})
+	if err != nil || len(second) != 1 || second[0].RunID != terminalOld.RunID {
+		t.Fatalf("second terminal page = (%+v, %v)", second, err)
+	}
+	activeLifecycle := RunLifecycleActive
+	activePage, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &activeLifecycle, Limit: 10,
+	})
+	if err != nil || len(activePage) != 1 || activePage[0].RunID != active.RunID {
+		t.Fatalf("active page = (%+v, %v)", activePage, err)
+	}
+	running := RunRunning
+	intersection, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", State: &running, Lifecycle: &terminal, Limit: 10,
+	})
+	if err != nil || len(intersection) != 0 {
+		t.Fatalf("contradictory lifecycle and state page = (%+v, %v)", intersection, err)
+	}
+	unknown := WorkflowRunLifecycle("unknown")
+	if _, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", Lifecycle: &unknown, Limit: 10,
+	}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid lifecycle error = %v", err)
+	}
+}
+
 func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
 	gateway := contracts.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),

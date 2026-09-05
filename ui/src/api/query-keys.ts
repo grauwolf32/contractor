@@ -157,11 +157,13 @@ export const queryKeys = {
       state: string | undefined,
       cursor: string | undefined,
       labelSelectors: readonly string[] = [],
+      lifecycle?: string,
     ) =>
       [
         "runs",
         "list",
         state ?? null,
+        lifecycle ?? null,
         [...labelSelectors],
         cursor ?? null,
       ] as const,

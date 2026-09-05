@@ -196,7 +196,7 @@ describe("Action center", () => {
     );
     expect(
       screen.getByRole("link", { name: "View failed Runs →" }),
-    ).toHaveAttribute("href", "/runs?state=failed");
+    ).toHaveAttribute("href", "/runs?view=completed&state=failed");
     expect(requests.filter((url) => url.pathname === "/v1/runs")).toHaveLength(
       4,
     );

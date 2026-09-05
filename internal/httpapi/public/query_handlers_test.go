@@ -136,6 +136,24 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	if filtered.Code != http.StatusOK || len(filteredPage.Items) != 1 || filteredPage.Items[0].RunID != "run-old" {
 		t.Fatalf("filtered Run page = status %d, %+v", filtered.Code, filteredPage)
 	}
+	terminal := serveQuery(t, fixture.handler, "/v1/runs?lifecycle=terminal")
+	var terminalPage runPageResponse
+	decodeQueryResponse(t, terminal, &terminalPage)
+	if terminal.Code != http.StatusOK || len(terminalPage.Items) != 1 || terminalPage.Items[0].RunID != "run-old" {
+		t.Fatalf("terminal Run page = status %d, %+v", terminal.Code, terminalPage)
+	}
+	active := serveQuery(t, fixture.handler, "/v1/runs?lifecycle=active")
+	var activePage runPageResponse
+	decodeQueryResponse(t, active, &activePage)
+	if active.Code != http.StatusOK || len(activePage.Items) != 1 || activePage.Items[0].RunID != "run-new" {
+		t.Fatalf("active Run page = status %d, %+v", active.Code, activePage)
+	}
+	intersection := serveQuery(t, fixture.handler, "/v1/runs?lifecycle=terminal&state=running")
+	var intersectionPage runPageResponse
+	decodeQueryResponse(t, intersection, &intersectionPage)
+	if intersection.Code != http.StatusOK || len(intersectionPage.Items) != 0 || intersectionPage.Page.HasMore {
+		t.Fatalf("contradictory lifecycle and state page = status %d, %+v", intersection.Code, intersectionPage)
+	}
 	evalQuery := url.Values{"label": {"purpose=eval", "eval.id=eval_01"}, "limit": {"1"}}
 	evalFirst := serveQuery(t, fixture.handler, "/v1/runs?"+evalQuery.Encode())
 	var evalPage runPageResponse
@@ -189,6 +207,8 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	)
 	for _, target := range []string{
 		"/v1/runs?state=unknown",
+		"/v1/runs?lifecycle=unknown",
+		"/v1/runs?lifecycle=terminal&cursor=" + url.QueryEscape(*page.Page.NextCursor),
 		"/v1/runs?state=running&cursor=" + url.QueryEscape(*page.Page.NextCursor),
 		"/v1/runs?cursor=" + url.QueryEscape(tamperCursor(*page.Page.NextCursor)),
 		"/v1/runs?ownerId=user-2",

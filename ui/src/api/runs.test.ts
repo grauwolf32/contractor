@@ -101,7 +101,8 @@ describe("Run API", () => {
     );
 
     await listRuns(api, {
-      state: "running",
+      state: "failed",
+      lifecycle: "terminal",
       cursor: "run-next",
       labelSelectors: [
         { key: "purpose", value: "eval" },
@@ -136,7 +137,8 @@ describe("Run API", () => {
 
     const runQuery = new URL(requests[0]?.url ?? "http://invalid").searchParams;
     expect(runQuery.get("limit")).toBe("50");
-    expect(runQuery.get("state")).toBe("running");
+    expect(runQuery.get("state")).toBe("failed");
+    expect(runQuery.get("lifecycle")).toBe("terminal");
     expect(runQuery.get("cursor")).toBe("run-next");
     expect(runQuery.getAll("label")).toEqual([
       "eval.id=eval_01=a",
