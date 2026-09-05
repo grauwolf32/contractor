@@ -3,8 +3,8 @@ id: V25-005
 title: Create pinned Audit child Runs through a trusted Run Service
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "e0873a3ea40d986519395907ee1697aabfe66fc4"
 depends_on: [V24-005, V25-003]
 languages: [go, sql]
 
