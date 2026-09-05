@@ -27,6 +27,7 @@ scope:
   in:
     - Add versioned strict codecs for worklist, item task package, ordered execution manifest, complete CheckResultSet, finding proposal, evidence and coverage envelopes.
     - Add bounded ZIP import/export with canonical manifest order, content digests and no external unqualified refs.
+    - Carry exact source ArtifactRef, media type and content digest in each task/execution manifest without duplicating source bytes per item, and bound aggregate generated package bytes.
     - Add custom-checklist inventory with stable keys, duplicate detection and one initial not-tested coverage row per selected item.
     - Add OpenAPI 3.x JSON/YAML paths inventory with separate exact source and canonical inventory digests, bounded local ref resolution and deterministic path/method ordering.
     - Reject a remote ref required by a selected operation; never fetch it. Record unsupported callbacks/webhooks and remote refs confined to those unselected surfaces as explicit gaps.

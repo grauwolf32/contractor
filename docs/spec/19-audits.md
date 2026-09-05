@@ -388,6 +388,41 @@ and expanded bytes, bounded file count/path length/depth, strict relative paths,
 no traversal, no special files, no symlink escape, and no execution of package
 content. A dedicated Audit package schema adds tighter per-document limits.
 
+The first package schema is strict canonical JSON:
+
+```json
+{
+  "schema": "contractor.audit.package.v1",
+  "package_id": "task-0123",
+  "kind": "item-task",
+  "members": [
+    {
+      "id": "task-document",
+      "path": "task.json",
+      "media_type": "application/json",
+      "size": 123,
+      "digest": "sha256:..."
+    }
+  ]
+}
+```
+
+`members` is ordered by path and every `id` and `path` is unique. The optional
+`entrypoint` is permitted only for an `openapi-source` package and names one
+declared member. Initial package kinds are `worklist`, `item-task`,
+`execution-manifest`, `check-results`, `finding-proposal`, `evidence`,
+`coverage`, and `openapi-source`. Unknown manifest fields, schema versions, or
+kinds are rejected. Canonical export uses stored members, fixed ZIP metadata,
+and the JCS manifest; import may accept stored or deflated members but always
+checks their declared size and SHA-256 digest before exposing bytes.
+
+Initial hard limits are 16 MiB compressed, 32 MiB expanded, 1,024 members,
+16 MiB per opaque member, 512 KiB for `manifest.json`, 8 MiB per parsed JSON or
+YAML document, 512 bytes and 16 components per package path, JSON/YAML depth
+64, local-ref depth 32, 4,096 inventory items, and 64 MiB across all generated
+item packages. Server deployments may lower these values but cannot accept a
+package above them under this schema version.
+
 Child Workflows declare fixed slots such as `task`, `result`, and `proposals`.
 Variable lists live inside a package; Runtime cannot publish an unbounded
 dynamic `outputs/vuln-*` namespace around Scheduler acceptance.
@@ -524,7 +559,16 @@ no circular digest: the inventory basis contains no operation keys and the
 worklist is derived only after its digest is known.
 
 Task packages include both digests, the operation, relevant resolved schemas/
-parameters/security declarations, exact source input, and scope.
+parameters/security declarations, an exact source descriptor
+(`ArtifactRef`, media type, and content digest), and scope. The immutable
+execution manifest repeats that exact source input. Source bytes remain in the
+single pinned input artifact and are forked through the ordinary Run input
+path; they are not copied into every item package. This keeps inventory memory
+and storage bounded while a reformatted or replaced source still changes task
+package provenance. The baseline ref in a task package is inert provenance,
+not scope authority: the trusted Run Service consumes the server-side
+execution manifest, forks it to `inputs/<workflow-slot>`, and Runtime receives
+only that allocation-bound RunScope access.
 Operation-to-handler mapping requires evidence; an unsupported mapping remains
 an assumption. An unmapped endpoint or truncated graph yields an explicit
 gap/inconclusive result,
