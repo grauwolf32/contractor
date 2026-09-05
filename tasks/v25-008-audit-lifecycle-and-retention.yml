@@ -3,8 +3,8 @@ id: V25-008
 title: Integrate Audit pause, cancel, deletion and retention fences
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "a8285d51c85c96e9d45a05497f5e881a7d88779b"
 depends_on: [V24-005, V25-007]
 languages: [go, sql, openapi]
 
@@ -28,6 +28,7 @@ scope:
     - Add idempotent CAS pause/resume/cancel/delete commands and safe lifecycle projection.
     - Cancel every owned nonterminal Run with bounded independent progress and wait for existing terminal-release authority.
     - Block hard deletion of an Audit-bound Run until terminal release and one durable collection receipt, including failed, cancelled, missing-output and invalid-result cases; preserve nullable tombstone provenance afterward.
+    - Retain original child Run IDs, exact Workflow identity/closure digest and safe retained configuration refs, role, item/attempt links and checklist origins independently of live Run rows; expose runDeleted in read projections.
     - Reserve protected Audit-managed Project artifact prefixes from generic mutation.
     - Add Audit cancellation/drain/hold-release phases to Project deletion recovery.
     - Release Audit-level managed LLM/Runtime credential dispatch holds after dispatch is durably closed and every submission intent is resolved; retain exact evidence holds independently until Audit deletion.
@@ -40,6 +41,7 @@ requirements:
   - {id: R3, text: Public generic artifact and Run deletion APIs cannot bypass Audit retention guards.}
   - {id: R4, text: Crash/restart at each deletion phase resumes rather than restarts or skips work.}
   - {id: R5, text: Cleanup never waits for a successful output import that a failed, cancelled, output-less or invalid Run cannot produce.}
+  - {id: R6, text: Permitted child Run deletion or catalog replacement cannot erase exact check attribution; retained configuration contains no credential values or active grants and is purged with its Audit.}
 
 acceptance_criteria:
   - id: A1
@@ -54,7 +56,11 @@ acceptance_criteria:
     given: A public caller targets a managed Audit artifact or premature Run deletion.
     when: The mutation is attempted.
     then: It is rejected with a stable owner-safe conflict.
+  - id: A4
+    given: Collected checks with multiple attempts and exact Workflow/checklist origins.
+    when: Their Runs are hard-deleted and catalog definitions are replaced.
+    then: Audit reads retain original Run IDs, all attempts and exact Workflow/checklist refs with runDeleted; later Audit deletion releases these holds.
 
 tests:
-  - {name: lifecycle, command: "go test ./internal/auditcontroller ./internal/projectlifecycle ./internal/httpapi/public -run Audit", covers: [A1, A2, A3]}
-  - {name: postgres, command: "go test -tags=integration -race ./internal/auditcontroller ./internal/projectlifecycle", covers: [A1, A2]}
+  - {name: lifecycle, command: "go test ./internal/auditcontroller ./internal/projectlifecycle ./internal/httpapi/public -run Audit", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "go test -tags=integration -race ./internal/auditcontroller ./internal/projectlifecycle", covers: [A1, A2, A4]}
