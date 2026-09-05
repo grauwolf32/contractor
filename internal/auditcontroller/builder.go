@@ -89,7 +89,7 @@ func (b *PinnedSubmissionBuilder) Prepare(
 		return PreparedSubmission{}, invalidSubmission("one-item execution manifest is invalid")
 	}
 	manifestDigest := digestBytes(encodedManifest)
-	namespace := deterministicID("audit", audit.AuditID)
+	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	manifestArtifact, err := b.artifacts.PutImmutableProject(
 		ctx, audit.ProjectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "execution-manifest-" + stringsDigest(manifestDigest)},

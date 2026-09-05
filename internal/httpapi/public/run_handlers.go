@@ -470,6 +470,13 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	deletionBlocker, err := h.dependencies.Runs.RunDeletionBlocker(
+		r.Context(), principalUserID(r.Context()), run.RunID,
+	)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	executions, err := h.dependencies.Runs.ListStageExecutions(r.Context(), run.RunID)
 	if err != nil {
 		h.handleError(w, err)
@@ -511,7 +518,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	}
 	attempts := make([]stageAttemptResponse, 0, len(executions))
 	var activeExecutionID *string
-	deletable := runstore.RunLifecycleTerminal.Includes(run.State)
+	deletable := deletionBlocker == nil
 	for _, execution := range executions {
 		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
@@ -560,11 +567,6 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		if allocationErr != nil {
 			h.handleError(w, allocationErr)
 			return
-		}
-		for _, allocation := range allocations {
-			if allocation.ReleaseCompletedAt == nil {
-				deletable = false
-			}
 		}
 		runtimeConfiguration := stageRuntimeConfigurationReadModel(allocations)
 		if !terminalStageState(execution.State) {

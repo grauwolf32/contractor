@@ -206,7 +206,8 @@ func prefixedExecutionColumns(prefix string) string {
 		prefix + ".manifest_digest, " + prefix + ".submission_key, " + prefix + ".request_digest, " +
 		prefix + ".run_id, " + prefix + ".state, " + prefix + ".terminal_outcome, " +
 		prefix + ".terminal_run_generation, " + prefix + ".terminal_run_sequence, " +
-		prefix + ".terminal_observed_at, " + prefix + ".created_at, " + prefix + ".updated_at"
+		prefix + ".terminal_observed_at, " + prefix + ".run_provenance, " + prefix + ".run_deleted_at, " +
+		prefix + ".created_at, " + prefix + ".updated_at"
 }
 
 func (s *PostgresStore) lookupExecutionReplay(
@@ -254,6 +255,23 @@ WITH live_claim AS MATERIALIZED (
      FOR UPDATE OF claim
 ), eligible AS MATERIALIZED (
     SELECT execution.execution_id, execution.audit_id,
+           jsonb_build_object(
+               'schema', 'contractor.audit.run-provenance.v1',
+               'runId', run.run_id,
+               'workflow', jsonb_build_object(
+                   'name', run.workflow_name,
+                   'version', run.workflow_version,
+                   'schemaVersion', run.workflow_schema_version,
+                   'configurationRef', jsonb_build_object(
+                       'name', run.workflow_name,
+                       'version', run.workflow_version
+                   ),
+                   'closureDigest', 'sha256:' || encode(
+                       pg_catalog.sha256(convert_to(run.workflow_snapshot::text, 'UTF8')),
+                       'hex'
+                   )
+               )
+           ) AS run_provenance,
            contractor_require_active_audit_project(audit.project_id, audit.owner_id)
       FROM audit_executions AS execution
       JOIN audits AS audit USING (audit_id)
@@ -280,7 +298,8 @@ WITH live_claim AS MATERIALIZED (
     RETURNING audit.audit_id, audit.next_event_sequence
 ), changed AS (
     UPDATE audit_executions AS execution
-       SET run_id = $5, state = 'submitted', updated_at = clock_timestamp()
+       SET run_id = $5, run_provenance = eligible.run_provenance,
+           state = 'submitted', updated_at = clock_timestamp()
       FROM eligible JOIN advanced_audit USING (audit_id)
      WHERE execution.execution_id = eligible.execution_id
     RETURNING execution.*
@@ -376,6 +395,7 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution,
 	var roleAttempt *int
 	var outcome *string
 	var terminalSequence *int64
+	var encodedProvenance []byte
 	if err := row.Scan(
 		ownerID, projectID,
 		&execution.ExecutionID, &execution.AuditID, &execution.RoundID,
@@ -383,7 +403,8 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution,
 		&execution.Manifest.Digest, &execution.SubmissionKey, &execution.RequestDigest,
 		&execution.RunID, &state, &outcome,
 		&execution.TerminalRunGeneration, &terminalSequence,
-		&execution.TerminalObservedAt, &execution.CreatedAt, &execution.UpdatedAt,
+		&execution.TerminalObservedAt, &encodedProvenance, &execution.RunDeletedAt,
+		&execution.CreatedAt, &execution.UpdatedAt,
 	); err != nil {
 		return Execution{}, err
 	}
@@ -411,6 +432,9 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution,
 		}
 		value := uint64(*terminalSequence)
 		execution.TerminalRunSequence = &value
+	}
+	if err := decodeRunProvenance(encodedProvenance, execution.RunID, &execution.RunProvenance); err != nil {
+		return Execution{}, err
 	}
 	return execution, nil
 }

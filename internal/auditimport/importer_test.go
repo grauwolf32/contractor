@@ -85,6 +85,27 @@ func TestImporterRecordsFailedAndCancelledWithoutInventedOutput(t *testing.T) {
 	}
 }
 
+func TestImporterConvertsPermanentPinnedContractFailureToReceipt(t *testing.T) {
+	harness := newImportHarness(t)
+	corrupt := []byte("not an Audit task package")
+	harness.artifacts.project[refKey(harness.store.members[0].Task.Ref)] = corrupt
+	digest := digestBytes(corrupt)
+	harness.store.members[0].Task.Digest = digest
+	harness.snapshot.Items[0].Task.Digest = digest
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	collected := harness.store.collected
+	if err != nil || !worked || collected.Disposition != auditstore.CollectionContractInvalid ||
+		collected.SourceOutput != nil || collected.ErrorCode == nil ||
+		*collected.ErrorCode != "collection-contract-invalid" || len(collected.Items) != 1 ||
+		collected.Items[0].Retryable || collected.Items[0].FinalDisposition != auditstore.FinalInvalidResult ||
+		collected.Items[0].Coverage.Status != auditstore.CoverageBlocked {
+		t.Fatalf("contract-invalid collection = (%t, %v, %+v)", worked, err, collected)
+	}
+}
+
 func TestImporterSettlesEvidenceBudgetExhaustionWithoutStaging(t *testing.T) {
 	harness := newImportHarness(t)
 	harness.snapshot.Audit.Limits.MaxEvidenceBytes = harness.artifacts.runDescriptor.SizeBytes - 1

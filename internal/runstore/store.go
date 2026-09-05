@@ -30,6 +30,7 @@ type Repository interface {
 	LookupRunIdempotency(context.Context, string, string, string) (WorkflowRun, bool, error)
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
+	RunDeletionBlocker(context.Context, string, string) (*RunNotDeletableReason, error)
 	DeleteReleasedTerminalRun(context.Context, string, string) error
 	ListRunQueue(context.Context, ListRunQueueParams) ([]WorkflowRunQueueItem, error)
 	GetOwnerQueueControl(context.Context, string) (OwnerQueueControl, error)
@@ -457,6 +458,21 @@ WITH page AS (
                  ON allocation.stage_execution_id = execution.stage_execution_id
                WHERE execution.run_id = workflow_runs.run_id
                  AND allocation.release_completed_at IS NULL
+           )
+           AND (
+               publication_mode <> 'audit-managed'
+               OR EXISTS (
+                   SELECT 1
+                     FROM audit_executions AS audit_execution
+                     JOIN audit_collection_receipts AS receipt
+                       ON receipt.execution_id = audit_execution.execution_id
+                      AND receipt.audit_id = audit_execution.audit_id
+                      AND receipt.run_id = workflow_runs.run_id
+                    WHERE audit_execution.execution_id = workflow_runs.audit_execution_id
+                      AND audit_execution.run_id = workflow_runs.run_id
+                      AND audit_execution.state = 'collected'
+                      AND audit_execution.run_provenance IS NOT NULL
+               )
            ) AS deletable
     FROM workflow_runs
     WHERE owner_id = $1

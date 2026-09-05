@@ -335,7 +335,8 @@ export interface paths {
         get: operations["getAudit"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Begin or replay durable Audit deletion */
+        delete: operations["deleteAudit"];
         options?: never;
         head?: never;
         patch?: never;
@@ -354,6 +355,63 @@ export interface paths {
         put?: never;
         /** Atomically pin an Audit baseline and accept its first deterministic Round */
         post: operations["startAudit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pause admission of new child Runs while existing work drains */
+        post: operations["pauseAudit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume child Run admission for a paused Audit */
+        post: operations["resumeAudit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close Audit dispatch and begin bounded child Run cancellation */
+        post: operations["cancelAudit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1348,6 +1406,8 @@ export interface components {
             startedAt?: string;
             /** Format: date-time */
             finishedAt?: string;
+            /** Format: date-time */
+            deletionRequestedAt?: string;
         };
         AuditPage: {
             items: components["schemas"]["Audit"][];
@@ -1371,6 +1431,58 @@ export interface components {
         AuditItemState: "pending" | "awaiting_review" | "ready" | "submitted" | "collecting" | "settled";
         /** @enum {unknown} */
         AuditFinalDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "excluded" | "not-applicable";
+        /** @enum {unknown} */
+        AuditExecutionRole: "discovery" | "check" | "assessment";
+        /** @enum {unknown} */
+        AuditExecutionItemState: "submitted" | "collecting" | "settled";
+        /** @enum {unknown} */
+        AuditTerminalOutcome: "succeeded" | "failed" | "cancelled" | "submission-failed";
+        /** @enum {unknown} */
+        AuditCollectionDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "collection-contract-invalid";
+        AuditWorkflowProvenance: {
+            name: components["schemas"]["ConfigId"];
+            version: components["schemas"]["ConfigVersion"];
+            schemaVersion: string;
+            configurationRef: components["schemas"]["WorkflowRef"];
+            closureDigest: components["schemas"]["Digest"];
+        };
+        AuditRunProvenance: {
+            /** @constant */
+            schema: "contractor.audit.run-provenance.v1";
+            runId: components["schemas"]["ResourceId"];
+            workflow?: components["schemas"]["AuditWorkflowProvenance"];
+            provenanceIncomplete?: boolean;
+        };
+        AuditItemAttempt: {
+            executionItemId: components["schemas"]["ResourceId"];
+            executionId: components["schemas"]["ResourceId"];
+            itemId: components["schemas"]["ResourceId"];
+            itemAttempt: number;
+            role: components["schemas"]["AuditExecutionRole"];
+            state: components["schemas"]["AuditExecutionItemState"];
+            collectionDisposition?: components["schemas"]["AuditCollectionDisposition"];
+            result?: components["schemas"]["AuditExactArtifact"];
+            terminalOutcome?: components["schemas"]["AuditTerminalOutcome"];
+            runId?: components["schemas"]["ResourceId"];
+            runDeleted: boolean;
+            runProvenance?: components["schemas"]["AuditRunProvenance"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            collectedAt?: string;
+        };
+        AuditItemOrigin: {
+            /** @constant */
+            schema: "contractor.audit.item-origin.v1";
+            sourceRef?: components["schemas"]["ArtifactRef"];
+            sourceContentDigest?: components["schemas"]["Digest"];
+            sourceMediaType?: string;
+            canonicalInventoryDigest?: components["schemas"]["Digest"];
+            entryKey: string;
+            entryVersion?: string;
+            /** @description True only for an item materialized before durable origin projection existed. */
+            provenanceIncomplete?: boolean;
+        };
         AuditItem: {
             itemId: components["schemas"]["ResourceId"];
             roundId: components["schemas"]["ResourceId"];
@@ -1379,11 +1491,13 @@ export interface components {
             kind: string;
             subjectKey: string;
             task: components["schemas"]["AuditExactArtifact"];
+            origin: components["schemas"]["AuditItemOrigin"];
             workflowRole: components["schemas"]["ArtifactName"];
             state: components["schemas"]["AuditItemState"];
             finalDisposition?: components["schemas"]["AuditFinalDisposition"];
             acceptedResult?: components["schemas"]["AuditExactArtifact"];
             lastExecutionItemId?: components["schemas"]["ResourceId"];
+            attempts: components["schemas"]["AuditItemAttempt"][];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1470,7 +1584,7 @@ export interface components {
             /** @constant */
             kind: "run_not_deletable";
             /** @enum {unknown} */
-            reason: "run_not_terminal" | "allocation_release_pending";
+            reason: "run_not_terminal" | "allocation_release_pending" | "audit_collection_pending";
         };
         RuntimeCredentialInUseDetails: {
             /** @constant */
@@ -1918,7 +2032,7 @@ export interface components {
             projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
-            /** @description True only while the Run is terminal and every Runtime allocation is released. */
+            /** @description True only when terminal release and every applicable retention receipt are durable. */
             deletable: boolean;
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
@@ -1953,7 +2067,7 @@ export interface components {
             projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
             state: components["schemas"]["WorkflowRunState"];
-            /** @description True only while the Run is terminal and every Runtime allocation is released. */
+            /** @description True only when terminal release and every applicable retention receipt are durable. */
             deletable: boolean;
             labels: components["schemas"]["RunMetadataLabels"];
             /** Format: date-time */
@@ -3587,6 +3701,46 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    deleteAudit: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit deletion intent was durably accepted */
+            202: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Audit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     startAudit: {
         parameters: {
             query?: never;
@@ -3626,6 +3780,126 @@ export interface operations {
             412: components["responses"]["PreconditionFailed"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    pauseAudit: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit dispatch is paused */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Audit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resumeAudit: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit dispatch is active */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Audit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    cancelAudit: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit cancellation was durably accepted */
+            202: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Audit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
         };
     };

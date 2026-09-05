@@ -772,6 +772,28 @@ func (f *fakeRunStore) runDeletable(run runstore.WorkflowRun) bool {
 	return true
 }
 
+func (f *fakeRunStore) RunDeletionBlocker(
+	_ context.Context, ownerID string, runID string,
+) (*runstore.RunNotDeletableReason, error) {
+	run, ok := f.runs[runID]
+	if !ok || run.OwnerID != ownerID {
+		return nil, runstore.ErrNotFound
+	}
+	if !runstore.RunLifecycleTerminal.Includes(run.State) {
+		reason := runstore.RunNotTerminal
+		return &reason, nil
+	}
+	for _, execution := range f.executions[runID] {
+		for _, allocation := range f.allocations[execution.StageExecutionID] {
+			if allocation.ReleaseCompletedAt == nil {
+				reason := runstore.RunAllocationReleasePending
+				return &reason, nil
+			}
+		}
+	}
+	return nil, nil
+}
+
 func (f *fakeRunStore) DeleteReleasedTerminalRun(
 	_ context.Context, ownerID string, runID string,
 ) error {

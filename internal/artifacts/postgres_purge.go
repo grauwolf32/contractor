@@ -3,6 +3,7 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -12,6 +13,74 @@ import (
 // and removal of the owning resource cannot commit independently.
 type PostgresPurger struct {
 	tx pgx.Tx
+}
+
+// PurgeAuditNamespace removes one Server-reserved Audit namespace without
+// touching owner-authored Project bindings. The caller must delete the owning
+// Audit domain rows in the same transaction.
+func (p *PostgresPurger) PurgeAuditNamespace(
+	ctx context.Context, projectID, namespace string,
+) error {
+	scope, err := ProjectScope(projectID)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(namespace, "audit-") || validateComponent(namespace) != nil {
+		return ErrInvalidName
+	}
+	if _, err := p.tx.Exec(
+		ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`,
+	); err != nil {
+		return fmt.Errorf("enable Audit lifecycle purge: %w", err)
+	}
+	rows, err := p.tx.Query(ctx, `
+SELECT DISTINCT version_id
+FROM artifact_binding_revisions
+WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3
+ORDER BY version_id`, scope.kind, scope.id, namespace)
+	if err != nil {
+		return fmt.Errorf("list Audit lifecycle purge versions: %w", err)
+	}
+	versionIDs := make([]string, 0)
+	for rows.Next() {
+		var versionID string
+		if err := rows.Scan(&versionID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan Audit lifecycle purge version: %w", err)
+		}
+		versionIDs = append(versionIDs, versionID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate Audit lifecycle purge versions: %w", err)
+	}
+	rows.Close()
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_pins
+WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3`, scope.kind, scope.id, namespace); err != nil {
+		return fmt.Errorf("delete Audit Artifact pins: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_lineage
+WHERE (source_scope_kind = $1 AND source_scope_id = $2 AND source_namespace = $3)
+   OR (target_scope_kind = $1 AND target_scope_id = $2 AND target_namespace = $3)`,
+		scope.kind, scope.id, namespace); err != nil {
+		return fmt.Errorf("delete Audit Artifact lineage: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_bindings
+WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3`, scope.kind, scope.id, namespace); err != nil {
+		return fmt.Errorf("delete Audit Artifact bindings: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `
+DELETE FROM artifact_binding_revisions
+WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3`, scope.kind, scope.id, namespace); err != nil {
+		return fmt.Errorf("delete Audit Artifact revisions: %w", err)
+	}
+	if err := p.collectUnreferencedVersions(ctx, versionIDs); err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewPostgresPurger(tx pgx.Tx) (*PostgresPurger, error) {

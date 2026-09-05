@@ -445,6 +445,79 @@ func (s *fakeControllerStore) ObserveSubmissionFailure(_ context.Context, params
 	return s.executions[index], nil
 }
 
+func (s *fakeControllerStore) SettleUndispatched(
+	_ context.Context, claim auditstore.ControllerClaim, limit int,
+) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch {
+		return 0, auditstore.ErrClaimLost
+	}
+	if s.audit.Dispatch != auditstore.DispatchClosed {
+		return 0, auditstore.ErrPrecondition
+	}
+	settled := 0
+	kept := s.items[:0]
+	for _, item := range s.items {
+		if settled < limit && (item.State == auditstore.ItemPending ||
+			item.State == auditstore.ItemAwaitingReview || item.State == auditstore.ItemReady) {
+			settled++
+			continue
+		}
+		kept = append(kept, item)
+	}
+	s.items = kept
+	if settled != 0 {
+		s.audit.Revision++
+	}
+	return settled, nil
+}
+
+func (s *fakeControllerStore) ReleaseDispatchHold(
+	_ context.Context, claim auditstore.ControllerClaim,
+) (auditstore.Audit, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch {
+		return auditstore.Audit{}, false, auditstore.ErrClaimLost
+	}
+	if s.audit.Hold != auditstore.HoldHeld {
+		return s.audit, false, nil
+	}
+	for _, execution := range s.executions {
+		if execution.State == auditstore.ExecutionIntent {
+			return s.audit, false, nil
+		}
+	}
+	s.audit.Hold = auditstore.HoldReleased
+	s.audit.Revision++
+	return s.audit, true, nil
+}
+
+func (s *fakeControllerStore) NextLiveRunForDeletion(
+	_ context.Context, claim auditstore.ControllerClaim,
+) (string, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch {
+		return "", false, auditstore.ErrClaimLost
+	}
+	return "", false, nil
+}
+
+func (s *fakeControllerStore) PurgeClaimed(
+	_ context.Context, claim auditstore.ControllerClaim, _ string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || claim.Epoch != s.epoch {
+		return auditstore.ErrClaimLost
+	}
+	s.audit.State = auditstore.AuditCompleted
+	s.held = false
+	return nil
+}
+
 func (s *fakeControllerStore) findItem(id string) int {
 	for index := range s.items {
 		if s.items[index].ItemID == id {
@@ -560,6 +633,23 @@ func (r *fakeControllerRuns) RequestRunCancellation(_ context.Context, runID str
 		r.cancellations++
 	}
 	return run, nil
+}
+
+func (r *fakeControllerRuns) DeleteReleasedTerminalRun(
+	_ context.Context, _ string, runID string,
+) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	run, exists := r.runs[runID]
+	if !exists {
+		return runstore.ErrNotFound
+	}
+	if !runstore.RunLifecycleTerminal.Includes(run.State) {
+		return &runstore.RunNotDeletableError{RunID: runID, Reason: runstore.RunNotTerminal}
+	}
+	delete(r.runs, runID)
+	delete(r.cursors, runID)
+	return nil
 }
 
 func (r *fakeControllerRuns) finish(runID string, state runstore.WorkflowRunState) {

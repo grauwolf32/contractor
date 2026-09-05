@@ -45,6 +45,10 @@ WITH active_project_gate AS MATERIALIZED (
            END,
            stop_reason_code = $6,
            stop_reason_message = $7,
+           deletion_requested_at = CASE WHEN $5 = 'deleting'
+               THEN COALESCE(deletion_requested_at, clock_timestamp())
+               ELSE deletion_requested_at
+           END,
            finished_at = CASE WHEN $5 IN ('completed', 'cancelled', 'failed')
                               THEN clock_timestamp() ELSE NULL END,
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond'),
@@ -136,6 +140,10 @@ func (s *PostgresStore) TransitionClaimed(
            END,
            stop_reason_code = $7,
            stop_reason_message = $8,
+           deletion_requested_at = CASE WHEN $6 = 'deleting'
+               THEN COALESCE(audit.deletion_requested_at, clock_timestamp())
+               ELSE audit.deletion_requested_at
+           END,
            finished_at = CASE WHEN $6 IN ('completed', 'cancelled', 'failed')
                               THEN clock_timestamp() ELSE NULL END,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond'),

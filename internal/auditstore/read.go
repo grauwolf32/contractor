@@ -16,7 +16,7 @@ state, expected_item_count, revision, created_at, updated_at`
 
 const itemColumns = `
 item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-task_ref, task_digest, workflow_role, state, final_disposition,
+task_ref, task_digest, origin, workflow_role, state, final_disposition,
 accepted_result_ref, accepted_result_digest, last_execution_item_id,
 created_at, updated_at`
 
@@ -24,7 +24,7 @@ const executionColumns = `
 execution_id, audit_id, round_id, role, role_attempt,
 manifest_ref, manifest_digest, submission_key, request_digest, run_id,
 state, terminal_outcome, terminal_run_generation, terminal_run_sequence,
-terminal_observed_at, created_at, updated_at`
+terminal_observed_at, run_provenance, run_deleted_at, created_at, updated_at`
 
 const receiptColumns = `
 receipt_id, audit_id, execution_id, run_id,
@@ -136,7 +136,7 @@ SELECT `+prefixedItemColumns("item")+`
 func prefixedItemColumns(prefix string) string {
 	return prefix + ".item_id, " + prefix + ".audit_id, " + prefix + ".round_id, " +
 		prefix + ".item_key, " + prefix + ".ordinal, " + prefix + ".kind, " + prefix + ".subject_key, " +
-		prefix + ".task_ref, " + prefix + ".task_digest, " + prefix + ".workflow_role, " + prefix + ".state, " +
+		prefix + ".task_ref, " + prefix + ".task_digest, " + prefix + ".origin, " + prefix + ".workflow_role, " + prefix + ".state, " +
 		prefix + ".final_disposition, " + prefix + ".accepted_result_ref, " + prefix + ".accepted_result_digest, " +
 		prefix + ".last_execution_item_id, " + prefix + ".created_at, " + prefix + ".updated_at"
 }
@@ -194,6 +194,120 @@ SELECT execution_item_id, execution_id, audit_id, round_id, item_id,
 		result = append(result, item)
 	}
 	return result, rows.Err()
+}
+
+// ListItemAttempts returns bounded tombstone-safe attempt history for one
+// already owner-authorized Audit page. Filters are applied in SQL before the
+// result is grouped, so unrelated Audit data is never loaded for projection.
+func (s *PostgresStore) ListItemAttempts(
+	ctx context.Context, ownerID, auditID string, itemIDs []string,
+) (map[string][]ItemAttempt, error) {
+	if err := validateText("ownerID", ownerID, 256, true); err != nil {
+		return nil, err
+	}
+	if err := validateID("auditID", auditID); err != nil {
+		return nil, err
+	}
+	if len(itemIDs) == 0 || len(itemIDs) > MaxPageSize {
+		return nil, invalidf("Audit attempt item selection is invalid")
+	}
+	seen := make(map[string]struct{}, len(itemIDs))
+	for _, itemID := range itemIDs {
+		if err := validateID("itemID", itemID); err != nil {
+			return nil, err
+		}
+		if _, exists := seen[itemID]; exists {
+			return nil, invalidf("Audit attempt item selection contains duplicates")
+		}
+		seen[itemID] = struct{}{}
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT member.execution_item_id, member.execution_id, member.item_id,
+       member.item_attempt, execution.role, member.state,
+       member.collection_disposition, member.result_ref, member.result_digest,
+       execution.terminal_outcome, execution.run_id, execution.run_provenance,
+       execution.run_deleted_at IS NOT NULL AS run_deleted,
+       member.created_at, member.collected_at
+  FROM audit_execution_items AS member
+  JOIN audit_executions AS execution USING (execution_id, audit_id)
+  JOIN audits AS audit USING (audit_id)
+ WHERE audit.owner_id = $1 AND audit.audit_id = $2
+   AND member.item_id = ANY($3::text[])
+ ORDER BY member.item_id, member.item_attempt, member.execution_item_id
+ LIMIT $4`, ownerID, auditID, itemIDs, MaxAttemptProjection+1)
+	if err != nil {
+		return nil, fmt.Errorf("list Audit item attempts: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[string][]ItemAttempt, len(itemIDs))
+	count := 0
+	for rows.Next() {
+		count++
+		if count > MaxAttemptProjection {
+			return nil, errors.New("stored Audit attempt projection exceeds its bound")
+		}
+		var attempt ItemAttempt
+		var role, state string
+		var disposition, outcome *string
+		var resultRef, provenance []byte
+		var resultDigest *string
+		if err := rows.Scan(
+			&attempt.ExecutionItemID, &attempt.ExecutionID, &attempt.ItemID,
+			&attempt.ItemAttempt, &role, &state, &disposition, &resultRef, &resultDigest,
+			&outcome, &attempt.RunID, &provenance, &attempt.RunDeleted,
+			&attempt.CreatedAt, &attempt.CollectedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan Audit item attempt: %w", err)
+		}
+		attempt.Role, attempt.State = ExecutionRole(role), ItemState(state)
+		if !attempt.Role.Valid() || !attempt.State.Valid() || attempt.ItemAttempt < 1 {
+			return nil, errors.New("stored Audit item attempt is invalid")
+		}
+		if disposition != nil {
+			value := CollectionDisposition(*disposition)
+			if !value.Valid() {
+				return nil, errors.New("stored Audit item attempt disposition is invalid")
+			}
+			attempt.CollectionDisposition = &value
+		}
+		if outcome != nil {
+			value := TerminalOutcome(*outcome)
+			if !value.Valid() {
+				return nil, errors.New("stored Audit item attempt outcome is invalid")
+			}
+			attempt.TerminalOutcome = &value
+		}
+		if resultRef != nil {
+			if resultDigest == nil {
+				return nil, errors.New("stored Audit item attempt result is invalid")
+			}
+			attempt.Result = &ExactArtifact{Digest: *resultDigest}
+			if json.Unmarshal(resultRef, &attempt.Result.Ref) != nil || attempt.Result.Ref.ValidateExact() != nil ||
+				validateDigest("stored Audit item attempt result", *resultDigest) != nil {
+				return nil, errors.New("stored Audit item attempt result is invalid")
+			}
+		} else if resultDigest != nil {
+			return nil, errors.New("stored Audit item attempt result is invalid")
+		}
+		if err := decodeRunProvenance(provenance, attempt.RunID, &attempt.RunProvenance); err != nil {
+			return nil, err
+		}
+		result[attempt.ItemID] = append(result[attempt.ItemID], attempt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Audit item attempts: %w", err)
+	}
+	if count == 0 {
+		if _, err := s.Get(ctx, ownerID, auditID); err != nil {
+			return nil, err
+		}
+	}
+	for _, itemID := range itemIDs {
+		if result[itemID] == nil {
+			result[itemID] = []ItemAttempt{}
+		}
+	}
+	return result, nil
 }
 
 // NextItemAttempt returns the next policy attempt for one currently ready
@@ -393,10 +507,12 @@ SELECT count(*) FILTER (WHERE disposition = 'accepted-result'),
        count(*) FILTER (WHERE disposition = 'missing-output'),
        count(*) FILTER (WHERE disposition = 'invalid-result'),
        count(*) FILTER (WHERE disposition = 'execution-failed'),
-       count(*) FILTER (WHERE disposition = 'execution-cancelled')
+       count(*) FILTER (WHERE disposition = 'execution-cancelled'),
+       count(*) FILTER (WHERE disposition = 'collection-contract-invalid')
   FROM audit_collection_receipts WHERE audit_id = $1`, auditID).Scan(
 		&result.AcceptedResult, &result.MissingOutput, &result.InvalidResult,
 		&result.ExecutionFailed, &result.ExecutionCancelled,
+		&result.ContractInvalid,
 	)
 	if err != nil {
 		return CollectionDispositionCounts{}, fmt.Errorf("count Audit collection dispositions: %w", err)
@@ -500,14 +616,14 @@ func scanRound(row scanner) (Round, error) {
 
 func scanItem(row scanner) (Item, error) {
 	var result Item
-	var taskRef, acceptedRef []byte
+	var taskRef, origin, acceptedRef []byte
 	var state string
 	var final *string
 	var acceptedDigest *string
 	if err := row.Scan(
 		&result.ItemID, &result.AuditID, &result.RoundID, &result.ItemKey,
 		&result.Ordinal, &result.Kind, &result.SubjectKey, &taskRef,
-		&result.Task.Digest, &result.WorkflowRole, &state, &final,
+		&result.Task.Digest, &origin, &result.WorkflowRole, &state, &final,
 		&acceptedRef, &acceptedDigest, &result.LastExecutionItemID,
 		&result.CreatedAt, &result.UpdatedAt,
 	); err != nil {
@@ -518,6 +634,10 @@ func scanItem(row scanner) (Item, error) {
 	}
 	if validateDigest("stored item task digest", result.Task.Digest) != nil {
 		return Item{}, errors.New("stored Audit item task digest is invalid")
+	}
+	if err := json.Unmarshal(origin, &result.Origin); err != nil ||
+		validateItemOrigin(result.Origin, result.ItemKey, true) != nil {
+		return Item{}, errors.New("stored Audit item origin is invalid")
 	}
 	result.State = ItemState(state)
 	if !result.State.Valid() {
@@ -551,11 +671,13 @@ func scanExecution(row scanner) (Execution, error) {
 	var roleAttempt *int
 	var outcome *string
 	var terminalSequence *int64
+	var encodedProvenance []byte
 	if err := row.Scan(
 		&result.ExecutionID, &result.AuditID, &result.RoundID, &role, &roleAttempt,
 		&encodedRef, &result.Manifest.Digest, &result.SubmissionKey, &result.RequestDigest,
 		&result.RunID, &state, &outcome, &result.TerminalRunGeneration,
-		&terminalSequence, &result.TerminalObservedAt, &result.CreatedAt, &result.UpdatedAt,
+		&terminalSequence, &result.TerminalObservedAt, &encodedProvenance, &result.RunDeletedAt,
+		&result.CreatedAt, &result.UpdatedAt,
 	); err != nil {
 		return Execution{}, err
 	}
@@ -584,7 +706,39 @@ func scanExecution(row scanner) (Execution, error) {
 		value := uint64(*terminalSequence)
 		result.TerminalRunSequence = &value
 	}
+	if err := decodeRunProvenance(encodedProvenance, result.RunID, &result.RunProvenance); err != nil {
+		return Execution{}, err
+	}
 	return result, nil
+}
+
+func decodeRunProvenance(encoded []byte, runID *string, target **RunProvenance) error {
+	if runID == nil {
+		if encoded != nil {
+			return errors.New("stored Audit execution unexpectedly has Run provenance")
+		}
+		return nil
+	}
+	if encoded == nil {
+		return errors.New("stored Audit execution has no Run provenance")
+	}
+	var value RunProvenance
+	if json.Unmarshal(encoded, &value) != nil || value.Schema != "contractor.audit.run-provenance.v1" ||
+		value.RunID != *runID || value.ProvenanceIncomplete == (value.Workflow != nil) {
+		return errors.New("stored Audit execution Run provenance is invalid")
+	}
+	if value.Workflow != nil {
+		workflow := value.Workflow
+		if validateText("stored Workflow name", workflow.Name, 128, true) != nil ||
+			validateText("stored Workflow version", workflow.Version, 128, true) != nil ||
+			validateText("stored Workflow schema version", workflow.SchemaVersion, 128, true) != nil ||
+			validateDigest("stored Workflow closure digest", workflow.ClosureDigest) != nil ||
+			workflow.ConfigurationRef.Name != workflow.Name || workflow.ConfigurationRef.Version != workflow.Version {
+			return errors.New("stored Audit execution Workflow provenance is invalid")
+		}
+	}
+	*target = &value
+	return nil
 }
 
 func scanExecutionItem(row scanner) (ExecutionItem, error) {

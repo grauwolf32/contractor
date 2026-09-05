@@ -78,7 +78,7 @@ deadline_at, max_rounds, batch_size, max_items_per_round, max_items_total,
 max_submitted_runs, max_item_run_attempts, max_evidence_bytes,
 reserved_run_count, submitted_run_count, outstanding_run_count, retained_evidence_bytes,
 next_event_sequence - 1, stop_reason_code, stop_reason_message,
-created_at, updated_at, started_at, finished_at`
+created_at, updated_at, started_at, finished_at, deletion_requested_at`
 
 func prefixedAuditColumns(prefix string) string {
 	return prefix + ".audit_id, " + prefix + ".owner_id, " + prefix + ".project_id, " +
@@ -92,7 +92,8 @@ func prefixedAuditColumns(prefix string) string {
 		prefix + ".reserved_run_count, " + prefix + ".submitted_run_count, " +
 		prefix + ".outstanding_run_count, " + prefix + ".retained_evidence_bytes, " + prefix + ".next_event_sequence - 1, " +
 		prefix + ".stop_reason_code, " + prefix + ".stop_reason_message, " +
-		prefix + ".created_at, " + prefix + ".updated_at, " + prefix + ".started_at, " + prefix + ".finished_at"
+		prefix + ".created_at, " + prefix + ".updated_at, " + prefix + ".started_at, " + prefix + ".finished_at, " +
+		prefix + ".deletion_requested_at"
 }
 
 func (s *PostgresStore) CreateDraft(ctx context.Context, params CreateDraftParams) (Audit, bool, error) {
@@ -279,6 +280,7 @@ func scanAudit(row scanner) (Audit, error) {
 		&result.RetainedEvidenceBytes,
 		&eventSequence, &stopCode, &stopMessage,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
+		&result.DeletionRequestedAt,
 	)
 	if err != nil {
 		return Audit{}, err
@@ -286,7 +288,9 @@ func scanAudit(row scanner) (Audit, error) {
 	result.State = AuditState(state)
 	if revision <= 0 || eventSequence < 0 || !result.State.Valid() ||
 		(result.Dispatch != DispatchOpen && result.Dispatch != DispatchClosed) ||
-		(result.Hold != HoldPending && result.Hold != HoldHeld && result.Hold != HoldReleased) {
+		(result.Hold != HoldPending && result.Hold != HoldHeld && result.Hold != HoldReleased) ||
+		(result.DeletionRequestedAt == nil && result.State == AuditDeleting) ||
+		(result.DeletionRequestedAt != nil && result.State != AuditCancelling && result.State != AuditDeleting) {
 		return Audit{}, errors.New("stored Audit state is invalid")
 	}
 	result.Revision = uint64(revision)

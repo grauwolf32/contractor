@@ -39,6 +39,27 @@ func (i *Importer) Collect(
 	snapshot auditstore.ReconcileSnapshot,
 	execution auditstore.Execution,
 ) (bool, error) {
+	changed, err := i.collect(ctx, claim, snapshot, execution)
+	if !errors.Is(err, ErrPermanent) {
+		return changed, err
+	}
+	// A terminal Run must always become disposable. If exact pinned data is
+	// corrupt, retain a truthful technical receipt rather than retrying an
+	// impossible successful import forever. The ordinary Collect transaction
+	// revalidates authority and the terminal observation.
+	if execution.AuditID != snapshot.Audit.AuditID || execution.AuditID != claim.AuditID ||
+		execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
+		return false, err
+	}
+	return i.collectContractInvalid(ctx, claim, execution)
+}
+
+func (i *Importer) collect(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+	execution auditstore.Execution,
+) (bool, error) {
 	if execution.AuditID != snapshot.Audit.AuditID || execution.AuditID != claim.AuditID ||
 		execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
 		return false, fmt.Errorf("%w: collection snapshot is inconsistent", ErrPermanent)
@@ -67,6 +88,37 @@ func (i *Importer) Collect(
 	default:
 		return false, fmt.Errorf("%w: terminal outcome is unsupported", ErrPermanent)
 	}
+}
+
+func (i *Importer) collectContractInvalid(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	execution auditstore.Execution,
+) (bool, error) {
+	members, err := i.store.ListExecutionItems(ctx, execution.ExecutionID)
+	if err != nil {
+		return false, err
+	}
+	if len(members) > auditstore.MaxCollectionItems {
+		return false, fmt.Errorf("%w: collection membership exceeds the durable receipt bound", ErrPermanent)
+	}
+	const code = "collection-contract-invalid"
+	items := make([]auditstore.CollectionItem, len(members))
+	for index, member := range members {
+		items[index] = auditstore.CollectionItem{
+			ExecutionItemID:  member.ExecutionItemID,
+			Disposition:      auditstore.CollectionContractInvalid,
+			FinalDisposition: auditstore.FinalInvalidResult,
+			Coverage: auditstore.Coverage{
+				Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{},
+				Gaps: []string{code}, Rationale: "Trusted collection could not validate its pinned contract.",
+			},
+		}
+	}
+	errorCode := code
+	return i.commitCollection(
+		ctx, claim, execution, auditstore.CollectionContractInvalid, nil, nil, &errorCode, items,
+	)
 }
 
 func (i *Importer) prepareMembers(
@@ -193,7 +245,7 @@ func (i *Importer) collectSucceeded(
 			auditstore.CollectionInvalidResult, false, "evidence-budget-exhausted",
 			auditstore.CoverageInconclusive, &source)
 	}
-	namespace := deterministicID("audit", snapshot.Audit.AuditID)
+	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	retainedResult, err := i.artifacts.RetainRunExact(
 		ctx, run.RunID, source, snapshot.Audit.ProjectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: deterministicID("result", execution.ExecutionID)},
@@ -566,6 +618,8 @@ func finalDisposition(value auditstore.CollectionDisposition) auditstore.FinalDi
 		return auditstore.FinalExecutionFailed
 	case auditstore.CollectionExecutionCancelled:
 		return auditstore.FinalExecutionCancelled
+	case auditstore.CollectionContractInvalid:
+		return auditstore.FinalInvalidResult
 	default:
 		return auditstore.FinalAccepted
 	}

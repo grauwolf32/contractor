@@ -192,12 +192,72 @@ func TestAuditReportHandlerReturnsOnlyAcceptedProjection(t *testing.T) {
 	}
 }
 
+func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
+	now := time.Date(2026, 9, 6, 1, 0, 0, 0, time.UTC)
+	revision := "input-r1"
+	selection, err := json.Marshal(auditservice.DraftSelection{
+		Schema: auditservice.DraftSelectionSchema,
+		Inputs: map[string]auditstore.ExactArtifact{"checklist": {
+			Ref:    contracts.ArtifactRef{Namespace: "inputs", Name: "checklist", Revision: &revision},
+			Digest: auditHandlerDigest("input"), MediaType: "application/json", SizeBytes: 1,
+		}}, RuntimeLabels: []string{}, Scope: auditservice.Scope{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	management := &fakeAuditManagement{audit: auditstore.Audit{
+		AuditID: "audit-fixed", OwnerID: "user-1", ProjectID: "project-one",
+		Profile:        auditstore.ProfileIdentity{Name: "checklist", Version: "1", Digest: auditHandlerDigest("profile")},
+		InputSelection: selection, State: auditstore.AuditPaused, Revision: 7,
+		Dispatch: auditstore.DispatchOpen, Hold: auditstore.HoldHeld,
+		CreatedAt: now, UpdatedAt: now,
+	}}
+	h := auditTestHandler(management)
+
+	for _, test := range []struct {
+		name   string
+		method string
+		path   string
+		status int
+		call   func(http.ResponseWriter, *http.Request)
+	}{
+		{"pause", http.MethodPost, "/v1/audits/audit-fixed/pause", http.StatusOK, h.pauseAudit},
+		{"resume", http.MethodPost, "/v1/audits/audit-fixed/resume", http.StatusOK, h.resumeAudit},
+		{"cancel", http.MethodPost, "/v1/audits/audit-fixed/cancel", http.StatusAccepted, h.cancelAudit},
+		{"delete", http.MethodDelete, "/v1/audits/audit-fixed", http.StatusAccepted, h.deleteAudit},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := auditAuthenticatedRequest(test.method, test.path, nil)
+			request.SetPathValue("auditId", "audit-fixed")
+			request.Header.Set("Idempotency-Key", "lifecycle-"+test.name)
+			request.Header.Set("If-Match", `"7"`)
+			response := httptest.NewRecorder()
+			test.call(response, request)
+			if response.Code != test.status || response.Header().Get("ETag") != `"7"` ||
+				management.mutation.AuditID != "audit-fixed" || management.mutation.ExpectedRevision != 7 ||
+				management.mutation.IdempotencyKey != "lifecycle-"+test.name || management.mutation.RequestDigest == "" {
+				t.Fatalf("response=%d headers=%v mutation=%+v body=%s", response.Code, response.Header(), management.mutation, response.Body.String())
+			}
+		})
+	}
+
+	missingCAS := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/audit-fixed/cancel", nil)
+	missingCAS.SetPathValue("auditId", "audit-fixed")
+	missingCAS.Header.Set("Idempotency-Key", "missing-cas")
+	response := httptest.NewRecorder()
+	h.cancelAudit(response, missingCAS)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("missing CAS status = %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 type fakeAuditManagement struct {
 	profiles []auditservice.ProfileProjection
 	audit    auditstore.Audit
 	started  auditservice.StartedAudit
 	created  auditservice.CreateDraftParams
 	start    auditservice.StartParams
+	mutation auditservice.MutationParams
 	err      error
 	report   auditservice.ReportProjection
 }
@@ -229,6 +289,34 @@ func (f *fakeAuditManagement) Start(
 	return f.started, f.err
 }
 
+func (f *fakeAuditManagement) Pause(
+	_ context.Context, params auditservice.MutationParams,
+) (auditservice.MutationResult, error) {
+	f.mutation = params
+	return auditservice.MutationResult{Audit: f.audit}, f.err
+}
+
+func (f *fakeAuditManagement) Resume(
+	_ context.Context, params auditservice.MutationParams,
+) (auditservice.MutationResult, error) {
+	f.mutation = params
+	return auditservice.MutationResult{Audit: f.audit}, f.err
+}
+
+func (f *fakeAuditManagement) Cancel(
+	_ context.Context, params auditservice.MutationParams,
+) (auditservice.MutationResult, error) {
+	f.mutation = params
+	return auditservice.MutationResult{Audit: f.audit}, f.err
+}
+
+func (f *fakeAuditManagement) Delete(
+	_ context.Context, params auditservice.MutationParams,
+) (auditservice.MutationResult, error) {
+	f.mutation = params
+	return auditservice.MutationResult{Audit: f.audit}, f.err
+}
+
 func (f *fakeAuditManagement) Get(context.Context, string, string) (auditstore.Audit, error) {
 	return f.audit, f.err
 }
@@ -242,6 +330,12 @@ func (f *fakeAuditManagement) List(context.Context, auditstore.ListParams) ([]au
 
 func (f *fakeAuditManagement) ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error) {
 	return append([]auditstore.Item(nil), f.started.Items...), f.err
+}
+
+func (f *fakeAuditManagement) ListItemAttempts(
+	context.Context, string, string, []string,
+) (map[string][]auditstore.ItemAttempt, error) {
+	return map[string][]auditstore.ItemAttempt{}, f.err
 }
 
 func (f *fakeAuditManagement) GetRound(context.Context, string, string, string) (auditstore.Round, error) {

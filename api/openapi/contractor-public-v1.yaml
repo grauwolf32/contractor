@@ -636,6 +636,34 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+    delete:
+      operationId: deleteAudit
+      tags: [Audits]
+      summary: Begin or replay durable Audit deletion
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '202':
+          description: Audit deletion intent was durably accepted
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Audit'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/start:
     parameters:
@@ -669,6 +697,102 @@ paths:
         '412': {$ref: '#/components/responses/PreconditionFailed'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/pause:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: pauseAudit
+      tags: [Audits]
+      summary: Pause admission of new child Runs while existing work drains
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '200':
+          description: Audit dispatch is paused
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Audit'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: resumeAudit
+      tags: [Audits]
+      summary: Resume child Run admission for a paused Audit
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '200':
+          description: Audit dispatch is active
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Audit'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: cancelAudit
+      tags: [Audits]
+      summary: Close Audit dispatch and begin bounded child Run cancellation
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '202':
+          description: Audit cancellation was durably accepted
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Audit'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
         '500': {$ref: '#/components/responses/InternalError'}
 
   /v1/audits/{auditId}/items:
@@ -2719,6 +2843,7 @@ components:
         updatedAt: {type: string, format: date-time}
         startedAt: {type: string, format: date-time}
         finishedAt: {type: string, format: date-time}
+        deletionRequestedAt: {type: string, format: date-time}
     AuditPage:
       type: object
       additionalProperties: false
@@ -2742,10 +2867,67 @@ components:
         updatedAt: {type: string, format: date-time}
     AuditItemState: {enum: [pending, awaiting_review, ready, submitted, collecting, settled]}
     AuditFinalDisposition: {enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
+    AuditExecutionRole: {enum: [discovery, check, assessment]}
+    AuditExecutionItemState: {enum: [submitted, collecting, settled]}
+    AuditTerminalOutcome: {enum: [succeeded, failed, cancelled, submission-failed]}
+    AuditCollectionDisposition: {enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, collection-contract-invalid]}
+    AuditWorkflowProvenance:
+      type: object
+      additionalProperties: false
+      required: [name, version, schemaVersion, configurationRef, closureDigest]
+      properties:
+        name: {$ref: '#/components/schemas/ConfigId'}
+        version: {$ref: '#/components/schemas/ConfigVersion'}
+        schemaVersion: {type: string, minLength: 1, maxLength: 128}
+        configurationRef: {$ref: '#/components/schemas/WorkflowRef'}
+        closureDigest: {$ref: '#/components/schemas/Digest'}
+    AuditRunProvenance:
+      type: object
+      additionalProperties: false
+      required: [schema, runId]
+      properties:
+        schema: {type: string, const: contractor.audit.run-provenance.v1}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        workflow: {$ref: '#/components/schemas/AuditWorkflowProvenance'}
+        provenanceIncomplete: {type: boolean}
+    AuditItemAttempt:
+      type: object
+      additionalProperties: false
+      required: [executionItemId, executionId, itemId, itemAttempt, role, state, runDeleted, createdAt]
+      properties:
+        executionItemId: {$ref: '#/components/schemas/ResourceId'}
+        executionId: {$ref: '#/components/schemas/ResourceId'}
+        itemId: {$ref: '#/components/schemas/ResourceId'}
+        itemAttempt: {type: integer, minimum: 1, maximum: 10}
+        role: {$ref: '#/components/schemas/AuditExecutionRole'}
+        state: {$ref: '#/components/schemas/AuditExecutionItemState'}
+        collectionDisposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
+        result: {$ref: '#/components/schemas/AuditExactArtifact'}
+        terminalOutcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        runDeleted: {type: boolean}
+        runProvenance: {$ref: '#/components/schemas/AuditRunProvenance'}
+        createdAt: {type: string, format: date-time}
+        collectedAt: {type: string, format: date-time}
+    AuditItemOrigin:
+      type: object
+      additionalProperties: false
+      required: [schema, entryKey]
+      properties:
+        schema: {type: string, const: contractor.audit.item-origin.v1}
+        sourceRef: {$ref: '#/components/schemas/ArtifactRef'}
+        sourceContentDigest: {$ref: '#/components/schemas/Digest'}
+        sourceMediaType: {type: string, minLength: 1, maxLength: 256}
+        canonicalInventoryDigest: {$ref: '#/components/schemas/Digest'}
+        entryKey: {type: string, minLength: 1, maxLength: 256}
+        entryVersion: {type: string, minLength: 1, maxLength: 256}
+        provenanceIncomplete:
+          type: boolean
+          description: True only for an item materialized before durable origin projection existed.
     AuditItem:
       type: object
       additionalProperties: false
-      required: [itemId, roundId, itemKey, ordinal, kind, subjectKey, task, workflowRole, state, createdAt, updatedAt]
+      required: [itemId, roundId, itemKey, ordinal, kind, subjectKey, task, origin, workflowRole, state, attempts, createdAt, updatedAt]
       properties:
         itemId: {$ref: '#/components/schemas/ResourceId'}
         roundId: {$ref: '#/components/schemas/ResourceId'}
@@ -2754,11 +2936,13 @@ components:
         kind: {type: string, minLength: 1, maxLength: 128}
         subjectKey: {type: string, minLength: 1, maxLength: 512}
         task: {$ref: '#/components/schemas/AuditExactArtifact'}
+        origin: {$ref: '#/components/schemas/AuditItemOrigin'}
         workflowRole: {$ref: '#/components/schemas/ArtifactName'}
         state: {$ref: '#/components/schemas/AuditItemState'}
         finalDisposition: {$ref: '#/components/schemas/AuditFinalDisposition'}
         acceptedResult: {$ref: '#/components/schemas/AuditExactArtifact'}
         lastExecutionItemId: {$ref: '#/components/schemas/ResourceId'}
+        attempts: {type: array, maxItems: 10, items: {$ref: '#/components/schemas/AuditItemAttempt'}}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
     AuditItemPage:
@@ -2914,7 +3098,7 @@ components:
       required: [kind, reason]
       properties:
         kind: {type: string, const: run_not_deletable}
-        reason: {enum: [run_not_terminal, allocation_release_pending]}
+        reason: {enum: [run_not_terminal, allocation_release_pending, audit_collection_pending]}
     RuntimeCredentialInUseDetails:
       type: object
       additionalProperties: false
@@ -3608,7 +3792,7 @@ components:
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         deletable:
           type: boolean
-          description: True only while the Run is terminal and every Runtime allocation is released.
+          description: True only when terminal release and every applicable retention receipt are durable.
         runtimeLabels:
           type: array
           maxItems: 32
@@ -3651,7 +3835,7 @@ components:
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         deletable:
           type: boolean
-          description: True only while the Run is terminal and every Runtime allocation is released.
+          description: True only when terminal release and every applicable retention receipt are durable.
         labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}

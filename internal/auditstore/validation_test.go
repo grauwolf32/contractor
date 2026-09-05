@@ -46,8 +46,8 @@ func TestMaterializationAndExecutionRejectDuplicateMembership(t *testing.T) {
 		BaselineSnapshot: json.RawMessage(`{"inputs":[]}`), DeadlineAt: time.Now().Add(time.Hour),
 		IdempotencyKey: "start-1", RequestDigest: testDigest("2"),
 		Items: []MaterializedItem{
-			{ItemID: "item-1", ItemKey: "check-1", Ordinal: 0, Kind: "checklist", SubjectKey: "subject-1", Task: artifact, WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
-			{ItemID: "item-2", ItemKey: "check-1", Ordinal: 1, Kind: "checklist", SubjectKey: "subject-2", Task: artifact, WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
+			{ItemID: "item-1", ItemKey: "check-1", Ordinal: 0, Kind: "checklist", SubjectKey: "subject-1", Task: artifact, Origin: testOrigin("check-1"), WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
+			{ItemID: "item-2", ItemKey: "check-1", Ordinal: 1, Kind: "checklist", SubjectKey: "subject-2", Task: artifact, Origin: testOrigin("check-1"), WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
 		},
 	}
 	if err := validateMaterialize(params); !errors.Is(err, ErrInvalid) {
@@ -101,6 +101,13 @@ func TestCollectionValidationKeepsAttemptAndLogicalSettlementDistinct(t *testing
 	if err := validateCollect(params); err != nil {
 		t.Fatalf("invalid result with exact source output: %v", err)
 	}
+	params.SourceOutput = nil
+	params.Disposition = CollectionContractInvalid
+	params.Items[0].Disposition = CollectionContractInvalid
+	params.Items[0].Retryable = false
+	if err := validateCollect(params); err != nil {
+		t.Fatalf("collection contract failure without invented source output: %v", err)
+	}
 }
 
 func TestExactArtifactValidationBoundsStoredReference(t *testing.T) {
@@ -128,4 +135,13 @@ func testDigest(character string) string { return "sha256:" + strings.Repeat(cha
 
 func emptyCoverage() Coverage {
 	return Coverage{Status: CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{}}
+}
+
+func testOrigin(entryKey string) ItemOrigin {
+	source := testExact("inputs", "source", "source-r1")
+	return ItemOrigin{
+		Schema: ItemOriginSchema, SourceRef: &source.Ref,
+		SourceContentDigest: testDigest("b"), SourceMediaType: "application/json",
+		CanonicalInventoryDigest: testDigest("c"), EntryKey: entryKey, EntryVersion: "1",
+	}
 }

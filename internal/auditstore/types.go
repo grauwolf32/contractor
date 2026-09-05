@@ -23,6 +23,8 @@ const (
 	MaxExecutionIntentBytes = 64 << 20
 	MaxCollectionBytes      = 16 << 20
 	MaxRetainedRefsBytes    = 8 << 20
+	MaxAttemptProjection    = MaxPageSize * 10
+	ItemOriginSchema        = "contractor.audit.item-origin.v1"
 )
 
 type AuditState string
@@ -149,12 +151,13 @@ const (
 	CollectionInvalidResult      CollectionDisposition = "invalid-result"
 	CollectionExecutionFailed    CollectionDisposition = "execution-failed"
 	CollectionExecutionCancelled CollectionDisposition = "execution-cancelled"
+	CollectionContractInvalid    CollectionDisposition = "collection-contract-invalid"
 )
 
 func (d CollectionDisposition) Valid() bool {
 	return d == CollectionAccepted || d == CollectionMissingOutput ||
 		d == CollectionInvalidResult || d == CollectionExecutionFailed ||
-		d == CollectionExecutionCancelled
+		d == CollectionExecutionCancelled || d == CollectionContractInvalid
 }
 
 type FinalDisposition string
@@ -252,6 +255,7 @@ type Audit struct {
 	UpdatedAt             time.Time
 	StartedAt             *time.Time
 	FinishedAt            *time.Time
+	DeletionRequestedAt   *time.Time
 }
 
 type CreateDraftParams struct {
@@ -292,8 +296,10 @@ type ListItemsParams struct {
 type MutationOperation string
 
 const (
-	MutationCreate MutationOperation = "audit.create"
-	MutationStart  MutationOperation = "audit.start"
+	MutationCreate     MutationOperation = "audit.create"
+	MutationStart      MutationOperation = "audit.start"
+	MutationTransition MutationOperation = "audit.transition"
+	MutationDelete     MutationOperation = "audit.delete"
 )
 
 type TransitionParams struct {
@@ -303,6 +309,14 @@ type TransitionParams struct {
 	ExpectedState    AuditState
 	TargetState      AuditState
 	Reason           *StopReason
+	IdempotencyKey   string
+	RequestDigest    string
+}
+
+type DeleteParams struct {
+	OwnerID          string
+	AuditID          string
+	ExpectedRevision uint64
 	IdempotencyKey   string
 	RequestDigest    string
 }
@@ -330,6 +344,21 @@ type ExactArtifact struct {
 	SizeBytes int64                 `json:"sizeBytes,omitempty"`
 }
 
+// ItemOrigin is the immutable attribution of a materialized Audit item to the
+// exact source document and normalized inventory entry from which it was
+// generated. ProvenanceIncomplete is reserved for rows created before this
+// projection existed; newly materialized items must always be complete.
+type ItemOrigin struct {
+	Schema                   string                 `json:"schema"`
+	SourceRef                *contracts.ArtifactRef `json:"sourceRef,omitempty"`
+	SourceContentDigest      string                 `json:"sourceContentDigest,omitempty"`
+	SourceMediaType          string                 `json:"sourceMediaType,omitempty"`
+	CanonicalInventoryDigest string                 `json:"canonicalInventoryDigest,omitempty"`
+	EntryKey                 string                 `json:"entryKey"`
+	EntryVersion             string                 `json:"entryVersion,omitempty"`
+	ProvenanceIncomplete     bool                   `json:"provenanceIncomplete,omitempty"`
+}
+
 type MaterializedItem struct {
 	ItemID       string
 	ItemKey      string
@@ -337,6 +366,7 @@ type MaterializedItem struct {
 	Kind         string
 	SubjectKey   string
 	Task         ExactArtifact
+	Origin       ItemOrigin
 	WorkflowRole string
 	InitialState ItemState
 	Coverage     Coverage
@@ -385,6 +415,7 @@ type Item struct {
 	Kind                string
 	SubjectKey          string
 	Task                ExactArtifact
+	Origin              ItemOrigin
 	WorkflowRole        string
 	State               ItemState
 	FinalDisposition    *FinalDisposition
@@ -444,8 +475,31 @@ type Execution struct {
 	TerminalRunGeneration *string
 	TerminalRunSequence   *uint64
 	TerminalObservedAt    *time.Time
+	RunProvenance         *RunProvenance
+	RunDeletedAt          *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+// RunProvenance is a bounded, non-secret tombstone captured when a child Run
+// is bound. It deliberately stores configuration identity and a closure digest
+// rather than the resolved Workflow body, credential material, or live grants.
+type RunProvenance struct {
+	Schema               string              `json:"schema"`
+	RunID                string              `json:"runId"`
+	Workflow             *WorkflowProvenance `json:"workflow,omitempty"`
+	ProvenanceIncomplete bool                `json:"provenanceIncomplete,omitempty"`
+}
+
+type WorkflowProvenance struct {
+	Name             string `json:"name"`
+	Version          string `json:"version"`
+	SchemaVersion    string `json:"schemaVersion"`
+	ConfigurationRef struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	} `json:"configurationRef"`
+	ClosureDigest string `json:"closureDigest"`
 }
 
 type ExecutionItem struct {
@@ -556,12 +610,30 @@ type CollectionReceiptSummary struct {
 	CreatedAt             time.Time
 }
 
+type ItemAttempt struct {
+	ExecutionItemID       string                 `json:"executionItemId"`
+	ExecutionID           string                 `json:"executionId"`
+	ItemID                string                 `json:"itemId"`
+	ItemAttempt           int                    `json:"itemAttempt"`
+	Role                  ExecutionRole          `json:"role"`
+	State                 ItemState              `json:"state"`
+	CollectionDisposition *CollectionDisposition `json:"collectionDisposition,omitempty"`
+	Result                *ExactArtifact         `json:"result,omitempty"`
+	TerminalOutcome       *TerminalOutcome       `json:"terminalOutcome,omitempty"`
+	RunID                 *string                `json:"runId,omitempty"`
+	RunDeleted            bool                   `json:"runDeleted"`
+	RunProvenance         *RunProvenance         `json:"runProvenance,omitempty"`
+	CreatedAt             time.Time              `json:"createdAt"`
+	CollectedAt           *time.Time             `json:"collectedAt,omitempty"`
+}
+
 type CollectionDispositionCounts struct {
 	AcceptedResult     int `json:"acceptedResult"`
 	MissingOutput      int `json:"missingOutput"`
 	InvalidResult      int `json:"invalidResult"`
 	ExecutionFailed    int `json:"executionFailed"`
 	ExecutionCancelled int `json:"executionCancelled"`
+	ContractInvalid    int `json:"contractInvalid"`
 }
 
 type CommitReportParams struct {
@@ -614,7 +686,9 @@ type OwnerRepository interface {
 	Get(context.Context, string, string) (Audit, error)
 	List(context.Context, ListParams) ([]Audit, error)
 	ListItemsPage(context.Context, ListItemsParams) ([]Item, error)
+	ListItemAttempts(context.Context, string, string, []string) (map[string][]ItemAttempt, error)
 	Transition(context.Context, TransitionParams) (Audit, bool, error)
+	RequestDelete(context.Context, DeleteParams) (Audit, bool, error)
 	MaterializeRound(context.Context, MaterializeRoundParams) (Audit, bool, error)
 }
 
@@ -635,5 +709,9 @@ type ControllerRepository interface {
 	ObserveSubmissionFailure(context.Context, ObserveSubmissionFailureParams) (Execution, error)
 	Collect(context.Context, CollectParams) (CollectionReceipt, bool, error)
 	CommitReport(context.Context, CommitReportParams) (Audit, error)
+	SettleUndispatched(context.Context, ControllerClaim, int) (int, error)
+	ReleaseDispatchHold(context.Context, ControllerClaim) (Audit, bool, error)
+	NextLiveRunForDeletion(context.Context, ControllerClaim) (string, bool, error)
+	PurgeClaimed(context.Context, ControllerClaim, string) error
 	GetReconcileSnapshot(context.Context, ControllerClaim) (ReconcileSnapshot, error)
 }

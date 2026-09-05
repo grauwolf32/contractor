@@ -115,6 +115,7 @@ WITH collection_input AS MATERIALIZED (
            (execution.terminal_outcome = 'succeeded' AND $6 IN ('accepted-result', 'missing-output', 'invalid-result'))
            OR (execution.terminal_outcome IN ('failed', 'submission-failed') AND $6 = 'execution-failed')
            OR (execution.terminal_outcome = 'cancelled' AND $6 = 'execution-cancelled')
+           OR $6 = 'collection-contract-invalid'
        )
      FOR UPDATE OF audit, execution
 ), member_validation AS MATERIALIZED (
@@ -186,8 +187,16 @@ WITH collection_input AS MATERIALIZED (
      WHERE item.item_id = attempt.item_id AND item.state = 'collecting'
 ), updated_coverage AS (
     UPDATE audit_coverage_rows AS coverage
-       SET status = input.status, requested = input.requested,
-           completed = input.completed, gaps = input.gaps,
+       SET status = input.status,
+           requested = CASE WHEN input.disposition = 'collection-contract-invalid'
+               THEN coverage.requested ELSE input.requested END,
+           completed = CASE WHEN input.disposition = 'collection-contract-invalid'
+               THEN coverage.completed ELSE input.completed END,
+           gaps = CASE WHEN input.disposition = 'collection-contract-invalid'
+               THEN CASE WHEN coverage.gaps ? 'collection-contract-invalid'
+                   THEN coverage.gaps
+                   ELSE coverage.gaps || jsonb_build_array('collection-contract-invalid') END
+               ELSE input.gaps END,
            rationale = input.rationale,
            result_ref = input.result_ref, result_digest = input.result_digest,
            updated_at = clock_timestamp()

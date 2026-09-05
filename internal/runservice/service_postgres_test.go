@@ -88,7 +88,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 		BaselineSnapshot: []byte(`{"baseline":"pinned"}`), DeadlineAt: time.Now().Add(time.Hour),
 		Items: []auditstore.MaterializedItem{{
 			ItemID: "item-run-service", ItemKey: "check-1", Ordinal: 0, Kind: "test",
-			SubjectKey: "subject-1", Task: task, WorkflowRole: "check",
+			SubjectKey: "subject-1", Task: task, Origin: runServiceAuditOrigin("check-1", task), WorkflowRole: "check",
 			InitialState: auditstore.ItemReady,
 			Coverage: auditstore.Coverage{
 				Status: auditstore.CoverageNotTested, Requested: []string{"check"},
@@ -323,6 +323,15 @@ func exactRefPointer(ref contracts.ArtifactRef) *contracts.ArtifactRef {
 
 func testDigest(character string) string {
 	return "sha256:" + repeat(character, 64)
+}
+
+func runServiceAuditOrigin(entryKey string, source auditstore.ExactArtifact) auditstore.ItemOrigin {
+	ref := source.Ref
+	return auditstore.ItemOrigin{
+		Schema: auditstore.ItemOriginSchema, SourceRef: &ref,
+		SourceContentDigest: testDigest("8"), SourceMediaType: "application/json",
+		CanonicalInventoryDigest: testDigest("9"), EntryKey: entryKey,
+	}
 }
 
 func repeat(value string, count int) string {

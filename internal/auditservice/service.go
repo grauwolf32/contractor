@@ -144,6 +144,12 @@ func (s *Service) ListItems(
 	return auditstore.NewPostgresStore(s.pool).ListItemsPage(ctx, params)
 }
 
+func (s *Service) ListItemAttempts(
+	ctx context.Context, ownerID, auditID string, itemIDs []string,
+) (map[string][]auditstore.ItemAttempt, error) {
+	return auditstore.NewPostgresStore(s.pool).ListItemAttempts(ctx, ownerID, auditID, itemIDs)
+}
+
 func (s *Service) GetRound(
 	ctx context.Context, ownerID, auditID, roundID string,
 ) (auditstore.Round, error) {

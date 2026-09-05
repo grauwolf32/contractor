@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -205,7 +206,7 @@ func (i *Importer) Finalize(
 	if len(summaryBytes) > auditstore.MaxSummaryBytes {
 		return false, fmt.Errorf("%w: human report exceeds its bound", ErrPermanent)
 	}
-	namespace := deterministicID("audit", snapshot.Audit.AuditID)
+	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
 	machineArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
 		contracts.ArtifactRef{Namespace: namespace, Name: "report.json"},
@@ -348,10 +349,11 @@ func humanSummary(report machineReport) string {
 	}
 	fmt.Fprintf(
 		&builder,
-		"Attempts: accepted=%d missing-output=%d invalid-result=%d failed=%d cancelled=%d\n",
+		"Attempts: accepted=%d missing-output=%d invalid-result=%d failed=%d cancelled=%d collection-contract-invalid=%d\n",
 		report.AttemptDispositions.AcceptedResult, report.AttemptDispositions.MissingOutput,
 		report.AttemptDispositions.InvalidResult, report.AttemptDispositions.ExecutionFailed,
 		report.AttemptDispositions.ExecutionCancelled,
+		report.AttemptDispositions.ContractInvalid,
 	)
 	if report.StopReason != nil {
 		fmt.Fprintf(&builder, "Stop reason: %s — %s\n", report.StopReason.Code, report.StopReason.Message)

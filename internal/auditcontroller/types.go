@@ -41,12 +41,17 @@ type Store interface {
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ObserveTerminal(context.Context, auditstore.ObserveTerminalParams) (auditstore.Execution, error)
 	ObserveSubmissionFailure(context.Context, auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error)
+	SettleUndispatched(context.Context, auditstore.ControllerClaim, int) (int, error)
+	ReleaseDispatchHold(context.Context, auditstore.ControllerClaim) (auditstore.Audit, bool, error)
+	NextLiveRunForDeletion(context.Context, auditstore.ControllerClaim) (string, bool, error)
+	PurgeClaimed(context.Context, auditstore.ControllerClaim, string) error
 }
 
 type RunStore interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
+	DeleteReleasedTerminalRun(context.Context, string, string) error
 }
 
 type RunCreator interface {

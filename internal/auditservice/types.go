@@ -139,6 +139,19 @@ type StartParams struct {
 	RequestDigest    string
 }
 
+type MutationParams struct {
+	OwnerID          string
+	AuditID          string
+	ExpectedRevision uint64
+	IdempotencyKey   string
+	RequestDigest    string
+}
+
+type MutationResult struct {
+	Audit    auditstore.Audit
+	Replayed bool
+}
+
 type StartedAudit struct {
 	Audit    auditstore.Audit
 	Round    auditstore.Round

@@ -164,7 +164,7 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	namespace := deterministicID("audit", audit.AuditID)
+	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	taskArtifacts, executionManifest, err := writeTaskPackages(
 		ctx, projectArtifacts, namespace, profile, selection, inventory,
 	)
@@ -199,10 +199,20 @@ func (s *Service) startInTransaction(
 	items := make([]auditstore.MaterializedItem, len(inventory.Worklist.Items))
 	for index, item := range inventory.Worklist.Items {
 		coverage := inventory.Coverage.Rows[index]
+		task := inventory.Tasks[index].Document
+		sourceRef := task.SourceRef
+		origin := auditstore.ItemOrigin{
+			Schema: auditstore.ItemOriginSchema, SourceRef: &sourceRef,
+			SourceContentDigest: task.SourceContentDigest, SourceMediaType: task.SourceMediaType,
+			CanonicalInventoryDigest: task.CanonicalInventoryDigest, EntryKey: task.ItemKey,
+		}
+		if task.Checklist != nil {
+			origin.EntryVersion = task.Checklist.Version
+		}
 		items[index] = auditstore.MaterializedItem{
 			ItemID:  deterministicID("item", audit.AuditID, item.ItemKey),
 			ItemKey: item.ItemKey, Ordinal: item.Ordinal, Kind: item.Kind,
-			SubjectKey: item.SubjectKey, Task: taskArtifacts[index],
+			SubjectKey: item.SubjectKey, Task: taskArtifacts[index], Origin: origin,
 			WorkflowRole: item.WorkflowRole, InitialState: auditstore.ItemReady,
 			Coverage: auditstore.Coverage{
 				Status:    auditstore.CoverageStatus(coverage.Status),

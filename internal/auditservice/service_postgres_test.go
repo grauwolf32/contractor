@@ -98,6 +98,39 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil || len(holds) != 1 || holds[0] != draft.AuditID {
 		t.Fatalf("credential holds = (%v, %v)", holds, err)
 	}
+	pauseParams := MutationParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: started.Audit.Revision,
+		IdempotencyKey: "pause-audit", RequestDigest: serviceTestDigest("pause-audit"),
+	}
+	paused, err := service.Pause(ctx, pauseParams)
+	if err != nil || paused.Replayed || paused.Audit.State != auditstore.AuditPaused || paused.Audit.Revision != 3 {
+		t.Fatalf("pause = (%+v, %v)", paused, err)
+	}
+	replayedPause, err := service.Pause(ctx, pauseParams)
+	if err != nil || !replayedPause.Replayed || replayedPause.Audit.State != auditstore.AuditPaused {
+		t.Fatalf("pause replay = (%+v, %v)", replayedPause, err)
+	}
+	resumed, err := service.Resume(ctx, MutationParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: paused.Audit.Revision,
+		IdempotencyKey: "resume-audit", RequestDigest: serviceTestDigest("resume-audit"),
+	})
+	if err != nil || resumed.Audit.State != auditstore.AuditActive || resumed.Audit.Revision != 4 {
+		t.Fatalf("resume = (%+v, %v)", resumed, err)
+	}
+	cancelled, err := service.Cancel(ctx, MutationParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: resumed.Audit.Revision,
+		IdempotencyKey: "cancel-audit", RequestDigest: serviceTestDigest("cancel-audit"),
+	})
+	if err != nil || cancelled.Audit.State != auditstore.AuditCancelling || cancelled.Audit.Dispatch != auditstore.DispatchClosed {
+		t.Fatalf("cancel = (%+v, %v)", cancelled, err)
+	}
+	deleting, err := service.Delete(ctx, MutationParams{
+		OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: cancelled.Audit.Revision,
+		IdempotencyKey: "delete-audit", RequestDigest: serviceTestDigest("delete-audit"),
+	})
+	if err != nil || deleting.Audit.State != auditstore.AuditCancelling || deleting.Audit.DeletionRequestedAt == nil {
+		t.Fatalf("delete intent = (%+v, %v)", deleting, err)
+	}
 	coverage, err := service.ListCoverage(ctx, project.OwnerID, draft.AuditID, started.Round.RoundID, -1, 10)
 	if err != nil || len(coverage) != 1 || coverage[0].Ordinal != 0 || coverage[0].Coverage.Status != auditstore.CoverageNotTested {
 		t.Fatalf("initial coverage = (%+v, %v)", coverage, err)

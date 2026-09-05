@@ -22,6 +22,7 @@ type RunNotDeletableReason string
 const (
 	RunNotTerminal              RunNotDeletableReason = "run_not_terminal"
 	RunAllocationReleasePending RunNotDeletableReason = "allocation_release_pending"
+	RunAuditCollectionPending   RunNotDeletableReason = "audit_collection_pending"
 )
 
 // RunNotDeletableError identifies the lifecycle gate that rejected a hard

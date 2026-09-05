@@ -90,8 +90,8 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
 		DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "audit-start", RequestDigest: testDigest("4"),
 		Items: []MaterializedItem{
-			{ItemID: "item-one", ItemKey: "check-one", Ordinal: 0, Kind: "checklist", SubjectKey: "subject-one", Task: itemOneTask, WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
-			{ItemID: "item-two", ItemKey: "check-two", Ordinal: 1, Kind: "checklist", SubjectKey: "subject-two", Task: itemTwoTask, WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
+			{ItemID: "item-one", ItemKey: "check-one", Ordinal: 0, Kind: "checklist", SubjectKey: "subject-one", Task: itemOneTask, Origin: testOrigin("check-one"), WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
+			{ItemID: "item-two", ItemKey: "check-two", Ordinal: 1, Kind: "checklist", SubjectKey: "subject-two", Task: itemTwoTask, Origin: testOrigin("check-two"), WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
 		},
 	}
 	type startResult struct {

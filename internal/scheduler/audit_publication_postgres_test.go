@@ -64,7 +64,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 		BaselineSnapshot: json.RawMessage(`{"baseline":"test"}`), DeadlineAt: time.Now().Add(time.Hour),
 		Items: []auditstore.MaterializedItem{{
 			ItemID: "item-audit-publication", ItemKey: "check", Ordinal: 0,
-			Kind: "test", SubjectKey: "subject", Task: task, WorkflowRole: "check",
+			Kind: "test", SubjectKey: "subject", Task: task, Origin: schedulerAuditOrigin("check", task), WorkflowRole: "check",
 			InitialState: auditstore.ItemReady,
 			Coverage: auditstore.Coverage{
 				Status: auditstore.CoverageNotTested, Requested: []string{}, Completed: []string{}, Gaps: []string{},
@@ -168,6 +168,15 @@ func schedulerAuditDigest(character string) string {
 		value += character
 	}
 	return value
+}
+
+func schedulerAuditOrigin(entryKey string, source auditstore.ExactArtifact) auditstore.ItemOrigin {
+	ref := source.Ref
+	return auditstore.ItemOrigin{
+		Schema: auditstore.ItemOriginSchema, SourceRef: &ref,
+		SourceContentDigest: schedulerAuditDigest("8"), SourceMediaType: "application/json",
+		CanonicalInventoryDigest: schedulerAuditDigest("9"), EntryKey: entryKey,
+	}
 }
 
 func schedulerString(value string) *string { return &value }

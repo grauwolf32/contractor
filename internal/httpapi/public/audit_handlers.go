@@ -121,6 +121,7 @@ type auditResponse struct {
 	UpdatedAt             time.Time                           `json:"updatedAt"`
 	StartedAt             *time.Time                          `json:"startedAt,omitempty"`
 	FinishedAt            *time.Time                          `json:"finishedAt,omitempty"`
+	DeletionRequestedAt   *time.Time                          `json:"deletionRequestedAt,omitempty"`
 }
 
 type auditPageResponse struct {
@@ -147,11 +148,13 @@ type auditItemResponse struct {
 	Kind                string                       `json:"kind"`
 	SubjectKey          string                       `json:"subjectKey"`
 	Task                auditstore.ExactArtifact     `json:"task"`
+	Origin              auditstore.ItemOrigin        `json:"origin"`
 	WorkflowRole        string                       `json:"workflowRole"`
 	State               auditstore.ItemState         `json:"state"`
 	FinalDisposition    *auditstore.FinalDisposition `json:"finalDisposition,omitempty"`
 	AcceptedResult      *auditstore.ExactArtifact    `json:"acceptedResult,omitempty"`
 	LastExecutionItemID *string                      `json:"lastExecutionItemId,omitempty"`
+	Attempts            []auditstore.ItemAttempt     `json:"attempts"`
 	CreatedAt           time.Time                    `json:"createdAt"`
 	UpdatedAt           time.Time                    `json:"updatedAt"`
 }
@@ -494,6 +497,83 @@ func (h *handler) startAudit(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *handler) pauseAudit(w http.ResponseWriter, r *http.Request) {
+	h.mutateAudit(w, r, "pause", http.StatusOK)
+}
+
+func (h *handler) resumeAudit(w http.ResponseWriter, r *http.Request) {
+	h.mutateAudit(w, r, "resume", http.StatusOK)
+}
+
+func (h *handler) cancelAudit(w http.ResponseWriter, r *http.Request) {
+	h.mutateAudit(w, r, "cancel", http.StatusAccepted)
+}
+
+func (h *handler) deleteAudit(w http.ResponseWriter, r *http.Request) {
+	h.mutateAudit(w, r, "delete", http.StatusAccepted)
+}
+
+func (h *handler) mutateAudit(w http.ResponseWriter, r *http.Request, action string, status int) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.dependencies.Audits == nil {
+		h.handleError(w, fmt.Errorf("Audit service is not configured"))
+		return
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if err := requireEmptyBody(w, r); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	key, err := requireIdempotencyKey(r)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
+		h.handleError(w, fmt.Errorf("%w: Audit mutation requires one If-Match", errInvalidRequest))
+		return
+	}
+	revision, err := parseRuntimeRevisionETag(r.Header.Values("If-Match")[0])
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	params := auditservice.MutationParams{
+		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
+		ExpectedRevision: revision, IdempotencyKey: key,
+		RequestDigest: auditMutationRequestDigest(action, r.PathValue("auditId"), revision),
+	}
+	var result auditservice.MutationResult
+	switch action {
+	case "pause":
+		result, err = h.dependencies.Audits.Pause(r.Context(), params)
+	case "resume":
+		result, err = h.dependencies.Audits.Resume(r.Context(), params)
+	case "cancel":
+		result, err = h.dependencies.Audits.Cancel(r.Context(), params)
+	case "delete":
+		result, err = h.dependencies.Audits.Delete(r.Context(), params)
+	default:
+		err = errInvalidRequest
+	}
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if result.Replayed {
+		w.Header().Set("Idempotency-Replayed", "true")
+	}
+	response, err := auditReadModel(result.Audit)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeAuditJSON(w, status, response)
+}
+
 func (h *handler) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if h.rejectHead(w, r) {
@@ -567,9 +647,24 @@ func (h *handler) listAuditItems(w http.ResponseWriter, r *http.Request) {
 		}
 		page.HasMore, page.NextCursor = true, &next
 	}
+	attempts := map[string][]auditstore.ItemAttempt{}
+	if len(items) != 0 {
+		itemIDs := make([]string, len(items))
+		for index := range items {
+			itemIDs[index] = items[index].ItemID
+		}
+		attempts, err = h.dependencies.Audits.ListItemAttempts(
+			r.Context(), params.OwnerID, auditID, itemIDs,
+		)
+		if err != nil {
+			h.handleError(w, err)
+			return
+		}
+	}
 	response := make([]auditItemResponse, len(items))
 	for index := range items {
 		response[index] = auditItemReadModel(items[index])
+		response[index].Attempts = attempts[items[index].ItemID]
 	}
 	writeJSON(w, http.StatusOK, auditItemPageResponse{Items: response, Page: page})
 }
@@ -714,6 +809,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 		RetainedEvidenceBytes: source.RetainedEvidenceBytes, EventSequence: source.EventSequence,
 		CreatedAt: source.CreatedAt, UpdatedAt: source.UpdatedAt,
 		StartedAt: source.StartedAt, FinishedAt: source.FinishedAt,
+		DeletionRequestedAt: source.DeletionRequestedAt,
 	}
 	if source.StopReason != nil {
 		result.StopReason = &auditStopReasonResponse{
@@ -765,9 +861,10 @@ func auditItemReadModel(source auditstore.Item) auditItemResponse {
 	return auditItemResponse{
 		ItemID: source.ItemID, RoundID: source.RoundID, ItemKey: source.ItemKey,
 		Ordinal: source.Ordinal, Kind: source.Kind, SubjectKey: source.SubjectKey,
-		Task: source.Task, WorkflowRole: source.WorkflowRole, State: source.State,
+		Task: source.Task, Origin: source.Origin, WorkflowRole: source.WorkflowRole, State: source.State,
 		FinalDisposition: source.FinalDisposition, AcceptedResult: source.AcceptedResult,
 		LastExecutionItemID: source.LastExecutionItemID,
+		Attempts:            []auditstore.ItemAttempt{},
 		CreatedAt:           source.CreatedAt, UpdatedAt: source.UpdatedAt,
 	}
 }
@@ -802,6 +899,16 @@ func auditStartRequestDigest(auditID string, revision uint64) string {
 		AuditID  string `json:"auditId"`
 		Revision uint64 `json:"revision"`
 	}{auditID, revision})
+	digest := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(digest[:])
+}
+
+func auditMutationRequestDigest(action, auditID string, revision uint64) string {
+	encoded, _ := json.Marshal(struct {
+		Action   string `json:"action"`
+		AuditID  string `json:"auditId"`
+		Revision uint64 `json:"revision"`
+	}{action, auditID, revision})
 	digest := sha256.Sum256(encoded)
 	return "sha256:" + hex.EncodeToString(digest[:])
 }

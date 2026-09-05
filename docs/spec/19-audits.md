@@ -323,10 +323,10 @@ erDiagram
 
 | Record | Minimum durable fields |
 | --- | --- |
-| `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, deadline, limits/counters, stop reason, timestamps |
+| `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, deadline, limits/counters, stop reason, optional deletion_requested_at, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
-| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, state, final disposition, optional accepted result ref, optional last_execution_item_id |
-| `AuditExecution` | id, audit_id, optional round_id, role, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, state, optional terminal Run outcome/version |
+| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), state, final disposition, optional accepted result ref, optional last_execution_item_id |
+| `AuditExecution` | id, audit_id, optional round_id, role, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
 | `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
 | `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
 | `AuditFinding` | id, audit_id, first proposal, current assessment, triage state, optional duplicate target, revision |
@@ -680,6 +680,10 @@ Round lifecycle is `proposed -> accepted -> executing -> assessing -> closed`.
 Items are immutable after acceptance. Checks settle before one assessment
 execution. A proposed next worklist becomes a new Round only after complete
 validation and any required review.
+Exceptional Audit closure may move an accepted Round directly to `closed`
+after every undispatched item receives an explicit excluded/cancelled
+disposition; it never fabricates an execution merely to traverse the normal
+Round path.
 
 Terminal observation and item settlement are separate durable transitions:
 
@@ -688,7 +692,8 @@ Terminal observation and item settlement are separate durable transitions:
 2. Collection validates the exact frozen output when one is expected and
    always commits one `AuditCollectionReceipt`. Receipt dispositions include
    `accepted-result`, `missing-output`, `invalid-result`, `execution-failed`,
-   and `execution-cancelled`; a receipt may retain zero evidence revisions.
+   `execution-cancelled`, and the bounded trusted-data failure
+   `collection-contract-invalid`; a receipt may retain zero evidence revisions.
 3. In that transaction, each AuditExecutionItem records its attempt outcome.
    An accepted final result settles its AuditItem. A retryable failed/invalid
    attempt with remaining policy returns the item to `ready`; it is not settled.
@@ -904,9 +909,31 @@ exact terminal observation. The receipt is required even when the Run failed or
 was cancelled, produced no output, or produced an invalid package. Accepted
 evidence is retained by exact revision; a receipt with no accepted evidence
 records that fact rather than waiting for an impossible successful import.
+If the trusted collector cannot validate pinned internal data, it records the
+bounded `collection-contract-invalid` disposition, settles the affected items
+as invalid with blocked coverage, and preserves their prior requested and
+completed coverage arrays. This is a cleanup-safe technical outcome, never
+accepted evidence.
 After collection, Run deletion is allowed. AuditExecution and
 AuditExecutionItem retain outcome, exact retained refs when any, and tombstone
 provenance through a nullable non-cascading Run relation.
+
+For backtrace, retain original Run IDs even when their live relation disappears,
+Workflow identity/closure digest and its exact configuration reference, item
+and attempt links, checklist origins, proposal links and analyst decision
+history under Audit ownership. Public projections expose `runDeleted` instead
+of requiring a live Run join. Configuration provenance contains no credential
+values or active grants. V25-008 establishes this for child checks; V25-010/011
+extend it to imported ordinary-Run proposals and finding relations before
+releasing source-owned holds. This retention lasts for the Audit lifetime and
+does not prevent explicit Audit/Project purge.
+
+The checklist origin is a first-class immutable `AuditItem` projection rather
+than an inference from the current catalog. It contains the exact source
+ArtifactRef and source-content digest, canonical inventory digest, entry key,
+and optional checklist entry version. A bounded `provenanceIncomplete` marker
+is permitted only for rows materialized before this projection existed; new
+round materialization rejects incomplete origin.
 
 Audit-level credential dispatch holds and evidence holds are not released by
 the same transition. Dispatch holds may be released once dispatch is durably
@@ -936,6 +963,10 @@ Project bindings and domain rows. Project deletion adds an
 earlier Audit-cancellation/drain phase before its existing Run and ProjectScope
 purge. No Audit work starts in a deleting Project and no Audit hold survives a
 completed Project purge. Cleanup runs regardless of owner/Audit queue pause.
+Deletion intent is represented by a dedicated `deletion_requested_at` marker,
+not inferred from the stop reason. This lets cancellation finish as `cancelled`
+when no deletion was requested and deterministically continue to `deleting`
+when owner or Project deletion supplied the durable intent.
 
 ## 17. Public API and UI
 

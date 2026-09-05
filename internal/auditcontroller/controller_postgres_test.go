@@ -69,6 +69,19 @@ func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing
 	); err != nil {
 		t.Fatal(err)
 	}
+	runID := *executions[0].RunID
+	blocker, err := harness.runs.RunDeletionBlocker(ctx, harness.started.Audit.OwnerID, runID)
+	if err != nil || blocker == nil || *blocker != runstore.RunAuditCollectionPending {
+		t.Fatalf("uncollected Audit Run deletion blocker = (%v, %v)", blocker, err)
+	}
+	if err := harness.runs.DeleteReleasedTerminalRun(ctx, harness.started.Audit.OwnerID, runID); err == nil {
+		t.Fatal("uncollected Audit Run deletion unexpectedly succeeded")
+	} else {
+		var blocked *runstore.RunNotDeletableError
+		if !errors.As(err, &blocked) || blocked.Reason != runstore.RunAuditCollectionPending {
+			t.Fatalf("uncollected Audit Run deletion error = %v", err)
+		}
+	}
 	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
 		t.Fatalf("observe terminal child = (%t, %v)", worked, err)
 	}
@@ -379,12 +392,127 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	if err := harness.runs.DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
 		t.Fatal(err)
 	}
+	attempts, err := harness.audits.ListItemAttempts(
+		ctx, completed.OwnerID, completed.AuditID, []string{members[0].ItemID},
+	)
+	if err != nil || len(attempts[members[0].ItemID]) != 1 {
+		t.Fatalf("Audit attempt tombstone = (%+v, %v)", attempts, err)
+	}
+	attempt := attempts[members[0].ItemID][0]
+	if !attempt.RunDeleted || attempt.RunID == nil || *attempt.RunID != runID ||
+		attempt.RunProvenance == nil || attempt.RunProvenance.Workflow == nil ||
+		attempt.RunProvenance.Workflow.Name != "audit-check" {
+		t.Fatalf("Audit attempt Run provenance = %+v", attempt)
+	}
+	retainedItems, err := harness.audits.ListItems(ctx, completed.AuditID)
+	if err != nil || len(retainedItems) != 1 {
+		t.Fatalf("retained Audit items = (%+v, %v)", retainedItems, err)
+	}
+	origin := retainedItems[0].Origin
+	if origin.ProvenanceIncomplete || origin.SourceRef == nil || origin.SourceRef.Revision == nil ||
+		origin.EntryKey != "check-0" || origin.EntryVersion != "1" ||
+		origin.SourceContentDigest == "" || origin.CanonicalInventoryDigest == "" {
+		t.Fatalf("retained exact checklist origin = %+v", origin)
+	}
 	if _, err := projectArtifacts.Read(ctx, resultLink.Artifact.Ref); err != nil {
 		t.Fatalf("retained result after source Run deletion: %v", err)
 	}
 	report, err = auditService.GetReport(ctx, completed.OwnerID, completed.AuditID)
 	if err != nil || report.Status != auditservice.ReportReady {
 		t.Fatalf("Audit report after source Run deletion = (%+v, %v)", report, err)
+	}
+	deletion, err := auditService.Delete(ctx, auditservice.MutationParams{
+		OwnerID: completed.OwnerID, AuditID: completed.AuditID, ExpectedRevision: completed.Revision,
+		IdempotencyKey: "delete-completed-audit", RequestDigest: postgresDigest("delete-completed-audit"),
+	})
+	if err != nil || deletion.Audit.State != auditstore.AuditDeleting || deletion.Audit.DeletionRequestedAt == nil {
+		t.Fatalf("begin completed Audit deletion = (%+v, %v)", deletion, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("purge completed Audit = (%t, %v)", worked, err)
+	}
+	if _, err := harness.audits.Get(ctx, completed.OwnerID, completed.AuditID); !errors.Is(err, auditstore.ErrNotFound) {
+		t.Fatalf("deleted Audit lookup = %v", err)
+	}
+	if _, err := projectArtifacts.Read(ctx, resultLink.Artifact.Ref); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("deleted Audit retained result = %v", err)
+	}
+}
+
+func TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 2)
+	controller := harness.controllerWithCollector(t)
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("activate round = (%t, %v)", worked, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch child = (%t, %v)", worked, err)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("submitted child = (%+v, %v)", executions, err)
+	}
+	runID := *executions[0].RunID
+	if _, err := harness.runs.UpdateOwnerQueueControl(
+		ctx, runstore.UpdateOwnerQueueControlParams{
+			OwnerID: harness.started.Audit.OwnerID, ExpectedRevision: 0, Paused: true,
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	service, err := auditservice.New(auditservice.Options{
+		Pool: harness.pool, Profiles: harness.snapshot, LLMCredentials: controllerCredentialLookup{},
+		CredentialGuard: controllerCredentialGuard{}, RuntimeCredentials: controllerRuntimeCredentials{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deletion, err := service.Delete(ctx, auditservice.MutationParams{
+		OwnerID: current.OwnerID, AuditID: current.AuditID, ExpectedRevision: current.Revision,
+		IdempotencyKey: "delete-active-audit", RequestDigest: postgresDigest("delete-active-audit"),
+	})
+	if err != nil || deletion.Audit.State != auditstore.AuditCancelling || deletion.Audit.DeletionRequestedAt == nil {
+		t.Fatalf("active Audit deletion = (%+v, %v)", deletion, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("cancel child while queue paused = (%t, %v)", worked, err)
+	}
+	run, err := harness.runs.GetRun(ctx, runID)
+	if err != nil || run.State != runstore.RunCancelling {
+		t.Fatalf("cancelled child state = (%+v, %v)", run, err)
+	}
+	if _, err := harness.runs.TransitionRun(
+		ctx, runID, runstore.RunCancelling, runstore.RunCancelled,
+		runstore.Reason{Code: "test_cancelled"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	for operation := 0; operation < 12; operation++ {
+		if _, err := harness.audits.Get(ctx, current.OwnerID, current.AuditID); errors.Is(err, auditstore.ErrNotFound) {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		worked, err := controller.RunOnce(ctx)
+		if err != nil || !worked {
+			t.Fatalf("deletion operation %d = (%t, %v)", operation, worked, err)
+		}
+	}
+	if _, err := harness.audits.Get(ctx, current.OwnerID, current.AuditID); !errors.Is(err, auditstore.ErrNotFound) {
+		t.Fatalf("deleted active Audit lookup = %v", err)
+	}
+	if _, err := harness.runs.GetRun(ctx, runID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("deleted child Run lookup = %v", err)
+	}
+	queue, err := harness.runs.GetOwnerQueueControl(ctx, current.OwnerID)
+	if err != nil || !queue.Paused {
+		t.Fatalf("owner queue state after Audit cleanup = (%+v, %v)", queue, err)
 	}
 }
 

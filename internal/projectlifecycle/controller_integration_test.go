@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -140,6 +142,23 @@ INSERT INTO stage_allocations (
 	}); err != nil {
 		t.Fatal(err)
 	}
+	audits := auditstore.NewPostgresStore(pool)
+	audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: "audit-project-delete", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile: auditstore.ProfileIdentity{
+			Name: "checklist", Version: "1", Digest: "sha256:" + strings.Repeat("d", 64),
+		},
+		ProfileSnapshot: json.RawMessage(`{"ref":{"name":"checklist","version":"1"}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{
+			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+			MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
+		},
+		IdempotencyKey: "create-project-audit", RequestDigest: "sha256:" + strings.Repeat("e", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	deleting, accepted, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
 		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
@@ -172,6 +191,14 @@ INSERT INTO stage_allocations (
 	notifier := &recordingNotifier{}
 	first := newTestController(t, pool, runs, notifier, "first")
 	worked, err := first.RunOnce(ctx)
+	if err != nil || !worked || len(notifier.runIDs) != 0 {
+		t.Fatalf("Audit deletion-intent iteration = (%t, %v), notifications=%v", worked, err, notifier.runIDs)
+	}
+	deletingAudit, err := audits.Get(ctx, audit.OwnerID, audit.AuditID)
+	if err != nil || deletingAudit.State != auditstore.AuditDeleting || deletingAudit.DeletionRequestedAt == nil {
+		t.Fatalf("Project-owned Audit deletion intent = (%+v, %v)", deletingAudit, err)
+	}
+	worked, err = first.RunOnce(ctx)
 	if err != nil || !worked || len(notifier.runIDs) != 1 || notifier.runIDs[0] != active.RunID {
 		t.Fatalf("cancellation iteration = (%t, %v), notifications=%v", worked, err, notifier.runIDs)
 	}
@@ -205,6 +232,19 @@ INSERT INTO stage_allocations (
 	}
 	if err := runs.MarkStageAllocationReleased(ctx, "allocation-active"); err != nil {
 		t.Fatal(err)
+	}
+	expireDeletionClaim(t, ctx, pool, project.ProjectID)
+	if worked, err = restarted.RunOnce(ctx); err != nil || worked {
+		t.Fatalf("pending Audit drain = (%t, %v)", worked, err)
+	}
+	claims, err := audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "project-test-audit-controller", Lease: time.Minute, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 || claims[0].AuditID != audit.AuditID {
+		t.Fatalf("claim deleting Audit = (%+v, %v)", claims, err)
+	}
+	if err := audits.PurgeClaimed(ctx, claims[0], auditdomain.ArtifactNamespace(audit.AuditID)); err != nil {
+		t.Fatalf("purge deleting Audit = %v", err)
 	}
 	expireDeletionClaim(t, ctx, pool, project.ProjectID)
 

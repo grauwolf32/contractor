@@ -76,6 +76,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	}
 	sort.Strings(implemented)
 	wantImplemented := []string{
+		"DELETE /v1/audits/{auditId}",
 		"DELETE /v1/operations/credentials/{credentialId}",
 		"DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}",
 		"DELETE /v1/operations/runtime-credentials/{credentialId}",
@@ -132,6 +133,9 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/workflows",
 		"GET /v1/workflows/{name}/versions/{version}",
 		"PATCH /v1/projects/{projectId}",
+		"POST /v1/audits/{auditId}/cancel",
+		"POST /v1/audits/{auditId}/pause",
+		"POST /v1/audits/{auditId}/resume",
 		"POST /v1/audits/{auditId}/start",
 		"POST /v1/auth/login",
 		"POST /v1/auth/logout",

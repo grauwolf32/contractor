@@ -18,6 +18,7 @@ type materializedItemJSON struct {
 	SubjectKey   string          `json:"subject_key"`
 	TaskRef      json.RawMessage `json:"task_ref"`
 	TaskDigest   string          `json:"task_digest"`
+	Origin       json.RawMessage `json:"origin"`
 	WorkflowRole string          `json:"workflow_role"`
 	InitialState string          `json:"initial_state"`
 	Status       string          `json:"status"`
@@ -43,10 +44,11 @@ func (s *PostgresStore) MaterializeRound(
 	items := make([]materializedItemJSON, len(params.Items))
 	for index, item := range params.Items {
 		encodedTaskRef, _ := json.Marshal(item.Task.Ref)
+		encodedOrigin, _ := json.Marshal(item.Origin)
 		items[index] = materializedItemJSON{
 			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
 			Kind: item.Kind, SubjectKey: item.SubjectKey, TaskRef: encodedTaskRef,
-			TaskDigest: item.Task.Digest, WorkflowRole: item.WorkflowRole,
+			TaskDigest: item.Task.Digest, Origin: encodedOrigin, WorkflowRole: item.WorkflowRole,
 			InitialState: string(item.InitialState), Status: string(item.Coverage.Status),
 			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
 			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
@@ -87,18 +89,18 @@ WITH project_gate AS MATERIALIZED (
 ), item_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($9::jsonb) AS item(
         item_id text, item_key text, ordinal integer, kind text,
-        subject_key text, task_ref jsonb, task_digest text,
+        subject_key text, task_ref jsonb, task_digest text, origin jsonb,
         workflow_role text, initial_state text, status text,
         requested jsonb, completed jsonb, gaps jsonb, rationale text
     )
 ), inserted_items AS (
     INSERT INTO audit_items (
         item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-        task_ref, task_digest, workflow_role, state
+        task_ref, task_digest, origin, workflow_role, state
     )
     SELECT item.item_id, round.audit_id, round.round_id,
            item.item_key, item.ordinal, item.kind, item.subject_key,
-           item.task_ref, item.task_digest, item.workflow_role, item.initial_state
+           item.task_ref, item.task_digest, item.origin, item.workflow_role, item.initial_state
       FROM inserted_round AS round CROSS JOIN item_input AS item
     RETURNING item_id, audit_id, round_id, item_key, subject_key
 ), inserted_coverage AS (

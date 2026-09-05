@@ -191,10 +191,24 @@ func validateMutationReplay(
 	if err := validateText("ownerID", ownerID, 256, true); err != nil {
 		return err
 	}
-	if operation != MutationCreate && operation != MutationStart {
+	if operation != MutationCreate && operation != MutationStart &&
+		operation != MutationTransition && operation != MutationDelete {
 		return invalidf("Audit mutation operation is invalid")
 	}
 	return validateIdempotency(key, digest)
+}
+
+func validateDelete(params DeleteParams) error {
+	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
+		return err
+	}
+	if err := validateID("auditID", params.AuditID); err != nil {
+		return err
+	}
+	if params.ExpectedRevision == 0 || params.ExpectedRevision > math.MaxInt64 {
+		return invalidf("Audit delete revision is invalid")
+	}
+	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
 }
 
 func transitionAllowed(from, to AuditState) bool {
@@ -284,7 +298,7 @@ func roundTransitionAllowed(from, to RoundState) bool {
 	case RoundProposed:
 		return to == RoundAccepted
 	case RoundAccepted:
-		return to == RoundExecuting
+		return to == RoundExecuting || to == RoundClosed
 	case RoundExecuting:
 		return to == RoundAssessing || to == RoundClosed
 	case RoundAssessing:
@@ -363,6 +377,38 @@ func validateCoverage(value Coverage) error {
 	return nil
 }
 
+func validateItemOrigin(value ItemOrigin, itemKey string, allowIncomplete bool) error {
+	if value.Schema != ItemOriginSchema || value.EntryKey != itemKey {
+		return invalidf("item origin identity is invalid")
+	}
+	if value.ProvenanceIncomplete {
+		if !allowIncomplete {
+			return invalidf("new item origin cannot be incomplete")
+		}
+		return nil
+	}
+	if value.SourceRef == nil || value.SourceRef.ValidateExact() != nil {
+		return invalidf("item origin source ref is invalid")
+	}
+	if err := validateDigest("item origin source digest", value.SourceContentDigest); err != nil {
+		return err
+	}
+	if err := validateDigest("item origin inventory digest", value.CanonicalInventoryDigest); err != nil {
+		return err
+	}
+	if err := validateText("item origin source media type", value.SourceMediaType, 256, true); err != nil {
+		return err
+	}
+	if err := validateText("item origin entry version", value.EntryVersion, 256, false); err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil || len(encoded) > 16<<10 {
+		return invalidf("item origin is too large")
+	}
+	return nil
+}
+
 func validateMaterialize(params MaterializeRoundParams) error {
 	if err := validateText("ownerID", params.OwnerID, 256, true); err != nil {
 		return err
@@ -419,6 +465,9 @@ func validateMaterialize(params MaterializeRoundParams) error {
 			return invalidf("round item initial state is invalid")
 		}
 		if err := validateExactArtifact("item task", item.Task, false); err != nil {
+			return err
+		}
+		if err := validateItemOrigin(item.Origin, item.ItemKey, false); err != nil {
 			return err
 		}
 		if err := validateCoverage(item.Coverage); err != nil || item.Coverage.Status != CoverageNotTested {
@@ -736,6 +785,8 @@ func finalForCollection(value CollectionDisposition) FinalDisposition {
 		return FinalExecutionFailed
 	case CollectionExecutionCancelled:
 		return FinalExecutionCancelled
+	case CollectionContractInvalid:
+		return FinalInvalidResult
 	default:
 		return ""
 	}
