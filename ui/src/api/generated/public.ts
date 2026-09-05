@@ -398,6 +398,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** Read the exact accepted Audit report or its generation state */
+        get: operations["getAuditReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/queue": {
         parameters: {
             query?: never;
@@ -1375,7 +1394,7 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         /** @enum {unknown} */
-        AuditCoverageStatus: "not-tested" | "inconclusive" | "satisfied" | "violated" | "not-applicable" | "blocked" | "excluded";
+        AuditCoverageStatus: "not-tested" | "inconclusive" | "satisfied" | "violated" | "not-applicable" | "blocked" | "excluded" | "traced-complete" | "traced-partial" | "unmapped";
         AuditCoverage: {
             status: components["schemas"]["AuditCoverageStatus"];
             requested: string[];
@@ -1397,6 +1416,18 @@ export interface components {
         AuditCoveragePage: {
             items: components["schemas"]["AuditCoverageRow"][];
             page: components["schemas"]["PageInfo"];
+        };
+        /** @enum {unknown} */
+        AuditReportStatus: "pending" | "ready" | "unavailable";
+        AuditReport: {
+            status: components["schemas"]["AuditReportStatus"];
+            machineArtifact?: components["schemas"]["AuditExactArtifact"];
+            summaryArtifact?: components["schemas"]["AuditExactArtifact"];
+            /** @description Exact contractor.audit.report.v1 machine-readable document. */
+            machine?: {
+                [key: string]: unknown;
+            };
+            summary?: string;
         };
         AuditStartResponse: {
             audit: components["schemas"]["Audit"];
@@ -3656,6 +3687,34 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditCoveragePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAuditReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Report state with exact artifacts and content when ready */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditReport"];
                 };
             };
             400: components["responses"]["BadRequest"];

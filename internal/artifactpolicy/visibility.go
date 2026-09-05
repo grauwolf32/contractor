@@ -3,7 +3,14 @@ package artifactpolicy
 
 import "strings"
 
-const MemoryArtifactPrefix = "memory."
+const (
+	MemoryArtifactPrefix               = "memory."
+	AuditManagedProjectNamespacePrefix = "audit-"
+)
+
+func IsAuditManagedProjectNamespace(namespace string) bool {
+	return strings.HasPrefix(namespace, AuditManagedProjectNamespacePrefix)
+}
 
 // IsPurposeReservedNamespace reports whether a Run Namespace is owned by a
 // trusted purpose-specific flow rather than by a Stage Agent binding.

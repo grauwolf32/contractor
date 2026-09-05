@@ -18,7 +18,7 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "user-artifacts", true)
+	h.listArtifactBindings(w, r, store, "user-artifacts", true, "")
 }
 
 func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +66,7 @@ func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "run-artifacts:"+runID, false)
+	h.listArtifactBindings(w, r, store, "run-artifacts:"+runID, false, "")
 }
 
 func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +143,7 @@ func (h *handler) listArtifactBindings(
 	store artifacts.ScopedStore,
 	cursorPrefix string,
 	allowNamespaceExclusion bool,
+	excludeNamespacePrefix string,
 ) {
 	allowedQuery := []string{"namespace"}
 	if allowNamespaceExclusion {
@@ -182,7 +183,8 @@ func (h *handler) listArtifactBindings(
 		return
 	}
 	pageQuery := artifacts.BindingPageQuery{
-		Namespace: namespace, ExcludeNamespace: excludeNamespace, Limit: limit + 1,
+		Namespace: namespace, ExcludeNamespace: excludeNamespace,
+		ExcludeNamespacePrefix: excludeNamespacePrefix, Limit: limit + 1,
 	}
 	if len(cursor) != 0 {
 		pageQuery.AfterNamespace, pageQuery.AfterName = cursor[0], cursor[1]
@@ -320,7 +322,10 @@ func (h *handler) listArtifactLineageFromStore(
 		selectedRevision = *metadata.Ref.Revision
 		ref = metadata.Ref
 	}
-	pageQuery := artifacts.LineagePageQuery{Limit: limit + 1}
+	pageQuery := artifacts.LineagePageQuery{
+		ExcludeKind: artifacts.LineageAuditImport,
+		Limit:       limit + 1,
+	}
 	if len(cursor) != 0 {
 		before, parseErr := time.Parse(time.RFC3339Nano, cursor[1])
 		if parseErr != nil {

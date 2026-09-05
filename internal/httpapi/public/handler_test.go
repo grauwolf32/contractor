@@ -331,8 +331,40 @@ func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
 			t.Fatalf("Project Artifact %s = %d %s", name, response.Code, response.Body.String())
 		}
 	}
+	projectArtifacts, err := fixture.artifacts.Project("project_fixed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectArtifacts.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "audit-staging", Name: "report.json"},
+		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"hidden":true}`)}, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	listHidden := authenticatedRequest(
+		http.MethodGet, "/v1/projects/project_fixed/artifacts", bytes.NewReader(nil),
+	)
+	listHiddenResponse := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(listHiddenResponse, listHidden)
+	if listHiddenResponse.Code != http.StatusOK || strings.Contains(listHiddenResponse.Body.String(), "audit-staging") {
+		t.Fatalf("Project Artifact list exposed Audit staging = %d %s", listHiddenResponse.Code, listHiddenResponse.Body.String())
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPut} {
+		hidden := authenticatedRequest(
+			method, "/v1/projects/project_fixed/artifacts/audit-staging/report.json", bytes.NewReader([]byte(`{}`)),
+		)
+		if method == http.MethodPut {
+			hidden.Header.Set("Content-Type", "application/json")
+			hidden.Header.Set("If-Match", `"ignored"`)
+		}
+		hiddenResponse := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(hiddenResponse, hidden)
+		if hiddenResponse.Code != http.StatusNotFound {
+			t.Fatalf("%s hidden Audit Project Artifact = %d %s", method, hiddenResponse.Code, hiddenResponse.Body.String())
+		}
+	}
 
-	_, _, err := fixture.projects.Create(t.Context(), projectstore.CreateParams{
+	_, _, err = fixture.projects.Create(t.Context(), projectstore.CreateParams{
 		ProjectID: "project-foreign", OwnerID: "user-2", Kind: projectstore.KindProject,
 		Name: "Foreign", IdempotencyKey: "create-foreign", RequestDigest: "sha256:foreign",
 	})

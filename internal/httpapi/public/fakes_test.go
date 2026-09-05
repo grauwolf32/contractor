@@ -470,6 +470,7 @@ func (f *fakeArtifactRepository) ListMetadata(
 		if key.kind != scope.Kind() || key.id != scope.ID() ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ExcludeNamespace != nil && key.namespace == *query.ExcludeNamespace ||
+			query.ExcludeNamespacePrefix != "" && strings.HasPrefix(key.namespace, query.ExcludeNamespacePrefix) ||
 			query.AfterNamespace != "" && (key.namespace < query.AfterNamespace ||
 				key.namespace == query.AfterNamespace && key.name <= query.AfterName) {
 			continue
@@ -535,7 +536,7 @@ func (f *fakeArtifactRepository) ListLineage(
 	for _, edge := range f.lineage {
 		matchesSource := edge.SourceScope == scope.Kind() && sameExactArtifact(edge.Source, ref)
 		matchesTarget := edge.TargetScope == scope.Kind() && sameExactArtifact(edge.Target, ref)
-		if !matchesSource && !matchesTarget || !fakeLineageBefore(edge, query) {
+		if !matchesSource && !matchesTarget || edge.Kind == query.ExcludeKind || !fakeLineageBefore(edge, query) {
 			continue
 		}
 		result = append(result, edge)

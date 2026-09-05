@@ -157,6 +157,41 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 	}
 }
 
+func TestAuditReportHandlerReturnsOnlyAcceptedProjection(t *testing.T) {
+	revision := "report-r1"
+	management := &fakeAuditManagement{report: auditservice.ReportProjection{
+		Status: auditservice.ReportReady,
+		MachineArtifact: &auditstore.ExactArtifact{
+			Ref:    contracts.ArtifactRef{Namespace: "audit-hidden", Name: "report.json", Revision: &revision},
+			Digest: auditHandlerDigest("machine"), MediaType: "application/json", SizeBytes: 41,
+		},
+		SummaryArtifact: &auditstore.ExactArtifact{
+			Ref:    contracts.ArtifactRef{Namespace: "audit-hidden", Name: "report.txt", Revision: &revision},
+			Digest: auditHandlerDigest("summary"), MediaType: "text/plain", SizeBytes: 16,
+		},
+		Machine: json.RawMessage(`{"schema":"contractor.audit.report.v1"}`),
+		Summary: "bounded summary",
+	}}
+	h := auditTestHandler(management)
+	request := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/report", nil)
+	request.SetPathValue("auditId", "audit-fixed")
+	response := httptest.NewRecorder()
+	h.getAuditReport(response, request)
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" ||
+		!strings.Contains(response.Body.String(), `"status":"ready"`) ||
+		!strings.Contains(response.Body.String(), `"schema":"contractor.audit.report.v1"`) ||
+		!strings.Contains(response.Body.String(), `"summary":"bounded summary"`) {
+		t.Fatalf("Audit report = %d headers=%v body=%s", response.Code, response.Header(), response.Body.String())
+	}
+
+	management.report = auditservice.ReportProjection{Status: auditservice.ReportPending}
+	pending := httptest.NewRecorder()
+	h.getAuditReport(pending, request)
+	if pending.Code != http.StatusOK || pending.Body.String() != "{\"status\":\"pending\"}\n" {
+		t.Fatalf("pending Audit report = %d %s", pending.Code, pending.Body.String())
+	}
+}
+
 type fakeAuditManagement struct {
 	profiles []auditservice.ProfileProjection
 	audit    auditstore.Audit
@@ -164,6 +199,7 @@ type fakeAuditManagement struct {
 	created  auditservice.CreateDraftParams
 	start    auditservice.StartParams
 	err      error
+	report   auditservice.ReportProjection
 }
 
 func (f *fakeAuditManagement) Profiles() []auditservice.ProfileProjection {
@@ -216,6 +252,12 @@ func (f *fakeAuditManagement) ListCoverage(
 	context.Context, string, string, string, int, int,
 ) ([]auditstore.CoverageRow, error) {
 	return nil, f.err
+}
+
+func (f *fakeAuditManagement) GetReport(
+	context.Context, string, string,
+) (auditservice.ReportProjection, error) {
+	return f.report, f.err
 }
 
 func auditTestHandler(audits AuditManagement) *handler {

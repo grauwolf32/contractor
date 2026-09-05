@@ -183,19 +183,23 @@ func (d FinalDisposition) Valid() bool {
 type CoverageStatus string
 
 const (
-	CoverageNotTested     CoverageStatus = "not-tested"
-	CoverageInconclusive  CoverageStatus = "inconclusive"
-	CoverageSatisfied     CoverageStatus = "satisfied"
-	CoverageViolated      CoverageStatus = "violated"
-	CoverageNotApplicable CoverageStatus = "not-applicable"
-	CoverageBlocked       CoverageStatus = "blocked"
-	CoverageExcluded      CoverageStatus = "excluded"
+	CoverageNotTested      CoverageStatus = "not-tested"
+	CoverageInconclusive   CoverageStatus = "inconclusive"
+	CoverageSatisfied      CoverageStatus = "satisfied"
+	CoverageViolated       CoverageStatus = "violated"
+	CoverageNotApplicable  CoverageStatus = "not-applicable"
+	CoverageBlocked        CoverageStatus = "blocked"
+	CoverageExcluded       CoverageStatus = "excluded"
+	CoverageTracedComplete CoverageStatus = "traced-complete"
+	CoverageTracedPartial  CoverageStatus = "traced-partial"
+	CoverageUnmapped       CoverageStatus = "unmapped"
 )
 
 func (s CoverageStatus) Valid() bool {
 	switch s {
 	case CoverageNotTested, CoverageInconclusive, CoverageSatisfied,
-		CoverageViolated, CoverageNotApplicable, CoverageBlocked, CoverageExcluded:
+		CoverageViolated, CoverageNotApplicable, CoverageBlocked, CoverageExcluded,
+		CoverageTracedComplete, CoverageTracedPartial, CoverageUnmapped:
 		return true
 	default:
 		return false
@@ -504,6 +508,7 @@ type ArtifactLink struct {
 	Artifact         ExactArtifact   `json:"artifact"`
 	SourceProvenance json.RawMessage `json:"sourceProvenance"`
 	DisplayRef       string          `json:"displayRef,omitempty"`
+	CreatedAt        time.Time       `json:"createdAt,omitempty"`
 }
 
 type CollectParams struct {
@@ -549,6 +554,24 @@ type CollectionReceiptSummary struct {
 	ErrorCode             *string
 	RequestDigest         string
 	CreatedAt             time.Time
+}
+
+type CollectionDispositionCounts struct {
+	AcceptedResult     int `json:"acceptedResult"`
+	MissingOutput      int `json:"missingOutput"`
+	InvalidResult      int `json:"invalidResult"`
+	ExecutionFailed    int `json:"executionFailed"`
+	ExecutionCancelled int `json:"executionCancelled"`
+}
+
+type CommitReportParams struct {
+	Claim                 ControllerClaim
+	ExpectedAuditRevision uint64
+	RoundID               string
+	ExpectedRoundRevision uint64
+	Machine               ArtifactLink
+	Summary               ArtifactLink
+	RequestDigest         string
 }
 
 type Event struct {
@@ -611,5 +634,6 @@ type ControllerRepository interface {
 	ObserveTerminal(context.Context, ObserveTerminalParams) (Execution, error)
 	ObserveSubmissionFailure(context.Context, ObserveSubmissionFailureParams) (Execution, error)
 	Collect(context.Context, CollectParams) (CollectionReceipt, bool, error)
+	CommitReport(context.Context, CommitReportParams) (Audit, error)
 	GetReconcileSnapshot(context.Context, ControllerClaim) (ReconcileSnapshot, error)
 }

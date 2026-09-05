@@ -66,6 +66,7 @@ func (s *PostgresStore) Collect(
 	encodedItems, _ := json.Marshal(items)
 	links := make([]artifactLinkJSON, len(params.Retained))
 	var retainedBytes int64
+	retainedArtifacts := make(map[string]struct{}, len(params.Retained))
 	for index, link := range params.Retained {
 		ref, _ := json.Marshal(link.Artifact.Ref)
 		links[index] = artifactLinkJSON{
@@ -74,7 +75,11 @@ func (s *PostgresStore) Collect(
 			SizeBytes: link.Artifact.SizeBytes, SourceProvenance: link.SourceProvenance,
 			DisplayRef: link.DisplayRef,
 		}
-		retainedBytes += link.Artifact.SizeBytes
+		key := link.Artifact.Ref.Namespace + "\x00" + link.Artifact.Ref.Name + "\x00" + *link.Artifact.Ref.Revision
+		if _, counted := retainedArtifacts[key]; !counted {
+			retainedArtifacts[key] = struct{}{}
+			retainedBytes += link.Artifact.SizeBytes
+		}
 	}
 	encodedLinks, _ := json.Marshal(links)
 	retainedSnapshot := append([]ArtifactLink{}, params.Retained...)

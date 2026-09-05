@@ -652,6 +652,7 @@ func validateCollect(params CollectParams) error {
 	}
 	seenLinks := make(map[string]struct{}, len(params.Retained))
 	var retainedBytes int64
+	retainedArtifacts := make(map[string]struct{}, len(params.Retained))
 	for _, link := range params.Retained {
 		if err := validateText("artifact logical key", link.LogicalKey, 512, true); err != nil {
 			return err
@@ -669,14 +670,56 @@ func validateCollect(params CollectParams) error {
 		if err := validateText("artifact display ref", link.DisplayRef, 1024, false); err != nil {
 			return err
 		}
-		if link.Artifact.SizeBytes > 1<<30-retainedBytes {
-			return invalidf("retained artifact bytes overflow")
+		artifactKey := link.Artifact.Ref.Namespace + "\x00" + link.Artifact.Ref.Name + "\x00" + *link.Artifact.Ref.Revision
+		if _, counted := retainedArtifacts[artifactKey]; !counted {
+			if link.Artifact.SizeBytes > 1<<30-retainedBytes {
+				return invalidf("retained artifact bytes overflow")
+			}
+			retainedArtifacts[artifactKey] = struct{}{}
+			retainedBytes += link.Artifact.SizeBytes
 		}
-		retainedBytes += link.Artifact.SizeBytes
 	}
 	encodedRetained, err := json.Marshal(params.Retained)
 	if err != nil || len(encodedRetained) > MaxRetainedRefsBytes {
 		return invalidf("retained artifact refs are too large")
+	}
+	return nil
+}
+
+func validateCommitReport(params CommitReportParams) error {
+	if err := validateClaimIdentity(params.Claim); err != nil {
+		return err
+	}
+	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 ||
+		params.ExpectedRoundRevision == 0 || params.ExpectedRoundRevision > math.MaxInt64 {
+		return invalidf("Audit report revision precondition is invalid")
+	}
+	if err := validateID("roundID", params.RoundID); err != nil {
+		return err
+	}
+	if err := validateDigest("Audit report request digest", params.RequestDigest); err != nil {
+		return err
+	}
+	for _, pair := range []struct {
+		link  ArtifactLink
+		key   string
+		media string
+	}{
+		{params.Machine, ReportMachineLogicalKey, "application/json"},
+		{params.Summary, ReportSummaryLogicalKey, "text/plain"},
+	} {
+		if pair.link.LogicalKey != pair.key || pair.link.Artifact.MediaType != pair.media {
+			return invalidf("Audit report artifact contract is invalid")
+		}
+		if err := validateExactArtifact("Audit report artifact", pair.link.Artifact, true); err != nil {
+			return err
+		}
+		if err := validateJSONObject("Audit report provenance", pair.link.SourceProvenance, 1<<20); err != nil {
+			return err
+		}
+		if err := validateText("Audit report display ref", pair.link.DisplayRef, 1024, false); err != nil {
+			return err
+		}
 	}
 	return nil
 }

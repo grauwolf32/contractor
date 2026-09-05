@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -147,3 +148,19 @@ type StartedAudit struct {
 
 type AuditPageParams = auditstore.ListParams
 type ItemPageParams = auditstore.ListItemsParams
+
+type ReportStatus string
+
+const (
+	ReportPending     ReportStatus = "pending"
+	ReportReady       ReportStatus = "ready"
+	ReportUnavailable ReportStatus = "unavailable"
+)
+
+type ReportProjection struct {
+	Status          ReportStatus              `json:"status"`
+	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
+	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
+	Machine         json.RawMessage           `json:"machine,omitempty"`
+	Summary         string                    `json:"summary,omitempty"`
+}

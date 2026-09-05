@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -122,6 +123,54 @@ func (c *Controller) reconcile(
 	if changed, err := c.observeOneTerminal(ctx, claim, snapshot); changed || err != nil {
 		return changed, err
 	}
+	if c.collector != nil {
+		for _, execution := range snapshot.Executions {
+			if execution.State != auditstore.ExecutionCollecting {
+				continue
+			}
+			changed, collectErr := c.collector.Collect(ctx, claim, snapshot, execution)
+			if errors.Is(collectErr, auditstore.ErrPrecondition) {
+				return false, nil
+			}
+			if errors.Is(collectErr, auditimport.ErrPermanent) {
+				return c.failAuditImport(ctx, claim, audit, "collection-contract-invalid")
+			}
+			return changed, collectErr
+		}
+	}
+
+	if audit.State == auditstore.AuditActive && snapshot.Round != nil &&
+		snapshot.Round.State == auditstore.RoundExecuting && audit.OutstandingRunCount == 0 &&
+		len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions {
+		_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+			Claim: claim, RoundID: snapshot.Round.RoundID,
+			ExpectedRevision: snapshot.Round.Revision,
+			ExpectedState:    auditstore.RoundExecuting, TargetState: auditstore.RoundClosed,
+		})
+		return err == nil, err
+	}
+	if audit.State == auditstore.AuditActive && snapshot.Round != nil &&
+		snapshot.Round.State == auditstore.RoundClosed && audit.OutstandingRunCount == 0 &&
+		len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 {
+		reason := auditstore.StopReason{
+			Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
+		}
+		_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+			Claim: claim, ExpectedRevision: audit.Revision,
+			ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
+			Reason: &reason,
+		})
+		return err == nil, err
+	}
+	if audit.State == auditstore.AuditFinalizing && c.collector != nil {
+		changed, finalizeErr := c.collector.Finalize(ctx, claim, snapshot)
+		if errors.Is(finalizeErr, auditimport.ErrPermanent) {
+			return c.failAuditImport(ctx, claim, audit, "report-contract-invalid")
+		}
+		if changed || finalizeErr != nil {
+			return changed, finalizeErr
+		}
+	}
 
 	closed := audit.Dispatch == auditstore.DispatchClosed ||
 		audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditFinalizing
@@ -168,6 +217,29 @@ func (c *Controller) reconcile(
 		return c.dispatch(ctx, claim, snapshot, item, attempt)
 	}
 	return false, nil
+}
+
+func (c *Controller) failAuditImport(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	audit auditstore.Audit,
+	code string,
+) (bool, error) {
+	reason := auditstore.StopReason{
+		Code: code, Message: "Trusted Audit result processing could not satisfy its durable contract.",
+	}
+	target := auditstore.AuditFailed
+	if audit.State == auditstore.AuditActive {
+		target = auditstore.AuditFinalizing
+	} else if audit.State != auditstore.AuditFinalizing {
+		return false, fmt.Errorf("Audit import failed while Audit %q was %q", audit.AuditID, audit.State)
+	}
+	_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+		Claim: claim, ExpectedRevision: audit.Revision,
+		ExpectedState: audit.State, TargetState: target,
+		Reason: &reason,
+	})
+	return err == nil, err
 }
 
 func (c *Controller) dispatchClosureReason(

@@ -722,6 +722,38 @@ func TestUserArtifactNamespaceExclusionPrecedesPagination(t *testing.T) {
 	}
 }
 
+func TestPublicArtifactLineageHidesAuditImportStagingEdge(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	user, err := fixture.artifacts.User("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := user.Write(
+		t.Context(), contracts.ArtifactRef{Namespace: "results", Name: "source"},
+		artifacts.Payload{MediaType: "application/json", Data: []byte(`{}`)}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetRevision := "hidden-revision"
+	fixture.repository.lineage = append(fixture.repository.lineage, artifacts.LineageEdge{
+		Kind:        artifacts.LineageAuditImport,
+		SourceScope: artifacts.ScopeUser, Source: source.Ref,
+		TargetScope: artifacts.ScopeProject,
+		Target: contracts.ArtifactRef{
+			Namespace: "audit-staging", Name: "result", Revision: &targetRevision,
+		},
+		CreatedAt: time.Now().UTC(),
+	})
+	response := serveQuery(t, fixture.handler, "/v1/artifacts/results/source/lineage")
+	var page artifactLineagePageResponse
+	decodeQueryResponse(t, response, &page)
+	if response.Code != http.StatusOK || len(page.Items) != 0 ||
+		strings.Contains(response.Body.String(), "audit-staging") {
+		t.Fatalf("public lineage exposed Audit staging = %d %s", response.Code, response.Body.String())
+	}
+}
+
 func TestQueryRoutesDoNotImplicitlyServeHEAD(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	for _, target := range []string{

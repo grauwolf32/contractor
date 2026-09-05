@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -163,6 +164,61 @@ func (s *Service) ListCoverage(
 		return nil, err
 	}
 	return store.ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
+}
+
+func (s *Service) GetReport(
+	ctx context.Context, ownerID, auditID string,
+) (ReportProjection, error) {
+	store := auditstore.NewPostgresStore(s.pool)
+	audit, err := store.Get(ctx, ownerID, auditID)
+	if err != nil {
+		return ReportProjection{}, err
+	}
+	machine, machineErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
+	summary, summaryErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
+	if errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
+		switch audit.State {
+		case auditstore.AuditFailed, auditstore.AuditCancelled:
+			return ReportProjection{Status: ReportUnavailable}, nil
+		case auditstore.AuditCompleted:
+			return ReportProjection{}, errors.New("completed Audit has no committed report links")
+		default:
+			return ReportProjection{Status: ReportPending}, nil
+		}
+	}
+	if machineErr != nil || summaryErr != nil {
+		return ReportProjection{}, errors.New("stored Audit report link set is incomplete")
+	}
+	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Project(audit.ProjectID)
+	if err != nil {
+		return ReportProjection{}, err
+	}
+	machineRead, err := project.Read(ctx, machine.Artifact.Ref)
+	if err != nil {
+		return ReportProjection{}, err
+	}
+	summaryRead, err := project.Read(ctx, summary.Artifact.Ref)
+	if err != nil {
+		return ReportProjection{}, err
+	}
+	if machine.Artifact.MediaType != "application/json" || summary.Artifact.MediaType != "text/plain" ||
+		digestBytes(machineRead.Payload.Data) != machine.Artifact.Digest ||
+		digestBytes(summaryRead.Payload.Data) != summary.Artifact.Digest ||
+		int64(len(machineRead.Payload.Data)) != machine.Artifact.SizeBytes ||
+		int64(len(summaryRead.Payload.Data)) != summary.Artifact.SizeBytes ||
+		!json.Valid(machineRead.Payload.Data) || len(summaryRead.Payload.Data) > auditstore.MaxSummaryBytes ||
+		!utf8.Valid(summaryRead.Payload.Data) || strings.ContainsRune(string(summaryRead.Payload.Data), 0) {
+		return ReportProjection{}, errors.New("stored Audit report failed integrity validation")
+	}
+	var object map[string]json.RawMessage
+	if json.Unmarshal(machineRead.Payload.Data, &object) != nil || object == nil {
+		return ReportProjection{}, errors.New("stored Audit machine report is not an object")
+	}
+	machineArtifact, summaryArtifact := machine.Artifact, summary.Artifact
+	return ReportProjection{
+		Status: ReportReady, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
+		Machine: append(json.RawMessage(nil), machineRead.Payload.Data...), Summary: string(summaryRead.Payload.Data),
+	}, nil
 }
 
 func (s *Service) selectDraftInputs(

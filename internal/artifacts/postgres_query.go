@@ -74,10 +74,11 @@ JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
-  AND ($5::text = '' OR (binding.namespace, binding.name) > ($5, $6))
+  AND ($5::text = '' OR left(binding.namespace, length($5)) <> $5)
+  AND ($6::text = '' OR (binding.namespace, binding.name) > ($6, $7))
 ORDER BY binding.namespace, binding.name
-LIMIT $7`, scope.kind, scope.id, query.Namespace, query.ExcludeNamespace,
-		query.AfterNamespace, query.AfterName, query.Limit)
+LIMIT $8`, scope.kind, scope.id, query.Namespace, query.ExcludeNamespace,
+		query.ExcludeNamespacePrefix, query.AfterNamespace, query.AfterName, query.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("list artifact metadata: %w", err)
 	}
@@ -158,8 +159,10 @@ func (r *PostgresRepository) ListLineage(
 	}
 	rows, err := r.db.Query(ctx, `
 SELECT lineage.lineage_kind,
-       lineage.source_scope_kind, lineage.source_namespace, lineage.source_name, lineage.source_revision,
-       lineage.target_scope_kind, lineage.target_namespace, lineage.target_name, lineage.target_revision,
+       lineage.source_scope_kind, lineage.source_scope_id,
+       lineage.source_namespace, lineage.source_name, lineage.source_revision,
+       lineage.target_scope_kind, lineage.target_scope_id,
+       lineage.target_namespace, lineage.target_name, lineage.target_revision,
        lineage.created_at
 FROM artifact_lineage AS lineage
 WHERE ((
@@ -169,12 +172,14 @@ WHERE ((
       lineage.target_scope_kind = $1 AND lineage.target_scope_id = $2
       AND lineage.target_namespace = $3 AND lineage.target_name = $4 AND lineage.target_revision = $5
     ))
-  AND ($6::timestamptz IS NULL OR (
+  AND ($6::text = '' OR lineage.lineage_kind <> $6)
+  AND ($7::timestamptz IS NULL OR (
     lineage.created_at, lineage.target_revision, lineage.source_revision, lineage.lineage_kind
-  ) < ($6, $7, $8, $9))
+  ) < ($7, $8, $9, $10))
 ORDER BY lineage.created_at DESC, lineage.target_revision DESC,
          lineage.source_revision DESC, lineage.lineage_kind DESC
-LIMIT $10`, scope.kind, scope.id, exact.Namespace, exact.Name, *exact.Revision,
+LIMIT $11`, scope.kind, scope.id, exact.Namespace, exact.Name, *exact.Revision,
+		query.ExcludeKind,
 		query.BeforeCreatedAt, query.BeforeTargetRevision, query.BeforeSourceRevision,
 		query.BeforeKind, query.Limit)
 	if err != nil {
@@ -187,8 +192,10 @@ LIMIT $10`, scope.kind, scope.id, exact.Namespace, exact.Name, *exact.Revision,
 		var sourceRevision, targetRevision string
 		if err := rows.Scan(
 			&edge.Kind,
-			&edge.SourceScope, &edge.Source.Namespace, &edge.Source.Name, &sourceRevision,
-			&edge.TargetScope, &edge.Target.Namespace, &edge.Target.Name, &targetRevision,
+			&edge.SourceScope, &edge.SourceScopeID,
+			&edge.Source.Namespace, &edge.Source.Name, &sourceRevision,
+			&edge.TargetScope, &edge.TargetScopeID,
+			&edge.Target.Namespace, &edge.Target.Name, &targetRevision,
 			&edge.CreatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan artifact lineage: %w", err)

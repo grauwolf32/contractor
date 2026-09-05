@@ -70,6 +70,11 @@ type SubmissionBuilder interface {
 	Prepare(context.Context, auditstore.ReconcileSnapshot, auditstore.Item, int) (PreparedSubmission, error)
 }
 
+type Collector interface {
+	Collect(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot, auditstore.Execution) (bool, error)
+	Finalize(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (bool, error)
+}
+
 type Clock interface {
 	Now() time.Time
 	After(time.Duration) <-chan time.Time
@@ -84,16 +89,18 @@ type Options struct {
 	Clock            Clock
 	NewID            func(string) (string, error)
 	Logger           *slog.Logger
+	Collector        Collector
 }
 
 type Controller struct {
-	store    Store
-	runs     RunStore
-	creator  RunCreator
-	builder  SubmissionBuilder
-	notifier RunNotifier
-	options  Options
-	wake     chan struct{}
+	store     Store
+	runs      RunStore
+	creator   RunCreator
+	builder   SubmissionBuilder
+	collector Collector
+	notifier  RunNotifier
+	options   Options
+	wake      chan struct{}
 
 	runMu   sync.Mutex
 	running bool
@@ -148,7 +155,7 @@ func New(
 	}
 	return &Controller{
 		store: store, runs: runs, creator: creator, builder: builder,
-		notifier: notifier, options: options, wake: make(chan struct{}, 1),
+		collector: options.Collector, notifier: notifier, options: options, wake: make(chan struct{}, 1),
 	}, nil
 }
 

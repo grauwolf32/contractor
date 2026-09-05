@@ -6,14 +6,18 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -173,6 +177,217 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	}
 }
 
+func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 1)
+	controller := harness.controllerWithCollector(t)
+
+	for operation := 0; operation < 8; operation++ {
+		executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(executions) == 1 && executions[0].State == auditstore.ExecutionSubmitted {
+			break
+		}
+		worked, err := controller.RunOnce(ctx)
+		if err != nil || !worked {
+			t.Fatalf("dispatch operation %d = (%t, %v)", operation, worked, err)
+		}
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("submitted Audit execution = (%+v, %v)", executions, err)
+	}
+	execution := executions[0]
+	members, err := harness.audits.ListExecutionItems(ctx, execution.ExecutionID)
+	if err != nil || len(members) != 1 {
+		t.Fatalf("Audit execution members = (%+v, %v)", members, err)
+	}
+	projectArtifacts, err := harness.artifacts.Project(harness.started.Audit.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskPackage, err := projectArtifacts.Read(ctx, members[0].Task.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatedTask, err := auditdomain.ValidatePackage(taskPackage.Payload.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskMember, exists := validatedTask.MemberByID("task-document")
+	if !exists {
+		t.Fatal("task package has no task-document member")
+	}
+	task, err := auditdomain.DecodeItemTask(taskMember.Data())
+	if err != nil {
+		t.Fatal(err)
+	}
+	requested := []string{}
+	if task.Checklist != nil {
+		requested = append(requested, task.Checklist.RequiredEvidence...)
+	}
+	resultDocument, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: execution.Manifest.Digest,
+		Results: []auditdomain.CheckResult{{
+			ItemKey: task.ItemKey, SubjectKey: task.SubjectKey, Assessment: "satisfied",
+			Summary: "The bounded checklist item was satisfied.", EvidenceIDs: []string{},
+			Coverage: auditdomain.ResultCoverage{
+				Requested: requested, Completed: append([]string{}, requested...), Gaps: []string{},
+			},
+			Proposals: []string{},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultPayload, _, err := auditdomain.BuildPackage(
+		"result-package", auditdomain.PackageKindCheckResults, "",
+		[]auditdomain.PackageInput{{
+			ID: auditdomain.CheckResultsMemberID, Path: "check-results.json",
+			MediaType: auditdomain.JSONMediaType, Data: resultDocument,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := *execution.RunID
+	runArtifacts, err := harness.artifacts.Run(runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workerResult, err := runArtifacts.Write(
+		ctx, contracts.ArtifactRef{Namespace: "worker", Name: "result"},
+		artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: resultPayload}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bound, err := harness.artifacts.BindOutputExact(ctx, runID, "result", workerResult.Ref, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.artifacts.FreezeRunOutputs(ctx, runID); err != nil {
+		t.Fatal(err)
+	}
+	run, err := harness.runs.GetRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.State == runstore.RunInitializing {
+		if _, err := harness.runs.TransitionRun(
+			ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+			runstore.Reason{Code: "test_started"},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := harness.runs.TransitionRun(
+		ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
+		runstore.Reason{Code: "test_succeeded"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	for operation := 0; operation < 12; operation++ {
+		audit, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if audit.State == auditstore.AuditCompleted {
+			break
+		}
+		worked, err := controller.RunOnce(ctx)
+		if err != nil || !worked {
+			t.Fatalf("collection operation %d = (%t, %v), Audit state %s", operation, worked, err, audit.State)
+		}
+	}
+	completed, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+	if err != nil || completed.State != auditstore.AuditCompleted {
+		t.Fatalf("completed Audit = (%+v, %v)", completed, err)
+	}
+	receipts, err := harness.audits.CollectionDispositionCounts(ctx, completed.AuditID)
+	if err != nil || receipts.AcceptedResult != 1 {
+		t.Fatalf("collection disposition counts = (%+v, %v)", receipts, err)
+	}
+	resultLink, err := harness.audits.GetArtifactLink(ctx, completed.AuditID, "result/"+members[0].ExecutionItemID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultMetadata, err := projectArtifacts.Metadata(ctx, resultLink.Artifact.Ref)
+	if err != nil || !resultMetadata.Frozen || resultMetadata.Digest != resultLink.Artifact.Digest {
+		t.Fatalf("retained result metadata = (%+v, %v)", resultMetadata, err)
+	}
+	lineage, err := projectArtifacts.ListLineage(
+		ctx, resultLink.Artifact.Ref, artifacts.LineagePageQuery{Limit: 2},
+	)
+	if err != nil || len(lineage) != 1 || lineage[0].Kind != artifacts.LineageAuditImport ||
+		lineage[0].SourceScopeID != runID || lineage[0].TargetScopeID != completed.ProjectID {
+		t.Fatalf("retained result lineage = (%+v, %v)", lineage, err)
+	}
+	outputMetadata, err := runArtifacts.Metadata(ctx, bound.TargetRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err := auditimport.NewArtifactAccess(harness.artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replayed, err := access.RetainRunExact(
+		ctx, runID,
+		auditstore.ExactArtifact{
+			Ref: outputMetadata.Ref, Digest: outputMetadata.Digest,
+			MediaType: outputMetadata.MediaType, SizeBytes: outputMetadata.Size,
+		},
+		completed.ProjectID,
+		contracts.ArtifactRef{Namespace: resultLink.Artifact.Ref.Namespace, Name: resultLink.Artifact.Ref.Name},
+	)
+	if err != nil || replayed.Digest != resultLink.Artifact.Digest ||
+		replayed.Ref.Revision == nil || *replayed.Ref.Revision != *resultLink.Artifact.Ref.Revision {
+		t.Fatalf("retained result replay = (%+v, %v)", replayed, err)
+	}
+
+	auditService, err := auditservice.New(auditservice.Options{
+		Pool: harness.pool, Profiles: harness.snapshot, LLMCredentials: controllerCredentialLookup{},
+		CredentialGuard: controllerCredentialGuard{}, RuntimeCredentials: controllerRuntimeCredentials{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := auditService.GetReport(ctx, completed.OwnerID, completed.AuditID)
+	if err != nil || report.Status != auditservice.ReportReady ||
+		!json.Valid(report.Machine) || !strings.Contains(report.Summary, "not a security or compliance certification") {
+		t.Fatalf("Audit report = (%+v, %v)", report, err)
+	}
+	if report.MachineArtifact == nil || report.MachineArtifact.Ref.Revision == nil {
+		t.Fatalf("Audit report has no exact machine artifact: %+v", report)
+	}
+	if _, err := projectArtifacts.Write(
+		ctx,
+		contracts.ArtifactRef{
+			Namespace: report.MachineArtifact.Ref.Namespace,
+			Name:      report.MachineArtifact.Ref.Name,
+		},
+		artifacts.Payload{MediaType: "application/json", Data: []byte(`{"tampered":true}`)},
+		report.MachineArtifact.Ref.Revision,
+	); !errors.Is(err, artifacts.ErrArtifactFrozen) {
+		t.Fatalf("mutate frozen Audit report error = %v", err)
+	}
+
+	if err := harness.runs.DeleteReleasedTerminalRun(ctx, completed.OwnerID, runID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectArtifacts.Read(ctx, resultLink.Artifact.Ref); err != nil {
+		t.Fatalf("retained result after source Run deletion: %v", err)
+	}
+	report, err = auditService.GetReport(ctx, completed.OwnerID, completed.AuditID)
+	if err != nil || report.Status != auditservice.ReportReady {
+		t.Fatalf("Audit report after source Run deletion = (%+v, %v)", report, err)
+	}
+}
+
 type postgresControllerHarness struct {
 	pool       *pgxpool.Pool
 	snapshot   *config.Snapshot
@@ -300,6 +515,34 @@ func (h *postgresControllerHarness) controller(t *testing.T) *Controller {
 		Options{
 			HolderID: "postgres-audit-controller", ClaimLease: 5 * time.Second,
 			OperationTimeout: time.Second, ClaimBatch: 1,
+			NewID: func(prefix string) (string, error) {
+				ids++
+				return fmt.Sprintf("%s%d", prefix, ids), nil
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return controller
+}
+
+func (h *postgresControllerHarness) controllerWithCollector(t *testing.T) *Controller {
+	t.Helper()
+	access, err := auditimport.NewArtifactAccess(h.artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collector, err := auditimport.New(h.audits, h.runs, access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids int
+	controller, err := New(
+		h.audits, h.runs, h.runService, h.builder(t), &postgresNotifier{},
+		Options{
+			HolderID: "postgres-audit-collection-controller", ClaimLease: 5 * time.Second,
+			OperationTimeout: 2 * time.Second, ClaimBatch: 1, Collector: collector,
 			NewID: func(prefix string) (string, error) {
 				ids++
 				return fmt.Sprintf("%s%d", prefix, ids), nil

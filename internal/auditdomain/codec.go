@@ -426,7 +426,8 @@ func validAssessment(value string) bool {
 
 func validCoverageStatus(value string) bool {
 	switch value {
-	case "not-tested", "inconclusive", "satisfied", "violated", "not-applicable", "blocked", "excluded":
+	case "not-tested", "inconclusive", "satisfied", "violated", "not-applicable", "blocked", "excluded",
+		"traced-complete", "traced-partial", "unmapped":
 		return true
 	default:
 		return false

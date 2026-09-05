@@ -90,9 +90,12 @@ type Metadata struct {
 type BindingPageQuery struct {
 	Namespace        *string
 	ExcludeNamespace *string
-	AfterNamespace   string
-	AfterName        string
-	Limit            int
+	// ExcludeNamespacePrefix is used by trusted presentation layers to hide
+	// purpose-managed Project bindings that have their own acceptance API.
+	ExcludeNamespacePrefix string
+	AfterNamespace         string
+	AfterName              string
+	Limit                  int
 }
 
 type VersionPageQuery struct {
@@ -106,22 +109,28 @@ type LineagePageQuery struct {
 	BeforeTargetRevision string
 	BeforeSourceRevision string
 	BeforeKind           string
-	Limit                int
+	// ExcludeKind lets a trusted presentation layer hide internal staging
+	// lineage while retaining correct keyset pagination in the repository.
+	ExcludeKind string
+	Limit       int
 }
 
 type LineageEdge struct {
-	Kind        string      `json:"kind"`
-	SourceScope ScopeKind   `json:"sourceScope"`
-	Source      ArtifactRef `json:"source"`
-	TargetScope ScopeKind   `json:"targetScope"`
-	Target      ArtifactRef `json:"target"`
-	CreatedAt   time.Time   `json:"createdAt"`
+	Kind          string      `json:"kind"`
+	SourceScope   ScopeKind   `json:"sourceScope"`
+	SourceScopeID string      `json:"-"`
+	Source        ArtifactRef `json:"source"`
+	TargetScope   ScopeKind   `json:"targetScope"`
+	TargetScopeID string      `json:"-"`
+	Target        ArtifactRef `json:"target"`
+	CreatedAt     time.Time   `json:"createdAt"`
 }
 
 const (
 	LineageInputFork            = "input_fork"
 	LineageOutputBind           = "output_bind"
 	LineageProjectOutputPublish = "project_output_publish"
+	LineageAuditImport          = "audit_import"
 )
 
 type PinKind string

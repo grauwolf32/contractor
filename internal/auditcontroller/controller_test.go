@@ -133,6 +133,28 @@ func TestControllerDeadlineClosesDispatchBeforeRoundOrRunCreation(t *testing.T) 
 	}
 }
 
+func TestControllerCollectsClosesBarrierAndFinalizesReport(t *testing.T) {
+	harness := newControllerHarness(t, 1, 1)
+	collector := &fakeControllerCollector{store: harness.store}
+	harness.controller.collector = collector
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("activate round = (%t, %v)", worked, err)
+	}
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("dispatch = (%t, %v)", worked, err)
+	}
+	harness.finishOldest(t, runstore.RunSucceeded)
+	for step, name := range []string{"observe", "collect", "close round", "begin finalizing", "commit report"} {
+		if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+			t.Fatalf("%s at step %d = (%t, %v)", name, step, worked, err)
+		}
+	}
+	audit := harness.store.auditSnapshot()
+	if audit.State != auditstore.AuditCompleted || collector.collects.Load() != 1 || collector.finalizes.Load() != 1 {
+		t.Fatalf("terminal Audit = %+v, collects=%d finalizes=%d", audit, collector.collects.Load(), collector.finalizes.Load())
+	}
+}
+
 type controllerHarness struct {
 	ctx        context.Context
 	store      *fakeControllerStore
@@ -617,6 +639,52 @@ type fakeControllerNotifier struct {
 func (n *fakeControllerNotifier) Wake()            { n.wakes.Add(1) }
 func (n *fakeControllerNotifier) Cancel(string)    { n.cancels.Add(1) }
 func (n *fakeControllerNotifier) cancelCount() int { return int(n.cancels.Load()) }
+
+type fakeControllerCollector struct {
+	store     *fakeControllerStore
+	collects  atomic.Int64
+	finalizes atomic.Int64
+}
+
+func (c *fakeControllerCollector) Collect(
+	_ context.Context,
+	_ auditstore.ControllerClaim,
+	_ auditstore.ReconcileSnapshot,
+	execution auditstore.Execution,
+) (bool, error) {
+	c.store.mu.Lock()
+	defer c.store.mu.Unlock()
+	index := c.store.findExecution(execution.ExecutionID)
+	if index < 0 || c.store.executions[index].State != auditstore.ExecutionCollecting {
+		return false, auditstore.ErrPrecondition
+	}
+	for _, member := range c.store.members[execution.ExecutionID] {
+		itemIndex := c.store.findItem(member.ItemID)
+		if itemIndex >= 0 {
+			c.store.items = append(c.store.items[:itemIndex], c.store.items[itemIndex+1:]...)
+		}
+	}
+	c.store.executions = append(c.store.executions[:index], c.store.executions[index+1:]...)
+	c.store.audit.Revision++
+	c.collects.Add(1)
+	return true, nil
+}
+
+func (c *fakeControllerCollector) Finalize(
+	_ context.Context,
+	_ auditstore.ControllerClaim,
+	_ auditstore.ReconcileSnapshot,
+) (bool, error) {
+	c.store.mu.Lock()
+	defer c.store.mu.Unlock()
+	if c.store.audit.State != auditstore.AuditFinalizing || c.store.round.State != auditstore.RoundClosed {
+		return false, nil
+	}
+	c.store.audit.State = auditstore.AuditCompleted
+	c.store.audit.Revision++
+	c.finalizes.Add(1)
+	return true, nil
+}
 
 func fakeDigest(value string) string {
 	result := ""

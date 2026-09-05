@@ -177,6 +177,14 @@ type auditCoveragePageResponse struct {
 	Page  pageInfoResponse        `json:"page"`
 }
 
+type auditReportResponse struct {
+	Status          auditservice.ReportStatus `json:"status"`
+	MachineArtifact *auditstore.ExactArtifact `json:"machineArtifact,omitempty"`
+	SummaryArtifact *auditstore.ExactArtifact `json:"summaryArtifact,omitempty"`
+	Machine         json.RawMessage           `json:"machine,omitempty"`
+	Summary         string                    `json:"summary,omitempty"`
+}
+
 type auditStartResponse struct {
 	Audit auditResponse       `json:"audit"`
 	Round auditRoundResponse  `json:"round"`
@@ -635,6 +643,33 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page})
+}
+
+func (h *handler) getAuditReport(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.rejectHead(w, r) {
+		return
+	}
+	if h.dependencies.Audits == nil {
+		h.handleError(w, fmt.Errorf("Audit service is not configured"))
+		return
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	projection, err := h.dependencies.Audits.GetReport(
+		r.Context(), principalUserID(r.Context()), r.PathValue("auditId"),
+	)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, auditReportResponse{
+		Status: projection.Status, MachineArtifact: projection.MachineArtifact,
+		SummaryArtifact: projection.SummaryArtifact, Machine: projection.Machine,
+		Summary: projection.Summary,
+	})
 }
 
 func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) auditProfileResponse {

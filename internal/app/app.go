@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditcontroller"
+	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
@@ -508,10 +509,20 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Audit Controller submissions: %w", err)
 	}
+	auditImportArtifacts, err := auditimport.NewArtifactAccess(artifactService)
+	if err != nil {
+		return fmt.Errorf("configure Audit import artifacts: %w", err)
+	}
+	auditImporter, err := auditimport.New(
+		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), auditImportArtifacts,
+	)
+	if err != nil {
+		return fmt.Errorf("configure Audit importer: %w", err)
+	}
 	auditController, err := auditcontroller.New(
 		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool),
 		runCreationService, auditSubmissionBuilder, workflowScheduler,
-		auditcontroller.Options{Logger: logger},
+		auditcontroller.Options{Logger: logger, Collector: auditImporter},
 	)
 	if err != nil {
 		return fmt.Errorf("configure Audit Controller: %w", err)

@@ -1,6 +1,9 @@
 package artifacts
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Service owns validation and creates scope-bound views over one Repository.
 type Service struct {
@@ -219,6 +222,11 @@ func validateBindingPageQuery(query BindingPageQuery) error {
 			return err
 		}
 	}
+	if query.ExcludeNamespacePrefix != "" {
+		if err := validateComponent(query.ExcludeNamespacePrefix + "x"); err != nil {
+			return err
+		}
+	}
 	if (query.AfterNamespace == "") != (query.AfterName == "") {
 		return ErrInvalidName
 	}
@@ -259,15 +267,22 @@ func validateLineagePageQuery(query LineagePageQuery) error {
 		return ErrInvalidName
 	}
 	if !present {
+		if query.ExcludeKind != "" && !validLineageKind(query.ExcludeKind) {
+			return ErrInvalidName
+		}
 		return nil
 	}
 	if query.BeforeCreatedAt.IsZero() || validateRevision(query.BeforeTargetRevision) != nil ||
 		validateRevision(query.BeforeSourceRevision) != nil ||
-		(query.BeforeKind != LineageInputFork && query.BeforeKind != LineageOutputBind &&
-			query.BeforeKind != LineageProjectOutputPublish) {
+		!validLineageKind(query.BeforeKind) || query.ExcludeKind != "" && !validLineageKind(query.ExcludeKind) {
 		return ErrInvalidName
 	}
 	return nil
+}
+
+func validLineageKind(value string) bool {
+	return value == LineageInputFork || value == LineageOutputBind ||
+		value == LineageProjectOutputPublish || value == LineageAuditImport
 }
 
 // ForkInput resolves source once in UserScope, creates inputs/<slot> in the
@@ -355,6 +370,14 @@ type projectOutputPublisher interface {
 	PublishRunOutput(context.Context, Scope, ArtifactRef, Scope, string) (ForkResult, error)
 }
 
+type auditArtifactImporter interface {
+	ImportAuditArtifact(context.Context, Scope, ArtifactRef, Scope, ArtifactRef) (ForkResult, error)
+}
+
+type auditArtifactWriter interface {
+	WriteAuditArtifact(context.Context, Scope, ArtifactRef, Payload) (WriteResult, error)
+}
+
 // PublishRunOutput is a trusted Scheduler operation that creates one
 // ProjectScope outputs/<slot> binding from an exact frozen RunScope output.
 // It is deliberately create-only: an existing Project binding is a conflict,
@@ -388,6 +411,73 @@ func (s *Service) PublishRunOutput(
 		return ForkResult{}, ErrQueryUnsupported
 	}
 	return repository.PublishRunOutput(ctx, run, source, project, outputSlot)
+}
+
+// ImportAuditArtifact is a trusted collection operation. It creates one
+// create-only Audit-managed ProjectScope binding backed by an exact immutable
+// RunScope revision and records its lineage without copying payload bytes.
+// The public Project artifact API reserves audit-* namespaces, so artifacts
+// staged before the matching Audit receipt commit are not externally visible.
+func (s *Service) ImportAuditArtifact(
+	ctx context.Context,
+	runID string,
+	source ArtifactRef,
+	projectID string,
+	target ArtifactRef,
+) (ForkResult, error) {
+	run, err := RunScope(runID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	project, err := ProjectScope(projectID)
+	if err != nil {
+		return ForkResult{}, err
+	}
+	if _, err := exactRevision(source); err != nil {
+		return ForkResult{}, err
+	}
+	if target.Revision != nil || !strings.HasPrefix(target.Namespace, "audit-") {
+		return ForkResult{}, ErrInvalidName
+	}
+	if err := validateRef(target); err != nil {
+		return ForkResult{}, err
+	}
+	repository, ok := s.repository.(auditArtifactImporter)
+	if !ok {
+		return ForkResult{}, ErrQueryUnsupported
+	}
+	return repository.ImportAuditArtifact(ctx, run, source, project, target)
+}
+
+// WriteAuditArtifact is the trusted counterpart used for Controller-generated
+// Audit reports. It creates one frozen, create-only ProjectScope binding in a
+// server-reserved audit-* namespace. Public Project artifact routes never
+// expose these staging bindings; the Audit report projection exposes them only
+// after the matching durable report links have committed.
+func (s *Service) WriteAuditArtifact(
+	ctx context.Context,
+	projectID string,
+	target ArtifactRef,
+	payload Payload,
+) (WriteResult, error) {
+	project, err := ProjectScope(projectID)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	if target.Revision != nil || !strings.HasPrefix(target.Namespace, "audit-") {
+		return WriteResult{}, ErrInvalidName
+	}
+	if err := validateRef(target); err != nil {
+		return WriteResult{}, err
+	}
+	if err := validatePayload(payload); err != nil {
+		return WriteResult{}, err
+	}
+	repository, ok := s.repository.(auditArtifactWriter)
+	if !ok {
+		return WriteResult{}, ErrQueryUnsupported
+	}
+	return repository.WriteAuditArtifact(ctx, project, target, payload)
 }
 
 func (s *Service) PinExact(

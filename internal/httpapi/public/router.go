@@ -118,6 +118,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /v1/audits/{auditId}/start", current.startAudit)
 	mux.HandleFunc("GET /v1/audits/{auditId}/items", current.listAuditItems)
 	mux.HandleFunc("GET /v1/audits/{auditId}/coverage", current.listAuditCoverage)
+	mux.HandleFunc("GET /v1/audits/{auditId}/report", current.getAuditReport)
 	mux.HandleFunc("GET /v1/configurations/{kind}", current.listConfigurations)
 	mux.HandleFunc("POST /v1/configurations/{kind}", current.publishConfiguration)
 	mux.HandleFunc("GET /v1/configurations/{kind}/{name}/versions/{version}", current.getConfiguration)
@@ -212,6 +213,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/audits/{auditId}/start", current.methodNotAllowed)
 	mux.HandleFunc("/v1/audits/{auditId}/items", current.methodNotAllowed)
 	mux.HandleFunc("/v1/audits/{auditId}/coverage", current.methodNotAllowed)
+	mux.HandleFunc("/v1/audits/{auditId}/report", current.methodNotAllowed)
 	mux.HandleFunc("/v1/audits/{auditId}", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 

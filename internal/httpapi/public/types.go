@@ -178,6 +178,7 @@ type AuditManagement interface {
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
 	ListCoverage(context.Context, string, string, string, int, int) ([]auditstore.CoverageRow, error)
+	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
 }
 
 type Dependencies struct {

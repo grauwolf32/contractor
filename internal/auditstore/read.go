@@ -347,6 +347,63 @@ SELECT coverage.audit_id, coverage.round_id, coverage.item_id, item.ordinal,
 	return result, rows.Err()
 }
 
+func (s *PostgresStore) GetArtifactLink(
+	ctx context.Context, auditID, logicalKey string,
+) (ArtifactLink, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return ArtifactLink{}, err
+	}
+	if err := validateText("artifact logical key", logicalKey, 512, true); err != nil {
+		return ArtifactLink{}, err
+	}
+	var result ArtifactLink
+	var encodedRef []byte
+	err := s.db.QueryRow(ctx, `
+SELECT logical_key, artifact_ref, artifact_digest, media_type, size_bytes,
+       source_provenance, display_ref, created_at
+  FROM audit_artifact_links
+ WHERE audit_id = $1 AND logical_key = $2`, auditID, logicalKey).Scan(
+		&result.LogicalKey, &encodedRef, &result.Artifact.Digest,
+		&result.Artifact.MediaType, &result.Artifact.SizeBytes,
+		&result.SourceProvenance, &result.DisplayRef, &result.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ArtifactLink{}, ErrNotFound
+	}
+	if err != nil {
+		return ArtifactLink{}, fmt.Errorf("read Audit artifact link: %w", err)
+	}
+	if json.Unmarshal(encodedRef, &result.Artifact.Ref) != nil ||
+		validateExactArtifact("stored Audit artifact link", result.Artifact, true) != nil ||
+		validateJSONObject("stored Audit artifact provenance", result.SourceProvenance, 1<<20) != nil {
+		return ArtifactLink{}, errors.New("stored Audit artifact link is invalid")
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) CollectionDispositionCounts(
+	ctx context.Context, auditID string,
+) (CollectionDispositionCounts, error) {
+	if err := validateID("auditID", auditID); err != nil {
+		return CollectionDispositionCounts{}, err
+	}
+	var result CollectionDispositionCounts
+	err := s.db.QueryRow(ctx, `
+SELECT count(*) FILTER (WHERE disposition = 'accepted-result'),
+       count(*) FILTER (WHERE disposition = 'missing-output'),
+       count(*) FILTER (WHERE disposition = 'invalid-result'),
+       count(*) FILTER (WHERE disposition = 'execution-failed'),
+       count(*) FILTER (WHERE disposition = 'execution-cancelled')
+  FROM audit_collection_receipts WHERE audit_id = $1`, auditID).Scan(
+		&result.AcceptedResult, &result.MissingOutput, &result.InvalidResult,
+		&result.ExecutionFailed, &result.ExecutionCancelled,
+	)
+	if err != nil {
+		return CollectionDispositionCounts{}, fmt.Errorf("count Audit collection dispositions: %w", err)
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) GetReconcileSnapshot(
 	ctx context.Context,
 	claim ControllerClaim,

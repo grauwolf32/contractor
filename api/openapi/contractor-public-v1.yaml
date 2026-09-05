@@ -737,6 +737,28 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/audits/{auditId}/report:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: getAuditReport
+      tags: [Audits]
+      summary: Read the exact accepted Audit report or its generation state
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Report state with exact artifacts and content when ready
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditReport'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/queue:
     get:
       operationId: listRunQueue
@@ -2746,7 +2768,7 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditItem'}}
         page: {$ref: '#/components/schemas/PageInfo'}
-    AuditCoverageStatus: {enum: [not-tested, inconclusive, satisfied, violated, not-applicable, blocked, excluded]}
+    AuditCoverageStatus: {enum: [not-tested, inconclusive, satisfied, violated, not-applicable, blocked, excluded, traced-complete, traced-partial, unmapped]}
     AuditCoverage:
       type: object
       additionalProperties: false
@@ -2777,6 +2799,20 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
+    AuditReportStatus: {enum: [pending, ready, unavailable]}
+    AuditReport:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/AuditReportStatus'}
+        machineArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
+        summaryArtifact: {$ref: '#/components/schemas/AuditExactArtifact'}
+        machine:
+          type: object
+          description: Exact contractor.audit.report.v1 machine-readable document.
+          additionalProperties: true
+        summary: {type: string, maxLength: 65536}
     AuditStartResponse:
       type: object
       additionalProperties: false

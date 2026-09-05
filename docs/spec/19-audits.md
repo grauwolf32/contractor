@@ -485,8 +485,20 @@ Schema validity is not semantic evidence acceptance: the importer also checks
 evidence references, requested coverage, and the profile evidence contract. An
 invalid or incomplete result set creates a durable invalid collection receipt
 independently of the technically succeeded Run. The MVP result set has exactly
-one member, but this envelope remains unchanged when bounded batches are later
-enabled.
+one result entry because `batchSize` is one, but this envelope remains unchanged
+when bounded batches are later enabled.
+
+The frozen `result` output is a `check-results` Audit package with no
+entrypoint. It contains the required `check-results` member at
+`check-results.json`, an optional `evidence` member at `evidence.json`, and
+optional opaque content members referenced by exactly one evidence record.
+Both JSON members use `application/json`. Every result evidence ID must resolve;
+unreferenced evidence, missing or aliased content members, duplicate content
+ownership, and any other unreferenced package member make the complete package
+an `invalid-result`. Evidence may instead reference an exact revision in the
+same RunScope. The importer never follows a path or accepts an unversioned or
+foreign-scope reference. Until finding intake is implemented, a non-empty
+`proposals` array is also rejected rather than silently ignored.
 
 ### 7.3 WorklistManifest
 
@@ -843,6 +855,15 @@ separately. Applicability coverage is
 `(satisfied + violated) / selected applicable`; inconclusive remains a separate
 count. A zero denominator is `N/A`, never 100%.
 
+These states share one typed coverage field but are not interchangeable.
+`traced-complete` means every requested trace dimension completed with no gap;
+some completed dimensions plus any gap is `traced-partial`; no completed
+dimension with a known resolution gap is `unmapped`. The result's semantic
+assessment remains independently retained: for example a complete trace may
+still have an inconclusive security assessment. Technical Run failure,
+collection failure, and semantic assessment therefore remain three distinct
+report dimensions.
+
 The report includes baseline/profile/standard versions, scope, coverage matrix,
 confirmed and proposed findings separately, unresolved questions, exclusions,
 incomplete evidence, human decisions, limits, and reproducible provenance. Any
@@ -856,6 +877,16 @@ lifetime. In the first increment, trusted import forks accepted packages into
 protected create-only ProjectScope bindings under an Audit-specific logical
 namespace and records a receipt. Keys include Audit identity and version; a
 collision never overwrites another result.
+
+The server derives and reserves the `audit-*` Project namespace. Imported
+results, external evidence, and generated reports are created as frozen
+bindings. They may exist briefly as recovery staging before their receipt or
+report-link transaction commits, so generic Project list, read, metadata,
+version, lineage, and mutation routes hide the entire reserved prefix. The
+owner-facing Audit report/evidence projections expose only exact bindings that
+have a committed `AuditArtifactLink`; database-internal staging is not an
+acceptance signal. Crash replay accepts an existing binding only when its bytes,
+media type, size, exact source Run revision, and import lineage all match.
 
 Workers continue to see only exact RunScope inputs and have no Audit or Project
 Artifact authority. Ordinary public Project Artifact mutation cannot write or
