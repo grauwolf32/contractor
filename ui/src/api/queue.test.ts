@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import { PublicAPI } from "./client";
-import { listRunQueue } from "./queue";
+import {
+  getOwnerQueueControl,
+  listRunQueue,
+  setOwnerQueuePaused,
+} from "./queue";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -21,6 +25,66 @@ function response(value: unknown, status = 200): Response {
 }
 
 describe("Queue API", () => {
+  it("reads and updates the durable owner control with exact ETags", async () => {
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const paused = request.method === "PUT";
+        return new Response(
+          JSON.stringify({
+            paused,
+            revision: paused ? "1" : "0",
+            ...(paused ? { updatedAt: "2026-09-05T08:00:00Z" } : {}),
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+              "X-Contractor-API-Version": "contractor.public.v1",
+              ETag: paused ? '"1"' : '"0"',
+            },
+          },
+        );
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    await expect(getOwnerQueueControl(api)).resolves.toEqual({
+      paused: false,
+      revision: "0",
+    });
+    await expect(setOwnerQueuePaused(api, true, "0")).resolves.toMatchObject({
+      paused: true,
+      revision: "1",
+    });
+    expect(new URL(requests[0]!.url).pathname).toBe("/v1/queue/control");
+    expect(requests[1]?.method).toBe("PUT");
+    expect(requests[1]?.headers.get("If-Match")).toBe('"0"');
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe("a".repeat(43));
+    await expect(requests[1]?.json()).resolves.toEqual({ paused: true });
+  });
+
+  it("rejects a mismatched Queue control representation", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ paused: true, revision: "1" }), {
+            headers: {
+              "content-type": "application/json",
+              "X-Contractor-API-Version": "contractor.public.v1",
+              ETag: '"2"',
+            },
+          }),
+      ),
+    );
+    await expect(getOwnerQueueControl(api)).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
+  });
+
   it("requests filters and preserves only the closed safe projection", async () => {
     let captured: Request | undefined;
     const api = new PublicAPI(

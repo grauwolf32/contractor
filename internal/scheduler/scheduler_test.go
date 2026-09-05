@@ -1481,6 +1481,76 @@ func TestSchedulerExecutesMultiStageWorkflowSerially(t *testing.T) {
 	}
 }
 
+func TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.persistence.queuePaused = true
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("paused RunOnce = (%v, %v), want deferred", worked, err)
+	}
+	if len(harness.store.stages) != 0 || harness.allocator.reserveCalls != 0 ||
+		harness.planners.createCalls != 0 || harness.store.run.State != runstore.RunRunning {
+		t.Fatalf("paused admission created work: run=%s stages=%d reserves=%d planners=%d",
+			harness.store.run.State, len(harness.store.stages), harness.allocator.reserveCalls,
+			harness.planners.createCalls)
+	}
+
+	harness.persistence.queuePaused = false
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
+		len(harness.store.stages) != 1 {
+		t.Fatalf("resumed RunOnce = (%v, %v), run=%s stages=%d",
+			worked, err, harness.store.run.State, len(harness.store.stages))
+	}
+}
+
+func TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	configureMultiStageWorkflow(t, harness)
+	harness.artifacts.current["run-1/builder/copied"] = "result-r1"
+	originalOnRun := harness.planners.onRun
+	harness.planners.onRun = func() {
+		originalOnRun()
+		harness.persistence.queuePaused = true
+	}
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if !worked || !errors.Is(err, ErrDeferred) {
+		t.Fatalf("pause while Stage runs = (%v, %v), want deferred", worked, err)
+	}
+	if len(harness.store.stages) != 1 || harness.store.stages[0].State != runstore.StageFinalizing ||
+		harness.workers.finalizeCalls != 1 || harness.workers.releaseCalls != 1 ||
+		len(harness.store.allocations) != 1 || harness.store.allocations[0].ReleaseCompletedAt == nil ||
+		len(harness.persistence.decisions) != 0 {
+		t.Fatalf("paused drain = stages:%+v finalize:%d release:%d allocations:%+v decisions:%+v",
+			harness.store.stages, harness.workers.finalizeCalls, harness.workers.releaseCalls,
+			harness.store.allocations, harness.persistence.decisions)
+	}
+
+	harness.persistence.queuePaused = false
+	harness.planners.onRun = originalOnRun
+	worked, err = harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || len(harness.store.stages) != 2 ||
+		harness.store.stages[0].State != runstore.StageSucceeded ||
+		harness.store.stages[1].State != runstore.StagePreparing {
+		t.Fatalf("resumed next admission = (%v, %v), stages:%+v", worked, err, harness.store.stages)
+	}
+}
+
+func TestSchedulerOwnerQueuePauseDoesNotBlockCancellation(t *testing.T) {
+	harness := newSchedulerHarness(t)
+	harness.persistence.queuePaused = true
+	harness.requestCancellation("cancel while Queue is paused")
+
+	worked, err := harness.scheduler.RunOnce(context.Background())
+	if err != nil || !worked || harness.store.run.State != runstore.RunCancelled ||
+		len(harness.store.stages) != 0 {
+		t.Fatalf("paused cancellation = (%v, %v), run=%s stages=%d",
+			worked, err, harness.store.run.State, len(harness.store.stages))
+	}
+}
+
 func TestSchedulerRecoversPendingRunSkillInitializationBeforeStageCreation(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.store.run.State = runstore.RunInitializing
@@ -2034,6 +2104,7 @@ type memoryAtomicPersistence struct {
 	outputs     map[string]contracts.ArtifactRef
 	stageStates []runstore.StageExecutionState
 	decisions   []runstore.StageTransitionDecision
+	queuePaused bool
 }
 
 func (p *memoryAtomicPersistence) CreateStageWithContext(
@@ -2041,6 +2112,9 @@ func (p *memoryAtomicPersistence) CreateStageWithContext(
 ) (runstore.StageExecution, error) {
 	if p.store.run.State != runstore.RunRunning {
 		return runstore.StageExecution{}, runstore.ErrConflict
+	}
+	if p.queuePaused {
+		return runstore.StageExecution{}, runstore.ErrQueuePaused
 	}
 	execution := runstore.StageExecution{
 		StageExecutionID: params.StageExecutionID, RunID: params.RunID, StageName: params.StageName,
@@ -2110,6 +2184,9 @@ func (p *memoryAtomicPersistence) CommitResultProgression(
 	if p.store.run.State != runstore.RunRunning {
 		return runstore.ErrConflict
 	}
+	if value.Progression.NextStage != nil && p.queuePaused {
+		return runstore.ErrQueuePaused
+	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID != value.StageExecutionID ||
 			p.store.stages[index].State != runstore.StageFinalizing {
@@ -2144,6 +2221,9 @@ func (p *memoryAtomicPersistence) CommitTerminationProgression(
 	}
 	if value.RunID != p.store.run.RunID || p.store.run.State != runstore.RunRunning {
 		return runstore.ErrConflict
+	}
+	if value.Progression.NextStage != nil && p.queuePaused {
+		return runstore.ErrQueuePaused
 	}
 	for index := range p.store.stages {
 		if p.store.stages[index].StageExecutionID == value.StageExecutionID &&

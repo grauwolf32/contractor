@@ -8,10 +8,12 @@ import (
 )
 
 var (
-	ErrInvalid  = errors.New("runstore invalid argument")
-	ErrNotFound = errors.New("runstore resource not found")
-	ErrConflict = errors.New("runstore optimistic state conflict")
-	ErrNoWork   = errors.New("runstore has no claimable work")
+	ErrInvalid      = errors.New("runstore invalid argument")
+	ErrNotFound     = errors.New("runstore resource not found")
+	ErrConflict     = errors.New("runstore optimistic state conflict")
+	ErrNoWork       = errors.New("runstore has no claimable work")
+	ErrPrecondition = errors.New("runstore revision precondition failed")
+	ErrQueuePaused  = errors.New("owner WorkflowRun queue is paused")
 )
 
 // StateConflictError reports the compare-and-swap predicate that lost.

@@ -279,6 +279,41 @@ func TestWorkflowRunQueueMigrationAddsOnlyAPartialReadIndex(t *testing.T) {
 	}
 }
 
+func TestOwnerQueueControlMigrationIsDurableAndRevisionProtected(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var control migration
+	for _, item := range items {
+		if item.name == "000031_owner_queue_controls.sql" {
+			control = item
+			break
+		}
+	}
+	if control.name == "" {
+		t.Fatal("owner Queue control migration is not embedded")
+	}
+	contents := strings.ToLower(string(control.contents))
+	for _, required := range []string{
+		"create table owner_queue_controls",
+		"owner_id text primary key",
+		"paused boolean not null default false",
+		"revision bigint not null default 1",
+		"owner_queue_controls_protect_mutation",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("owner Queue control migration does not contain %q", required)
+		}
+	}
+	for _, forbidden := range []string{"run_id", "stage_execution_id", "priority", "position"} {
+		if strings.Contains(contents, forbidden) {
+			t.Fatalf("owner Queue control migration contains execution field %q", forbidden)
+		}
+	}
+}
+
 func TestRuntimeAgentPrincipalMigrationStoresConfigurationButNoLiveness(t *testing.T) {
 	t.Parallel()
 	items, err := loadMigrations()

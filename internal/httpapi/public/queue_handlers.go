@@ -4,11 +4,102 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
+
+func (h *handler) getOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.rejectHead(w, r) {
+		return
+	}
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	control, err := h.dependencies.Runs.GetOwnerQueueControl(
+		r.Context(), principalUserID(r.Context()),
+	)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	writeOwnerQueueControl(w, http.StatusOK, control)
+}
+
+func (h *handler) putOwnerQueueControl(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	mediaType, err := requestMediaType(r)
+	if err != nil || mediaType != "application/json" {
+		h.handleError(w, fmt.Errorf("%w: Queue control requires application/json", errInvalidRequest))
+		return
+	}
+	if len(r.Header.Values("If-None-Match")) != 0 || len(r.Header.Values("If-Match")) != 1 {
+		h.handleError(w, fmt.Errorf("%w: Queue control requires one If-Match", errInvalidRequest))
+		return
+	}
+	revision, err := parseOwnerQueueControlETag(r.Header.Values("If-Match")[0])
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	var request updateOwnerQueueControlRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if request.Paused == nil {
+		h.handleError(w, fmt.Errorf("%w: Queue control paused is required", errInvalidRequest))
+		return
+	}
+	control, err := h.dependencies.Runs.UpdateOwnerQueueControl(
+		r.Context(),
+		runstore.UpdateOwnerQueueControlParams{
+			OwnerID: principalUserID(r.Context()), ExpectedRevision: revision,
+			Paused: *request.Paused,
+		},
+	)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	h.dependencies.RunNotifier.Wake()
+	writeOwnerQueueControl(w, http.StatusOK, control)
+}
+
+func parseOwnerQueueControlETag(raw string) (uint64, error) {
+	if strings.HasPrefix(strings.TrimSpace(raw), "W/") {
+		return 0, fmt.Errorf("%w: Queue control requires one strong ETag", errInvalidRequest)
+	}
+	value := strings.TrimSpace(raw)
+	revision, err := strconv.Unquote(value)
+	if err != nil || revision == "" {
+		return 0, fmt.Errorf("%w: Queue control revision must be quoted", errInvalidRequest)
+	}
+	parsed, err := strconv.ParseUint(revision, 10, 64)
+	if err != nil || strconv.FormatUint(parsed, 10) != revision {
+		return 0, fmt.Errorf("%w: Queue control revision is invalid", errInvalidRequest)
+	}
+	return parsed, nil
+}
+
+func writeOwnerQueueControl(w http.ResponseWriter, status int, control runstore.OwnerQueueControl) {
+	revision := strconv.FormatUint(control.Revision, 10)
+	w.Header().Set("ETag", strconv.Quote(revision))
+	response := ownerQueueControlResponse{Paused: control.Paused, Revision: revision}
+	if !control.UpdatedAt.IsZero() {
+		updatedAt := control.UpdatedAt
+		response.UpdatedAt = &updatedAt
+	}
+	writeJSON(w, status, response)
+}
 
 func (h *handler) listRunQueue(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {

@@ -328,6 +328,86 @@ func TestRunQueueIsOwnedStableFilteredAndDropsTerminalRuns(t *testing.T) {
 	}
 }
 
+func TestOwnerQueueControlIsDurableCASAndIdempotent(t *testing.T) {
+	fixture := newHandlerFixture(t)
+
+	initial := serveQuery(t, fixture.handler, "/v1/queue/control")
+	var initialControl ownerQueueControlResponse
+	decodeQueryResponse(t, initial, &initialControl)
+	if initial.Code != http.StatusOK || initial.Header().Get("ETag") != `"0"` ||
+		initialControl.Paused || initialControl.Revision != "0" || initialControl.UpdatedAt != nil {
+		t.Fatalf("initial Queue control = status %d headers=%v body=%+v", initial.Code, initial.Header(), initialControl)
+	}
+
+	put := func(body, ifMatch string) *httptest.ResponseRecorder {
+		t.Helper()
+		request := authenticatedRequest(
+			http.MethodPut, "/v1/queue/control", bytes.NewReader([]byte(body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		if ifMatch != "" {
+			request.Header.Set("If-Match", ifMatch)
+		}
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		return response
+	}
+
+	paused := put(`{"paused":true}`, `"0"`)
+	var pausedControl ownerQueueControlResponse
+	decodeQueryResponse(t, paused, &pausedControl)
+	if paused.Code != http.StatusOK || paused.Header().Get("ETag") != `"1"` ||
+		!pausedControl.Paused || pausedControl.Revision != "1" || pausedControl.UpdatedAt == nil {
+		t.Fatalf("paused Queue control = status %d headers=%v body=%+v", paused.Code, paused.Header(), pausedControl)
+	}
+	repeated := put(`{"paused":true}`, `"1"`)
+	var repeatedControl ownerQueueControlResponse
+	decodeQueryResponse(t, repeated, &repeatedControl)
+	if repeated.Code != http.StatusOK || repeated.Header().Get("ETag") != `"1"` ||
+		!repeatedControl.Paused || repeatedControl.Revision != "1" ||
+		!repeatedControl.UpdatedAt.Equal(*pausedControl.UpdatedAt) {
+		t.Fatalf("repeated Queue pause = status %d headers=%v body=%+v", repeated.Code, repeated.Header(), repeatedControl)
+	}
+	stale := put(`{"paused":false}`, `"0"`)
+	if stale.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale Queue resume = %d: %s", stale.Code, stale.Body.String())
+	}
+	resumed := put(`{"paused":false}`, `"1"`)
+	var resumedControl ownerQueueControlResponse
+	decodeQueryResponse(t, resumed, &resumedControl)
+	if resumed.Code != http.StatusOK || resumed.Header().Get("ETag") != `"2"` ||
+		resumedControl.Paused || resumedControl.Revision != "2" || resumedControl.UpdatedAt == nil ||
+		!resumedControl.UpdatedAt.After(*pausedControl.UpdatedAt) || fixture.notifier.calls != 3 {
+		t.Fatalf("resumed Queue control = status %d headers=%v body=%+v wakes=%d",
+			resumed.Code, resumed.Header(), resumedControl, fixture.notifier.calls)
+	}
+
+	for _, invalid := range []struct {
+		target  string
+		body    string
+		ifMatch string
+	}{
+		{target: "/v1/queue/control", body: `{"paused":true}`},
+		{target: "/v1/queue/control", body: `{}`, ifMatch: `"2"`},
+		{target: "/v1/queue/control", body: `{"paused":true,"extra":1}`, ifMatch: `"2"`},
+		{target: "/v1/queue/control", body: `{"paused":true}`, ifMatch: `W/"2"`},
+		{target: "/v1/queue/control?ownerId=user-2", body: `{"paused":true}`, ifMatch: `"2"`},
+	} {
+		request := authenticatedRequest(
+			http.MethodPut, invalid.target, bytes.NewReader([]byte(invalid.body)),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		if invalid.ifMatch != "" {
+			request.Header.Set("If-Match", invalid.ifMatch)
+		}
+		response := httptest.NewRecorder()
+		fixture.handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("invalid Queue control request %s = %d: %s", request.URL, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestRunDetailJoinsImmutableObjectiveTypedPlanInputsAndCursor(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	snapshot, err := config.Load("../../config/testdata/valid", config.MVPDescriptors())

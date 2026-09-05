@@ -2079,6 +2079,51 @@ code {
   gap: 0.7rem;
 }
 
+.queue-control-state {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.queue-control-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--success);
+  font-size: 0.67rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.queue-control-label > span {
+  width: 0.48rem;
+  height: 0.48rem;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0.65rem currentColor;
+}
+
+.queue-control-state.paused .queue-control-label {
+  color: var(--warning);
+}
+
+.queue-control-button {
+  min-width: 8.7rem;
+}
+
+.queue-pause-note {
+  margin: 0.8rem 0 0;
+  border-left: 2px solid var(--warning);
+  padding: 0.45rem 0.75rem;
+  color: var(--warning);
+  font-size: 0.78rem;
+}
+
+.queue-control-error {
+  margin-top: 0.8rem;
+}
+
 .queue-context {
   display: grid;
   gap: 0.15rem;

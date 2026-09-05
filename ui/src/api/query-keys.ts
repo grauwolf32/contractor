@@ -87,6 +87,7 @@ export const queryKeys = {
   },
   queue: {
     all: ["queue"] as const,
+    control: ["queue", "control"] as const,
     list: (
       state: string | undefined,
       membership: string | undefined,

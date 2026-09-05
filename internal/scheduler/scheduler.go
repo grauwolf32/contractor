@@ -243,6 +243,9 @@ func (s *Scheduler) RunOnce(ctx context.Context) (bool, error) {
 	}()
 
 	err = s.executeRun(executionContext, run)
+	if errors.Is(err, runstore.ErrQueuePaused) {
+		err = ErrDeferred
+	}
 	if cause := context.Cause(executionContext); ctx.Err() == nil &&
 		(errors.Is(cause, ErrRunCancellationRequested) || errors.Is(cause, ErrAllocationLeaseLost)) {
 		// The interrupted context intentionally cannot be reused for cleanup.
@@ -1893,6 +1896,9 @@ func (s *Scheduler) resumeAborting(
 			return s.resumeAborting(ctx, latest, workflow, execution, reservations)
 		}
 	}
+	if errors.Is(err, runstore.ErrQueuePaused) {
+		_ = s.releaseTerminal(execution.StageExecutionID, reservations)
+	}
 	if err != nil {
 		return err
 	}
@@ -1974,6 +1980,9 @@ func (s *Scheduler) resumeFinalizing(
 		if loadErr == nil && current.State == runstore.RunCancelling {
 			return s.acceptFinalizingDuringCancellation(ctx, current, execution, reservations)
 		}
+	}
+	if errors.Is(err, runstore.ErrQueuePaused) {
+		_ = s.releaseTerminal(execution.StageExecutionID, reservations)
 	}
 	if err != nil {
 		return err

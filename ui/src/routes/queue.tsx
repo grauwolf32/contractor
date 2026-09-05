@@ -1,12 +1,14 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { usePublicAPI } from "../api/context";
 import {
+  getOwnerQueueControl,
   listRunQueue,
   QUEUE_MEMBERSHIPS,
   QUEUE_STATES,
+  setOwnerQueuePaused,
   type QueueItem,
   type QueueMembership,
   type QueueState,
@@ -109,6 +111,7 @@ function useQueueInvalidation(items: readonly QueueItem[]): void {
 
 export function QueuePanel() {
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedState = searchParams.get("state");
   const state = QUEUE_STATES.find(
@@ -131,6 +134,22 @@ export function QueuePanel() {
         ...(cursor === undefined ? {} : { cursor }),
       }),
     refetchInterval: 10_000,
+  });
+  const controlQuery = useQuery({
+    queryKey: queryKeys.queue.control,
+    queryFn: () => getOwnerQueueControl(api),
+  });
+  const controlMutation = useMutation({
+    mutationFn: ({ paused, revision }: { paused: boolean; revision: string }) =>
+      setOwnerQueuePaused(api, paused, revision),
+    onSuccess: (control) => {
+      queryClient.setQueryData(queryKeys.queue.control, control);
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.queue.control,
+      });
+    },
   });
 
   useQueueInvalidation(query.data?.items ?? []);
@@ -158,6 +177,44 @@ export function QueuePanel() {
           </p>
         </div>
         <div className="queue-filters run-view-controls">
+          <div
+            className={`queue-control-state ${controlQuery.data?.paused === true ? "paused" : ""}`}
+          >
+            <span className="queue-control-label" aria-live="polite">
+              <span aria-hidden="true" />
+              {controlQuery.isPending
+                ? "Checking admission…"
+                : controlQuery.data?.paused === true
+                  ? "Admission paused"
+                  : "Admission running"}
+            </span>
+            <button
+              className="secondary-button queue-control-button"
+              type="button"
+              disabled={
+                controlQuery.data === undefined ||
+                controlQuery.error !== null ||
+                controlMutation.isPending
+              }
+              onClick={() => {
+                const control = controlQuery.data;
+                if (control !== undefined) {
+                  controlMutation.mutate({
+                    paused: !control.paused,
+                    revision: control.revision,
+                  });
+                }
+              }}
+            >
+              {controlMutation.isPending
+                ? controlQuery.data?.paused === true
+                  ? "Resuming…"
+                  : "Pausing…"
+                : controlQuery.data?.paused === true
+                  ? "Resume queue"
+                  : "Pause queue"}
+            </button>
+          </div>
           <label className="compact-select">
             State
             <select
@@ -198,6 +255,21 @@ export function QueuePanel() {
           </button>
         </div>
       </div>
+
+      {controlQuery.error !== null ? (
+        <div className="queue-control-error">
+          <ErrorNotice error={controlQuery.error} />
+        </div>
+      ) : controlMutation.error !== null ? (
+        <div className="queue-control-error">
+          <ErrorNotice error={controlMutation.error} />
+        </div>
+      ) : controlQuery.data?.paused === true ? (
+        <p className="queue-pause-note" role="status">
+          Running Stages and cleanup will finish. No next Stage starts until you
+          resume the queue.
+        </p>
+      ) : null}
 
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">

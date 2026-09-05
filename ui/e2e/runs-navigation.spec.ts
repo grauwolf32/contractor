@@ -24,6 +24,8 @@ async function installRunsAPI(
   runListRequests: URL[],
   queueRequests: URL[],
 ): Promise<void> {
+  let queuePaused = false;
+  let queueControlRevision = 0;
   await page.route("**/runtime-config.json", (route) =>
     route.fulfill({
       json: {
@@ -45,6 +47,28 @@ async function installRunsAPI(
         csrfToken: "a".repeat(43),
         idleExpiresAt: "2099-01-01T00:00:00Z",
         absoluteExpiresAt: "2099-01-02T00:00:00Z",
+      });
+      return;
+    }
+    if (url.pathname === "/v1/queue/control") {
+      if (route.request().method() === "PUT") {
+        const body = route.request().postDataJSON() as { paused: boolean };
+        queuePaused = body.paused;
+        queueControlRevision += 1;
+      }
+      await route.fulfill({
+        body: JSON.stringify({
+          paused: queuePaused,
+          revision: String(queueControlRevision),
+          ...(queueControlRevision === 0
+            ? {}
+            : { updatedAt: "2026-09-05T08:02:00Z" }),
+        }),
+        headers: {
+          ...apiHeaders(),
+          etag: `"${queueControlRevision}"`,
+        },
+        status: 200,
       });
       return;
     }
@@ -117,6 +141,13 @@ test("Runs defaults to Queue and keeps terminal history in Completed", async ({
     "aria-current",
     "page",
   );
+  await page.getByRole("button", { name: "Pause queue" }).click();
+  await expect(
+    page.getByRole("button", { name: "Resume queue" }),
+  ).toBeVisible();
+  await expect(page.getByText("Admission paused")).toBeVisible();
+  await page.getByRole("button", { name: "Resume queue" }).click();
+  await expect(page.getByRole("button", { name: "Pause queue" })).toBeVisible();
 
   await views.getByRole("link", { name: /Completed/ }).click();
   await expect(page).toHaveURL(/\/runs\?view=completed$/);

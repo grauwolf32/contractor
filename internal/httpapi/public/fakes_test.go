@@ -585,6 +585,7 @@ type fakeRunStore struct {
 	eventCursors       map[string]runstore.WorkflowRunEventCursor
 	runEvents          map[string][]runstore.WorkflowRunEvent
 	outputPublications map[string][]runstore.RunOutputPublication
+	queueControls      map[string]runstore.OwnerQueueControl
 	projects           *fakeProjectStore
 	pinRuntimeLabels   func(context.Context, []string, config.CredentialLookup) (runtimeconfig.RunSnapshot, error)
 }
@@ -630,7 +631,41 @@ func newFakeRunStore() *fakeRunStore {
 		eventCursors:       make(map[string]runstore.WorkflowRunEventCursor),
 		runEvents:          make(map[string][]runstore.WorkflowRunEvent),
 		outputPublications: make(map[string][]runstore.RunOutputPublication),
+		queueControls:      make(map[string]runstore.OwnerQueueControl),
 	}
+}
+
+func (f *fakeRunStore) GetOwnerQueueControl(
+	_ context.Context, ownerID string,
+) (runstore.OwnerQueueControl, error) {
+	control, exists := f.queueControls[ownerID]
+	if !exists {
+		return runstore.OwnerQueueControl{OwnerID: ownerID}, nil
+	}
+	return control, nil
+}
+
+func (f *fakeRunStore) UpdateOwnerQueueControl(
+	_ context.Context, params runstore.UpdateOwnerQueueControlParams,
+) (runstore.OwnerQueueControl, error) {
+	current, exists := f.queueControls[params.OwnerID]
+	if !exists {
+		current = runstore.OwnerQueueControl{OwnerID: params.OwnerID}
+	}
+	if current.Revision != params.ExpectedRevision {
+		return runstore.OwnerQueueControl{}, runstore.ErrPrecondition
+	}
+	if current.Revision == 0 {
+		current.Revision = 1
+		current.Paused = params.Paused
+		current.UpdatedAt = time.Unix(1, 0).UTC()
+	} else if current.Paused != params.Paused {
+		current.Revision++
+		current.Paused = params.Paused
+		current.UpdatedAt = current.UpdatedAt.Add(time.Microsecond)
+	}
+	f.queueControls[params.OwnerID] = current
+	return current, nil
 }
 
 func (f *fakeRunStore) ListRunOutputPublications(

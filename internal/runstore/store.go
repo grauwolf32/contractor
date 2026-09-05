@@ -30,6 +30,8 @@ type Repository interface {
 	GetRun(context.Context, string) (WorkflowRun, error)
 	ListRuns(context.Context, ListRunsParams) ([]WorkflowRunSummary, error)
 	ListRunQueue(context.Context, ListRunQueueParams) ([]WorkflowRunQueueItem, error)
+	GetOwnerQueueControl(context.Context, string) (OwnerQueueControl, error)
+	UpdateOwnerQueueControl(context.Context, UpdateOwnerQueueControlParams) (OwnerQueueControl, error)
 	RecordRunOutputPublication(context.Context, RecordRunOutputPublicationParams) (RunOutputPublication, bool, error)
 	ListRunOutputPublications(context.Context, string) ([]RunOutputPublication, error)
 	ListNonTerminalRunIDsByCredential(context.Context, string, int) ([]string, error)

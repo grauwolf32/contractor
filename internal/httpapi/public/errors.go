@@ -20,6 +20,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
 	switch {
+	case errors.Is(err, runstore.ErrPrecondition):
+		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, projectstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, runtimeconfig.ErrPrecondition):

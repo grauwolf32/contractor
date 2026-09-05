@@ -33,6 +33,8 @@ type RunReader interface {
 	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
 	ListRunQueue(context.Context, runstore.ListRunQueueParams) ([]runstore.WorkflowRunQueueItem, error)
+	GetOwnerQueueControl(context.Context, string) (runstore.OwnerQueueControl, error)
+	UpdateOwnerQueueControl(context.Context, runstore.UpdateOwnerQueueControlParams) (runstore.OwnerQueueControl, error)
 	ListRunOutputPublications(context.Context, string) ([]runstore.RunOutputPublication, error)
 	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
 	ListStageAllocations(context.Context, string) ([]runstore.StageAllocation, error)
@@ -515,6 +517,16 @@ type queueItemResponse struct {
 type queuePageResponse struct {
 	Items []queueItemResponse `json:"items"`
 	Page  pageInfoResponse    `json:"page"`
+}
+
+type ownerQueueControlResponse struct {
+	Paused    bool       `json:"paused"`
+	Revision  string     `json:"revision"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+type updateOwnerQueueControlRequest struct {
+	Paused *bool `json:"paused"`
 }
 
 type stageExecutionConfigResponse struct {

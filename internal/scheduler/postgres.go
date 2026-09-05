@@ -39,6 +39,9 @@ func (p *PostgresPersistence) CreateStageWithContext(
 		if err := lockRunState(ctx, tx, params.RunID, runstore.RunRunning); err != nil {
 			return err
 		}
+		if err := store.LockRunQueueAdmission(ctx, params.RunID); err != nil {
+			return err
+		}
 		var err error
 		created, err = store.CreateStageExecution(ctx, params)
 		if err != nil {
@@ -158,6 +161,11 @@ func (p *PostgresPersistence) CommitResultProgression(
 		if err := lockStageForRun(ctx, tx, value.StageExecutionID, value.RunID); err != nil {
 			return err
 		}
+		if value.Progression.NextStage != nil {
+			if err := store.LockRunQueueAdmission(ctx, value.RunID); err != nil {
+				return err
+			}
+		}
 		if err := store.CompleteStageResult(
 			ctx,
 			value.StageExecutionID,
@@ -224,6 +232,11 @@ func (p *PostgresPersistence) CommitTerminationProgression(
 			return err
 		}
 		store := runstore.NewPostgresStore(tx)
+		if value.Progression.NextStage != nil {
+			if err := store.LockRunQueueAdmission(ctx, value.RunID); err != nil {
+				return err
+			}
+		}
 		if err := store.CompleteStageTermination(ctx, value.StageExecutionID); err != nil {
 			return err
 		}

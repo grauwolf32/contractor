@@ -861,6 +861,150 @@ func TestPostgresIntegrationClaimsConflictsAndExplicitTransactions(t *testing.T)
 	}
 }
 
+func TestPostgresOwnerQueueControlSerializesWithStageAdmission(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedRunStorePool(t, ctx)
+	store := NewPostgresStore(pool)
+
+	initial, err := store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil || initial.Paused || initial.Revision != 0 || !initial.UpdatedAt.IsZero() {
+		t.Fatalf("initial owner Queue control = (%+v, %v)", initial, err)
+	}
+	other, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-2", ExpectedRevision: 0, Paused: true,
+	})
+	if err != nil || !other.Paused || other.Revision != 1 {
+		t.Fatalf("other owner Queue control = (%+v, %v)", other, err)
+	}
+	initial, err = store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil || initial.Paused || initial.Revision != 0 {
+		t.Fatalf("cross-owner Queue control = (%+v, %v)", initial, err)
+	}
+
+	paused, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 0, Paused: true,
+	})
+	if err != nil || !paused.Paused || paused.Revision != 1 {
+		t.Fatalf("pause owner Queue = (%+v, %v)", paused, err)
+	}
+	repeated, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 1, Paused: true,
+	})
+	if err != nil || repeated != paused {
+		t.Fatalf("repeat owner Queue pause = (%+v, %v), want %+v", repeated, err, paused)
+	}
+	if _, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 0, Paused: false,
+	}); !errors.Is(err, ErrPrecondition) {
+		t.Fatalf("stale owner Queue update error = %v, want precondition", err)
+	}
+	resumed, err := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 1, Paused: false,
+	})
+	if err != nil || resumed.Paused || resumed.Revision != 2 || !resumed.UpdatedAt.After(paused.UpdatedAt) {
+		t.Fatalf("resume owner Queue = (%+v, %v)", resumed, err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE owner_queue_controls
+SET revision = revision + 1,
+    updated_at = updated_at + interval '1 second'
+WHERE owner_id = 'user-1'`); persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("owner Queue no-op rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+
+	run := createTestRun(t, ctx, store, "run-queue-control")
+	if _, err := store.TransitionRun(
+		ctx, run.RunID, RunInitializing, RunRunning, Reason{Code: "ready"},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// A pause that owns the control row lock orders before admission, even
+	// though it has not committed when the admission attempt begins.
+	pauseTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pauseTxStore := NewPostgresStore(pauseTx)
+	paused, err = pauseTxStore.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 2, Paused: true,
+	})
+	if err != nil || paused.Revision != 3 {
+		_ = pauseTx.Rollback(ctx)
+		t.Fatalf("transactional owner Queue pause = (%+v, %v)", paused, err)
+	}
+	admissionAfterPause := make(chan error, 1)
+	go func() {
+		admissionAfterPause <- persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			return NewPostgresStore(tx).LockRunQueueAdmission(ctx, run.RunID)
+		})
+	}()
+	select {
+	case err := <-admissionAfterPause:
+		_ = pauseTx.Rollback(ctx)
+		t.Fatalf("Stage admission bypassed uncommitted pause: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := pauseTx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-admissionAfterPause; !errors.Is(err, ErrQueuePaused) {
+		t.Fatalf("admission after committed pause error = %v, want Queue paused", err)
+	}
+
+	resumed, err = store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 3, Paused: false,
+	})
+	if err != nil || resumed.Revision != 4 {
+		t.Fatalf("resume before admission-first ordering = (%+v, %v)", resumed, err)
+	}
+	admissionTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	admissionStore := NewPostgresStore(admissionTx)
+	if err := admissionStore.LockRunQueueAdmission(ctx, run.RunID); err != nil {
+		_ = admissionTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	pauseAfterAdmission := make(chan error, 1)
+	go func() {
+		_, updateErr := store.UpdateOwnerQueueControl(ctx, UpdateOwnerQueueControlParams{
+			OwnerID: "user-1", ExpectedRevision: 4, Paused: true,
+		})
+		pauseAfterAdmission <- updateErr
+	}()
+	select {
+	case err := <-pauseAfterAdmission:
+		_ = admissionTx.Rollback(ctx)
+		t.Fatalf("Queue pause bypassed Stage admission lock: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := admissionStore.CreateStageExecution(ctx, CreateStageExecutionParams{
+		StageExecutionID: "stage-admitted-before-pause", RunID: run.RunID,
+		StageName: "copy", Attempt: 1, StageSpecSchemaVersion: contracts.APIVersion,
+		StageSpecSnapshot: json.RawMessage(`{}`), StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: StageContextSnapshot{},
+	}); err != nil {
+		_ = admissionTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	if err := admissionTx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-pauseAfterAdmission; err != nil {
+		t.Fatalf("pause after admitted Stage: %v", err)
+	}
+	if _, err := store.GetStageExecution(ctx, "stage-admitted-before-pause"); err != nil {
+		t.Fatalf("get Stage admitted before pause: %v", err)
+	}
+	current, err := store.GetOwnerQueueControl(ctx, "user-1")
+	if err != nil || !current.Paused || current.Revision != 5 {
+		t.Fatalf("owner Queue after admission-first ordering = (%+v, %v)", current, err)
+	}
+}
+
 func TestPostgresClaimRunnableRunRotatesAfterDeferredRelease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

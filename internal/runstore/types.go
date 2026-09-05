@@ -139,6 +139,22 @@ type WorkflowRunQueueItem struct {
 	UpdatedAt       time.Time
 }
 
+// OwnerQueueControl is the durable admission gate for one authenticated
+// owner. Revision zero is the effective running representation when no row has
+// been materialized yet; persisted revisions begin at one.
+type OwnerQueueControl struct {
+	OwnerID   string
+	Paused    bool
+	Revision  uint64
+	UpdatedAt time.Time
+}
+
+type UpdateOwnerQueueControlParams struct {
+	OwnerID          string
+	ExpectedRevision uint64
+	Paused           bool
+}
+
 type OutputPublicationStatus string
 
 const (

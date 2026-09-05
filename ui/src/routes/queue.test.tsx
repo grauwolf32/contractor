@@ -35,6 +35,16 @@ function apiResponse(value: unknown): Response {
   });
 }
 
+function queueControlResponse(paused = false, revision = "0"): Response {
+  const response = apiResponse({
+    paused,
+    revision,
+    ...(revision === "0" ? {} : { updatedAt: "2026-09-05T08:02:00Z" }),
+  });
+  response.headers.set("ETag", `"${revision}"`);
+  return response;
+}
+
 function queueItem(
   runId: string,
   state: "initializing" | "running" | "cancelling" = "running",
@@ -121,6 +131,9 @@ describe("Runs Queue view", () => {
         const url = new URL(request.url);
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue/control") {
+          return queueControlResponse();
         }
         if (url.pathname !== "/v1/queue") {
           throw new Error(`unexpected ${request.method} ${url.pathname}`);
@@ -235,6 +248,9 @@ describe("Runs Queue view", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
+        if (url.pathname === "/v1/queue/control") {
+          return queueControlResponse();
+        }
         if (url.pathname === "/v1/queue") {
           queueReads += 1;
           return apiResponse({
@@ -299,6 +315,9 @@ describe("Runs Queue view", () => {
         if (url.pathname === "/v1/auth/session") {
           return apiResponse(session);
         }
+        if (url.pathname === "/v1/queue/control") {
+          return queueControlResponse();
+        }
         if (url.pathname === "/v1/queue") {
           requests.push(url);
           return apiResponse({ items: [], page: { hasMore: false } });
@@ -321,5 +340,58 @@ describe("Runs Queue view", () => {
     expect(requests).toHaveLength(1);
     expect(requests[0]?.searchParams.get("membership")).toBe("project");
     expect(requests[0]?.searchParams.get("state")).toBe("running");
+  });
+
+  it("pauses and resumes admission with one authoritative action", async () => {
+    let paused = false;
+    let revision = 0;
+    const controlWrites: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") {
+          return apiResponse(session);
+        }
+        if (url.pathname === "/v1/queue") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname === "/v1/queue/control") {
+          if (request.method === "PUT") {
+            controlWrites.push(request);
+            const body = (await request.json()) as { paused: boolean };
+            paused = body.paused;
+            revision += 1;
+          }
+          return queueControlResponse(paused, String(revision));
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderQueueApplication(api);
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Pause queue" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Resume queue" }),
+    ).toBeEnabled();
+    expect(screen.getByText("Admission paused")).toBeInTheDocument();
+    expect(
+      screen.getByText(/No next Stage starts until you resume/),
+    ).toBeInTheDocument();
+    expect(controlWrites[0]?.headers.get("If-Match")).toBe('"0"');
+    expect(controlWrites[0]?.headers.get("X-CSRF-Token")).toBe(
+      session.csrfToken,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Resume queue" }));
+    expect(
+      await screen.findByRole("button", { name: "Pause queue" }),
+    ).toBeEnabled();
+    expect(screen.getByText("Admission running")).toBeInTheDocument();
+    expect(controlWrites[1]?.headers.get("If-Match")).toBe('"1"');
   });
 });

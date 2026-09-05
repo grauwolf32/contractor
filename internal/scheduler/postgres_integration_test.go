@@ -458,6 +458,33 @@ func TestPostgresAcceptanceRollsBackStageAndOutputWhenRunCASLoses(t *testing.T) 
 	}
 }
 
+func TestPostgresQueuePauseAllowsTerminalResultCommit(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	fixture := createFinalizingFixture(t, ctx, pool)
+	control, err := fixture.store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 1, Paused: true,
+	})
+	if err != nil || !control.Paused {
+		t.Fatalf("pause owner Queue = (%+v, %v)", control, err)
+	}
+
+	err = fixture.persistence.CommitResultProgression(ctx, ResultProgression{
+		RunID: "run-1", StageExecutionID: fixture.executionID, Result: fixture.result,
+		WorkflowOutputs: fixture.workflow.Stages["copy"].WorkflowOutputs,
+		OutputContracts: fixture.workflow.Outputs,
+		Progression:     terminalSuccessProgression("run-1", fixture.executionID),
+	})
+	if err != nil {
+		t.Fatalf("terminal result commit while Queue paused: %v", err)
+	}
+	run, err := fixture.store.GetRun(ctx, "run-1")
+	if err != nil || run.State != runstore.RunSucceeded {
+		t.Fatalf("terminal Run while Queue paused = (%+v, %v)", run, err)
+	}
+}
+
 func TestPostgresOutputCommitUsesCandidateRevisionAfterBindingAdvances(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -594,6 +621,35 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourceID := "stage-retry-1"
+	control, err := store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: 0, Paused: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
+		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
+		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
+		StageContextSchemaVersion: contracts.APIVersion,
+		StageContext: runstore.StageContextSnapshot{
+			Parameters: map[string]string{"objective": "copy exactly"},
+			Artifacts: map[string]runstore.PinnedContextArtifact{
+				"source": {Required: true, Artifact: &original.Ref},
+			},
+		},
+	}, []ContextPin{{Name: "source", Ref: original.Ref}})
+	if !errors.Is(err, runstore.ErrQueuePaused) {
+		t.Fatalf("initial Stage admission while Queue paused = %v", err)
+	}
+	if executions, listErr := store.ListStageExecutions(ctx, "run-1"); listErr != nil || len(executions) != 0 {
+		t.Fatalf("paused initial Stage mutation = (%+v, %v)", executions, listErr)
+	}
+	control, err = store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = persistence.CreateStageWithContext(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: sourceID, RunID: "run-1", StageName: workflow.EntryStage, Attempt: 1,
 		StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: stageJSON,
@@ -632,7 +688,7 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 	}
 	targetID, targetStage := "stage-retry-2", workflow.EntryStage
 	previous := sourceID
-	err = persistence.CommitTerminationProgression(ctx, TerminationProgression{
+	progression := TerminationProgression{
 		RunID: "run-1", StageExecutionID: sourceID,
 		Progression: StageProgression{
 			Decision: runstore.RecordStageTransitionDecisionParams{
@@ -656,7 +712,31 @@ func TestPostgresRetryProgressionAtomicallyCreatesFreshAttempt(t *testing.T) {
 				ContextPins: []ContextPin{{Name: "source", Ref: advanced.Ref}},
 			},
 		},
+	}
+	control, err = store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: true,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = persistence.CommitTerminationProgression(ctx, progression)
+	if !errors.Is(err, runstore.ErrQueuePaused) {
+		t.Fatalf("retry admission while Queue paused = %v", err)
+	}
+	blocked, err := store.GetStageExecution(ctx, sourceID)
+	if err != nil || blocked.State != runstore.StageAborting {
+		t.Fatalf("paused retry changed source Stage = (%+v, %v)", blocked, err)
+	}
+	if decisions, listErr := store.ListStageTransitionDecisions(ctx, "run-1"); listErr != nil || len(decisions) != 0 {
+		t.Fatalf("paused retry persisted decision = (%+v, %v)", decisions, listErr)
+	}
+	control, err = store.UpdateOwnerQueueControl(ctx, runstore.UpdateOwnerQueueControlParams{
+		OwnerID: "user-1", ExpectedRevision: control.Revision, Paused: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = persistence.CommitTerminationProgression(ctx, progression)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -505,6 +505,63 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/queue/control:
+    get:
+      operationId: getOwnerQueueControl
+      tags: [Queue, Runs]
+      summary: Get the authenticated owner's durable Queue admission control
+      description: >-
+        Absence of a persisted control row is represented as paused=false with
+        revision 0. Pausing does not stop an already admitted Stage or any
+        cancellation, recovery, finalization, publication, or release work.
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Effective owner Queue admission control
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OwnerQueueControl'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+    put:
+      operationId: putOwnerQueueControl
+      tags: [Queue, Runs]
+      summary: Pause or resume the authenticated owner's Queue admission
+      description: >-
+        Exact CAS over the effective representation. The update serializes with
+        every normal Stage admission; setting the current value is an
+        idempotent no-op that retains its revision.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/RequiredQueueControlIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateOwnerQueueControlRequest'}
+      responses:
+        '200':
+          description: Current owner Queue admission control
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OwnerQueueControl'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/runs:
     post:
       operationId: createRun
@@ -1699,6 +1756,11 @@ components:
       in: header
       required: true
       schema: {type: string, pattern: '^"[1-9][0-9]{0,19}"$'}
+    RequiredQueueControlIfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string, pattern: '^"(0|[1-9][0-9]{0,19})"$'}
     IfNoneMatch:
       name: If-None-Match
       in: header
@@ -1921,6 +1983,20 @@ components:
     RunQueueMembership:
       type: string
       enum: [standalone, project, evaluation]
+    OwnerQueueControl:
+      type: object
+      additionalProperties: false
+      required: [paused, revision]
+      properties:
+        paused: {type: boolean}
+        revision: {type: string, pattern: '^(0|[1-9][0-9]{0,19})$'}
+        updatedAt: {type: string, format: date-time}
+    UpdateOwnerQueueControlRequest:
+      type: object
+      additionalProperties: false
+      required: [paused]
+      properties:
+        paused: {type: boolean}
     AuditActor:
       type: string
       minLength: 1

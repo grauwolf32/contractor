@@ -278,6 +278,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/queue/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the authenticated owner's durable Queue admission control
+         * @description Absence of a persisted control row is represented as paused=false with revision 0. Pausing does not stop an already admitted Stage or any cancellation, recovery, finalization, publication, or release work.
+         */
+        get: operations["getOwnerQueueControl"];
+        /**
+         * Pause or resume the authenticated owner's Queue admission
+         * @description Exact CAS over the effective representation. The update serializes with every normal Stage admission; setting the current value is an idempotent no-op that retains its revision.
+         */
+        put: operations["putOwnerQueueControl"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs": {
         parameters: {
             query?: never;
@@ -896,6 +920,15 @@ export interface components {
         ProjectKind: "project" | "evaluation";
         /** @enum {string} */
         RunQueueMembership: "standalone" | "project" | "evaluation";
+        OwnerQueueControl: {
+            paused: boolean;
+            revision: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        UpdateOwnerQueueControlRequest: {
+            paused: boolean;
+        };
         AuditActor: string;
         ConfigId: string;
         RunMetadataLabels: {
@@ -2313,6 +2346,7 @@ export interface components {
         IdempotencyKey: string;
         IfMatch: string;
         RequiredIfMatch: string;
+        RequiredQueueControlIfMatch: string;
         IfNoneMatch: "*";
         Origin: string;
         /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
@@ -2877,6 +2911,70 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getOwnerQueueControl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective owner Queue admission control */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerQueueControl"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    putOwnerQueueControl: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": components["parameters"]["RequiredQueueControlIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateOwnerQueueControlRequest"];
+            };
+        };
+        responses: {
+            /** @description Current owner Queue admission control */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerQueueControl"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            412: components["responses"]["PreconditionFailed"];
             500: components["responses"]["InternalError"];
         };
     };

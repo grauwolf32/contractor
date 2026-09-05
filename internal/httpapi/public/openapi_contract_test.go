@@ -111,6 +111,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions",
 		"GET /v1/projects/{projectId}/runs",
 		"GET /v1/queue",
+		"GET /v1/queue/control",
 		"GET /v1/runs",
 		"GET /v1/runs/{runId}",
 		"GET /v1/runs/{runId}/artifacts",
@@ -136,6 +137,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels",
 		"PUT /v1/operations/runtime-labels/{label}",
 		"PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
+		"PUT /v1/queue/control",
 	}
 	if !reflect.DeepEqual(implemented, wantImplemented) {
 		t.Fatalf("implemented public operations = %v, want %v", implemented, wantImplemented)

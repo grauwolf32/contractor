@@ -19,6 +19,7 @@ export type QueueState = components["schemas"]["NonTerminalWorkflowRunState"];
 export type QueueMembership = components["schemas"]["RunQueueMembership"];
 export type QueueItem = components["schemas"]["RunQueueItem"];
 export type QueuePage = components["schemas"]["RunQueuePage"];
+export type OwnerQueueControl = components["schemas"]["OwnerQueueControl"];
 
 export interface QueuePageRequest {
   state?: QueueState;
@@ -28,6 +29,7 @@ export interface QueuePageRequest {
 
 const RESOURCE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 const EVENT_SEQUENCE = /^(?:0|[1-9][0-9]{0,19})$/;
+const QUEUE_CONTROL_REVISION = /^(?:0|[1-9][0-9]{0,18})$/;
 
 function invalidQueueResponse(status: number): PublicAPIError {
   return new PublicAPIError({
@@ -88,6 +90,53 @@ function safeQueueItem(item: QueueItem, status: number): QueueItem {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+}
+
+function safeOwnerQueueControl(
+  value: OwnerQueueControl,
+  response: Response,
+): OwnerQueueControl {
+  if (
+    typeof value.paused !== "boolean" ||
+    !QUEUE_CONTROL_REVISION.test(value.revision) ||
+    response.headers.get("ETag") !== `"${value.revision}"` ||
+    (value.revision === "0" &&
+      (value.paused || value.updatedAt !== undefined)) ||
+    (value.revision !== "0" &&
+      (typeof value.updatedAt !== "string" ||
+        !Number.isFinite(Date.parse(value.updatedAt))))
+  ) {
+    throw invalidQueueResponse(response.status);
+  }
+  return { ...value };
+}
+
+export async function getOwnerQueueControl(
+  api: PublicAPI,
+): Promise<OwnerQueueControl> {
+  const result = await api.request((client) => client.GET("/v1/queue/control"));
+  return safeOwnerQueueControl(requireData(result), result.response);
+}
+
+export async function setOwnerQueuePaused(
+  api: PublicAPI,
+  paused: boolean,
+  expectedRevision: string,
+): Promise<OwnerQueueControl> {
+  if (!QUEUE_CONTROL_REVISION.test(expectedRevision)) {
+    throw new TypeError("Queue control revision is invalid");
+  }
+  const result = await api.request((client) =>
+    client.PUT("/v1/queue/control", {
+      params: { header: { "If-Match": `"${expectedRevision}"` } },
+      body: { paused },
+    }),
+  );
+  const control = safeOwnerQueueControl(requireData(result), result.response);
+  if (control.paused !== paused) {
+    throw invalidQueueResponse(result.response.status);
+  }
+  return control;
 }
 
 export async function listRunQueue(
