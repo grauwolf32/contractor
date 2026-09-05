@@ -1,0 +1,243 @@
+.audit-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.audit-create-form,
+.audit-section-panel,
+.audit-check-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.audit-policy-mark {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted-strong);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.audit-profile-contract {
+  display: grid;
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.audit-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.audit-profile-summary > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface-raised);
+  padding: 0.75rem;
+}
+
+.audit-profile-summary span,
+.audit-input-fields small {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.audit-profile-summary code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audit-input-fields {
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  padding: 1rem;
+}
+
+.audit-input-fields label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.audit-scope-fields {
+  margin-top: 0.8rem;
+}
+
+.audit-collection {
+  display: grid;
+  gap: 1rem;
+}
+
+.audit-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.audit-card {
+  display: grid;
+  min-width: 0;
+  gap: 0.8rem;
+}
+
+.audit-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.audit-card-stats {
+  margin: 0;
+}
+
+.audit-header-state {
+  display: grid;
+  justify-items: end;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.audit-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 0.65rem;
+}
+
+.audit-control-error {
+  flex-basis: 100%;
+}
+
+.audit-section-navigation {
+  display: flex;
+  position: sticky;
+  top: 0.7rem;
+  z-index: 4;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  padding: 0.35rem;
+  backdrop-filter: blur(0.8rem);
+}
+
+.audit-section-navigation a {
+  flex: none;
+  border-radius: 0.4rem;
+  color: var(--muted-strong);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.audit-section-navigation a:hover,
+.audit-section-navigation a.active {
+  background: var(--surface-raised);
+  color: var(--accent);
+}
+
+.audit-detail-stack,
+.audit-check-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.audit-artifact-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.audit-download-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.audit-limit-grid dd,
+.audit-section-panel dd {
+  overflow-wrap: anywhere;
+}
+
+.audit-gap-block {
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.audit-string-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.audit-check-card h4 {
+  margin: 0.25rem 0 0;
+}
+
+.audit-attempt-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.audit-attempt-list li {
+  display: grid;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 0.55rem 0.2rem;
+}
+
+.audit-attempt-list span {
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+
+.audit-coverage-table td {
+  vertical-align: top;
+}
+
+.audit-coverage-table td:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.audit-coverage-table small {
+  color: var(--muted);
+}
+
+.audit-report-summary {
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+  white-space: pre-wrap;
+}
+
+.audit-stop-reason {
+  display: grid;
+  gap: 0.35rem;
+}
+
+@media (max-width: 800px) {
+  .audit-card-grid,
+  .audit-profile-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-header-state {
+    justify-items: start;
+  }
+}

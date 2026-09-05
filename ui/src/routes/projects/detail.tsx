@@ -928,6 +928,27 @@ function ProjectRunsRegion({
   );
 }
 
+function ProjectAuditsRegion({ projectId }: { projectId: string }) {
+  return (
+    <ProjectRegion
+      eyebrow="Profile-driven verification"
+      title="Audits"
+      id="project-audits"
+      action={
+        <Link to={`/projects/${encodeURIComponent(projectId)}/audits`}>
+          Open Audits →
+        </Link>
+      }
+    >
+      <p className="muted-copy">
+        Build a fixed checklist or OpenAPI operation inventory from exact
+        Project Artifacts, then follow coverage and ordinary child Runs without
+        treating a successful process as a passing assessment.
+      </p>
+    </ProjectRegion>
+  );
+}
+
 const deletionPhaseCopy: Record<
   ProjectDeletionPhase,
   { label: string; detail: string }
@@ -1214,6 +1235,9 @@ function ProjectWorkspaceRoute({
             <a href="#project-overview">Overview</a>
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-workflows">Workflows</a>
+            {expectedKind === "project" ? (
+              <a href="#project-audits">Audits</a>
+            ) : null}
             <a href="#project-runs">Runs</a>
           </nav>
           <ProjectRegion
@@ -1239,6 +1263,9 @@ function ProjectWorkspaceRoute({
             detailRoot={expectedKind === "evaluation" ? "/evals" : "/projects"}
           />
           <ProjectWorkflowRecommendations projectId={project.data.projectId} />
+          {expectedKind === "project" ? (
+            <ProjectAuditsRegion projectId={project.data.projectId} />
+          ) : null}
           <ProjectRunsRegion
             projectId={project.data.projectId}
             evaluation={expectedKind === "evaluation"}

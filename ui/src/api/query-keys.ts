@@ -84,6 +84,36 @@ export const queryKeys = {
     },
     runs: (projectId: string, cursor?: string) =>
       ["projects", "detail", projectId, "runs", cursor ?? null] as const,
+    audits: {
+      all: (projectId: string) =>
+        ["projects", "detail", projectId, "audits"] as const,
+      list: (projectId: string, cursor?: string) =>
+        [
+          "projects",
+          "detail",
+          projectId,
+          "audits",
+          "list",
+          cursor ?? null,
+        ] as const,
+    },
+  },
+  auditProfiles: {
+    all: ["audit-profiles"] as const,
+    list: (cursor?: string) =>
+      ["audit-profiles", "list", cursor ?? null] as const,
+    detail: (name: string, version: string) =>
+      ["audit-profiles", "detail", name, version] as const,
+  },
+  audits: {
+    all: ["audits"] as const,
+    detail: (auditId: string) => ["audits", "detail", auditId] as const,
+    items: (auditId: string, cursor?: string) =>
+      ["audits", "detail", auditId, "items", cursor ?? null] as const,
+    coverage: (auditId: string, cursor?: string) =>
+      ["audits", "detail", auditId, "coverage", cursor ?? null] as const,
+    report: (auditId: string) =>
+      ["audits", "detail", auditId, "report"] as const,
   },
   queue: {
     all: ["queue"] as const,

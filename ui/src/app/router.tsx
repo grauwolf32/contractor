@@ -14,6 +14,8 @@ import {
   ProjectDetailRoute,
 } from "../routes/projects/detail";
 import { EvaluationListRoute, ProjectListRoute } from "../routes/projects/list";
+import { ProjectAuditDetailRoute } from "../routes/projects/audits/detail";
+import { ProjectAuditListRoute } from "../routes/projects/audits/list";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { LegacyQueueRedirect, RunsRoute } from "../routes/runs";
@@ -62,6 +64,18 @@ export function applicationRoutes(): RouteObject[] {
             {
               path: "/projects/:projectId/artifacts/:namespace/:name",
               element: <ProjectArtifactDetailRoute />,
+            },
+            {
+              path: "/projects/:projectId/audits",
+              element: <ProjectAuditListRoute />,
+            },
+            {
+              path: "/projects/:projectId/audits/:auditId",
+              element: <ProjectAuditDetailRoute />,
+            },
+            {
+              path: "/projects/:projectId/audits/:auditId/:section",
+              element: <ProjectAuditDetailRoute />,
             },
             { path: "/evals", element: <EvaluationListRoute /> },
             {
