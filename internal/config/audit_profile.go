@@ -13,6 +13,7 @@ const (
 	MaxAuditProfileInputs     = 32
 	MaxAuditProfileWorkflows  = 16
 	MaxAuditRounds            = 32
+	MaxAuditBatchSize         = 64
 	MaxAuditItemsPerRound     = 10_000
 	MaxAuditItemsTotal        = 100_000
 	MaxAuditActiveRuns        = 64
@@ -117,6 +118,7 @@ const (
 type AuditExecutionPolicy struct {
 	RoundMode          AuditRoundMode             `json:"roundMode"`
 	MaxRounds          int                        `json:"maxRounds"`
+	BatchSize          int                        `json:"batchSize"`
 	MaxItemsPerRound   int                        `json:"maxItemsPerRound"`
 	MaxItemsTotal      int                        `json:"maxItemsTotal"`
 	MaxActiveRuns      int                        `json:"maxActiveRuns"`
@@ -133,9 +135,11 @@ type AuditNotApplicablePolicy string
 type AuditReportAcceptancePolicy string
 
 const (
+	AuditActiveChecksProhibited       AuditActiveChecksPolicy = "prohibited"
 	AuditActiveChecksAutomatic        AuditActiveChecksPolicy = "automatic"
 	AuditActiveChecksApprovalRequired AuditActiveChecksPolicy = "approval-required"
 
+	AuditFindingDisabled      AuditFindingConfirmationPolicy = "disabled"
 	AuditFindingHumanRequired AuditFindingConfirmationPolicy = "human-required"
 
 	AuditNotApplicableHumanRequired AuditNotApplicablePolicy = "human-required"
@@ -220,6 +224,7 @@ type auditParameterMappingSource struct {
 type auditExecutionPolicySource struct {
 	RoundMode          string `yaml:"roundMode"`
 	MaxRounds          int    `yaml:"maxRounds"`
+	BatchSize          int    `yaml:"batchSize"`
 	MaxItemsPerRound   int    `yaml:"maxItemsPerRound"`
 	MaxItemsTotal      int    `yaml:"maxItemsTotal"`
 	MaxActiveRuns      int    `yaml:"maxActiveRuns"`
@@ -726,6 +731,7 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 	}
 	result := AuditExecutionPolicy{
 		RoundMode: AuditRoundMode(source.RoundMode), MaxRounds: source.MaxRounds,
+		BatchSize:        source.BatchSize,
 		MaxItemsPerRound: source.MaxItemsPerRound, MaxItemsTotal: source.MaxItemsTotal,
 		MaxActiveRuns: source.MaxActiveRuns, MaxSubmittedRuns: source.MaxSubmittedRuns,
 		MaxItemRunAttempts: source.MaxItemRunAttempts, DeadlineSeconds: source.DeadlineSeconds,
@@ -741,6 +747,7 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 		maximum     int
 	}{
 		{"maxRounds", "rounds", result.MaxRounds, MaxAuditRounds},
+		{"batchSize", "items", result.BatchSize, MaxAuditBatchSize},
 		{"maxItemsPerRound", "items", result.MaxItemsPerRound, MaxAuditItemsPerRound},
 		{"maxItemsTotal", "items", result.MaxItemsTotal, MaxAuditItemsTotal},
 		{"maxActiveRuns", "Runs", result.MaxActiveRuns, MaxAuditActiveRuns},
@@ -758,11 +765,18 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 	if result.MaxItemsPerRound > result.MaxItemsTotal {
 		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.maxItemsPerRound cannot exceed maxItemsTotal")
 	}
+	if result.BatchSize > result.MaxItemsPerRound {
+		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.batchSize cannot exceed maxItemsPerRound")
+	}
 	if result.MaxActiveRuns > result.MaxItemsPerRound {
 		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.maxActiveRuns cannot exceed maxItemsPerRound")
 	}
-	if result.MaxSubmittedRuns < result.MaxItemsTotal {
-		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.maxSubmittedRuns cannot be below maxItemsTotal")
+	minimumInitialRuns := (result.MaxItemsTotal + result.BatchSize - 1) / result.BatchSize
+	if result.MaxSubmittedRuns < minimumInitialRuns {
+		return AuditExecutionPolicy{}, fmt.Errorf(
+			"spec.execution.maxSubmittedRuns cannot cover maxItemsTotal at batchSize %d",
+			result.BatchSize,
+		)
 	}
 	if result.IncompleteRound != AuditIncompleteAssessWithGaps && result.IncompleteRound != AuditIncompleteFail {
 		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.incompleteRound is invalid")
@@ -780,11 +794,14 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 		NotApplicable:       AuditNotApplicablePolicy(source.NotApplicable),
 		ReportAcceptance:    AuditReportAcceptancePolicy(source.ReportAcceptance),
 	}
-	if result.ActiveChecks != AuditActiveChecksAutomatic && result.ActiveChecks != AuditActiveChecksApprovalRequired {
+	if result.ActiveChecks != AuditActiveChecksProhibited &&
+		result.ActiveChecks != AuditActiveChecksAutomatic &&
+		result.ActiveChecks != AuditActiveChecksApprovalRequired {
 		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.activeChecks is invalid")
 	}
-	if result.FindingConfirmation != AuditFindingHumanRequired {
-		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.findingConfirmation must be %q in v1alpha1", AuditFindingHumanRequired)
+	if result.FindingConfirmation != AuditFindingDisabled &&
+		result.FindingConfirmation != AuditFindingHumanRequired {
+		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.findingConfirmation is invalid")
 	}
 	if result.NotApplicable != AuditNotApplicableHumanRequired && result.NotApplicable != AuditNotApplicableProfileRule {
 		return AuditInteractionPolicy{}, fmt.Errorf("spec.interaction.notApplicable is invalid")

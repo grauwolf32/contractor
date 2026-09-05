@@ -28,7 +28,9 @@ func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	}
 	assertDigest(t, profile.Ref.Digest)
 	if profile.Mode != AuditModeCustomChecklist || profile.Inventory.Implementation != "checklist@1" ||
-		profile.Inventory.ItemWorkflowRole != "check" || profile.Execution.MaxActiveRuns != 2 {
+		profile.Inventory.ItemWorkflowRole != "check" || profile.Execution.MaxActiveRuns != 2 ||
+		profile.Execution.BatchSize != 1 || profile.Interaction.ActiveChecks != AuditActiveChecksProhibited ||
+		profile.Interaction.FindingConfirmation != AuditFindingDisabled {
 		t.Fatalf("unexpected resolved AuditProfile: %+v", profile)
 	}
 	binding := profile.Workflows["check"]
@@ -89,6 +91,32 @@ func TestAuditProfileManagerReadAccessDoesNotAddManagedPublicationKind(t *testin
 	}
 	if _, err := ParseConfigurationKind("audit-profiles"); err == nil {
 		t.Fatal("AuditProfile unexpectedly became a generic managed configuration kind")
+	}
+}
+
+func TestAuditProfileCatalogAcceptsBoundedFuturePoliciesWithoutClaimingCompatibility(t *testing.T) {
+	t.Parallel()
+
+	root := copyConfigTree(t)
+	manifest := strings.NewReplacer(
+		"batchSize: 1", "batchSize: 2",
+		"activeChecks: prohibited", "activeChecks: approval-required",
+		"findingConfirmation: disabled", "findingConfirmation: human-required",
+		"notApplicable: profile-rule", "notApplicable: human-required",
+		"reportAcceptance: automatic", "reportAcceptance: human-required",
+	).Replace(validAuditProfileYAML("future-review"))
+	writeAuditProfile(t, root, "future-review", manifest)
+
+	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("future-review@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Execution.BatchSize != 2 ||
+		profile.Interaction.ActiveChecks != AuditActiveChecksApprovalRequired ||
+		profile.Interaction.FindingConfirmation != AuditFindingHumanRequired ||
+		profile.Interaction.NotApplicable != AuditNotApplicableHumanRequired ||
+		profile.Interaction.ReportAcceptance != AuditReportHumanRequired {
+		t.Fatalf("future bounded policy was not retained: %+v", profile)
 	}
 }
 
@@ -181,13 +209,23 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 			wantMessage: "maxRounds must be between 1",
 		},
 		{
+			name:        "nonpositive batch size",
+			manifest:    strings.Replace(valid, "batchSize: 1", "batchSize: 0", 1),
+			wantMessage: "batchSize must be between 1",
+		},
+		{
+			name:        "batch exceeds server maximum",
+			manifest:    strings.Replace(valid, "batchSize: 1", "batchSize: 101", 1),
+			wantMessage: "batchSize must be between 1",
+		},
+		{
 			name:        "incoherent submitted budget",
 			manifest:    strings.Replace(valid, "maxSubmittedRuns: 500", "maxSubmittedRuns: 99", 1),
-			wantMessage: "maxSubmittedRuns cannot be below maxItemsTotal",
+			wantMessage: "maxSubmittedRuns cannot cover maxItemsTotal",
 		},
 		{
 			name:        "invalid interaction policy",
-			manifest:    strings.Replace(valid, "activeChecks: approval-required", "activeChecks: model-decides", 1),
+			manifest:    strings.Replace(valid, "activeChecks: prohibited", "activeChecks: model-decides", 1),
 			wantMessage: "interaction.activeChecks is invalid",
 		},
 	}
@@ -270,6 +308,7 @@ spec:
   execution:
     roundMode: fixed-barrier
     maxRounds: 3
+    batchSize: 1
     maxItemsPerRound: 100
     maxItemsTotal: 250
     maxActiveRuns: 2
@@ -279,10 +318,10 @@ spec:
     maxEvidenceBytes: 67108864
     incompleteRound: assess-with-gaps
   interaction:
-    activeChecks: approval-required
-    findingConfirmation: human-required
-    notApplicable: human-required
-    reportAcceptance: human-required
+    activeChecks: prohibited
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic
 `
 
 const presentationAuditProfileYAML = `kind: AuditProfile
@@ -290,10 +329,10 @@ apiVersion: contractor/v1alpha1
 metadata: {version: "1", name: api-security-review}
 spec:
   interaction:
-    reportAcceptance: human-required
-    notApplicable: human-required
-    findingConfirmation: human-required
-    activeChecks: approval-required
+    reportAcceptance: automatic
+    notApplicable: profile-rule
+    findingConfirmation: disabled
+    activeChecks: prohibited
   execution:
     maxEvidenceBytes: 67108864
     deadlineSeconds: 86400
@@ -302,6 +341,7 @@ spec:
     maxActiveRuns: 2
     maxItemsTotal: 250
     maxItemsPerRound: 100
+    batchSize: 1
     maxRounds: 3
     incompleteRound: assess-with-gaps
     roundMode: fixed-barrier
@@ -351,6 +391,7 @@ spec:
   execution:
     roundMode: fixed-barrier
     maxRounds: 2
+    batchSize: 1
     maxItemsPerRound: 10
     maxItemsTotal: 20
     maxActiveRuns: 2
