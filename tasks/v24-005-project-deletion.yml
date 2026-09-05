@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V24-005
+title: Delete Projects through durable cancellation drain and scoped purge
+milestone: workspace-lifecycle-controls
+priority: P1
+status: pending
+depends_on: [V23-010, V24-003, V24-004]
+languages: [go, sql, yaml, typescript]
+
+goal: >-
+  Permanently delete a Project after safely cancelling every active Run and
+  cleaning all Project Runs and the complete ProjectScope.
+
+context:
+  lifecycle: >-
+    Project gains active|deleting. DELETE with current If-Match returns 202
+    after a durable transition; deleting blocks new Runs, uploads and metadata
+    changes while reads expose progress until final owner-safe not-found.
+  controller: >-
+    A restart-safe idempotent controller cancels nonterminal Runs, waits for
+    terminal allocation release, purges every Project Run, purges all
+    ProjectScope history with reference-safe blob GC, then removes the Project.
+    Queue pause cannot stop these safety/cleanup phases.
+
+scope:
+  in:
+    - Add Project lifecycle persistence, strict DELETE contract and retryable deletion claims/phases.
+    - Fence every Project mutation once deleting commits.
+    - Reuse ordinary cancellation/release and terminal Run purge for all Project Runs.
+    - Purge complete ProjectScope and only globally unreferenced content before Project removal.
+    - Add typed-name UI confirmation, warning, disabled deleting state and polling reconciliation.
+  out:
+    - Restore, archive, undo, retention schedules, credential deletion or bulk Project deletion.
+
+requirements:
+  - {id: R1, text: Project deletion cannot bypass Scheduler cancellation or allocation release.}
+  - {id: R2, text: No Project Run or ProjectScope history survives completed deletion.}
+  - {id: R3, text: UserScope Skills/artifacts and RuntimeCredentials are retained after their references are removed.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Project with waiting, running and completed Runs plus artifact history.
+    when: Its name is confirmed and DELETE is accepted.
+    then: Mutations are fenced, active Runs cancel/drain, all Project-owned data is purged and the Project becomes not found.
+  - id: A2
+    given: Server restarts or loses a cleanup response at each phase.
+    when: the deletion controller resumes.
+    then: It converges without recreating Runs, leaking scope data or double-deleting shared content.
+  - id: A3
+    given: The owner queue is paused and the Project references shared User artifacts, Skills and a credential.
+    when: Project deletion runs.
+    then: Cleanup still completes and the shared resources remain.
+
+tests:
+  - {name: storage, command: "go test ./internal/projectstore ./internal/runstore ./internal/artifacts", covers: [A1, A2, A3]}
+  - {name: scheduler, command: "go test ./internal/scheduler", covers: [A1, A2, A3]}
+  - {name: public, command: "go test ./internal/httpapi/public", covers: [A1, A3]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

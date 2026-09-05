@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V24-002
+title: Consolidate Queue and completed history into one Runs UI
+milestone: workspace-lifecycle-controls
+priority: P1
+status: pending
+depends_on: [V23-008, V23-009]
+languages: [go, yaml, typescript, css]
+
+goal: >-
+  Replace competing Queue and Runs destinations with one predictable Runs page
+  whose default tab is active Queue and whose Completed tab is terminal history.
+
+context:
+  read_models: >-
+    Queue remains the oldest-first nonterminal /v1/queue projection with Project
+    display context. Completed uses newest-first /v1/runs with a Server-side
+    lifecycle=terminal filter; the endpoints are intentionally not collapsed.
+  compatibility: >-
+    Remove Queue from primary navigation and redirect the old /queue browser
+    route to the Queue tab without breaking Run detail links or live updates.
+
+scope:
+  in:
+    - Add strict active|terminal lifecycle filtering to Run list storage/OpenAPI/HTTP.
+    - Bind lifecycle plus existing exact state/label filters into pagination cursors.
+    - Build accessible Queue/Completed tabs under /runs with Queue selected by default.
+    - Preserve Queue polling/WebSocket invalidation and Project links.
+    - Redirect /queue and update navigation, responsive/empty/error states and browser tests.
+  out:
+    - Queue mutation, new execution states, priority, reordering or Run deletion.
+
+requirements:
+  - {id: R1, text: Completed filtering occurs before pagination and contains every terminal outcome.}
+  - {id: R2, text: Queue remains a read projection and never claims scheduler authority.}
+  - {id: R3, text: Existing /queue bookmarks resolve to the consolidated default view.}
+
+acceptance_criteria:
+  - id: A1
+    given: Nonterminal and all three terminal Run states.
+    when: Runs opens without a tab parameter.
+    then: Queue shows only nonterminal Runs and Completed shows all terminal Runs.
+  - id: A2
+    given: More terminal Runs than one page and an exact state or label filter.
+    when: Completed is paged.
+    then: Matching Runs appear exactly once in stable newest-first order.
+  - id: A3
+    given: An old /queue link.
+    when: It is opened.
+    then: The URL and navigation resolve to Runs Queue without losing query-safe behavior.
+
+tests:
+  - {name: server, command: "go test ./internal/runstore ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A3]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A1, A3]}
+

@@ -447,6 +447,23 @@ coordinates meaningful refs through A2A; Workers may discover current state
 through list/read. Internal registry history and audit events do not imply a
 public change feed.
 
+### Controlled scope purge
+
+Normal Artifact APIs never delete committed versions. The trusted lifecycle
+cleanup specified by [18](18-run-and-workspace-lifecycle-controls.md) is the
+only controlled exception: after its Run release or Project deletion gate, it
+may remove a complete RunScope or ProjectScope and the pins/lineage edges owned
+by that purge set. It never grants delete authority to a browser-selected
+scope, Planner, Runtime or generic artifact client.
+
+Registry cleanup is reference-safe. A version and its content-addressed blob
+may be collected only after no binding, retained revision, pin or lineage edge
+outside the purge set references them. Removing a cross-scope provenance edge
+does not remove the independently retained target artifact. Scope registry
+deletion and relational reference checks are one transaction; physical blob
+cleanup is completed synchronously for the PostgreSQL backend and must be
+retryable before an asynchronous backend reports lifecycle completion.
+
 ## A2A and ADK
 
 Normal durable artifact bytes stay in ArtifactStore. Private A2A task input carries
@@ -583,3 +600,5 @@ version.
     owner's UserScope; allocations may read them only through trusted Skill
     loading, can never write them, and generic Artifact tools cannot observe
     them.
+20. Controlled lifecycle purge is scope-complete and may collect only versions
+    and blobs with no reference outside its deletion set.

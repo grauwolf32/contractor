@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V24-001
+title: Separate the global Artifact library from Skills and share file drop
+milestone: workspace-lifecycle-controls
+priority: P1
+status: pending
+depends_on: [V23-009]
+languages: [go, yaml, typescript, css]
+
+goal: >-
+  Keep the general UserScope Artifact library focused on Workflow inputs while
+  giving it the same safe file-drop interaction as Project artifacts.
+
+context:
+  separation: >-
+    Skills remain ordinary UserScope artifacts under namespace=skills and keep
+    their dedicated top-level UI. GET /v1/artifacts gains an additive exact
+    excludeNamespace filter so the global library omits Skills before stable
+    pagination; the Skills route still uses the existing exact namespace filter.
+  reuse: >-
+    Extract one accessible single-file drop/picker plus file-stem and media-type
+    inference used by UserScope and ProjectScope forms. Each containing form
+    retains its current endpoint, query invalidation, CAS and authorization.
+
+scope:
+  in:
+    - Add and document excludeNamespace on the User Artifact collection only.
+    - Bind exclusion into cursor identity and query it before limit/pagination.
+    - Make global Artifacts list exclude skills and direct reserved Skill uploads to Skills.
+    - Reuse one drop component in generic and Project artifact forms.
+    - Test filtering across page boundaries, exact Skills behavior, drag/picker accessibility and upload inference.
+  out:
+    - Skill-specific storage/API, artifact deletion, multi-file upload or ProjectScope filtering changes.
+
+requirements:
+  - {id: R1, text: Browser-side filtering cannot determine Artifact page membership.}
+  - {id: R2, text: Shared file-drop code cannot share or broaden scope authority.}
+  - {id: R3, text: Skills metadata, history and upload continue through ordinary User Artifact APIs.}
+
+acceptance_criteria:
+  - id: A1
+    given: Skills sort before, between and after ordinary UserScope bindings across multiple pages.
+    when: Global Artifacts is paged with excludeNamespace=skills.
+    then: Every ordinary binding appears exactly once and no Skill appears.
+  - id: A2
+    given: The same owner opens Skills.
+    when: namespace=skills is requested.
+    then: All Skill bindings and their ordinary revision history remain available.
+  - id: A3
+    given: A file with a known extension is dropped in either generic or Project upload.
+    when: The form is reviewed and submitted.
+    then: Safe editable name/media suggestions and the correct scope-specific mutation are used.
+
+tests:
+  - {name: server, command: "go test ./internal/artifacts ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A2, A3]}
+  - {name: build, command: "cd ui && pnpm build", covers: [A1, A2, A3]}
+

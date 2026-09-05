@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V24-006
+title: Prove lifecycle controls recovery retention and browser behavior
+milestone: workspace-lifecycle-controls
+priority: P1
+status: pending
+depends_on: [V24-001, V24-002, V24-003, V24-004, V24-005]
+languages: [go, sql, yaml, typescript]
+
+goal: >-
+  Make Runs consolidation, pause and destructive cleanup releasable against the
+  production PostgreSQL, Server, Runtime Agent and independently served UI.
+
+context:
+  matrix: >-
+    Exercise paginated Artifact exclusion, Queue/Completed navigation,
+    cross-owner pause, Stage drain, terminal release gates, shared blob
+    retention and Project deletion recovery using production boundaries.
+  operations: >-
+    Migration ordering must keep an older UI compatible with the additive API,
+    and Server startup must resume durable queue and deletion state without a
+    transient schema mismatch.
+
+scope:
+  in:
+    - Add a declarative lifecycle/retention conformance matrix bound to named tests.
+    - Add real-PostgreSQL race and restart coverage for pause, Run purge and Project deletion phases.
+    - Add browser flow for Artifacts file drop, unified Runs, pause/resume, Run trash and typed Project confirmation.
+    - Verify shared content/reference retention and zero surviving deleted-scope rows.
+    - Update demo runbook and aggregate release target.
+  out:
+    - Scheduled retention, bulk administration, backup/restore or external blob backend implementation.
+
+requirements:
+  - {id: R1, text: Tests use production storage/lifecycle paths and no test-only deletion shortcut.}
+  - {id: R2, text: Every destructive assertion proves both deletion and required shared-data retention.}
+  - {id: R3, text: Standalone Runs, Evals, Skills and Project target credentials retain prior behavior.}
+
+acceptance_criteria:
+  - id: A1
+    given: Two Runtime Agents, multiple owners and shared/deduplicated artifacts.
+    when: pause, drain, Run deletion and Project deletion race with restart.
+    then: lifecycle invariants converge and only intended data is removed.
+  - id: A2
+    given: The independently served UI.
+    when: A user performs every new lifecycle and upload interaction.
+    then: authoritative state, confirmations, errors and redirects remain usable without manual reload.
+  - id: A3
+    given: The existing project workspace and standalone release suites.
+    when: The aggregate gate runs.
+    then: They remain behaviorally unchanged.
+
+tests:
+  - {name: process, command: "make test-lifecycle-controls-e2e", covers: [A1]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A2]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

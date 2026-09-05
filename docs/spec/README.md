@@ -50,6 +50,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [15](15-worker-summarization.md) | Optional one-shot terminal Worker summarization at a deterministic soft limit |
 | [16](16-run-metadata-labels.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
 | [17](17-projects-and-queue.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
+| [18](18-run-and-workspace-lifecycle-controls.md) | Consolidated Runs UI, durable queue pause/resume and safe Run/Project deletion |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -112,6 +113,7 @@ The boundaries are deliberately narrow:
 | ProjectScope | Long-lived Project artifact view from which exact inputs are forked into a Run |
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 | Queue | Owner-scoped read projection over nonterminal WorkflowRuns; never a second Scheduler |
+| Queue control | Durable owner-scoped admission gate; never a WorkflowRun state or process-local switch |
 
 ## Specification rule
 

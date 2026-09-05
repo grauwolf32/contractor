@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V24-003
+title: Add a durable owner-scoped Queue pause and resume gate
+milestone: workspace-lifecycle-controls
+priority: P1
+status: pending
+depends_on: [V24-002]
+languages: [go, sql, yaml, typescript]
+
+goal: >-
+  Let an owner pause admission of new semantic Stage work with one Queue action
+  while active work drains and safety/recovery transitions continue.
+
+context:
+  persistence: >-
+    Store one owner queue-control row with paused, revision and updated_at;
+    absence means running. Expose authenticated GET/PUT /v1/queue/control with
+    strict body, ETag/If-Match and CSRF behavior.
+  scheduler: >-
+    Pause is not a Run state. It serializes with normal Stage admission, allows
+    an already admitted Stage to finish, and never blocks cancellation, abort,
+    recovery, finalization, publication or allocation release.
+
+scope:
+  in:
+    - Add forward-only persistence and owner-isolated queue-control store/API.
+    - Integrate the gate into every normal Scheduler Stage-admission path and restart recovery.
+    - Add one Pause queue or Resume queue action to the Runs Queue tab.
+    - Prove cross-owner independence and admission/pause concurrency ordering.
+    - Prove Project cancellation and terminal release progress while paused.
+  out:
+    - Mid-call suspension, queue position, priority, capacity reservation or stopping Run creation.
+
+requirements:
+  - {id: R1, text: No new normal Stage is admitted after the owner's pause commits.}
+  - {id: R2, text: Already admitted work and every safety/cleanup transition may drain while paused.}
+  - {id: R3, text: Pause survives Server restart and one owner cannot affect another.}
+
+acceptance_criteria:
+  - id: A1
+    given: Waiting and currently executing Runs.
+    when: Their owner pauses Queue.
+    then: Current Stage drains but no next normal Stage starts until resume.
+  - id: A2
+    given: A paused owner and a Server restart.
+    when: Recovery and later resume run.
+    then: Recovery/release continues and waiting Runs become eligible only after resume.
+  - id: A3
+    given: Two owners.
+    when: One pauses Queue.
+    then: The other owner's admission remains unchanged.
+
+tests:
+  - {name: scheduler, command: "go test ./internal/scheduler ./internal/runstore", covers: [A1, A2, A3]}
+  - {name: public, command: "go test ./internal/httpapi/public", covers: [A2, A3]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

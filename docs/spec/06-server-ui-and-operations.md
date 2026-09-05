@@ -19,10 +19,11 @@ The target navigation contains:
 ```text
 Projects
 Evals
-Queue
 Workflows
 Artifacts
 Runs
+  -> Queue (default)
+  -> Completed
   -> Run details
      -> Stages / attempts
      -> Inputs / outputs
@@ -41,7 +42,8 @@ The UI remains domain-neutral. Project artifact tiles may provide familiar
 OpenAPI, LikeC4, source, documentation and diff icons, but they are shortcuts
 over arbitrary ArtifactRefs rather than hard-coded Server modes. Project,
 Workflow recommendation, global Queue, Evals and global Skills behavior is
-owned by [17](17-projects-and-queue.md).
+owned by [17](17-projects-and-queue.md). Runs consolidation and lifecycle
+controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).
 
 ## Deployment boundary
 
@@ -158,6 +160,24 @@ UI labels must preserve the execution vocabulary: a Runtime Agent is the
 long-running single-slot process, while Worker is its temporary
 allocation-scoped role. The UI must not present them as two independently
 deployed services.
+
+### Artifact library interaction
+
+The global **Artifacts** route is the owner's general UserScope library. Its
+paginated list requests `excludeNamespace=skills`; exclusion is evaluated by
+Server before keyset pagination, so a page cannot become short or incorrectly
+claim completion after browser-side filtering. An exact `namespace` filter and
+the exclusion are part of the cursor identity. The **Skills** route continues
+to request exactly `namespace=skills` and remains the single UI surface for
+creating and listing Skill packages. The generic Artifacts upload form directs
+an attempted `skills` namespace to that route instead of duplicating it.
+
+UserScope and ProjectScope uploads share one accessible file-drop component:
+drop and file-picker input select exactly one local file, show its name/size,
+enforce the 16 MiB limit before mutation, derive a safe editable name from the
+file stem and infer known media types by browser value or extension. Scope,
+CAS and mutation endpoints remain owned by their containing forms; sharing the
+drop interaction grants no cross-scope authority.
 
 ## Operations surface
 
@@ -322,8 +342,8 @@ is handled only by the idempotency comparison above.
 
 ## Agent Skill artifacts
 
-Agent Skills use the ordinary owner Artifact API and existing Artifacts UI;
-there is no Skill-specific API or Operations page. A package is created or
+Agent Skills use the ordinary owner Artifact API through their separate Skills
+UI; there is no Skill-specific API or Operations page. A package is created or
 updated at `skills/<name>` with the same strong ETag preconditions, version
 history and exact `ArtifactRef` response as any other UserScope artifact.
 [09](09-agent-skills.md) owns package validation and Run forking.

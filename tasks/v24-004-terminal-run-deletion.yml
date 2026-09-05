@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V24-004
+title: Hard-delete released terminal Runs and their complete RunScope
+milestone: workspace-lifecycle-controls
+priority: P1
+status: pending
+depends_on: [V6-002, V23-005, V24-002]
+languages: [go, sql, yaml, typescript]
+
+goal: >-
+  Permanently remove an owned completed Run and all Run-owned execution and
+  artifact data without deleting shared inputs or Project artifacts.
+
+context:
+  gate: >-
+    DELETE /v1/runs/{runId} is allowed only for succeeded|failed|cancelled after
+    every allocation release completes. Server computes a deletable field; the
+    UI shows a confirmed trash action only when true.
+  purge: >-
+    A trusted transaction removes complete RunScope registry state, pins,
+    lineage, execution rows, events, metrics, labels, cancellation, publication
+    receipts, idempotency and the Run. It garbage-collects only versions/blobs
+    with no surviving reference in any scope.
+
+scope:
+  in:
+    - Add a controlled artifact scope-purge primitive that bypasses immutability only behind lifecycle gates.
+    - Add terminal/release eligibility query and owner-safe DELETE Run API.
+    - Remove every Run-owned relational record and complete RunScope transactionally.
+    - Preserve source User/Project artifacts and independently published ProjectScope outputs.
+    - Add Completed-tab trash icon, confirmation, pending/error behavior and invalidation.
+  out:
+    - Automatic retention schedules, archive/tombstone records, bulk selection or nonterminal deletion.
+
+requirements:
+  - {id: R1, text: A nonterminal or unreleased Run cannot be partially deleted.}
+  - {id: R2, text: No RunScope binding, revision, pin, lineage or execution row survives success.}
+  - {id: R3, text: Version/blob collection is reference-safe across UserScope, ProjectScope and other Runs.}
+
+acceptance_criteria:
+  - id: A1
+    given: A released terminal Run with inputs, intermediates, outputs, history and metrics.
+    when: Its owner confirms deletion.
+    then: Run detail becomes not found and no Run-owned durable row or Artifact remains.
+  - id: A2
+    given: A Run input and a published Project output whose blobs are shared.
+    when: Only the Run is deleted.
+    then: Source and Project bindings remain readable while Run-owned refs and provenance edges disappear.
+  - id: A3
+    given: A terminal Run whose allocation release is incomplete.
+    when: UI/API eligibility is evaluated.
+    then: No trash action is shown and DELETE conflicts without mutation.
+
+tests:
+  - {name: storage, command: "go test ./internal/artifacts ./internal/runstore", covers: [A1, A2, A3]}
+  - {name: public, command: "go test ./internal/httpapi/public", covers: [A1, A3]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
+

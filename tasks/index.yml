@@ -140,6 +140,12 @@ fixed_decisions:
       Evaluation is an immutable Project kind rendered in a separate Evals UI;
       Skills remain global owner UserScope artifacts. Queue is a read projection
       over all nonterminal ordinary Runs, not another Scheduler.
+    lifecycle_controls: >-
+      UI consolidates Queue and terminal history under Runs. Owner pause is a
+      durable normal-Stage admission gate that permits drain and cleanup.
+      Released terminal Runs may be hard-deleted with complete RunScope data;
+      Project deletion durably cancels/drains all Runs and purges ProjectScope.
+      Both purge paths collect only globally unreferenced artifact content.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -433,6 +439,13 @@ milestones:
       Global Queue, separate Evals and Skills views, allocation-only Project
       target credentials and production-process recovery/security tests make
       Project organization releasable without changing standalone execution.
+  - id: workspace-lifecycle-controls
+    exit_task: V24-006
+    outcome: >-
+      One Runs surface provides Queue/Completed views and durable owner pause,
+      terminal Runs can be safely hard-deleted, Projects can be durably
+      cancelled and purged, and the general Artifact library excludes Skills
+      while reusing the Project file-drop interaction.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
@@ -1734,3 +1747,9 @@ tasks:
   - {id: V23-009, file: v23-009-evals-and-global-skills-ui.yml}
   - {id: V23-010, file: v23-010-project-http-target.yml}
   - {id: V23-011, file: v23-011-projects-release-gate.yml}
+  - {id: V24-001, file: v24-001-artifact-library-file-drop.yml}
+  - {id: V24-002, file: v24-002-unified-runs-ui.yml}
+  - {id: V24-003, file: v24-003-owner-queue-pause.yml}
+  - {id: V24-004, file: v24-004-terminal-run-deletion.yml}
+  - {id: V24-005, file: v24-005-project-deletion.yml}
+  - {id: V24-006, file: v24-006-lifecycle-controls-release-gate.yml}

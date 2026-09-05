@@ -34,15 +34,16 @@ Project
   name             non-empty display name
   description      optional bounded text
   http_target      optional safe URL + RuntimeCredential ref
+  lifecycle_state  active | deleting
   revision         opaque optimistic-concurrency token
   created_at
   updated_at
 ```
 
-`kind` is immutable. `name` and `description` may be updated with `If-Match`
-against the current Project revision. The first slice has no Project deletion
-or archive state: retaining a Project preserves the meaning of its Run and
-Artifact links, and hiding or retention policy can be added separately.
+`kind` is immutable. While active, `name` and `description` may be updated with
+`If-Match` against the current Project revision. Deletion is a durable
+cancel/drain/purge operation rather than a synchronous foreign-key cascade;
+[18](18-run-and-workspace-lifecycle-controls.md) owns its contract.
 
 `evaluation` is the same storage and execution composition with a distinct UI
 entry point. It does not create an eval-only Scheduler path. The Evals view
@@ -261,7 +262,9 @@ another Server process can change which Run advances next.
 
 The owner-scoped queue endpoint uses stable keyset pagination and never exposes
 foreign Projects or Runs. Live invalidation may reuse the existing Run event
-channel; polling remains a correct fallback.
+channel; polling remains a correct fallback. The consolidated Runs UI and the
+durable owner pause/resume gate are specified in
+[18](18-run-and-workspace-lifecycle-controls.md).
 
 ## UI information architecture
 
@@ -270,10 +273,9 @@ The target top-level navigation is:
 ```text
 Projects
 Evals
-Queue
+Runs
 Workflows
 Artifacts
-Runs
 Skills
 Operations
 ```
@@ -311,7 +313,8 @@ Workflow read-only, but cannot own, copy or override them.
 8. Skills are global owner artifacts, never Project-owned copies.
 9. Secret target auth uses RuntimeCredential and appears in plaintext only in
    allocation-private RuntimeSettings after placement.
-10. Queue is a read model over WorkflowRun lifecycle, not a second Scheduler.
+10. Queue is a read model over WorkflowRun lifecycle, not a second Scheduler;
+    its pause control is only a durable admission gate under [18].
 
 ## First-release conformance
 
