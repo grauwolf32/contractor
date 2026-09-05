@@ -1,0 +1,46 @@
+schema_version: '1.0'
+id: V29-005
+title: Batch PostgreSQL reads used to build Run detail
+milestone: postgres-reliability-and-query-efficiency
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V5-003
+- V24-004
+languages:
+- go
+goal: Bound Run-detail database round trips independently of the number of Stage attempts.
+context:
+  verified_evidence: 'PG-05: the real GET Run handler with pgx tracing on the read-only demo executes 23-25
+    queries for four Stages and 28 for five. Metrics, Planner sessions and allocations each add one query per
+    Stage. Current demo response times are 7-19 ms; confirmed query growth is not a measured latency incident.'
+  report: docs/reviews/2026-09-05-postgres-review.md
+scope:
+  in:
+  - Load metrics, Planner session read data and allocations for StageExecution IDs in bounded batches.
+  - Compose the existing safe response, preserving ownership, exact outputs, receipts and optional diagnostics.
+  out:
+  - Parallel goroutines as a substitute for batching, public API redesign, authoritative caches or generic
+    ORM.
+requirements:
+- id: R1
+  text: Related data round trips do not grow once per Stage for each collection.
+- id: R2
+  text: Response semantics remain equivalent for active/terminal attempts and missing optional diagnostics.
+acceptance_criteria:
+- id: A1
+  given: Runs with 1, 5 and 30 Stage attempts using production PostgreSQL repositories.
+  when: The GET Run handler is traced.
+  then: Related data loads in a fixed or explicitly bounded batch count with no per-Stage query loop.
+- id: A2
+  given: Owner isolation, active work, missing optional diagnostics and frozen outputs.
+  when: Run detail is requested.
+  then: Existing fields, guards and exact references remain correct.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/httpapi/public ./internal/runstore
+    ./internal/telemetry ./internal/planner/session
+  covers:
+  - A1
+  - A2

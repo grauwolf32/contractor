@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V29-003
+title: Collect shared Artifact blobs correctly during concurrent scope purge
+milestone: postgres-reliability-and-query-efficiency
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V24-004
+- V24-005
+languages:
+- go
+goal: Ensure successful synchronous lifecycle deletion collects unreferenced content under concurrent scope
+  purge.
+context:
+  verified_evidence: 'PG-03: two terminal Runs own different versions of identical bytes. Real DeleteReleasedTerminalRun
+    calls in separate transactions both complete before either commits. After both commits zero versions and
+    revisions remain, but one unreferenced blob survives.'
+  report: docs/reviews/2026-09-05-postgres-review.md
+scope:
+  in:
+  - Coordinate shared version/blob reference checks and deletion across purgers and concurrent writes/forks.
+  - Use a documented lock order and bounded conflict recovery, preserving surviving references.
+  - Keep physical PostgreSQL collection synchronous with successful lifecycle completion.
+  out:
+  - Asynchronous-only GC as a substitute, object storage migration or normal Artifact delete APIs.
+requirements:
+- id: R1
+  text: Successful overlapping deletions leave no newly orphaned versions or blobs.
+- id: R2
+  text: Content with surviving references remains readable and a failed purge rolls back scope deletion.
+acceptance_criteria:
+- id: A1
+  given: Two released terminal Runs own different versions backed by the same otherwise unreferenced blob.
+  when: Their purge transactions overlap at collection and both commit.
+  then: Both Runs disappear and no orphan version or blob remains.
+- id: A2
+  given: Purge races another purge, identical-content write or retaining fork.
+  when: Operations settle or an injected failure occurs.
+  then: Surviving content remains readable and no permanent orphan, unsafe deletion or deadlock remains.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/artifacts ./internal/runstore
+    ./internal/projectlifecycle
+  covers:
+  - A1
+  - A2

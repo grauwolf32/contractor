@@ -489,6 +489,13 @@ milestones:
       terminal Runs can be safely hard-deleted, Projects can be durably
       cancelled and purged, and the general Artifact library excludes Skills
       while reusing the Project file-drop interaction.
+  - id: postgres-reliability-and-query-efficiency
+    exit_task: V29-007
+    outcome: >-
+      Transaction-bound credential reads, shared configuration pinning,
+      concurrent Artifact collection, selective SQL access, batched Run detail,
+      typed transaction recovery and bounded waits address the PostgreSQL
+      findings verified on the demo instance.
   - id: implementation-maintainability
     exit_task: V28-004
     outcome: >-
@@ -2141,3 +2148,10 @@ tasks:
   - {id: V28-002, file: v28-002-worker-invocation-lifecycle.yml}
   - {id: V28-003, file: v28-003-project-ui-components.yml}
   - {id: V28-004, file: v28-004-public-error-diagnostics.yml}
+  - {id: V29-001, file: v29-001-transaction-bound-credential-lookups.yml}
+  - {id: V29-002, file: v29-002-shared-runtime-binding-locks.yml}
+  - {id: V29-003, file: v29-003-concurrent-artifact-purge.yml}
+  - {id: V29-004, file: v29-004-artifact-query-indexes.yml}
+  - {id: V29-005, file: v29-005-batched-run-detail.yml}
+  - {id: V29-006, file: v29-006-sqlstate-and-transaction-recovery.yml}
+  - {id: V29-007, file: v29-007-database-budgets-and-verification.yml}

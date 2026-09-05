@@ -1,0 +1,47 @@
+schema_version: '1.0'
+id: V29-002
+title: Allow concurrent Runtime binding pinning without serializing all Run creation
+milestone: postgres-reliability-and-query-efficiency
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V29-001
+languages:
+- go
+goal: Preserve exact binding pinning while independent Run creation transactions can read the mandatory default
+  binding concurrently.
+context:
+  verified_evidence: 'PG-02: a second PinRunSnapshot waits on transactionid until its 700 ms deadline because
+    both readers take FOR UPDATE on default. FOR SHARE controls allow a second reader immediately while an
+    updater still waits.'
+  report: docs/reviews/2026-09-05-postgres-review.md
+scope:
+  in:
+  - Select a shared lock compatible with independent snapshot readers and retain exclusion of binding writers
+    until commit.
+  - Keep lexical lock ordering and audit all LockBindings callers before changing behavior.
+  - Preserve exact immutable versions, same-layer checks, isolation and idempotency.
+  out:
+  - Scheduler lane implementation, concurrent Stages or a cache replacing database authority.
+requirements:
+- id: R1
+  text: Readers selecting unchanged overlapping labels do not block each other.
+- id: R2
+  text: Rebind/delete cannot invalidate a selected binding before its pinning transaction settles.
+acceptance_criteria:
+- id: A1
+  given: Two creation transactions selecting default and overlapping labels.
+  when: Both pin configuration before either commits.
+  then: Both readers finish pinning without waiting for the other commit.
+- id: A2
+  given: Concurrent rebind/delete, cancellation and labels submitted in different orders.
+  when: Pinning transactions settle.
+  then: Exact snapshots and writer preconditions remain valid without a lock-order deadlock.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/runtimeconfig ./internal/app
+    ./internal/httpapi/public
+  covers:
+  - A1
+  - A2

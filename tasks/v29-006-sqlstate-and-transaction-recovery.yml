@@ -1,0 +1,53 @@
+schema_version: '1.0'
+id: V29-006
+title: Preserve SQLSTATE and recover safe PostgreSQL transaction conflicts
+milestone: postgres-reliability-and-query-efficiency
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V8-005
+- V4-007A
+languages:
+- go
+goal: Preserve internal database error identity and recover bounded safe transaction conflicts without hiding
+  uncertain outcomes.
+context:
+  verified_evidence: 'PG-06: after a concurrent committed Runtime binding rebind, direct locking in REPEATABLE
+    READ returns 40001; Repository.LockBindings returns a generic error with empty SQLSTATE. Code inspection
+    also finds idempotency-winner lookup without full retry of an unrelated serialization conflict. V28-004
+    owns log presentation; this task owns error identity and retry.'
+  report: docs/reviews/2026-09-05-postgres-review.md
+scope:
+  in:
+  - Preserve wrapped causes or equivalent typed SQLSTATE/context data across repository/provider boundaries
+    while retaining safe public envelopes.
+  - Retry the entire transaction only for explicitly safe operations on known serialization/deadlock failures;
+    bound attempts and reset per-attempt result state.
+  - Keep post-rollback idempotency recovery and distinguish definite rollback from ambiguous commit/transport
+    failure.
+  - Test a real concurrent binding change during Run creation.
+  out:
+  - Raw database error logging, blind retries around external effects, retries after ambiguous commit or duplicate
+    V28-004 diagnostics work.
+requirements:
+- id: R1
+  text: SQLSTATE and cancellation identity survive without exposing SQL parameters or secrets.
+- id: R2
+  text: Retries are finite, cancellable and limited to safe whole-transaction replay.
+acceptance_criteria:
+- id: A1
+  given: A binding rebind commits after a REPEATABLE READ snapshot starts.
+  when: Repository locking and Run creation encounter serialization failure.
+  then: The internal cause remains 40001 and bounded recovery preserves exact pins and one idempotent Run.
+- id: A2
+  given: Deadlock, cancellation, exhausted retry budget, business CAS conflict and ambiguous commit.
+  when: The operation settles.
+  then: Cases have distinct safe outcomes with no duplicate durable resource or external effect.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/persistence/postgres ./internal/runtimeconfig
+    ./internal/credentials ./internal/app ./internal/httpapi/public
+  covers:
+  - A1
+  - A2

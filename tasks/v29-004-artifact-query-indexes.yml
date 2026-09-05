@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V29-004
+title: Index Artifact reference checks and history and compare binary digests directly
+milestone: postgres-reliability-and-query-efficiency
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V24-004
+languages:
+- go
+- sql
+goal: Make Artifact reference checks and bounded history pages use selective indexes as retained history grows.
+context:
+  verified_evidence: 'PG-04: live demo lacks reverse-reference indexes and has a duplicate binding index. With
+    50000 synthetic versions, a 51-row history page changes from 74.739 to 0.349 ms after an ordering index.
+    Encoded digest lookup scans 657 buffers; binary digest lookup uses the existing PK and 4 buffers. These
+    samples are not latency targets.'
+  report: docs/reviews/2026-09-05-postgres-review.md
+scope:
+  in:
+  - Compare sha256 using binary bytea parameters instead of encoding the indexed column.
+  - Add a new migration for artifact_binding_revisions(version_id), artifact_versions(blob_sha256), and history
+    ordering by scope, namespace, name, created_at and revision.
+  - Remove artifact_bindings_list_idx after confirming it duplicates the primary key.
+  - Capture representative EXPLAIN ANALYZE BUFFERS evidence while preserving exact revisions, CAS and pagination.
+  out:
+  - Editing applied migrations, speculative indexes on every FK, fixed timing assertions or a new migration
+    framework.
+requirements:
+- id: R1
+  text: Selective reverse lookups and bounded history pages avoid full-history scans/sorts on representative
+    fixtures.
+- id: R2
+  text: New migrations remain compatible with the transactional migrator and preserve existing data.
+acceptance_criteria:
+- id: A1
+  given: 50000 retained versions, a long history and selective digest/reference lookups.
+  when: Plans are compared before and after the change.
+  then: Reverse probes and the bounded page use selective paths, and binary digest lookup uses the PK.
+- id: A2
+  given: Existing databases and Artifact concurrency scenarios.
+  when: Migrations are applied/replayed and repository checks run.
+  then: Checksums remain valid, redundant indexing is removed and functional contracts pass.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/artifacts ./internal/persistence/postgres
+    ./internal/runstore
+  covers:
+  - A1
+  - A2

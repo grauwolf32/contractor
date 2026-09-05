@@ -1,0 +1,67 @@
+schema_version: '1.0'
+id: V29-007
+title: Bound database waits and verify the PostgreSQL hardening milestone
+milestone: postgres-reliability-and-query-efficiency
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V29-001
+- V29-002
+- V29-003
+- V29-004
+- V29-005
+- V29-006
+languages:
+- go
+goal: Give ordinary database work and lifecycle cleanup explicit finite budgets and verify all confirmed review
+  findings together.
+context:
+  verified_evidence: 'PG-07: statement_timeout, lock_timeout and idle_in_transaction_session_timeout are zero
+    on the demo and on connections opened by production OpenPool. ConnectTimeout does not bound query/pool
+    waits. Blocking probes finish only because their caller supplies a deadline. Existing HTTP configuration
+    sets only ReadHeaderTimeout.'
+  report: docs/reviews/2026-09-05-postgres-review.md
+scope:
+  in:
+  - Define finite database/lock-wait budgets for ordinary requests and separate policy for migrations, cleanup
+    and long-lived LISTEN.
+  - Propagate cancellation and ensure rollback/connection cleanup after timeout without breaking HTTP streaming
+    or WebSockets.
+  - Expose minimal pool saturation/acquire-wait diagnostics through existing infrastructure, excluding SQL
+    payloads and credentials.
+  - Repeat PG-01 through PG-07 with isolated fixtures and record before/after evidence.
+  out:
+  - One global short timeout for all workloads, a new monitoring stack, demo data resets or unfinished Scheduler/Audit
+    features.
+requirements:
+- id: R1
+  text: A stalled statement, row-lock wait or exhausted pool cannot hold an ordinary operation indefinitely.
+- id: R2
+  text: Timeouts release resources and retain safe transaction outcome classification; maintenance has an explicit
+    separate policy.
+acceptance_criteria:
+- id: A1
+  given: An exhausted pool, a locked row and a long-running statement.
+  when: Ordinary operations reach their configured budgets.
+  then: Bounded safe failures leave pool capacity reusable with no abandoned transaction.
+- id: A2
+  given: Migrations, cleanup, LISTEN and shutdown.
+  when: The timeout policy applies.
+  then: Legitimate long-lived work remains supported and cancellation/cleanup stays bounded.
+- id: A3
+  given: All V29 changes are integrated.
+  when: Demo probes and aggregate checks run on disposable data.
+  then: Confirmed failures no longer reproduce, access paths/query counts improve and demo data stays unchanged.
+tests:
+- name: postgres-integration
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race ./internal/persistence/postgres ./internal/app
+    ./internal/runstore ./internal/artifacts ./internal/runtimeconfig ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+- name: aggregate
+  command: make verify
+  covers:
+  - A3
