@@ -1716,6 +1716,36 @@ audits_planning_review:
       10 and ASVS packages/programs remain separate V26 deliverables because
       their mappings, licensing and evidence contracts need independent gates.
 
+audits_v25_001_implementation_review:
+  reviewed_on: "2026-09-05"
+  verdict: complete_after_contract_correction
+  implementation_commit: 13beecb3425c3211b5c0302e993158100831ebee
+  reviewed_commits:
+    - 6042be5c154a7944cec7c08793947598dad478ed
+    - 13beecb3425c3211b5c0302e993158100831ebee
+  confirmed:
+    - >-
+      Strict one-document YAML loading is operator-only, occurs after Workflow
+      resolution, rejects unknown/invalid mappings atomically and keeps the
+      generic managed configuration kinds unchanged.
+    - >-
+      Snapshot and Manager return deep caller-owned resolved profile closures;
+      canonical digest changes with effective Workflow/policy content rather
+      than presentation order.
+    - >-
+      Required bounded batchSize and coherent submitted-Run capacity are
+      validated. The catalog represents both passive MVP policies and bounded
+      future human-review/batching policies without claiming Server support.
+    - >-
+      No production profile is invented before compatible child Workflows
+      exist; V25-004 owns compatibility/start gating and V25-008A owns runnable
+      repository programs.
+  verification:
+    - go test ./internal/config ./internal/app
+    - go test ./...
+    - make verify
+    - contractor-server config validate for configs and configs/e2e
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}

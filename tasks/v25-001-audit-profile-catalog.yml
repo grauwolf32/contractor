@@ -4,7 +4,7 @@ title: Add the strict resolved AuditProfile catalog
 milestone: audits-mvp
 priority: P0
 status: completed
-implementation_commit: "6042be5c154a7944cec7c08793947598dad478ed"
+implementation_commit: "13beecb3425c3211b5c0302e993158100831ebee"
 depends_on: [V22-003]
 languages: [go, yaml]
 
