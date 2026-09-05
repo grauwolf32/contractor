@@ -185,6 +185,10 @@ func (s *PostgresStore) CreateRun(ctx context.Context, params CreateRunParams) (
 	if err != nil {
 		return WorkflowRun{}, fmt.Errorf("create WorkflowRun: encode RuntimeConfig snapshot: %w", err)
 	}
+	encodedProjectHTTPTarget, err := encodeProjectHTTPTarget(params.ProjectHTTPTarget)
+	if err != nil {
+		return WorkflowRun{}, err
+	}
 	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
 	encodedMetadataLabels, err := json.Marshal(metadataLabels)
 	if err != nil {
@@ -196,22 +200,22 @@ WITH inserted_run AS (
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot,
+    runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, 'initializing', 'created', '')
 RETURNING *
 ), inserted_labels AS (
     INSERT INTO workflow_run_metadata_labels (run_id, ordinal, label_key, label_value)
     SELECT inserted_run.run_id,
            row_number() OVER (ORDER BY entry.key), entry.key, entry.value
     FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($11::jsonb) AS entry
+    CROSS JOIN LATERAL jsonb_each_text($12::jsonb) AS entry
 )
 SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
 FROM inserted_run`,
 		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		runtimeLabels, encodedRuntimeConfig, encodedMetadataLabels,
+		runtimeLabels, encodedRuntimeConfig, encodedProjectHTTPTarget, encodedMetadataLabels,
 	)
 	result, err := scanWorkflowRun(row)
 	if err != nil {
@@ -254,6 +258,10 @@ func (s *PostgresStore) CreateRunIdempotent(
 	if err != nil {
 		return WorkflowRun{}, false, fmt.Errorf("create idempotent WorkflowRun: encode RuntimeConfig snapshot: %w", err)
 	}
+	encodedProjectHTTPTarget, err := encodeProjectHTTPTarget(params.ProjectHTTPTarget)
+	if err != nil {
+		return WorkflowRun{}, false, err
+	}
 	runtimeLabels := params.RuntimeConfig.ExplicitLabels()
 	encodedMetadataLabels, err := json.Marshal(metadataLabels)
 	if err != nil {
@@ -264,10 +272,10 @@ WITH inserted_run AS (
 INSERT INTO workflow_runs (
     run_id, owner_id, project_id, workflow_name, workflow_version,
     workflow_schema_version, workflow_snapshot, parameters,
-    runtime_labels, runtime_config_snapshot,
+    runtime_labels, runtime_config_snapshot, project_http_target_snapshot,
     request_idempotency_key, request_digest,
     state, state_reason_code, state_reason_message
-) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11, $12, 'initializing', 'created', '')
+) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10::jsonb, $11::jsonb, $12, $13, 'initializing', 'created', '')
 ON CONFLICT DO NOTHING
 RETURNING *
 ), inserted_labels AS (
@@ -275,13 +283,13 @@ RETURNING *
     SELECT inserted_run.run_id,
            row_number() OVER (ORDER BY entry.key), entry.key, entry.value
     FROM inserted_run
-    CROSS JOIN LATERAL jsonb_each_text($13::jsonb) AS entry
+    CROSS JOIN LATERAL jsonb_each_text($14::jsonb) AS entry
 )
 SELECT `+prefixedWorkflowRunColumns("inserted_run")+`
 FROM inserted_run`,
 		params.RunID, params.OwnerID, params.ProjectID, params.WorkflowName, params.WorkflowVersion,
 		params.WorkflowSchemaVersion, []byte(params.WorkflowSnapshot), encodedParameters,
-		runtimeLabels, encodedRuntimeConfig, params.IdempotencyKey, params.RequestDigest,
+		runtimeLabels, encodedRuntimeConfig, encodedProjectHTTPTarget, params.IdempotencyKey, params.RequestDigest,
 		encodedMetadataLabels,
 	))
 	if err == nil {
@@ -711,7 +719,26 @@ func validateCreateRun(params CreateRunParams) error {
 	if err := params.RuntimeConfig.Validate(); err != nil {
 		return invalidf("RuntimeConfig snapshot is invalid: %v", err)
 	}
+	if params.ProjectHTTPTarget != nil {
+		if params.ProjectID == nil {
+			return invalidf("Project HTTP target requires Project membership")
+		}
+		if err := params.ProjectHTTPTarget.Validate(); err != nil {
+			return invalidf("Project HTTP target snapshot is invalid: %v", err)
+		}
+	}
 	return nil
+}
+
+func encodeProjectHTTPTarget(target *contracts.HTTPOriginTargetRef) ([]byte, error) {
+	if target == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(target)
+	if err != nil {
+		return nil, fmt.Errorf("create WorkflowRun: encode Project HTTP target snapshot: %w", err)
+	}
+	return encoded, nil
 }
 
 func (s *PostgresStore) loadRunMetadataLabels(

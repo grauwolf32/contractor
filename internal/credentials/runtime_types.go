@@ -25,10 +25,12 @@ const (
 type RuntimeCredentialKind string
 
 const (
-	RuntimeCredentialOTLPHeaders RuntimeCredentialKind = "otlp-headers@1"
-	RuntimeCredentialProxyBasic  RuntimeCredentialKind = "http-proxy-basic@1"
-	RuntimeCredentialProxyBearer RuntimeCredentialKind = "http-proxy-bearer@1"
-	RuntimeCredentialCaidoBearer RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialOTLPHeaders  RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialProxyBasic   RuntimeCredentialKind = "http-proxy-basic@1"
+	RuntimeCredentialProxyBearer  RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialCaidoBearer  RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialOriginBasic  RuntimeCredentialKind = "http-origin-basic@1"
+	RuntimeCredentialOriginBearer RuntimeCredentialKind = "http-origin-bearer@1"
 )
 
 var (
@@ -104,6 +106,25 @@ func NewCaidoBearerCredential(token string) (RuntimeCredentialMaterial, error) {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Caido bearer credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialCaidoBearer, struct {
+		Token string `json:"token"`
+	}{Token: token})
+}
+
+func NewHTTPOriginBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
+	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP origin basic credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBasic, struct {
+		Password string `json:"password"`
+		Username string `json:"username"`
+	}{Password: password, Username: username})
+}
+
+func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, error) {
+	if !validBoundedSecret(token, MaximumRuntimeSecretBytes) {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP origin bearer credential is invalid")
+	}
+	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBearer, struct {
 		Token string `json:"token"`
 	}{Token: token})
 }
@@ -195,12 +216,13 @@ type RuntimeCredentialDeleteResult struct {
 
 type RuntimeCredentialUsage struct {
 	BindingLabels []string
+	ProjectIDs    []string
 	RunIDs        []string
 	AllocationIDs []string
 }
 
 func (u RuntimeCredentialUsage) Empty() bool {
-	return len(u.BindingLabels) == 0 && len(u.RunIDs) == 0 && len(u.AllocationIDs) == 0
+	return len(u.BindingLabels) == 0 && len(u.ProjectIDs) == 0 && len(u.RunIDs) == 0 && len(u.AllocationIDs) == 0
 }
 
 type RuntimeCredentialInUseError struct{ Usage RuntimeCredentialUsage }
@@ -259,6 +281,23 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 			return RuntimeCredentialMaterial{}, ErrCrypto
 		}
 		material, _ = NewCaidoBearerCredential(source.Token)
+	case RuntimeCredentialOriginBasic:
+		var source struct {
+			Password string `json:"password"`
+			Username string `json:"username"`
+		}
+		if decodeStrictJSON(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewHTTPOriginBasicCredential(source.Username, source.Password)
+	case RuntimeCredentialOriginBearer:
+		var source struct {
+			Token string `json:"token"`
+		}
+		if decodeStrictJSON(canonical, &source) != nil {
+			return RuntimeCredentialMaterial{}, ErrCrypto
+		}
+		material, _ = NewHTTPOriginBearerCredential(source.Token)
 	default:
 		return RuntimeCredentialMaterial{}, ErrCrypto
 	}
@@ -271,7 +310,8 @@ func runtimeCredentialMaterialFromCanonical(kind RuntimeCredentialKind, canonica
 
 func validRuntimeCredentialKind(kind RuntimeCredentialKind) bool {
 	return kind == RuntimeCredentialOTLPHeaders || kind == RuntimeCredentialProxyBasic ||
-		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer
+		kind == RuntimeCredentialProxyBearer || kind == RuntimeCredentialCaidoBearer ||
+		kind == RuntimeCredentialOriginBasic || kind == RuntimeCredentialOriginBearer
 }
 
 func validBoundedSecret(value string, maximum int) bool {
@@ -325,6 +365,7 @@ func normalizeRuntimeUsage(value RuntimeCredentialUsage, maximum int) RuntimeCre
 		return result
 	}
 	value.BindingLabels = normalize(value.BindingLabels)
+	value.ProjectIDs = normalize(value.ProjectIDs)
 	value.RunIDs = normalize(value.RunIDs)
 	value.AllocationIDs = normalize(value.AllocationIDs)
 	return value

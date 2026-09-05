@@ -57,6 +57,7 @@ type WorkflowRun struct {
 	MetadataLabels            RunMetadataLabels
 	RuntimeLabels             []string
 	RuntimeConfig             runtimeconfig.RunSnapshot
+	ProjectHTTPTarget         *contracts.HTTPOriginTargetRef
 	SkillSnapshot             []contracts.RunSkillSnapshot
 	State                     WorkflowRunState
 	StateReason               Reason
@@ -186,6 +187,7 @@ type CreateRunParams struct {
 	Parameters            map[string]string
 	MetadataLabels        RunMetadataLabels
 	RuntimeConfig         runtimeconfig.RunSnapshot
+	ProjectHTTPTarget     *contracts.HTTPOriginTargetRef
 }
 
 type CreateRunIdempotentParams struct {

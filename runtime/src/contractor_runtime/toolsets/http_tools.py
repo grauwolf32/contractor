@@ -177,6 +177,8 @@ class HTTPToolsetFactory:
             secrets_for_metrics=_runtime_secrets(runtime_settings),
             proxy=proxy,
             direct_client=direct_client,
+            target_origin=_target_origin(runtime_settings),
+            target_authorization=_target_authorization(runtime_settings),
         )
         builders: dict[str, Callable[[], _HTTPTool]] = {
             "http_request": lambda: HTTPRequestTool(session, metrics),
@@ -255,6 +257,8 @@ class _HTTPSession:
         secrets_for_metrics: tuple[str, ...],
         proxy: ProxyHTTPClient | None,
         direct_client: httpx.AsyncClient | None,
+        target_origin: tuple[str, str, int] | None,
+        target_authorization: str | None,
     ) -> None:
         self._artifact_client = artifact_client
         self._namespace = namespace
@@ -263,6 +267,8 @@ class _HTTPSession:
         self._secrets_for_metrics = secrets_for_metrics
         self._proxy = proxy
         self._direct_client = direct_client
+        self._target_origin = target_origin
+        self._target_authorization = target_authorization
         self._lock = asyncio.Lock()
         self._history: deque[_RequestRecord] = deque(maxlen=MAX_HISTORY)
         self._bodies: dict[int, _StoredBody] = {}
@@ -485,7 +491,16 @@ class _HTTPSession:
         headers = dict(kwargs.pop("headers"))
         allow_session_auth = bool(kwargs.pop("allow_session_auth", True))
         allow_session_cookies = bool(kwargs.pop("allow_session_cookies", True))
-        if allow_session_auth and "authorization" not in {name.lower() for name in headers}:
+        if (
+            self._target_origin is not None
+            and self._target_authorization is not None
+            and _origin(url) == self._target_origin
+        ):
+            headers = {
+                name: value for name, value in headers.items() if name.lower() != "authorization"
+            }
+            headers["Authorization"] = self._target_authorization
+        elif allow_session_auth and "authorization" not in {name.lower() for name in headers}:
             if self._auth_kind == "bearer" and self._auth_secret is not None:
                 headers["Authorization"] = f"Bearer {self._auth_secret}"
             elif (
@@ -638,6 +653,8 @@ class _HTTPSession:
             self._bodies.clear()
             self._nonce = ""
             self._secrets_for_metrics = ()
+            self._target_origin = None
+            self._target_authorization = None
             client = self._direct_client
             self._direct_client = None
             self._proxy = None
@@ -962,7 +979,41 @@ def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
             )
         if proxy.bearer_token is not None:
             values.append(proxy.bearer_token.get_secret_value())
+    if isinstance(settings, RuntimeSettingsV2) and settings.http_origin_target is not None:
+        target = settings.http_origin_target
+        if target.basic_auth is not None:
+            values.extend(
+                (
+                    target.basic_auth.username.get_secret_value(),
+                    target.basic_auth.password.get_secret_value(),
+                )
+            )
+        if target.bearer_token is not None:
+            values.append(target.bearer_token.get_secret_value())
+        authorization = _target_authorization(settings)
+        if authorization is not None:
+            values.append(authorization)
     return tuple(value for value in values if value)
+
+
+def _target_origin(settings: RuntimeSettings) -> tuple[str, str, int] | None:
+    if not isinstance(settings, RuntimeSettingsV2) or settings.http_origin_target is None:
+        return None
+    return _origin(settings.http_origin_target.url)
+
+
+def _target_authorization(settings: RuntimeSettings) -> str | None:
+    if not isinstance(settings, RuntimeSettingsV2) or settings.http_origin_target is None:
+        return None
+    target = settings.http_origin_target
+    if target.bearer_token is not None:
+        return f"Bearer {target.bearer_token.get_secret_value()}"
+    if target.basic_auth is not None:
+        username = target.basic_auth.username.get_secret_value()
+        password = target.basic_auth.password.get_secret_value()
+        raw = f"{username}:{password}".encode()
+        return f"Basic {base64.b64encode(raw).decode('ascii')}"
+    return None
 
 
 def _method(value: object) -> str:

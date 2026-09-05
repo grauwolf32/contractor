@@ -276,11 +276,34 @@ LIMIT $2`, credentialID, limit)
 	if rows.Err() != nil {
 		return RuntimeCredentialUsage{}, errors.New("iterate active Runtime credential bindings")
 	}
+	projectRows, err := r.db.Query(ctx, `
+SELECT project_id
+FROM projects
+WHERE http_target_credential_id = $1
+ORDER BY project_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential Project targets")
+	}
+	defer projectRows.Close()
+	for projectRows.Next() {
+		var projectID string
+		if err := projectRows.Scan(&projectID); err != nil {
+			return RuntimeCredentialUsage{}, errors.New("read Runtime credential Project target")
+		}
+		usage.ProjectIDs = append(usage.ProjectIDs, projectID)
+	}
+	if projectRows.Err() != nil {
+		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Project targets")
+	}
 	runRows, err := r.db.Query(ctx, `
 SELECT run_id
 FROM workflow_runs
 WHERE state IN ('initializing', 'running', 'cancelling')
-  AND (runtime_config_snapshot->'runtimeCredentialIds') ? $1
+  AND (
+      (runtime_config_snapshot->'runtimeCredentialIds') ? $1
+      OR project_http_target_snapshot#>>'{credential,credentialId}' = $1
+  )
 ORDER BY created_at, run_id
 LIMIT $2`, credentialID, limit)
 	if err != nil {
@@ -298,12 +321,17 @@ LIMIT $2`, credentialID, limit)
 		return RuntimeCredentialUsage{}, errors.New("iterate Runtime credential Run snapshots")
 	}
 	allocationRows, err := r.db.Query(ctx, `
-SELECT allocation_id
-FROM stage_allocations
-WHERE release_completed_at IS NULL
-  AND runtime_configuration->'provenance'->'runtimeCredentialRefs'
-      @> jsonb_build_array(jsonb_build_object('credentialId', $1::text))
-ORDER BY created_at, allocation_id
+SELECT a.allocation_id
+FROM stage_allocations a
+JOIN stage_executions e ON e.stage_execution_id = a.stage_execution_id
+JOIN workflow_runs r ON r.run_id = e.run_id
+WHERE a.release_completed_at IS NULL
+  AND (
+      a.runtime_configuration->'provenance'->'runtimeCredentialRefs'
+          @> jsonb_build_array(jsonb_build_object('credentialId', $1::text))
+      OR r.project_http_target_snapshot#>>'{credential,credentialId}' = $1
+  )
+ORDER BY a.created_at, a.allocation_id
 LIMIT $2`, credentialID, limit)
 	if err != nil {
 		return RuntimeCredentialUsage{}, errors.New("inspect Runtime credential allocation snapshots")

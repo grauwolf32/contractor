@@ -33,6 +33,7 @@ Project
   kind             project | evaluation
   name             non-empty display name
   description      optional bounded text
+  http_target      optional safe URL + RuntimeCredential ref
   revision         opaque optimistic-concurrency token
   created_at
   updated_at
@@ -193,27 +194,50 @@ without changing Project or Scheduler identity.
 ## URL and authentication configuration
 
 A Project may store one optional application URL and a reference to an existing
-encrypted `RuntimeCredential`. The URL is safe Project metadata; secret
+encrypted `RuntimeCredential`. The public field is `httpTarget`; setting or
+clearing it is part of the same revision-checked Project PATCH as display
+metadata. The URL is safe Project metadata; secret
 material is not an Artifact, parameter, metadata label or Project response.
 The Web UI edits this pair in a dedicated dialog and may show the value while
 the user is entering it. After submission, public read APIs return only the URL
 and credential ID/kind, never plaintext.
 
+The URL is a bounded absolute HTTP(S) URL without userinfo, query or fragment.
+Authorization scope is its normalized exact origin: scheme, lowercase host and
+effective port. Its path is safe application metadata but does not narrow the
+authentication scope.
+
 This feature reuses the existing RuntimeCredential encrypted store and
-lifecycle. Target-origin Basic and Bearer authentication require explicit
-credential kinds distinct from forward-proxy credentials; proxy credentials
-must not be reinterpreted as origin authorization. A referenced credential is
-active. Deletion requires first detaching it from every Project and remains an
-audited Operations mutation.
+lifecycle. Target-origin Basic and Bearer authentication use
+`http-origin-basic@1` and `http-origin-bearer@1`; forward-proxy credentials must
+not be reinterpreted as origin authorization. Attaching a credential validates
+its exact active ID/kind under the shared credential-reference fence. Deletion
+requires first detaching it from every Project and remains blocked while a
+nonterminal Run or unreleased allocation pins it.
 
 At Project Run creation, Server pins the safe URL and credential reference into
-the immutable Run input/configuration provenance. After placement, Control
-Plane decrypts it only for an allocation whose selected tools require the HTTP
-target and puts the typed resolved value inside
+the immutable Run input/configuration provenance, exposed safely as
+`projectHttpTarget`. After placement, Control Plane decrypts it only for a
+logical agent whose resolved AgentTemplate selects `http_request`; other agents
+in the same Stage receive no target setting. The typed resolved value is put inside
 `AllocationSpec.runtimeSettings`. It travels over mTLS, remains
 allocation-private in Runtime memory and is erased on finalize, abort, release
 or lease loss. It is never rendered into Planner/Worker prompts, ADK State,
 events, metrics, errors or durable sessions.
+
+At Runtime, configured target authorization replaces a model-supplied
+`Authorization` header only on that exact origin. It is not injected on another
+port or subdomain and is removed before following a cross-origin redirect.
+Model-visible HTTP session inspection reports neither the target nor its
+credential. Allocation cleanup clears the target URL, derived Authorization
+header and source secret before slot reuse.
+
+The UI can select an existing origin credential or create one from Basic/Bearer
+material inside the target dialog. It clears entered secrets on submission and
+never writes them to URL state, browser storage or query-cache response data. If
+credential creation succeeds but the Project CAS update fails, the safe active
+credential ID is shown so the user can select it and retry without resubmitting
+the secret.
 
 The first implementation may support one target and Basic/Bearer auth. Multiple
 named targets, interactive OAuth and an in-memory-only Server credential backend

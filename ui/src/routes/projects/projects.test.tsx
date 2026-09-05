@@ -65,7 +65,7 @@ describe("Project routes", () => {
       runtimeConfig,
       vi.fn(async (input) => {
         const request = input instanceof Request ? input : new Request(input);
-        requests.push(request);
+        requests.push(request.clone());
         const url = new URL(request.url);
         if (url.pathname === "/v1/auth/session") {
           return jsonResponse(session);
@@ -216,6 +216,93 @@ describe("Project routes", () => {
     expect(await put.text()).toBe("zip");
     expect(put.url).not.toContain("owner_id");
     expect(put.url).not.toContain("scope_kind");
+  });
+
+  it("creates write-only origin auth and attaches only safe Project metadata", async () => {
+    const requests: Request[] = [];
+    const secret = "project-origin-secret-never-persist";
+    let currentProject: Record<string, unknown> = { ...project };
+    let credential: Record<string, unknown> | undefined;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request.clone());
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example") {
+          if (request.method === "PATCH") {
+            const body = (await request.json()) as Record<string, unknown>;
+            currentProject = { ...currentProject, ...body, revision: "2" };
+            return jsonResponse(currentProject, { headers: { ETag: '"2"' } });
+          }
+          return jsonResponse(currentProject, { headers: { ETag: '"1"' } });
+        }
+        if (url.pathname === "/v1/operations/runtime-credentials") {
+          if (request.method === "POST") {
+            const body = (await request.json()) as Record<string, unknown>;
+            credential = {
+              credentialId: body.credentialId,
+              kind: body.kind,
+              createdBy: "user-1",
+              createdAt: "2026-09-01T10:01:00Z",
+            };
+            return jsonResponse(credential, { status: 201 });
+          }
+          return jsonResponse({
+            items: credential === undefined ? [] : [credential],
+            page: { hasMore: false },
+          });
+        }
+        if (url.pathname.endsWith("/artifacts")) {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname === "/v1/workflows") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (url.pathname.endsWith("/runs")) {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        throw new Error(`unexpected ${request.method} ${url.pathname}`);
+      }),
+    );
+    renderProjectApplication(api, "/projects/project_example");
+    const user = userEvent.setup();
+
+    await screen.findByRole("heading", { name: "Payment service" });
+    await user.click(screen.getByRole("button", { name: "Configure target" }));
+    const dialog = screen.getByRole("dialog", { name: "Application access" });
+    await user.type(
+      within(dialog).getByLabelText("Application URL"),
+      "https://app.example.test/api",
+    );
+    await user.selectOptions(
+      within(dialog).getByLabelText("Authorization"),
+      "bearer",
+    );
+    const token = within(dialog).getByLabelText("Bearer token · write only");
+    expect(token).toHaveAttribute("type", "text");
+    await user.type(token, secret);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save target" }),
+    );
+
+    await screen.findByText(/http-origin-bearer@1/);
+    const create = requests.find(
+      (request) =>
+        request.method === "POST" &&
+        request.url.includes("runtime-credentials"),
+    )!;
+    const createdBody = await create.clone().json();
+    expect(createdBody.material.token).toBe(secret);
+    const patch = requests.find((request) => request.method === "PATCH")!;
+    const patchBody = await patch.clone().json();
+    expect(JSON.stringify(patchBody)).not.toContain(secret);
+    expect(patchBody.httpTarget.credential).toEqual({
+      credentialId: createdBody.credentialId,
+      kind: "http-origin-bearer@1",
+    });
+    expect(document.body.textContent).not.toContain(secret);
   });
 
   it("contains a failed artifact request without crashing Project overview", async () => {

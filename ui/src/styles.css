@@ -3743,6 +3743,31 @@ code {
   padding-top: 1.25rem;
 }
 
+.project-target-card {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+}
+
+.project-target-card h4 {
+  margin: 0.2rem 0 0.55rem;
+}
+
+.project-target-metadata {
+  margin: 0;
+}
+
+.project-target-metadata code {
+  overflow-wrap: anywhere;
+}
+
+.project-target-form {
+  display: grid;
+  gap: 1rem;
+}
+
 .project-dialog-backdrop {
   display: grid;
   position: fixed;

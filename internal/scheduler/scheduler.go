@@ -708,7 +708,7 @@ func (s *Scheduler) prepareAndPlan(
 		}
 	}
 
-	workerSettings, err := s.workerExecutionSettings(ctx, workflow.stage, reservations)
+	workerSettings, err := s.workerExecutionSettingsForRun(ctx, run, workflow.stage, reservations)
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.Failure{
 			Code: "worker_execution_config_unavailable", Message: "Worker execution configuration is unavailable", Retryable: false,
@@ -853,6 +853,15 @@ func (s *Scheduler) workerExecutionSettings(
 	stage workflowconfig.ResolvedStage,
 	reservationSets ...[]controlplane.Reservation,
 ) (map[string]contracts.WorkerExecutionSettingsV2, error) {
+	return s.workerExecutionSettingsForRun(ctx, runstore.WorkflowRun{}, stage, reservationSets...)
+}
+
+func (s *Scheduler) workerExecutionSettingsForRun(
+	ctx context.Context,
+	run runstore.WorkflowRun,
+	stage workflowconfig.ResolvedStage,
+	reservationSets ...[]controlplane.Reservation,
+) (map[string]contracts.WorkerExecutionSettingsV2, error) {
 	reservations := make(map[string]controlplane.Reservation)
 	if len(reservationSets) > 1 {
 		return nil, fmt.Errorf("Worker execution settings accept at most one reservation set")
@@ -877,6 +886,13 @@ func (s *Scheduler) workerExecutionSettings(
 		if err != nil {
 			return nil, err
 		}
+		if run.ProjectHTTPTarget != nil && agentUsesHTTPRequest(stage.Agents[logicalName].Template) {
+			target, targetErr := s.materializeHTTPOriginTarget(ctx, *run.ProjectHTTPTarget)
+			if targetErr != nil {
+				return nil, targetErr
+			}
+			runtimeSettings.HTTPOriginTarget = target
+		}
 		result[logicalName] = contracts.WorkerExecutionSettingsV2{
 			ModelPolicy: cloneModelPolicy(resolved.ModelPolicy), RuntimeSettings: runtimeSettings,
 			ResolvedRuntimeConfigProvenance: resolved.Provenance,
@@ -886,6 +902,72 @@ func (s *Scheduler) workerExecutionSettings(
 		return nil, fmt.Errorf("reservation set differs from Worker execution settings")
 	}
 	return result, nil
+}
+
+func agentUsesHTTPRequest(template contracts.ResolvedAgentTemplate) bool {
+	for _, selection := range template.Toolsets {
+		if selection.Ref.ToolsetID != "http-tools" || selection.Ref.Version != "1" {
+			continue
+		}
+		for _, tool := range selection.Tools {
+			if tool == "http_request" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (s *Scheduler) materializeHTTPOriginTarget(
+	ctx context.Context,
+	reference contracts.HTTPOriginTargetRef,
+) (*contracts.HTTPOriginTargetSettingsV2, error) {
+	if err := reference.Validate(); err != nil {
+		return nil, errors.New("Project HTTP target snapshot is invalid")
+	}
+	target := &contracts.HTTPOriginTargetSettingsV2{URL: reference.URL}
+	if reference.Credential == nil {
+		return target, nil
+	}
+	err := s.useRuntimeCredential(
+		ctx, reference.Credential.CredentialID,
+		[]contracts.RuntimeCredentialKind{contracts.RuntimeCredentialOriginBasic, contracts.RuntimeCredentialOriginBearer},
+		func(kind contracts.RuntimeCredentialKind, plaintext []byte) error {
+			switch kind {
+			case contracts.RuntimeCredentialOriginBasic:
+				var material struct {
+					Password string `json:"password"`
+					Username string `json:"username"`
+				}
+				if decodeRuntimeCredential(plaintext, &material) != nil {
+					return errors.New("invalid HTTP origin basic credential material")
+				}
+				target.BasicAuth = &contracts.HTTPProxyBasicAuthV2{
+					Username: contracts.NewSecretString(material.Username),
+					Password: contracts.NewSecretString(material.Password),
+				}
+			case contracts.RuntimeCredentialOriginBearer:
+				var material struct {
+					Token string `json:"token"`
+				}
+				if decodeRuntimeCredential(plaintext, &material) != nil {
+					return errors.New("invalid HTTP origin bearer credential material")
+				}
+				token := contracts.NewSecretString(material.Token)
+				target.BearerToken = &token
+			default:
+				return errors.New("invalid HTTP origin credential kind")
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, errors.New("Project HTTP target credential is unavailable")
+	}
+	if err := target.Validate(); err != nil {
+		return nil, errors.New("Project HTTP target settings are invalid")
+	}
+	return target, nil
 }
 
 func fallbackResolvedWorkerConfig(
@@ -1288,6 +1370,11 @@ func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionS
 		}
 		if value.RuntimeSettings.Caido != nil {
 			value.RuntimeSettings.Caido.BearerToken = nil
+		}
+		if value.RuntimeSettings.HTTPOriginTarget != nil {
+			value.RuntimeSettings.HTTPOriginTarget.BasicAuth = nil
+			value.RuntimeSettings.HTTPOriginTarget.BearerToken = nil
+			value.RuntimeSettings.HTTPOriginTarget = nil
 		}
 		settings[name] = value
 	}

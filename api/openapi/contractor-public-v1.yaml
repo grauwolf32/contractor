@@ -1946,6 +1946,24 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 4096}
+        httpTarget:
+          oneOf:
+            - {$ref: '#/components/schemas/ProjectHTTPTarget'}
+            - {type: 'null'}
+    HTTPOriginCredentialRef:
+      type: object
+      additionalProperties: false
+      required: [credentialId, kind]
+      properties:
+        credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+        kind: {enum: [http-origin-basic@1, http-origin-bearer@1]}
+    ProjectHTTPTarget:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url: {type: string, format: uri, minLength: 8, maxLength: 2048}
+        credential: {$ref: '#/components/schemas/HTTPOriginCredentialRef'}
     Project:
       type: object
       additionalProperties: false
@@ -1955,6 +1973,7 @@ components:
         kind: {$ref: '#/components/schemas/ProjectKind'}
         name: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 4096}
+        httpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
         revision: {type: string, pattern: '^[1-9][0-9]{0,18}$'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -2049,13 +2068,17 @@ components:
     RuntimeCredentialInUseDetails:
       type: object
       additionalProperties: false
-      required: [kind, bindingLabels, runIds, allocationIds]
+      required: [kind, bindingLabels, projectIds, runIds, allocationIds]
       properties:
         kind: {type: string, const: runtime_credential_in_use}
         bindingLabels:
           type: array
           maxItems: 128
           items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+        projectIds:
+          type: array
+          maxItems: 128
+          items: {$ref: '#/components/schemas/ResourceId'}
         runIds:
           type: array
           maxItems: 128
@@ -2422,7 +2445,7 @@ components:
       properties:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
-      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1]
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, http-origin-basic@1, http-origin-bearer@1]
     RuntimeCredentialMetadata:
       type: object
       additionalProperties: false
@@ -2469,6 +2492,19 @@ components:
       required: [token]
       properties:
         token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+    HTTPOriginBasicMaterial:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 1, maxLength: 256}
+        password: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
+    HTTPOriginBearerMaterial:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: {type: string, minLength: 1, maxLength: 8192, writeOnly: true}
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object
@@ -2499,6 +2535,20 @@ components:
             credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
             kind: {type: string, const: caido-bearer@1}
             material: {$ref: '#/components/schemas/CaidoBearerMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: http-origin-basic@1}
+            material: {$ref: '#/components/schemas/HTTPOriginBasicMaterial', writeOnly: true}
+        - type: object
+          additionalProperties: false
+          required: [credentialId, kind, material]
+          properties:
+            credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
+            kind: {type: string, const: http-origin-bearer@1}
+            material: {$ref: '#/components/schemas/HTTPOriginBearerMaterial', writeOnly: true}
     PinnedRuntimeConfig:
       type: object
       additionalProperties: false
@@ -2695,6 +2745,7 @@ components:
           items: {$ref: '#/components/schemas/ConfigId'}
         labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         runtimeConfiguration: {$ref: '#/components/schemas/RunRuntimeConfiguration'}
+        projectHttpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
         cancellation: {$ref: '#/components/schemas/Cancellation'}
         parameters:
           type: object
@@ -2781,6 +2832,7 @@ components:
           items: {$ref: '#/components/schemas/ConfigId'}
         labels: {$ref: '#/components/schemas/RunMetadataLabels'}
         runtimeConfiguration: {$ref: '#/components/schemas/RunRuntimeConfiguration'}
+        projectHttpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
     CancelRunRequest:
       type: object
       additionalProperties: false

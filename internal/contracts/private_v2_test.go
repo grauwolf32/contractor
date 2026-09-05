@@ -211,6 +211,43 @@ func TestPrivateV2RegistrationNormalizationFingerprintAndProjection(t *testing.T
 	}
 }
 
+func TestHTTPOriginTargetReferenceAndSecretSettingsAreStrict(t *testing.T) {
+	t.Parallel()
+	reference := HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &RuntimeCredentialRefV2{
+			CredentialID: "project-origin", Kind: RuntimeCredentialOriginBearer,
+		},
+	}
+	if err := reference.Validate(); err != nil {
+		t.Fatalf("valid target reference: %v", err)
+	}
+	invalidKind := reference
+	invalidKind.Credential = &RuntimeCredentialRefV2{
+		CredentialID: "project-origin", Kind: RuntimeCredentialProxyBearer,
+	}
+	if err := invalidKind.Validate(); err == nil {
+		t.Fatal("proxy credential was accepted as an origin credential")
+	}
+	invalidURL := reference
+	invalidURL.URL = "https://app.example.test/api?secret=x"
+	if err := invalidURL.Validate(); err == nil {
+		t.Fatal("target URL with query was accepted")
+	}
+
+	secret := "recognizable-project-origin-secret"
+	token := NewSecretString(secret)
+	settings := HTTPOriginTargetSettingsV2{
+		URL: "https://app.example.test/api", BearerToken: &token,
+	}
+	if err := settings.Validate(); err != nil {
+		t.Fatalf("valid target settings: %v", err)
+	}
+	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
+		t.Fatal("formatted target settings exposed the bearer token")
+	}
+}
+
 func privateRoundTrip[T Validatable](data []byte) ([]byte, error) {
 	value, err := DecodePrivateV2Strict[T](data)
 	if err != nil {

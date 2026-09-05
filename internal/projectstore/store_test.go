@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -78,12 +80,36 @@ func TestPostgresProjectIdempotencyOwnershipPaginationAndCAS(t *testing.T) {
 	if _, err := store.Get(ctx, "owner-2", created.ProjectID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("foreign read error = %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO runtime_credentials (
+    credential_id, credential_kind, encryption_schema_version, key_id,
+    nonce, ciphertext, created_by, created_at
+) VALUES ($1, $2, 'contractor.runtime-credentials/v1', $3,
+          decode(repeat('00', 12), 'hex'), decode(repeat('00', 17), 'hex'), $4, clock_timestamp())`,
+		"project-origin", "http-origin-bearer@1", "sha256:"+strings.Repeat("d", 64), "owner-1",
+	); err != nil {
+		t.Fatal(err)
+	}
+	target := &contracts.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &contracts.RuntimeCredentialRefV2{
+			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+		},
+	}
 	updated, err := store.Update(ctx, UpdateParams{
 		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: 1,
-		Name: "Renamed", Description: "current",
+		Name: "Renamed", Description: "current", HTTPTarget: target,
 	})
-	if err != nil || updated.Revision != 2 || updated.Name != "Renamed" || !updated.UpdatedAt.After(created.UpdatedAt) {
+	if err != nil || updated.Revision != 2 || updated.Name != "Renamed" ||
+		updated.HTTPTarget == nil || updated.HTTPTarget.Credential == nil ||
+		updated.HTTPTarget.Credential.CredentialID != "project-origin" || !updated.UpdatedAt.After(created.UpdatedAt) {
 		t.Fatalf("update Project = (%+v, %v)", updated, err)
+	}
+	usage, err := credentials.NewRuntimeCredentialRepository(pool).InspectRuntimeCredentialUsage(
+		ctx, "project-origin", 10,
+	)
+	if err != nil || len(usage.ProjectIDs) != 1 || usage.ProjectIDs[0] != created.ProjectID {
+		t.Fatalf("Project target credential usage = (%+v, %v)", usage, err)
 	}
 	if _, err := store.Update(ctx, UpdateParams{
 		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: 1,

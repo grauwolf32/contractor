@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -43,7 +44,9 @@ INSERT INTO projects (
     request_idempotency_key, request_digest
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT DO NOTHING
-RETURNING project_id, owner_id, kind, name, description, revision, created_at, updated_at`,
+RETURNING project_id, owner_id, kind, name, description,
+          http_target_url, http_target_credential_id, http_target_credential_kind,
+          revision, created_at, updated_at`,
 		params.ProjectID, params.OwnerID, params.Kind, params.Name, params.Description,
 		params.IdempotencyKey, params.RequestDigest,
 	))
@@ -79,7 +82,9 @@ func (s *PostgresStore) Get(ctx context.Context, ownerID, projectID string) (Pro
 		return Project{}, err
 	}
 	project, err := scanProject(s.db.QueryRow(ctx, `
-SELECT project_id, owner_id, kind, name, description, revision, created_at, updated_at
+SELECT project_id, owner_id, kind, name, description,
+       http_target_url, http_target_credential_id, http_target_credential_kind,
+       revision, created_at, updated_at
 FROM projects
 WHERE owner_id = $1 AND project_id = $2`, ownerID, projectID))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -101,7 +106,9 @@ func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Project,
 		kind = &value
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT project_id, owner_id, kind, name, description, revision, created_at, updated_at
+SELECT project_id, owner_id, kind, name, description,
+       http_target_url, http_target_credential_id, http_target_credential_kind,
+       revision, created_at, updated_at
 FROM projects
 WHERE owner_id = $1
   AND ($2::text IS NULL OR kind = $2)
@@ -132,11 +139,16 @@ func (s *PostgresStore) Update(ctx context.Context, params UpdateParams) (Projec
 	}
 	project, err := scanProject(s.db.QueryRow(ctx, `
 UPDATE projects
-SET name = $1, description = $2, revision = revision + 1,
+SET name = $1, description = $2,
+    http_target_url = $3, http_target_credential_id = $4, http_target_credential_kind = $5,
+    revision = revision + 1,
     updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-WHERE owner_id = $3 AND project_id = $4 AND revision = $5
-RETURNING project_id, owner_id, kind, name, description, revision, created_at, updated_at`,
-		params.Name, params.Description, params.OwnerID, params.ProjectID, params.ExpectedRevision,
+WHERE owner_id = $6 AND project_id = $7 AND revision = $8
+RETURNING project_id, owner_id, kind, name, description,
+          http_target_url, http_target_credential_id, http_target_credential_kind,
+          revision, created_at, updated_at`,
+		params.Name, params.Description, targetURL(params.HTTPTarget), targetCredentialID(params.HTTPTarget),
+		targetCredentialKind(params.HTTPTarget), params.OwnerID, params.ProjectID, params.ExpectedRevision,
 	))
 	if err == nil {
 		return project, nil
@@ -163,17 +175,54 @@ type scanner interface{ Scan(...any) error }
 func scanProject(row scanner) (Project, error) {
 	var project Project
 	var revision int64
+	var targetURL, credentialID, credentialKind *string
 	err := row.Scan(
 		&project.ProjectID, &project.OwnerID, &project.Kind, &project.Name,
-		&project.Description, &revision, &project.CreatedAt, &project.UpdatedAt,
+		&project.Description, &targetURL, &credentialID, &credentialKind,
+		&revision, &project.CreatedAt, &project.UpdatedAt,
 	)
 	if err == nil {
 		if revision <= 0 {
 			return Project{}, errors.New("stored Project revision is invalid")
 		}
 		project.Revision = uint64(revision)
+		if targetURL != nil {
+			project.HTTPTarget = &contracts.HTTPOriginTargetRef{URL: *targetURL}
+			if credentialID != nil && credentialKind != nil {
+				project.HTTPTarget.Credential = &contracts.RuntimeCredentialRefV2{
+					CredentialID: *credentialID, Kind: contracts.RuntimeCredentialKind(*credentialKind),
+				}
+			}
+			if validateErr := project.HTTPTarget.Validate(); validateErr != nil {
+				return Project{}, errors.New("stored Project HTTP target is invalid")
+			}
+		}
 	}
 	return project, err
+}
+
+func targetURL(target *contracts.HTTPOriginTargetRef) *string {
+	if target == nil {
+		return nil
+	}
+	value := target.URL
+	return &value
+}
+
+func targetCredentialID(target *contracts.HTTPOriginTargetRef) *string {
+	if target == nil || target.Credential == nil {
+		return nil
+	}
+	value := target.Credential.CredentialID
+	return &value
+}
+
+func targetCredentialKind(target *contracts.HTTPOriginTargetRef) *string {
+	if target == nil || target.Credential == nil {
+		return nil
+	}
+	value := string(target.Credential.Kind)
+	return &value
 }
 
 func validateCreate(params CreateParams) error {
@@ -199,7 +248,15 @@ func validateUpdate(params UpdateParams) error {
 	if params.ExpectedRevision == 0 || params.ExpectedRevision > uint64(^uint64(0)>>1) {
 		return invalid("Project revision is invalid")
 	}
-	return validateMetadata(params.Name, params.Description)
+	if err := validateMetadata(params.Name, params.Description); err != nil {
+		return err
+	}
+	if params.HTTPTarget != nil {
+		if err := params.HTTPTarget.Validate(); err != nil {
+			return invalid("Project HTTP target is invalid")
+		}
+	}
+	return nil
 }
 
 func validateList(params ListParams) error {

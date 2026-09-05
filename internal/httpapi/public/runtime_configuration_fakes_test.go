@@ -400,6 +400,30 @@ func (f *fakeRuntimeCredentialManagement) Delete(
 	return credentials.RuntimeCredentialDeleteResult{}, nil
 }
 
+func (f *fakeRuntimeCredentialManagement) ValidateRuntimeCredential(
+	_ context.Context, id string, allowedKinds ...string,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	item, ok := f.records[id]
+	if !ok {
+		return credentials.ErrRuntimeCredentialNotFound
+	}
+	for _, allowed := range allowedKinds {
+		if string(item.Kind) == allowed {
+			return nil
+		}
+	}
+	return credentials.ErrRuntimeCredentialInvalid
+}
+
+func (f *fakeRuntimeCredentialManagement) WithCredentialReferences(ctx context.Context, fn func() error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return fn()
+}
+
 func runtimeConfigKey(name, version string) string { return name + "\x00" + version }
 
 func cloneRuntimeVersion(value runtimeconfig.Version) runtimeconfig.Version {

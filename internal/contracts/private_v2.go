@@ -27,10 +27,12 @@ const (
 	RuntimeAdapterHTTPProxy    RuntimeAdapterRef = "http-proxy@1"
 	RuntimeAdapterCaidoGraphQL RuntimeAdapterRef = "caido-graphql@1"
 
-	RuntimeCredentialOTLPHeaders RuntimeCredentialKind = "otlp-headers@1"
-	RuntimeCredentialProxyBasic  RuntimeCredentialKind = "http-proxy-basic@1"
-	RuntimeCredentialProxyBearer RuntimeCredentialKind = "http-proxy-bearer@1"
-	RuntimeCredentialCaidoBearer RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialOTLPHeaders  RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialProxyBasic   RuntimeCredentialKind = "http-proxy-basic@1"
+	RuntimeCredentialProxyBearer  RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialCaidoBearer  RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialOriginBasic  RuntimeCredentialKind = "http-origin-basic@1"
+	RuntimeCredentialOriginBearer RuntimeCredentialKind = "http-origin-bearer@1"
 )
 
 const (
@@ -95,7 +97,7 @@ type RuntimeCredentialKind string
 func (k RuntimeCredentialKind) Validate() error {
 	switch k {
 	case RuntimeCredentialOTLPHeaders, RuntimeCredentialProxyBasic, RuntimeCredentialProxyBearer,
-		RuntimeCredentialCaidoBearer:
+		RuntimeCredentialCaidoBearer, RuntimeCredentialOriginBasic, RuntimeCredentialOriginBearer:
 		return nil
 	default:
 		return invalidf("unknown Runtime credential kind")
@@ -533,13 +535,70 @@ func (s HTTPProxySettingsV2) Validate() error {
 }
 
 type RuntimeSettingsV2 struct {
-	LLMGatewayURL         string               `json:"llmGatewayUrl"`
-	LLMGatewayToken       *SecretString        `json:"llmGatewayToken,omitempty"`
-	ArtifactAPIURL        string               `json:"artifactApiUrl"`
-	Telemetry             *TelemetrySettingsV2 `json:"telemetry,omitempty"`
-	HTTPProxy             *HTTPProxySettingsV2 `json:"httpProxy,omitempty"`
-	Caido                 *CaidoSettingsV2     `json:"caido,omitempty"`
-	RequestTimeoutSeconds int                  `json:"requestTimeoutSeconds"`
+	LLMGatewayURL         string                      `json:"llmGatewayUrl"`
+	LLMGatewayToken       *SecretString               `json:"llmGatewayToken,omitempty"`
+	ArtifactAPIURL        string                      `json:"artifactApiUrl"`
+	Telemetry             *TelemetrySettingsV2        `json:"telemetry,omitempty"`
+	HTTPProxy             *HTTPProxySettingsV2        `json:"httpProxy,omitempty"`
+	Caido                 *CaidoSettingsV2            `json:"caido,omitempty"`
+	HTTPOriginTarget      *HTTPOriginTargetSettingsV2 `json:"httpOriginTarget,omitempty"`
+	RequestTimeoutSeconds int                         `json:"requestTimeoutSeconds"`
+}
+
+// HTTPOriginTargetRef is the immutable, non-secret target provenance pinned
+// by a Project Run. URL may contain an application path, while Authorization
+// is scoped by Runtime to its exact normalized origin.
+type HTTPOriginTargetRef struct {
+	URL        string                  `json:"url"`
+	Credential *RuntimeCredentialRefV2 `json:"credential,omitempty"`
+}
+
+func (t HTTPOriginTargetRef) Validate() error {
+	if err := validateRuntimeEndpoint("httpOriginTarget.url", t.URL); err != nil {
+		return err
+	}
+	if t.Credential == nil {
+		return nil
+	}
+	if len(t.Credential.CredentialID) == 0 || len(t.Credential.CredentialID) > 128 ||
+		!idPattern.MatchString(t.Credential.CredentialID) {
+		return invalidf("HTTP origin target credential ID is invalid")
+	}
+	if t.Credential.Kind != RuntimeCredentialOriginBasic && t.Credential.Kind != RuntimeCredentialOriginBearer {
+		return invalidf("HTTP origin target credential kind is invalid")
+	}
+	return nil
+}
+
+// HTTPOriginTargetSettingsV2 exists only in the allocation transport. Its
+// optional secret members are mutually exclusive and are never persisted.
+type HTTPOriginTargetSettingsV2 struct {
+	URL         string                `json:"url"`
+	BasicAuth   *HTTPProxyBasicAuthV2 `json:"basicAuth,omitempty"`
+	BearerToken *SecretString         `json:"bearerToken,omitempty"`
+}
+
+func (s HTTPOriginTargetSettingsV2) Validate() error {
+	if err := validateRuntimeEndpoint("httpOriginTarget.url", s.URL); err != nil {
+		return err
+	}
+	if s.BasicAuth != nil && s.BearerToken != nil {
+		return invalidf("HTTP origin target basicAuth and bearerToken are mutually exclusive")
+	}
+	if s.BasicAuth != nil {
+		username, password := s.BasicAuth.Username.Reveal(), s.BasicAuth.Password.Reveal()
+		if len(username) < 1 || len(username) > 256 || strings.Contains(username, ":") ||
+			len(password) < 1 || len(password) > 8192 {
+			return invalidf("HTTP origin target basicAuth is outside its size bound")
+		}
+	}
+	if s.BearerToken != nil {
+		value := s.BearerToken.Reveal()
+		if len(value) < 1 || len(value) > 8192 {
+			return invalidf("HTTP origin target bearerToken is outside its size bound")
+		}
+	}
+	return nil
 }
 
 // WorkerExecutionSettingsV2 is the in-process secret-bearing value delivered
@@ -572,6 +631,11 @@ func (s RuntimeSettingsV2) Validate() error {
 	}
 	if s.Caido != nil {
 		if err := s.Caido.Validate(); err != nil {
+			return err
+		}
+	}
+	if s.HTTPOriginTarget != nil {
+		if err := s.HTTPOriginTarget.Validate(); err != nil {
 			return err
 		}
 	}

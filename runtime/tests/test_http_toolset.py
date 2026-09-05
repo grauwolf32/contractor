@@ -16,6 +16,7 @@ from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     ArtifactRef,
+    HTTPOriginTargetSettingsV2,
     HTTPProxySettingsV2,
     RuntimeSettings,
     RuntimeSettingsV2,
@@ -28,6 +29,7 @@ from contractor_runtime.toolsets.http_tools import (
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-http-session-secret"
+TARGET_SECRET = "recognizable-project-origin-secret"
 
 
 def test_direct_text_binary_status_redirect_and_exact_body_reads(tmp_path: Path) -> None:
@@ -202,6 +204,64 @@ def test_session_is_redacted_serialized_and_history_is_bounded(tmp_path: Path) -
         assert cleared["cookie_count"] == 0
         assert cleared["history_count"] == 0
         assert SECRET not in repr(state.metrics)
+
+    asyncio.run(scenario())
+
+
+def test_project_authorization_is_exact_origin_hidden_and_erased(tmp_path: Path) -> None:
+    observed: list[httpx.Request] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        observed.append(request)
+        if request.url.path == "/redirect":
+            return httpx.Response(
+                302,
+                headers={"Location": "https://other.example/final"},
+                request=request,
+            )
+        return httpx.Response(200, content=b"ok", request=request)
+
+    async def scenario() -> None:
+        state = WorkerState()
+
+        def direct() -> httpx.AsyncClient:
+            return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
+
+        factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient(), direct)
+        settings = RuntimeSettingsV2(
+            llmGatewayUrl="https://gateway.example/v1",
+            artifactApiUrl="https://control.example/private/v1",
+            httpOriginTarget=HTTPOriginTargetSettingsV2(
+                url="https://target.example/application",
+                bearerToken=TARGET_SECRET,
+            ),
+            requestTimeoutSeconds=30,
+        )
+        tools = await make_tools(factory, tmp_path, state=state, settings=settings)
+
+        await tools["http_request"](
+            "https://target.example/one",
+            headers={"Authorization": "Bearer model-supplied"},
+        )
+        await tools["http_request"](
+            "https://target.example:444/two",
+            headers={"Authorization": "Bearer model-other-origin"},
+        )
+        await tools["http_request"]("https://target.example/redirect", follow_redirects=True)
+
+        assert observed[0].headers["authorization"] == f"Bearer {TARGET_SECRET}"
+        assert observed[1].headers["authorization"] == "Bearer model-other-origin"
+        assert observed[2].headers["authorization"] == f"Bearer {TARGET_SECRET}"
+        assert observed[3].url.host == "other.example"
+        assert "authorization" not in observed[3].headers
+        session = await tools["http_session_get"]()
+        assert TARGET_SECRET not in repr(session)
+        assert TARGET_SECRET not in repr(state)
+
+        private_session = tools["http_request"]._session
+        await close_tools(tools)
+        assert private_session._target_origin is None
+        assert private_session._target_authorization is None
 
     asyncio.run(scenario())
 

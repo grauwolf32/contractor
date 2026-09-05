@@ -9,6 +9,8 @@ export const PROJECT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 export const PROJECT_REVISION_PATTERN = /^[1-9][0-9]{0,18}$/;
 export const MAXIMUM_PROJECT_NAME_LENGTH = 160;
 export const MAXIMUM_PROJECT_DESCRIPTION_LENGTH = 4096;
+export const MAXIMUM_PROJECT_TARGET_URL_BYTES = 2048;
+const RUNTIME_CREDENTIAL_ID_PATTERN = /^[a-z][a-z0-9_-]{0,127}$/;
 
 export type Project = components["schemas"]["Project"];
 export type ProjectKind = components["schemas"]["ProjectKind"];
@@ -17,6 +19,7 @@ export type CreateProjectRequest =
   components["schemas"]["CreateProjectRequest"];
 export type UpdateProjectRequest =
   components["schemas"]["UpdateProjectRequest"];
+export type ProjectHTTPTarget = components["schemas"]["ProjectHTTPTarget"];
 
 export interface ProjectPageRequest {
   kind?: ProjectKind;
@@ -105,7 +108,47 @@ function safeProject(value: Project, status: number): Project {
   ) {
     throw invalidProjectResponse(status);
   }
-  return { ...value };
+  return {
+    ...value,
+    ...(value.httpTarget === undefined
+      ? {}
+      : { httpTarget: normalizeProjectHTTPTarget(value.httpTarget) }),
+  };
+}
+
+export function normalizeProjectHTTPTarget(
+  target: ProjectHTTPTarget,
+): ProjectHTTPTarget {
+  const url = target.url.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new TypeError("Project HTTP target URL is invalid");
+  }
+  if (
+    new TextEncoder().encode(url).length > MAXIMUM_PROJECT_TARGET_URL_BYTES ||
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new TypeError("Project HTTP target URL is invalid");
+  }
+  const credential = target.credential;
+  if (
+    credential !== undefined &&
+    (!RUNTIME_CREDENTIAL_ID_PATTERN.test(credential.credentialId) ||
+      (credential.kind !== "http-origin-basic@1" &&
+        credential.kind !== "http-origin-bearer@1"))
+  ) {
+    throw new TypeError("Project HTTP target credential is invalid");
+  }
+  return {
+    url,
+    ...(credential === undefined ? {} : { credential: { ...credential } }),
+  };
 }
 
 function requireETag(response: Response, revision: string): void {
@@ -189,6 +232,8 @@ export async function updateProject(
   }
   const name = options.request.name?.trim();
   const description = options.request.description?.trim();
+  const targetPresent = Object.hasOwn(options.request, "httpTarget");
+  const httpTarget = options.request.httpTarget;
   if (
     (name !== undefined &&
       (name.length === 0 || name.length > MAXIMUM_PROJECT_NAME_LENGTH)) ||
@@ -200,6 +245,14 @@ export async function updateProject(
   const body: UpdateProjectRequest = {
     ...(name === undefined ? {} : { name }),
     ...(description === undefined ? {} : { description }),
+    ...(targetPresent
+      ? {
+          httpTarget:
+            httpTarget === null || httpTarget === undefined
+              ? null
+              : normalizeProjectHTTPTarget(httpTarget),
+        }
+      : {}),
   };
   const result = await api.request((client) =>
     client.PATCH("/v1/projects/{projectId}", {

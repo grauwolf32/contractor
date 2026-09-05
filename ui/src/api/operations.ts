@@ -404,9 +404,14 @@ function safeRuntimeCredential(
   ]);
   requireRuntimeCredentialId(value.credentialId);
   if (
-    !["otlp-headers@1", "http-proxy-basic@1", "http-proxy-bearer@1"].includes(
-      value.kind,
-    )
+    ![
+      "otlp-headers@1",
+      "http-proxy-basic@1",
+      "http-proxy-bearer@1",
+      "caido-bearer@1",
+      "http-origin-basic@1",
+      "http-origin-bearer@1",
+    ].includes(value.kind)
   ) {
     throw new TypeError("Runtime credential kind is invalid");
   }

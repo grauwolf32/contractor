@@ -909,12 +909,24 @@ export interface components {
         UpdateProjectRequest: {
             name?: string;
             description?: string;
+            httpTarget?: components["schemas"]["ProjectHTTPTarget"] | null;
+        };
+        HTTPOriginCredentialRef: {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @enum {unknown} */
+            kind: "http-origin-basic@1" | "http-origin-bearer@1";
+        };
+        ProjectHTTPTarget: {
+            /** Format: uri */
+            url: string;
+            credential?: components["schemas"]["HTTPOriginCredentialRef"];
         };
         Project: {
             projectId: components["schemas"]["ResourceId"];
             kind: components["schemas"]["ProjectKind"];
             name: string;
             description: string;
+            httpTarget?: components["schemas"]["ProjectHTTPTarget"];
             revision: string;
             /** Format: date-time */
             createdAt: string;
@@ -960,6 +972,7 @@ export interface components {
             /** @constant */
             kind: "runtime_credential_in_use";
             bindingLabels: components["schemas"]["RuntimeInfrastructureId"][];
+            projectIds: components["schemas"]["ResourceId"][];
             runIds: components["schemas"]["ResourceId"][];
             allocationIds: components["schemas"]["ResourceId"][];
         };
@@ -1202,7 +1215,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "http-origin-basic@1" | "http-origin-bearer@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -1229,6 +1242,13 @@ export interface components {
         CaidoBearerMaterial: {
             token: string;
         };
+        HTTPOriginBasicMaterial: {
+            username: string;
+            password: string;
+        };
+        HTTPOriginBearerMaterial: {
+            token: string;
+        };
         CreateRuntimeCredentialRequest: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
@@ -1249,6 +1269,16 @@ export interface components {
             /** @constant */
             kind: "caido-bearer@1";
             material: components["schemas"]["CaidoBearerMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "http-origin-basic@1";
+            material: components["schemas"]["HTTPOriginBasicMaterial"];
+        } | {
+            credentialId: components["schemas"]["RuntimeCredentialId"];
+            /** @constant */
+            kind: "http-origin-bearer@1";
+            material: components["schemas"]["HTTPOriginBearerMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -1379,6 +1409,7 @@ export interface components {
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
+            projectHttpTarget?: components["schemas"]["ProjectHTTPTarget"];
             cancellation?: components["schemas"]["Cancellation"];
             parameters?: {
                 [key: string]: string;
@@ -1448,6 +1479,7 @@ export interface components {
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
+            projectHttpTarget?: components["schemas"]["ProjectHTTPTarget"];
         };
         CancelRunRequest: {
             reason?: string | null;

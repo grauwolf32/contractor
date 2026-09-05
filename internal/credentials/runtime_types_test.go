@@ -32,7 +32,15 @@ func TestRuntimeCredentialMaterialsAreCanonicalBoundedAndRedacted(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, material := range []*RuntimeCredentialMaterial{&headers, &basic, &bearer, &caido} {
+	originBasic, err := NewHTTPOriginBasicCredential("origin-user", "origin-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	originBearer, err := NewHTTPOriginBearerCredential("origin-bearer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, material := range []*RuntimeCredentialMaterial{&headers, &basic, &bearer, &caido, &originBasic, &originBearer} {
 		for _, formatted := range []string{
 			fmt.Sprint(material), fmt.Sprintf("%v", material), fmt.Sprintf("%+v", material), fmt.Sprintf("%#v", material),
 		} {
@@ -109,6 +117,12 @@ func TestRuntimeCredentialConstructorsRejectUnsafeInputs(t *testing.T) {
 	}
 	if _, err := NewCaidoBearerCredential("line\ntoken"); !errors.Is(err, ErrRuntimeCredentialInvalid) {
 		t.Fatalf("control-byte Caido bearer error = %v", err)
+	}
+	if _, err := NewHTTPOriginBasicCredential("user:name", "password"); !errors.Is(err, ErrRuntimeCredentialInvalid) {
+		t.Fatalf("origin colon username error = %v", err)
+	}
+	if _, err := NewHTTPOriginBearerCredential(""); !errors.Is(err, ErrRuntimeCredentialInvalid) {
+		t.Fatalf("empty origin bearer error = %v", err)
 	}
 	manyValues := make(map[string]string)
 	for index := 0; index < 5; index++ {

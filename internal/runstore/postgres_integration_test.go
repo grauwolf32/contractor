@@ -423,8 +423,12 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 	projectID := "project-one"
 	projectParams := testRunParams("run-project-member")
 	projectParams.ProjectID = &projectID
+	projectParams.ProjectHTTPTarget = &contracts.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+	}
 	projectRun, err := store.CreateRun(ctx, projectParams)
-	if err != nil || projectRun.ProjectID == nil || *projectRun.ProjectID != projectID {
+	if err != nil || projectRun.ProjectID == nil || *projectRun.ProjectID != projectID ||
+		projectRun.ProjectHTTPTarget == nil || projectRun.ProjectHTTPTarget.URL != "https://app.example.test/api" {
 		t.Fatalf("create Project Run = (%+v, %v)", projectRun, err)
 	}
 	if _, err := store.CreateRun(ctx, testRunParams("run-standalone")); err != nil {
@@ -441,6 +445,13 @@ func TestPostgresWorkflowRunProjectMembershipIsOwnedImmutableAndFilterable(t *te
 	_, err = pool.Exec(ctx, `UPDATE workflow_runs SET project_id = 'project-two' WHERE run_id = $1`, projectRun.RunID)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("Project membership mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE workflow_runs
+SET project_http_target_snapshot = '{"url":"https://other.example.test"}'::jsonb
+WHERE run_id = $1`, projectRun.RunID)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("Project HTTP target mutation SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	foreignParams := testRunParams("run-foreign-project-member")
 	foreignParams.OwnerID = "user-2"

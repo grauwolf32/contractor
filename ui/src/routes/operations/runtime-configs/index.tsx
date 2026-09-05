@@ -875,14 +875,17 @@ function RuntimeCredentialCreateForm() {
       } else {
         request = { credentialId, kind, material: { headers: material } };
       }
-    } else if (kind === "http-proxy-basic@1") {
+    } else if (
+      kind === "http-proxy-basic@1" ||
+      kind === "http-origin-basic@1"
+    ) {
       if (username === "" || password === "") {
-        setError(new Error("Proxy username and password are required."));
+        setError(new Error("Username and password are required."));
       } else {
         request = { credentialId, kind, material: { username, password } };
       }
     } else if (token === "") {
-      setError(new Error("Proxy bearer token is required."));
+      setError(new Error("Bearer token is required."));
     } else {
       request = { credentialId, kind, material: { token } };
     }
@@ -949,6 +952,11 @@ function RuntimeCredentialCreateForm() {
             <option value="otlp-headers@1">OTLP headers</option>
             <option value="http-proxy-basic@1">HTTP proxy basic auth</option>
             <option value="http-proxy-bearer@1">HTTP proxy bearer token</option>
+            <option value="caido-bearer@1">Caido bearer token</option>
+            <option value="http-origin-basic@1">HTTP origin basic auth</option>
+            <option value="http-origin-bearer@1">
+              HTTP origin bearer token
+            </option>
           </select>
         </label>
       </div>
@@ -1017,10 +1025,11 @@ function RuntimeCredentialCreateForm() {
             Add header
           </button>
         </div>
-      ) : kind === "http-proxy-basic@1" ? (
+      ) : kind === "http-proxy-basic@1" || kind === "http-origin-basic@1" ? (
         <div className="form-grid">
           <label>
-            Proxy username · write only
+            {kind === "http-origin-basic@1" ? "Origin" : "Proxy"} username ·
+            write only
             <input
               autoComplete="off"
               value={username}
@@ -1028,7 +1037,8 @@ function RuntimeCredentialCreateForm() {
             />
           </label>
           <label>
-            Proxy password · write only
+            {kind === "http-origin-basic@1" ? "Origin" : "Proxy"} password ·
+            write only
             <input
               type="password"
               autoComplete="new-password"
@@ -1039,7 +1049,7 @@ function RuntimeCredentialCreateForm() {
         </div>
       ) : (
         <label>
-          Proxy bearer token · write only
+          Bearer token · write only
           <input
             type="password"
             autoComplete="new-password"

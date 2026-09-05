@@ -1535,6 +1535,8 @@ def _require_runtime_adapter_ref(value: str) -> str:
 RuntimeAdapterRef = Annotated[str, AfterValidator(_require_runtime_adapter_ref)]
 RuntimeCredentialKind = Literal[
     "caido-bearer@1",
+    "http-origin-basic@1",
+    "http-origin-bearer@1",
     "http-proxy-basic@1",
     "http-proxy-bearer@1",
     "otlp-headers@1",
@@ -1833,6 +1835,29 @@ class CaidoSettingsV2(WireModel):
         return None if value is None else value.get_secret_value()
 
 
+class HTTPOriginTargetSettingsV2(WireModel):
+    url: str
+    basic_auth: HTTPProxyBasicAuthV2 | None = None
+    bearer_token: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def validate_target(self) -> Self:
+        _require_runtime_endpoint("httpOriginTarget.url", self.url)
+        if self.basic_auth is not None and self.bearer_token is not None:
+            raise ValueError("HTTP origin target basicAuth and bearerToken are mutually exclusive")
+        if self.basic_auth is not None and ":" in self.basic_auth.username.get_secret_value():
+            raise ValueError("HTTP origin target username cannot contain a colon")
+        if self.bearer_token is not None:
+            token = self.bearer_token.get_secret_value()
+            if not 1 <= len(token.encode("utf-8")) <= 8192:
+                raise ValueError("HTTP origin target bearerToken is outside its size bound")
+        return self
+
+    @field_serializer("bearer_token", when_used="json")
+    def serialize_bearer(self, value: SecretStr | None) -> str | None:
+        return None if value is None else value.get_secret_value()
+
+
 class RuntimeSettingsV2(WireModel):
     llm_gateway_url: str
     llm_gateway_token: SecretStr | None = None
@@ -1840,6 +1865,7 @@ class RuntimeSettingsV2(WireModel):
     telemetry: TelemetrySettingsV2 | None = None
     http_proxy: HTTPProxySettingsV2 | None = None
     caido: CaidoSettingsV2 | None = None
+    http_origin_target: HTTPOriginTargetSettingsV2 | None = None
     request_timeout_seconds: int = Field(gt=0)
 
     @model_validator(mode="after")

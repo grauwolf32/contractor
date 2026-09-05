@@ -4,11 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -174,16 +176,46 @@ func (h *handler) updateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name, description := current.Name, current.Description
+	httpTarget := cloneHTTPOriginTarget(current.HTTPTarget)
 	if request.Name != nil {
 		name = *request.Name
 	}
 	if request.Description != nil {
 		description = *request.Description
 	}
-	project, err := h.dependencies.Projects.Update(r.Context(), projectstore.UpdateParams{
-		ProjectID: projectID, OwnerID: ownerID, ExpectedRevision: revision,
-		Name: name, Description: description,
-	})
+	if request.targetSet {
+		httpTarget = nil
+		if request.HTTPTarget != nil {
+			httpTarget = &contracts.HTTPOriginTargetRef{
+				URL: request.HTTPTarget.URL, Credential: request.HTTPTarget.Credential,
+			}
+		}
+	}
+	var project projectstore.Project
+	update := func() error {
+		var updateErr error
+		project, updateErr = h.dependencies.Projects.Update(r.Context(), projectstore.UpdateParams{
+			ProjectID: projectID, OwnerID: ownerID, ExpectedRevision: revision,
+			Name: name, Description: description, HTTPTarget: httpTarget,
+		})
+		return updateErr
+	}
+	if request.targetSet && httpTarget != nil && httpTarget.Credential != nil {
+		if h.dependencies.RuntimeCredentials == nil {
+			h.handleError(w, errors.New("Runtime credential service is not configured"))
+			return
+		}
+		err = h.dependencies.RuntimeCredentials.WithCredentialReferences(r.Context(), func() error {
+			if validateErr := h.dependencies.RuntimeCredentials.ValidateRuntimeCredential(
+				r.Context(), httpTarget.Credential.CredentialID, string(httpTarget.Credential.Kind),
+			); validateErr != nil {
+				return validateErr
+			}
+			return update()
+		})
+	} else {
+		err = update()
+	}
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -213,6 +245,19 @@ func projectReadModel(project projectstore.Project) projectResponse {
 	return projectResponse{
 		ProjectID: project.ProjectID, Kind: project.Kind, Name: project.Name,
 		Description: project.Description, Revision: strconv.FormatUint(project.Revision, 10),
-		CreatedAt: project.CreatedAt, UpdatedAt: project.UpdatedAt,
+		HTTPTarget: cloneHTTPOriginTarget(project.HTTPTarget),
+		CreatedAt:  project.CreatedAt, UpdatedAt: project.UpdatedAt,
 	}
+}
+
+func cloneHTTPOriginTarget(source *contracts.HTTPOriginTargetRef) *contracts.HTTPOriginTargetRef {
+	if source == nil {
+		return nil
+	}
+	result := &contracts.HTTPOriginTargetRef{URL: source.URL}
+	if source.Credential != nil {
+		credential := *source.Credential
+		result.Credential = &credential
+	}
+	return result
 }

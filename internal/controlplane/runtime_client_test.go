@@ -872,6 +872,19 @@ func serverURL(request *http.Request) string {
 	return "http://" + request.Host
 }
 
+func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
+	t.Parallel()
+	token := contracts.NewSecretString("project-origin-secret")
+	settings := contracts.RuntimeSettingsV2{
+		HTTPOriginTarget: &contracts.HTTPOriginTargetSettingsV2{
+			URL: "https://app.example.test", BearerToken: &token,
+		},
+	}
+	if !slices.Contains(runtimeSettingSecrets(settings), "project-origin-secret") {
+		t.Fatal("Project origin credential is absent from WorkerHandle leak detection")
+	}
+}
+
 func testAgentCard(name, allocationID, endpoint string) map[string]any {
 	return map[string]any{
 		"name": name,

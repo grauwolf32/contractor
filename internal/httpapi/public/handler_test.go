@@ -139,6 +139,48 @@ func TestProjectCreateReplayListGetAndCASUpdate(t *testing.T) {
 	}
 }
 
+func TestProjectHTTPTargetUsesSafeCredentialReferenceAndCASDetach(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	fixture.runtimeCredentials.records["project-origin"] = credentials.RuntimeCredentialMetadata{
+		CredentialID: "project-origin", Kind: credentials.RuntimeCredentialOriginBearer,
+		CreatedBy: "user-1", CreatedAt: now,
+	}
+	fixture.projects.projects["project-target"] = projectstore.Project{
+		ProjectID: "project-target", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Target", Revision: 1, CreatedAt: now, UpdatedAt: now,
+	}
+	attach := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project-target",
+		bytes.NewReader([]byte(`{"httpTarget":{"url":"https://app.example.test/api","credential":{"credentialId":"project-origin","kind":"http-origin-bearer@1"}}}`)),
+	)
+	attach.Header.Set("Content-Type", "application/json")
+	attach.Header.Set("If-Match", `"1"`)
+	attached := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(attached, attach)
+	if attached.Code != http.StatusOK || attached.Header().Get("ETag") != `"2"` ||
+		strings.Contains(attached.Body.String(), "secret") {
+		t.Fatalf("attach Project HTTP target = %d headers=%v body=%s", attached.Code, attached.Header(), attached.Body.String())
+	}
+	var resource projectResponse
+	if err := json.Unmarshal(attached.Body.Bytes(), &resource); err != nil || resource.HTTPTarget == nil ||
+		resource.HTTPTarget.Credential == nil || resource.HTTPTarget.Credential.CredentialID != "project-origin" {
+		t.Fatalf("attached target response = (%+v, %v)", resource, err)
+	}
+
+	detach := authenticatedRequest(
+		http.MethodPatch, "/v1/projects/project-target", bytes.NewReader([]byte(`{"httpTarget":null}`)),
+	)
+	detach.Header.Set("Content-Type", "application/json")
+	detach.Header.Set("If-Match", `"2"`)
+	detached := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(detached, detach)
+	if detached.Code != http.StatusOK || detached.Header().Get("ETag") != `"3"` ||
+		strings.Contains(detached.Body.String(), "httpTarget") {
+		t.Fatalf("detach Project HTTP target = %d headers=%v body=%s", detached.Code, detached.Header(), detached.Body.String())
+	}
+}
+
 func TestProjectArtifactRoutesAreOwnerScopedAndRevisionExact(t *testing.T) {
 	fixture := newHandlerFixture(t)
 	createProject := authenticatedRequest(
@@ -229,6 +271,18 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	fixture.runtimeCredentials.records["project-origin"] = credentials.RuntimeCredentialMetadata{
+		CredentialID: "project-origin", Kind: credentials.RuntimeCredentialOriginBearer,
+		CreatedBy: "user-1", CreatedAt: time.Now(),
+	}
+	configuredProject := fixture.projects.projects["project-one"]
+	configuredProject.HTTPTarget = &contracts.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &contracts.RuntimeCredentialRefV2{
+			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+		},
+	}
+	fixture.projects.projects["project-one"] = configuredProject
 	project, err := fixture.artifacts.Project("project-one")
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +316,8 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 	}
 	var model createRunResponse
 	if err := json.Unmarshal(created.Body.Bytes(), &model); err != nil ||
-		model.ProjectID == nil || *model.ProjectID != "project-one" {
+		model.ProjectID == nil || *model.ProjectID != "project-one" || model.ProjectHTTPTarget == nil ||
+		model.ProjectHTTPTarget.Credential == nil || model.ProjectHTTPTarget.Credential.CredentialID != "project-origin" {
 		t.Fatalf("Project Run response = (%+v, %v)", model, err)
 	}
 
@@ -283,6 +338,10 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 	stored := fixture.runs.runs["run_fixed"]
 	if stored.ProjectID == nil || *stored.ProjectID != "project-one" {
 		t.Fatalf("stored Project membership = %+v", stored.ProjectID)
+	}
+	if stored.ProjectHTTPTarget == nil || stored.ProjectHTTPTarget.Credential == nil ||
+		stored.ProjectHTTPTarget.Credential.CredentialID != "project-origin" {
+		t.Fatalf("stored Project HTTP target = %+v", stored.ProjectHTTPTarget)
 	}
 
 	replay := authenticatedRequest(

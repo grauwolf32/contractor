@@ -51,6 +51,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 			Details: &runtimeCredentialInUseDetailsResponse{
 				Kind:          "runtime_credential_in_use",
 				BindingLabels: append([]string(nil), runtimeCredentialInUse.Usage.BindingLabels...),
+				ProjectIDs:    append([]string(nil), runtimeCredentialInUse.Usage.ProjectIDs...),
 				RunIDs:        append([]string(nil), runtimeCredentialInUse.Usage.RunIDs...),
 				AllocationIDs: append([]string(nil), runtimeCredentialInUse.Usage.AllocationIDs...),
 			},

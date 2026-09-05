@@ -128,6 +128,7 @@ func (f *fakeProjectStore) Update(
 		return projectstore.Project{}, projectstore.ErrInvalid
 	}
 	project.Name, project.Description = params.Name, params.Description
+	project.HTTPTarget = cloneHTTPOriginTarget(params.HTTPTarget)
 	project.Revision++
 	project.UpdatedAt = time.Unix(0, f.nextTime).UTC()
 	f.nextTime++
@@ -768,7 +769,8 @@ func (f *fakeRunStore) CreateRun(_ context.Context, params runstore.CreateRunPar
 		Parameters:     cloneParameters(params.Parameters),
 		MetadataLabels: params.MetadataLabels.Clone(),
 		RuntimeLabels:  params.RuntimeConfig.ExplicitLabels(), RuntimeConfig: params.RuntimeConfig.Clone(),
-		State: runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		ProjectHTTPTarget: cloneHTTPOriginTarget(params.ProjectHTTPTarget),
+		State:             runstore.RunInitializing, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	f.runs[params.RunID] = cloneFakeWorkflowRun(run)
 	return cloneFakeWorkflowRun(run), nil
@@ -839,6 +841,7 @@ func cloneFakeWorkflowRun(run runstore.WorkflowRun) runstore.WorkflowRun {
 		projectID := *run.ProjectID
 		run.ProjectID = &projectID
 	}
+	run.ProjectHTTPTarget = cloneHTTPOriginTarget(run.ProjectHTTPTarget)
 	run.MetadataLabels = run.MetadataLabels.Clone()
 	run.RuntimeLabels = append([]string{}, run.RuntimeLabels...)
 	run.Parameters = cloneParameters(run.Parameters)

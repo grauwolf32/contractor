@@ -498,6 +498,60 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 	}
 }
 
+func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t *testing.T) {
+	const secret = "project-origin-allocation-secret"
+	harness := newSchedulerHarness(t)
+	harness.scheduler.options.RuntimeCredentials = runtimeCredentialResolverFunc(func(
+		_ context.Context,
+		credentialID string,
+		allowed []contracts.RuntimeCredentialKind,
+		consumer func(contracts.RuntimeCredentialKind, []byte) error,
+	) error {
+		if credentialID != "project-origin" || !reflect.DeepEqual(allowed, []contracts.RuntimeCredentialKind{
+			contracts.RuntimeCredentialOriginBasic, contracts.RuntimeCredentialOriginBearer,
+		}) {
+			return errors.New("unexpected Runtime credential selection")
+		}
+		return consumer(contracts.RuntimeCredentialOriginBearer, []byte(`{"token":"`+secret+`"}`))
+	})
+	stage := harness.workflow.Stages[harness.workflow.EntryStage]
+	binding := stage.Agents["builder"]
+	binding.Template.Toolsets = append(binding.Template.Toolsets, contracts.ToolsetSelection{
+		Ref:   contracts.ToolsetRef{ToolsetID: "http-tools", Version: "1"},
+		Tools: []string{"http_request"},
+	})
+	stage.Agents["builder"] = binding
+	run := runstore.WorkflowRun{ProjectHTTPTarget: &contracts.HTTPOriginTargetRef{
+		URL: "https://app.example.test/api",
+		Credential: &contracts.RuntimeCredentialRefV2{
+			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
+		},
+	}}
+	settings, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := settings["builder"].RuntimeSettings.HTTPOriginTarget
+	if target == nil || target.URL != "https://app.example.test/api" || target.BearerToken == nil ||
+		target.BearerToken.Reveal() != secret {
+		t.Fatalf("materialized Project HTTP target = %+v", target)
+	}
+	clearWorkerExecutionSettings(settings)
+	if settings["builder"].RuntimeSettings.HTTPOriginTarget != nil {
+		t.Fatal("Project HTTP target survived execution-settings cleanup")
+	}
+
+	binding.Template.Toolsets[len(binding.Template.Toolsets)-1].Tools = []string{"http_history"}
+	stage.Agents["builder"] = binding
+	withoutHTTP, err := harness.scheduler.workerExecutionSettingsForRun(t.Context(), run, stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withoutHTTP["builder"].RuntimeSettings.HTTPOriginTarget != nil {
+		t.Fatal("Project HTTP target was sent to a Worker without http_request")
+	}
+}
+
 func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.T) {
 	const headerSecret = "planner-header-secret-canary"
 	for _, test := range []struct {

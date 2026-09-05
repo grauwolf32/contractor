@@ -109,6 +109,55 @@ describe("Project API", () => {
     await expect(requests[1]?.json()).resolves.toEqual({ name: "Renamed" });
   });
 
+  it("updates and detaches safe HTTP target metadata", async () => {
+    const requests: Request[] = [];
+    const target = {
+      url: "https://app.example.test/api",
+      credential: {
+        credentialId: "project-origin",
+        kind: "http-origin-bearer@1" as const,
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        const body = (await request.clone().json()) as { httpTarget: unknown };
+        return response(
+          {
+            ...project,
+            revision: String(requests.length + 1),
+            ...(body.httpTarget === null ? {} : { httpTarget: target }),
+          },
+          { headers: { ETag: `"${requests.length + 1}"` } },
+        );
+      }),
+    );
+    api.csrf.replace("a".repeat(43));
+
+    await updateProject(api, {
+      projectId: project.projectId,
+      expectedRevision: "1",
+      request: { httpTarget: target },
+    });
+    await updateProject(api, {
+      projectId: project.projectId,
+      expectedRevision: "2",
+      request: { httpTarget: null },
+    });
+
+    await expect(requests[0]?.json()).resolves.toEqual({ httpTarget: target });
+    await expect(requests[1]?.json()).resolves.toEqual({ httpTarget: null });
+    await expect(
+      updateProject(api, {
+        projectId: project.projectId,
+        expectedRevision: "2",
+        request: { httpTarget: { url: "https://app.example.test/?secret=x" } },
+      }),
+    ).rejects.toThrow("target URL is invalid");
+  });
+
   it("normalizes absent-safe Run labels in the Project history", async () => {
     let captured: Request | undefined;
     const api = new PublicAPI(

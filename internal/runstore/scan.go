@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const workflowRunColumns = `
 run_id, owner_id, project_id, workflow_name, workflow_version,
 workflow_schema_version, workflow_snapshot, parameters,
-runtime_labels, runtime_config_snapshot, skill_snapshot,
+runtime_labels, runtime_config_snapshot, project_http_target_snapshot, skill_snapshot,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
@@ -25,6 +27,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	var snapshot []byte
 	var parameters []byte
 	var runtimeConfig []byte
+	var projectHTTPTarget []byte
 	var skillSnapshot []byte
 	var state string
 	var cancellation []byte
@@ -34,7 +37,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	if err := row.Scan(
 		&result.RunID, &result.OwnerID, &result.ProjectID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
-		&result.RuntimeLabels, &runtimeConfig, &skillSnapshot,
+		&result.RuntimeLabels, &runtimeConfig, &projectHTTPTarget, &skillSnapshot,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt,
@@ -62,6 +65,16 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	}
 	if err := result.RuntimeConfig.Validate(); err != nil {
 		return WorkflowRun{}, fmt.Errorf("validate WorkflowRun RuntimeConfig snapshot: %w", err)
+	}
+	if projectHTTPTarget != nil {
+		var decoded contracts.HTTPOriginTargetRef
+		if err := json.Unmarshal(projectHTTPTarget, &decoded); err != nil {
+			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun Project HTTP target snapshot: %w", err)
+		}
+		if err := decoded.Validate(); err != nil {
+			return WorkflowRun{}, fmt.Errorf("validate WorkflowRun Project HTTP target snapshot: %w", err)
+		}
+		result.ProjectHTTPTarget = &decoded
 	}
 	if err := json.Unmarshal(skillSnapshot, &result.SkillSnapshot); err != nil {
 		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun Skill snapshot: %w", err)

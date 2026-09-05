@@ -1,6 +1,10 @@
 package projectstore
 
-import "time"
+import (
+	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
 
 const (
 	MaxNameBytes        = 160
@@ -23,6 +27,7 @@ type Project struct {
 	Kind        Kind
 	Name        string
 	Description string
+	HTTPTarget  *contracts.HTTPOriginTargetRef
 	Revision    uint64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -44,6 +49,7 @@ type UpdateParams struct {
 	ExpectedRevision uint64
 	Name             string
 	Description      string
+	HTTPTarget       *contracts.HTTPOriginTargetRef
 }
 
 type ListParams struct {

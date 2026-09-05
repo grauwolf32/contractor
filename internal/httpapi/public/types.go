@@ -139,6 +139,8 @@ type RuntimeCredentialManagement interface {
 	Get(context.Context, string) (credentials.RuntimeCredentialMetadata, error)
 	Create(context.Context, credentials.RuntimeCredentialCreateRequest) (credentials.RuntimeCredentialCreateResult, error)
 	Delete(context.Context, string, string) (credentials.RuntimeCredentialDeleteResult, error)
+	ValidateRuntimeCredential(context.Context, string, ...string) error
+	WithCredentialReferences(context.Context, func() error) error
 }
 
 type RuntimeAgentPrincipalManagement interface {
@@ -255,12 +257,13 @@ func (l *runMetadataLabels) UnmarshalJSON(data []byte) error {
 }
 
 type createRunResponse struct {
-	RunID                string                     `json:"runId"`
-	ProjectID            *string                    `json:"projectId,omitempty"`
-	State                runstore.WorkflowRunState  `json:"state"`
-	RuntimeLabels        []string                   `json:"runtimeLabels"`
-	Labels               runstore.RunMetadataLabels `json:"labels"`
-	RuntimeConfiguration runRuntimeConfigResponse   `json:"runtimeConfiguration"`
+	RunID                string                         `json:"runId"`
+	ProjectID            *string                        `json:"projectId,omitempty"`
+	State                runstore.WorkflowRunState      `json:"state"`
+	RuntimeLabels        []string                       `json:"runtimeLabels"`
+	Labels               runstore.RunMetadataLabels     `json:"labels"`
+	RuntimeConfiguration runRuntimeConfigResponse       `json:"runtimeConfiguration"`
+	ProjectHTTPTarget    *contracts.HTTPOriginTargetRef `json:"projectHttpTarget,omitempty"`
 }
 
 type createProjectRequest struct {
@@ -295,8 +298,15 @@ func (r *createProjectRequest) UnmarshalJSON(data []byte) error {
 }
 
 type updateProjectRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
+	Name        *string                   `json:"name,omitempty"`
+	Description *string                   `json:"description,omitempty"`
+	HTTPTarget  *projectHTTPTargetRequest `json:"httpTarget,omitempty"`
+	targetSet   bool
+}
+
+type projectHTTPTargetRequest struct {
+	URL        string                            `json:"url"`
+	Credential *contracts.RuntimeCredentialRefV2 `json:"credential,omitempty"`
 }
 
 func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
@@ -315,8 +325,30 @@ func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 		return errors.New("at least one Project field is required")
 	}
 	for name, value := range fields {
-		if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+		if name != "httpTarget" && bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return fmt.Errorf("%s cannot be null", name)
+		}
+	}
+	if raw, present := fields["httpTarget"]; present {
+		decoded.targetSet = true
+		if !bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			var target projectHTTPTargetRequest
+			if err := decodeStrictPublicJSON(raw, &target); err != nil {
+				return err
+			}
+			var targetFields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &targetFields); err != nil {
+				return err
+			}
+			urlValue, hasURL := targetFields["url"]
+			if !hasURL || bytes.Equal(bytes.TrimSpace(urlValue), []byte("null")) {
+				return errors.New("httpTarget.url is required")
+			}
+			candidate := contracts.HTTPOriginTargetRef{URL: target.URL, Credential: target.Credential}
+			if err := candidate.Validate(); err != nil {
+				return err
+			}
+			decoded.HTTPTarget = &target
 		}
 	}
 	*r = updateProjectRequest(decoded)
@@ -324,13 +356,14 @@ func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {
 }
 
 type projectResponse struct {
-	ProjectID   string            `json:"projectId"`
-	Kind        projectstore.Kind `json:"kind"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Revision    string            `json:"revision"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	UpdatedAt   time.Time         `json:"updatedAt"`
+	ProjectID   string                         `json:"projectId"`
+	Kind        projectstore.Kind              `json:"kind"`
+	Name        string                         `json:"name"`
+	Description string                         `json:"description"`
+	HTTPTarget  *contracts.HTTPOriginTargetRef `json:"httpTarget,omitempty"`
+	Revision    string                         `json:"revision"`
+	CreatedAt   time.Time                      `json:"createdAt"`
+	UpdatedAt   time.Time                      `json:"updatedAt"`
 }
 
 type projectPageResponse struct {
@@ -372,6 +405,7 @@ type runStatusResponse struct {
 	RuntimeLabels          []string                          `json:"runtimeLabels"`
 	Labels                 runstore.RunMetadataLabels        `json:"labels"`
 	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`
+	ProjectHTTPTarget      *contracts.HTTPOriginTargetRef    `json:"projectHttpTarget,omitempty"`
 	Cancellation           *runstore.WorkflowRunCancellation `json:"cancellation,omitempty"`
 	Parameters             map[string]string                 `json:"parameters,omitempty"`
 	Inputs                 map[string]contracts.ArtifactRef  `json:"inputs,omitempty"`
@@ -645,6 +679,21 @@ func (r *createRuntimeCredentialRequest) UnmarshalJSON(data []byte) error {
 		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
 			material, err = credentials.NewCaidoBearerCredential(value.Token)
 		}
+	case credentials.RuntimeCredentialOriginBasic:
+		var value struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+			material, err = credentials.NewHTTPOriginBasicCredential(value.Username, value.Password)
+		}
+	case credentials.RuntimeCredentialOriginBearer:
+		var value struct {
+			Token string `json:"token"`
+		}
+		if err = decodeStrictPublicJSON(envelope.Material, &value); err == nil {
+			material, err = credentials.NewHTTPOriginBearerCredential(value.Token)
+		}
 	default:
 		err = credentials.ErrRuntimeCredentialInvalid
 	}
@@ -817,6 +866,7 @@ type errorResponse struct {
 type runtimeCredentialInUseDetailsResponse struct {
 	Kind          string   `json:"kind"`
 	BindingLabels []string `json:"bindingLabels"`
+	ProjectIDs    []string `json:"projectIds"`
 	RunIDs        []string `json:"runIds"`
 	AllocationIDs []string `json:"allocationIds"`
 }

@@ -582,6 +582,17 @@ func runtimeSettingSecrets(settings contracts.RuntimeSettingsV2) []string {
 	if settings.Caido != nil && settings.Caido.BearerToken != nil {
 		result = append(result, settings.Caido.BearerToken.Reveal())
 	}
+	if settings.HTTPOriginTarget != nil {
+		if settings.HTTPOriginTarget.BasicAuth != nil {
+			result = append(result,
+				settings.HTTPOriginTarget.BasicAuth.Username.Reveal(),
+				settings.HTTPOriginTarget.BasicAuth.Password.Reveal(),
+			)
+		}
+		if settings.HTTPOriginTarget.BearerToken != nil {
+			result = append(result, settings.HTTPOriginTarget.BearerToken.Reveal())
+		}
+	}
 	return result
 }
 
