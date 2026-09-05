@@ -1,0 +1,59 @@
+schema_version: "1.0"
+id: V25-010
+title: Add allocation-bound security finding proposals and receipts
+milestone: audits-iterative
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V25-005, V25-008]
+languages: [go, sql, python]
+
+goal: >-
+  Let explicitly configured Workers propose durable candidate findings from
+  Audit or ordinary Runs without gaining Audit, Project or scheduling authority.
+
+context:
+  tool: >-
+    security-findings@1 exposes only finding(...). The model supplies bounded
+    candidate content and Run-local evidence refs. Runtime supplies correlated
+    invocation/submission identity; Server derives allocation, Run, owner and
+    optional Audit association from trusted state.
+  atomicity: >-
+    Receipt, immutable proposal artifact and evidence pins commit atomically
+    with the same durable write-fence serialization used by private artifacts.
+
+scope:
+  in:
+    - Add Toolset descriptors/capability discovery and strict Python finding arguments/results.
+    - Add POST /private/v1/allocations/{allocation_id}/finding-proposals plus receipt replay/read behavior.
+    - Validate selected tool, principal/allocation/invocation, exact current-Run evidence, payload bytes/counts and Server quotas.
+    - Persist canonical proposal, evidence holds and idempotent receipt in one transaction.
+    - Show proposals on ordinary Run and Audit inbox read projections without confirming them.
+    - Reject new submissions after write fence while allowing exact accepted receipt replay.
+  out:
+    - Semantic deduplication, confirmation, automatic Audit selection or child Run creation.
+
+requirements:
+  - {id: R1, text: Model-visible args contain no Audit/Project/Run/allocation identity or execution configuration.}
+  - {id: R2, text: Generic Artifact API content cannot forge a finding receipt.}
+  - {id: R3, text: Same submission and digest replay exactly; same identity with changed content conflicts.}
+  - {id: R4, text: Failed source Run does not erase a committed proposal or elevate it to confirmed.}
+
+acceptance_criteria:
+  - id: A1
+    given: A selected Worker loses the response after commit.
+    when: Runtime retries the stable submission.
+    then: It receives one proposal/receipt and no duplicate artifact.
+  - id: A2
+    given: Fence races proposal submission in both orders.
+    when: Transactions complete.
+    then: Either one complete accepted receipt precedes the fence or no proposal exists.
+  - id: A3
+    given: A stale/foreign Runtime or unselected Toolset.
+    when: It submits evidence/proposal data.
+    then: It gains no cross-Run read/write or existence oracle.
+
+tests:
+  - {name: server, command: "go test -race ./internal/findingintake ./internal/httpapi/privateartifacts", covers: [A1, A2, A3]}
+  - {name: runtime, command: "cd runtime && uv run pytest tests -k finding", covers: [A1, A3]}
+  - {name: postgres, command: "go test -tags=integration ./internal/findingintake", covers: [A1, A2]}

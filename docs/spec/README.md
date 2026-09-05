@@ -17,8 +17,8 @@ a restriction on future Workflows. Domain semantics live in YAML Workflow,
 Planner and AgentTemplate definitions rather than in Scheduler branching.
 
 The configuration/UI target loads YAML/text definitions from `configs/` with
-six fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
-`llm-gateways`, `execution-configs` and `instructions`.
+seven fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
+`llm-gateways`, `execution-configs`, `audit-profiles` and `instructions`.
 YAML document identity comes from
 `kind + metadata.name + metadata.version`, not its file name;
 [00](00-workflow-and-planner.md) owns the complete loading contract.
@@ -51,6 +51,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [16](16-run-metadata-labels.md) | Immutable queryable WorkflowRun metadata labels and the eval correlation convention |
 | [17](17-projects-and-queue.md) | Optional Projects, ProjectScope artifact reuse, Workflow recommendations, Evals and the global Queue |
 | [18](18-run-and-workspace-lifecycle-controls.md) | Consolidated Runs UI, durable queue pause/resume and safe Run/Project deletion |
+| [19](19-audits.md) | Project-bound multi-Run Audits, deterministic inventories, findings, review, coverage and recovery |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
@@ -115,6 +116,7 @@ The boundaries are deliberately narrow:
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 | Queue | Owner-scoped read projection over nonterminal WorkflowRuns; never a second Scheduler |
 | Queue control | Durable owner-scoped admission gate; never a WorkflowRun state or process-local switch |
+| Audit | Project-bound durable coordinator of ordinary Runs, evidence, findings and review; never another Scheduler |
 
 ## Specification rule
 

@@ -11,6 +11,7 @@ const (
 	executionConfigKind  = "ExecutionConfig"
 	agentTemplateKind    = "AgentTemplate"
 	workflowKind         = "Workflow"
+	auditProfileKind     = "AuditProfile"
 )
 
 // Selector is an exact, versioned configuration or code descriptor lookup.
@@ -235,6 +236,7 @@ type Counts struct {
 	ModelPolicies    int
 	LLMGateways      int
 	ExecutionConfigs int
+	AuditProfiles    int
 	Instructions     int
 }
 

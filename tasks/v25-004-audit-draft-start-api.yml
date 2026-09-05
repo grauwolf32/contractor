@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V25-004
+title: Expose owner-safe Audit draft, start and query APIs
+milestone: audits-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V25-002, V25-003]
+languages: [go, sql, openapi]
+
+goal: >-
+  Let a Project owner create an Audit draft, select exact Project artifacts,
+  atomically start its immutable baseline, and inspect Audit/items/coverage.
+
+context:
+  exact_inputs: >-
+    Public ArtifactRef remains namespace/name/optional revision globally, but
+    every Audit input must include revision and resolve inside the owning
+    ProjectScope with a profile-compatible media type.
+  configuration: >-
+    Start stores the complete resolved AuditProfile, child Workflow closures
+    and one exact Run RuntimeConfig snapshot for default plus selected Runtime
+    labels. Physical Agent labels retain their normal allocation-time behavior.
+
+scope:
+  in:
+    - Extend the single public OpenAPI, generated client and net/http router with create/list/get/start plus item and coverage reads.
+    - Implement strict JSON, body/query/page bounds, Idempotency-Key, owner-safe 404, stable conflicts and ETag/If-Match revision CAS.
+    - Validate ordinary Project kind/lifecycle, exact input revisions, media types and profile-required slots.
+    - Resolve and pin deterministic inventory/worklist plus non-secret target/scope/profile and one Run RuntimeConfig snapshot in the start transaction.
+    - Acquire durable managed-LLM and Runtime-credential usage holds needed by future child Runs.
+  out:
+    - Child Run dispatch, finding intake, review decisions, UI and multi-round discovery.
+
+requirements:
+  - {id: R1, text: Draft start performs no Runtime, model or other outbound call inside its database transaction.}
+  - {id: R2, text: Exact replay works after the selected profile binding or credential becomes unavailable; replay lookup precedes mutable dependency resolution.}
+  - {id: R3, text: evaluation Project, standalone Audit, versionless input, foreign Project/ref and deleting Project are rejected safely.}
+  - {id: R4, text: Start is all-or-nothing; an invalid inventory creates no Round or credential hold.}
+
+acceptance_criteria:
+  - id: A1
+    given: An owner Project with every required exact artifact.
+    when: The owner creates and starts a deterministic Audit.
+    then: One immutable baseline and accepted Round are returned with initial coverage.
+  - id: A2
+    given: A lost response followed by catalog/credential mutation.
+    when: The identical create/start request is replayed.
+    then: The original Audit/projection is returned without re-resolution.
+  - id: A3
+    given: Another owner probes known IDs.
+    when: They list/get/start the Audit.
+    then: Responses reveal no existence or content.
+
+tests:
+  - {name: handlers, command: "go test ./internal/httpapi/public -run Audit", covers: [A1, A2, A3]}
+  - {name: postgres-api, command: "go test -tags=integration ./internal/httpapi/public -run Audit", covers: [A1, A2, A3]}

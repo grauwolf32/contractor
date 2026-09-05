@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V25-012
+title: Prove Audit recovery, isolation, retention and truthful reporting
+milestone: audits-hardening
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V24-006, V25-009, V25-011]
+languages: [go, sql, python, typescript, yaml]
+
+goal: >-
+  Make Project Audits releasable across real PostgreSQL, mTLS Server/Runtime
+  processes and the independently deployed browser UI.
+
+context:
+  matrix: >-
+    Exercise custom checklist and OpenAPI operation profiles, two Controllers,
+    heterogeneous Runtime capabilities, mixed results, findings, human review,
+    restart/replay and destructive lifecycle races through production paths.
+  invariants: >-
+    Workflow Scheduler remains the only Run/Stage authority; Audit association
+    is durable rather than label-derived; exact evidence survives allowed Run
+    deletion; no pause blocks cleanup; reports never overstate coverage.
+
+scope:
+  in:
+    - Add a declarative Audit conformance/fault matrix bound to named tests.
+    - Add real-PostgreSQL crash injection around start, submission, terminal observation, import, review, finalization and deletion.
+    - Add two-Controller and two-Runtime process scenarios with capacity waiting and no silent capability downgrade.
+    - Add browser flows for create/start/progress/coverage/findings/review/report/cancel/delete.
+    - Prove foreign-owner, stale-revision, package, write-fence, secret-redaction and retained-content boundaries.
+    - Update demo configs/runbook and aggregate verification target.
+  out:
+    - Load/performance certification, external brokers, multi-owner sharing or curated standards licensing.
+
+requirements:
+  - {id: R1, text: Process tests use production persistence, API, mTLS, Scheduler and Runtime paths with no test-only execution shortcut.}
+  - {id: R2, text: Every destructive case proves both intended deletion and required shared/exact evidence retention.}
+  - {id: R3, text: Existing standalone, Project, Eval, Queue, Skill and ordinary Workflow behavior remains unchanged.}
+
+acceptance_criteria:
+  - id: A1
+    given: Lost/duplicate/reordered wakeups and restart at every durable boundary.
+    when: Two Controllers reconcile.
+    then: One bounded logical outcome per item/import/review results.
+  - id: A2
+    given: Mixed checks, exclusions, empty inventory, gaps and proposals.
+    when: Report is generated and rendered.
+    then: Coverage and finding language remains complete, reproducible and non-certifying.
+  - id: A3
+    given: Cancel/Run delete/Project delete plus paused queues and unavailable Runtime.
+    when: Recovery continues.
+    then: Work drains without leaked grants, holds, Audit bindings or unrelated blockage.
+  - id: A4
+    given: Existing aggregate suites.
+    when: The release gate runs.
+    then: All non-Audit behavior remains compatible.
+
+tests:
+  - {name: process, command: "make test-audits-e2e", covers: [A1, A2, A3]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A2, A3]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

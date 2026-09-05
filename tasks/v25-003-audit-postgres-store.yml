@@ -1,0 +1,56 @@
+schema_version: "1.0"
+id: V25-003
+title: Persist the core Audit state machine in PostgreSQL
+milestone: audits-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V24-005, V25-001]
+languages: [go, sql]
+
+goal: >-
+  Provide a transactional durable authority for Audit, Round, Item, Execution,
+  retained artifacts, coverage, events, claims and idempotency.
+
+context:
+  ownership: >-
+    Audit belongs to one owner and one ordinary Project. Run labels are never
+    authority. All mutation methods receive the authenticated owner or execute
+    through a separate trusted Controller repository interface.
+  recovery: >-
+    Controller claims are short leases with epochs. Every stale mutation must
+    fail even if an old process still believes it owns a claim.
+
+scope:
+  in:
+    - Add the next ordered migration for audits, rounds, items, executions, artifact links, coverage rows, events, idempotency records and Controller claims.
+    - Encode closed lifecycle/disposition values with SQL checks and Go validation.
+    - Enforce unique round/item ordinals, attempts, submission keys, non-null Run associations and monotonic per-Audit event sequence.
+    - Implement create/get/keyset-list, CAS transition, atomic accepted-round materialization, execution intent/binding, settle/import receipt and bounded claim/reconcile queries.
+    - Serialize create/start/dispatch mutations with the existing Project active/deleting fence.
+  out:
+    - HTTP routes, actual child Run creation, result package parsing, findings or human review.
+
+requirements:
+  - {id: R1, text: Unknown and foreign resources remain indistinguishable to owner-facing callers.}
+  - {id: R2, text: Every idempotent mutation replays only an identical canonical request and conflicts on payload drift.}
+  - {id: R3, text: No table permits one Run or submission intent to bind to two AuditExecutions.}
+  - {id: R4, text: Claim expiry alone cannot let a stale epoch commit.}
+
+acceptance_criteria:
+  - id: A1
+    given: Concurrent creators, starters and two Controller instances.
+    when: They race on one Audit.
+    then: Exactly one baseline, round, intent and event sequence wins without duplicate logical work.
+  - id: A2
+    given: Project deletion begins before or during Audit mutation.
+    when: The transaction reaches its fence.
+    then: No new Audit work commits after Project lifecycle is deleting.
+  - id: A3
+    given: PostgreSQL restart after each durable phase.
+    when: A new repository instance scans work.
+    then: It can identify the exact next bounded reconcile action.
+
+tests:
+  - {name: unit, command: "go test ./internal/auditstore", covers: [A1]}
+  - {name: postgres, command: "go test -tags=integration ./internal/auditstore", covers: [A1, A2, A3]}

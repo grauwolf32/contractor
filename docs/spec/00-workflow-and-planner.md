@@ -48,7 +48,7 @@ is the execution authority in the first slice.
 
 The configuration/UI slice merges an operator/bootstrap root and a separate
 Server-managed publication root into one logical namespace. Both use the same
-six fixed manifest/resource subtrees:
+seven fixed manifest/resource subtrees:
 
 ```text
 configs/
@@ -57,11 +57,14 @@ configs/
   model-policies/     # ModelPolicy YAML manifests
   llm-gateways/       # LLMGatewayConfig YAML manifests; never secret values
   execution-configs/  # reusable Stage-local ExecutionConfig YAML manifests
+  audit-profiles/      # operator-authored resolved multi-Run Audit programs
   instructions/       # UTF-8 instruction resources
 ```
 
 The local loader recursively discovers regular files ending in `.yaml` below
-the first five subtrees in either root. Each file contains exactly one
+the first six subtrees in either root. AuditProfile manifests are initially
+accepted only from the operator root; their managed subtree remains empty and
+no generic configuration publication kind is added. Each file contains exactly one
 non-empty YAML document; multi-document streams are invalid. Its `kind` must
 match its subtree. The loader rejects duplicate YAML mapping keys and validates
 the exact schema selected by `apiVersion` and `kind` rather than retaining

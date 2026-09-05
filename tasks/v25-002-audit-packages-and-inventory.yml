@@ -1,0 +1,57 @@
+schema_version: "1.0"
+id: V25-002
+title: Validate Audit packages and build deterministic inventories
+milestone: audits-mvp
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V25-001]
+languages: [go, json, yaml]
+
+goal: >-
+  Turn exact checklist or OpenAPI inputs into bounded canonical worklists and
+  task packages without a model call or network fetch.
+
+context:
+  package_contract: >-
+    Audit variable-sized data uses application/zip with one manifest.json and
+    package-local paths/digests. It reuses current secure archive hydration
+    constraints but has Audit-specific schemas and tighter semantic checks.
+  identity: >-
+    OpenAPI operation identity is SHA-256 over the exact input content digest,
+    exact path template and lowercase HTTP method. operationId is display data,
+    not identity. Remote refs are forbidden.
+
+scope:
+  in:
+    - Add versioned strict codecs for worklist, task package, check result, finding proposal, evidence and coverage envelopes.
+    - Add bounded ZIP import/export with canonical manifest order, content digests and no external unqualified refs.
+    - Add custom-checklist inventory with stable keys, duplicate detection and one initial not-tested coverage row per selected item.
+    - Add OpenAPI 3.x JSON/YAML paths inventory with bounded local ref resolution, deterministic method ordering and explicit webhook/callback/remote-ref gaps.
+    - Generate immutable per-item task packages and validate a complete worklist atomically before returning it.
+  out:
+    - Database writes, WorkflowRun creation, LLM discovery, ASVS package curation or HTTP checks.
+
+requirements:
+  - {id: R1, text: All parsers reject unknown schema versions, duplicate keys, traversal, symlinks, special files, bombs and configured count/byte/depth excess.}
+  - {id: R2, text: A malformed item or manifest returns no accepted partial inventory.}
+  - {id: R3, text: OpenAPI parsing never performs a network request and records every unsupported surface as a gap.}
+  - {id: R4, text: Reordering JSON/YAML mapping keys cannot alter worklist bytes or stable item keys.}
+
+acceptance_criteria:
+  - id: A1
+    given: Equivalent OpenAPI JSON and YAML documents with duplicate/missing operationId values.
+    when: Inventory is generated.
+    then: Method/path identities and canonical order are stable and distinct.
+  - id: A2
+    given: A bounded custom checklist.
+    when: It is imported.
+    then: Every selected item has one immutable task and one not-tested coverage entry.
+  - id: A3
+    given: Remote refs, cyclic/deep refs, corrupt ZIPs or oversized members.
+    when: Validation runs.
+    then: It fails safely before any caller can dispatch work.
+
+tests:
+  - {name: domain, command: "go test ./internal/auditdomain", covers: [A1, A2, A3]}
+  - {name: fuzz, command: "go test ./internal/auditdomain -run 'TestAuditPackage|TestOpenAPIInventory'", covers: [A3]}

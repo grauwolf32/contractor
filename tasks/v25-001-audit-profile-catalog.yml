@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V25-001
+title: Add the strict resolved AuditProfile catalog
+milestone: audits-mvp
+priority: P0
+status: completed
+implementation_commit: "6042be5c154a7944cec7c08793947598dad478ed"
+depends_on: [V22-003]
+languages: [go, yaml]
+
+goal: >-
+  Let the Server load immutable versioned AuditProfile documents whose child
+  Workflow dependencies and mappings are validated before any Audit can start.
+
+context:
+  boundary: >-
+    AuditProfile is Server configuration, not a Worker concept. It is loaded
+    after Workflows, carries exact resolved Workflow closures, and is initially
+    operator-authored/read-only. It must not be added to the existing generic
+    managed configuration publication API in this task.
+  current_loader: >-
+    internal/config requires every configured root to contain fixed subtrees,
+    rejects unknown YAML fields, publishes immutable Snapshot values, and
+    returns caller-owned deep copies. Add audit-profiles as the seventh subtree
+    without weakening any of those properties.
+
+scope:
+  in:
+    - Define strict AuditProfile source and resolved Go types for mode, standards, inputs, inventory, child Workflow bindings, finite execution limits and interaction policy.
+    - Load audit-profiles only after all Workflows are fully resolved.
+    - Validate exact refs, required child input/parameter mappings, output mappings, media compatibility, finite positive limits, closed enums and retained-output dependency cycles.
+    - Compute a deterministic canonical digest over the resolved profile including exact child Workflow closures.
+    - Add Snapshot/Manager AuditProfile and AuditProfiles read accessors, Counts support and deep-copy isolation.
+    - Add tracked audit-profiles directories to operator, e2e and config-test roots without inventing a production profile that references nonexistent Workflows.
+  out:
+    - Public Audit APIs, PostgreSQL Audit records, managed AuditProfile publication, inventory parsing or child Run creation.
+
+requirements:
+  - {id: R1, text: One invalid profile rejects the entire configuration snapshot and reports its safe relative path plus field context.}
+  - {id: R2, text: Profile lookup requires exact name@version and returned mutations never affect the published Snapshot.}
+  - {id: R3, text: Profile digest is independent of YAML mapping order and changes when any effective child Workflow closure or policy field changes.}
+  - {id: R4, text: Existing configuration roots and public configuration kinds keep their prior behavior.}
+
+acceptance_criteria:
+  - id: A1
+    given: A valid temporary profile referencing a real fixture Workflow.
+    when: The configuration root loads.
+    then: Its resolved closure, mappings, limits and stable digest are available by exact selector and sorted listing.
+  - id: A2
+    given: Unknown Workflows, missing required mappings, incompatible media types, cycles, unknown fields or nonpositive/unbounded limits.
+    when: The loader validates the root.
+    then: Publication fails atomically with no partial Snapshot.
+  - id: A3
+    given: A caller mutates nested maps/slices in a returned profile.
+    when: It reads the profile again.
+    then: The original value and digest are unchanged.
+  - id: A4
+    given: Existing operator/e2e/test configuration roots contain no AuditProfile documents.
+    when: Existing suites load them.
+    then: They succeed with an AuditProfile count of zero.
+
+tests:
+  - {name: config, command: "go test ./internal/config", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A4]}

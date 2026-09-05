@@ -38,6 +38,7 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 		"model_policies", counts.ModelPolicies,
 		"llm_gateways", counts.LLMGateways,
 		"execution_configs", counts.ExecutionConfigs,
+		"audit_profiles", counts.AuditProfiles,
 		"instructions", counts.Instructions,
 	)
 	return nil

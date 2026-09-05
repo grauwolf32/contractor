@@ -32,6 +32,7 @@ var configurationSubtrees = []string{
 	"model-policies",
 	"llm-gateways",
 	"execution-configs",
+	"audit-profiles",
 	"instructions",
 }
 
@@ -173,6 +174,14 @@ func (m *Manager) Workflow(raw string) (ResolvedWorkflow, error) {
 }
 
 func (m *Manager) Workflows() []ResolvedWorkflow { return m.Snapshot().Workflows() }
+
+func (m *Manager) AuditProfile(raw string) (ResolvedAuditProfile, error) {
+	return m.Snapshot().AuditProfile(raw)
+}
+
+func (m *Manager) AuditProfiles() []ResolvedAuditProfile {
+	return m.Snapshot().AuditProfiles()
+}
 
 func (m *Manager) LLMGateway(raw string) (contracts.ResolvedLLMGatewayConfig, error) {
 	return m.Snapshot().LLMGateway(raw)
@@ -427,7 +436,8 @@ func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	sources := cloneMap(s.sources)
 	sources[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] = ConfigurationSourceManaged
 	return newSnapshot(
-		s.workflows, s.templates, policies, gateways, s.executionConfigs, s.instructions, sources,
+		s.workflows, s.templates, policies, gateways, s.executionConfigs, s.auditProfiles,
+		s.instructions, sources,
 	)
 }
 
