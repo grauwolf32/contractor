@@ -16,7 +16,6 @@ const (
 	MaxAuditBatchSize         = 64
 	MaxAuditItemsPerRound     = 10_000
 	MaxAuditItemsTotal        = 100_000
-	MaxAuditActiveRuns        = 64
 	MaxAuditSubmittedRuns     = 1_000_000
 	MaxAuditItemRunAttempts   = 10
 	MaxAuditDeadlineSeconds   = 365 * 24 * 60 * 60
@@ -121,7 +120,6 @@ type AuditExecutionPolicy struct {
 	BatchSize          int                        `json:"batchSize"`
 	MaxItemsPerRound   int                        `json:"maxItemsPerRound"`
 	MaxItemsTotal      int                        `json:"maxItemsTotal"`
-	MaxActiveRuns      int                        `json:"maxActiveRuns"`
 	MaxSubmittedRuns   int                        `json:"maxSubmittedRuns"`
 	MaxItemRunAttempts int                        `json:"maxItemRunAttempts"`
 	DeadlineSeconds    int                        `json:"deadlineSeconds"`
@@ -227,7 +225,6 @@ type auditExecutionPolicySource struct {
 	BatchSize          int    `yaml:"batchSize"`
 	MaxItemsPerRound   int    `yaml:"maxItemsPerRound"`
 	MaxItemsTotal      int    `yaml:"maxItemsTotal"`
-	MaxActiveRuns      int    `yaml:"maxActiveRuns"`
 	MaxSubmittedRuns   int    `yaml:"maxSubmittedRuns"`
 	MaxItemRunAttempts int    `yaml:"maxItemRunAttempts"`
 	DeadlineSeconds    int    `yaml:"deadlineSeconds"`
@@ -733,7 +730,7 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 		RoundMode: AuditRoundMode(source.RoundMode), MaxRounds: source.MaxRounds,
 		BatchSize:        source.BatchSize,
 		MaxItemsPerRound: source.MaxItemsPerRound, MaxItemsTotal: source.MaxItemsTotal,
-		MaxActiveRuns: source.MaxActiveRuns, MaxSubmittedRuns: source.MaxSubmittedRuns,
+		MaxSubmittedRuns:   source.MaxSubmittedRuns,
 		MaxItemRunAttempts: source.MaxItemRunAttempts, DeadlineSeconds: source.DeadlineSeconds,
 		MaxEvidenceBytes: source.MaxEvidenceBytes,
 		IncompleteRound:  AuditIncompleteRoundPolicy(source.IncompleteRound),
@@ -750,7 +747,6 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 		{"batchSize", "items", result.BatchSize, MaxAuditBatchSize},
 		{"maxItemsPerRound", "items", result.MaxItemsPerRound, MaxAuditItemsPerRound},
 		{"maxItemsTotal", "items", result.MaxItemsTotal, MaxAuditItemsTotal},
-		{"maxActiveRuns", "Runs", result.MaxActiveRuns, MaxAuditActiveRuns},
 		{"maxSubmittedRuns", "Runs", result.MaxSubmittedRuns, MaxAuditSubmittedRuns},
 		{"maxItemRunAttempts", "attempts", result.MaxItemRunAttempts, MaxAuditItemRunAttempts},
 		{"deadlineSeconds", "seconds", result.DeadlineSeconds, MaxAuditDeadlineSeconds},
@@ -767,9 +763,6 @@ func resolveAuditExecutionPolicy(source *auditExecutionPolicySource) (AuditExecu
 	}
 	if result.BatchSize > result.MaxItemsPerRound {
 		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.batchSize cannot exceed maxItemsPerRound")
-	}
-	if result.MaxActiveRuns > result.MaxItemsPerRound {
-		return AuditExecutionPolicy{}, fmt.Errorf("spec.execution.maxActiveRuns cannot exceed maxItemsPerRound")
 	}
 	minimumInitialRuns := (result.MaxItemsTotal + result.BatchSize - 1) / result.BatchSize
 	if result.MaxSubmittedRuns < minimumInitialRuns {

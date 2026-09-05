@@ -28,7 +28,7 @@ func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	}
 	assertDigest(t, profile.Ref.Digest)
 	if profile.Mode != AuditModeCustomChecklist || profile.Inventory.Implementation != "checklist@1" ||
-		profile.Inventory.ItemWorkflowRole != "check" || profile.Execution.MaxActiveRuns != 2 ||
+		profile.Inventory.ItemWorkflowRole != "check" ||
 		profile.Execution.BatchSize != 1 || profile.Interaction.ActiveChecks != AuditActiveChecksProhibited ||
 		profile.Interaction.FindingConfirmation != AuditFindingDisabled {
 		t.Fatalf("unexpected resolved AuditProfile: %+v", profile)
@@ -162,6 +162,11 @@ func TestAuditProfileRejectsInvalidDocumentsAtomically(t *testing.T) {
 			name:        "unknown field",
 			manifest:    strings.Replace(valid, "  mode: custom-checklist", "  mode: custom-checklist\n  mystery: true", 1),
 			wantMessage: "field mystery not found",
+		},
+		{
+			name:        "removed maxActiveRuns field",
+			manifest:    strings.Replace(valid, "    maxSubmittedRuns: 500", "    maxActiveRuns: 2\n    maxSubmittedRuns: 500", 1),
+			wantMessage: "field maxActiveRuns not found",
 		},
 		{
 			name:        "unknown workflow",
@@ -311,7 +316,6 @@ spec:
     batchSize: 1
     maxItemsPerRound: 100
     maxItemsTotal: 250
-    maxActiveRuns: 2
     maxSubmittedRuns: 500
     maxItemRunAttempts: 2
     deadlineSeconds: 86400
@@ -338,7 +342,6 @@ spec:
     deadlineSeconds: 86400
     maxItemRunAttempts: 2
     maxSubmittedRuns: 500
-    maxActiveRuns: 2
     maxItemsTotal: 250
     maxItemsPerRound: 100
     batchSize: 1
@@ -394,7 +397,6 @@ spec:
     batchSize: 1
     maxItemsPerRound: 10
     maxItemsTotal: 20
-    maxActiveRuns: 2
     maxSubmittedRuns: 40
     maxItemRunAttempts: 2
     deadlineSeconds: 3600
