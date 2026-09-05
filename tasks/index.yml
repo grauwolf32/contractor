@@ -1892,6 +1892,45 @@ audits_v25_002a_implementation_review:
     - go test -count=1 ./internal/config ./internal/app
     - make verify
 
+audits_v25_003_implementation_review:
+  reviewed_on: "2026-09-05"
+  verdict: complete
+  implementation_commit: 231f57ff93e6bbb2cc1f58a436f42bd8dc4d4b3f
+  confirmed:
+    - >-
+      The ordered PostgreSQL migration persists Audit, Round, Item,
+      Execution, ExecutionItem, receipt, retained-artifact, coverage, event,
+      idempotency and controller-claim authority with closed values and exact
+      uniqueness constraints.
+    - >-
+      Owner mutations are owner-safe and replay only matching request digests.
+      Controller mutations lock and revalidate the exact lease epoch before
+      domain rows, so an operation begun on an old MVCC snapshot cannot commit
+      after claim supersession.
+    - >-
+      Project admission fences draft creation, start, execution intent and Run
+      binding. Pause/cancel state is rechecked before dispatch, while terminal
+      observation and collection remain able to drain during deletion.
+    - >-
+      Exact terminal Run observation enters collecting without settling an
+      item. Collection writes one immutable receipt first, preserves every
+      execution-item attempt, then atomically retries or settles; invalid
+      results retain the exact frozen source identity without accepting it.
+    - >-
+      Audit-specific concurrency is absent. Durable reserved, submitted and
+      outstanding counters support the later Server-derived dispatch window,
+      and every projection-visible mutation advances the aggregate Audit
+      revision while lease-only traffic does not.
+    - >-
+      Reconciliation reads are row- and byte-bounded; receipt summaries omit
+      potentially multi-megabyte retained-ref payloads. The store creates no
+      WorkflowRun, performs no artifact import and exposes no HTTP route.
+  verification:
+    - go test -count=1 ./internal/auditstore ./internal/persistence/postgres
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -count=10 ./internal/auditstore
+    - CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -race -count=1 ./internal/auditstore ./internal/persistence/postgres
+    - go vet ./internal/auditstore ./internal/persistence/postgres
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}

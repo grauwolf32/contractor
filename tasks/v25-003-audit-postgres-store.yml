@@ -3,8 +3,8 @@ id: V25-003
 title: Persist the core Audit state machine in PostgreSQL
 milestone: audits-mvp
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 231f57ff93e6bbb2cc1f58a436f42bd8dc4d4b3f
 depends_on: [V24-005, V25-001, V25-002, V25-002A]
 languages: [go, sql]
 
