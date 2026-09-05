@@ -794,6 +794,13 @@ appear in a Planner event frame.
 
 ### Local browser session
 
+An authoritative `401` from a domain API request clears the SPA's in-memory
+CSRF token, authenticated session and protected query cache, returning the user
+to sign-in. This applies to both typed JSON and direct Artifact requests;
+`403` and failed login attempts do not invalidate a session. A late `401` from
+a request started with an older CSRF token must not invalidate a newer login.
+This does not require background session polling that would extend idle expiry.
+
 The first slice has exactly one local principal. Server reads it once at startup
 from the absolute `--local-auth-file` bootstrap path:
 

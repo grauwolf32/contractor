@@ -123,3 +123,39 @@ describe("application session shell", () => {
     });
   });
 });
+
+it("returns to sign in when a domain request loses its session", async () => {
+  const fetchImplementation = vi.fn(async (input: RequestInfo | URL) => {
+    if ((input as Request).url.endsWith("/v1/auth/session"))
+      return response(session);
+    return new Response(
+      JSON.stringify({
+        code: "unauthorized",
+        message: "Authentication is required",
+        retryable: false,
+      }),
+      {
+        status: 401,
+        headers: {
+          "content-type": "application/json",
+          "X-Contractor-API-Version": "contractor.public.v1",
+        },
+      },
+    );
+  });
+  const api = new PublicAPI(runtimeConfig, fetchImplementation);
+  const router = createMemoryRouter(applicationRoutes(), {
+    initialEntries: ["/runs"],
+  });
+  render(<Application api={api} publicAPI={api} router={router} />);
+  expect(await screen.findByRole("region", { name: "Sign in" })).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "Runs" }),
+  ).not.toBeInTheDocument();
+  expect(api.csrf.get()).toBeUndefined();
+  expect(
+    fetchImplementation.mock.calls.filter(([input]) =>
+      (input as Request).url.endsWith("/v1/auth/session"),
+    ),
+  ).toHaveLength(1);
+});

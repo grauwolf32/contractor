@@ -327,7 +327,14 @@ class _HTTPSession:
             # cookies left by a cancelled/failed prior call must never affect
             # the next request.
             self._clear_transport_cookies()
-            response, final_method, final_url, redirects, retries = await self._send_following(
+            (
+                response,
+                final_method,
+                final_url,
+                redirects,
+                retries,
+                candidate_cookies,
+            ) = await self._send_following(
                 method=selected_method,
                 url=selected_url,
                 headers=merged_headers,
@@ -339,16 +346,6 @@ class _HTTPSession:
                 body_bytes = await _read_response_body(response)
                 content_type = _content_type(response.headers)
                 body_kind, preview, envelope = _encode_body(content_type, body_bytes)
-                candidate_cookies = httpx.Cookies()
-                candidate_cookies.update(self._cookies)
-                candidate_cookies.update(response.cookies)
-                if len(candidate_cookies) > MAX_COOKIES:
-                    # httpx has already observed the response on its own
-                    # client jar. Erase both copies before failing so an
-                    # oversized Set-Cookie fan-out cannot dirty later calls.
-                    self._cookies.clear()
-                    self._clear_transport_cookies()
-                    raise HTTPToolError("http_request_failed")
                 artifact: ArtifactRef | None = None
                 if envelope is not None:
                     encoded = json.dumps(
@@ -408,7 +405,9 @@ class _HTTPSession:
         payload: bytes,
         timeout_seconds: float,
         follow_redirects: bool,
-    ) -> tuple[httpx.Response, str, str, int, int]:
+    ) -> tuple[httpx.Response, str, str, int, int, httpx.Cookies]:
+        # Commit this prospective jar only after the complete response/artifact succeeds.
+        candidate_cookies = httpx.Cookies(self._cookies)
         redirects = 0
         retries = 0
         current_method = method
@@ -428,6 +427,7 @@ class _HTTPSession:
                     timeout=timeout_seconds,
                     allow_session_auth=allow_session_auth,
                     allow_session_cookies=allow_session_cookies,
+                    request_cookies=candidate_cookies,
                 )
             except asyncio.CancelledError:
                 raise
@@ -438,59 +438,79 @@ class _HTTPSession:
                     continue
                 raise HTTPToolError("http_request_failed") from None
 
-            if (
-                response.status_code in _RETRYABLE_STATUS
-                and current_method in _IDEMPOTENT_METHODS
-                and retries + 1 < MAX_ATTEMPTS
-            ):
-                retries += 1
-                await response.aclose()
-                await asyncio.sleep(0)
-                continue
+            handoff = False
+            try:
+                candidate_cookies.extract_cookies(response)
+                if len(candidate_cookies) > MAX_COOKIES:
+                    self._cookies.clear()
+                    self._clear_transport_cookies()
+                    raise HTTPToolError("http_request_failed")
+                if (
+                    response.status_code in _RETRYABLE_STATUS
+                    and current_method in _IDEMPOTENT_METHODS
+                    and retries + 1 < MAX_ATTEMPTS
+                ):
+                    retries += 1
+                    continue
 
-            location = response.headers.get("location")
-            if not (
-                follow_redirects and location and response.status_code in {301, 302, 303, 307, 308}
-            ):
-                return response, current_method, str(response.url), redirects, retries
-            if redirects >= MAX_REDIRECTS:
-                await response.aclose()
-                raise HTTPToolError("http_request_failed")
+                location = response.headers.get("location")
+                if not (
+                    follow_redirects
+                    and location
+                    and response.status_code in {301, 302, 303, 307, 308}
+                ):
+                    handoff = True
+                    return (
+                        response,
+                        current_method,
+                        str(response.url),
+                        redirects,
+                        retries,
+                        candidate_cookies,
+                    )
+                if redirects >= MAX_REDIRECTS:
+                    raise HTTPToolError("http_request_failed")
 
-            next_url = urljoin(current_url, location)
-            _validate_target(next_url, self._forbidden_origins)
-            next_method = current_method
-            next_payload = current_payload
-            next_headers = dict(current_headers)
-            if response.status_code == 303 or (
-                response.status_code in {301, 302} and current_method == "POST"
-            ):
-                next_method = "GET"
-                next_payload = b""
-                next_headers = {
-                    name: value
-                    for name, value in next_headers.items()
-                    if name.lower() not in {"content-type", "content-encoding"}
-                }
-            if _origin(current_url) != _origin(next_url):
-                next_headers = {
-                    name: value
-                    for name, value in next_headers.items()
-                    if name.lower() not in {"authorization", "cookie"}
-                }
-                allow_session_auth = False
-                allow_session_cookies = False
-            await response.aclose()
-            current_url = next_url
-            current_method = next_method
-            current_payload = next_payload
-            current_headers = next_headers
-            redirects += 1
+                next_url = urljoin(current_url, location)
+                _validate_target(next_url, self._forbidden_origins)
+                next_method = current_method
+                next_payload = current_payload
+                next_headers = dict(current_headers)
+                if response.status_code == 303 or (
+                    response.status_code in {301, 302} and current_method == "POST"
+                ):
+                    next_method = "GET"
+                    next_payload = b""
+                    next_headers = {
+                        name: value
+                        for name, value in next_headers.items()
+                        if name.lower() not in {"content-type", "content-encoding"}
+                    }
+                if _origin(current_url) != _origin(next_url):
+                    next_headers = {
+                        name: value
+                        for name, value in next_headers.items()
+                        if name.lower() not in {"authorization", "cookie"}
+                    }
+                    allow_session_auth = False
+                    allow_session_cookies = False
+                current_url = next_url
+                current_method = next_method
+                current_payload = next_payload
+                current_headers = next_headers
+                redirects += 1
+            finally:
+                if not handoff:
+                    await response.aclose()
 
     async def _send_once(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
         headers = dict(kwargs.pop("headers"))
         allow_session_auth = bool(kwargs.pop("allow_session_auth", True))
         allow_session_cookies = bool(kwargs.pop("allow_session_cookies", True))
+        request_cookies = kwargs.pop("request_cookies")
+        # httpx merges its own jar into build_request even when cookies is omitted.
+        # Never let a redirect/retry response bypass the allocation cookie policy.
+        self._clear_transport_cookies()
         if (
             self._target_origin is not None
             and self._target_authorization is not None
@@ -512,7 +532,7 @@ class _HTTPSession:
                 headers["Authorization"] = f"Basic {base64.b64encode(raw).decode('ascii')}"
         kwargs["headers"] = headers
         if allow_session_cookies:
-            kwargs["cookies"] = self._cookies
+            kwargs["cookies"] = request_cookies
         if self._proxy is not None:
             return await self._proxy.stream_request(method, url, **kwargs)
         client = self._direct_client

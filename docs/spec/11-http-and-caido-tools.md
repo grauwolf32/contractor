@@ -196,7 +196,13 @@ committed before cancellation but never selected into the session remains an
 unreferenced reserved binding; it cannot be recovered through
 `http_read_body`, and ordinary Artifact tools cannot enumerate its prefix.
 The httpx transport cookie jar is scratch state: allocation-owned cookies are
-the authoritative copy and stale transport cookies are cleared before reuse.
+the authoritative copy and transport cookies are cleared before every hop,
+including redirects and retries on direct and proxied requests. Same-origin
+response cookies and deletions are applied to prospective request state;
+cross-origin hops receive no session cookies or authorization. Prospective
+cookies become session state only after the full request and body Artifact
+write succeed. Every response is closed, including when its redirect target
+is malformed or forbidden.
 
 ## Caido Toolset
 

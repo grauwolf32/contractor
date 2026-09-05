@@ -187,8 +187,8 @@ func (s AllocationSpec) Validate() error {
 			return err
 		}
 	}
-	if strings.Contains(s.Namespace, "/") {
-		return invalidf("namespace must not contain slash")
+	if err := ValidateArtifactName(s.Namespace); err != nil {
+		return err
 	}
 	if err := s.WorkerSessionMode.Validate(); err != nil {
 		return err

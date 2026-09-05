@@ -12,8 +12,8 @@
       "additionalProperties": false,
       "required": ["namespace", "name"],
       "properties": {
-        "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
-        "name": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "namespace": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
+        "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
         "revision": {"$ref": "#/$defs/opaqueId"}
       }
     },

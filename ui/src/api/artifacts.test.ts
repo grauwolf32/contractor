@@ -1,7 +1,9 @@
+import nameCases from "../../../api/testdata/v1alpha1/artifact-name-cases.json";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
 import {
+  ARTIFACT_NAME_PATTERN,
   canPreviewArtifact,
   downloadArtifact,
   listArtifacts,
@@ -202,5 +204,14 @@ describe("Artifact API", () => {
     expect(suggestedArtifactFilename(metadata.artifact, "text/x-diff")).toBe(
       "projects-architecture-revision-2.diff",
     );
+  });
+});
+
+describe("portable Artifact names", () => {
+  it.each(nameCases.valid)("accepts %j unchanged", (name) => {
+    expect(ARTIFACT_NAME_PATTERN.test(name)).toBe(true);
+  });
+  it.each(nameCases.invalid)("rejects %j", (name) => {
+    expect(ARTIFACT_NAME_PATTERN.test(name)).toBe(false);
   });
 });

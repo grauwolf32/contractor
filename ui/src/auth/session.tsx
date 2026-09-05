@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
 } from "react";
 
@@ -26,9 +27,11 @@ export type SessionAPI = Pick<PublicAPI, "getSession" | "login" | "logout">;
 
 export function SessionProvider({
   api,
+  publicAPI,
   children,
 }: {
   api: SessionAPI;
+  publicAPI?: Pick<PublicAPI, "subscribeUnauthorized">;
   children: ReactNode;
 }) {
   const queryClient = useQueryClient();
@@ -43,6 +46,23 @@ export function SessionProvider({
   });
   const logoutMutation = useMutation({ mutationFn: () => api.logout() });
 
+  const clearSession = useCallback(async () => {
+    await queryClient.cancelQueries();
+    queryClient.removeQueries({
+      predicate: (query) =>
+        !(query.queryKey[0] === "auth" && query.queryKey[1] === "session"),
+    });
+    queryClient.setQueryData(queryKeys.session, null);
+  }, [queryClient]);
+
+  useEffect(
+    () =>
+      publicAPI?.subscribeUnauthorized(() => {
+        void clearSession();
+      }),
+    [publicAPI, clearSession],
+  );
+
   const login = useCallback(
     async (body: LoginRequest) => {
       const session = await loginMutation.mutateAsync(body);
@@ -54,12 +74,12 @@ export function SessionProvider({
   const logout = useCallback(async () => {
     try {
       await logoutMutation.mutateAsync();
-      queryClient.setQueryData(queryKeys.session, null);
+      await clearSession();
     } catch (error) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.session });
       throw error;
     }
-  }, [logoutMutation, queryClient]);
+  }, [logoutMutation, queryClient, clearSession]);
 
   const value = useMemo<SessionContextValue>(
     () => ({

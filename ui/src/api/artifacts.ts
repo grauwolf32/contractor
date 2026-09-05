@@ -6,7 +6,9 @@ export const MAXIMUM_ARTIFACT_BYTES = 16 * 1024 * 1024;
 export const MAXIMUM_PREVIEW_BYTES = 256 * 1024;
 export const ARTIFACT_PAGE_SIZE = 50;
 
-export const ARTIFACT_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
+// A strict end assertion also rejects a trailing newline (unlike JavaScript $).
+export const ARTIFACT_NAME_PATTERN =
+  /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}(?![\s\S])/;
 export const ARTIFACT_REVISION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/;
 export const MEDIA_TYPE_PATTERN = /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/;
 

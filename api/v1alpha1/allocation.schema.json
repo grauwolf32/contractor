@@ -217,7 +217,7 @@
         "runId": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "stageExecutionId": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "logicalAgentName": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "namespace": {"type": "string", "minLength": 1, "pattern": "^[^/]+$"},
+        "namespace": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
         "workerSessionMode": {"enum": ["isolated", "shared"]},
         "runMetadataLabels": {"$ref": "#/$defs/runMetadataLabels"},
         "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},

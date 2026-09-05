@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V28-004
+title: Add safe internal diagnostics at the public API error boundary
+milestone: implementation-maintainability
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V4-007A, V28-001, V28-002, V28-003]
+languages: [go]
+
+goal: >-
+  Make public API failures diagnosable by request ID and a bounded internal
+  error classification without disclosing secrets or changing public errors.
+
+context:
+  current_contract: >-
+    Public errors use stable safe envelopes. Request middleware records HTTP
+    outcome, but mapped internal errors lose useful cause classification.
+    Raw errors may contain credentials, SQL arguments or user payloads and
+    cannot be logged blindly. Earlier V28 dependencies make this task the
+    final verification point for the maintainability milestone.
+
+scope:
+  in:
+    - Add a small explicit diagnostic classification at the existing public error mapping boundary.
+    - Correlate a bounded operation and cause category with request ID and status using the existing logging infrastructure.
+    - Test redaction and unchanged public envelopes, then run aggregate verification for the V28 refactors.
+  out:
+    - Raw error dumps, new telemetry infrastructure, request-body logging, new public fields or implementation of pending Audit features.
+
+requirements:
+  - {id: R1, text: Unexpected failures expose a useful stable internal category; unknown causes fall back to a safe generic category.}
+  - {id: R2, text: Logs and public responses exclude credentials, session tokens, SQL arguments and Artifact bodies.}
+  - {id: R3, text: Expected validation and authorization errors retain their current status, request ID and retryability.}
+
+acceptance_criteria:
+  - id: A1
+    given: A storage or downstream failure with a recognizable secret in its raw error.
+    when: A public handler maps the failure.
+    then: One correlated diagnostic identifies a safe category and neither the log nor response contains the secret.
+  - id: A2
+    given: Expected validation, authentication, ownership and conflict failures.
+    when: Existing handlers return their errors.
+    then: Public contracts remain unchanged and diagnostics stay bounded without duplicating request logs.
+  - id: A3
+    given: All four V28 refactors have landed.
+    when: Aggregate verification runs.
+    then: Scheduler, Worker and UI behavior remains covered by the existing release checks.
+
+tests:
+  - {name: public, command: "go test -race ./internal/httpapi/public", covers: [A1, A2]}
+  - {name: aggregate, command: "make verify", covers: [A3]}

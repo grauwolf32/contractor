@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V28-001
+title: Extract Scheduler execution preparation and Planner telemetry
+milestone: implementation-maintainability
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V8-016, V23-010]
+languages: [go]
+
+goal: >-
+  Keep Scheduler responsible for durable Run progression while small helpers
+  own allocation configuration and Planner telemetry preparation.
+
+context:
+  current_contract: >-
+    RuntimeSettings and credentials are resolved for an allocation, never
+    persisted into Run snapshots. Project HTTP target authorization is bound
+    to its exact origin. Planner telemetry retains Run and Stage correlations.
+  coordination: >-
+    V27 owns concurrent Scheduler lanes. Preserve whichever lane implementation
+    has landed; this refactor does not implement or redesign concurrency.
+
+scope:
+  in:
+    - Extract RuntimeSettings, adapter credentials and Project HTTP target preparation from internal/scheduler/scheduler.go into focused package helpers.
+    - Extract Planner telemetry preparation without changing durable claim or allocation ownership.
+    - Keep dependencies explicit and reuse existing types instead of introducing a generic orchestration framework.
+  out:
+    - New scheduling policy, concurrent Stages, Audit features or changes to wire contracts.
+
+requirements:
+  - {id: R1, text: Secret material exists only in allocation-bound configuration and never enters persisted Run snapshots or telemetry.}
+  - {id: R2, text: Claims, cancellation, capacity deferral, lease renewal and cleanup retain their existing owner and behavior.}
+
+acceptance_criteria:
+  - id: A1
+    given: A Stage using runtime adapters and a Project HTTP target.
+    when: Scheduler prepares and starts its allocation.
+    then: Effective settings, exact-origin authorization and credential lifetime are unchanged and preparation is isolated from Run progression.
+  - id: A2
+    given: Preparation failure, cancellation or allocation loss.
+    when: Scheduler settles the attempt.
+    then: Existing recovery behavior and correlated Planner telemetry remain intact without leaked credentials or allocations.
+
+tests:
+  - {name: scheduler, command: "go test -race ./internal/scheduler ./internal/controlplane ./internal/credentials", covers: [A1, A2]}

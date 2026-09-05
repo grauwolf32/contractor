@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V28-002
+title: Centralize Worker invocation ownership and cleanup
+milestone: implementation-maintainability
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V19-001, V21-001]
+languages: [python]
+
+goal: >-
+  Make one lifecycle helper own the resources acquired by an ADK Worker
+  invocation so every exit path performs bounded, consistent cleanup.
+
+context:
+  current_contract: >-
+    A Worker invocation acquires session ownership, active-task registration
+    and invocation budget state. Isolated and shared session modes have
+    different retention rules. The result finalizer is a separate structured
+    output step; session summarization is not a result finalizer.
+
+scope:
+  in:
+    - Extract ownership acquisition and release from adk_runtime.py _invoke into a small async context manager or equivalent helper.
+    - Cover partial acquisition, normal completion, budget exhaustion, cancellation and finalizer failure with the same cleanup boundary.
+    - Preserve allocation state, correlation IDs, session-mode retention and bounded teardown.
+  out:
+    - New session modes, summarization policy, finalizer behavior or concurrent invocations inside one Worker.
+
+requirements:
+  - {id: R1, text: Each successfully acquired resource is released exactly once even if a later acquisition fails.}
+  - {id: R2, text: Cleanup does not mask the original invocation error or publish a successful result after cancellation.}
+
+acceptance_criteria:
+  - id: A1
+    given: Isolated and shared Worker sessions with successful and failed invocations.
+    when: Execution and finalization settle.
+    then: Results and session retention match the current contract and a subsequent invocation can acquire ownership.
+  - id: A2
+    given: Cancellation, budget exhaustion or an exception after partial acquisition.
+    when: Bounded teardown completes.
+    then: No lock, active task or invocation budget registration remains orphaned.
+
+tests:
+  - {name: invocation, command: "cd runtime && uv run pytest -W error tests/test_adk_runtime.py tests/test_session_lifecycle.py tests/test_allocation.py tests/test_result_finalizer.py", covers: [A1, A2]}

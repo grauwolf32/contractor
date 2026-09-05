@@ -1,0 +1,23 @@
+{
+  "valid": [
+    "a",
+    "Report_01.json",
+    "http.body.123",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "invalid": [
+    "",
+    " ",
+    "review notes",
+    "отчет",
+    "report/name",
+    "report\\name",
+    ".",
+    "..",
+    "_report",
+    "-report",
+    "a\n",
+    "a\u0000",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ]
+}

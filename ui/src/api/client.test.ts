@@ -233,3 +233,75 @@ describe("PublicAPI", () => {
     ).rejects.toMatchObject({ code: "invalid_client_request" });
   });
 });
+
+describe("authoritative domain authentication failures", () => {
+  it.each(["typed", "direct"])(
+    "clears CSRF and notifies for %s requests",
+    async (transport) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => apiResponse({ code: "unauthorized" }, 401)),
+      );
+      const listener = vi.fn();
+      api.csrf.replace(session.csrfToken);
+      const unsubscribe = api.subscribeUnauthorized(listener);
+      if (transport === "typed") {
+        await api.request((client) => client.GET("/v1/projects"));
+      } else {
+        await api.fetch("/v1/artifacts/worker/report");
+      }
+      expect(api.csrf.get()).toBeUndefined();
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+      await api.fetch("/v1/projects");
+      expect(listener).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([401, 403])(
+    "does not turn login failure or forbidden into session loss (%s)",
+    async (status) => {
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async () => apiResponse({ code: "rejected" }, status)),
+      );
+      api.csrf.replace(session.csrfToken);
+      const listener = vi.fn();
+      api.subscribeUnauthorized(listener);
+      if (status === 401) {
+        await expect(
+          api.login({ username: "owner", password: "wrong" }),
+        ).rejects.toBeInstanceOf(PublicAPIError);
+      } else {
+        await api.fetch("/v1/projects");
+      }
+      expect(listener).not.toHaveBeenCalled();
+      expect(api.csrf.get()).toBe(session.csrfToken);
+    },
+  );
+
+  it("ignores an old request's 401 after a new login", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    const freshSession = { ...session, csrfToken: "b".repeat(43) };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) =>
+        (input as Request).url.endsWith("/v1/auth/login")
+          ? apiResponse(freshSession)
+          : pending,
+      ),
+    );
+    api.csrf.replace(session.csrfToken);
+    const listener = vi.fn();
+    api.subscribeUnauthorized(listener);
+    const request = api.fetch("/v1/projects");
+    await api.login({ username: "owner", password: "password" });
+    resolveResponse(apiResponse({ code: "unauthorized" }, 401));
+    await request;
+    expect(api.csrf.get()).toBe(freshSession.csrfToken);
+    expect(listener).not.toHaveBeenCalled();
+  });
+});

@@ -16,6 +16,7 @@ from urllib.parse import quote, urlsplit
 from pydantic import Field, ValidationError
 
 from contractor_runtime.contracts import (
+    ARTIFACT_NAME_PATTERN,
     ArtifactListResult,
     ArtifactReadResult,
     ArtifactRef,
@@ -408,7 +409,7 @@ def _validate_ref(ref: ArtifactRef) -> None:
 
 
 def _validate_component(field_name: str, value: str) -> None:
-    if not value.strip() or "/" in value or "\x00" in value:
+    if not ARTIFACT_NAME_PATTERN.fullmatch(value):
         raise ValueError(f"artifact {field_name} is invalid")
 
 

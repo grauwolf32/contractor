@@ -166,6 +166,14 @@ func validateScope(scope Scope) error {
 }
 
 func validateComponent(value string) error {
+	if contracts.ValidateArtifactName(value) != nil {
+		return ErrInvalidName
+	}
+	return nil
+}
+
+// Pin IDs are internal opaque identities, not Artifact names.
+func validatePinID(value string) error {
 	if strings.TrimSpace(value) == "" || strings.Contains(value, "/") || strings.ContainsRune(value, 0) {
 		return ErrInvalidName
 	}

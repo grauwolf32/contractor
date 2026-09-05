@@ -103,6 +103,7 @@ export class PublicAPI {
   readonly #client: Client<paths>;
   readonly #fetch: (request: Request) => Promise<Response>;
   readonly #apiOrigin: string;
+  readonly #unauthorizedListeners = new Set<() => void>();
   readonly csrf = new CSRFMemoryStore();
 
   constructor(
@@ -118,6 +119,7 @@ export class PublicAPI {
     const apiOrigin = validateAPIBaseURL(runtimeConfig.apiBaseUrl);
     this.#apiOrigin = apiOrigin;
     const checkedFetch = async (request: Request): Promise<Response> => {
+      const csrfAtStart = this.csrf.get();
       const requestURL = new URL(request.url);
       if (
         requestURL.origin !== apiOrigin ||
@@ -163,6 +165,17 @@ export class PublicAPI {
       ) {
         throw new APICompatibilityError(values?.[0]);
       }
+      if (
+        response.status === 401 &&
+        !isLogin &&
+        requestURL.pathname !== "/v1/auth/session" &&
+        csrfAtStart === this.csrf.get()
+      ) {
+        this.csrf.clear();
+        for (const listener of this.#unauthorizedListeners) {
+          listener();
+        }
+      }
       return boundedErrorResponse(response);
     };
     this.#fetch = checkedFetch;
@@ -176,6 +189,13 @@ export class PublicAPI {
 
   get apiBaseUrl(): string {
     return this.#apiOrigin;
+  }
+
+  subscribeUnauthorized(listener: () => void): () => void {
+    this.#unauthorizedListeners.add(listener);
+    return () => {
+      this.#unauthorizedListeners.delete(listener);
+    };
   }
 
   async request<T>(

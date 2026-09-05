@@ -20,6 +20,16 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 			payload: Payload{MediaType: "application/zip"}, want: ErrInvalidName,
 		},
 		{
+			name: "space in name", scope: "user",
+			ref:     ArtifactRef{Namespace: "projects", Name: "review notes"},
+			payload: Payload{MediaType: "text/plain"}, want: ErrInvalidName,
+		},
+		{
+			name: "non-ASCII namespace", scope: "user",
+			ref:     ArtifactRef{Namespace: "отчеты", Name: "report"},
+			payload: Payload{MediaType: "text/plain"}, want: ErrInvalidName,
+		},
+		{
 			name: "parameterized media type", scope: "user",
 			ref:     ArtifactRef{Namespace: "projects", Name: "archive"},
 			payload: Payload{MediaType: "application/zip; charset=utf-8"}, want: ErrInvalidMediaType,

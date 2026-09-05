@@ -35,7 +35,7 @@ export function Application({
     <QueryClientProvider client={queryClient}>
       <PublicAPIProvider api={publicAPI}>
         <RunEventsProvider manager={eventManager}>
-          <SessionProvider api={api}>
+          <SessionProvider api={api} publicAPI={publicAPI}>
             <RouterProvider router={router} />
           </SessionProvider>
         </RunEventsProvider>

@@ -43,6 +43,14 @@ This keeps one ref model while preventing a Worker from selecting another Run
 or UserScope in a tool call. A revision is an opaque selection
 token, not an authorization credential.
 
+Both `namespace` and `name` are case-sensitive ASCII identifiers of 1 through
+128 characters: the first character is a letter or digit, followed only by
+letters, digits, `_`, `-` or `.` (`[A-Za-z0-9][A-Za-z0-9_.-]{0,127}`). Spaces,
+non-ASCII characters and control characters are rejected. Workflow validation,
+wire DTOs, ArtifactStore and public/private APIs enforce the same grammar.
+Names are never trimmed or normalized: Workflow inputs can depend on their
+exact spelling.
+
 ## Namespaces
 
 The space contains Namespaces. A Namespace is:

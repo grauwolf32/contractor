@@ -27,6 +27,7 @@ from pydantic import (
 )
 
 API_VERSION = "contractor/v1alpha1"
+ARTIFACT_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -349,10 +350,14 @@ class ArtifactRef(WireModel):
 
     @model_validator(mode="after")
     def validate_ref(self) -> Self:
-        if not self.namespace.strip() or "/" in self.namespace:
-            raise ValueError("namespace must be non-empty and contain no slash")
-        if not self.name.strip() or "/" in self.name:
-            raise ValueError("name must be non-empty and contain no slash")
+        if ARTIFACT_NAME_PATTERN.fullmatch(self.namespace) is None:
+            raise ValueError(
+                "namespace must be a portable ASCII Artifact name of 1 through 128 characters"
+            )
+        if ARTIFACT_NAME_PATTERN.fullmatch(self.name) is None:
+            raise ValueError(
+                "name must be a portable ASCII Artifact name of 1 through 128 characters"
+            )
         if self.revision is not None:
             _require_text("revision", self.revision)
         return self
@@ -584,8 +589,10 @@ class AllocationSpec(VersionedWireModel):
             ("namespace", self.namespace),
         ):
             _require_text(field, value)
-        if "/" in self.namespace:
-            raise ValueError("namespace must not contain slash")
+        if ARTIFACT_NAME_PATTERN.fullmatch(self.namespace) is None:
+            raise ValueError(
+                "namespace must be a portable ASCII Artifact name of 1 through 128 characters"
+            )
         _require_aware_datetime("leaseExpiresAt", self.lease_expires_at)
         names = [skill.name for skill in self.resolved_skills]
         if names != sorted(set(names)):

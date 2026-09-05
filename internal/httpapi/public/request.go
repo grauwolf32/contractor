@@ -14,12 +14,13 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const maxJSONRequestSize = 1 << 20
 
 var (
-	publicArtifactNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`)
+	publicArtifactNamePattern = regexp.MustCompile(contracts.ArtifactNamePattern)
 	publicRevisionPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$`)
 )
 

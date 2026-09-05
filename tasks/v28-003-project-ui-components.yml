@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V28-003
+title: Split the Project detail page by user operation
+milestone: implementation-maintainability
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V23-010, V24-005]
+languages: [typescript]
+
+goal: >-
+  Reduce ui/src/routes/projects/detail.tsx to page composition and move
+  independently maintained Project operations into focused components/hooks.
+
+context:
+  current_contract: >-
+    Project details combine metadata, HTTP target, artifacts, Workflow launch,
+    Runs, Evals and deletion. Artifact writes use exact CAS. Deletion drains
+    active work on Server. Ownership and operations capabilities remain
+    authoritative on Server and are reflected by the UI.
+
+scope:
+  in:
+    - Extract metadata editing, HTTP target editing, artifact operations, Run/Eval views and deletion into cohesive components where currently implemented.
+    - Keep shared Project query ownership and cache invalidation explicit and preserve loading/error states.
+    - Reuse existing Artifact upload/preview and form primitives without building a generic form framework.
+  out:
+    - New Project or Audit features, visual redesign, API changes or changes to authorization and deletion semantics.
+
+requirements:
+  - {id: R1, text: Existing routes, form defaults, exact Artifact selections and mutation preconditions remain unchanged.}
+  - {id: R2, text: Component extraction does not duplicate Project fetches or discard unsaved form state on unrelated updates.}
+
+acceptance_criteria:
+  - id: A1
+    given: An owned Project with artifacts and Runs.
+    when: The user edits metadata or HTTP target, uploads an artifact or launches a Workflow.
+    then: Existing requests and cache updates occur with the same validation and exact revision semantics.
+  - id: A2
+    given: Forbidden operations, stale revisions or Project deletion in progress.
+    when: The page renders and mutations settle.
+    then: Existing guards and actionable error states remain available with no duplicate mutation or navigation.
+
+tests:
+  - {name: ui, command: "cd ui && pnpm run typecheck && pnpm exec vitest run src/routes/projects", covers: [A1, A2]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test e2e/project-workspace.spec.ts", covers: [A1, A2]}

@@ -165,7 +165,7 @@ func resolveArtifactSlotMap(
 ) (map[string]ArtifactSlot, error) {
 	result := make(map[string]ArtifactSlot, len(source))
 	for name, slot := range source {
-		if err := validateMapKey(field+" slot name", name); err != nil {
+		if err := validateArtifactComponent(field+" slot name", name); err != nil {
 			return nil, err
 		}
 		if slot.Required == nil {
@@ -1072,5 +1072,8 @@ func validateMapKey(field, value string) error {
 }
 
 func validateArtifactComponent(field, value string) error {
-	return validateMapKey(field, value)
+	if err := contracts.ValidateArtifactName(value); err != nil {
+		return fmt.Errorf("%s: %w", field, err)
+	}
+	return nil
 }

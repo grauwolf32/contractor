@@ -1,12 +1,27 @@
 package contracts
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 const (
 	AgentSkillNamespace    = "skills"
 	MaxAgentTemplateSkills = 32
 	MaxWorkflowRunSkills   = 128
 )
+
+// ArtifactNamePattern is shared by namespaces and logical binding names.
+const ArtifactNamePattern = `^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$`
+
+var artifactNamePattern = regexp.MustCompile(ArtifactNamePattern)
+
+func ValidateArtifactName(value string) error {
+	if !artifactNamePattern.MatchString(value) {
+		return invalidf("artifact name must be 1 through 128 ASCII letters, digits, dots, underscores or hyphens, starting with a letter or digit")
+	}
+	return nil
+}
 
 type ArtifactRef struct {
 	Namespace string  `json:"namespace"`
@@ -15,11 +30,11 @@ type ArtifactRef struct {
 }
 
 func (r ArtifactRef) Validate() error {
-	if strings.TrimSpace(r.Namespace) == "" || strings.Contains(r.Namespace, "/") {
-		return invalidf("artifact namespace must be non-empty and contain no slash")
+	if err := ValidateArtifactName(r.Namespace); err != nil {
+		return err
 	}
-	if strings.TrimSpace(r.Name) == "" || strings.Contains(r.Name, "/") {
-		return invalidf("artifact name must be non-empty and contain no slash")
+	if err := ValidateArtifactName(r.Name); err != nil {
+		return err
 	}
 	if r.Revision != nil {
 		return validateOpaqueID("artifact revision", *r.Revision)

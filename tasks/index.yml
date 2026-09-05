@@ -489,6 +489,12 @@ milestones:
       terminal Runs can be safely hard-deleted, Projects can be durably
       cancelled and purged, and the general Artifact library excludes Skills
       while reusing the Project file-drop interaction.
+  - id: implementation-maintainability
+    exit_task: V28-004
+    outcome: >-
+      Scheduler execution preparation, Worker invocation ownership and Project
+      UI operations have focused implementation boundaries; safe public error
+      diagnostics preserve existing contracts and make failures diagnosable.
   - id: workflow-scheduler-concurrency
     exit_task: V27-005
     outcome: >-
@@ -2131,3 +2137,7 @@ tasks:
   - {id: V27-003, file: v27-003-scheduler-settings-api.yml}
   - {id: V27-004, file: v27-004-operations-settings-ui.yml}
   - {id: V27-005, file: v27-005-scheduler-concurrency-release-gate.yml}
+  - {id: V28-001, file: v28-001-scheduler-execution-preparation.yml}
+  - {id: V28-002, file: v28-002-worker-invocation-lifecycle.yml}
+  - {id: V28-003, file: v28-003-project-ui-components.yml}
+  - {id: V28-004, file: v28-004-public-error-diagnostics.yml}

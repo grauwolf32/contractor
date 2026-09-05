@@ -762,7 +762,7 @@ func (s AllocationSpecV2) Validate() error {
 			return err
 		}
 	}
-	if strings.Contains(s.Namespace, "/") || s.LeaseExpiresAt.IsZero() {
+	if ValidateArtifactName(s.Namespace) != nil || s.LeaseExpiresAt.IsZero() {
 		return invalidf("allocation namespace or lease is invalid")
 	}
 	if err := s.WorkerSessionMode.Validate(); err != nil {

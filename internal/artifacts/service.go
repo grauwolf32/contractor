@@ -410,7 +410,7 @@ func (s *Service) PinExact(
 	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult && kind != PinRunOutput {
 		return ErrInvalidName
 	}
-	if err := validateComponent(pinID); err != nil {
+	if err := validatePinID(pinID); err != nil {
 		return err
 	}
 	return s.repository.PinExact(ctx, runID, scope, ref, kind, pinID)
