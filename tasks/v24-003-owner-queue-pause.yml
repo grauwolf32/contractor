@@ -3,7 +3,8 @@ id: V24-003
 title: Add a durable owner-scoped Queue pause and resume gate
 milestone: workspace-lifecycle-controls
 priority: P1
-status: pending
+status: completed
+implementation_commit: 78eef87eab038bba4a7f4b77f6051a9a71284f20
 depends_on: [V24-002]
 languages: [go, sql, yaml, typescript]
 
@@ -55,4 +56,3 @@ tests:
   - {name: public, command: "go test ./internal/httpapi/public", covers: [A2, A3]}
   - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
