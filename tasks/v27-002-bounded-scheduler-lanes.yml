@@ -3,8 +3,8 @@ id: V27-002
 title: Progress WorkflowRuns through bounded concurrent Scheduler lanes
 milestone: workflow-scheduler-concurrency
 priority: P0
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "4de3e694b32d4fb529eb55603435d53ed5323b25"
 depends_on: [V27-001]
 languages: [go, sql]
 
