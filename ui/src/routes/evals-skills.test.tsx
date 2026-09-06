@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -240,25 +240,65 @@ describe("Evals and global Skills routes", () => {
     );
 
     const user = userEvent.setup();
-    await user.click(screen.getByText("Upload Skill package"));
-    expect(screen.getByLabelText("Namespace")).toBeDisabled();
-    expect(screen.getByLabelText("Namespace")).toHaveValue("skills");
-    expect(screen.getByLabelText("Media type")).toBeDisabled();
-    expect(screen.getByLabelText("Media type")).toHaveValue(
-      "application/vnd.contractor.agent-skill+zip",
+    const uploadButton = screen.getByRole("button", { name: "Upload Skills" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(uploadButton);
+    const dialog = screen.getByRole("dialog", { name: "Upload Skills" });
+    expect(within(dialog).queryByLabelText("Namespace")).toBeNull();
+    expect(within(dialog).queryByLabelText("Media type")).toBeNull();
+    expect(within(dialog).getByLabelText("Name")).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(
+      within(dialog).getByRole("button", { name: "Close upload dialog" }),
+    ).toHaveFocus();
+    await user.tab({ shift: true });
+    expect(
+      within(dialog).getByRole("button", { name: "Upload" }),
+    ).toHaveFocus();
+    await user.tab();
+    expect(
+      within(dialog).getByRole("button", { name: "Close upload dialog" }),
+    ).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(uploadButton).toHaveFocus();
+    await user.click(uploadButton);
+    fireEvent.drop(
+      screen.getByLabelText("Drop a file here").closest(".artifact-file-drop")!,
+      {
+        dataTransfer: {
+          files: [
+            new File(["zip"], "suggested-skill.zip", {
+              type: "application/zip",
+            }),
+          ],
+        },
+      },
     );
+    expect(screen.getByLabelText("Name")).toHaveValue("suggested-skill");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(uploadButton).toHaveFocus();
+    await user.click(uploadButton);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
     await user.type(screen.getByLabelText("Name"), "new-skill");
+    await user.click(screen.getByRole("button", { name: "Upload" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Choose a Skill ZIP package",
+    );
     await user.upload(
       screen.getByLabelText("Drop a file here"),
       new File(["zip"], "new-skill.zip", { type: "application/zip" }),
     );
-    await user.click(screen.getByRole("button", { name: "Create binding" }));
+    await user.click(screen.getByRole("button", { name: "Upload" }));
 
     expect(
       await screen.findByRole("link", {
         name: /Open skills\/new-skill@skill-r2/,
       }),
     ).toHaveAttribute("href", "/artifacts/skills/new-skill?revision=skill-r2");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(uploadButton).toHaveFocus();
     const upload = requests.find((request) => request.method === "PUT")!;
     expect(new URL(upload.url).pathname).toBe("/v1/artifacts/skills/new-skill");
     expect(upload.headers.get("Content-Type")).toBe(

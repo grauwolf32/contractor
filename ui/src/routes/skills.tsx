@@ -6,15 +6,16 @@ import { listArtifacts, type ArtifactWriteResponse } from "../api/artifacts";
 import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import {
-  ArtifactWriteForm,
   CursorControls,
   ErrorNotice,
   formatBytes,
   formatTimestamp,
 } from "./artifacts/common";
+import { SkillUploadDialog } from "./skill-upload-dialog";
+
+import "./skills.css";
 
 const SKILL_NAMESPACE = "skills";
-const SKILL_MEDIA_TYPE = "application/vnd.contractor.agent-skill+zip";
 
 export function SkillsRoute() {
   const api = usePublicAPI();
@@ -45,42 +46,31 @@ export function SkillsRoute() {
             or execution permissions.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="skills-actions">
+          <button type="button" onClick={() => setUploadOpen(true)}>
+            Upload Skills
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            {query.isFetching ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </header>
 
-      <details
-        className="artifact-create-disclosure"
-        open={uploadOpen}
-        onToggle={(event) => setUploadOpen(event.currentTarget.open)}
-      >
-        <summary>
-          <span>Upload Skill package</span>
-          <small>{uploadOpen ? "Close form" : "Create a global binding"}</small>
-        </summary>
-        <div className="skill-upload-copy">
-          <p className="muted-copy">
-            Upload a reviewed ZIP with root <code>SKILL.md</code>. The ordinary
-            Artifact API provides exact CAS and history; use contractor-skill to
-            validate a package before upload.
-          </p>
-          <ArtifactWriteForm
-            fixedNamespace={SKILL_NAMESPACE}
-            fixedMediaType={SKILL_MEDIA_TYPE}
-            onWritten={(result) => {
-              setWritten(result);
-              setCursors([undefined]);
-              setUploadOpen(false);
-            }}
-          />
-        </div>
-      </details>
+      {uploadOpen ? (
+        <SkillUploadDialog
+          onClose={() => setUploadOpen(false)}
+          onWritten={(result) => {
+            setWritten(result);
+            setCursors([undefined]);
+            setUploadOpen(false);
+          }}
+        />
+      ) : null}
 
       {written === null ? null : (
         <div className="notice notice-success" role="status">

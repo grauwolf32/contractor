@@ -1,0 +1,29 @@
+.skills-actions,
+.skill-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.skill-upload-dialog {
+  width: min(100%, 36rem);
+}
+
+.skill-upload-fields {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.skill-upload-fields > label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.skill-upload-actions {
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
