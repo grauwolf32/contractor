@@ -3,7 +3,7 @@ id: "V37-005"
 title: "Confirm Audit cancellation and deletion before sending a mutation"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V37-001", "V25-011"]
 languages: ["typescript"]
@@ -45,8 +45,9 @@ requirements:
       deletion/draining where applicable, without promising immediate removal.
   - id: "R2"
     text: >-
-      Escape, backdrop close and the safe cancel button send zero requests. Confirm sends one
-      request with current preconditions and disables duplicate submission.
+      Escape, backdrop interaction and the safe cancel button send zero requests. Backdrop
+      interaction does not close the Dialog. Confirm sends one request with current
+      preconditions and disables duplicate submission.
   - id: "R3"
     text: >-
       Conflict or lost response does not trigger automatic replay or overwrite; outcome is
