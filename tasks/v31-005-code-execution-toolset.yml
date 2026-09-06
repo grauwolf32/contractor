@@ -3,8 +3,8 @@ id: V31-005
 title: Add bounded exec_command tools over the allocation sandbox handle
 milestone: podman-allocation-execution
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 97990c278b29541967e1dc508a31f439f927c332
 depends_on: [V31-004]
 languages: [python]
 
@@ -70,3 +70,24 @@ acceptance_criteria:
 tests:
   - {name: toolset, command: "cd runtime && uv run pytest -W error tests/test_code_execution_toolset.py tests/test_podman_command_coordination.py", covers: [A1, A2, A3, A4]}
   - {name: runtime-integration, command: "cd runtime && uv run pytest -W error tests/test_podman_allocation.py tests/test_local_direct_tool_consumers.py", covers: [A3, A4]}
+  - {name: bounded-transport, command: "cd runtime && uv run pytest -W error tests/test_podman_command_transport.py", covers: [A1, A2, A3]}
+  - {name: real-execution, command: "cd runtime && CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_execution_integration.py tests/test_podman_owner_integration.py tests/test_podman_supervisor_integration.py", covers: [A1, A2, A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  image: localhost/contractor-supervisor@sha256:faea9fa41ec757ad3c18bf3a947409692f2fcc374a87c1d209185175b0d215ca
+  environment: Local rootless Podman 6.1.0 with systemd cgroup v2; real tests require the preinstalled image via CONTRACTOR_TEST_PODMAN_IMAGE and never pull or build images.
+  results:
+    - Required Toolset and command coordination tests passed, including exact selection, shared filesystem ownership, late completion, fatal Worker failure, analysis refresh and explicit artifact publication with the existing write fence.
+    - Required existing allocation and local-direct tool regression tests passed.
+    - Bounded transport tests passed, including simultaneous streams, invalid UTF-8, output floods, CLI reaping and ambiguous exit status handling.
+    - Full Runtime suite passed, 1268 tests with warnings treated as errors and 22 explicit skips.
+    - Combined real command, owner and supervisor gate passed, 19 tests with warnings treated as errors; no test-owned containers or owner/guardian processes remained.
+    - Isolated staged Runtime snapshot passed 144 selected tests without parallel uncommitted changes; all 24 implementation Python files passed formatting and staged source lint passed.
+    - Full worktree Runtime lint and formatting passed. make verify passed Go tests, Runtime tests and builds, then stopped at UI generate-check because parallel API changes leave ui/src/api/generated/public.ts different from HEAD.
+  limitations:
+    - Positive Podman and code-execution capability advertisement remains disabled until V31-006; no host fallback or automatic artifact upload is added.
+    - CLI exit codes 125-127 are conservatively outcome_unknown with hidden diagnostics and no replay; other codes require independent completion proof.
+    - A failed guardian descendant proof reports cleanup_failed rather than guessing a specific background-process cause from EOF.
+    - Command deadlines include guard wait and cleanup reserve and are bounded by request, operator, caller and confirmed lease; StageContentRequest currently has no separate wall-clock deadline field and invocation cancellation revokes execution.
+    - Execution-enabled Worker telemetry is metadata-only even for opt-in content sinks, including later model requests, summaries and finalizers.
