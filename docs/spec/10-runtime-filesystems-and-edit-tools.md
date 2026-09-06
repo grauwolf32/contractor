@@ -35,8 +35,9 @@ model-visible input.
 scratch directory used by skills and existing tools. A project workspace is a
 separate session. Local storage owns a private `run_workdir` below its
 configured provider root; memory storage uses an allocation-isolated fsspec
-instance. A future executor receives only the project content directory, not
-the provider's ownership markers or the allocation's general scratch.
+instance. The [Podman executor](21-podman-sandbox.md) receives only the local
+direct project content directory, not the provider's ownership markers or the
+allocation's general scratch.
 
 ## Workflow contract
 

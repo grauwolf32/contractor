@@ -168,8 +168,13 @@ Every enabled factory owns its local probe semantics:
 - a RuntimeAdapter probe proves that its local code/dependencies can construct
   that exact typed adapter contract without contacting a configured endpoint.
 
-One factory probe has a five-second timeout and the complete startup probe
-phase has a thirty-second timeout. Timeout, cancellation or an unexpected
+Ordinary factory probes have a five-second timeout and the complete startup
+probe phase has a thirty-second timeout when Podman is disabled. Opt-in
+[Podman discovery](21-podman-sandbox.md#probes-errors-and-metrics) has a
+sixty-second total budget and a shared profile/execution probe bounded to
+thirty seconds, including an eight-second cleanup reserve. Unconfirmed Podman
+cleanup prevents registration; it is not an optional capability omission.
+Timeout, cancellation or an unexpected
 exception means that factory or affected tool is unavailable; an optional
 failure does not prevent unrelated capabilities from being advertised. Probes
 must not use Workflow/User artifacts, make an LLM call or perform domain work.
@@ -397,7 +402,9 @@ For one allocation the Runtime Agent:
 3. asks the selected SandboxProfile to prepare the allocation-local scratch;
 4. if `AllocationSpec.workspace` is present, creates a private WorkspaceSession,
    downloads its exact RunScope ZIP/state refs through the existing Artifact
-   API, hydrates the selected local/memory storage and establishes a checkpoint;
+   API, hydrates the selected local/memory storage and establishes a checkpoint.
+   For `podman@1`, prepares the allocation-owned container only after local
+   direct hydration, before any Toolset or Worker receives execution access;
 5. binds the private Artifact client and fetches/validates the exact RunScope
    Agent Skill packages selected under [09](09-agent-skills.md);
 6. validates the resolved AgentTemplate projection, prepares allocation-local
@@ -412,10 +419,12 @@ For one allocation the Runtime Agent:
    observation snapshot and performs any declared overlay auto export; on
    finalization or abort, rejects new Tasks, requests
    cancellation of active work, destroys the Worker runtime instance, closes
-   every selected Toolset, bounded-flushes/destroys allocation adapters and
+   every selected Toolset, confirms the Podman execution container stopped
+   when present, bounded-flushes/destroys allocation adapters and
    serializes the report;
 11. after the terminal Stage outcome is committed, an idempotent private
-   release confirms Toolset cleanup and removes allocation State, the
+   release confirms Toolset cleanup and Podman container removal before
+   disposing mounted files. It removes allocation State, the
    WorkspaceSession and every
    disposable local/memory/overlay file, loaded Skill objects, extracted
    allocation-local skill files, RuntimeSettings, access tokens and the profile
@@ -571,6 +580,7 @@ required sandbox = AgentTemplate.sandboxProfile
 required tools   = each AgentTemplate.toolsets[ref].tools
 required adapters = RuntimeAdapters referenced by resolved Run + Agent label settings
 required workspace mode = Stage context.workspace.mode, when workspace exists
+required workspace storage = local for podman@1; otherwise no storage constraint
 ```
 
 A Runtime Agent is a candidate only when it is `idle`, has a confirmed control

@@ -2,8 +2,8 @@
 
 ## Release verification (V31-008)
 
-The opt-in executor is implemented; V31-008 remains **in progress** until both
-`make test-podman-release` and repository-wide `make verify` succeed. The
+The opt-in executor is implemented and V31-008 is **completed**. Both
+`make test-podman-release` and repository-wide `make verify` passed. The
 [executable acceptance matrix](../tests/e2e/podman_sandbox_matrix.yml) maps all
 eleven specification cases to source-owned tests and mandatory gates.
 
@@ -36,11 +36,15 @@ Verification on 2026-09-06:
   291 local-direct regressions, the 52-test supervisor gate, 12 workflow tests,
   five new real release cases, both production-process Go scenarios and four
   workspace process tests. Mandatory real invocations had no skips.
-- `make verify`: Go vet/tests/build, Python lint/format/build and 1,304 Python
-  tests passed (30 opt-in tests skipped). UI `generate:check` failed because
-  existing uncommitted public API generation changes for Run resume and
-  telemetry differ from the Git index. Later UI verification steps did not run.
-  Those unrelated changes were not staged or reverted by this task.
+- `make verify`: **passed** after Run resume (`16c41112`) and telemetry capture
+  (`c101495f`) were committed separately. Go vet/tests/build, Python
+  lint/format/build and 1,304 Python tests passed (30 opt-in tests skipped).
+  UI generation, lint, formatting, typecheck, 244 tests, six server tests and
+  production build passed. The earlier generated-API diff blocker is resolved.
+- The release implementation is `27f606c9b0a192c4adff9cf3202f1d3e72595144`.
+  Repository-wide verification ran in the shared worktree; remaining unrelated
+  changes were not included in the Podman commits. These gates are not a claim
+  that every other pending task or every deployment environment is verified.
 
 The resource tests verify effective cgroup CPU/memory/PID limits, actual CPU
 throttling and exhaustion termination, a bounded `/tmp`, network `none`,

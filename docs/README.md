@@ -36,6 +36,7 @@ blob backend remain replaceable deployment adapters.
 - [Run and workspace lifecycle controls](spec/18-run-and-workspace-lifecycle-controls.md)
 - [Project-bound multi-Run Audits](spec/19-audits.md)
 - [Workflow Scheduler concurrency control](spec/20-scheduler-concurrency-control.md)
+- [Allocation-scoped Podman execution](spec/21-podman-sandbox.md) — implemented, opt-in local/direct sandbox with verified cleanup.
 - [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
 ## Research drafts

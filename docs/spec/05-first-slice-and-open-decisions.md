@@ -119,10 +119,12 @@ This slice must demonstrate:
   `instructions.ref`; its resolved text contributes to the template digest and
   reaches Runtime Agent inside AllocationSpec rather than through
   configuration-file I/O;
-- every AgentTemplate selects the exact registered SandboxProfile
-  `local-workdir@1`; it creates a fresh allocation directory, exposes no host
-  path through declarative contracts, cleans it before the slot returns to
-  `idle`, and explicitly promises no OS, process or network isolation;
+- every AgentTemplate selects an exact registered SandboxProfile. The baseline
+  `local-workdir@1` creates fresh allocation scratch, exposes no host path
+  through declarative contracts, cleans it before the slot returns to `idle`,
+  and promises no OS, process or network isolation. The opt-in `podman@1`
+  extension in [21](21-podman-sandbox.md) adds verified rootless code execution
+  only for local direct project workspaces, with container removal before files;
 - every `adk@1` AgentTemplate selects an exact digest-bearing default
   ModelPolicy through `modelPolicy`; reference-only Run executionConfig may
   select another compatible published policy, and AllocationSpec carries the

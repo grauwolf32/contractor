@@ -2019,7 +2019,13 @@ audits_v25_003_implementation_review:
 
 local_direct_podman_planning_review:
   reviewed_on: "2026-09-06"
-  verdict: decomposed_for_implementation
+  verdict: implemented_and_verified
+  verification:
+    completed_on: "2026-09-06"
+    release_task: V31-008
+    implementation_commit: 27f606c9b0a192c4adff9cf3202f1d3e72595144
+    commands: [make test-podman-release, make verify]
+    evidence: runtime/PODMAN.md#release-verification-v31-008
   specifications:
     - docs/spec/10-runtime-filesystems-and-edit-tools.md
     - docs/spec/12-code-analysis-tools.md
@@ -2042,8 +2048,8 @@ local_direct_podman_planning_review:
     - All twelve task files carry individual statuses and implementation commits, with self-contained scope, requirements, acceptance and test commands.
     - Podman implementation depends on V30-004; no execution capability is enabled by the filesystem amendment alone.
     - Rootless policy, fixed image, network none, local direct only and explicit Toolset selection remain the first-version contract.
-    - Supervisor authority, descendant cleanup and liveness expiry are a required task, not assumptions inherited from Podman CLI exit.
-    - Engine primitives and allocation lifecycle remain unadvertised until V31-006 closes prerequisite discovery.
+    - Supervisor authority, descendant cleanup and liveness expiry have real-container evidence; Podman CLI exit alone is not proof.
+    - V31-006 advertises the profile/tool pair only after the complete startup probe and confirmed cleanup.
     - Missing prerequisites fail explicit real-container gates; mocks or skipped tests do not complete those tasks.
     - Existing in-progress/completed tasks and their commit metadata are not reclassified by this decomposition.
   acceptance_ownership:

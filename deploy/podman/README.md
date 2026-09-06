@@ -84,7 +84,8 @@ and removed before workspace cleanup/release. Run `make test-podman-release`
 with both `CONTRACTOR_TEST_PODMAN_IMAGE` and `CONTRACTOR_TEST_DATABASE_URL` set
 for the mandatory real-container and PostgreSQL evidence. Neither prerequisites
 nor real checks are skipped by that gate. See the [verification record](../../runtime/PODMAN.md#release-verification-v31-008);
-repository-wide `make verify` is separately required to complete V31-008.
+Both that gate and repository-wide `make verify` passed for V31-008; rerun
+them when changing the implementation or validating a deployment host.
 
 ## Service-manager lifetime and recovery
 

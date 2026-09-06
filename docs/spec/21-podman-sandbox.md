@@ -1,6 +1,6 @@
 # 21 — Allocation-scoped Podman execution sandbox
 
-Status: **Opt-in execution implemented through V31-007; real Podman release gate passed; V31-008 remains in progress pending repository-wide verification**
+Status: **Implemented and verified through V31-008; execution remains opt-in**
 
 Depends on: [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -38,8 +38,9 @@ spec:
       tools: [exec_command]
 ```
 
-These are registered authoring refs; Runtime advertises them only after an
-opt-in startup probe and confirmed probe cleanup. Selecting the
+`podman@1` and `code-execution@1` are registered authoring refs; Runtime
+advertises this pair only after an opt-in startup probe and confirmed probe
+cleanup. Filesystem/edit tools retain their own capability probes. Selecting the
 profile does not implicitly add execution or filesystem tools. The profile
 may be selected without `exec_command`, but still owns its container lifecycle.
 Selecting `exec_command` requires `podman@1` in this first version; it cannot
@@ -86,7 +87,7 @@ Settings are parsed at process startup, not from a public Workflow document:
 | owner identity | Stable unique local Runtime service identity, held under an exclusive ownership lock |
 | cpu | 2 vCPU by default; positive operator-configured limit |
 | memory | 2 GiB by default; positive operator-configured hard limit |
-| pids | 256 by default; includes command children and sandbox supervisor |
+| pids | 256 by default; includes command children and the inert container PID 1, not the host guardian |
 | tmpfs | 256 MiB by default for private temporary files |
 | network | `none` in `podman@1` version 1 |
 | command timeout | 60 seconds default, 300 seconds operator maximum by default |
@@ -98,9 +99,10 @@ Settings are parsed at process startup, not from a public Workflow document:
 Limits are finite, validated at startup and bounded by implementation ceilings.
 There is no model-selected image, user, mount, Podman flag, host executable,
 credential, network mode or resource override. The Runtime does not pull or
-build images during allocation prepare. Packages and the execution supervisor
-are provisioned in the approved image; project-local environments can be
-created from already available dependencies.
+build images during allocation prepare. Packages and the inert init are
+provisioned in the approved image; the trusted owner and guardian run on the
+host. Project-local environments can be created from already available
+dependencies.
 
 Network access is deliberately a first-version constraint: package downloads
 and live target HTTP requests from executed code are unavailable. A later
@@ -161,10 +163,10 @@ Preparation follows this order:
    then construct the Worker.
 6. Return prepared/ready only after all resources are usable.
 
-`SandboxFactory.prepare()` currently returns only local scratch and runs before
-project hydration. Implementation must separate scratch preparation from
-starting the execution sandbox, or introduce equivalent lifecycle hooks. A
-remote/container ID must not masquerade as an `AllocationWorkspace.path`.
+`SandboxFactory.prepare()` returns local scratch before project hydration.
+`AllocationService` then allocates and prepares a separate `PreparedExecution`
+through `PodmanLifecycle` after hydration and before constructing tools. The
+container ID never masquerades as an `AllocationWorkspace.path`.
 The container is owned by the allocation lifecycle, not by an individual tool
 instance whose `close()` might run multiple times.
 
@@ -322,9 +324,10 @@ according to [02]/[04], but must preserve container-before-files ordering.
 
 Release is idempotent and owns one cleanup task: close tool entry points,
 confirm container stopped/removed, dispose mounted project files, then release
-scratch/adapters. The current project-before-sandbox cleanup order must change
-for this profile. A timeout retains the owned cleanup task and fences the slot;
-retries join it. Only authoritative release confirmation makes the slot idle.
+scratch/adapters. `AllocationService` removes the separate execution handle
+before disposing the project session or scratch. A timeout retains the owned
+cleanup task and fences the slot; retries join it. Only authoritative release
+confirmation makes the slot idle.
 
 Startup recovery runs before advertising idle capacity. It acquires the stable
 service ownership lock, lists only Contractor containers for that owner,
@@ -334,8 +337,8 @@ services or unrelated Podman users remain untouched. Engine operations use
 full resolved IDs and bounded verification. Global prune is never recovery.
 
 The deployment must also stop owned containers when the Runtime service dies;
-a stopped Python process does not imply stopped containers. The approved
-container supervisor must enforce a finite Runtime-renewed liveness deadline
+a stopped Python process does not imply stopped containers. The trusted host
+guardian enforces a finite Runtime-renewed liveness deadline
 bounded by the confirmed control lease, so code cannot keep running indefinitely
 while the Runtime is down. It must stop accepting commands and terminate the
 container when that deadline expires. Startup cleanup remains responsible for
@@ -343,10 +346,9 @@ removing stopped orphan resources. No workload can renew or disable the
 supervisor's liveness deadline or forge command-completion acknowledgements.
 The control channel and supervisor authority must be separated from workload
 processes, not merely hidden in a file readable by the same execution user.
-A host guardian tied to the Runtime service or an equivalently isolated
-supervisor can implement this boundary; the implementation must prove it before
-advertising the profile. This is a required implementation/probe item, not a
-guarantee supplied automatically by `podman exec`.
+The implemented host guardian owns this boundary independently of the Runtime
+process; startup probes verify it before advertising the profile. This is a
+Contractor lifecycle guarantee, not one supplied automatically by `podman exec`.
 
 V31-003 selects a host guardian with an inherited private socket, an exact pinned
 systemd cgroup v2 scope and a PID 1 pidfd. A separate subordinate-UID inert image
@@ -354,8 +356,8 @@ PID 1 reaps orphans; workloads use the nonzero keep-id UID. Completion checks
 freeze and recursively inventory the scope before unfreezing only PID 1.
 Liveness is capped at ten seconds and the confirmed lease; expiry/EOF/uncertainty
 kills the entire scope through `cgroup.kill`. No engine socket or control token
-is exposed to workloads. The concrete protocol, real-host gate and remaining
-lifecycle integration obligations are documented in
+is exposed to workloads. The concrete protocol, real-host gate and integrated
+allocation lifecycle are documented in
 [Runtime Podman policy](../../runtime/PODMAN.md#host-guardian-and-image-v31-003).
 
 ## Probes, errors and metrics
@@ -401,9 +403,9 @@ cannot add tools, images, mounts, privileges or network authority.
 
 ## Acceptance and implementation sequence
 
-Implementation follows V30-001 through V30-004 and V31-001 through V31-008 in
-the [task catalog](../../tasks/index.yml). Podman work starts after the local
-direct gate V30-004 passes. V31 separates settings/placement, engine ownership,
+Implementation completed V30-001 through V30-004 and V31-001 through V31-008 in
+the [task catalog](../../tasks/index.yml). The local direct gate V30-004 was the
+prerequisite for Podman work. V31 separates settings/placement, engine ownership,
 the approved image and supervisor, allocation lifecycle, execution tools,
 capability probes, deployment examples and the real-container release gate.
 V31-006 enables advertisement only after the lifecycle and tool implementation
@@ -411,10 +413,11 @@ are present; V31-008 is the feature completion gate. Task files contain their
 own requirements, dependencies and executable acceptance commands.
 
 The [executable matrix](../../tests/e2e/podman_sandbox_matrix.yml) maps all eleven
-cases below to concrete tests. `make test-podman-release` passed on the recorded
-rootless Linux host; see the [verification record](../../runtime/PODMAN.md#release-verification-v31-008)
-for environment, effective policy and the unrelated repository verification
-failure that still prevents V31-008 completion.
+cases below to concrete tests. Both `make test-podman-release` on the recorded
+rootless Linux host and repository-wide `make verify` passed. See the
+[verification record](../../runtime/PODMAN.md#release-verification-v31-008)
+for environment, effective policy and verification scope. Unsupported host
+configurations and deferred skill/network features are not certified by this gate.
 
 Required acceptance cases:
 

@@ -303,7 +303,7 @@ was captured. CPU remains a boundary delta despite skipped intermediate samples.
 
 Resource fields cover the entire Runtime process, including its service work
 and retained memory from earlier allocations. They exclude subprocesses and
-containers, including future [21](21-podman-sandbox.md) sandboxes. The UI must
+containers, including the implemented [21](21-podman-sandbox.md) sandboxes. The UI must
 label that scope and call the RSS value an observed peak. Do not use the
 process-lifetime RSS high-water mark as an allocation-local peak, trace Python
 object allocations or force garbage collection.
