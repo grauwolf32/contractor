@@ -1,7 +1,7 @@
 # 24 — Git repositories as Artifact inputs
 
-Status: **In progress (V35) — key Settings and bounded Git reader implemented;
-Artifact publication and UI pending**
+Status: **In progress (V35) — Settings API, bounded Git reader and atomic
+Artifact publication implemented; UI and release gate pending**
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [17](17-projects-and-queue.md), [23](23-artifact-blob-backends.md).
@@ -207,7 +207,7 @@ of the V35-005 release measurements.
 
 ## Public API and publication
 
-Plan these authenticated public routes, with existing browser CSRF protection
+These authenticated public routes use existing browser CSRF protection
 on mutations and owner/Project authorization:
 
 | Route | Contract |
@@ -259,3 +259,11 @@ existing Runtime source consumers. Test the actual Server with read-only root,
 PostgreSQL blobs and no writable Git/blob/tmp directory or PVC, then repeat
 Artifact publication with filesystem storage. Measure memory and verify that
 key/canary material appears nowhere in responses, artifacts or captured logs.
+
+Git provenance is stored in `artifact_git_sources`, keyed by `artifact_versions.version_id`;
+metadata queries join it without reading blobs. The ordinary exact input fork
+reuses that version. The import service checks preconditions before fetch, then
+locks owned Project lifecycle and publishes the revision/source together in a
+short transaction. Git and shared transfer admission remain held through the
+metadata response. Failure responses never include remote diagnostics, and
+interrupted responses instruct clients to inspect metadata before retrying.

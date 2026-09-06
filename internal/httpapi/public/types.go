@@ -215,6 +215,7 @@ type FindingProposalManagement interface {
 }
 
 type Dependencies struct {
+	GitImports              GitImportService
 	GitKeys                 GitKeySettings
 	Authentication          *auth.Service
 	BrowserOrigins          auth.OriginPolicy

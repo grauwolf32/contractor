@@ -22,7 +22,7 @@ func (r *PostgresRepository) Metadata(
 	err := r.db.QueryRow(ctx, `
 SELECT revision.revision, version.media_type, blob.size_bytes,
        'sha256:' || encode(blob.sha256, 'hex'),
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at
+       revision.revision = binding.current_revision, binding.frozen, revision.created_at, `+gitSourceProjection+`
 FROM artifact_bindings AS binding
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
@@ -31,6 +31,7 @@ JOIN artifact_binding_revisions AS revision
  AND revision.name = binding.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND binding.namespace = $3 AND binding.name = $4
   AND (($5::text IS NULL AND revision.revision = binding.current_revision)
@@ -38,7 +39,7 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
 		scope.kind, scope.id, ref.Namespace, ref.Name, ref.Revision,
 	).Scan(
 		&revision, &result.MediaType, &result.Size, &result.Digest, &result.Current,
-		&result.Frozen, &result.CreatedAt,
+		&result.Frozen, &result.CreatedAt, &result.GitSource,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Metadata{}, ErrArtifactNotFound
@@ -61,7 +62,7 @@ func (r *PostgresRepository) ListMetadata(
 	}
 	rows, err := r.db.Query(ctx, `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at
+       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, `+gitSourceProjection+`
 FROM artifact_bindings AS binding
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
@@ -71,6 +72,7 @@ JOIN artifact_binding_revisions AS revision
  AND revision.revision = binding.current_revision
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE binding.scope_kind = $1 AND binding.scope_id = $2
   AND ($3::text IS NULL OR binding.namespace = $3)
   AND ($4::text IS NULL OR binding.namespace <> $4)
@@ -112,7 +114,7 @@ func (r *PostgresRepository) ListVersions(
 	rows, err := r.db.Query(ctx, `
 SELECT revision.namespace, revision.name, revision.revision,
        version.media_type, blob.size_bytes,
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at
+       revision.revision = binding.current_revision, binding.frozen, revision.created_at, `+gitSourceProjection+`
 FROM artifact_binding_revisions AS revision
 JOIN artifact_bindings AS binding
   ON binding.scope_kind = revision.scope_kind
@@ -121,6 +123,7 @@ JOIN artifact_bindings AS binding
  AND binding.name = revision.name
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
+LEFT JOIN artifact_git_sources AS git_source ON git_source.version_id = version.version_id
 WHERE revision.scope_kind = $1 AND revision.scope_id = $2
   AND revision.namespace = $3 AND revision.name = $4
   AND ($5::timestamptz IS NULL OR (revision.created_at, revision.revision) < ($5, $6))
@@ -219,7 +222,7 @@ func scanMetadata(row metadataRowScanner) (Metadata, error) {
 	var revision string
 	if err := row.Scan(
 		&result.Ref.Namespace, &result.Ref.Name, &revision,
-		&result.MediaType, &result.Size, &result.Current, &result.Frozen, &result.CreatedAt,
+		&result.MediaType, &result.Size, &result.Current, &result.Frozen, &result.CreatedAt, &result.GitSource,
 	); err != nil {
 		return Metadata{}, err
 	}

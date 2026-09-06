@@ -76,6 +76,8 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	}
 	sort.Strings(implemented)
 	wantImplemented := []string{
+		"POST /v1/artifacts/{namespace}/{name}/git-import",
+		"POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import",
 		"DELETE /v1/settings/git-key",
 		"GET /v1/settings/git-key",
 		"PUT /v1/settings/git-key",

@@ -655,6 +655,14 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Audit Controller: %w", err)
 	}
+	gitClient, err := gitimport.NewClient(cfg.GitImport)
+	if err != nil {
+		return fmt.Errorf("configure Git reader: %w", err)
+	}
+	gitImporter, err := gitimport.NewImporter(pool, gitClient, gitKeys)
+	if err != nil {
+		return fmt.Errorf("configure Git importer: %w", err)
+	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
@@ -663,6 +671,7 @@ func RunCLI(
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
 		GitKeys:                gitKeys,
+		GitImports:             gitImporter,
 		RuntimeAgentPrincipals: principalOperations,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 auditService,

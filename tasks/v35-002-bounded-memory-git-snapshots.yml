@@ -3,8 +3,8 @@ id: V35-002
 title: Fetch bounded Git snapshots over HTTPS and SSH entirely in memory
 milestone: git-artifact-import
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b876832422f1c346a7c91dedcb13f06af27144b3
 depends_on:
 - V35-001
 languages:

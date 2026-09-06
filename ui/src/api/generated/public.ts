@@ -4162,11 +4162,29 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Import interrupted; inspect metadata before retrying */
+            408: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Error422"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ArtifactUnavailable"];
+            /** @description Import deadline exceeded; inspect metadata before retrying */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     importProjectGitArtifact: {
@@ -4195,11 +4213,29 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            /** @description Import interrupted; inspect metadata before retrying */
+            408: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Error422"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["ArtifactUnavailable"];
+            /** @description Import deadline exceeded; inspect metadata before retrying */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     login: {

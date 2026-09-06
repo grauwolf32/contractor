@@ -98,7 +98,7 @@ paths:
       tags: [Artifacts]
       summary: Import one bounded Git snapshot as an exact source ZIP artifact
       description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: If-None-Match
           in: header
@@ -119,6 +119,16 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '408':
+          description: Import interrupted; inspect metadata before retrying
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '504':
+          description: Import deadline exceeded; inspect metadata before retrying
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
@@ -134,7 +144,7 @@ paths:
       tags: [Artifacts]
       summary: Import one bounded Git snapshot as an exact source ZIP artifact
       description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: If-None-Match
           in: header
@@ -155,6 +165,16 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
+        '408':
+          description: Import interrupted; inspect metadata before retrying
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '504':
+          description: Import deadline exceeded; inspect metadata before retrying
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}

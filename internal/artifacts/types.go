@@ -77,6 +77,7 @@ type ForkResult struct {
 // Metadata describes one exact immutable Artifact revision and its relation to
 // the current logical binding. It never contains bytes or a physical blob key.
 type Metadata struct {
+	GitSource *GitSource  `json:"gitSource,omitempty"`
 	Ref       ArtifactRef `json:"artifact"`
 	MediaType string      `json:"mediaType"`
 	Size      int64       `json:"size"`
