@@ -3,7 +3,7 @@ id: V31-003
 title: Build the approved execution image and prove supervisor termination guarantees
 milestone: podman-allocation-execution
 priority: P0
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V31-002]
 languages: [python]
