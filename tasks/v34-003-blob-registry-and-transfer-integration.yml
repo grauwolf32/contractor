@@ -3,8 +3,8 @@ id: V34-003
 title: Integrate filesystem blobs with Artifact transactions and memory budgets
 milestone: artifact-blob-backends
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 76f72511430f89d9f0a3d578adec346f017355b1
 depends_on:
 - V34-002
 - V29-003

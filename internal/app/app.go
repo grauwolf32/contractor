@@ -133,6 +133,9 @@ func RunCLI(
 	if len(args) > 0 && args[0] == "config" {
 		return runConfigCLI(args[1:], logger)
 	}
+	if len(args) > 0 && args[0] == "blobs" {
+		return runBlobCleanupCLI(ctx, args[1:], getenv, logger)
+	}
 	if len(args) > 0 && args[0] == "migrate" {
 		return runMigrateCLI(ctx, args[1:], getenv, logger)
 	}

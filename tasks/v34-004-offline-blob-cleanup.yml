@@ -1,0 +1,64 @@
+schema_version: '1.0'
+id: V34-004
+title: Add offline dry-run cleanup for orphan filesystem blobs
+milestone: artifact-blob-backends
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on:
+- V34-003
+languages:
+- go
+goal: Give operators a small explicit way to remove orphan files after failed writes/deletes without
+  a durable background reconciliation service.
+context:
+  specification: docs/spec/23-artifact-blob-backends.md
+  deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
+    PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
+    and physical orphans after failure are accepted, but successful responses must never invent content.
+    S3 is a reserved future backend and must fail startup as unsupported in this increment.
+  operation: An operator-only Server CLI command uses the configured registry/root. Default is dry-run;
+    mutation requires an explicit apply option. All Server processes/writers using that registry
+    and root must be stopped for apply; document and require acknowledgement of this offline precondition.
+    Online cleanup is unsupported.
+  safety: Compare complete registry references with Server-generated exact physical keys, not only
+    digests. Remove only unreferenced final objects and abandoned staging files. Missing referenced
+    objects are reported without deleting metadata or inventing repairs.
+scope:
+  in:
+  - Add a dry-run report and explicit offline apply command with bounded summaries.
+  - Scan filesystem and reference metadata in bounded batches without reading payload bytes.
+  - Reject path/symlink escapes and preserve every referenced physical generation.
+  - Document rerun after interruption, accepted orphan accumulation and the shutdown requirement.
+  out:
+  - Online sweeping, automatic repairs, cross-backend migration and S3 listing/deletion.
+requirements:
+- id: R1
+  text: Dry-run performs no mutation and apply cannot be mistaken for supported online cleanup.
+- id: R2
+  text: A shared or retained object is never deleted; missing content does not grant metadata deletion
+    authority.
+- id: R3
+  text: Cleanup needs no queue, broker, lease service or payload loading.
+acceptance_criteria:
+- id: A1
+  given: Referenced objects, orphan finals, abandoned staging files and missing referenced content.
+  when: Dry-run and then offline apply execute.
+  then: Only the two orphan categories are removed; missing content is reported and metadata stays
+    intact.
+- id: A2
+  given: Symlinks/path escapes and an interrupted scan.
+  when: Cleanup validates entries and is rerun offline.
+  then: Outside paths and referenced objects are untouched; repeated apply converges without payload
+    buffering.
+tests:
+- name: cleanup
+  command: go test -race ./internal/artifacts ./internal/app
+  covers:
+  - A1
+  - A2
+- name: postgres
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test ./internal/artifacts ./internal/app
+  covers:
+  - A1
+  - A2
