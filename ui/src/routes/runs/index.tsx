@@ -22,8 +22,7 @@ export function RunsRoute() {
           <p className="eyebrow">Workflow execution</p>
           <h2>Runs</h2>
           <p className="lede">
-            Follow active work in Queue, then inspect authoritative terminal
-            history in Completed.
+            Follow active work and inspect completed results.
           </p>
         </div>
       </header>
@@ -43,7 +42,7 @@ export function RunsRoute() {
           aria-current={completed ? "page" : undefined}
         >
           <strong>Completed</strong>
-          <small>Terminal history</small>
+          <small>Results and history</small>
         </Link>
       </nav>
 

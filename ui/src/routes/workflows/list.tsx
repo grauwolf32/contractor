@@ -31,9 +31,7 @@ export function WorkflowListRoute() {
           <p className="eyebrow">Published contracts</p>
           <h2>Workflows</h2>
           <p className="lede">
-            Select one immutable Workflow version. Its contract defines every
-            string parameter, exact Artifact input, Stage, output, and
-            Scheduler-owned escalation shown in the Run draft.
+            Choose a Workflow version, provide its inputs, and start a Run.
           </p>
         </div>
         <button

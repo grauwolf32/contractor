@@ -227,7 +227,7 @@ function RunLabelFilters({
       <summary>
         <span className="run-label-filter-title">
           <strong>Metadata &amp; eval filters</strong>
-          <small>Exact, URL-synced selectors</small>
+          <small>Find Runs by their labels</small>
         </span>
         <span
           className={`run-label-filter-count ${selectors.length > 0 ? "has-active" : ""}`}
@@ -405,7 +405,6 @@ export function CompletedRunsPanel() {
     <div className="panel run-library run-view-panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Owner scope</p>
           <h3>Completed Runs</h3>
         </div>
         <div className="run-view-controls">
@@ -425,7 +424,7 @@ export function CompletedRunsPanel() {
                 setCursors([undefined]);
               }}
             >
-              <option value="">All terminal states</option>
+              <option value="">All states</option>
               {TERMINAL_RUN_STATES.map((candidate) => (
                 <option key={candidate} value={candidate}>
                   {candidate}

@@ -513,9 +513,11 @@ describe("Workflow routes", () => {
       },
     });
     expect(
-      await screen.findByRole("heading", { name: "run_openapi" }),
+      await screen.findByRole("button", { name: "Copy Run ID" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Authoritative aggregate")).toBeInTheDocument();
+    expect(
+      screen.getByText("Workflow Run", { exact: true }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("binding revision 7")).toBeInTheDocument();
     const metadata = screen
       .getByRole("heading", { name: "Run metadata labels" })
@@ -523,7 +525,7 @@ describe("Workflow routes", () => {
     expect(metadata).not.toBeNull();
     expect(metadata).toHaveTextContent("eval.id:eval-ui-01");
     expect(metadata).toHaveTextContent("eval.leg:a");
-    expect(metadata).toHaveTextContent("Immutable");
+    expect(metadata).toHaveTextContent("Labels are fixed at creation");
   });
 
   it("blocks a mutation while required declared fields are missing", async () => {

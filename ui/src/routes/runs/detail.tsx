@@ -60,19 +60,19 @@ function triageDescription(run: RunStatus, triage: RunTriage): string {
   }
   switch (run.state) {
     case "failed":
-      return "No normalized terminal cause was reported. Inspect the focused attempt for the authoritative terminal record.";
+      return "No failure reason was reported. Inspect the latest attempt for details.";
     case "succeeded":
       return triage.outputCount === 0
-        ? "All scheduled work completed; this Run has no frozen outputs."
-        : `${triage.outputCount} frozen output${triage.outputCount === 1 ? " is" : "s are"} ready to inspect.`;
+        ? "All work completed. This Run has no outputs."
+        : `${triage.outputCount} output${triage.outputCount === 1 ? " is" : "s are"} ready to inspect.`;
     case "cancelled":
-      return "Scheduler cleanup completed and the Run is terminal.";
+      return "Work stopped and cleanup completed.";
     case "cancelling":
-      return "Scheduler is aborting and draining active work.";
+      return "Stopping active work and cleaning up.";
     case "initializing":
-      return "The immutable Run snapshot exists; no Stage attempt has started yet.";
+      return "Preparing to start the first stage.";
     case "running":
-      return "The latest REST snapshot remains authoritative while live Planner facts update below.";
+      return "Follow the current stage and its progress below.";
   }
 }
 
@@ -94,7 +94,7 @@ function RunTriageSummary({
     >
       <div className="run-triage-heading">
         <div>
-          <p className="eyebrow">Run triage</p>
+          <p className="eyebrow">Run status</p>
           <h3 id="run-triage-title">{triageTitle(run, triage)}</h3>
         </div>
         <StateBadge state={run.state} />
@@ -137,12 +137,11 @@ function RunTriageSummary({
         <div>
           <dt>Duration</dt>
           <dd>{formatRunDuration(triage.durationMs)}</dd>
-          <small>from REST timestamps</small>
         </div>
         <div>
           <dt>Attempts</dt>
           <dd>{triage.attemptCount}</dd>
-          <small>ordered Stage history</small>
+          <small>across all stages</small>
         </div>
         <div>
           <dt>Total tokens</dt>
@@ -173,7 +172,7 @@ function RunTriageSummary({
         <div>
           <dt>Outputs</dt>
           <dd>{triage.outputCount}</dd>
-          <small>frozen bindings</small>
+          <small>ready to inspect</small>
         </div>
       </dl>
       {attemptAnchor === undefined && triage.outputCount === 0 ? null : (
@@ -439,14 +438,13 @@ function RunMetadataLabels({ run }: { run: RunStatus }) {
     <section className="panel run-metadata-label-panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Immutable · telemetry-visible</p>
+          <p className="eyebrow">Labels</p>
           <h3>Run metadata labels</h3>
         </div>
         <span>{Object.keys(run.labels).length} labels</span>
       </div>
       <p className="muted-copy">
-        Search and correlate this Run by these exact values. They do not select
-        Runtime infrastructure and cannot be changed after creation.
+        Use these labels to find related Runs. Labels are fixed at creation.
       </p>
       <RunMetadataLabelChips labels={run.labels} empty="No metadata labels." />
     </section>
@@ -596,8 +594,6 @@ function LoadedRunDetail({
   return (
     <>
       <RunTriageSummary run={run} triage={triage} />
-      <RunTimestamps run={run} />
-      <RunMetadataLabels run={run} />
       <RunResumeControl
         key={`${run.runId}:${run.resumeStageExecutionId ?? "none"}`}
         run={run}
@@ -617,7 +613,6 @@ function LoadedRunDetail({
           )}
         </div>
       )}
-      <RunBindings run={run} />
       <RunOutputGallery runId={run.runId} outputs={run.outputs} />
       <RunOutputPublications run={run} />
       <LiveAttempts
@@ -625,6 +620,10 @@ function LoadedRunDetail({
         run={run}
         focusStageExecutionId={triage.stageExecutionId}
       />
+
+      <RunMetadataLabels run={run} />
+      <RunTimestamps run={run} />
+      <RunBindings run={run} />
 
       <RunRuntimeConfiguration run={run} />
 
@@ -637,12 +636,24 @@ function LoadedRunDetail({
 export function RunDetailRoute() {
   const api = usePublicAPI();
   const { runId = "" } = useParams();
+  const [copiedId, setCopiedId] = useState<string>();
+  const [copyError, setCopyError] = useState<string>();
   const valid = RUN_ID_PATTERN.test(runId);
   const query = useQuery({
     queryKey: queryKeys.runs.detail(runId),
     queryFn: () => getRun(api, runId),
     enabled: valid,
   });
+
+  async function copyRunId(): Promise<void> {
+    setCopyError(undefined);
+    try {
+      await navigator.clipboard.writeText(runId);
+      setCopiedId(runId);
+    } catch {
+      setCopyError("Could not copy. Select the Run ID to copy it manually.");
+    }
+  }
   if (!valid) {
     return (
       <section className="route-page">
@@ -658,13 +669,27 @@ export function RunDetailRoute() {
           <Link className="back-link" to="/runs">
             ← All Runs
           </Link>
-          <p className="eyebrow">Authoritative aggregate</p>
-          <h2>{runId}</h2>
-          <p className="lede">
-            Stage lifecycle, Scheduler decisions, exact Artifacts and aggregate
-            metrics come from REST. Typed Planner facts update only the nested
-            live plan between snapshots.
-          </p>
+          <p className="eyebrow">Workflow Run</p>
+          <h2>{query.data?.workflow ?? "Run details"}</h2>
+          <div className="run-identity">
+            <code title={runId}>{runId}</code>
+            <button
+              className="secondary-button"
+              type="button"
+              aria-label="Copy Run ID"
+              onClick={() => void copyRunId()}
+            >
+              {copiedId === runId ? "Copied" : "Copy ID"}
+            </button>
+            <span className="visually-hidden" role="status">
+              {copiedId === runId ? "Run ID copied" : ""}
+            </span>
+          </div>
+          {copyError === undefined ? null : (
+            <p className="field-error" role="alert">
+              {copyError}
+            </p>
+          )}
         </div>
         <button
           className="secondary-button"
@@ -677,7 +702,7 @@ export function RunDetailRoute() {
       </header>
       {query.isPending ? (
         <p className="loading-copy" aria-live="polite">
-          Loading Run aggregate…
+          Loading Run…
         </p>
       ) : query.error !== null ? (
         <ErrorNotice error={query.error} />

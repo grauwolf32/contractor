@@ -741,9 +741,7 @@ describe("Run routes", () => {
       .closest("section");
     expect(metadataPanel).toHaveTextContent("eval.id:eval-router-01");
     expect(metadataPanel).toHaveTextContent("eval.leg:a");
-    expect(metadataPanel).toHaveTextContent(
-      "They do not select Runtime infrastructure",
-    );
+    expect(metadataPanel).toHaveTextContent("Labels are fixed at creation");
     expect(detailReads).toBe(1);
     act(() =>
       socket?.message({

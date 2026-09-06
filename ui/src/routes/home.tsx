@@ -178,8 +178,7 @@ function ActivePanel({ queries }: { queries: ActiveQuery[] }) {
         <Link to="/runs?state=running">Open running Runs →</Link>
       </div>
       <p className="action-panel-copy">
-        Initializing, running, and cancelling executions from authoritative
-        state views.
+        Runs that are starting, running, or stopping.
       </p>
       {pending && runs.length === 0 ? (
         <p className="loading-copy">Loading active Runs…</p>
@@ -189,7 +188,7 @@ function ActivePanel({ queries }: { queries: ActiveQuery[] }) {
         <>
           {errors.length === 0 ? null : (
             <div className="action-inline-warning" role="status">
-              Some active state views could not be loaded.
+              Some active Runs could not be loaded.
             </div>
           )}
           <RunRows
@@ -220,9 +219,7 @@ function RecentSuccessPanel({
         </div>
         <Link to="/runs?view=completed&state=succeeded">View successes →</Link>
       </div>
-      <p className="action-panel-copy">
-        Open a Run to inspect and render its frozen output Artifacts.
-      </p>
+      <p className="action-panel-copy">Open a Run to preview its results.</p>
       {query.isPending ? (
         <p className="loading-copy">Loading recent activity…</p>
       ) : query.error !== null ? (

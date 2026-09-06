@@ -143,7 +143,9 @@ test("Run detail stays within a 320px viewport", async ({ page }, testInfo) => {
   await installRunAPI(page, uiOrigin);
 
   await page.goto(`/runs/${RUN_ID}`);
-  await expect(page.getByRole("heading", { name: RUN_ID })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "responsive-layout@1" }),
+  ).toBeVisible();
   await page.locator("details.run-output-preview > summary").click();
   await expect(page.locator(".run-output-detail-link")).toBeVisible();
   await expect

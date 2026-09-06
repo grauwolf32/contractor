@@ -18,6 +18,7 @@ const navigation = [
 export function ApplicationShell() {
   const { session, logout, isLoggingOut } = useSession();
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function onLogout() {
     setLogoutError(null);
@@ -32,7 +33,7 @@ export function ApplicationShell() {
 
   return (
     <div className="application">
-      <aside className="sidebar">
+      <aside className="sidebar" data-menu-open={menuOpen}>
         <div>
           <img
             className="brand-mark"
@@ -43,13 +44,23 @@ export function ApplicationShell() {
           <p className="eyebrow">Contractor</p>
           <h1>Control workspace</h1>
         </div>
-        <nav aria-label="Primary navigation">
+        <button
+          className="secondary-button mobile-nav-toggle"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {menuOpen ? "Close menu" : "Menu"}
+        </button>
+        <nav id="primary-navigation" aria-label="Primary navigation">
           {navigation.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={"end" in item ? item.end : false}
               className={({ isActive }) => (isActive ? "active" : undefined)}
+              onClick={() => setMenuOpen(false)}
             >
               {item.label}
             </NavLink>
