@@ -1,10 +1,20 @@
-import { Link, Navigate, useLocation, useSearchParams } from "react-router";
+import {
+  Link,
+  Navigate,
+  Outlet,
+  useLocation,
+  useSearchParams,
+} from "react-router";
 
 import { TERMINAL_RUN_STATES } from "../../api/runs";
+import { useSession } from "../../auth/session";
 import { QueuePanel } from "../queue";
 import { CompletedRunsPanel } from "./list";
 
 export function RunsRoute() {
+  const { pathname } = useLocation();
+  const { session } = useSession();
+  const configuration = pathname.startsWith("/runs/configuration");
   const [searchParams] = useSearchParams();
   const requestedView = searchParams.get("view");
   const requestedState = searchParams.get("state");
@@ -30,23 +40,39 @@ export function RunsRoute() {
       <nav className="run-view-tabs" aria-label="Run views">
         <Link
           to="/runs"
-          className={completed ? undefined : "active"}
-          aria-current={completed ? undefined : "page"}
+          className={completed || configuration ? undefined : "active"}
+          aria-current={completed || configuration ? undefined : "page"}
         >
           <strong>Queue</strong>
           <small>Active work</small>
         </Link>
         <Link
           to="/runs?view=completed"
-          className={completed ? "active" : undefined}
-          aria-current={completed ? "page" : undefined}
+          className={completed && !configuration ? "active" : undefined}
+          aria-current={completed && !configuration ? "page" : undefined}
         >
           <strong>Completed</strong>
           <small>Results and history</small>
         </Link>
+        {session?.principal.capabilities.includes("operations") ? (
+          <Link
+            to="/runs/configuration"
+            className={configuration ? "active" : undefined}
+            aria-current={configuration ? "page" : undefined}
+          >
+            <strong>Configuration</strong>
+            <small>Runtime configurations and labels</small>
+          </Link>
+        ) : null}
       </nav>
 
-      {completed ? <CompletedRunsPanel /> : <QueuePanel />}
+      {configuration ? (
+        <Outlet />
+      ) : completed ? (
+        <CompletedRunsPanel />
+      ) : (
+        <QueuePanel />
+      )}
     </section>
   );
 }

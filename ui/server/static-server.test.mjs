@@ -143,6 +143,8 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/operations/runtime-agents",
     "/operations/runtime-configs",
     "/operations/runtime-configs/debug/1",
+    "/runs/configuration",
+    "/runs/configuration/debug/1",
     "/operations/allocations",
     "/operations/configurations",
     "/operations/configurations/model-policies/worker/1",
@@ -233,6 +235,8 @@ test("API-looking, missing asset, extension and unknown routes never fall back",
     "/operations/configurations/unknown/worker/1",
     "/operations/runtime-configs/debug/1/extra",
     "/operations/runtime-configs/INVALID/1",
+    "/runs/configuration/debug/1/extra",
+    "/runs/configuration/INVALID/1",
     "/operations/credentials/worker-budget/extra",
   ]) {
     const response = await fetch(`${origin}${path}`);

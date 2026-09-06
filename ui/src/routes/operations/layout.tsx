@@ -21,7 +21,6 @@ import type { OperationsOutletContext } from "./context";
 const navigation = [
   { to: "/operations", label: "Overview", end: true },
   { to: "/operations/runtime-agents", label: "Runtime Agents" },
-  { to: "/operations/runtime-configs", label: "Runtime configuration" },
   { to: "/operations/allocations", label: "Allocations" },
   { to: "/operations/configurations", label: "LLM configurations" },
   { to: "/operations/credentials", label: "Credentials" },

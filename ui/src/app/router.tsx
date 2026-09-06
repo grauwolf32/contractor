@@ -19,6 +19,10 @@ import { ProjectAuditListRoute } from "../routes/projects/audits/list";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { LegacyQueueRedirect, RunsRoute } from "../routes/runs";
+import {
+  LegacyRuntimeConfigurationRedirect,
+  RunConfigurationLayout,
+} from "../routes/runs/configuration";
 import { SkillsRoute } from "../routes/skills";
 import {
   CatalogIndexRedirect,
@@ -103,7 +107,31 @@ export function applicationRoutes(): RouteObject[] {
               path: "/artifacts/:namespace/:name",
               element: <ArtifactDetailRoute />,
             },
-            { path: "/runs", element: <RunsRoute /> },
+            {
+              path: "/runs",
+              element: <RunsRoute />,
+              children: [
+                {
+                  path: "configuration",
+                  element: <RunConfigurationLayout />,
+                  children: [
+                    { index: true, element: <RuntimeConfigurationRoute /> },
+                    {
+                      path: ":name/:version",
+                      element: <RuntimeConfigDetailRoute />,
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              path: "/operations/runtime-configs",
+              element: <LegacyRuntimeConfigurationRedirect />,
+            },
+            {
+              path: "/operations/runtime-configs/:name/:version",
+              element: <LegacyRuntimeConfigurationRedirect />,
+            },
             { path: "/runs/:runId", element: <RunDetailRoute /> },
             {
               path: "/runs/:runId/artifacts/:namespace/:name",
@@ -136,14 +164,6 @@ export function applicationRoutes(): RouteObject[] {
                 {
                   path: "runtime-agents",
                   element: <RuntimeAgentListRoute />,
-                },
-                {
-                  path: "runtime-configs",
-                  element: <RuntimeConfigurationRoute />,
-                },
-                {
-                  path: "runtime-configs/:name/:version",
-                  element: <RuntimeConfigDetailRoute />,
                 },
                 {
                   path: "allocations",

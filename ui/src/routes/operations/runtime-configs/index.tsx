@@ -44,7 +44,7 @@ function RuntimeRef({ resource }: { resource: RuntimeConfigResource }) {
   return (
     <span className="exact-config-ref">
       <Link
-        to={`/operations/runtime-configs/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
+        to={`/runs/configuration/${encodeURIComponent(resource.ref.name)}/${encodeURIComponent(resource.ref.version)}`}
       >
         {resource.ref.name}@{resource.ref.version}
       </Link>

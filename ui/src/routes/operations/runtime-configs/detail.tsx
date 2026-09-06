@@ -47,7 +47,7 @@ export function RuntimeConfigDetailRoute() {
   });
   return (
     <div className="configuration-detail">
-      <Link className="back-link" to="/operations/runtime-configs">
+      <Link className="back-link" to="/runs/configuration">
         ← Runtime configuration
       </Link>
       {query.isPending ? (
