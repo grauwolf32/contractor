@@ -3,7 +3,7 @@ id: V31-004
 title: Bind Podman preparation, shutdown and recovery to allocation lifecycle
 milestone: podman-allocation-execution
 priority: P0
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V31-003, V28-002, V14-003]
 languages: [python]
