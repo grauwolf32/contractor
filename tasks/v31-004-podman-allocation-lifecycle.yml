@@ -3,8 +3,8 @@ id: V31-004
 title: Bind Podman preparation, shutdown and recovery to allocation lifecycle
 milestone: podman-allocation-execution
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 050ca9101f9d747dbe1143221fba1f1d79cdca41
 depends_on: [V31-003, V28-002, V14-003]
 languages: [python]
 
@@ -64,3 +64,27 @@ acceptance_criteria:
 tests:
   - {name: sandbox-lifecycle, command: "cd runtime && uv run pytest -W error tests/test_podman_allocation.py tests/test_podman_recovery.py", covers: [A1, A2, A3, A4]}
   - {name: existing-lifecycle, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_projectfs_storage.py", covers: [A2, A4]}
+  - {name: owner-real, command: "cd runtime && CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_owner_integration.py", covers: [A2, A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  image: localhost/contractor-supervisor@sha256:faea9fa41ec757ad3c18bf3a947409692f2fcc374a87c1d209185175b0d215ca
+  environment: Local rootless Podman 6.1.0 with systemd cgroup v2; the real gate requires the preinstalled image via CONTRACTOR_TEST_PODMAN_IMAGE and never pulls/builds it.
+  results:
+    - Required allocation/recovery gate passed, 26 tests with warnings treated as errors.
+    - Required existing lifecycle regression gate passed, 46 tests with warnings treated as errors.
+    - Final full Runtime suite passed, 1224 tests with 17 explicit opt-in skips; Ruff lint and format checks passed.
+    - Real owner-process gate passed, 3 tests; combined real supervisor/owner gate passed, 14 tests.
+    - Real Runtime SIGKILL and SIGSTOP tests terminate an active workload writer, prevent late writes and preserve bind data; a surviving owner releases its flock only after exact removal.
+    - Hydration precedes start/guardian readiness/Worker construction; identical prepare and sequential real A2A SDK invocations reuse one container.
+    - A test-injected SDK INPUT_REQUIRED event and resumed invocation preserve the same container; this task does not add new INPUT_REQUIRED emission behavior to the production Worker.
+    - Cancellation and late/absent uncertain create retain ownership; no create replay or file deletion is allowed before reconciliation and confirmed removal.
+    - Failed partial prepare retains a fenced allocation context; release confirmation cannot bypass it, and cancelled release retries join one retained cleanup task.
+    - Finalize retains project files after confirmed stop; abort, lease loss and active-allocation CLI shutdown remove the container before project cleanup.
+    - Recovery preserves foreign owners and prevents capability/provider initialization on uncertainty; persistent root markers prevent disabling or changing the owner around recovery.
+    - All test-owned containers and host owner/guardian processes were confirmed absent after the real gates.
+    - Repository-wide make verify was attempted; lint/vet passed but unrelated concurrent internal/telemetry tests failed with Planner telemetry settings are incomplete. No telemetry changes were included.
+  boundaries:
+    - Model-visible exec_command and the selected SandboxExecutor transport remain V31-005; positive profile/tool advertisement remains gated by V31-006.
+    - Deployment must preserve the host owner and guardian across Runtime termination; service-manager wiring remains V31-007.
+    - Owner/guardian destruction, arbitrary same-user host mutation, host failure and indefinitely blocked kernel operations are not bounded-success guarantees; uncertainty never authorizes cleanup or reusable capacity.
