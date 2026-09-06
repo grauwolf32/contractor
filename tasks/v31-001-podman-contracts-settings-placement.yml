@@ -3,8 +3,8 @@ id: V31-001
 title: Define Podman settings, exact tool/profile contracts and local placement
 milestone: podman-allocation-execution
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 2cd9f3d15d9383277ed0cb2c45f2ecfb446ef426
 depends_on: [V30-004, V7-002]
 languages: [go, python]
 
