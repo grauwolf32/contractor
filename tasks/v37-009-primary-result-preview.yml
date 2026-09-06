@@ -3,8 +3,8 @@ id: "V37-009"
 title: "Highlight declared primary outputs and preview a selected result with one action"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "b2b136b679975e2afbbe380052e6aaccf0a02226"
 depends_on: ["V23-004", "V24-001", "V33-001"]
 languages: ["typescript"]
 goal: >-
