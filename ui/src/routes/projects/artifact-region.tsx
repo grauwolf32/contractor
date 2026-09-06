@@ -96,14 +96,10 @@ export function ProjectArtifactRegion({
         Shortcuts suggest useful names and media types. Every field remains
         editable, and Other accepts any supported Artifact.
       </p>
-      <ProjectArtifactShortcutGrid onSelect={setShortcut} />
-      <button
-        className="secondary-button"
-        type="button"
-        onClick={() => setGitOpen(true)}
-      >
-        Import Git repository
-      </button>
+      <ProjectArtifactShortcutGrid
+        onSelect={setShortcut}
+        onImportGit={() => setGitOpen(true)}
+      />
 
       {written === null ? null : (
         <div className="notice notice-success" role="status">

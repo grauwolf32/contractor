@@ -24,6 +24,7 @@ import {
   inferredArtifactMediaType,
 } from "../artifacts/artifact-file";
 import { ArtifactFileDrop, ErrorNotice } from "../artifacts/common";
+import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import {
   PROJECT_ARTIFACT_SHORTCUTS,
   type ProjectArtifactShortcut,
@@ -89,11 +90,27 @@ function ArtifactShortcutIcon({
 
 export function ProjectArtifactShortcutGrid({
   onSelect,
+  onImportGit,
 }: {
   onSelect: (shortcut: ShortcutDefinition) => void;
+  onImportGit: () => void;
 }) {
   return (
     <div className="project-shortcut-grid" aria-label="Artifact shortcuts">
+      <button
+        className="project-shortcut"
+        type="button"
+        aria-label="Import Git repository"
+        onClick={onImportGit}
+      >
+        <span className="project-shortcut-icon">
+          <GitRepositoryIcon />
+        </span>
+        <span>
+          <strong>Git</strong>
+          <small>Import a repository as a source archive</small>
+        </span>
+      </button>
       {PROJECT_ARTIFACT_SHORTCUTS.map((shortcut) => (
         <button
           className="project-shortcut"

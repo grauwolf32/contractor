@@ -262,6 +262,73 @@ function renderWorkflowApplication(api: PublicAPI, path: string) {
 }
 
 describe("Workflow routes", () => {
+  it.each([undefined, "project_example"])(
+    "only offers compatible input revisions in scope %s",
+    async (projectId) => {
+      const textArtifact = {
+        ...sourceArtifact,
+        artifact: { ...sourceArtifact.artifact, name: "readme" },
+        mediaType: "text/plain",
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const path = new URL(request.url).pathname;
+          if (path.endsWith("/artifacts")) {
+            return apiResponse({
+              items: [sourceArtifact, textArtifact],
+              page: { hasMore: false },
+            });
+          }
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      render(
+        <QueryClientProvider client={createApplicationQueryClient()}>
+          <PublicAPIProvider api={api}>
+            <MemoryRouter>
+              <WorkflowRunForm
+                workflow={{
+                  ...workflow,
+                  inputs: {
+                    ...workflow.inputs,
+                    document: {
+                      required: false,
+                      mediaTypes: ["application/pdf"],
+                    },
+                    any: { required: false, mediaTypes: ["*/*"] },
+                  },
+                }}
+                {...(projectId === undefined ? {} : { projectId })}
+              />
+            </MemoryRouter>
+          </PublicAPIProvider>
+        </QueryClientProvider>,
+      );
+      const source = screen.getByRole("combobox", { name: "source required" });
+      await within(source).findByRole("option", { name: /source@revision-7/ });
+      expect(within(source).getAllByRole("option")).toHaveLength(2);
+      expect(
+        within(source).queryByRole("option", { name: /readme/ }),
+      ).toBeNull();
+      const document = screen.getByRole("combobox", { name: "document" });
+      expect(within(document).getAllByRole("option")).toHaveLength(1);
+      expect(screen.getByText(/No matching artifacts found/)).toBeVisible();
+      const any = screen.getByRole("combobox", { name: "any" });
+      expect(within(any).getAllByRole("option")).toHaveLength(3);
+      expect(screen.queryByRole("option", { name: /Incompatible/ })).toBeNull();
+      const git = screen.getByRole("button", { name: "Import Git for source" });
+      expect(git.querySelector("svg")).not.toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Import Git for document" }),
+      ).toBeNull();
+      await userEvent.setup().click(git);
+      expect(
+        screen.getByRole("dialog", { name: "Import Git repository" }),
+      ).toBeVisible();
+    },
+  );
   it("isolates infinite Run inventories from finite Operations picker cache", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const request = input instanceof Request ? input : new Request(input);

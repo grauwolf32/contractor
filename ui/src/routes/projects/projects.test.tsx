@@ -537,6 +537,13 @@ describe("Project routes", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Sources" })).toBeEnabled();
+    const git = screen.getByRole("button", { name: "Import Git repository" });
+    expect(git).toHaveClass("project-shortcut");
+    expect(git.querySelector("svg")).not.toBeNull();
+    await userEvent.setup().click(git);
+    expect(
+      screen.getByRole("dialog", { name: "Import Git repository" }),
+    ).toBeVisible();
   });
 
   it("opens exact Project Artifact history and bounded preview", async () => {

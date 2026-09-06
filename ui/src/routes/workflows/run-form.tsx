@@ -44,6 +44,7 @@ import {
   type ExecutionOverrideDraft,
 } from "../../run-drafts/validation";
 import { ErrorNotice, formatBytes } from "../artifacts/common";
+import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -958,9 +959,6 @@ export function WorkflowRunForm({
                 const compatible = artifacts.filter((metadata) =>
                   artifactAccepts(slot.mediaTypes, metadata),
                 );
-                const incompatible = artifacts.filter(
-                  (metadata) => !artifactAccepts(slot.mediaTypes, metadata),
-                );
                 return (
                   <div className="run-field" key={name}>
                     <label>
@@ -998,15 +996,6 @@ export function WorkflowRunForm({
                             {artifactLabel(metadata)}
                           </option>
                         ))}
-                        {incompatible.map((metadata) => (
-                          <option
-                            key={artifactOptionKey(metadata.artifact)}
-                            value={artifactOptionKey(metadata.artifact)}
-                            disabled
-                          >
-                            Incompatible · {artifactLabel(metadata)}
-                          </option>
-                        ))}
                       </select>
                     </label>
                     <small>Accepts {slot.mediaTypes.join(", ")}</small>
@@ -1014,11 +1003,13 @@ export function WorkflowRunForm({
                       ["application/zip", "*/*"].includes(type),
                     ) ? (
                       <button
-                        className="secondary-button"
+                        className="secondary-button git-import-icon-button"
                         type="button"
+                        aria-label={`Import Git for ${name}`}
+                        title={`Import Git repository for ${name}`}
                         onClick={() => setGitSlot(name)}
                       >
-                        Import Git for {name}
+                        <GitRepositoryIcon />
                       </button>
                     ) : null}
                     <GitSourceDetails
@@ -1038,7 +1029,7 @@ export function WorkflowRunForm({
                     )}
                     {!artifactInventory.isPending && compatible.length === 0 ? (
                       <p className="field-guidance">
-                        No loaded revision is compatible.{" "}
+                        No matching artifacts found in the loaded list.{" "}
                         <Link
                           to={
                             projectId === undefined
