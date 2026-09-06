@@ -1,0 +1,8 @@
+package: publicapi
+output: public.gen.go
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: false
+  resolve-type-name-collisions: true
