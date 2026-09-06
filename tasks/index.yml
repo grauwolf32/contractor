@@ -2444,3 +2444,4 @@ tasks:
   - {id: V40-001, file: v40-001-agent-instruction-eval-fixtures.yml}
   - {id: V40-002, file: v40-002-agent-instruction-paired-runner.yml}
   - {id: V40-003, file: v40-003-agent-instruction-eval-decision.yml}
+  - {id: V42-001, file: v42-001-runtime-openai-gateway-client.yml}

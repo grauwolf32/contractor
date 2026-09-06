@@ -3,8 +3,8 @@ id: V42-001
 title: "Replace per-Runtime LiteLLM SDK with a bounded OpenAI-compatible ADK client"
 milestone: runtime-memory-efficiency
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 530b0072a3d358d997755ad9330f19a126ea23f8
 depends_on: []
 languages: ["python", "markdown", "yaml"]
 
@@ -131,3 +131,19 @@ tests:
     covers: ["A1", "A3", "A4"]
   - command: "cd runtime && uv run python -c \"import sys; import contractor_runtime.cli; assert 'litellm' not in sys.modules\""
     covers: ["A4"]
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - "The complete Runtime suite passed: 1310 passed, 30 skipped."
+    - >-
+      Three live LM Studio probes passed against qwen/qwen3.8-27b: ordinary
+      content and usage, strict terminal summarization, and a complete Worker
+      invocation with tools plus the mandatory result finalizer.
+    - >-
+      The retry contract test observed exactly four physical attempts after
+      three connection failures and one successful logical response; proxy
+      failure tests observed the same bounded attempt count with no fallback.
+    - >-
+      A clean production CLI import retained about 126 MiB RSS in the verification
+      environment, with no installed or imported litellm module.
