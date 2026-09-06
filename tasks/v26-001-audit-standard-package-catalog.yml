@@ -3,8 +3,8 @@ id: V26-001
 title: Add a versioned curated Audit standard package catalog
 milestone: audit-program-library
 priority: P2
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 3124cbc769a656ed4b92f3edeafd48d2eb1069b2
 depends_on: [V25-012]
 languages: [go, yaml, json]
 
