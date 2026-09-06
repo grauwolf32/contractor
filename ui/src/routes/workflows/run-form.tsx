@@ -115,24 +115,40 @@ function RunMetadataLabelEditor({
 }: {
   labels: readonly RunMetadataLabelDraft[];
   errors: Readonly<Record<string, string>>;
-  onAdd: () => void;
+  onAdd: (key?: string, value?: string) => void;
   onAddEvalPreset: () => void;
   onChange: (id: string, field: "key" | "value", value: string) => void;
   onRemove: (id: string) => void;
 }) {
+  const [labelInput, setLabelInput] = useState("");
+  const labelInputRef = useRef<HTMLInputElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const atLimit = labels.length >= RUN_METADATA_LABEL_LIMIT;
   const existingKeys = new Set(labels.map((label) => label.key));
   const missingEvalLabels = EVAL_METADATA_PRESET.filter(
     (label) => !existingKeys.has(label.key),
   ).length;
+
+  function addInput(): void {
+    if (labelInput.trim() === "" || atLimit) {
+      return;
+    }
+    const separator = labelInput.indexOf(":");
+    onAdd(
+      (separator < 0 ? labelInput : labelInput.slice(0, separator)).trim(),
+      separator < 0 ? "" : labelInput.slice(separator + 1),
+    );
+    setLabelInput("");
+  }
+
   return (
     <fieldset
       className="run-draft-section run-metadata-label-editor"
       aria-label="Run metadata labels"
     >
       <p className="muted-copy">
-        Immutable searchable metadata for this Run and its root traces. Labels
-        do not select Runtime infrastructure and are never shown to Planner or
-        Workers.
+        Add labels to find and group Runs. Edit a badge directly or remove it
+        with × before starting the Run.
       </p>
       <div className="notice notice-warning run-label-secret-warning">
         <strong>Do not put secrets in labels.</strong>
@@ -141,15 +157,55 @@ function RunMetadataLabelEditor({
           telemetry.
         </p>
       </div>
-      <div className="run-metadata-label-actions">
+      <div className="run-label-composer">
+        <div className="run-field">
+          <label htmlFor="run-label-input">Add a label</label>
+          <input
+            ref={labelInputRef}
+            id="run-label-input"
+            placeholder="team:platform or debug"
+            autoComplete="off"
+            spellCheck={false}
+            value={labelInput}
+            disabled={atLimit}
+            aria-describedby="run-label-input-help"
+            onChange={(event) => setLabelInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                addInput();
+              }
+            }}
+            onBlur={(event) => {
+              if (event.relatedTarget !== addButtonRef.current) {
+                addInput();
+              }
+            }}
+          />
+          <small id="run-label-input-help">
+            {atLimit
+              ? `Limit reached: ${RUN_METADATA_LABEL_LIMIT} labels.`
+              : "Type key:value or just key and press Enter. Labels are fixed once the Run starts."}
+          </small>
+        </div>
         <button
+          ref={addButtonRef}
           className="secondary-button"
           type="button"
-          disabled={labels.length >= RUN_METADATA_LABEL_LIMIT}
-          onClick={onAdd}
+          disabled={atLimit}
+          onClick={() => {
+            if (labelInput.trim() === "") {
+              onAdd();
+            } else {
+              addInput();
+              labelInputRef.current?.focus();
+            }
+          }}
         >
           Add metadata label
         </button>
+      </div>
+      <div className="run-metadata-label-actions">
         <button
           className="secondary-button"
           type="button"
@@ -173,16 +229,31 @@ function RunMetadataLabelEditor({
       {labels.length === 0 ? (
         <p className="compact-empty">No Run metadata labels.</p>
       ) : (
-        <div className="run-metadata-label-rows">
+        <div className="run-label-badges">
           {labels.map((label, index) => {
             const keyError = errors[`metadataLabel:${label.id}:key`];
             const valueError = errors[`metadataLabel:${label.id}:value`];
             const keyErrorID = `metadata-label-${label.id}-key-error`;
             const valueErrorID = `metadata-label-${label.id}-value-error`;
             return (
-              <div className="run-metadata-label-row" key={label.id}>
-                <div className="run-field">
-                  <label htmlFor={`metadata-label-${label.id}-key`}>
+              <div className="run-label-badge-field" key={label.id}>
+                <div
+                  className={`run-label-badge${label.value === "" ? " is-key-only" : ""}${keyError !== undefined || valueError !== undefined ? " has-error" : ""}`}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      !event.nativeEvent.isComposing &&
+                      event.target instanceof HTMLInputElement
+                    ) {
+                      event.preventDefault();
+                      labelInputRef.current?.focus();
+                    }
+                  }}
+                >
+                  <label
+                    className="visually-hidden"
+                    htmlFor={`metadata-label-${label.id}-key`}
+                  >
                     Run metadata label key {index + 1}
                   </label>
                   <input
@@ -190,7 +261,14 @@ function RunMetadataLabelEditor({
                     name={`metadata-label-key-${index + 1}`}
                     type="text"
                     autoComplete="off"
+                    spellCheck={false}
+                    placeholder="key"
+                    className="run-label-badge-key"
+                    style={{
+                      width: `calc(${Math.max(3, Math.min(24, label.key.length))}ch + 0.2rem)`,
+                    }}
                     value={label.key}
+                    title={label.key}
                     aria-invalid={keyError === undefined ? undefined : true}
                     aria-describedby={
                       keyError === undefined ? undefined : keyErrorID
@@ -199,14 +277,16 @@ function RunMetadataLabelEditor({
                       onChange(label.id, "key", event.target.value)
                     }
                   />
-                  {keyError === undefined ? null : (
-                    <p className="field-error" id={keyErrorID} role="alert">
-                      {keyError}
-                    </p>
-                  )}
-                </div>
-                <div className="run-field">
-                  <label htmlFor={`metadata-label-${label.id}-value`}>
+                  <span
+                    className="run-label-badge-separator"
+                    aria-hidden="true"
+                  >
+                    :
+                  </span>
+                  <label
+                    className="visually-hidden"
+                    htmlFor={`metadata-label-${label.id}-value`}
+                  >
                     Run metadata label value {index + 1}
                   </label>
                   <input
@@ -214,7 +294,14 @@ function RunMetadataLabelEditor({
                     name={`metadata-label-value-${index + 1}`}
                     type="text"
                     autoComplete="off"
+                    spellCheck={false}
+                    placeholder="value"
+                    className="run-label-badge-value"
+                    style={{
+                      width: `calc(${Math.max(5, Math.min(28, label.value.length))}ch + 0.2rem)`,
+                    }}
                     value={label.value}
+                    title={label.value || "Optional value"}
                     aria-invalid={valueError === undefined ? undefined : true}
                     aria-describedby={
                       valueError === undefined ? undefined : valueErrorID
@@ -223,20 +310,25 @@ function RunMetadataLabelEditor({
                       onChange(label.id, "value", event.target.value)
                     }
                   />
-                  {valueError === undefined ? null : (
-                    <p className="field-error" id={valueErrorID} role="alert">
-                      {valueError}
-                    </p>
-                  )}
+                  <button
+                    className="run-label-badge-remove"
+                    type="button"
+                    aria-label={`Remove Run metadata label ${index + 1}`}
+                    onClick={() => onRemove(label.id)}
+                  >
+                    <span aria-hidden="true">×</span>
+                  </button>
                 </div>
-                <button
-                  className="danger-button run-metadata-label-remove"
-                  type="button"
-                  aria-label={`Remove Run metadata label ${index + 1}`}
-                  onClick={() => onRemove(label.id)}
-                >
-                  Remove
-                </button>
+                {keyError === undefined ? null : (
+                  <p className="field-error" id={keyErrorID} role="alert">
+                    {keyError}
+                  </p>
+                )}
+                {valueError === undefined ? null : (
+                  <p className="field-error" id={valueErrorID} role="alert">
+                    {valueError}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -560,7 +652,7 @@ export function WorkflowRunForm({
     };
   }
 
-  function addMetadataLabel(): void {
+  function addMetadataLabel(key = "", value = ""): void {
     if (metadataLabels.length >= RUN_METADATA_LABEL_LIMIT) {
       setValidationErrors((current) => ({
         ...current,
@@ -568,7 +660,7 @@ export function WorkflowRunForm({
       }));
       return;
     }
-    const label = newMetadataLabel();
+    const label = newMetadataLabel(key, value);
     setMetadataLabels((current) => [...current, label]);
     clearMetadataLabelErrors();
   }

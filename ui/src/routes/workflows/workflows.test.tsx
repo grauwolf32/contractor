@@ -665,6 +665,80 @@ describe("Workflow routes", () => {
     expect(keys[2]).not.toBe(keys[1]);
   });
 
+  it("authors editable colon badges and key-only labels without losing pending input on submit", async () => {
+    const requests: unknown[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === workflowEndpoint) return apiResponse(workflow);
+        const inventory = inventoryResponse(url.pathname);
+        if (inventory !== undefined) return inventory;
+        if (url.pathname === "/v1/runs" && request.method === "POST") {
+          requests.push(await request.json());
+          throw new TypeError("response lost");
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderWorkflowApplication(api, workflowRoute);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByLabelText(/^objective/i),
+      "Badge labels",
+    );
+    await screen.findByRole("option", { name: /projects\/source@revision-7/ });
+    await user.selectOptions(
+      screen.getByLabelText(/^source/i),
+      "projects/source@revision-7",
+    );
+    await user.click(screen.getByText("Run metadata", { exact: true }));
+    const composer = screen.getByLabelText("Add a label");
+    await user.type(
+      composer,
+      "team:platform{Enter}debug{Enter}endpoint:https://host:8443/a=b{Enter}",
+    );
+    expect(requests).toHaveLength(0);
+    expect(screen.getByLabelText("Run metadata label key 1")).toHaveValue(
+      "team",
+    );
+    expect(screen.getByLabelText("Run metadata label value 2")).toHaveValue("");
+    expect(screen.getByLabelText("Run metadata label value 3")).toHaveValue(
+      "https://host:8443/a=b",
+    );
+    await user.clear(screen.getByLabelText("Run metadata label value 1"));
+    await user.type(
+      screen.getByLabelText("Run metadata label value 1"),
+      "infra{Enter}",
+    );
+    expect(requests).toHaveLength(0);
+    await user.click(
+      screen.getByRole("button", { name: "Remove Run metadata label 3" }),
+    );
+    await user.type(composer, "temporary:");
+    await user.click(
+      screen.getByRole("button", { name: "Add metadata label" }),
+    );
+    expect(screen.getAllByLabelText(/^Run metadata label key /)).toHaveLength(
+      3,
+    );
+    expect(screen.getByLabelText("Run metadata label value 3")).toHaveValue("");
+    await user.click(
+      screen.getByRole("button", { name: "Remove Run metadata label 3" }),
+    );
+    await user.type(composer, "release:next");
+    await user.click(
+      screen.getByRole("button", { name: "Start Workflow Run" }),
+    );
+    await screen.findByRole("button", { name: "Retry exact request" });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      labels: { team: "infra", debug: "", release: "next" },
+    });
+  });
+
   it("blocks duplicate and reserved Run metadata labels before mutation", async () => {
     let postCount = 0;
     const api = new PublicAPI(

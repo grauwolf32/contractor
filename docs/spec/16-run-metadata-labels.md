@@ -189,7 +189,8 @@ and a Runtime process does not interpret `purpose` or `eval.*`.
 ## UI surface
 
 The Run-create UI presents Runtime labels separately as infrastructure
-configuration. Metadata labels use a bounded key/value editor; the UI does not
+configuration. Metadata labels use editable badges: `key:value` creates a pair,
+and `key` creates a label with an empty string value. The UI does not
 offer them as RuntimeConfig checkboxes.
 
 Run list and detail show metadata labels independently from pinned Runtime
