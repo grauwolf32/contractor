@@ -30,7 +30,7 @@ describe("runtime configuration", () => {
 
   it.each([
     "http://localhost:8080",
-    "http://192.168.1.20:8080",
+    "http://192.0.2.20:8080",
     "http://127.1:8080",
     "http://2130706433:8080",
     "http://0177.0.0.1:8080",
@@ -51,6 +51,9 @@ describe("runtime configuration", () => {
     ["http://127.0.0.1:8080", "http://127.0.0.1:8080"],
     ["http://127.12.34.56:8080/", "http://127.12.34.56:8080"],
     ["http://[::1]:8080", "http://[::1]:8080"],
+    ["http://10.20.30.40:8080", "http://10.20.30.40:8080"],
+    ["http://172.16.1.2:8080", "http://172.16.1.2:8080"],
+    ["http://192.168.1.217:8080", "http://192.168.1.217:8080"],
   ])("normalizes safe API origin %s", (candidate, expected) => {
     expect(validateAPIBaseURL(candidate)).toBe(expected);
   });

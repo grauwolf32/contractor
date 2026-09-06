@@ -28,13 +28,32 @@ function isLoopbackIPLiteral(hostname) {
   );
 }
 
-function isExplicitLoopbackHTTP(candidate, parsed) {
-  if (parsed.protocol !== "http:" || !isLoopbackIPLiteral(parsed.hostname)) {
+function isPrivateIPv4Literal(hostname) {
+  const octets = hostname.split(".");
+  if (
+    octets.length !== 4 ||
+    !octets.every((octet) => /^(?:0|[1-9][0-9]{0,2})$/.test(octet)) ||
+    !octets.every((octet) => Number(octet) <= 255)
+  ) {
     return false;
   }
-  return /^http:\/\/(?:\[::1\]|127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(?::[0-9]{1,5})?\/?$/.test(
-    candidate,
+  const [first, second] = octets.map(Number);
+  return (
+    first === 10 ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168)
   );
+}
+
+function isExplicitDevelopmentHTTP(candidate, parsed) {
+  if (
+    parsed.protocol !== "http:" ||
+    (!isLoopbackIPLiteral(parsed.hostname) &&
+      !isPrivateIPv4Literal(parsed.hostname))
+  ) {
+    return false;
+  }
+  return candidate === parsed.origin || candidate === `${parsed.origin}/`;
 }
 
 export function validateAPIBaseURL(candidate) {
@@ -67,10 +86,10 @@ export function validateAPIBaseURL(candidate) {
   }
   if (
     parsed.protocol !== "https:" &&
-    !isExplicitLoopbackHTTP(candidate, parsed)
+    !isExplicitDevelopmentHTTP(candidate, parsed)
   ) {
     throw new RuntimeConfigError(
-      "API URL must use HTTPS, except for IP-literal loopback development",
+      "API URL must use HTTPS, except for IP-literal local development",
     );
   }
   return parsed.origin;

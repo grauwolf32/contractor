@@ -242,7 +242,7 @@ func TestSessionRevocationFeedAndCheckDoNotExtendAuthority(t *testing.T) {
 	}
 }
 
-func TestOriginPolicyIsExactAndAllowsHTTPOnlyForLoopbackDevelopment(t *testing.T) {
+func TestOriginPolicyIsExactAndAllowsHTTPOnlyForLocalDevelopment(t *testing.T) {
 	policy, err := NewOriginPolicy([]string{"https://ui.example.test", "https://ui.example.test:8443"}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -256,11 +256,23 @@ func TestOriginPolicyIsExactAndAllowsHTTPOnlyForLoopbackDevelopment(t *testing.T
 			t.Fatalf("accepted invalid origin %q", invalid)
 		}
 	}
-	if _, err := NewOriginPolicy([]string{"http://127.0.0.1:5173", "http://localhost:5173"}, true); err != nil {
-		t.Fatalf("loopback development origins: %v", err)
+	if _, err := NewOriginPolicy([]string{
+		"http://127.0.0.1:5173",
+		"http://localhost:5173",
+		"http://10.20.30.40:5173",
+		"http://172.31.4.5:5173",
+		"http://192.168.1.217:5173",
+	}, true); err != nil {
+		t.Fatalf("local development origins: %v", err)
 	}
-	if _, err := NewOriginPolicy([]string{"http://192.0.2.1:5173"}, true); !errors.Is(err, ErrInvalidOrigin) {
-		t.Fatal("non-loopback HTTP origin was accepted")
+	for _, origin := range []string{
+		"http://192.0.2.1:5173",
+		"http://8.8.8.8:5173",
+		"http://[fd00::1]:5173",
+	} {
+		if _, err := NewOriginPolicy([]string{origin}, true); !errors.Is(err, ErrInvalidOrigin) {
+			t.Fatalf("public HTTP origin %q was accepted", origin)
+		}
 	}
 }
 

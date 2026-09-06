@@ -935,9 +935,11 @@ The concrete bootstrap settings are the required absolute
 `CONTRACTOR_LOCAL_AUTH_FILE`, comma-separated `CONTRACTOR_BROWSER_ORIGINS`, and
 `CONTRACTOR_INSECURE_LOOPBACK_COOKIE`. The insecure mode uses only
 `contractor_loopback_session` and requires an IP-literal loopback Server
-listener plus loopback HTTP origins; the production cookie name is never
-downgraded. The retained non-browser `Authorization: Bearer` path maps to this
-same local-auth principal and requires neither Origin nor CSRF. The old
+listener. It permits exact HTTP browser origins only on loopback or RFC 1918
+private IPv4 literals, allowing an explicitly trusted local-network demo proxy;
+public HTTP addresses and hostnames remain invalid. The production cookie name
+is never downgraded. The retained non-browser `Authorization: Bearer` path maps
+to this same local-auth principal and requires neither Origin nor CSRF. The old
 `CONTRACTOR_PUBLIC_USER_ID`, when present, is only a compatibility assertion
 that must equal local-auth `userId`, not a second principal source.
 

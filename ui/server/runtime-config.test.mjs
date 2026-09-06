@@ -32,7 +32,7 @@ test("runtime settings require a safe API origin", () => {
   assert.throws(() => runtimeSettingsFromEnvironment({}), RuntimeConfigError);
   for (const candidate of [
     "http://localhost:8080",
-    "http://10.0.0.2:8080",
+    "http://192.0.2.2:8080",
     "http://127.1:8080",
     "http://2130706433:8080",
     "http://0177.0.0.1:8080",
@@ -48,6 +48,14 @@ test("runtime settings require a safe API origin", () => {
   assert.equal(
     validateAPIBaseURL("http://127.99.1.2:8080/"),
     "http://127.99.1.2:8080",
+  );
+  assert.equal(
+    validateAPIBaseURL("http://192.168.1.217:8080/"),
+    "http://192.168.1.217:8080",
+  );
+  assert.equal(
+    validateAPIBaseURL("http://172.31.1.2:8080"),
+    "http://172.31.1.2:8080",
   );
   assert.equal(validateAPIBaseURL("http://[::1]:8080"), "http://[::1]:8080");
 });

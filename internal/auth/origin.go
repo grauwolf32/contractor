@@ -15,13 +15,13 @@ type OriginPolicy struct {
 	values  []string
 }
 
-func NewOriginPolicy(origins []string, allowInsecureLoopback bool) (OriginPolicy, error) {
+func NewOriginPolicy(origins []string, allowInsecureDevelopment bool) (OriginPolicy, error) {
 	if len(origins) == 0 || len(origins) > maximumBrowserOrigins {
 		return OriginPolicy{}, fmt.Errorf("%w: one through %d browser origins are required", ErrInvalidOrigin, maximumBrowserOrigins)
 	}
 	result := OriginPolicy{allowed: make(map[string]struct{}, len(origins))}
 	for _, source := range origins {
-		if err := validateOrigin(source, allowInsecureLoopback); err != nil {
+		if err := validateOrigin(source, allowInsecureDevelopment); err != nil {
 			return OriginPolicy{}, err
 		}
 		if _, duplicate := result.allowed[source]; duplicate {
@@ -41,7 +41,7 @@ func (p OriginPolicy) Allows(origin string) bool {
 
 func (p OriginPolicy) Values() []string { return append([]string(nil), p.values...) }
 
-func validateOrigin(source string, allowInsecureLoopback bool) error {
+func validateOrigin(source string, allowInsecureDevelopment bool) error {
 	if source == "" || len(source) > 2048 || source == "*" || source == "null" || strings.TrimSpace(source) != source {
 		return ErrInvalidOrigin
 	}
@@ -54,16 +54,25 @@ func validateOrigin(source string, allowInsecureLoopback bool) error {
 	if parsed.Scheme == "https" {
 		return nil
 	}
-	if parsed.Scheme != "http" || !allowInsecureLoopback || !loopbackHostname(parsed.Hostname()) {
+	if parsed.Scheme != "http" || !allowInsecureDevelopment || !developmentHostname(parsed.Hostname()) {
 		return fmt.Errorf("%w: browser origin must use HTTPS", ErrInvalidOrigin)
 	}
 	return nil
 }
 
-func loopbackHostname(host string) bool {
+func developmentHostname(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
 	}
 	address := net.ParseIP(host)
-	return address != nil && address.IsLoopback()
+	if address == nil || strings.Contains(host, ":") {
+		return false
+	}
+	if address.IsLoopback() {
+		return true
+	}
+	ipv4 := address.To4()
+	return ipv4 != nil && (ipv4[0] == 10 ||
+		ipv4[0] == 172 && ipv4[1] >= 16 && ipv4[1] <= 31 ||
+		ipv4[0] == 192 && ipv4[1] == 168)
 }

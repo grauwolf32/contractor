@@ -329,6 +329,13 @@ The loopback Go Server must be configured with
 only static files, `/runtime-config.json`, and `/healthz`; the browser sends
 session, CSRF, Artifact and WebSocket traffic directly to Go Server.
 
+For an explicitly trusted RFC 1918 development network, the same insecure
+development mode may allow exact IP-literal UI origins such as
+`http://192.168.1.217:4173`. Keep the Go process on loopback behind a local TCP
+forwarder, expose only its public HTTP port, and set
+`CONTRACTOR_UI_API_BASE_URL` to the corresponding private-IP API origin. Public
+HTTP addresses and hostnames are intentionally rejected.
+
 Run the complete MVP gate:
 
 ```shell
