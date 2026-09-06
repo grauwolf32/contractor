@@ -2,10 +2,10 @@
 
 Status: V43-001 specifies the contract and implements the Go codec, package
 validation and deterministic destination mapping. V43-002 implements Server
-publication through `POST /v1/finding-collections`. Runtime preparation and
-`list_findings` (V43-003), agent integration (V43-004)
-and the process gate (V43-005) remain pending. This document does not activate
-a Runtime tool or configuration version.
+publication through `POST /v1/finding-collections`. V43-003 implements Runtime
+preparation and `list_findings` in `security-findings@2`. Agent integration
+(V43-004) and the process gate (V43-005) remain pending; existing agent
+configuration versions keep their selected tools and instructions.
 
 ## Responsibilities and compatibility
 
@@ -16,7 +16,7 @@ a hypothesis or a finding with evidence. Hypothesis, proposed checks, annotation
 and reproduction instructions remain optional under the generic contract.
 Scenario instructions can require more detail without changing the tool schema.
 
-An explicitly selected new version of `security-findings` adds `list_findings`.
+An explicitly selected `security-findings@2` adds `list_findings`.
 AgentTemplate selection can expose creation, reading or both. Selecting reading
 does not imply finding emission, Audit confirmation or review authority.
 The existing [Audit review contract](19-audits.md) owns those mutations.
@@ -227,6 +227,27 @@ The ZIP is passed as a declared ordinary Workflow input. Public Run creation
 continues to fork declared artifacts through its existing mechanism. It does not
 follow JSON refs or gain collection-specific recursive input handling.
 
+For `security-findings@2`, the declared input slot is `findings`, required and
+accepting `application/vnd.contractor.findings-collection+zip`. Workflow validation
+requires this slot only when an agent selects `list_findings`. Preparation resolves
+`inputs/findings` once to an exact revision; later binding changes do not alter
+the prepared snapshot. The existing ToolsetSelection contract needs no new fields.
+
+```yaml
+# Workflow spec
+inputs:
+  findings:
+    required: true
+    mediaTypes: [application/vnd.contractor.findings-collection+zip]
+
+# AgentTemplate spec
+toolsets:
+  - ref: security-findings@2
+    tools: [list_findings] # Add finding when this agent also creates proposals.
+  - ref: run-artifacts@1
+    tools: [read_artifact]
+```
+
 V43-003 owns allocation-local reader-toolset preparation:
 
 1. Resolve the selected declared collection input to an exact current-Run ref.
@@ -257,8 +278,8 @@ list_findings(subject_kind?, subject_key?, limit?, cursor?)
     -> {items: [...], next_cursor: string|null}
 ```
 
-The collection input is fixed by the selected toolset configuration, never by
-model-supplied Run, Project, Audit or owner IDs. V1 binds one collection per
+The collection input is fixed by the selected toolset version, never by
+model-supplied Run, Project, Audit or owner IDs. The reader binds one collection per
 prepared reader. Filtering compares the original proposal subject exactly and
 case-sensitively. `subject_key` requires `subject_kind`; absent values mean no
 filter, while empty strings are invalid. Limit defaults to 20, range 1–100.

@@ -287,13 +287,17 @@ SELECT execution.audit_id, execution.execution_id, execution.role,
 }
 
 func selectsFindingTool(selections []contracts.ToolsetSelection) bool {
+	descriptors := workflowconfig.MVPDescriptors().Toolsets
 	for _, selection := range selections {
-		if selection.Ref.ToolsetID != "security-findings" || selection.Ref.Version != "1" {
+		descriptor, ok := descriptors[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
+		if !ok {
 			continue
 		}
 		for _, tool := range selection.Tools {
-			if tool == "finding" {
-				return true
+			for _, proposalTool := range descriptor.FindingProposalTools {
+				if tool == proposalTool {
+					return true
+				}
 			}
 		}
 	}

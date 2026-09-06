@@ -16,6 +16,7 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import API_VERSION, ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.findings_reader import prepare_reader
 from contractor_runtime.toolsets.run_artifacts import (
     ArtifactClientFactory,
     ToolMetrics,
@@ -168,6 +169,67 @@ class FindingTool:
                 duration_ms=_elapsed_ms(started_ns),
             )
             raise
+
+
+class FindingV2Tool(FindingTool):
+    description = """Record a finding proposal with exact supporting artifact references.
+
+    Describe the observation, its impact and how to reproduce or inspect it.
+    Hypotheses and proposed checks are optional. The receipt records a proposal;
+    it does not confirm, assess or merge it with other findings. Reuse client_key
+    only for retries of the same proposal within this invocation.
+
+    Args:
+        client_key: Stable proposal identifier within this invocation.
+        title: Non-empty summary of the observation.
+        description: Non-empty explanation, impact and reproduction or inspection steps.
+        subject: Object with kind and key identifiers for the affected subject.
+        evidence_refs: Unique exact current-Run artifact references, each containing
+            namespace, name and revision. Use an empty list when no evidence is available.
+        hypothesis: Optional claim requiring verification.
+        proposed_checks: Optional objects with objective text and method identifier.
+        standard_refs: Optional objects with scheme, version and requirement_id.
+        severity_suggestion: Optional informational, low, medium, high or critical.
+
+    Returns:
+        proposal_id and receipt_id for the recorded proposal.
+    """
+
+
+class SecurityFindingsV2ToolsetFactory(SecurityFindingsToolsetFactory):
+    """Select creation, prepared collection reading, or both independently."""
+
+    ref = "security-findings@2"
+    exported_tools = frozenset({"finding", "list_findings"})
+
+    async def create_selected(
+        self,
+        *,
+        selected: Sequence[str],
+        allocation_id: str,
+        run_id: str,
+        namespace: str,
+        runtime_settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+        state: Any,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: Any = None,
+    ) -> Mapping[str, Any]:
+        del run_id, namespace, workspace, adapter_handles, project_workspace
+        unknown = sorted(set(selected) - self.exported_tools)
+        if unknown:
+            raise ValueError(f"unknown selected tools: {', '.join(unknown)}")
+        metrics = getattr(state, "metrics", None)
+        if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
+            raise TypeError("security-findings@2 requires State.metrics")
+        client = self._client_factory(allocation_id, runtime_settings)
+        secrets = gateway_secrets(runtime_settings)
+        tools: dict[str, Any] = {}
+        if "list_findings" in selected:
+            tools["list_findings"] = await prepare_reader(client, metrics, secrets)
+        if "finding" in selected:
+            tools["finding"] = FindingV2Tool(client, metrics, secrets)
+        return tools
 
 
 def _build_request(

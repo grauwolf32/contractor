@@ -13,15 +13,21 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.security_findings import SecurityFindingsToolsetFactory
+from contractor_runtime.toolsets.security_findings import (
+    SecurityFindingsToolsetFactory,
+    SecurityFindingsV2ToolsetFactory,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 
-def test_finding_uses_runtime_identity_and_exact_evidence() -> None:
+@pytest.mark.parametrize("factory_class", [
+    SecurityFindingsToolsetFactory, SecurityFindingsV2ToolsetFactory,
+])
+def test_finding_uses_runtime_identity_and_exact_evidence(factory_class) -> None:
     async def scenario() -> None:
         client = FakeFindingClient()
         state = WorkerState()
-        factory = SecurityFindingsToolsetFactory(lambda _allocation, _settings: client)  # type: ignore[arg-type]
+        factory = factory_class(lambda _allocation, _settings: client)
         tools = await factory.create_selected(
             selected=["finding"],
             allocation_id="allocation-1",

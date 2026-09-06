@@ -50,6 +50,10 @@ class ArtifactTransportError(ArtifactClientError):
     pass
 
 
+class ArtifactResponseLimitError(ArtifactTransportError):
+    """The response exceeded the caller's byte limit."""
+
+
 class ArtifactAPIError(ArtifactClientError):
     def __init__(
         self, status_code: int, code: str, retryable: bool, request_id: str | None = None
@@ -226,17 +230,23 @@ class ArtifactClient:
             ) from error
         return result.artifacts
 
-    async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
+    async def read_artifact(
+        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+    ) -> ArtifactValue:
         _validate_ref(ref)
+        if type(max_bytes) is not int or not 0 < max_bytes <= MAX_ARTIFACT_BYTES:
+            raise ValueError("artifact read byte limit is invalid")
         path = self._ref_path(ref)
         response = await self._transport.request(
             "GET",
             path,
             headers={"Accept": "*/*"},
             body=b"",
-            max_response_bytes=MAX_ARTIFACT_BYTES,
+            max_response_bytes=max_bytes,
         )
         self._raise_for_status(response)
+        if len(response.body) > max_bytes:
+            raise ArtifactResponseLimitError("Artifact API response exceeds the read byte limit")
         media_type = _response_media_type(response.headers)
         revision = _strong_etag(response.headers)
         if ref.revision is not None and revision != ref.revision:
@@ -607,7 +617,7 @@ async def _read_response_body(
         except ValueError as error:
             raise ArtifactTransportError("invalid Artifact API content length") from error
         if not 0 <= length <= maximum:
-            raise ArtifactTransportError("Artifact API response exceeds its size limit")
+            raise ArtifactResponseLimitError("Artifact API response exceeds its size limit")
         return await reader.readexactly(length)
     result = bytearray()
     while True:
@@ -616,7 +626,7 @@ async def _read_response_body(
             return bytes(result)
         result.extend(chunk)
         if len(result) > maximum:
-            raise ArtifactTransportError("Artifact API response exceeds its size limit")
+            raise ArtifactResponseLimitError("Artifact API response exceeds its size limit")
 
 
 async def _read_chunked_body(reader: asyncio.StreamReader, maximum: int) -> bytes:
@@ -629,7 +639,7 @@ async def _read_chunked_body(reader: asyncio.StreamReader, maximum: int) -> byte
         except ValueError as error:
             raise ArtifactTransportError("invalid Artifact API chunk size") from error
         if size < 0 or len(result) + size > maximum:
-            raise ArtifactTransportError("Artifact API response exceeds its size limit")
+            raise ArtifactResponseLimitError("Artifact API response exceeds its size limit")
         if size == 0:
             if await reader.readline() != b"\r\n":
                 raise ArtifactTransportError("Artifact API chunked trailers are not supported")

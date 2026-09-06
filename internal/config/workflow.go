@@ -799,6 +799,9 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 	if err := validateWorkflowExecutionConfigs(workflow); err != nil {
 		return err
 	}
+	if err := validateFindingsReaderInput(workflow); err != nil {
+		return err
+	}
 
 	reachable := make(map[string]bool, len(workflow.Stages))
 	var visit func(string)

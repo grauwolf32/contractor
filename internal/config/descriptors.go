@@ -76,6 +76,10 @@ func MVPDescriptors() Descriptors {
 				Tools:                []string{"finding"},
 				FindingProposalTools: []string{"finding"},
 			},
+			"security-findings@2": {
+				Tools:                []string{"finding", "list_findings"},
+				FindingProposalTools: []string{"finding"},
+			},
 			"caido@1": {
 				Tools: []string{
 					"caido_automate_results", "caido_automate_run", "caido_history",
