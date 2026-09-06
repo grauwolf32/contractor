@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V32-008
+title: Verify performance metrics, disabled paths and profiling overhead end to end
+milestone: operations-performance-and-profiling
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V32-006, V32-007]
+languages: [go, python, typescript]
+
+goal: >-
+  Make the built-in Operations performance feature reviewable with process,
+  database/browser fault evidence and measured enabled/disabled overhead.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  fixed_policy: >-
+    Performance defaults on and pprof off. Server/pool/UI and active-allocation
+    observations use 15 seconds, DB statistics 60 seconds and size 300 seconds.
+    Fine history is one process hour; minute history is seven days with bounded
+    write buffering. Allocation resources arrive only in final responses and
+    use existing 30-day report retention. Metrics and profiling switches are
+    independent, with no external monitoring deployment required.
+  overhead: >-
+    No universal percentage has been measured or promised. Compare identical
+    workloads with metrics off/on and profiling off/idle/actively recording;
+    background statistics, request accounting, history writes and active profiling
+    are separate sources of cost. Do not hide active capture cost in a claim
+    about the idle listener or infer total CPU overhead from collector wall time.
+
+scope:
+  in:
+    - Add a performance acceptance matrix and validator covering the eight acceptance groups in the owning specification.
+    - Add disposable process/DB fixtures for metrics switches, allocation finalize/abort/loss, restarts, bounded history and resource capability compatibility.
+    - Add ui/e2e/performance.spec.ts to the existing production browser stack with actual released-allocation history and disabled/stale/gap states.
+    - Add Make targets test-performance-metrics and benchmark-performance, including all required focused Go/Python/DB/browser checks and reproducible load harnesses.
+    - Measure enabled/disabled HTTP middleware and process/DB collection plus fixed-state memory/queue limits and writer/retention query counts.
+    - Record hardware/toolchain, workload, sample sizes, repetitions, variance, CPU time, RSS, allocations, throughput and p95 in a performance review artifact.
+    - Document deployment flags/defaults, Server-first protocol upgrade, profiling use, retention, resource scope and expected missing-data behavior.
+    - Mark the feature specification implemented only after the focused gate and relevant repository verification pass.
+  out:
+    - Arbitrary production load tests, changes to real deployment settings, promised universal overhead percentages, profiling uploads or a mandatory external observability stack.
+
+requirements:
+  - id: R1
+    text: >-
+      Metrics off proves absence of performance middleware, samplers, allocated
+      history buffers, timers, diagnostic DB pool and new allocation requests;
+      existing execution accounting, budget enforcement, health/readiness,
+      report ingestion and Run/Project cleanup remain functional. Profiling off
+      proves absence of its listener and new recording, not removal of Go's
+      pre-existing runtime heap sampling.
+  - id: R2
+    text: >-
+      Sampling/writer/SQL/profile concurrency, duration, bytes, retention, output
+      point counts and API pagination stay finite under injected faults. No
+      observer tab causes extra collection and no late/replayed report changes
+      execution authority. Restricted DB roles and missing resources stay visible
+      as partial/unknown rather than zero or silent success.
+  - id: R3
+    text: >-
+      Benchmarks include no-op middleware baseline, representative authenticated
+      API and allocation workloads, an idle Server and fixed-rate DB/history
+      collection. Compare CPU time per completed request and absolute idle CPU
+      separately; report p95/throughput changes with repetitions rather than a
+      noisy single-run hard percentage gate. Explain material regressions before
+      completion and preserve full reproduction commands.
+
+acceptance_criteria:
+  - id: A1
+    given: The complete acceptance matrix and production Server/Runtime/browser stack.
+    when: The focused performance gate runs.
+    then: Every specified startup, cadence, history, resource, compatibility, authorization and profiling case has executable passing coverage.
+  - id: A2
+    given: DB outage/locks/limited roles, writer overflow, Runtime loss, restarts, retention and active profiling cancellation.
+    when: Fault scenarios reach their bounds.
+    then: Workload lifecycle stays authoritative, memory/connections/tasks remain bounded and Operations truthfully reports gaps or unavailable observations.
+  - id: A3
+    given: Reproducible identical off/on workloads and idle/active profiling variants on recorded hardware.
+    when: Repeated performance measurements finish.
+    then: The review artifact states observed CPU/memory/latency/query costs and uncertainty without unsupported overhead guarantees.
+  - id: A4
+    given: The final code, documentation, generated contracts and existing execution flows.
+    when: Focused and aggregate verification run.
+    then: Existing reports/budgets and runtime lifecycle behavior remain compatible and the deployment documentation accurately describes implemented switches and limits.
+
+tests:
+  - {name: focused-gate, command: "make test-performance-metrics", covers: [A1, A2, A4]}
+  - {name: measured-overhead, command: "make benchmark-performance", covers: [A3]}
+  - {name: browser-stack, command: "make test-ui-stack", covers: [A1, A2, A4]}
+  - {name: aggregate, command: "make verify", covers: [A4]}

@@ -1,0 +1,100 @@
+schema_version: "1.0"
+id: V32-005
+title: Expose Operations performance and durable allocation resource history
+milestone: operations-performance-and-profiling
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V32-003, V32-004]
+languages: [go, sql, typescript]
+
+goal: >-
+  Connect collectors and final resource reports to bounded authenticated API
+  reads while preserving live registry semantics and existing report authority.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  allocation_policy: >-
+    Server requests performanceMetrics:{version:1,intervalSeconds:15} only when
+    its metrics switch is enabled and the selected Runtime advertises version 1.
+    Persist requested/disabled/unsupported alongside each allocation. This never
+    filters placement, enters model context or changes RuntimeConfig resolution.
+    Restart retains an old allocation's pinned decision, even when collection is
+    now disabled; valid in-flight final reports remain acceptable.
+  existing_views: >-
+    Live Operations allocations disappear after authoritative release. New
+    allocation history reads durable terminal allocations and related reports;
+    sampling does not advance registry revision or broadcast lifecycle events.
+
+scope:
+  in:
+    - Wire capability-aware collection requests and durable policy attribution into allocation preparation/recovery, including same-ID prepare retries.
+    - Validate optional resources independently at the trusted telemetry boundary and preserve idempotent final-report persistence.
+    - Add current-performance, bounded history and terminal-allocation-history handlers under existing Operations authorization.
+    - Add narrowly required migrations/indexes for allocation collection policy and bounded terminal-history joins.
+    - Project resource summaries into existing safe Run-attempt detail responses using the same projection as Operations history.
+    - Regenerate public TypeScript contracts and validate old/new resource report and API fixtures.
+  out:
+    - Live Runtime polling, heartbeat changes, reattachment, new semantic outcomes, generic query APIs, writable performance settings or profiling downloads through the public API.
+
+requirements:
+  - id: R1
+    text: >-
+      GET /v1/operations/performance reads memory only and returns enabled,
+      generation, intervals, fresh/partial/unavailable groups and collector/writer
+      diagnostics. Disabled mode has no manufactured current values. Database
+      outage does not prevent this endpoint from returning independent live groups.
+  - id: R2
+    text: >-
+      GET /v1/operations/performance/history validates from/to/step, supports
+      15s within the current process's last hour and 1m/5m/1h over seven durable
+      days, with at most 1000 output points. Reject unsupported/excessive ranges;
+      include coverage/generation gaps and correct merged quantiles. Expired
+      data is filtered and retained history can be explicitly read while metrics
+      are off using ordinary request budgets, without creating a diagnostic pool.
+  - id: R3
+    text: >-
+      GET /v1/operations/allocation-history uses descending finished_at/allocation_id
+      keyset pagination, pinned upper boundary, default 50/max 100 and optional
+      exact Run filter. finished_at is the owning StageExecution's immutable
+      terminal timestamp, not a missing or late report timestamp; late reports
+      cannot reorder pagination. Authorize owner scope in SQL before reading reports;
+      foreign Run filters cannot disclose allocation existence. No full-table
+      report scan or N+1 queries. Terminal records without reports remain visible.
+  - id: R4
+    text: >-
+      Resource status distinguishes disabled, unsupported, pending, available,
+      partial and unavailable; legacy missing policy is unavailable with a safe
+      legacy reason. Enforce finite nonnegative fields and peak/sample consistency.
+      Malformed or unrequested resources are omitted with a bounded diagnostic,
+      without losing valid Worker/adapter reports or changing terminalization.
+  - id: R5
+    text: >-
+      Summaries use existing 30-day terminal report retention and existing
+      Run/Project deletion. No second authoritative allocation-report store is
+      introduced. Late reports use existing related-telemetry rules and do not
+      rewrite frozen Stage outcomes/StageMetrics; duplicate delivery never
+      duplicates a history row or resource totals.
+
+acceptance_criteria:
+  - id: A1
+    given: Enabled/disabled Server, supported/legacy Runtime, response loss and Server restart with a changed flag.
+    when: Allocations prepare, reconcile and return final reports.
+    then: Pinned collection decisions are stable and optional telemetry cannot block placement or successful lifecycle completion.
+  - id: A2
+    given: Current metrics, history gaps, DB outage, expired data and excessive query ranges.
+    when: Authorized performance APIs are called.
+    then: Current reads do not query DB, history is bounded and freshness/disabled/reset semantics are explicit.
+  - id: A3
+    given: Released, missing-report, legacy, malformed-resource and foreign-owner allocations plus late/duplicate reports.
+    when: History is paged and Run attempt detail is fetched.
+    then: Safe authorized summaries remain available after release, identities/outcomes are trusted and absent measurements are never fabricated.
+  - id: A4
+    given: A representative terminal-allocation/report dataset and concurrent inserts/deletions.
+    when: Pagination, query counts and EXPLAIN access plans are tested.
+    then: The pinned keyset is bounded without N+1/full-report scans and deleted Runs/Projects leave no accessible linked resource data.
+
+tests:
+  - {name: api-and-lifecycle, command: "go test -race -count=1 ./internal/controlplane ./internal/telemetry ./internal/httpapi/public ./internal/scheduler", covers: [A1, A2, A3]}
+  - {name: postgres-history, command: "test -n \"$CONTRACTOR_TEST_DATABASE_URL\" && go test -race -count=1 ./internal/performance ./internal/telemetry ./internal/runstore ./internal/httpapi/public", covers: [A1, A2, A3, A4]}
+  - {name: public-contracts, command: "make verify-public-api ui-typecheck", covers: [A2, A3]}

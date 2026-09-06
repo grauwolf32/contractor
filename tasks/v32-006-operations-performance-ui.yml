@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V32-006
+title: Show Server performance charts and completed allocation resources in Operations
+milestone: operations-performance-and-profiling
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V32-005, V4-010]
+languages: [typescript, css]
+
+goal: >-
+  Make current Server/DB load and completed allocation resource consumption
+  understandable directly in Contractor Operations without external services.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  navigation: >-
+    Add /operations/performance and a Completed/history view alongside existing
+    current allocations. Keep Runtime Agent live-state and registry cursor
+    behavior unchanged. Show allocation resource summaries in Run attempt detail
+    through the same safe public projection, not a new store or Runtime request.
+  truthfulness: >-
+    Current Server snapshots are 15 seconds, PostgreSQL stats 60 seconds and DB
+    size 300 seconds; each retains its actual observation timestamp. Fine history
+    is the last process hour; minute history is seven days. Unknown is not zero,
+    stale is not current and allocation RSS is an observed process peak excluding
+    children/containers, not isolated Worker memory or true peak usage.
+
+scope:
+  in:
+    - Add typed API client functions, bounded range selection and performance snapshot/history state independent of the registry snapshot.
+    - Render Server CPU cores/RSS/heap/GC/goroutines, HTTP rates/errors/quantiles/in-flight and database/pool cards with readable time-series charts.
+    - Render collection-disabled, loading, empty, unsupported, partial, stale, unavailable and generation/writer-loss gaps with explicit timestamps.
+    - Poll current data every 15 seconds while visible; coalesce requests and cancel on unmount, navigation or session loss.
+    - Fetch history on range changes and bounded refresh for ranges following now, respecting the 1000-point API limit.
+    - Add paged completed allocation summaries with Run links, Worker/outcome, interval, CPU seconds/cores, observed RSS peak and collection/completeness status.
+    - Add accessible chart labels and an equivalent readable numeric summary; preserve responsive Operations layouts.
+  out:
+    - Browser-to-Runtime calls, external Grafana embedding, profiler recording/download UI, alerts, execution controls or runtime-editable performance switches.
+
+requirements:
+  - id: R1
+    text: >-
+      Enabling a page or opening more tabs never starts or accelerates Server/DB
+      collectors. Registry revisions are not used for performance samples and
+      performance polling never triggers full Runtime-registry resynchronization.
+  - id: R2
+    text: >-
+      CPU is displayed in used cores; request p50/p95/p99 come from server-merged
+      histograms, with overflow shown as greater than 60s and empty quantiles as
+      unavailable. Pool acquisition means are never labelled p95. Database size
+      is not free disk space and estimated dead tuples are not a bloat verdict.
+  - id: R3
+    text: >-
+      Metrics-off leaves an explicit disabled state with retained historical
+      viewing, no fabricated zero load and no automatic new collector. Completed
+      allocations remain visible after release with policy/status preserved;
+      pending/lost/unsupported resources are not represented by zero CPU/memory.
+
+acceptance_criteria:
+  - id: A1
+    given: Healthy Server samples, sparse DB observations, disabled collection, reset/loss gaps and unavailable history.
+    when: Users navigate, select ranges or leave and return to the page.
+    then: Charts/cards and timestamps stay truthful, polling is bounded/visible-only and obsolete requests do not overwrite newer ranges.
+  - id: A2
+    given: Current and released allocations with available, partial, missing, disabled and legacy resources.
+    when: Users view Completed history and follow a Run link.
+    then: Durable summaries and identical Run details remain accessible with correct units, scope and no lifecycle mutation controls.
+  - id: A3
+    given: Narrow/wide viewports, keyboard navigation, session expiry and normal Operations pages.
+    when: UI/browser tests run.
+    then: New charts are accessible/responsive, authorization failures are handled and existing Operations behavior remains intact.
+
+tests:
+  - {name: focused-ui, command: "cd ui && pnpm exec vitest run src/api/performance.test.ts src/routes/operations/performance/performance.test.tsx src/routes/operations/operations.test.tsx", covers: [A1, A2, A3]}
+  - {name: ui-verification, command: "make ui-verify", covers: [A1, A2, A3]}
+  - {name: browser, command: "make test-ui-stack", covers: [A1, A2, A3]}

@@ -554,6 +554,13 @@ milestones:
       logical item retains independent identity, attempts, evidence, authority,
       coverage and whole-batch recovery semantics.
 
+  - id: operations-performance-and-profiling
+    exit_task: V32-008
+    outcome: >-
+      Operations shows bounded Server/PostgreSQL performance history and final
+      allocation resource summaries, with startup opt-out, independent loopback
+      Go profiling and measured enabled/disabled overhead.
+
   - id: catalog-and-agent-prompts
     exit_task: V33-001
     outcome: >-
@@ -573,6 +580,36 @@ milestones:
       An owner configures one encrypted SSH key and imports a bounded repository
       snapshot into an ordinary User/Project Artifact. Workflow inputs pin exact
       revisions with immutable commit provenance; Server import needs no PVC.
+
+performance_metrics_planning:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  status: implementation_pending
+  defaults:
+    performance_metrics: true
+    pprof: false
+    pprof_listen: 127.0.0.1:6060
+  intervals_seconds:
+    server_and_pool: 15
+    postgres_statistics: 60
+    postgres_size: 300
+    allocation_resources: 15
+  retention:
+    live_server_minutes: 60
+    durable_server_days: 7
+    allocation_report_days: 30
+  execution_order:
+    - V32-001 defines startup, public/private and resource contracts.
+    - V32-002 then V32-003 implement Server collection and PostgreSQL/history.
+    - V32-004 implements allocation sampling after V32-001.
+    - V32-005 integrates allocation policy, report ingestion and Operations APIs.
+    - V32-006 implements charts and completed allocation history.
+    - V32-007 implements independent optional Go profiling after V32-001.
+    - V32-008 verifies integration, fault behavior and measured overhead.
+  invariants:
+    - Disabling performance preserves execution accounting, budgets and lifecycle.
+    - Runtime resources are collected only on request and returned in final reports.
+    - Profiling is loopback-only, opt-in and independent of performance metrics.
+    - Current performance samples do not advance live registry revisions.
 
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
@@ -2250,6 +2287,14 @@ tasks:
   - {id: V31-006, file: v31-006-podman-capability-probes.yml}
   - {id: V31-007, file: v31-007-podman-workflow-deployment.yml}
   - {id: V31-008, file: v31-008-podman-release-gate.yml}
+  - {id: V32-001, file: v32-001-performance-contracts-and-settings.yml}
+  - {id: V32-002, file: v32-002-server-performance-collection.yml}
+  - {id: V32-003, file: v32-003-postgres-performance-history.yml}
+  - {id: V32-004, file: v32-004-allocation-resource-sampling.yml}
+  - {id: V32-005, file: v32-005-performance-api-and-allocation-history.yml}
+  - {id: V32-006, file: v32-006-operations-performance-ui.yml}
+  - {id: V32-007, file: v32-007-opt-in-go-profiling.yml}
+  - {id: V32-008, file: v32-008-performance-release-gate.yml}
   - {id: V33-001, file: v33-001-catalog-and-agent-prompts.yml}
   - {id: V34-001, file: v34-001-blob-contracts-and-postgres.yml}
   - {id: V34-002, file: v34-002-filesystem-blob-adapter.yml}
