@@ -3,8 +3,8 @@ id: V25-012
 title: Prove Audit recovery, isolation, retention and truthful reporting
 milestone: audits-hardening
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 82735d89db2fc3f38c469b9185012bf1b3ad5358
 depends_on: [V24-006, V25-009, V25-011]
 languages: [go, sql, python, typescript, yaml]
 
