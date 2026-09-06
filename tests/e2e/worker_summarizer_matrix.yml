@@ -97,12 +97,12 @@ cases:
     faults: [F15]
     expected: Allocation validation rejects missing bounds, invalid thresholds, tool budgets and non-one-shot summary policies.
     test: {source: internal/contracts/contracts_test.go, symbol: TestAllocationSpecRequiresValidWorkerSummarizer}
-  - id: no_hidden_gateway_retry
+  - id: bounded_gateway_retry
     category: isolation
     acceptance: [A1, A3]
     faults: [F16]
-    expected: Gateway construction disables provider-library retries so one policy call is one physical request.
-    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_gateway_model_disables_hidden_provider_retries}
+    expected: Gateway construction bounds SDK retries and the aggregate timeout for one policy call.
+    test: {source: runtime/tests/test_adk_runtime.py, symbol: test_gateway_model_bounds_sdk_retries_and_aggregate_timeout}
   - id: closed_state_and_metrics
     category: usage
     acceptance: [A1, A4]
