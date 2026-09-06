@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fakes.spec import allocation_spec
 
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -15,6 +16,7 @@ from contractor_runtime.contracts import (
     AllocationSpec,
     FinalizeAllocationRequest,
     ModelPolicyRef,
+    PerformanceMetricsRequest,
     ReleaseAllocationRequest,
     ResolvedAgentTemplate,
     ResolvedInstructions,
@@ -26,6 +28,7 @@ from contractor_runtime.contracts import (
     ToolsetSelection,
     WorkerRuntimeRef,
     WorkerSessionMode,
+    encode_private_v2,
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
@@ -40,6 +43,7 @@ from contractor_runtime.factories import (
     WorkerBuildContext,
     built_in_factories,
 )
+from contractor_runtime.resource_metrics import ProcessReading, ResourceCollector
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
@@ -720,3 +724,281 @@ class FailingStopRuntimeFactory:
 class FailingStopRuntime(StubWorkerRuntime):
     async def abort(self, deadline: datetime) -> None:
         raise RuntimeError("synthetic stop failure")
+
+
+class ResourceProbe:
+    def __init__(self) -> None:
+        self.now = 100.0
+        self.rss = 1000
+        self.reads: list[bool] = []
+        self.collectors: list[ResourceCollector] = []
+
+    def read(self, boundary: bool) -> ProcessReading:
+        self.reads.append(boundary)
+        return ProcessReading(self.now, self.now / 2, self.rss)
+
+    def factory(self) -> ResourceCollector:
+        collector = ResourceCollector(clock=lambda: self.now, reader=self.read)
+        self.collectors.append(collector)
+        return collector
+
+
+def test_resource_collection_disabled_never_constructs_sampler(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    async def scenario() -> None:
+        _, service = await make_service(tmp_path, runtime_capabilities)
+
+        def forbidden() -> ResourceCollector:
+            pytest.fail("disabled metrics must not construct a sampler or perform reads")
+
+        service._resource_collector_factory = forbidden
+        await asyncio.sleep(0)
+        await service.prepare(allocation_spec())
+        result = await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId="allocation-1",
+                finalizationId="final-1",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        assert result.report.runtime.resources is None
+        assert result.report.runtime.resources_error is None
+        assert b'"resources"' not in encode_private_v2(result)
+        await service.release(
+            ReleaseAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId="allocation-1",
+            )
+        )
+        await service.confirm_release("allocation-1")
+        await asyncio.sleep(0)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["finalize", "abort", "lease", "drain"])
+def test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    async def scenario() -> None:
+        _, service = await make_service(tmp_path, runtime_capabilities)
+        probe = ResourceProbe()
+        service._resource_collector_factory = probe.factory
+        sandbox = service._factories.sandbox_profiles["local-workdir@1"]
+        original_prepare = sandbox.prepare
+
+        async def prepare() -> AllocationWorkspace:
+            assert probe.reads[-1] is True  # Boundary precedes expensive preparation.
+            probe.now += 2
+            return await original_prepare()
+
+        monkeypatch.setattr(sandbox, "prepare", prepare)
+        for index in range(2):
+            spec = allocation_spec(allocation_id=f"allocation-{index}")
+            spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
+            probe.rss = 1000 if index == 0 else 100
+            await service.prepare(spec)
+            await service.prepare(spec)  # Retry must not start a second sampler.
+            context = service._context
+            assert context is not None and context.worker is not None
+            worker = context.worker
+
+            async def stop(deadline: datetime, current: StubWorkerRuntime = worker) -> None:
+                probe.now += 3
+                current.stopped = True
+
+            async def adapters(**_: object) -> None:
+                probe.now += 4
+                probe.rss += 10
+
+            monkeypatch.setattr(worker, "finalize", stop)
+            monkeypatch.setattr(worker, "abort", stop)
+            monkeypatch.setattr(context.adapter_host, "terminate", adapters)
+            final = FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId=f"final-{index}",
+                deadline=NOW + timedelta(seconds=30),
+            )
+            abort = AbortAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                abortId=f"abort-{index}",
+                deadline=NOW + timedelta(seconds=30),
+                reason=TerminationError(code="run_cancelled", message="cancelled", retryable=False),
+            )
+            if operation == "lease":
+                await service.expire_control_lease(30)
+            elif operation == "drain":
+                await service.reconcile_drain(spec.allocation_id, 30)
+            if operation == "abort":
+                result = await service.abort(abort)
+            else:
+                result = await service.finalize(final)
+            resources = result.report.runtime.resources
+            assert resources is not None and resources.status == "complete"
+            assert result.report.runtime.complete
+            assert resources.duration_seconds == 9
+            assert resources.cpu_user_seconds == 9 and resources.cpu_system_seconds == 4.5
+            assert resources.rss_start_bytes == (1000 if index == 0 else 100)
+            assert resources.rss_peak_observed_bytes == (1010 if index == 0 else 110)
+            assert resources.rss_sample_count == 2
+            encoded = encode_private_v2(result)
+            assert len(encoded) < 1024 * 1024
+            probe.now += 500  # Finalized, idle and release time must not extend coverage.
+            retry = (
+                await service.abort(abort)
+                if operation == "abort"
+                else await service.finalize(final)
+            )
+            assert encode_private_v2(retry) == encoded
+            await service.release(
+                ReleaseAllocationRequest(
+                    apiVersion=API_VERSION,
+                    allocationId=spec.allocation_id,
+                )
+            )
+            await service.confirm_release(spec.allocation_id)
+            await asyncio.sleep(0)
+            assert probe.collectors[-1]._task.done()
+            assert probe.reads == [True] * (2 * (index + 1))
+        assert len(probe.collectors) == 2
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_resource_sampler_discarded_after_failed_or_cancelled_prepare(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+    cancel: bool,
+) -> None:
+    async def scenario() -> None:
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        probe = ResourceProbe()
+        service._resource_collector_factory = probe.factory
+        entered = asyncio.Event()
+
+        async def fail(*args: object, **kwargs: object) -> None:
+            entered.set()
+            if cancel:
+                await asyncio.Event().wait()
+            raise RuntimeError("synthetic prepare failure")
+
+        monkeypatch.setattr(service, "_create_tools", fail)
+        spec = allocation_spec()
+        spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
+        pending = asyncio.create_task(service.prepare(spec))
+        await entered.wait()
+        if cancel:
+            pending.cancel()
+        with pytest.raises(asyncio.CancelledError if cancel else AllocationError):
+            await pending
+        await asyncio.sleep(0)
+        assert probe.reads == [True]
+        assert probe.collectors[0]._task.done()
+        assert service._context is None
+        assert list(tmp_path.iterdir()) == []
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["worker", "adapters", "cancel", "deadline"])
+def test_unconfirmed_stop_discards_resources_without_recovered_final_report(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    async def scenario() -> None:
+        state, service = await make_service(tmp_path, runtime_capabilities)
+        probe = ResourceProbe()
+        service._resource_collector_factory = probe.factory
+        spec = allocation_spec()
+        spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
+        await service.prepare(spec)
+        context = service._context
+        assert context is not None
+        entered = asyncio.Event()
+
+        async def fail(*args: object, **kwargs: object) -> None:
+            entered.set()
+            if failure == "cancel":
+                await asyncio.Event().wait()
+            raise RuntimeError("synthetic stop failure")
+
+        if failure == "adapters":
+            monkeypatch.setattr(context.adapter_host, "terminate", fail)
+        else:
+            monkeypatch.setattr(context.worker, "finalize", fail)
+        request = FinalizeAllocationRequest(
+            apiVersion=API_VERSION,
+            allocationId=spec.allocation_id,
+            finalizationId="final-1",
+            deadline=NOW + timedelta(seconds=-1 if failure == "deadline" else 30),
+        )
+        pending = asyncio.create_task(service.finalize(request))
+        if failure == "cancel":
+            await entered.wait()
+            pending.cancel()
+        with pytest.raises(asyncio.CancelledError if failure == "cancel" else AllocationError):
+            await pending
+        await asyncio.sleep(0)
+        assert probe.reads == [True]
+        assert probe.collectors[0]._task.done()
+        assert context.terminal_response is None
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["read", "factory"])
+def test_resource_failure_does_not_change_worker_completeness_or_slot_reuse(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    failure: str,
+) -> None:
+    async def scenario() -> None:
+        state, service = await make_service(tmp_path, runtime_capabilities)
+
+        def unavailable(_: bool) -> ProcessReading:
+            raise OSError("secret-canary")
+
+        def factory() -> ResourceCollector:
+            if failure == "factory":
+                raise OSError("secret-canary")
+            return ResourceCollector(reader=unavailable)
+
+        service._resource_collector_factory = factory
+        spec = allocation_spec()
+        spec.performance_metrics = PerformanceMetricsRequest(version=1, intervalSeconds=15)
+        await service.prepare(spec)
+        response = await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="final-1",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        assert response.report.worker.complete and response.report.runtime.complete
+        assert response.report.runtime.resources.status == "unavailable"
+        assert response.report.runtime.resources.reason == "read_failed"
+        assert b"secret-canary" not in encode_private_v2(response)
+        await service.release(
+            ReleaseAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+            )
+        )
+        await service.confirm_release(spec.allocation_id)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())

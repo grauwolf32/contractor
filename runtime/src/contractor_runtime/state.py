@@ -117,6 +117,7 @@ class RuntimeState:
                 supportedToolsets=capabilities.wire_toolsets(),
                 supportedSandboxProfiles=list(capabilities.sandbox_profiles),
                 supportedRuntimeAdapters=list(capabilities.runtime_adapters),
+                supportedPerformanceMetricsVersions=list(capabilities.performance_metrics_versions),
                 workspaceCapabilities=(
                     capabilities.workspace.wire() if capabilities.workspace is not None else None
                 ),

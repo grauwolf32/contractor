@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
+from contractor_runtime.resource_metrics import SUPPORTED_PERFORMANCE_METRICS_VERSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class CapabilitySnapshot:
     sandbox_profiles: tuple[str, ...]
     runtime_adapters: tuple[str, ...] = ()
     workspace: WorkspaceCapabilitySnapshot | None = None
+    performance_metrics_versions: tuple[int, ...] = SUPPORTED_PERFORMANCE_METRICS_VERSIONS
 
     @classmethod
     def create(

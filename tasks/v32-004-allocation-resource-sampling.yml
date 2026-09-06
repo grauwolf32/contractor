@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: V32-004
+title: Return allocation-scoped Runtime process resources in final reports
+milestone: operations-performance-and-profiling
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V32-001, V14-003]
+languages: [python]
+
+goal: >-
+  Measure Runtime process CPU and observed RSS only during requested allocations,
+  then deliver constant-size aggregates through existing finalize/abort responses.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  request: >-
+    AllocationSpecV2.performanceMetrics is optional; only version=1 and
+    intervalSeconds=15 are supported. Omission means no sampler or resource
+    reads. Advertise supportedPerformanceMetricsVersions:[1] only once the
+    implementation is installed. No Runtime-wide monitoring endpoint or push loop.
+  interval: >-
+    Start after allocation ownership is accepted and before expensive prepare;
+    take CPU/RSS boundaries and RSS every 15 seconds until Worker/adapter teardown
+    finishes immediately before the final response is frozen. Release and idle
+    time are excluded. Prepare failure uses existing cleanup/report paths only.
+
+scope:
+  in:
+    - Implement a small resource collector with injectable monotonic clock and Linux process readings under contractor_runtime.
+    - Integrate the accumulator/sampler with prepare, finalize, abort, watchdog drain, failed preparation and release cleanup.
+    - Add runtime.resources to the cached final RuntimeReport and preserve the existing final-report size bound and retry identity.
+    - Advertise the version-1 capability after the collector and its disabled path are implemented.
+    - Add focused resource, lifecycle and capability tests without using a live LLM provider.
+  out:
+    - Per-allocation time series, heartbeat metrics, intermediate delivery, live Operations updates, process-wide idle sampling, child/container resources or Python allocation profiling.
+
+requirements:
+  - id: R1
+    text: >-
+      Return version, scope=runtime_process, status/reason, durationSeconds,
+      end-minus-start cpuUserSeconds/cpuSystemSeconds, rssStartBytes/rssEndBytes,
+      rssPeakObservedBytes, successful rssSampleCount and maxSampleGapSeconds.
+      Use the interval-local observed maximum, not lifetime ru_maxrss. Unknowns
+      remain absent, all present numeric values finite and nonnegative.
+  - id: R2
+    text: >-
+      CPU covers process service work and RSS includes retained caches; neither
+      claims isolated Worker, child or sandbox consumption. A complete resource
+      report requires successful boundaries and scheduled readings with no gap
+      over 30 seconds; it still cannot guarantee the true RSS peak. Partial RSS
+      sampling need not invalidate successful CPU boundary deltas.
+  - id: R3
+    text: >-
+      Use a constant-size accumulator, no overlapping reads, no forced GC or
+      object/stack scans, and bounded cancellable lifecycle ownership. Failures
+      affect resource status only, not Worker report completeness, outcomes,
+      finalization deadlines or slot reuse. Repeated final operations return
+      identical cached resources; sequential allocations never share baselines.
+
+acceptance_criteria:
+  - id: A1
+    given: Idle Runtime, missing collection request and allocations shorter/longer than 15 seconds.
+    when: Prepare and finalization execute under fake time.
+    then: Disabled/idle paths perform no resource sampling; enabled intervals include boundaries and only the specified periodic observations.
+  - id: A2
+    given: Sequential allocations, skipped/failed samples, counter resets and unsupported platform readings.
+    when: Final reports are built.
+    then: CPU/RSS scope, peaks, unknowns and completeness are truthful and no previous allocation or lifetime RSS maximum leaks into the summary.
+  - id: A3
+    given: Prepare failure, abort, watchdog drain, repeated finalization, cancellation and runtime loss.
+    when: Existing lifecycle paths settle or reach their deadlines.
+    then: No sampler leaks or semantic changes occur; retries are identical and hard loss yields no invented recovered resource data.
+
+tests:
+  - {name: resources, command: "cd runtime && uv run pytest -W error tests/test_resource_metrics.py tests/test_performance_contracts.py", covers: [A1, A2, A3]}
+  - {name: lifecycle, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_capabilities.py tests/test_metrics.py", covers: [A1, A2, A3]}
