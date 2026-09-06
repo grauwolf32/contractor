@@ -3,8 +3,8 @@ id: V26-002
 title: Ship a curated OWASP Top 10 2025 risk-assessment program
 milestone: audit-program-library
 priority: P2
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: 7e045fac45691bc8972c3fd0caebca9106f28251
 depends_on: [V26-001]
 languages: [go, yaml, json]
 
