@@ -1,0 +1,131 @@
+{
+  "collection": {
+    "documents": [
+      {
+        "digest": "sha256:3863768979e13c0a02d496f3ef406b2f4857363e42276c50c2a9f0603e57264a",
+        "id": "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49",
+        "media_type": "text/plain",
+        "ref": {
+          "name": "shared",
+          "namespace": "evidence",
+          "revision": "rev-1"
+        },
+        "scope": {
+          "id": "run-b",
+          "kind": "run"
+        },
+        "size_bytes": 51
+      },
+      {
+        "digest": "sha256:3863768979e13c0a02d496f3ef406b2f4857363e42276c50c2a9f0603e57264a",
+        "id": "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f",
+        "media_type": "text/plain",
+        "ref": {
+          "name": "shared",
+          "namespace": "evidence",
+          "revision": "rev-1"
+        },
+        "scope": {
+          "id": "run-a",
+          "kind": "run"
+        },
+        "size_bytes": 51
+      },
+      {
+        "digest": "sha256:2e65ded422aeec4174272e751f993ec6c4720884ed6eefa101c3fd13892eef58",
+        "id": "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f",
+        "media_type": "application/json",
+        "ref": {
+          "name": "shared",
+          "namespace": "finding-proposals",
+          "revision": "rev-1"
+        },
+        "scope": {
+          "id": "run-b",
+          "kind": "run"
+        },
+        "size_bytes": 391
+      },
+      {
+        "digest": "sha256:88f57c454ce81a3d7813c9eb928779d85eaf9a87d7ea51743a4d225b67dd8bfd",
+        "id": "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e",
+        "media_type": "application/json",
+        "ref": {
+          "name": "shared",
+          "namespace": "finding-proposals",
+          "revision": "rev-1"
+        },
+        "scope": {
+          "id": "run-a",
+          "kind": "run"
+        },
+        "size_bytes": 337
+      }
+    ],
+    "entries": [
+      {
+        "evidence": [
+          {
+            "document_id": "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f",
+            "evidence_id": "evidence-1"
+          }
+        ],
+        "invocation_id": "invocation-a",
+        "proposal_document_id": "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e",
+        "proposal_id": "proposal-a",
+        "receipt_id": "receipt-a",
+        "retention": "source-held",
+        "reviews": [],
+        "run_id": "run-a"
+      },
+      {
+        "audit_origin": {
+          "audit_id": "audit-a",
+          "execution_id": "execution-b",
+          "role": "source-analysis"
+        },
+        "evidence": [
+          {
+            "document_id": "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49",
+            "evidence_id": "evidence-1"
+          }
+        ],
+        "invocation_id": "invocation-b",
+        "proposal_document_id": "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f",
+        "proposal_id": "proposal-b",
+        "receipt_id": "receipt-b",
+        "retention": "audit-held",
+        "reviews": [
+          {
+            "assessment_id": "assessment-b",
+            "audit_id": "audit-a",
+            "finding_id": "finding-b",
+            "revision": 3,
+            "state": "needs-evidence"
+          }
+        ],
+        "run_id": "run-b"
+      }
+    ],
+    "schema": "contractor.findings.collection.v1",
+    "snapshot_at": "2026-09-06T09:00:00Z",
+    "sources": [
+      {
+        "id": "audit-a",
+        "kind": "audit"
+      },
+      {
+        "id": "run-a",
+        "kind": "run"
+      }
+    ]
+  },
+  "contents": {
+    "doc-1b0d20aaf54838c6549c1f813084821371f41d6d5f6f6272dec2b17418d0fd49": "Одинаковые bytes из разных Runs.\n",
+    "doc-d1388f3fa4060d234cb8cfc500489c1c01a07071d617a787a1d95bb0919e718f": "Одинаковые bytes из разных Runs.\n",
+    "doc-de9d74745db7ff327cc95d39afeea455debfe05ec8e5b538b1f8a0231e85a03f": "{\"client_key\":\"candidate-b\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"hypothesis\":\"The setting may affect isolation.\",\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-b\",\"kind\":\"configuration\"},\"title\":\"Observation b\"}",
+    "doc-f39469eb9a094195b8f85885c2a239d50ca2c0b462fe060a4fe20a7f7519a14e": "{\"client_key\":\"candidate-a\",\"description\":\"A generic finding with retained evidence.\",\"evidence_ids\":[\"evidence-1\"],\"limitations\":[],\"preconditions\":[],\"proposed_checks\":[],\"schema\":\"contractor.audit.finding-proposal.v1\",\"severity_suggestion\":\"\",\"standard_refs\":[],\"subject\":{\"key\":\"subject-a\",\"kind\":\"function\"},\"title\":\"Observation a\"}"
+  },
+  "package_digest": "sha256:42c1c1a020f251137aa41dff6345e7d8e753791e38f076c33981f731c0dbb7c0",
+  "package_id": "collection-66bf56c311e81d6c539efec0da86faa82760bdd211b9be078d5becc9123aeab3"
+}
