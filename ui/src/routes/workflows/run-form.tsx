@@ -7,7 +7,14 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate } from "react-router";
 
 import { listArtifacts, type ArtifactMetadata } from "../../api/artifacts";
@@ -33,11 +40,19 @@ import {
   type CreateRunRequest,
   type WorkflowResource,
 } from "../../api/workflows";
-import { RunDraftKeyring } from "../../run-drafts/idempotency";
+import { Dialog } from "../../app/dialog";
+import {
+  initialRunDraftState,
+  type RunDraftEntry,
+  type RunDraftIdentity,
+  type RunDraftState,
+  type RunDraftSummary,
+  type RunDraftMemoryStore,
+} from "../../run-drafts/memory";
+import { useRunDraftStore } from "../../run-drafts/context";
 import {
   artifactAccepts,
   artifactOptionKey,
-  emptyExecutionOverrides,
   NO_CREDENTIAL_OVERRIDE,
   validateRunDraft,
   type ConsumerOverrideDraft,
@@ -45,6 +60,9 @@ import {
 } from "../../run-drafts/validation";
 import { ErrorNotice, formatBytes } from "../artifacts/common";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
+import { RunInputUploadDialog } from "./run-input-upload-dialog";
+
+import "./run-drafts.css";
 
 const INITIAL_CURSOR = null;
 const EVAL_METADATA_PRESET = [
@@ -108,20 +126,23 @@ function DraftDisclosureSummary({
 
 function RunMetadataLabelEditor({
   labels,
+  labelInput,
   errors,
   onAdd,
   onAddEvalPreset,
   onChange,
+  onLabelInputChange,
   onRemove,
 }: {
   labels: readonly RunMetadataLabelDraft[];
+  labelInput: string;
   errors: Readonly<Record<string, string>>;
   onAdd: (key?: string, value?: string) => void;
   onAddEvalPreset: () => void;
   onChange: (id: string, field: "key" | "value", value: string) => void;
+  onLabelInputChange: (value: string) => void;
   onRemove: (id: string) => void;
 }) {
-  const [labelInput, setLabelInput] = useState("");
   const labelInputRef = useRef<HTMLInputElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const atLimit = labels.length >= RUN_METADATA_LABEL_LIMIT;
@@ -139,7 +160,7 @@ function RunMetadataLabelEditor({
       (separator < 0 ? labelInput : labelInput.slice(0, separator)).trim(),
       separator < 0 ? "" : labelInput.slice(separator + 1),
     );
-    setLabelInput("");
+    onLabelInputChange("");
   }
 
   return (
@@ -170,7 +191,7 @@ function RunMetadataLabelEditor({
             value={labelInput}
             disabled={atLimit}
             aria-describedby="run-label-input-help"
-            onChange={(event) => setLabelInput(event.target.value)}
+            onChange={(event) => onLabelInputChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.nativeEvent.isComposing) {
                 event.preventDefault();
@@ -439,38 +460,192 @@ function ConsumerOverrides({
   );
 }
 
-export function WorkflowRunForm({
-  workflow,
-  projectId,
-  initialArtifactSelections = {},
-}: {
+interface WorkflowRunFormProps {
   workflow: WorkflowResource;
   projectId?: string;
   initialArtifactSelections?: Readonly<Record<string, string>>;
+}
+
+function draftScopeLabel(draft: RunDraftSummary): string {
+  return draft.projectId === undefined
+    ? "standalone UserScope"
+    : `Project ${draft.projectId}`;
+}
+
+function RunDraftCapacity({
+  drafts,
+  onDiscard,
+}: {
+  drafts: RunDraftSummary[];
+  onDiscard: (key: string) => void;
+}) {
+  return (
+    <section className="notice notice-warning run-draft-capacity" role="alert">
+      <div>
+        <strong>The in-memory Run draft limit is reached.</strong>
+        <p>
+          Choose one retained draft to discard. Contractor will not evict
+          unsaved input automatically.
+        </p>
+      </div>
+      <ul className="run-draft-capacity-list">
+        {drafts.map((draft) => (
+          <li key={draft.key}>
+            <span>
+              <code>
+                {draft.workflowName}@{draft.workflowVersion}
+              </code>
+              <small>
+                {draftScopeLabel(draft)}
+                {draft.ambiguousSubmission
+                  ? " · submission outcome unknown"
+                  : ""}
+              </small>
+            </span>
+            <button
+              className="danger-button"
+              type="button"
+              onClick={() => onDiscard(draft.key)}
+            >
+              Discard this draft
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function WorkflowRunDraftBoundary(props: WorkflowRunFormProps) {
+  const store = useRunDraftStore();
+  const identity: RunDraftIdentity = {
+    workflowName: props.workflow.ref.name,
+    workflowVersion: props.workflow.ref.version,
+    ...(props.projectId === undefined ? {} : { projectId: props.projectId }),
+  };
+  const initialState = initialRunDraftState(props.initialArtifactSelections);
+  const [acquisition, setAcquisition] = useState(() =>
+    store.acquire(identity, initialState),
+  );
+
+  function discardAtCapacity(key: string): void {
+    store.discard(key);
+    setAcquisition(store.acquire(identity, initialState));
+  }
+
+  if (acquisition.kind === "capacity") {
+    return (
+      <RunDraftCapacity
+        drafts={acquisition.drafts}
+        onDiscard={discardAtCapacity}
+      />
+    );
+  }
+  const entry = acquisition.entry;
+
+  function discardCurrent(): void {
+    store.discard(entry);
+    setAcquisition(store.acquire(identity, initialState));
+  }
+
+  return (
+    <WorkflowRunFormBody
+      {...props}
+      key={`${entry.key}:${entry.generation}`}
+      draftEntry={entry}
+      draftStore={store}
+      onDiscardDraft={discardCurrent}
+    />
+  );
+}
+
+export function WorkflowRunForm(props: WorkflowRunFormProps) {
+  const key = `${props.projectId ?? "standalone"}\u0000${props.workflow.ref.name}\u0000${props.workflow.ref.version}`;
+  return <WorkflowRunDraftBoundary {...props} key={key} />;
+}
+
+function DiscardRunDraftDialog({
+  onClose,
+  onDiscard,
+}: {
+  onClose: () => void;
+  onDiscard: () => void;
+}) {
+  const heading = useId();
+  const safeAction = useRef<HTMLButtonElement>(null);
+  return (
+    <Dialog
+      className="project-dialog panel run-draft-discard-dialog"
+      labelledBy={heading}
+      initialFocusRef={safeAction}
+      onRequestClose={onClose}
+      role="alertdialog"
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Unsaved Run setup</p>
+          <h2 id={heading}>Discard this Run draft?</h2>
+        </div>
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close discard confirmation"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      <p>
+        Parameters, exact Artifact selections, labels, overrides and any
+        ambiguous submission identity in this tab will be removed.
+      </p>
+      <div className="run-draft-actions">
+        <button
+          ref={safeAction}
+          className="secondary-button"
+          type="button"
+          onClick={onClose}
+        >
+          Keep editing
+        </button>
+        <button className="danger-button" type="button" onClick={onDiscard}>
+          Discard Run draft
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+function WorkflowRunFormBody({
+  workflow,
+  projectId,
+  draftEntry,
+  draftStore,
+  onDiscardDraft,
+}: WorkflowRunFormProps & {
+  draftEntry: RunDraftEntry;
+  draftStore: RunDraftMemoryStore;
+  onDiscardDraft: () => void;
 }) {
   const api = usePublicAPI();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [gitSlot, setGitSlot] = useState<string | null>(null);
-  const [importedArtifacts, setImportedArtifacts] = useState<
-    ArtifactMetadata[]
-  >([]);
-  const [keyring] = useState(() => new RunDraftKeyring());
-  const [parameters, setParameters] = useState<
-    Record<string, string | undefined>
-  >({});
-  const [selectedRuntimeLabels, setSelectedRuntimeLabels] = useState<string[]>(
-    [],
+  const [uploadSlot, setUploadSlot] = useState<string | null>(null);
+  const [discardRequested, setDiscardRequested] = useState(false);
+  const [draft, setDraft] = useState<RunDraftState>(() =>
+    structuredClone(draftEntry.state),
   );
-  const metadataLabelSequence = useRef(0);
-  const [metadataLabels, setMetadataLabels] = useState<RunMetadataLabelDraft[]>(
-    [],
+  const [ambiguousSubmission, setAmbiguousSubmission] = useState(
+    draftEntry.ambiguousSubmission,
   );
-  const [artifactSelections, setArtifactSelections] = useState<
-    Record<string, string>
-  >({ ...initialArtifactSelections });
-  const [overrides, setOverrides] = useState<ExecutionOverrideDraft>(
-    emptyExecutionOverrides,
+  const metadataLabelSequence = useRef(
+    Math.max(
+      0,
+      ...draft.metadataLabels.map(
+        (label) => Number.parseInt(label.id, 10) || 0,
+      ),
+    ),
   );
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
@@ -478,6 +653,104 @@ export function WorkflowRunForm({
   const [runtimeOptionsOpen, setRuntimeOptionsOpen] = useState(false);
   const [metadataOptionsOpen, setMetadataOptionsOpen] = useState(false);
   const [executionOptionsOpen, setExecutionOptionsOpen] = useState(false);
+  const {
+    parameters,
+    runtimeLabels: selectedRuntimeLabels,
+    metadataLabels,
+    metadataLabelInput,
+    artifactSelections,
+    knownArtifacts,
+    overrides,
+  } = draft;
+  const keyring = draftEntry.keyring;
+
+  useEffect(() => {
+    draftStore.retain(draftEntry);
+    return () => draftStore.release(draftEntry);
+  }, [draftEntry, draftStore]);
+
+  function updateDraft(
+    update: (current: RunDraftState) => RunDraftState,
+  ): void {
+    if (!draftStore.isCurrent(draftEntry)) return;
+    const next = update(structuredClone(draftEntry.state));
+    if (draftStore.replaceState(draftEntry, next)) {
+      setDraft(next);
+    }
+  }
+
+  function setParameters(
+    update: (
+      current: Record<string, string | undefined>,
+    ) => Record<string, string | undefined>,
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      parameters: update(current.parameters),
+    }));
+  }
+
+  function setSelectedRuntimeLabels(
+    update: (current: string[]) => string[],
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      runtimeLabels: update(current.runtimeLabels),
+    }));
+  }
+
+  function setMetadataLabels(
+    update: (current: RunMetadataLabelDraft[]) => RunMetadataLabelDraft[],
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      metadataLabels: update(current.metadataLabels),
+    }));
+  }
+
+  function setMetadataLabelInput(value: string): void {
+    updateDraft((current) => ({
+      ...current,
+      metadataLabelInput: value,
+    }));
+  }
+
+  function setArtifactSelections(
+    update: (current: Record<string, string>) => Record<string, string>,
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      artifactSelections: update(current.artifactSelections),
+    }));
+  }
+
+  function setKnownArtifacts(
+    update: (current: ArtifactMetadata[]) => ArtifactMetadata[],
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      knownArtifacts: update(current.knownArtifacts),
+    }));
+  }
+
+  function setOverrides(
+    update: (current: ExecutionOverrideDraft) => ExecutionOverrideDraft,
+  ): void {
+    updateDraft((current) => ({
+      ...current,
+      overrides: update(current.overrides),
+    }));
+  }
+
+  function rememberArtifact(metadata: ArtifactMetadata): void {
+    const key = artifactOptionKey(metadata.artifact);
+    setKnownArtifacts((current) => [
+      ...current.filter(
+        (candidate) => artifactOptionKey(candidate.artifact) !== key,
+      ),
+      metadata,
+    ]);
+  }
 
   const artifactInventory = useInfiniteQuery({
     queryKey:
@@ -542,11 +815,11 @@ export function WorkflowRunForm({
           [
             ...(artifactInventory.data?.pages.flatMap((page) => page.items) ??
               []),
-            ...importedArtifacts,
+            ...knownArtifacts,
           ].map((item) => [artifactOptionKey(item.artifact), item]),
         ).values(),
       ),
-    [artifactInventory.data, importedArtifacts],
+    [artifactInventory.data, knownArtifacts],
   );
   const artifactMap = useMemo(
     () =>
@@ -607,6 +880,7 @@ export function WorkflowRunForm({
         ? createRun(api, request, idempotencyKey)
         : createProjectRun(api, projectId, request, idempotencyKey),
     onSuccess: async (result) => {
+      draftStore.discard(draftEntry);
       await queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
       if (projectId !== undefined) {
         await Promise.all([
@@ -619,6 +893,12 @@ export function WorkflowRunForm({
         ]);
       }
       await navigate(`/runs/${encodeURIComponent(result.runId)}`);
+    },
+    onError: (error) => {
+      const ambiguous = error instanceof PublicAPIError && error.status === 0;
+      if (draftStore.setAmbiguousSubmission(draftEntry, ambiguous)) {
+        setAmbiguousSubmission(ambiguous);
+      }
     },
   });
 
@@ -743,17 +1023,22 @@ export function WorkflowRunForm({
       }
       return;
     }
+    const idempotencyKey = keyring.keyFor(
+      validation.request,
+      projectId === undefined ? "standalone" : `project:${projectId}`,
+    );
+    draftStore.markSubmitted(draftEntry);
+    draftStore.setAmbiguousSubmission(draftEntry, false);
+    setAmbiguousSubmission(false);
     mutation.mutate({
       request: validation.request,
-      idempotencyKey: keyring.keyFor(
-        validation.request,
-        projectId === undefined ? "standalone" : `project:${projectId}`,
-      ),
+      idempotencyKey,
     });
   }
 
   const responseLost =
-    mutation.error instanceof PublicAPIError && mutation.error.status === 0;
+    ambiguousSubmission ||
+    (mutation.error instanceof PublicAPIError && mutation.error.status === 0);
   const exactRetry =
     currentValidation.request !== undefined &&
     keyring.matches(
@@ -819,18 +1104,16 @@ export function WorkflowRunForm({
           suggestedName={gitSlot}
           onClose={() => setGitSlot(null)}
           onImported={(result) => {
-            setImportedArtifacts((current) => [
-              ...current,
-              {
-                artifact: result.artifact,
-                mediaType: result.mediaType,
-                size: result.size,
-                gitSource: result.gitSource,
-                current: true,
-                frozen: false,
-                createdAt: result.gitSource.importedAt,
-              },
-            ]);
+            if (!draftStore.isCurrent(draftEntry)) return;
+            rememberArtifact({
+              artifact: result.artifact,
+              mediaType: result.mediaType,
+              size: result.size,
+              gitSource: result.gitSource,
+              current: true,
+              frozen: false,
+              createdAt: result.gitSource.importedAt,
+            });
             setArtifactSelections((current) =>
               updateRecord(
                 current,
@@ -843,6 +1126,40 @@ export function WorkflowRunForm({
           }}
         />
       )}
+      {uploadSlot === null ? null : (
+        <RunInputUploadDialog
+          {...(projectId === undefined ? {} : { projectId })}
+          slotName={uploadSlot}
+          mediaTypes={workflow.inputs[uploadSlot]?.mediaTypes ?? []}
+          onClose={() => setUploadSlot(null)}
+          onUploaded={(result) => {
+            if (!draftStore.isCurrent(draftEntry)) return;
+            rememberArtifact({
+              artifact: result.artifact,
+              mediaType: result.mediaType,
+              size: result.size,
+              current: true,
+              frozen: false,
+              createdAt: new Date().toISOString(),
+            });
+            setArtifactSelections((current) =>
+              updateRecord(
+                current,
+                uploadSlot,
+                artifactOptionKey(result.artifact),
+              ),
+            );
+            clearError(`artifact:${uploadSlot}`);
+            setUploadSlot(null);
+          }}
+        />
+      )}
+      {discardRequested ? (
+        <DiscardRunDraftDialog
+          onClose={() => setDiscardRequested(false)}
+          onDiscard={onDiscardDraft}
+        />
+      ) : null}
       <div className="section-heading run-draft-heading">
         <div>
           <p className="eyebrow">Run setup</p>
@@ -977,9 +1294,14 @@ export function WorkflowRunForm({
                             : `artifact-${name}-error`
                         }
                         onChange={(event) => {
+                          const selected = event.target.value;
                           setArtifactSelections((current) =>
-                            updateRecord(current, name, event.target.value),
+                            updateRecord(current, name, selected),
                           );
+                          const metadata = artifactMap.get(selected);
+                          if (metadata !== undefined) {
+                            rememberArtifact(metadata);
+                          }
                           clearError(`artifact:${name}`);
                         }}
                       >
@@ -999,19 +1321,28 @@ export function WorkflowRunForm({
                       </select>
                     </label>
                     <small>Accepts {slot.mediaTypes.join(", ")}</small>
-                    {slot.mediaTypes.some((type) =>
-                      ["application/zip", "*/*"].includes(type),
-                    ) ? (
+                    <div className="run-draft-actions">
                       <button
-                        className="secondary-button git-import-icon-button"
+                        className="secondary-button"
                         type="button"
-                        aria-label={`Import Git for ${name}`}
-                        title={`Import Git repository for ${name}`}
-                        onClick={() => setGitSlot(name)}
+                        onClick={() => setUploadSlot(name)}
                       >
-                        <GitRepositoryIcon />
+                        Upload local file for {name}
                       </button>
-                    ) : null}
+                      {slot.mediaTypes.some((type) =>
+                        ["application/zip", "*/*"].includes(type),
+                      ) ? (
+                        <button
+                          className="secondary-button git-import-icon-button"
+                          type="button"
+                          aria-label={`Import Git for ${name}`}
+                          title={`Import Git repository for ${name}`}
+                          onClick={() => setGitSlot(name)}
+                        >
+                          <GitRepositoryIcon />
+                        </button>
+                      ) : null}
+                    </div>
                     <GitSourceDetails
                       source={
                         artifactMap.get(artifactSelections[name] ?? "")
@@ -1181,10 +1512,12 @@ export function WorkflowRunForm({
         </summary>
         <RunMetadataLabelEditor
           labels={metadataLabels}
+          labelInput={metadataLabelInput}
           errors={validationErrors}
           onAdd={addMetadataLabel}
           onAddEvalPreset={addEvalMetadataPreset}
           onChange={updateMetadataLabel}
+          onLabelInputChange={setMetadataLabelInput}
           onRemove={removeMetadataLabel}
         />
       </details>
@@ -1311,26 +1644,38 @@ export function WorkflowRunForm({
           <strong>{draftReady ? "Ready to start" : readinessCopy}</strong>
           <small>The Run opens after the Server accepts the request.</small>
         </span>
-        <button
-          type="submit"
-          disabled={
-            mutation.isPending ||
-            (Object.keys(workflow.inputs).length > 0 &&
-              artifactInventory.isPending)
-          }
-        >
-          {mutation.isPending
-            ? projectId === undefined
-              ? "Submitting…"
-              : "Starting Project Run…"
-            : responseLost && exactRetry
-              ? "Retry exact request"
-              : responseLost
-                ? "Start changed draft with a new key"
-                : projectId === undefined
-                  ? "Start Workflow Run"
-                  : "Start Project Workflow Run"}
-        </button>
+        <div className="run-draft-actions">
+          {draftEntry.meaningful ? (
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={mutation.isPending}
+              onClick={() => setDiscardRequested(true)}
+            >
+              Discard saved draft
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            disabled={
+              mutation.isPending ||
+              (Object.keys(workflow.inputs).length > 0 &&
+                artifactInventory.isPending)
+            }
+          >
+            {mutation.isPending
+              ? projectId === undefined
+                ? "Submitting…"
+                : "Starting Project Run…"
+              : responseLost && exactRetry
+                ? "Retry exact request"
+                : responseLost
+                  ? "Start changed draft with a new key"
+                  : projectId === undefined
+                    ? "Start Workflow Run"
+                    : "Start Project Workflow Run"}
+          </button>
+        </div>
       </div>
     </form>
   );

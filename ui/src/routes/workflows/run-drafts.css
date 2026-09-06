@@ -1,0 +1,54 @@
+.run-draft-capacity {
+  display: grid;
+  gap: 1rem;
+}
+
+.run-draft-capacity-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-draft-capacity-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface-raised);
+  padding: 0.75rem;
+}
+
+.run-draft-capacity-list li > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.run-draft-capacity-list code,
+.run-input-upload-dialog code {
+  overflow-wrap: anywhere;
+}
+
+.run-draft-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.run-draft-discard-dialog,
+.run-input-upload-dialog {
+  width: min(100%, 42rem);
+}
+
+@media (max-width: 44rem) {
+  .run-draft-capacity-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

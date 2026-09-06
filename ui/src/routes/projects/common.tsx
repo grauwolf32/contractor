@@ -136,26 +136,39 @@ export function ProjectArtifactWriteForm({
   projectId,
   suggested,
   fixedIdentity,
+  fixedNamespace,
+  fixedMediaType,
+  acceptedMediaTypes,
   expectedRevision,
   submitLabel,
+  signal,
+  onPendingChange,
   onWritten,
 }: {
   projectId: string;
   suggested?: ShortcutDefinition;
   fixedIdentity?: { namespace: string; name: string };
+  fixedNamespace?: string;
+  fixedMediaType?: string;
+  acceptedMediaTypes?: readonly string[];
   expectedRevision?: string;
   submitLabel?: string;
+  signal?: AbortSignal;
+  onPendingChange?: (pending: boolean) => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const formHeading = useId();
   const [namespace, setNamespace] = useState(
-    fixedIdentity?.namespace ?? suggested?.namespace ?? "artifacts",
+    fixedIdentity?.namespace ??
+      fixedNamespace ??
+      suggested?.namespace ??
+      "artifacts",
   );
   const [name, setName] = useState(fixedIdentity?.name ?? "");
   const [mediaType, setMediaType] = useState(
-    suggested?.mediaType ?? "application/octet-stream",
+    fixedMediaType ?? suggested?.mediaType ?? "application/octet-stream",
   );
   const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -174,6 +187,9 @@ export function ProjectArtifactWriteForm({
       });
     },
   });
+  useEffect(() => {
+    onPendingChange?.(mutation.isPending);
+  }, [mutation.isPending, onPendingChange]);
 
   function selectFile(selected: File | undefined): void {
     const next = selected ?? null;
@@ -186,15 +202,19 @@ export function ProjectArtifactWriteForm({
     if (fixedIdentity === undefined && name === "") {
       setName(artifactFileStem(next.name));
     }
-    setMediaType(inferredArtifactMediaType(next, mediaType));
+    if (fixedMediaType === undefined) {
+      setMediaType(inferredArtifactMediaType(next, mediaType));
+    }
   }
 
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setValidationError(null);
     mutation.reset();
-    const effectiveNamespace = fixedIdentity?.namespace ?? namespace.trim();
+    const effectiveNamespace =
+      fixedIdentity?.namespace ?? fixedNamespace ?? namespace.trim();
     const effectiveName = fixedIdentity?.name ?? name.trim();
+    const effectiveMediaType = fixedMediaType ?? mediaType;
     if (
       !ARTIFACT_NAME_PATTERN.test(effectiveNamespace) ||
       !ARTIFACT_NAME_PATTERN.test(effectiveName)
@@ -204,9 +224,19 @@ export function ProjectArtifactWriteForm({
       );
       return;
     }
-    if (!MEDIA_TYPE_PATTERN.test(mediaType)) {
+    if (!MEDIA_TYPE_PATTERN.test(effectiveMediaType)) {
       setValidationError(
         "Media type must be a lowercase type/subtype without parameters.",
+      );
+      return;
+    }
+    if (
+      acceptedMediaTypes !== undefined &&
+      !acceptedMediaTypes.includes("*/*") &&
+      !acceptedMediaTypes.includes(effectiveMediaType)
+    ) {
+      setValidationError(
+        `Media type must be one accepted by this input: ${acceptedMediaTypes.join(", ")}.`,
       );
       return;
     }
@@ -222,9 +252,10 @@ export function ProjectArtifactWriteForm({
       projectId,
       namespace: effectiveNamespace,
       name: effectiveName,
-      mediaType,
+      mediaType: effectiveMediaType,
       payload: file,
       ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      ...(signal === undefined ? {} : { signal }),
     });
   }
 
@@ -247,6 +278,10 @@ export function ProjectArtifactWriteForm({
 
       <ArtifactFileDrop file={file} onSelect={selectFile} />
 
+      {acceptedMediaTypes === undefined ? null : (
+        <small>Accepted by this input: {acceptedMediaTypes.join(", ")}</small>
+      )}
+
       <div className="form-grid project-artifact-fields">
         <label>
           Namespace
@@ -254,8 +289,10 @@ export function ProjectArtifactWriteForm({
             name="namespace"
             required
             maxLength={128}
-            disabled={fixedIdentity !== undefined}
-            value={fixedIdentity?.namespace ?? namespace}
+            disabled={
+              fixedIdentity !== undefined || fixedNamespace !== undefined
+            }
+            value={fixedIdentity?.namespace ?? fixedNamespace ?? namespace}
             onChange={(event) => setNamespace(event.target.value)}
           />
         </label>
@@ -275,7 +312,8 @@ export function ProjectArtifactWriteForm({
           <input
             name="mediaType"
             required
-            value={mediaType}
+            disabled={fixedMediaType !== undefined}
+            value={fixedMediaType ?? mediaType}
             onChange={(event) => setMediaType(event.target.value)}
           />
         </label>

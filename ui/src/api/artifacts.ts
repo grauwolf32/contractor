@@ -68,6 +68,7 @@ export interface ArtifactWriteRequest {
   mediaType: string;
   payload: Blob;
   expectedRevision?: string;
+  signal?: AbortSignal;
 }
 
 export interface DownloadedArtifact {
@@ -288,6 +289,7 @@ export async function writeScopedArtifact(
     method: "PUT",
     headers,
     body: payload,
+    ...(request.signal === undefined ? {} : { signal: request.signal }),
   });
   if (!response.ok) {
     throw await api.error(response);

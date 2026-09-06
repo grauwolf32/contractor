@@ -1,5 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type DragEvent, type FormEvent, useId, useRef, useState } from "react";
+import {
+  type DragEvent,
+  type FormEvent,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router";
 
 import {
@@ -182,6 +189,10 @@ export function ArtifactWriteForm({
   fixedMediaType,
   excludedNamespace,
   expectedRevision,
+  acceptedMediaTypes,
+  signal,
+  submitLabel,
+  onPendingChange,
   onWritten,
 }: {
   fixedIdentity?: { namespace: string; name: string };
@@ -193,6 +204,10 @@ export function ArtifactWriteForm({
     label: string;
   };
   expectedRevision?: string;
+  acceptedMediaTypes?: readonly string[];
+  signal?: AbortSignal;
+  submitLabel?: string;
+  onPendingChange?: (pending: boolean) => void;
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const api = usePublicAPI();
@@ -230,6 +245,9 @@ export function ArtifactWriteForm({
       });
     },
   });
+  useEffect(() => {
+    onPendingChange?.(mutation.isPending);
+  }, [mutation.isPending, onPendingChange]);
 
   function selectFile(selected: File | undefined): void {
     const next = selected ?? null;
@@ -276,6 +294,16 @@ export function ArtifactWriteForm({
       );
       return;
     }
+    if (
+      acceptedMediaTypes !== undefined &&
+      !acceptedMediaTypes.includes("*/*") &&
+      !acceptedMediaTypes.includes(effectiveMediaType)
+    ) {
+      setValidationError(
+        `Media type must be one accepted by this input: ${acceptedMediaTypes.join(", ")}.`,
+      );
+      return;
+    }
     if (file === null) {
       setValidationError("Choose one local file to upload.");
       return;
@@ -290,6 +318,7 @@ export function ArtifactWriteForm({
       mediaType: effectiveMediaType,
       payload: file,
       ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      ...(signal === undefined ? {} : { signal }),
     });
   }
 
@@ -312,6 +341,9 @@ export function ArtifactWriteForm({
         inputRevision={inputRevision}
         onSelect={selectFile}
       />
+      {acceptedMediaTypes === undefined ? null : (
+        <small>Accepted by this input: {acceptedMediaTypes.join(", ")}</small>
+      )}
       <div className="form-grid artifact-fields">
         <label>
           Namespace
@@ -368,9 +400,8 @@ export function ArtifactWriteForm({
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending
           ? "Uploading…"
-          : update
-            ? "Upload exact update"
-            : "Create binding"}
+          : (submitLabel ??
+            (update ? "Upload exact update" : "Create binding"))}
       </button>
     </form>
   );

@@ -8,6 +8,7 @@ import type { PublicAPI } from "../api/client";
 import { PublicAPIProvider } from "../api/context";
 import { RunEventsProvider } from "../events/provider";
 import { RunEventsManager } from "../events/run-events";
+import { SessionRunDraftProvider } from "../run-drafts/provider";
 import { createApplicationQueryClient } from "./query-client";
 
 export function Application({
@@ -36,7 +37,9 @@ export function Application({
       <PublicAPIProvider api={publicAPI}>
         <RunEventsProvider manager={eventManager}>
           <SessionProvider api={api} publicAPI={publicAPI}>
-            <RouterProvider router={router} />
+            <SessionRunDraftProvider>
+              <RouterProvider router={router} />
+            </SessionRunDraftProvider>
           </SessionProvider>
         </RunEventsProvider>
       </PublicAPIProvider>

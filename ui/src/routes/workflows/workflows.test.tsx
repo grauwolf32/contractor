@@ -11,6 +11,7 @@ import type { RuntimeConfig } from "../../config/runtime-config";
 import { Application } from "../../app/application";
 import { createApplicationQueryClient } from "../../app/query-client";
 import { applicationRoutes } from "../../app/router";
+import { RunDraftProvider } from "../../run-drafts/provider";
 import type { WorkflowResource } from "../../api/workflows";
 import { WorkflowRunForm } from "./run-form";
 
@@ -287,22 +288,24 @@ describe("Workflow routes", () => {
       render(
         <QueryClientProvider client={createApplicationQueryClient()}>
           <PublicAPIProvider api={api}>
-            <MemoryRouter>
-              <WorkflowRunForm
-                workflow={{
-                  ...workflow,
-                  inputs: {
-                    ...workflow.inputs,
-                    document: {
-                      required: false,
-                      mediaTypes: ["application/pdf"],
+            <RunDraftProvider ownerId="user_local">
+              <MemoryRouter>
+                <WorkflowRunForm
+                  workflow={{
+                    ...workflow,
+                    inputs: {
+                      ...workflow.inputs,
+                      document: {
+                        required: false,
+                        mediaTypes: ["application/pdf"],
+                      },
+                      any: { required: false, mediaTypes: ["*/*"] },
                     },
-                    any: { required: false, mediaTypes: ["*/*"] },
-                  },
-                }}
-                {...(projectId === undefined ? {} : { projectId })}
-              />
-            </MemoryRouter>
+                  }}
+                  {...(projectId === undefined ? {} : { projectId })}
+                />
+              </MemoryRouter>
+            </RunDraftProvider>
           </PublicAPIProvider>
         </QueryClientProvider>,
       );
@@ -329,6 +332,7 @@ describe("Workflow routes", () => {
       ).toBeVisible();
     },
   );
+
   it("isolates infinite Run inventories from finite Operations picker cache", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const request = input instanceof Request ? input : new Request(input);
@@ -348,9 +352,11 @@ describe("Workflow routes", () => {
     render(
       <QueryClientProvider client={queryClient}>
         <PublicAPIProvider api={api}>
-          <MemoryRouter>
-            <WorkflowRunForm workflow={workflow} />
-          </MemoryRouter>
+          <RunDraftProvider ownerId="user_local">
+            <MemoryRouter>
+              <WorkflowRunForm workflow={workflow} />
+            </MemoryRouter>
+          </RunDraftProvider>
         </PublicAPIProvider>
       </QueryClientProvider>,
     );
@@ -712,6 +718,23 @@ describe("Workflow routes", () => {
     await user.click(
       screen.getByRole("button", { name: "Start Workflow Run" }),
     );
+    await screen.findByRole("button", { name: "Retry exact request" });
+    await user.type(screen.getByLabelText("Add a label"), "pending:restored");
+    await router.navigate("/artifacts");
+    await screen.findByRole("heading", { name: "Artifacts" });
+    await router.navigate(workflowRoute);
+    expect(await screen.findByLabelText(/^objective/i)).toHaveValue(
+      "Initial objective",
+    );
+    expect(screen.getByLabelText("Run metadata label value 1")).toHaveValue(
+      "a",
+    );
+    expect(screen.getByLabelText("Add a label")).toHaveValue(
+      "pending:restored",
+    );
+    expect(screen.getByLabelText(/^source/i)).toHaveValue(
+      "projects/source@revision-7",
+    );
     await user.click(
       await screen.findByRole("button", { name: "Retry exact request" }),
     );
@@ -720,8 +743,11 @@ describe("Workflow routes", () => {
     ).toBeInTheDocument();
     expect(keys[0]).toBe(keys[1]);
 
-    await user.clear(labelValue);
-    await user.type(labelValue, "b");
+    const restoredLabelValue = screen.getByLabelText(
+      "Run metadata label value 1",
+    );
+    await user.clear(restoredLabelValue);
+    await user.type(restoredLabelValue, "b");
     await user.click(
       screen.getByRole("button", {
         name: "Start changed draft with a new key",
@@ -806,6 +832,183 @@ describe("Workflow routes", () => {
     expect(requests[0]).toMatchObject({
       labels: { team: "infra", debug: "", release: "next" },
     });
+  });
+
+  it("uploads a local UserScope file into its originating exact input slot", async () => {
+    const puts: Request[] = [];
+    let stored = false;
+    const uploadedArtifact = {
+      artifact: {
+        namespace: "inputs",
+        name: "service-source",
+        revision: "revision-upload-1",
+      },
+      mediaType: "application/zip",
+      size: 3,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-06T20:00:00Z",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === workflowEndpoint) return apiResponse(workflow);
+        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
+          return apiResponse({
+            items: stored ? [uploadedArtifact] : [],
+            page: { hasMore: false },
+          });
+        }
+        if (
+          url.pathname === "/v1/artifacts/inputs/service-source" &&
+          request.method === "PUT"
+        ) {
+          puts.push(request.clone());
+          expect(Buffer.from(await request.arrayBuffer()).toString()).toBe(
+            "zip",
+          );
+          expect(request.headers.get("If-None-Match")).toBe("*");
+          expect(request.headers.get("Content-Type")).toBe("application/zip");
+          stored = true;
+          return apiResponse(
+            {
+              artifact: uploadedArtifact.artifact,
+              mediaType: uploadedArtifact.mediaType,
+              size: uploadedArtifact.size,
+            },
+            { status: 201, headers: { ETag: '"revision-upload-1"' } },
+          );
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderWorkflowApplication(api, workflowRoute);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByLabelText(/^objective/i),
+      "Keep this field while uploading",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload local file for source" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Upload local file for source",
+    });
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      new File(["zip"], "service-source.zip", {
+        type: "application/zip",
+      }),
+    );
+    expect(within(dialog).getByLabelText("Namespace")).toHaveValue("inputs");
+    expect(within(dialog).getByLabelText("Namespace")).toBeDisabled();
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("service-source");
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Upload and select exact revision",
+      }),
+    );
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(puts).toHaveLength(1);
+    expect(screen.getByLabelText(/^objective/i)).toHaveValue(
+      "Keep this field while uploading",
+    );
+    expect(screen.getByLabelText(/^source/i)).toHaveValue(
+      "inputs/service-source@revision-upload-1",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Discard saved draft" }),
+    );
+    const confirmation = screen.getByRole("alertdialog", {
+      name: "Discard this Run draft?",
+    });
+    expect(
+      within(confirmation).getByRole("button", { name: "Keep editing" }),
+    ).toHaveFocus();
+    await user.click(
+      within(confirmation).getByRole("button", {
+        name: "Discard Run draft",
+      }),
+    );
+    expect(await screen.findByLabelText(/^objective/i)).toHaveValue("");
+    expect(screen.getByLabelText(/^source/i)).toHaveValue("");
+  });
+
+  it("aborts a pending local upload without binding it into the retained draft", async () => {
+    let uploadStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      uploadStarted = resolve;
+    });
+    let uploadAborted = false;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return apiResponse(session);
+        if (url.pathname === workflowEndpoint) return apiResponse(workflow);
+        if (url.pathname === "/v1/artifacts" && request.method === "GET") {
+          return apiResponse({ items: [], page: { hasMore: false } });
+        }
+        if (
+          url.pathname === "/v1/artifacts/inputs/cancel-source" &&
+          request.method === "PUT"
+        ) {
+          uploadStarted?.();
+          return await new Promise<Response>((_resolve, reject) => {
+            const abort = () => {
+              uploadAborted = true;
+              reject(new DOMException("Aborted", "AbortError"));
+            };
+            if (request.signal.aborted) {
+              abort();
+              return;
+            }
+            request.signal.addEventListener("abort", abort, { once: true });
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${url}`);
+      }),
+    );
+    renderWorkflowApplication(api, workflowRoute);
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByLabelText(/^objective/i),
+      "Retain this draft after cancellation",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload local file for source" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Upload local file for source",
+    });
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      new File(["zip"], "cancel-source.zip", { type: "application/zip" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Upload and select exact revision",
+      }),
+    );
+    await started;
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Close local file upload",
+      }),
+    );
+
+    await waitFor(() => expect(uploadAborted).toBe(true));
+    expect(dialog).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^objective/i)).toHaveValue(
+      "Retain this draft after cancellation",
+    );
+    expect(screen.getByLabelText(/^source/i)).toHaveValue("");
   });
 
   it("blocks duplicate and reserved Run metadata labels before mutation", async () => {

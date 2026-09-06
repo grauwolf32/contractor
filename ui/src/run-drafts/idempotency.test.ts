@@ -98,4 +98,11 @@ describe("Run draft idempotency", () => {
       "idempotency key",
     );
   });
+
+  it("reports whether one submission identity has been allocated", () => {
+    const keyring = new RunDraftKeyring(() => "run-draft-1");
+    expect(keyring.hasSubmission()).toBe(false);
+    keyring.keyFor({ workflow: "workflow@1" });
+    expect(keyring.hasSubmission()).toBe(true);
+  });
 });

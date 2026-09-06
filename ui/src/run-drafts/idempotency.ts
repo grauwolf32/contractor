@@ -61,4 +61,8 @@ export class RunDraftKeyring {
       this.#canonical
     );
   }
+
+  hasSubmission(): boolean {
+    return this.#canonical !== undefined && this.#key !== undefined;
+  }
 }
