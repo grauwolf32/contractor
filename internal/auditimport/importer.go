@@ -196,7 +196,8 @@ func (i *Importer) collectSucceededRole(
 			contracts.ArtifactRef{
 				Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID),
 				Name: deterministicID(
-					"role-output", snapshot.Round.RoundID, execution.WorkflowRole, logicalName,
+					"role-output", snapshot.Round.RoundID, execution.WorkflowRole,
+					execution.ExecutionID, logicalName,
 				),
 			},
 		)

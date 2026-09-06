@@ -160,7 +160,12 @@ SELECT request_id, request_digest
 		if err != nil {
 			return err
 		}
-		if state == auditstore.AuditDeleting || row.revision != params.ExpectedRevision {
+		// Report finalization hashes Audit revision into immutable report
+		// bytes. Freeze review mutations for this short phase so a report
+		// artifact cannot be stranded by a later CAS failure. Review remains
+		// available again after completion, as required by the public model.
+		if state == auditstore.AuditDeleting || state == auditstore.AuditFinalizing ||
+			row.revision != params.ExpectedRevision {
 			return auditstore.ErrPrecondition
 		}
 		now := s.now().UTC()
@@ -284,7 +289,8 @@ SELECT audit.state,
 			return err
 		}
 		request.Revision, row.revision = uint64(requestRevision), uint64(findingRevision)
-		if auditState == auditstore.AuditDeleting || request.State != ReviewPending ||
+		if auditState == auditstore.AuditDeleting || auditState == auditstore.AuditFinalizing ||
+			request.State != ReviewPending ||
 			request.Revision != params.ExpectedRequestRevision || request.Kind != FindingReviewKind {
 			return auditstore.ErrPrecondition
 		}

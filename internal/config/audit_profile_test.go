@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,61 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
+
+func TestDecodeResolvedAuditProfileSnapshotAcceptsLegacyRoleDigest(t *testing.T) {
+	t.Parallel()
+
+	root := copyAuditProfileConfigTree(t)
+	writeAuditProfile(t, root, "legacy-profile", validAuditProfileYAML("legacy-profile"))
+	profile, err := mustLoad(t, root, MVPDescriptors()).AuditProfile("legacy-profile@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	selector, err := ParseSelector("legacy-profile@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.Ref.Digest, err = auditProfileLegacyDigest(selector, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy map[string]any
+	if err := json.Unmarshal(encoded, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	workflows := legacy["workflows"].(map[string]any)
+	for _, raw := range workflows {
+		delete(raw.(map[string]any), "kind")
+	}
+	encoded, err = json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decoded, err := DecodeResolvedAuditProfileSnapshot(encoded)
+	if err != nil {
+		t.Fatalf("decode legacy AuditProfile snapshot: %v", err)
+	}
+	if decoded.Ref.Digest != profile.Ref.Digest ||
+		decoded.Workflows[decoded.Inventory.ItemWorkflowRole].Kind != AuditWorkflowCheck {
+		t.Fatalf("decoded legacy AuditProfile = %+v", decoded)
+	}
+
+	// Presence is schema-significant: a mixed old/new closure is not guessed.
+	first := workflows[decoded.Inventory.ItemWorkflowRole].(map[string]any)
+	first["kind"] = string(AuditWorkflowCheck)
+	mixed, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DecodeResolvedAuditProfileSnapshot(mixed); err == nil {
+		t.Fatal("mixed legacy/current AuditProfile snapshot was accepted")
+	}
+}
 
 func TestAuditProfileLoadsResolvedWorkflowAndReturnsDeepCopies(t *testing.T) {
 	t.Parallel()

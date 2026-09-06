@@ -486,6 +486,42 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	if _, err := service.GetFinding(ctx, "another-owner", auditID, firstID); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign finding read error = %v", err)
 	}
+
+	// Finalization owns an immutable report snapshot. Review remains available
+	// after completion, but may not change the Audit revision between report
+	// artifact creation and its transactional commit.
+	finalizingReview, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 6,
+		RequestID: "review-finalizing", IdempotencyKey: "review-finalizing",
+		RequestDigest: serviceTestDigest("review-finalizing"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE audits
+   SET state = 'finalizing', dispatch_state = 'closed',
+       baseline_snapshot = '{}'::jsonb, started_at = $2::timestamptz,
+       deadline_at = $2::timestamptz + interval '1 hour'
+ WHERE audit_id = $1`, auditID, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: secondID, ExpectedRevision: 1,
+		RequestID: "review-during-finalizing", IdempotencyKey: "review-during-finalizing",
+		RequestDigest: serviceTestDigest("review-during-finalizing"),
+	}); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("create review during finalization error = %v", err)
+	}
+	if _, err := service.DecideFinding(ctx, DecideFindingParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: finalizingReview.Request.RequestID,
+		ExpectedRequestRevision: finalizingReview.Request.Revision,
+		DecisionID:              "decision-during-finalizing", Verdict: VerdictReopen,
+		Rationale: "Must wait for report commit.", IdempotencyKey: "decision-during-finalizing",
+		RequestDigest: serviceTestDigest("decision-during-finalizing"),
+	}); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("decide review during finalization error = %v", err)
+	}
 }
 
 func seedAuditFindingAttemptHistory(

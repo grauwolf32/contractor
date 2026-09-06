@@ -131,6 +131,13 @@ func TestImporterRetainsNamedRoleOutputsWithExactProvenance(t *testing.T) {
 		!strings.Contains(string(link.SourceProvenance), `"workflowRole":"inventory"`) {
 		t.Fatalf("retained discovery output = %+v", link)
 	}
+	wantTarget := deterministicID(
+		"role-output", round.RoundID, "inventory", harness.execution.ExecutionID, "result",
+	)
+	if len(harness.artifacts.retainedTargets) != 1 ||
+		harness.artifacts.retainedTargets[0].Name != wantTarget {
+		t.Fatalf("role output target = %+v, want %q", harness.artifacts.retainedTargets, wantTarget)
+	}
 }
 
 func TestImporterRecordsMissingNamedRoleOutputWithoutItems(t *testing.T) {
@@ -758,12 +765,13 @@ func (f *fakeFindingRetention) ImportIntoAudit(
 }
 
 type fakeImportArtifacts struct {
-	project        map[string][]byte
-	runDescriptor  auditstore.ExactArtifact
-	runPayload     []byte
-	frozen         bool
-	missingBinding bool
-	writes         map[string][]byte
+	project         map[string][]byte
+	runDescriptor   auditstore.ExactArtifact
+	runPayload      []byte
+	frozen          bool
+	missingBinding  bool
+	writes          map[string][]byte
+	retainedTargets []contracts.ArtifactRef
 }
 
 func rebuildHarnessResult(
@@ -927,6 +935,7 @@ func (*fakeImportArtifacts) ReadRunExact(context.Context, string, contracts.Arti
 	return auditstore.ExactArtifact{}, nil, errors.New("unexpected external evidence read")
 }
 func (f *fakeImportArtifacts) RetainRunExact(_ context.Context, _ string, source auditstore.ExactArtifact, _ string, target contracts.ArtifactRef) (auditstore.ExactArtifact, error) {
+	f.retainedTargets = append(f.retainedTargets, target)
 	revision := "retained-" + *source.Ref.Revision
 	target.Revision = &revision
 	source.Ref = target

@@ -68,9 +68,24 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 		len(profile.Inputs) == 0 || len(profile.Workflows) == 0 {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile identity or shape is invalid")
 	}
+	legacyRoles, err := persistedAuditProfileLegacyRoles(data, profile)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
 	for role, binding := range profile.Workflows {
 		if err := validateAuditMapKey("persisted AuditProfile workflow role", role); err != nil {
 			return ResolvedAuditProfile{}, err
+		}
+		if legacyRoles {
+			// Before role kinds were persisted every Audit Workflow binding had
+			// the check-role behavior. Infer that historical meaning only after
+			// the legacy digest has authenticated the untouched snapshot.
+			binding.Kind = AuditWorkflowCheck
+			profile.Workflows[role] = binding
+		} else if !binding.Kind.valid() {
+			return ResolvedAuditProfile{}, fmt.Errorf(
+				"persisted AuditProfile workflow %q kind is invalid", role,
+			)
 		}
 		if err := ValidateWorkflowGraph(binding.Workflow); err != nil {
 			return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile workflow %q: %w", role, err)
@@ -79,11 +94,47 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 			return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile workflow %q: %w", role, err)
 		}
 	}
-	expected, err := auditProfileDigest(selector, profile)
+	var expected string
+	if legacyRoles {
+		expected, err = auditProfileLegacyDigest(selector, profile)
+	} else {
+		expected, err = auditProfileDigest(selector, profile)
+	}
 	if err != nil || expected != profile.Ref.Digest {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile digest is invalid")
 	}
 	return cloneAuditProfile(profile), nil
+}
+
+// persistedAuditProfileLegacyRoles distinguishes the one historical snapshot
+// schema that omitted Workflow role kinds. A mixed snapshot is neither a
+// legacy document nor a current one and is rejected instead of guessed.
+func persistedAuditProfileLegacyRoles(
+	data []byte, profile ResolvedAuditProfile,
+) (bool, error) {
+	var shape struct {
+		Workflows map[string]map[string]json.RawMessage `json:"workflows"`
+	}
+	if err := json.Unmarshal(data, &shape); err != nil {
+		return false, err
+	}
+	if len(shape.Workflows) != len(profile.Workflows) {
+		return false, fmt.Errorf("persisted AuditProfile Workflow map is invalid")
+	}
+	missing := 0
+	for role := range profile.Workflows {
+		fields, exists := shape.Workflows[role]
+		if !exists {
+			return false, fmt.Errorf("persisted AuditProfile workflow %q is absent", role)
+		}
+		if _, exists := fields["kind"]; !exists {
+			missing++
+		}
+	}
+	if missing != 0 && missing != len(profile.Workflows) {
+		return false, fmt.Errorf("persisted AuditProfile mixes legacy and current Workflow roles")
+	}
+	return missing == len(profile.Workflows), nil
 }
 
 func decodeStrictSnapshot(data []byte, target any) error {

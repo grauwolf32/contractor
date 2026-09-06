@@ -858,12 +858,29 @@ func resolveAuditInteractionPolicy(source *auditInteractionPolicySource) (AuditI
 }
 
 func auditProfileDigest(selector Selector, profile ResolvedAuditProfile) (string, error) {
+	return auditProfileDigestWithRoleKinds(selector, profile, true)
+}
+
+// auditProfileLegacyDigest is read-side compatibility for immutable snapshots
+// written before role kinds existed. New catalog documents always use the
+// current digest and can never select this path.
+func auditProfileLegacyDigest(selector Selector, profile ResolvedAuditProfile) (string, error) {
+	return auditProfileDigestWithRoleKinds(selector, profile, false)
+}
+
+func auditProfileDigestWithRoleKinds(
+	selector Selector, profile ResolvedAuditProfile, includeRoleKinds bool,
+) (string, error) {
 	workflows := make(map[string]any, len(profile.Workflows))
 	for role, binding := range profile.Workflows {
-		workflows[role] = map[string]any{
-			"kind": binding.Kind, "workflow": binding.Workflow, "inputs": binding.Inputs,
+		value := map[string]any{
+			"workflow": binding.Workflow, "inputs": binding.Inputs,
 			"parameters": binding.Parameters, "outputs": binding.Outputs,
 		}
+		if includeRoleKinds {
+			value["kind"] = binding.Kind
+		}
+		workflows[role] = value
 	}
 	return digestJCS(map[string]any{
 		"apiVersion": contracts.APIVersion,
