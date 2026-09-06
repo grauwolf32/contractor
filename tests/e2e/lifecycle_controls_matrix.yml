@@ -1,0 +1,116 @@
+schema_version: "1.0"
+
+policy:
+  admission: >-
+    Owner queue pause serializes with Stage admission, drains already admitted
+    work and never prevents cancellation or terminal settlement.
+  deletion: >-
+    Run and Project deletion are durable, owner-scoped and gated on terminal
+    allocation release; no HTTP handler bypasses the production lifecycle
+    controller or Artifact ownership rules.
+  retention: >-
+    Deletion removes every Run- or Project-owned row and unreferenced physical
+    content while retaining shared User Artifacts, Skills, credentials and
+    content still referenced by another scope.
+  recovery: >-
+    Transaction rollback, response loss and Server restart converge by replaying
+    durable state. UI polling and authoritative reads do not invent completion.
+
+cases:
+  - id: user_artifacts_are_excluded_before_pagination
+    category: artifact_exclusion
+    acceptance: [A3]
+    faults: [F01]
+    expected: User Artifact pages never expose Project-owned bindings and exclusion occurs before cursor pagination.
+    test: {source: internal/httpapi/public/query_handlers_test.go, kind: go_test, name: TestUserArtifactNamespaceExclusionPrecedesPagination}
+  - id: owner_pause_serializes_with_admission
+    category: queue_serialization
+    acceptance: [A1, A3]
+    faults: [F02, F03]
+    expected: Cross-owner controls are isolated and either ordering of pause versus Stage admission has one serial outcome.
+    test: {source: internal/runstore/postgres_integration_test.go, kind: go_test, name: TestPostgresOwnerQueueControlSerializesWithStageAdmission}
+  - id: pause_allows_terminal_commit
+    category: pause_semantics
+    acceptance: [A1]
+    faults: [F04]
+    expected: A paused queue blocks new admission but an already admitted Stage can commit its terminal result.
+    test: {source: internal/scheduler/postgres_integration_test.go, kind: go_test, name: TestPostgresQueuePauseAllowsTerminalResultCommit}
+  - id: pause_drains_without_next_stage
+    category: pause_semantics
+    acceptance: [A1]
+    faults: [F05]
+    expected: Current work drains while the next Stage remains unadmitted until resume.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestSchedulerOwnerQueuePauseDrainsCurrentStageWithoutAdmittingNext}
+  - id: cancellation_is_not_blocked_by_pause
+    category: pause_semantics
+    acceptance: [A1]
+    faults: [F06]
+    expected: Cancellation continues through the ordinary bounded abort path while admission is paused.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestSchedulerOwnerQueuePauseDoesNotBlockCancellation}
+  - id: run_delete_requires_terminal_release
+    category: run_purge
+    acceptance: [A1, A3]
+    faults: [F07]
+    expected: Public deletion rejects active, foreign and release-pending Runs and exposes deletability only for released terminal Runs.
+    test: {source: internal/httpapi/public/handler_test.go, kind: go_test, name: TestDeleteRunRequiresOwnedReleasedTerminalRun}
+  - id: run_purge_is_transactional
+    category: run_purge
+    acceptance: [A1]
+    faults: [F08]
+    expected: A caller transaction rollback restores every Run row and a retry purges the same Run exactly once.
+    test: {source: internal/artifacts/postgres_integration_test.go, kind: go_test, name: TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction}
+  - id: run_purge_retains_shared_content
+    category: retention
+    acceptance: [A1, A3]
+    faults: [F09, F10]
+    expected: Purge removes complete Run provenance and unreferenced blobs while retaining shared source and Project output revisions.
+    test: {source: internal/artifacts/postgres_integration_test.go, kind: go_test, name: TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts}
+  - id: project_delete_is_durable_cas
+    category: project_deletion
+    acceptance: [A1, A3]
+    faults: [F11]
+    expected: Project deletion is CAS-protected, idempotent and immediately fences new Project mutations.
+    test: {source: internal/httpapi/public/handler_test.go, kind: go_test, name: TestProjectDeleteIsCASDurableIdempotentAndFencesMutations}
+  - id: project_delete_recovers_and_retains_shared_resources
+    category: restart_recovery
+    acceptance: [A1, A3]
+    faults: [F12, F13]
+    expected: Controller restart resumes cancellation, Audit drain, terminal release and purge without deleting shared User Artifacts, Skills or credentials.
+    test: {source: internal/projectlifecycle/controller_integration_test.go, kind: go_test, name: TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources}
+  - id: independently_served_browser_lifecycle
+    category: browser
+    acceptance: [A2, A3]
+    faults: [F14]
+    expected: The static UI pauses and resumes admission, deletes an eligible Run and completes typed Project deletion through authoritative polling without manual reload.
+    test: {source: ui/e2e/lifecycle-controls.spec.ts, kind: test_title, name: independently served UI completes lifecycle controls without manual reload}
+  - id: browser_file_drop
+    category: browser
+    acceptance: [A2, A3]
+    faults: []
+    expected: Project file drop sends exact bytes and creation preconditions directly to the configured Go API origin.
+    test: {source: ui/e2e/project-workspace.spec.ts, kind: test_title, name: Project file-drop uploads exact bytes directly to Go API}
+  - id: production_two_runtime_restart
+    category: process
+    acceptance: [A1, A3]
+    faults: [F15]
+    expected: Real PostgreSQL, restarted Go Server and two specialist Python Runtime processes retain exact Project inputs and outputs.
+    test: {source: tests/e2e/project_workflows_test.go, kind: go_test, name: TestProjectWorkspaceLifecycleAcrossProductionProcesses}
+  - id: standalone_run_regression
+    category: regression
+    acceptance: [A3]
+    faults: []
+    expected: Standalone Run behavior remains independent of Project lifecycle controls.
+    test: {source: tests/e2e/e2e_test.go, kind: go_test, name: TestLocalGoToPythonArtifactCopy}
+  - id: matrix_self_validation
+    category: matrix
+    acceptance: [A1, A2, A3]
+    faults: [F16]
+    expected: Strict decoding rejects missing policy, acceptance, category, fault, owner and gate coverage.
+    test: {source: tests/e2e/lifecycle_controls_matrix_test.go, kind: go_test, name: TestLifecycleControlsHardeningMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-lifecycle-controls-matrix}
+  - {id: hardening, command: make test-lifecycle-controls-hardening}
+  - {id: process, command: make test-lifecycle-controls-e2e}
+  - {id: browser, command: make test-lifecycle-controls-browser}
+  - {id: release, command: make test-lifecycle-controls-release}

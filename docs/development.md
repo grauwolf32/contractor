@@ -394,6 +394,45 @@ selected AgentTemplate actually exposes `http_request`. It is never a Project
 artifact and is not sent to Planner, unrelated Workers, model requests or UI
 query state.
 
+## Run and Project lifecycle release gate
+
+The executable ownership and fault map is
+[`tests/e2e/lifecycle_controls_matrix.yml`](../tests/e2e/lifecycle_controls_matrix.yml).
+It binds artifact-list exclusion, queue pause serialization, Stage drain,
+terminal release, Run purge, shared-content retention, durable Project
+deletion, Server restart and browser reconciliation to named tests. Keep every
+new lifecycle failure mode in this matrix; prose or an unreferenced test is not
+release evidence.
+
+Run the deterministic database and component gate with a disposable PostgreSQL
+database. It executes production repositories and controllers under the race
+detector and never calls a test-only deletion path:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-lifecycle-controls-hardening
+```
+
+The process gate restarts the Go Server around real PostgreSQL and two distinct
+Python specialist Runtime Agents. The browser gate builds and serves the Node
+UI separately from the Go API, then proves pause/resume, eligible Run trash and
+typed Project deletion through authoritative polling without a manual reload.
+Run the complete boundary before releasing lifecycle changes:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-lifecycle-controls-release
+```
+
+Operationally, `paused` means only that new Stage admission is fenced. Already
+admitted work drains and cancellation remains available. A terminal Run is
+deletable only after every allocation is durably released. Project deletion is
+asynchronous: the UI may be closed while the controller cancels active Runs,
+waits for release, purges Run state, then removes ProjectScope bindings. A
+Server restart resumes the stored phase. Do not retry by bypassing the phase or
+manually deleting rows; inspect the Project deletion phase and unresolved
+allocation release first.
+
 ## Environment-specific Runtime Agent capabilities
 
 A Runtime Agent probes its enabled WorkerRuntime, Toolset/tool and

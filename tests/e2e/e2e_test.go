@@ -214,7 +214,7 @@ func TestLocalGoToPythonArtifactCopy(t *testing.T) {
 		t.Fatalf("unexpected Stage attempts: %+v", completed.Attempts)
 	}
 	if completed.Attempts[0].Metrics == nil ||
-		completed.Attempts[0].Metrics.ModelCalls != 3 ||
+		completed.Attempts[0].Metrics.ModelCalls != 4 ||
 		completed.Attempts[0].Metrics.ToolCalls != 3 ||
 		!completed.Attempts[0].Metrics.ReportsComplete {
 		t.Fatalf("unexpected public metrics summary: %+v", completed.Attempts[0].Metrics)
@@ -470,10 +470,10 @@ func assertDurableExecution(
 		got  *int64
 		want int64
 	}{
-		"llm_calls":      {workerMetrics.ModelCalls, 3},
-		"input_tokens":   {workerMetrics.InputTokens, 21},
-		"output_tokens":  {workerMetrics.OutputTokens, 9},
-		"total_tokens":   {workerMetrics.TotalTokens, 30},
+		"llm_calls":      {workerMetrics.ModelCalls, 4},
+		"input_tokens":   {workerMetrics.InputTokens, 28},
+		"output_tokens":  {workerMetrics.OutputTokens, 12},
+		"total_tokens":   {workerMetrics.TotalTokens, 40},
 		"read_artifact":  {workerMetrics.Tools["read_artifact"].Calls, 1},
 		"write_artifact": {workerMetrics.Tools["write_artifact"].Calls, 1},
 	}
@@ -484,8 +484,8 @@ func assertDurableExecution(
 	}
 	budget := workerMetrics.WorkerBudget
 	if budget == nil || budget.MaxModelCalls != 8 || budget.MaxToolCalls != 16 ||
-		budget.MaxTotalTokens != 32768 || budget.ObservedModelCalls != 3 ||
-		budget.ObservedToolCalls != 2 || budget.ObservedTotalTokens != 30 ||
+		budget.MaxTotalTokens != 32768 || budget.ObservedModelCalls != 4 ||
+		budget.ObservedToolCalls != 2 || budget.ObservedTotalTokens != 40 ||
 		budget.TokenUsageUnavailable != 0 || budget.Exhausted != nil {
 		t.Fatalf("successful Worker budget = %+v", budget)
 	}
