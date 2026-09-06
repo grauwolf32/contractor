@@ -8,10 +8,10 @@ import { useSession } from "../auth/session";
 const navigation = [
   { to: "/", label: "Home", end: true },
   { to: "/projects", label: "Projects" },
-  { to: "/evals", label: "Evals" },
   { to: "/runs", label: "Runs" },
   { to: "/catalog", label: "Catalog" },
   { to: "/artifacts", label: "Artifacts" },
+  { to: "/evals", label: "Evals" },
   { to: "/operations", label: "Operations" },
 ] as const;
 
