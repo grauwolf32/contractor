@@ -80,13 +80,13 @@ actions, reviewed input suggestions, Catalog discovery, repeat Run drafts,
 result preview, Audit review and Operations layout. These are planned changes,
 not a claim that the current UI already satisfies every story.
 
-Implementation tasks own the necessary amendments to focused contracts. In
-particular, current media-type recommendation in [17](17-projects-and-queue.md)
-does not establish semantic input suitability; V37-004 adds explicit user review
-of suggestions without changing Server media-type validation. New Catalog and
-Audit read projections must filter before pagination, and a repeat Run must use
-authorized exact source refs rather than treating RunScope refs as UserScope or
-ProjectScope inputs.
+Implementation tasks own the necessary amendments to focused contracts. A
+media-type recommendation under [17](17-projects-and-queue.md) does not
+establish semantic input suitability: the retained Run draft requires explicit
+per-slot review of each populated exact suggestion without changing Server
+media-type validation. New Catalog and Audit read projections must filter
+before pagination, and a repeat Run must use authorized exact source refs
+rather than treating RunScope refs as UserScope or ProjectScope inputs.
 
 Performance UI remains V32-006 and Git Settings/import remains V35-004. V38-001
 defines experiment setup and comparison before further Evals implementation;
@@ -688,6 +688,16 @@ ModelPolicy call/token ceilings remain independently enforced because they
 bound one Planner or Worker execution rather than account consumption.
 
 ## ExecutionConfig
+
+Before execution settings, the Run form presents declared parameters and exact
+Artifact inputs. Automatically prepopulated Artifact candidates remain visibly
+marked as format-only suggestions until the user confirms their exact revision
+for that one slot. Explicit picker selection and a completed upload count as
+that slot's confirmation. Readiness separately reports missing fields, pending
+input review and a request ready for submission. The retained in-memory draft
+stores the slot-to-exact-ref confirmation and enough bounded metadata to keep a
+confirmed revision inspectable across ordinary inventory refetches; it stores
+neither upload bytes nor secrets.
 
 Workflow YAML carries default execution selections. The Run form may submit
 only exact published refs in the reference-only `executionConfig` override

@@ -374,6 +374,14 @@ test("Project recommendation launches an exact Project Run", async ({
   await expect(
     dialog.getByRole("combobox", { name: /source required/ }),
   ).toHaveValue("sources/browser-source@revision-browser-1");
+  await expect(dialog.getByText("Review 1")).toBeVisible();
+  await expect(
+    dialog.getByText(/Suggested only because application\/zip/),
+  ).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Confirm exact input for source" })
+    .click();
+  await expect(dialog.getByText("Ready", { exact: true })).toBeVisible();
   await dialog
     .getByRole("button", { name: "Start Project Workflow Run" })
     .click();

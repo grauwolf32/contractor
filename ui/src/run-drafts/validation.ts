@@ -26,6 +26,7 @@ export interface RunDraftValues {
   metadataLabels: readonly RunMetadataLabelDraft[];
   parameters: Record<string, string | undefined>;
   artifacts: Record<string, string>;
+  artifactReviews: Readonly<Record<string, string>>;
   overrides: ExecutionOverrideDraft;
 }
 
@@ -152,6 +153,11 @@ export function validateRunDraft(
     if (!artifactAccepts(slot.mediaTypes, metadata)) {
       errors[`artifact:${name}`] =
         `Artifact media type ${metadata.mediaType} is not accepted.`;
+      continue;
+    }
+    if (values.artifactReviews[name] !== key) {
+      errors[`artifactReview:${name}`] =
+        "Review and confirm this exact Artifact for the input slot.";
       continue;
     }
     inputRefs[name] = metadata.artifact;

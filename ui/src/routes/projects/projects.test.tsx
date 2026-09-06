@@ -773,6 +773,16 @@ describe("Project routes", () => {
     expect(
       within(dialog).getByRole("combobox", { name: /source required/ }),
     ).toHaveValue("sources/payment-service@revision-source-1");
+    expect(within(dialog).getByText("Review 1")).toBeVisible();
+    expect(
+      within(dialog).getByText(/Suggested only because application\/zip/),
+    ).toBeVisible();
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Confirm exact input for source",
+      }),
+    );
+    expect(within(dialog).getByText("Ready", { exact: true })).toBeVisible();
     await user.click(
       within(dialog).getByRole("button", {
         name: "Start Project Workflow Run",

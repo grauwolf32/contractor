@@ -263,6 +263,86 @@ function renderWorkflowApplication(api: PublicAPI, path: string) {
 }
 
 describe("Workflow routes", () => {
+  it("requires slot-by-slot review when one MIME candidate is suggested twice", async () => {
+    const reportArtifact = {
+      ...sourceArtifact,
+      artifact: {
+        namespace: "reports",
+        name: "review",
+        revision: "revision-report-1",
+      },
+      mediaType: "text/markdown",
+    };
+    const exactRef = "reports/review@revision-report-1";
+    const reviewWorkflow: WorkflowResource = {
+      ...workflow,
+      parameters: {},
+      inputs: {
+        dependency_report: {
+          required: true,
+          mediaTypes: ["text/markdown"],
+        },
+        project_report: {
+          required: true,
+          mediaTypes: ["text/markdown"],
+        },
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        if (new URL(request.url).pathname === "/v1/artifacts") {
+          return apiResponse({
+            items: [reportArtifact],
+            page: { hasMore: false },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+    render(
+      <QueryClientProvider client={createApplicationQueryClient()}>
+        <PublicAPIProvider api={api}>
+          <RunDraftProvider ownerId="user_local">
+            <MemoryRouter>
+              <WorkflowRunForm
+                workflow={reviewWorkflow}
+                initialArtifactSelections={{
+                  dependency_report: exactRef,
+                  project_report: exactRef,
+                }}
+                initialArtifacts={[reportArtifact]}
+              />
+            </MemoryRouter>
+          </RunDraftProvider>
+        </PublicAPIProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("Review 2")).toBeVisible();
+    expect(
+      screen.getAllByText(/Suggested only because text\/markdown/),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("link", { name: "Preview exact Artifact details" }),
+    ).toHaveLength(2);
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Confirm exact input for dependency_report",
+      }),
+    );
+    expect(screen.getByText("Review 1")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Confirm exact input for project_report",
+      }),
+    );
+    expect(screen.getByText("Ready", { exact: true })).toBeVisible();
+  });
+
   it.each([undefined, "project_example"])(
     "only offers compatible input revisions in scope %s",
     async (projectId) => {

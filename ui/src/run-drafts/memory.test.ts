@@ -123,4 +123,127 @@ describe("RunDraftMemoryStore", () => {
     local.mockRestore();
     session.mockRestore();
   });
+
+  it("invalidates only a changed automatic suggestion and retains old exact metadata", () => {
+    const store = new RunDraftMemoryStore("owner-a");
+    const metadata = (name: string, revision: string) => ({
+      artifact: { namespace: "sources", name, revision },
+      mediaType: "application/zip",
+      size: 10,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-07T10:00:00Z",
+    });
+    const first = store.acquire(
+      { workflowName: "inspect", workflowVersion: "1", projectId: "p1" },
+      initialRunDraftState({ source: "sources/one@r1" }, [
+        metadata("one", "r1"),
+      ]),
+    );
+    if (first.kind !== "acquired") throw new Error("expected acquired draft");
+
+    const refreshed = store.acquire(
+      first.entry.identity,
+      initialRunDraftState({ source: "sources/two@r2" }, [
+        metadata("two", "r2"),
+      ]),
+    );
+    if (refreshed.kind !== "acquired") {
+      throw new Error("expected refreshed draft");
+    }
+    expect(refreshed.entry.state.artifactSelections.source).toBe(
+      "sources/two@r2",
+    );
+    expect(refreshed.entry.state.artifactReviews.source).toBeUndefined();
+    expect(refreshed.entry.meaningful).toBe(false);
+
+    const reviewed = structuredClone(refreshed.entry.state);
+    reviewed.artifactReviews.source = "sources/two@r2";
+    store.replaceState(refreshed.entry, reviewed);
+    const unchanged = store.acquire(
+      refreshed.entry.identity,
+      initialRunDraftState({ source: "sources/two@r2" }, [
+        metadata("two", "r2"),
+      ]),
+    );
+    if (unchanged.kind !== "acquired") {
+      throw new Error("expected unchanged draft");
+    }
+    expect(unchanged.entry.state.artifactReviews.source).toBe("sources/two@r2");
+
+    const changedAgain = store.acquire(
+      refreshed.entry.identity,
+      initialRunDraftState({ source: "sources/three@r3" }, [
+        metadata("three", "r3"),
+      ]),
+    );
+    if (changedAgain.kind !== "acquired") {
+      throw new Error("expected changed draft");
+    }
+    expect(changedAgain.entry.state.artifactSelections.source).toBe(
+      "sources/two@r2",
+    );
+    expect(changedAgain.entry.state.artifactReviews.source).toBeUndefined();
+    expect(
+      changedAgain.entry.state.knownArtifacts.map(
+        (item) =>
+          `${item.artifact.namespace}/${item.artifact.name}@${item.artifact.revision}`,
+      ),
+    ).toEqual(["sources/one@r1", "sources/two@r2", "sources/three@r3"]);
+    expect(changedAgain.entry.meaningful).toBe(true);
+  });
+
+  it("retains exact suggestion metadata as non-user draft state", async () => {
+    const store = new RunDraftMemoryStore("owner-a");
+    const metadata = {
+      artifact: { namespace: "sources", name: "one", revision: "r1" },
+      mediaType: "application/zip",
+      size: 10,
+      current: true,
+      frozen: false,
+      createdAt: "2026-09-07T10:00:00Z",
+    };
+    const result = store.acquire(
+      { workflowName: "inspect", workflowVersion: "1", projectId: "p1" },
+      initialRunDraftState({ source: "sources/one@r1" }, [metadata]),
+    );
+    if (result.kind !== "acquired") throw new Error("expected acquired draft");
+    expect(result.entry.state.knownArtifacts).toEqual([metadata]);
+    expect(result.entry.meaningful).toBe(false);
+
+    store.retain(result.entry);
+    store.release(result.entry);
+    await Promise.resolve();
+    expect(store.isCurrent(result.entry)).toBe(false);
+  });
+
+  it("invalidates review only for the slot whose suggestion changed", () => {
+    const store = new RunDraftMemoryStore("owner-a");
+    const result = store.acquire(
+      { workflowName: "inspect", workflowVersion: "1", projectId: "p1" },
+      initialRunDraftState({ left: "reports/a@r1", right: "reports/b@r1" }),
+    );
+    if (result.kind !== "acquired") throw new Error("expected acquired draft");
+    const reviewed = structuredClone(result.entry.state);
+    reviewed.artifactReviews = {
+      left: "reports/a@r1",
+      right: "reports/b@r1",
+    };
+    store.replaceState(result.entry, reviewed);
+
+    const refreshed = store.acquire(
+      result.entry.identity,
+      initialRunDraftState({ left: "reports/a@r2", right: "reports/b@r1" }),
+    );
+    if (refreshed.kind !== "acquired") {
+      throw new Error("expected refreshed draft");
+    }
+    expect(refreshed.entry.state.artifactSelections).toEqual({
+      left: "reports/a@r1",
+      right: "reports/b@r1",
+    });
+    expect(refreshed.entry.state.artifactReviews).toEqual({
+      right: "reports/b@r1",
+    });
+  });
 });

@@ -48,6 +48,7 @@ describe("Run draft validation", () => {
         metadataLabels: [],
         parameters: {},
         artifacts: { source: key },
+        artifactReviews: { source: key },
         overrides: emptyExecutionOverrides(),
       },
       new Map([[key, incompatible]]),
@@ -72,6 +73,7 @@ describe("Run draft validation", () => {
         ],
         parameters: { objective: "Build OpenAPI" },
         artifacts: { source: key },
+        artifactReviews: { source: key },
         overrides: emptyExecutionOverrides(),
       },
       new Map([[key, source]]),
@@ -100,6 +102,7 @@ describe("Run draft validation", () => {
         metadataLabels: [],
         parameters: { objective: "Build OpenAPI", note: "" },
         artifacts: { source: key },
+        artifactReviews: { source: key },
         overrides,
       },
       new Map([[key, source]]),
@@ -134,6 +137,7 @@ describe("Run draft validation", () => {
         metadataLabels: labels,
         parameters: {},
         artifacts: {},
+        artifactReviews: {},
         overrides: emptyExecutionOverrides(),
       },
       new Map(),
@@ -147,6 +151,77 @@ describe("Run draft validation", () => {
       "metadataLabel:nul:value": "Label value cannot contain U+0000.",
       "metadataLabel:first:key": "Label key eval.id is duplicated.",
       "metadataLabel:second:key": "Label key eval.id is duplicated.",
+    });
+  });
+
+  it("requires per-slot review of an exact compatible selection", () => {
+    const key = artifactOptionKey(source.artifact);
+    const result = validateRunDraft(
+      workflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: { objective: "Build OpenAPI" },
+        artifacts: { source: key },
+        artifactReviews: {},
+        overrides: emptyExecutionOverrides(),
+      },
+      new Map([[key, source]]),
+    );
+
+    expect(result.request).toBeUndefined();
+    expect(result.errors).toEqual({
+      "artifactReview:source":
+        "Review and confirm this exact Artifact for the input slot.",
+    });
+  });
+
+  it("allows one exact Artifact to be reviewed independently for two slots", () => {
+    const report = { ...source, mediaType: "text/markdown" };
+    const key = artifactOptionKey(report.artifact);
+    const twoReportWorkflow: WorkflowResource = {
+      ...workflow,
+      parameters: {},
+      inputs: {
+        dependency_report: {
+          required: true,
+          mediaTypes: ["text/markdown"],
+        },
+        project_report: { required: true, mediaTypes: ["text/markdown"] },
+      },
+    };
+    const partial = validateRunDraft(
+      twoReportWorkflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: {},
+        artifacts: { dependency_report: key, project_report: key },
+        artifactReviews: { dependency_report: key },
+        overrides: emptyExecutionOverrides(),
+      },
+      new Map([[key, report]]),
+    );
+    expect(partial.errors).toEqual({
+      "artifactReview:project_report":
+        "Review and confirm this exact Artifact for the input slot.",
+    });
+
+    const complete = validateRunDraft(
+      twoReportWorkflow,
+      {
+        runtimeLabels: [],
+        metadataLabels: [],
+        parameters: {},
+        artifacts: { dependency_report: key, project_report: key },
+        artifactReviews: { dependency_report: key, project_report: key },
+        overrides: emptyExecutionOverrides(),
+      },
+      new Map([[key, report]]),
+    );
+    expect(complete.request?.artifacts).toEqual({
+      dependency_report: report.artifact,
+      project_report: report.artifact,
     });
   });
 });

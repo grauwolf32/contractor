@@ -6,6 +6,7 @@ import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
 import { getWorkflow, listWorkflows } from "../../api/workflows";
 import { Dialog } from "../../app/dialog";
+import { artifactOptionKey } from "../../run-drafts/validation";
 import { ErrorNotice } from "../artifacts/common";
 import { WorkflowRunForm } from "../workflows/run-form";
 import {
@@ -44,7 +45,7 @@ function WorkflowCompatibilityCard({
           {item.suppressed
             ? "Primary result exists"
             : item.compatible
-              ? "Inputs available"
+              ? "Format-compatible"
               : "Missing inputs"}
         </p>
         <h4>{selector(item)}</h4>
@@ -129,6 +130,19 @@ function ProjectWorkflowLauncher({
         selection.workflow.ref.version,
       ),
   });
+  const initialArtifacts = useMemo(() => {
+    const selected = new Set(Object.values(selection.preselected));
+    return Array.from(
+      new Map(
+        Object.values(selection.candidates)
+          .flat()
+          .filter((metadata) =>
+            selected.has(artifactOptionKey(metadata.artifact)),
+          )
+          .map((metadata) => [artifactOptionKey(metadata.artifact), metadata]),
+      ).values(),
+    );
+  }, [selection]);
   return (
     <Dialog
       className="project-dialog project-workflow-dialog panel"
@@ -161,6 +175,7 @@ function ProjectWorkflowLauncher({
           workflow={workflow.data}
           projectId={projectId}
           initialArtifactSelections={selection.preselected}
+          initialArtifacts={initialArtifacts}
         />
       )}
     </Dialog>
@@ -282,7 +297,7 @@ export function ProjectWorkflowRecommendations({
           <h3>Recommended Workflows</h3>
         </div>
         <span className="project-workflow-count">
-          {recommended.length} ready
+          {recommended.length} compatible
         </span>
       </div>
       <p className="muted-copy">

@@ -2,6 +2,7 @@ import type { ArtifactMetadata } from "../api/artifacts";
 import type { RunMetadataLabelDraft } from "../api/run-metadata-labels";
 import { RunDraftKeyring } from "./idempotency";
 import {
+  artifactOptionKey,
   emptyExecutionOverrides,
   type ExecutionOverrideDraft,
 } from "./validation";
@@ -20,6 +21,8 @@ export interface RunDraftState {
   metadataLabels: RunMetadataLabelDraft[];
   metadataLabelInput: string;
   artifactSelections: Record<string, string>;
+  artifactSuggestions: Record<string, string>;
+  artifactReviews: Record<string, string>;
   knownArtifacts: ArtifactMetadata[];
   overrides: ExecutionOverrideDraft;
 }
@@ -66,15 +69,20 @@ function canonicalValue(value: unknown): unknown {
   );
 }
 
+function meaningfulState(state: RunDraftState): RunDraftState {
+  return { ...state, knownArtifacts: [] };
+}
+
 function sameState(left: RunDraftState, right: RunDraftState): boolean {
   return (
-    JSON.stringify(canonicalValue(left)) ===
-    JSON.stringify(canonicalValue(right))
+    JSON.stringify(canonicalValue(meaningfulState(left))) ===
+    JSON.stringify(canonicalValue(meaningfulState(right)))
   );
 }
 
 export function initialRunDraftState(
   artifactSelections: Readonly<Record<string, string>> = {},
+  knownArtifacts: readonly ArtifactMetadata[] = [],
 ): RunDraftState {
   return {
     parameters: {},
@@ -82,7 +90,9 @@ export function initialRunDraftState(
     metadataLabels: [],
     metadataLabelInput: "",
     artifactSelections: { ...artifactSelections },
-    knownArtifacts: [],
+    artifactSuggestions: { ...artifactSelections },
+    artifactReviews: {},
+    knownArtifacts: structuredClone([...knownArtifacts]),
     overrides: emptyExecutionOverrides(),
   };
 }
@@ -93,6 +103,60 @@ function cloneState(state: RunDraftState): RunDraftState {
 
 interface InternalRunDraftEntry extends RunDraftEntry {
   initialState: RunDraftState;
+}
+
+function mergeKnownArtifacts(
+  retained: readonly ArtifactMetadata[],
+  incoming: readonly ArtifactMetadata[],
+): ArtifactMetadata[] {
+  const byExactRef = new Map(
+    retained.map((metadata) => [artifactOptionKey(metadata.artifact), metadata]),
+  );
+  for (const metadata of incoming) {
+    byExactRef.set(artifactOptionKey(metadata.artifact), metadata);
+  }
+  return Array.from(byExactRef.values());
+}
+
+function reconcileSuggestions(
+  entry: InternalRunDraftEntry,
+  incoming: RunDraftState,
+): void {
+  const state = cloneState(entry.state);
+  const slots = new Set([
+    ...Object.keys(state.artifactSuggestions),
+    ...Object.keys(incoming.artifactSuggestions),
+  ]);
+  for (const slot of slots) {
+    const previousSuggestion = state.artifactSuggestions[slot];
+    const nextSuggestion = incoming.artifactSuggestions[slot];
+    if (previousSuggestion === nextSuggestion) continue;
+
+    const selected = state.artifactSelections[slot];
+    const reviewed =
+      selected !== undefined && state.artifactReviews[slot] === selected;
+    if (selected === previousSuggestion) {
+      if (!reviewed) {
+        if (nextSuggestion === undefined) {
+          delete state.artifactSelections[slot];
+        } else {
+          state.artifactSelections[slot] = nextSuggestion;
+        }
+      }
+      delete state.artifactReviews[slot];
+    }
+  }
+  state.artifactSuggestions = { ...incoming.artifactSuggestions };
+  state.knownArtifacts = mergeKnownArtifacts(
+    state.knownArtifacts,
+    incoming.knownArtifacts,
+  );
+  entry.state = state;
+  entry.initialState = cloneState(incoming);
+  entry.meaningful =
+    entry.ambiguousSubmission ||
+    entry.keyring.hasSubmission() ||
+    !sameState(entry.state, entry.initialState);
 }
 
 export class RunDraftMemoryStore {
@@ -111,6 +175,7 @@ export class RunDraftMemoryStore {
     const key = identityKey(identity);
     const existing = this.#entries.get(key);
     if (existing !== undefined) {
+      reconcileSuggestions(existing, initialState);
       return { kind: "acquired", entry: existing };
     }
     const retainedCount = Array.from(this.#entries.values()).filter(

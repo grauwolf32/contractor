@@ -46,9 +46,86 @@
   width: min(100%, 42rem);
 }
 
+.run-input-review {
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  padding: 0.85rem;
+}
+
+.run-input-review.needs-review {
+  border-color: color-mix(in srgb, var(--warning) 58%, var(--line));
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised));
+}
+
+.run-input-review.is-reviewed {
+  border-color: color-mix(in srgb, var(--success) 42%, var(--line));
+}
+
+.run-input-review-heading,
+.run-input-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.run-input-review-heading > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.run-input-review-heading code {
+  overflow-wrap: anywhere;
+}
+
+.run-input-review-heading > strong {
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 0.28rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.run-input-review-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.run-input-review-facts div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.run-input-review-facts dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.run-input-review-facts dd,
+.run-input-review p {
+  margin: 0;
+}
+
+.run-input-review-actions {
+  justify-content: flex-start;
+}
+
 @media (max-width: 44rem) {
   .run-draft-capacity-list li {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .run-input-review-actions > * {
+    width: 100%;
   }
 }

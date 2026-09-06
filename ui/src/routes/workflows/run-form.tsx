@@ -58,7 +58,7 @@ import {
   type ConsumerOverrideDraft,
   type ExecutionOverrideDraft,
 } from "../../run-drafts/validation";
-import { ErrorNotice, formatBytes } from "../artifacts/common";
+import { ErrorNotice, formatBytes, formatTimestamp } from "../artifacts/common";
 import { GitRepositoryIcon } from "../artifacts/git-repository-icon";
 import { RunInputUploadDialog } from "./run-input-upload-dialog";
 
@@ -82,6 +82,16 @@ function configurationSelector(resource: ConfigurationResource): string {
 
 function artifactLabel(metadata: ArtifactMetadata): string {
   return `${artifactOptionKey(metadata.artifact)} · ${metadata.mediaType} · ${formatBytes(metadata.size)}`;
+}
+
+function artifactDetailPath(
+  metadata: ArtifactMetadata,
+  projectId?: string,
+): string {
+  const exactPath = `${encodeURIComponent(metadata.artifact.namespace)}/${encodeURIComponent(metadata.artifact.name)}?revision=${encodeURIComponent(metadata.artifact.revision)}`;
+  return projectId === undefined
+    ? `/artifacts/${exactPath}`
+    : `/projects/${encodeURIComponent(projectId)}/artifacts/${exactPath}`;
 }
 
 function RuntimeLabelPreview({ binding }: { binding: RuntimeLabelBinding }) {
@@ -464,6 +474,7 @@ interface WorkflowRunFormProps {
   workflow: WorkflowResource;
   projectId?: string;
   initialArtifactSelections?: Readonly<Record<string, string>>;
+  initialArtifacts?: readonly ArtifactMetadata[];
 }
 
 function draftScopeLabel(draft: RunDraftSummary): string {
@@ -523,7 +534,10 @@ function WorkflowRunDraftBoundary(props: WorkflowRunFormProps) {
     workflowVersion: props.workflow.ref.version,
     ...(props.projectId === undefined ? {} : { projectId: props.projectId }),
   };
-  const initialState = initialRunDraftState(props.initialArtifactSelections);
+  const initialState = initialRunDraftState(
+    props.initialArtifactSelections,
+    props.initialArtifacts,
+  );
   const [acquisition, setAcquisition] = useState(() =>
     store.acquire(identity, initialState),
   );
@@ -659,6 +673,8 @@ function WorkflowRunFormBody({
     metadataLabels,
     metadataLabelInput,
     artifactSelections,
+    artifactSuggestions,
+    artifactReviews,
     knownArtifacts,
     overrides,
   } = draft;
@@ -715,24 +731,6 @@ function WorkflowRunFormBody({
     }));
   }
 
-  function setArtifactSelections(
-    update: (current: Record<string, string>) => Record<string, string>,
-  ): void {
-    updateDraft((current) => ({
-      ...current,
-      artifactSelections: update(current.artifactSelections),
-    }));
-  }
-
-  function setKnownArtifacts(
-    update: (current: ArtifactMetadata[]) => ArtifactMetadata[],
-  ): void {
-    updateDraft((current) => ({
-      ...current,
-      knownArtifacts: update(current.knownArtifacts),
-    }));
-  }
-
   function setOverrides(
     update: (current: ExecutionOverrideDraft) => ExecutionOverrideDraft,
   ): void {
@@ -742,14 +740,45 @@ function WorkflowRunFormBody({
     }));
   }
 
-  function rememberArtifact(metadata: ArtifactMetadata): void {
-    const key = artifactOptionKey(metadata.artifact);
-    setKnownArtifacts((current) => [
-      ...current.filter(
-        (candidate) => artifactOptionKey(candidate.artifact) !== key,
-      ),
-      metadata,
-    ]);
+  function selectArtifact(
+    slot: string,
+    selected: string,
+    metadata?: ArtifactMetadata,
+  ): void {
+    updateDraft((current) => {
+      const known =
+        metadata === undefined
+          ? current.knownArtifacts
+          : [
+              ...current.knownArtifacts.filter(
+                (candidate) =>
+                  artifactOptionKey(candidate.artifact) !== selected,
+              ),
+              metadata,
+            ];
+      return {
+        ...current,
+        artifactSelections: updateRecord(
+          current.artifactSelections,
+          slot,
+          selected,
+        ),
+        artifactReviews: updateRecord(current.artifactReviews, slot, selected),
+        knownArtifacts: known,
+      };
+    });
+    clearError(`artifact:${slot}`);
+    clearError(`artifactReview:${slot}`);
+  }
+
+  function confirmArtifact(slot: string): void {
+    const selected = artifactSelections[slot];
+    if (selected === undefined || selected === "") return;
+    updateDraft((current) => ({
+      ...current,
+      artifactReviews: { ...current.artifactReviews, [slot]: selected },
+    }));
+    clearError(`artifactReview:${slot}`);
   }
 
   const artifactInventory = useInfiniteQuery({
@@ -864,6 +893,7 @@ function WorkflowRunFormBody({
       metadataLabels,
       parameters,
       artifacts: artifactSelections,
+      artifactReviews,
       overrides,
     },
     artifactMap,
@@ -1004,6 +1034,7 @@ function WorkflowRunFormBody({
         metadataLabels,
         parameters,
         artifacts: artifactSelections,
+        artifactReviews,
         overrides,
       },
       artifactMap,
@@ -1071,6 +1102,10 @@ function WorkflowRunFormBody({
     0,
     requiredFieldCount - completedRequiredFieldCount,
   );
+  const reviewRequiredNames = Object.keys(workflow.inputs).filter((name) => {
+    const selected = artifactSelections[name] ?? "";
+    return selected !== "" && artifactReviews[name] !== selected;
+  });
   const draftReady =
     currentValidation.request !== undefined && !artifactInventory.isPending;
   const overrideCount = Object.values(overrides).reduce(
@@ -1080,16 +1115,20 @@ function WorkflowRunFormBody({
   );
   const readinessValue = draftReady
     ? "Ready"
-    : requiredFieldCount === 0
-      ? "Defaults"
-      : `${completedRequiredFieldCount}/${requiredFieldCount}`;
+    : remainingRequiredFieldCount === 0 && reviewRequiredNames.length > 0
+      ? `Review ${reviewRequiredNames.length}`
+      : requiredFieldCount === 0
+        ? "Defaults"
+        : `${completedRequiredFieldCount}/${requiredFieldCount}`;
   const readinessCopy = draftReady
-    ? "All required fields are complete"
+    ? "Fields complete · exact inputs reviewed"
     : artifactInventory.isPending && requiredArtifactNames.length > 0
       ? "Loading Artifact choices…"
       : remainingRequiredFieldCount > 0
         ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
-        : "Review highlighted settings";
+        : reviewRequiredNames.length > 0
+          ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
+          : "Review highlighted settings";
 
   return (
     <form
@@ -1105,7 +1144,7 @@ function WorkflowRunFormBody({
           onClose={() => setGitSlot(null)}
           onImported={(result) => {
             if (!draftStore.isCurrent(draftEntry)) return;
-            rememberArtifact({
+            const metadata: ArtifactMetadata = {
               artifact: result.artifact,
               mediaType: result.mediaType,
               size: result.size,
@@ -1113,15 +1152,12 @@ function WorkflowRunFormBody({
               current: true,
               frozen: false,
               createdAt: result.gitSource.importedAt,
-            });
-            setArtifactSelections((current) =>
-              updateRecord(
-                current,
-                gitSlot,
-                artifactOptionKey(result.artifact),
-              ),
+            };
+            selectArtifact(
+              gitSlot,
+              artifactOptionKey(result.artifact),
+              metadata,
             );
-            clearError(`artifact:${gitSlot}`);
             setGitSlot(null);
           }}
         />
@@ -1134,22 +1170,19 @@ function WorkflowRunFormBody({
           onClose={() => setUploadSlot(null)}
           onUploaded={(result) => {
             if (!draftStore.isCurrent(draftEntry)) return;
-            rememberArtifact({
+            const metadata: ArtifactMetadata = {
               artifact: result.artifact,
               mediaType: result.mediaType,
               size: result.size,
               current: true,
               frozen: false,
               createdAt: new Date().toISOString(),
-            });
-            setArtifactSelections((current) =>
-              updateRecord(
-                current,
-                uploadSlot,
-                artifactOptionKey(result.artifact),
-              ),
+            };
+            selectArtifact(
+              uploadSlot,
+              artifactOptionKey(result.artifact),
+              metadata,
             );
-            clearError(`artifact:${uploadSlot}`);
             setUploadSlot(null);
           }}
         />
@@ -1272,10 +1305,28 @@ function WorkflowRunFormBody({
             {Object.entries(workflow.inputs)
               .sort(([left], [right]) => left.localeCompare(right))
               .map(([name, slot]) => {
-                const error = validationErrors[`artifact:${name}`];
+                const artifactError = validationErrors[`artifact:${name}`];
+                const reviewError = validationErrors[`artifactReview:${name}`];
                 const compatible = artifacts.filter((metadata) =>
                   artifactAccepts(slot.mediaTypes, metadata),
                 );
+                const selected = artifactSelections[name] ?? "";
+                const selectedMetadata = artifactMap.get(selected);
+                const reviewed =
+                  selected !== "" && artifactReviews[name] === selected;
+                const suggested =
+                  selected !== "" && artifactSuggestions[name] === selected;
+                const needsReview = selected !== "" && !reviewed;
+                const describedBy = [
+                  artifactError === undefined
+                    ? undefined
+                    : `artifact-${name}-error`,
+                  reviewError === undefined
+                    ? undefined
+                    : `artifact-${name}-review-error`,
+                ]
+                  .filter((value) => value !== undefined)
+                  .join(" ");
                 return (
                   <div className="run-field" key={name}>
                     <label>
@@ -1285,24 +1336,24 @@ function WorkflowRunFormBody({
                       </span>
                       <select
                         name={`artifact-${name}`}
-                        value={artifactSelections[name] ?? ""}
+                        value={selected}
                         disabled={artifactInventory.isPending}
-                        aria-invalid={error === undefined ? undefined : true}
-                        aria-describedby={
-                          error === undefined
+                        aria-invalid={
+                          artifactError === undefined &&
+                          reviewError === undefined
                             ? undefined
-                            : `artifact-${name}-error`
+                            : true
+                        }
+                        aria-describedby={
+                          describedBy === "" ? undefined : describedBy
                         }
                         onChange={(event) => {
-                          const selected = event.target.value;
-                          setArtifactSelections((current) =>
-                            updateRecord(current, name, selected),
+                          const exactRef = event.target.value;
+                          selectArtifact(
+                            name,
+                            exactRef,
+                            artifactMap.get(exactRef),
                           );
-                          const metadata = artifactMap.get(selected);
-                          if (metadata !== undefined) {
-                            rememberArtifact(metadata);
-                          }
-                          clearError(`artifact:${name}`);
                         }}
                       >
                         <option value="">
@@ -1320,7 +1371,82 @@ function WorkflowRunFormBody({
                         ))}
                       </select>
                     </label>
-                    <small>Accepts {slot.mediaTypes.join(", ")}</small>
+                    <small>
+                      Slot <code>{name}</code> accepts{" "}
+                      {slot.mediaTypes.join(", ")}. MIME compatibility does not
+                      verify Artifact contents.
+                    </small>
+                    {selectedMetadata === undefined ? null : (
+                      <section
+                        className={`run-input-review${needsReview ? " needs-review" : " is-reviewed"}`}
+                        aria-label={`Exact input review for ${name}`}
+                      >
+                        <div className="run-input-review-heading">
+                          <span>
+                            <small>
+                              {needsReview && suggested
+                                ? "Format-compatible suggestion"
+                                : reviewed
+                                  ? "Reviewed selection"
+                                  : "Exact selection"}
+                            </small>
+                            <code>{selected}</code>
+                          </span>
+                          <strong>
+                            {reviewed ? "Confirmed" : "Review needed"}
+                          </strong>
+                        </div>
+                        <dl className="run-input-review-facts">
+                          <div>
+                            <dt>Scope</dt>
+                            <dd>
+                              {projectId === undefined
+                                ? "UserScope"
+                                : `ProjectScope · ${projectId}`}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Stored type</dt>
+                            <dd>{selectedMetadata.mediaType}</dd>
+                          </div>
+                          <div>
+                            <dt>Size</dt>
+                            <dd>{formatBytes(selectedMetadata.size)}</dd>
+                          </div>
+                          <div>
+                            <dt>Provenance</dt>
+                            <dd>
+                              {selectedMetadata.gitSource === undefined
+                                ? `Artifact write · ${formatTimestamp(selectedMetadata.createdAt)}`
+                                : `Git import · ${formatTimestamp(selectedMetadata.gitSource.importedAt)}`}
+                            </dd>
+                          </div>
+                        </dl>
+                        <p>
+                          {needsReview && suggested
+                            ? `Suggested only because ${selectedMetadata.mediaType} matches this slot. Confirm that this exact revision is the intended ${name} input.`
+                            : reviewed
+                              ? `Confirmed for ${name}. This records your exact selection, not a semantic validation of its contents.`
+                              : `Review this exact revision before using it as ${name}.`}
+                        </p>
+                        <div className="run-input-review-actions">
+                          {needsReview ? (
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              onClick={() => confirmArtifact(name)}
+                            >
+                              Confirm exact input for {name}
+                            </button>
+                          ) : null}
+                          <Link
+                            to={artifactDetailPath(selectedMetadata, projectId)}
+                          >
+                            Preview exact Artifact details
+                          </Link>
+                        </div>
+                      </section>
+                    )}
                     <div className="run-draft-actions">
                       <button
                         className="secondary-button"
@@ -1349,13 +1475,22 @@ function WorkflowRunFormBody({
                           ?.gitSource
                       }
                     />
-                    {error === undefined ? null : (
+                    {artifactError === undefined ? null : (
                       <p
                         className="field-error"
                         id={`artifact-${name}-error`}
                         role="alert"
                       >
-                        {error}
+                        {artifactError}
+                      </p>
+                    )}
+                    {reviewError === undefined ? null : (
+                      <p
+                        className="field-error"
+                        id={`artifact-${name}-review-error`}
+                        role="alert"
+                      >
+                        {reviewError}
                       </p>
                     )}
                     {!artifactInventory.isPending && compatible.length === 0 ? (

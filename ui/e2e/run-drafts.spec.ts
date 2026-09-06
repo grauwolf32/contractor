@@ -258,6 +258,11 @@ test("Project Run draft survives close and binds a local upload to its source sl
   await expect(runDialog.locator('[name="artifact-source"]')).toHaveValue(
     "sources/existing@revision-existing",
   );
+  await expect(
+    runDialog.getByRole("button", {
+      name: "Confirm exact input for source",
+    }),
+  ).toBeVisible();
   await runDialog
     .getByRole("button", { name: "Close Workflow Run dialog" })
     .click();
@@ -292,6 +297,9 @@ test("Project Run draft survives close and binds a local upload to its source sl
   await expect(runDialog.locator('[name="artifact-source"]')).toHaveValue(
     "artifacts/replacement@revision-uploaded",
   );
+  await expect(
+    runDialog.getByRole("region", { name: "Exact input review for source" }),
+  ).toContainText("Confirmed");
   await expect(runDialog.locator('[name="parameter-objective"]')).toHaveValue(
     "Keep Project setup",
   );
@@ -308,4 +316,7 @@ test("Project Run draft survives close and binds a local upload to its source sl
   await expect(runDialog.locator('[name="artifact-source"]')).toHaveValue(
     "artifacts/replacement@revision-uploaded",
   );
+  await expect(
+    runDialog.getByRole("region", { name: "Exact input review for source" }),
+  ).toContainText("Confirmed");
 });

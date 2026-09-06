@@ -136,10 +136,31 @@ replace Server validation.
 For each required Workflow input slot, the UI finds Project artifacts whose
 stored media type satisfies the strict slot matching rules in [00]. The
 Workflow is runnable when every required artifact slot has at least one
-candidate. One candidate is preselected; multiple candidates require an
+candidate. A unique candidate may be prepopulated as a format-compatible
+suggestion; it is not a reviewed input. Multiple candidates require an
 explicit user choice. Missing optional inputs do not block the suggestion.
 Required string parameters remain form fields and do not make artifact
 compatibility unknowable.
+
+The Run draft distinguishes three layers:
+
+1. candidate compatibility means only that stored media type satisfies the
+   Workflow slot;
+2. reviewed form readiness means the user explicitly chose, uploaded or
+   confirmed one exact ArtifactRef for every populated slot;
+3. Server acceptance remains authoritative Workflow and scope validation.
+
+Confirmation is keyed by input slot and exact ArtifactRef. The same revision
+may be deliberately confirmed for several slots. An unchanged inventory
+refetch preserves confirmation. When the recommendation's exact suggestion
+changes, an untouched automatic selection follows the new suggestion. A
+previously confirmed old suggestion remains selected and inspectable as an
+explicit older exact revision, but its confirmation is cleared for that slot;
+a manually selected different ref is unaffected. Empty optional slots need no
+confirmation. The UI exposes the slot name and accepted types together with
+exact Artifact identity, scope, revision, basic provenance and a
+details/preview action before confirmation. It describes confirmation as user
+intent, never as semantic validation of Artifact contents.
 
 Each Workflow card has its own Run action. There is no batch ProjectLaunch
 entity and no implicit chain of all compatible Workflows. The ordinary
@@ -308,7 +329,8 @@ Workflow read-only, but cannot own, copy or override them.
 3. ProjectScope is structural authorization; Runtime receives only RunScope.
 4. Project input forks and output publication always name exact revisions.
 5. Automatic output publication is create-only and cannot change Run outcome.
-6. Workflow recommendation is advisory, media-type based and bypassable.
+6. Workflow recommendation is advisory, media-type based, explicitly reviewed
+   per populated slot and bypassable.
 7. `primary` affects recommendation only, not Workflow correctness.
 8. Skills are global owner artifacts, never Project-owned copies.
 9. Secret target auth uses RuntimeCredential and appears in plaintext only in
