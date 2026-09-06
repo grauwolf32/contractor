@@ -63,6 +63,34 @@ and performs no file read. Invalid selectors and unknown versions return bounded
 400/404 errors. General configuration and Workflow projections remain
 reference-only; prompt editing and raw invocation inspection are deferred.
 
+Catalog discovery is performed by Server before pagination. `GET
+/v1/workflows` and `GET /v1/configurations/{kind}` accept an optional `q` of at
+most 200 Unicode code points and an optional exact `name`. Server trims Unicode
+whitespace around `q`, normalizes it to NFC, applies Unicode case folding and
+then performs literal substring matching; no wildcard or regular-expression
+syntax is interpreted. Workflow matching covers exact name, opaque version and
+available authored `presentation.displayName`/`description`. Configuration
+matching covers exact name, opaque version and an available safe authored
+description, notably `AgentTemplate.description`. An empty normalized query is
+equivalent to omission. `name` uses the ordinary exact configuration-name
+grammar and never implies latest-version selection.
+
+Filtering precedes the existing bounded keyset pagination. A continuation
+cursor is bound to the normalized query, exact-name filter and a SHA-256
+fingerprint of the immutable catalog source used to build that result. Reusing
+it with another query, kind or catalog snapshot is a bounded `400`; the client
+restarts from the first page. Versions remain opaque strings ordered by the
+existing exact selector order.
+
+The read-only endpoint `GET
+/v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings`
+lists every resolved Workflow binding that pins that exact AgentTemplate body.
+Each row contains only the exact Workflow ref, Stage name and logical Worker
+name. Results have deterministic pagination and never include Stage objective,
+instructions, prompt text or invocation content. A missing exact template is
+`404`; an existing template with no consumers returns an empty successful
+page.
+
 The UI remains domain-neutral. Project artifact tiles may provide familiar
 OpenAPI, LikeC4, source, documentation and diff icons, but they are shortcuts
 over arbitrary ArtifactRefs rather than hard-coded Server modes. Project,

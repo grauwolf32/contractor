@@ -291,6 +291,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/CatalogQuery'
+        - $ref: '#/components/parameters/CatalogExactName'
       responses:
         '200':
           description: Stable Workflow page
@@ -1990,6 +1992,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/CatalogQuery'
+        - $ref: '#/components/parameters/CatalogExactName'
       responses:
         '200':
           description: Stable configuration page
@@ -2076,6 +2080,32 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AgentInstructions'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings:
+    parameters:
+      - $ref: '#/components/parameters/ConfigName'
+      - $ref: '#/components/parameters/ConfigVersion'
+    get:
+      operationId: listAgentTemplateWorkflowBindings
+      tags: [Configuration]
+      summary: List Workflow bindings that use one exact AgentTemplate
+      description: Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable exact-template usage page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentTemplateWorkflowBindingPage'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
@@ -2940,6 +2970,18 @@ components:
       in: query
       required: false
       schema: {type: string, minLength: 1, maxLength: 512}
+    CatalogQuery:
+      name: q
+      in: query
+      required: false
+      description: Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding.
+      schema: {type: string, maxLength: 200}
+    CatalogExactName:
+      name: name
+      in: query
+      required: false
+      description: Exact configuration name filter for enumerating opaque versions.
+      schema: {$ref: '#/components/schemas/ConfigId'}
 
   headers:
     ContractorAPIVersion:
@@ -5370,12 +5412,20 @@ components:
       properties:
         name: {$ref: '#/components/schemas/ConfigId'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
+    WorkflowPresentation:
+      type: object
+      additionalProperties: false
+      required: [displayName, description]
+      properties:
+        displayName: {type: string, minLength: 1, maxLength: 160}
+        description: {type: string, minLength: 1, maxLength: 2000}
     WorkflowSummary:
       type: object
       additionalProperties: false
       required: [ref, entryStage, parameters, inputs, outputs]
       properties:
         ref: {$ref: '#/components/schemas/WorkflowRef'}
+        presentation: {$ref: '#/components/schemas/WorkflowPresentation'}
         entryStage: {$ref: '#/components/schemas/ConfigId'}
         parameters: {type: object, additionalProperties: {$ref: '#/components/schemas/ParameterSlot'}}
         inputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
@@ -5520,6 +5570,7 @@ components:
       required: [ref, entryStage, parameters, inputs, outputs, stages]
       properties:
         ref: {$ref: '#/components/schemas/WorkflowRef'}
+        presentation: {$ref: '#/components/schemas/WorkflowPresentation'}
         entryStage: {$ref: '#/components/schemas/ConfigId'}
         parameters: {type: object, additionalProperties: {$ref: '#/components/schemas/ParameterSlot'}}
         inputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
@@ -5527,6 +5578,7 @@ components:
         stages: {type: object, minProperties: 1, additionalProperties: {$ref: '#/components/schemas/WorkflowStageContract'}}
       example:
         ref: {name: artifact-copy, version: '1'}
+        presentation: {displayName: Artifact copier, description: Copies one exact text artifact.}
         entryStage: copy
         parameters:
           objective: {required: true}
@@ -5707,6 +5759,24 @@ components:
       required: [items, page]
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/ConfigurationResource'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    AgentTemplateWorkflowBinding:
+      type: object
+      additionalProperties: false
+      required: [workflow, stage, logicalWorker]
+      properties:
+        workflow: {$ref: '#/components/schemas/WorkflowRef'}
+        stage: {$ref: '#/components/schemas/ConfigId'}
+        logicalWorker: {$ref: '#/components/schemas/ConfigId'}
+    AgentTemplateWorkflowBindingPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/AgentTemplateWorkflowBinding'}
         page: {$ref: '#/components/schemas/PageInfo'}
     PublishConfigurationRequest:
       oneOf:

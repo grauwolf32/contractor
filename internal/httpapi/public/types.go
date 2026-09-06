@@ -883,11 +883,12 @@ type allocationPageResponse struct {
 }
 
 type workflowSummaryResponse struct {
-	Ref        config.WorkflowRef              `json:"ref"`
-	EntryStage string                          `json:"entryStage"`
-	Parameters map[string]config.ParameterSlot `json:"parameters"`
-	Inputs     map[string]config.ArtifactSlot  `json:"inputs"`
-	Outputs    map[string]config.ArtifactSlot  `json:"outputs"`
+	Ref          config.WorkflowRef              `json:"ref"`
+	Presentation *config.WorkflowPresentation    `json:"presentation,omitempty"`
+	EntryStage   string                          `json:"entryStage"`
+	Parameters   map[string]config.ParameterSlot `json:"parameters"`
+	Inputs       map[string]config.ArtifactSlot  `json:"inputs"`
+	Outputs      map[string]config.ArtifactSlot  `json:"outputs"`
 }
 
 type workflowResourceResponse struct {

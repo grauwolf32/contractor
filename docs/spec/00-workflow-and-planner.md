@@ -48,6 +48,34 @@ configuration key `(name, version)`,
 while the durable snapshot rather than a separately computed Workflow digest
 is the execution authority in the first slice.
 
+### Workflow presentation metadata
+
+A Workflow may carry optional authored Catalog metadata with no execution
+semantics:
+
+```yaml
+spec:
+  presentation:
+    displayName: OpenAPI from source
+    description: Build and validate an OpenAPI document from a source archive.
+```
+
+When `presentation` is present, `displayName` and `description` are both
+mandatory, strict UTF-8 and non-whitespace. Their respective limits are 160
+and 2000 Unicode code points. Unknown fields are invalid. The loader preserves
+the authored strings rather than trimming or interpolating them; the limits
+and non-whitespace check are validation only.
+
+The resolved `presentation` object is part of the complete immutable Workflow
+definition and is persisted in every new Run snapshot. It does not alter the
+graph, inputs, outputs, Planner prompts, placement or any other execution
+behavior. Persisted snapshots and authoring documents that predate this field
+decode with presentation absent and retain their existing serialized shape.
+Adding or changing presentation on an already published exact `(name,
+version)` is an immutable-definition conflict, not an in-place metadata edit.
+The field does not introduce a Workflow digest; the complete durable snapshot
+remains execution authority.
+
 ### Configuration files
 
 The configuration/UI slice merges an operator/bootstrap root and a separate

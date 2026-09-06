@@ -16,12 +16,25 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
-	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
+	values, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "q", "name")
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	cursor, err := h.decodePageCursor(encodedCursor, workflowPageCursorKind, 1)
+	_, namePresent := values["name"]
+	query, err := parseCatalogQuery(values.Get("q"), values.Get("name"), namePresent)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	workflows := h.dependencies.Config.Workflows()
+	sourceFingerprint, err := catalogSourceFingerprint(workflows)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	cursorKind := catalogPageCursorKind(workflowPageCursorKind, query, sourceFingerprint)
+	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -31,9 +44,15 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 		after = cursor[0]
 	}
 
-	workflows := h.dependencies.Config.Workflows()
 	items := make([]workflowSummaryResponse, 0, min(limit, len(workflows)))
 	for _, workflow := range workflows {
+		authored := []string(nil)
+		if workflow.Presentation != nil {
+			authored = []string{workflow.Presentation.DisplayName, workflow.Presentation.Description}
+		}
+		if !catalogMatches(query, workflow.Ref.Name, workflow.Ref.Version, authored...) {
+			continue
+		}
 		selector := workflow.Ref.Name + "@" + workflow.Ref.Version
 		if selector <= after {
 			continue
@@ -47,7 +66,7 @@ func (h *handler) listWorkflows(w http.ResponseWriter, r *http.Request) {
 	if len(items) > limit {
 		items = items[:limit]
 		last := items[len(items)-1].Ref
-		next, cursorErr := h.encodePageCursor(workflowPageCursorKind, last.Name+"@"+last.Version)
+		next, cursorErr := h.encodePageCursor(cursorKind, last.Name+"@"+last.Version)
 		if cursorErr != nil {
 			h.handleError(w, cursorErr)
 			return
@@ -81,7 +100,7 @@ func (h *handler) getWorkflow(w http.ResponseWriter, r *http.Request) {
 
 func workflowSummaryReadModel(workflow config.ResolvedWorkflow) workflowSummaryResponse {
 	return workflowSummaryResponse{
-		Ref: workflow.Ref, EntryStage: workflow.EntryStage,
+		Ref: workflow.Ref, Presentation: workflow.Presentation, EntryStage: workflow.EntryStage,
 		Parameters: workflow.Parameters, Inputs: workflow.Inputs, Outputs: workflow.Outputs,
 	}
 }

@@ -1200,6 +1200,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["ConfigName"];
+                version: components["parameters"]["ConfigVersion"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List Workflow bindings that use one exact AgentTemplate
+         * @description Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
+         */
+        get: operations["listAgentTemplateWorkflowBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/runtime-configs": {
         parameters: {
             query?: never;
@@ -3069,8 +3092,13 @@ export interface components {
             name: components["schemas"]["ConfigId"];
             version: components["schemas"]["ConfigVersion"];
         };
+        WorkflowPresentation: {
+            displayName: string;
+            description: string;
+        };
         WorkflowSummary: {
             ref: components["schemas"]["WorkflowRef"];
+            presentation?: components["schemas"]["WorkflowPresentation"];
             entryStage: components["schemas"]["ConfigId"];
             parameters: {
                 [key: string]: components["schemas"]["ParameterSlot"];
@@ -3176,6 +3204,10 @@ export interface components {
          *         "name": "artifact-copy",
          *         "version": "1"
          *       },
+         *       "presentation": {
+         *         "displayName": "Artifact copier",
+         *         "description": "Copies one exact text artifact."
+         *       },
          *       "entryStage": "copy",
          *       "parameters": {
          *         "objective": {
@@ -3276,6 +3308,7 @@ export interface components {
          */
         WorkflowResource: {
             ref: components["schemas"]["WorkflowRef"];
+            presentation?: components["schemas"]["WorkflowPresentation"];
             entryStage: components["schemas"]["ConfigId"];
             parameters: {
                 [key: string]: components["schemas"]["ParameterSlot"];
@@ -3369,6 +3402,15 @@ export interface components {
         };
         ConfigurationPage: {
             items: components["schemas"]["ConfigurationResource"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        AgentTemplateWorkflowBinding: {
+            workflow: components["schemas"]["WorkflowRef"];
+            stage: components["schemas"]["ConfigId"];
+            logicalWorker: components["schemas"]["ConfigId"];
+        };
+        AgentTemplateWorkflowBindingPage: {
+            items: components["schemas"]["AgentTemplateWorkflowBinding"][];
             page: components["schemas"]["PageInfo"];
         };
         PublishConfigurationRequest: {
@@ -4135,6 +4177,10 @@ export interface components {
         OptionalCSRFToken: string;
         Limit: number;
         Cursor: string;
+        /** @description Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding. */
+        CatalogQuery: string;
+        /** @description Exact configuration name filter for enumerating opaque versions. */
+        CatalogExactName: components["schemas"]["ConfigId"];
     };
     requestBodies: never;
     headers: {
@@ -4427,6 +4473,10 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                /** @description Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding. */
+                q?: components["parameters"]["CatalogQuery"];
+                /** @description Exact configuration name filter for enumerating opaque versions. */
+                name?: components["parameters"]["CatalogExactName"];
             };
             header?: never;
             path?: never;
@@ -6459,6 +6509,10 @@ export interface operations {
             query?: {
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
+                /** @description Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding. */
+                q?: components["parameters"]["CatalogQuery"];
+                /** @description Exact configuration name filter for enumerating opaque versions. */
+                name?: components["parameters"]["CatalogExactName"];
             };
             header?: never;
             path: {
@@ -6575,6 +6629,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AgentInstructions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAgentTemplateWorkflowBindings: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                name: components["parameters"]["ConfigName"];
+                version: components["parameters"]["ConfigVersion"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable exact-template usage page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTemplateWorkflowBindingPage"];
                 };
             };
             400: components["responses"]["BadRequest"];

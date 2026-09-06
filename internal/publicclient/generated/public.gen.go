@@ -892,6 +892,19 @@ type AgentTemplateRef struct {
 	Version    ConfigVersion `json:"version"`
 }
 
+// AgentTemplateWorkflowBinding defines model for AgentTemplateWorkflowBinding.
+type AgentTemplateWorkflowBinding struct {
+	LogicalWorker ConfigId    `json:"logicalWorker"`
+	Stage         ConfigId    `json:"stage"`
+	Workflow      WorkflowRef `json:"workflow"`
+}
+
+// AgentTemplateWorkflowBindingPage defines model for AgentTemplateWorkflowBindingPage.
+type AgentTemplateWorkflowBindingPage struct {
+	Items []AgentTemplateWorkflowBinding `json:"items"`
+	Page  PageInfo                       `json:"page"`
+}
+
 // AllocationObservation defines model for AllocationObservation.
 type AllocationObservation struct {
 	AgentTemplate      AgentTemplateRef        `json:"agentTemplate"`
@@ -3377,6 +3390,12 @@ type WorkflowPage struct {
 	Page  PageInfo          `json:"page"`
 }
 
+// WorkflowPresentation defines model for WorkflowPresentation.
+type WorkflowPresentation struct {
+	Description string `json:"description"`
+	DisplayName string `json:"displayName"`
+}
+
 // WorkflowRef defines model for WorkflowRef.
 type WorkflowRef struct {
 	Name    ConfigId      `json:"name"`
@@ -3385,12 +3404,13 @@ type WorkflowRef struct {
 
 // WorkflowResource defines model for WorkflowResource.
 type WorkflowResource struct {
-	EntryStage ConfigId                              `json:"entryStage"`
-	Inputs     map[string]ArtifactSlot               `json:"inputs"`
-	Outputs    map[string]WorkflowOutputArtifactSlot `json:"outputs"`
-	Parameters map[string]ParameterSlot              `json:"parameters"`
-	Ref        WorkflowRef                           `json:"ref"`
-	Stages     map[string]WorkflowStageContract      `json:"stages"`
+	EntryStage   ConfigId                              `json:"entryStage"`
+	Inputs       map[string]ArtifactSlot               `json:"inputs"`
+	Outputs      map[string]WorkflowOutputArtifactSlot `json:"outputs"`
+	Parameters   map[string]ParameterSlot              `json:"parameters"`
+	Presentation *WorkflowPresentation                 `json:"presentation,omitempty"`
+	Ref          WorkflowRef                           `json:"ref"`
+	Stages       map[string]WorkflowStageContract      `json:"stages"`
 }
 
 // WorkflowRetryTransition defines model for WorkflowRetryTransition.
@@ -3443,11 +3463,12 @@ type WorkflowSucceededTransition struct {
 
 // WorkflowSummary defines model for WorkflowSummary.
 type WorkflowSummary struct {
-	EntryStage ConfigId                              `json:"entryStage"`
-	Inputs     map[string]ArtifactSlot               `json:"inputs"`
-	Outputs    map[string]WorkflowOutputArtifactSlot `json:"outputs"`
-	Parameters map[string]ParameterSlot              `json:"parameters"`
-	Ref        WorkflowRef                           `json:"ref"`
+	EntryStage   ConfigId                              `json:"entryStage"`
+	Inputs       map[string]ArtifactSlot               `json:"inputs"`
+	Outputs      map[string]WorkflowOutputArtifactSlot `json:"outputs"`
+	Parameters   map[string]ParameterSlot              `json:"parameters"`
+	Presentation *WorkflowPresentation                 `json:"presentation,omitempty"`
+	Ref          WorkflowRef                           `json:"ref"`
 }
 
 // WorkflowTransitions defines model for WorkflowTransitions.
@@ -3486,6 +3507,12 @@ type AuditId = ResourceId
 
 // CSRFToken defines model for CSRFToken.
 type CSRFToken = string
+
+// CatalogExactName defines model for CatalogExactName.
+type CatalogExactName = ConfigId
+
+// CatalogQuery defines model for CatalogQuery.
+type CatalogQuery = string
 
 // ConfigName defines model for ConfigName.
 type ConfigName = ConfigId
@@ -3834,10 +3861,22 @@ type LogoutParams struct {
 	XCSRFToken CSRFToken `json:"X-CSRF-Token"`
 }
 
+// ListAgentTemplateWorkflowBindingsParams defines parameters for ListAgentTemplateWorkflowBindings.
+type ListAgentTemplateWorkflowBindingsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListConfigurationsParams defines parameters for ListConfigurations.
 type ListConfigurationsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Q Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding.
+	Q *CatalogQuery `form:"q,omitempty" json:"q,omitempty"`
+
+	// Name Exact configuration name filter for enumerating opaque versions.
+	Name *CatalogExactName `form:"name,omitempty" json:"name,omitempty"`
 }
 
 // PublishConfigurationParams defines parameters for PublishConfiguration.
@@ -4299,6 +4338,12 @@ type ReplaceGitKeyJSONBody struct {
 type ListWorkflowsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Q Case-insensitive literal query after Unicode whitespace trimming, NFC normalization and Unicode case folding.
+	Q *CatalogQuery `form:"q,omitempty" json:"q,omitempty"`
+
+	// Name Exact configuration name filter for enumerating opaque versions.
+	Name *CatalogExactName `form:"name,omitempty" json:"name,omitempty"`
 }
 
 // ImportGitArtifactJSONRequestBody defines body for ImportGitArtifact for application/json ContentType.
@@ -6082,6 +6127,13 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions (the `GetAgentInstructions` operationId).
 	GetAgentInstructions(ctx context.Context, name ConfigName, version ConfigVersionParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListAgentTemplateWorkflowBindings List Workflow bindings that use one exact AgentTemplate
+	//
+	// Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
+	//
+	// Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings (the `ListAgentTemplateWorkflowBindings` operationId).
+	ListAgentTemplateWorkflowBindings(ctx context.Context, name ConfigName, version ConfigVersionParameter, params *ListAgentTemplateWorkflowBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListConfigurations List one safe published configuration resource kind
 	//
 	// Corresponds with GET /v1/configurations/{kind} (the `ListConfigurations` operationId).
@@ -7236,6 +7288,23 @@ func (c *Client) GetSession(ctx context.Context, reqEditors ...RequestEditorFn) 
 // Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions (the `GetAgentInstructions` operationId).
 func (c *Client) GetAgentInstructions(ctx context.Context, name ConfigName, version ConfigVersionParameter, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetAgentInstructionsRequest(c.Server, name, version)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListAgentTemplateWorkflowBindings List Workflow bindings that use one exact AgentTemplate
+//
+// Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
+//
+// Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings (the `ListAgentTemplateWorkflowBindings` operationId).
+func (c *Client) ListAgentTemplateWorkflowBindings(ctx context.Context, name ConfigName, version ConfigVersionParameter, params *ListAgentTemplateWorkflowBindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAgentTemplateWorkflowBindingsRequest(c.Server, name, version, params)
 	if err != nil {
 		return nil, err
 	}
@@ -10946,6 +11015,86 @@ func NewGetAgentInstructionsRequest(server string, name ConfigName, version Conf
 	return req, nil
 }
 
+// NewListAgentTemplateWorkflowBindingsRequest constructs an http.Request for the ListAgentTemplateWorkflowBindings method
+func NewListAgentTemplateWorkflowBindingsRequest(server string, name ConfigName, version ConfigVersionParameter, params *ListAgentTemplateWorkflowBindingsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "name", name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "version", version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/configurations/agent-templates/%s/versions/%s/workflow-bindings", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListConfigurationsRequest constructs an http.Request for the ListConfigurations method
 func NewListConfigurationsRequest(server string, kind ConfigurationKindParameter, params *ListConfigurationsParams) (*http.Request, error) {
 	var err error
@@ -10996,6 +11145,30 @@ func NewListConfigurationsRequest(server string, kind ConfigurationKindParameter
 		if params.Cursor != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -15521,6 +15694,30 @@ func NewListWorkflowsRequest(server string, params *ListWorkflowsParams) (*http.
 
 		}
 
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Name != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "name", *params.Name, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if encoded := queryValues.Encode(); encoded != "" {
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
@@ -15891,6 +16088,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions (the `GetAgentInstructions` operationId).
 	GetAgentInstructionsWithResponse(ctx context.Context, name ConfigName, version ConfigVersionParameter, reqEditors ...RequestEditorFn) (*GetAgentInstructionsResponse, error)
+
+	// ListAgentTemplateWorkflowBindingsWithResponse List Workflow bindings that use one exact AgentTemplate
+	//
+	// Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings (the `ListAgentTemplateWorkflowBindings` operationId).
+	ListAgentTemplateWorkflowBindingsWithResponse(ctx context.Context, name ConfigName, version ConfigVersionParameter, params *ListAgentTemplateWorkflowBindingsParams, reqEditors ...RequestEditorFn) (*ListAgentTemplateWorkflowBindingsResponse, error)
 
 	// ListConfigurationsWithResponse List one safe published configuration resource kind
 	//
@@ -20494,6 +20700,112 @@ func (r GetAgentInstructionsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetAgentInstructionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListAgentTemplateWorkflowBindingsResponse200Headers the declared response headers of an HTTP 200 response for ListAgentTemplateWorkflowBindings
+type ListAgentTemplateWorkflowBindingsResponse200Headers struct {
+	XRequestID RequestId
+}
+
+// ListAgentTemplateWorkflowBindingsResponse400Headers the declared response headers of an HTTP 400 response for ListAgentTemplateWorkflowBindings
+type ListAgentTemplateWorkflowBindingsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// ListAgentTemplateWorkflowBindingsResponse401Headers the declared response headers of an HTTP 401 response for ListAgentTemplateWorkflowBindings
+type ListAgentTemplateWorkflowBindingsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// ListAgentTemplateWorkflowBindingsResponse404Headers the declared response headers of an HTTP 404 response for ListAgentTemplateWorkflowBindings
+type ListAgentTemplateWorkflowBindingsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// ListAgentTemplateWorkflowBindingsResponse500Headers the declared response headers of an HTTP 500 response for ListAgentTemplateWorkflowBindings
+type ListAgentTemplateWorkflowBindingsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type ListAgentTemplateWorkflowBindingsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AgentTemplateWorkflowBindingPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListAgentTemplateWorkflowBindingsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *ListAgentTemplateWorkflowBindingsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *ListAgentTemplateWorkflowBindingsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *ListAgentTemplateWorkflowBindingsResponse404Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *ListAgentTemplateWorkflowBindingsResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListAgentTemplateWorkflowBindingsResponse) GetJSON200() *AgentTemplateWorkflowBindingPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r ListAgentTemplateWorkflowBindingsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListAgentTemplateWorkflowBindingsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r ListAgentTemplateWorkflowBindingsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r ListAgentTemplateWorkflowBindingsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r ListAgentTemplateWorkflowBindingsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAgentTemplateWorkflowBindingsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAgentTemplateWorkflowBindingsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListAgentTemplateWorkflowBindingsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -29108,6 +29420,21 @@ func (c *ClientWithResponses) GetAgentInstructionsWithResponse(ctx context.Conte
 	return ParseGetAgentInstructionsResponse(rsp)
 }
 
+// ListAgentTemplateWorkflowBindingsWithResponse List Workflow bindings that use one exact AgentTemplate
+//
+// Returns safe Workflow, Stage and logical Worker identities; instruction and prompt bodies are excluded.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings (the `ListAgentTemplateWorkflowBindings` operationId).
+func (c *ClientWithResponses) ListAgentTemplateWorkflowBindingsWithResponse(ctx context.Context, name ConfigName, version ConfigVersionParameter, params *ListAgentTemplateWorkflowBindingsParams, reqEditors ...RequestEditorFn) (*ListAgentTemplateWorkflowBindingsResponse, error) {
+	rsp, err := c.ListAgentTemplateWorkflowBindings(ctx, name, version, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAgentTemplateWorkflowBindingsResponse(rsp)
+}
+
 // ListConfigurationsWithResponse List one safe published configuration resource kind
 //
 // Returns a wrapper object for the known response body format(s).
@@ -35124,6 +35451,127 @@ func ParseGetAgentInstructionsResponse(rsp *http.Response) (*GetAgentInstruction
 		response.Headers404 = &headers
 	case rsp.StatusCode == 500:
 		var headers GetAgentInstructionsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListAgentTemplateWorkflowBindingsResponse parses an HTTP response from a ListAgentTemplateWorkflowBindingsWithResponse call
+func ParseListAgentTemplateWorkflowBindingsResponse(rsp *http.Response) (*ListAgentTemplateWorkflowBindingsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAgentTemplateWorkflowBindingsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentTemplateWorkflowBindingPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListAgentTemplateWorkflowBindingsResponse200Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers ListAgentTemplateWorkflowBindingsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers ListAgentTemplateWorkflowBindingsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers ListAgentTemplateWorkflowBindingsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 500:
+		var headers ListAgentTemplateWorkflowBindingsResponse500Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

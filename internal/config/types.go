@@ -28,6 +28,13 @@ type WorkflowRef struct {
 	Version string `json:"version"`
 }
 
+// WorkflowPresentation is optional, authored Catalog metadata. It is part of
+// the immutable resolved Workflow snapshot but has no execution semantics.
+type WorkflowPresentation struct {
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+}
+
 // PlannerRef identifies one registered PlannerFactory implementation.
 type PlannerRef struct {
 	PlannerID string `json:"plannerId"`
@@ -221,12 +228,13 @@ type ResolvedStage struct {
 // Workflow digests are intentionally not part of v1alpha1; Runs persist this
 // complete value as their execution authority.
 type ResolvedWorkflow struct {
-	Ref        WorkflowRef              `json:"ref"`
-	Parameters map[string]ParameterSlot `json:"parameters"`
-	Inputs     map[string]ArtifactSlot  `json:"inputs"`
-	Outputs    map[string]ArtifactSlot  `json:"outputs"`
-	EntryStage string                   `json:"entryStage"`
-	Stages     map[string]ResolvedStage `json:"stages"`
+	Ref          WorkflowRef              `json:"ref"`
+	Presentation *WorkflowPresentation    `json:"presentation,omitempty"`
+	Parameters   map[string]ParameterSlot `json:"parameters"`
+	Inputs       map[string]ArtifactSlot  `json:"inputs"`
+	Outputs      map[string]ArtifactSlot  `json:"outputs"`
+	EntryStage   string                   `json:"entryStage"`
+	Stages       map[string]ResolvedStage `json:"stages"`
 }
 
 // Counts summarizes a successfully published configuration snapshot.
@@ -342,12 +350,18 @@ type workflowDocument struct {
 }
 
 type workflowSpecSource struct {
+	Presentation    *workflowPresentationSource     `yaml:"presentation,omitempty"`
 	Parameters      *map[string]parameterSlotSource `yaml:"parameters"`
 	Inputs          *map[string]artifactSlotSource  `yaml:"inputs"`
 	Outputs         *map[string]artifactSlotSource  `yaml:"outputs"`
 	ExecutionConfig *workflowExecutionConfigSource  `yaml:"executionConfig,omitempty"`
 	EntryStage      string                          `yaml:"entryStage"`
 	Stages          *map[string]stageSource         `yaml:"stages"`
+}
+
+type workflowPresentationSource struct {
+	DisplayName string `yaml:"displayName"`
+	Description string `yaml:"description"`
 }
 
 type executionSelectionSource struct {

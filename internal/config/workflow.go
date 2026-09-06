@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -14,6 +15,10 @@ import (
 func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (ResolvedWorkflow, error) {
 	if spec == nil {
 		return ResolvedWorkflow{}, fmt.Errorf("spec is required")
+	}
+	presentation, err := resolveWorkflowPresentation(spec.Presentation)
+	if err != nil {
+		return ResolvedWorkflow{}, err
 	}
 	parameters, err := resolveParameters(spec.Parameters)
 	if err != nil {
@@ -49,12 +54,13 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 		stages[name] = stage
 	}
 	workflow := ResolvedWorkflow{
-		Ref:        WorkflowRef{Name: selector.ID, Version: selector.Version},
-		Parameters: parameters,
-		Inputs:     inputs,
-		Outputs:    outputs,
-		EntryStage: spec.EntryStage,
-		Stages:     stages,
+		Ref:          WorkflowRef{Name: selector.ID, Version: selector.Version},
+		Presentation: presentation,
+		Parameters:   parameters,
+		Inputs:       inputs,
+		Outputs:      outputs,
+		EntryStage:   spec.EntryStage,
+		Stages:       stages,
 	}
 	if err := l.resolveWorkflowExecutionConfig(&workflow, spec.ExecutionConfig); err != nil {
 		return ResolvedWorkflow{}, err
@@ -66,6 +72,34 @@ func (l *loader) resolveWorkflow(selector Selector, spec *workflowSpecSource) (R
 		return ResolvedWorkflow{}, err
 	}
 	return workflow, nil
+}
+
+func resolveWorkflowPresentation(source *workflowPresentationSource) (*WorkflowPresentation, error) {
+	if source == nil {
+		return nil, nil
+	}
+	for _, field := range []struct {
+		name    string
+		value   string
+		maximum int
+	}{
+		{name: "displayName", value: source.DisplayName, maximum: 160},
+		{name: "description", value: source.Description, maximum: 2000},
+	} {
+		if !utf8.ValidString(field.value) || strings.TrimSpace(field.value) == "" {
+			return nil, fmt.Errorf("spec.presentation.%s must be non-empty UTF-8", field.name)
+		}
+		if utf8.RuneCountInString(field.value) > field.maximum {
+			return nil, fmt.Errorf(
+				"spec.presentation.%s must contain at most %d Unicode characters",
+				field.name, field.maximum,
+			)
+		}
+	}
+	return &WorkflowPresentation{
+		DisplayName: source.DisplayName,
+		Description: source.Description,
+	}, nil
 }
 
 // WorkflowSkillRefs returns the sorted logical union retained by a Run

@@ -18,12 +18,28 @@ func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
+	values, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "q", "name")
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	cursorKind := "configurations:" + string(kind)
+	_, namePresent := values["name"]
+	query, err := parseCatalogQuery(values.Get("q"), values.Get("name"), namePresent)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	resources, err := h.dependencies.Config.Configurations(kind)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	sourceFingerprint, err := catalogSourceFingerprint(resources)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	cursorKind := catalogPageCursorKind("configurations:"+string(kind), query, sourceFingerprint)
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 1)
 	if err != nil {
 		h.handleError(w, err)
@@ -33,13 +49,13 @@ func (h *handler) listConfigurations(w http.ResponseWriter, r *http.Request) {
 	if len(cursor) != 0 {
 		after = cursor[0]
 	}
-	resources, err := h.dependencies.Config.Configurations(kind)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
 	items := make([]config.ConfigurationResource, 0, min(limit, len(resources)))
 	for _, resource := range resources {
+		if !catalogMatches(
+			query, resource.Ref.Name, resource.Ref.Version, configurationDescription(resource),
+		) {
+			continue
+		}
 		selector := resource.Ref.Name + "@" + resource.Ref.Version
 		if selector <= after {
 			continue

@@ -262,6 +262,10 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 
 func cloneWorkflow(source ResolvedWorkflow) ResolvedWorkflow {
 	result := source
+	if source.Presentation != nil {
+		presentation := *source.Presentation
+		result.Presentation = &presentation
+	}
 	result.Parameters = make(map[string]ParameterSlot, len(source.Parameters))
 	for name, slot := range source.Parameters {
 		result.Parameters[name] = slot
