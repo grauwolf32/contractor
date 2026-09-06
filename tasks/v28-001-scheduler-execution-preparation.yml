@@ -3,7 +3,7 @@ id: V28-001
 title: Extract Scheduler execution preparation and Planner telemetry
 milestone: implementation-maintainability
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V8-016, V23-010]
 languages: [go]
