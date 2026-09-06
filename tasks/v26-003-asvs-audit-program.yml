@@ -3,8 +3,8 @@ id: V26-003
 title: Ship a curated OWASP ASVS 5.0 verification program
 milestone: audit-program-library
 priority: P2
-status: pending
-implementation_commit: null
+status: complete
+implementation_commit: f1c20485bdca91e445f3d10162c487966be1af7a
 depends_on: [V26-001]
 languages: [go, yaml, json]
 
