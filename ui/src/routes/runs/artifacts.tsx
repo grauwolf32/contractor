@@ -18,7 +18,9 @@ import {
   listRunArtifactVersions,
   previewRunArtifact,
   RUN_ID_PATTERN,
+  type RunStatus,
 } from "../../api/runs";
+import { getWorkflow } from "../../api/workflows";
 import {
   CursorControls,
   ErrorNotice,
@@ -26,6 +28,15 @@ import {
   formatTimestamp,
 } from "../artifacts/common";
 import { ArtifactPreviewPanel } from "../artifacts/preview";
+import {
+  missingOutputCopy,
+  organizeRunOutputs,
+  outputRole,
+  parseWorkflowIdentity,
+  requireWorkflowOutputs,
+  type OutputEntry,
+} from "./output-model";
+import "./outputs.css";
 
 function triggerDownload(downloaded: DownloadedArtifact): void {
   const objectURL = URL.createObjectURL(downloaded.blob);
@@ -44,106 +55,215 @@ function triggerDownload(downloaded: DownloadedArtifact): void {
 
 function RunOutputPreview({
   runId,
-  slot,
-  artifact,
+  entry,
+  runState,
 }: {
   runId: string;
-  slot: string;
-  artifact: ArtifactMetadata["artifact"];
+  entry: OutputEntry;
+  runState: RunStatus["state"];
 }) {
   const api = usePublicAPI();
   const [requested, setRequested] = useState(false);
+  const artifact = entry.artifact;
   const metadata = useQuery({
     queryKey: queryKeys.runs.artifactMetadata(
       runId,
-      artifact.namespace,
-      artifact.name,
-      artifact.revision,
+      artifact?.namespace ?? "missing",
+      artifact?.name ?? entry.slot,
+      artifact?.revision,
     ),
-    queryFn: () =>
-      getRunArtifactMetadata(api, {
+    queryFn: async () => {
+      if (artifact === undefined) {
+        throw new Error("Run output is unavailable");
+      }
+      const exact = await getRunArtifactMetadata(api, {
         runId,
         namespace: artifact.namespace,
         name: artifact.name,
         revision: artifact.revision,
-      }),
-    enabled: requested,
+      });
+      if (
+        exact.artifact.namespace !== artifact.namespace ||
+        exact.artifact.name !== artifact.name ||
+        exact.artifact.revision !== artifact.revision
+      ) {
+        throw new Error(
+          "Artifact metadata did not match the selected exact Run output",
+        );
+      }
+      return exact;
+    },
+    enabled: requested && artifact !== undefined,
   });
+  if (artifact === undefined) {
+    return (
+      <article className={`run-result-card run-result-${entry.kind}`}>
+        <div className="run-result-heading">
+          <div>
+            <span className="run-result-role">{outputRole(entry)}</span>
+            <h4>{entry.slot}</h4>
+          </div>
+          <span className="run-result-state">Unavailable</span>
+        </div>
+        <p className="run-result-missing">
+          {entry.declaration === undefined
+            ? "Run output is unavailable."
+            : missingOutputCopy(entry.declaration, runState)}
+        </p>
+      </article>
+    );
+  }
   const detailPath = `/runs/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifact.namespace)}/${encodeURIComponent(artifact.name)}?revision=${encodeURIComponent(artifact.revision)}`;
 
   return (
-    <details
-      className="run-output-preview"
-      onToggle={(event) => {
-        if (event.currentTarget.open) {
-          setRequested(true);
-        }
-      }}
-    >
-      <summary>
-        <span>
-          <strong>{slot}</strong>
+    <article className={`run-result-card run-result-${entry.kind}`}>
+      <div className="run-result-heading">
+        <div>
+          <span className="run-result-role">{outputRole(entry)}</span>
+          <h4>{entry.slot}</h4>
           <code>
             {artifact.namespace}/{artifact.name}@{artifact.revision}
           </code>
-        </span>
-        <span>Preview on demand</span>
-      </summary>
-      <div className="run-output-preview-body">
-        <Link className="run-output-detail-link" to={detailPath}>
-          Open {artifact.namespace}/{artifact.name}@{artifact.revision} details
-          →
-        </Link>
-        {!requested || metadata.isPending ? (
-          <p className="loading-copy">Loading exact output metadata…</p>
-        ) : metadata.error !== null ? (
-          <ErrorNotice error={metadata.error} />
-        ) : (
-          <ArtifactPreviewPanel
-            metadata={metadata.data}
-            unavailableCopy="Inline preview is unavailable; exact original bytes remain available from artifact details."
-            loadPreview={() => previewRunArtifact(api, runId, metadata.data)}
-          />
-        )}
+        </div>
+        {entry.kind === "primary" ? (
+          <span className="run-result-state">Primary</span>
+        ) : null}
       </div>
-    </details>
+      <div className="run-result-actions">
+        {requested && metadata.error === null ? null : (
+          <button
+            type="button"
+            disabled={metadata.isPending && requested}
+            onClick={() => {
+              if (requested) {
+                void metadata.refetch();
+              } else {
+                setRequested(true);
+              }
+            }}
+          >
+            {metadata.isPending && requested
+              ? "Loading result…"
+              : metadata.error === null
+                ? "Preview result"
+                : "Retry preview"}
+          </button>
+        )}
+        <Link className="run-output-detail-link" to={detailPath}>
+          Open {artifact.namespace}/{artifact.name}@{artifact.revision} exact
+          details →
+        </Link>
+      </div>
+      {requested ? (
+        <div className="run-output-preview-body">
+          {!requested || metadata.isPending ? (
+            <p className="loading-copy">Loading exact output metadata…</p>
+          ) : metadata.error !== null ? (
+            <ErrorNotice error={metadata.error} />
+          ) : (
+            <ArtifactPreviewPanel
+              key={metadata.data.artifact.revision}
+              metadata={metadata.data}
+              unavailableCopy="Inline preview is unavailable; exact original bytes remain available from artifact details."
+              loadPreview={() => previewRunArtifact(api, runId, metadata.data)}
+              loadOnMountKey={[
+                "run-output-preview",
+                runId,
+                metadata.data.artifact.namespace,
+                metadata.data.artifact.name,
+                metadata.data.artifact.revision,
+              ]}
+            />
+          )}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
 export function RunOutputGallery({
-  runId,
-  outputs,
+  run,
 }: {
-  runId: string;
-  outputs: Record<string, ArtifactMetadata["artifact"]>;
+  run: Pick<RunStatus, "runId" | "workflow" | "state" | "outputs">;
 }) {
-  const entries = Object.entries(outputs).sort(([left], [right]) =>
-    left.localeCompare(right),
-  );
-  if (entries.length === 0) {
-    return null;
-  }
+  const api = usePublicAPI();
+  const identity = parseWorkflowIdentity(run.workflow);
+  const contract = useQuery({
+    queryKey:
+      identity === undefined
+        ? ["workflows", "detail", "invalid", run.workflow]
+        : queryKeys.workflows.detail(identity.name, identity.version),
+    queryFn: async ({ signal }) => {
+      if (identity === undefined) {
+        throw new Error("Run has an invalid exact Workflow selector");
+      }
+      const workflow = await getWorkflow(
+        api,
+        identity.name,
+        identity.version,
+        signal,
+      );
+      return requireWorkflowOutputs(workflow, identity);
+    },
+    enabled: identity !== undefined,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const contractError =
+    identity === undefined
+      ? new Error("Run has an invalid exact Workflow selector")
+      : contract.error;
+  const entries = organizeRunOutputs(run.outputs, contract.data);
+  const declaredCount = contract.data
+    ? Object.keys(contract.data).length
+    : undefined;
   return (
     <section className="run-output-gallery" id="run-outputs">
       <div className="section-heading">
         <div>
           <p className="eyebrow">Frozen Workflow outputs</p>
-          <h3>Inspect results without leaving the Run</h3>
+          <h3>Results</h3>
         </div>
         <span>
-          {entries.length} output{entries.length === 1 ? "" : "s"}
+          {Object.keys(run.outputs).length} present
+          {declaredCount === undefined ? "" : ` · ${declaredCount} declared`}
         </span>
       </div>
-      <div className="run-output-list">
-        {entries.map(([slot, artifact]) => (
-          <RunOutputPreview
-            key={slot}
-            runId={runId}
-            slot={slot}
-            artifact={artifact}
-          />
-        ))}
-      </div>
+      {contract.isPending && identity !== undefined ? (
+        <p className="loading-copy">Loading exact Workflow output contract…</p>
+      ) : null}
+      {contract.data === undefined ? null : (
+        <p className="run-output-intent">
+          Primary marks the Workflow&apos;s intended presentation order, not the
+          quality or success of a result.
+        </p>
+      )}
+      {contractError === null ? null : (
+        <div className="run-output-contract-error">
+          <p>
+            Output roles are unavailable. Present artifacts remain accessible
+            without primary classification.
+          </p>
+          <ErrorNotice error={contractError} />
+        </div>
+      )}
+      {entries.length === 0 ? (
+        <div className="compact-empty">
+          {contract.data === undefined
+            ? "No Run outputs are currently available."
+            : "This Workflow declares no output slots."}
+        </div>
+      ) : (
+        <div className="run-output-list">
+          {entries.map((entry) => (
+            <RunOutputPreview
+              key={`${entry.slot}:${entry.artifact?.namespace ?? "missing"}:${entry.artifact?.name ?? "missing"}:${entry.artifact?.revision ?? "missing"}`}
+              runId={run.runId}
+              runState={run.state}
+              entry={entry}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

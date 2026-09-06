@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Component,
   lazy,
@@ -180,14 +180,35 @@ function LoadedArtifactPreview({
 export function ArtifactPreviewPanel({
   metadata,
   loadPreview,
+  loadOnMountKey,
   unavailableCopy,
 }: {
   metadata: ArtifactMetadata;
   loadPreview: () => Promise<string>;
+  loadOnMountKey?: readonly unknown[];
   unavailableCopy: string;
 }) {
-  const preview = useMutation({ mutationFn: loadPreview });
+  const manualPreview = useMutation({ mutationFn: loadPreview });
   const canPreview = canPreviewArtifact(metadata);
+  const automaticPreview = useQuery({
+    queryKey: loadOnMountKey ?? ["artifact-preview", "manual"],
+    queryFn: loadPreview,
+    enabled: loadOnMountKey !== undefined && canPreview,
+  });
+  const automatic = loadOnMountKey !== undefined;
+  const data = automatic ? automaticPreview.data : manualPreview.data;
+  const error = automatic ? automaticPreview.error : manualPreview.error;
+  const pending = automatic
+    ? automaticPreview.isPending || automaticPreview.isFetching
+    : manualPreview.isPending;
+
+  function requestPreview(): void {
+    if (automatic) {
+      void automaticPreview.refetch();
+      return;
+    }
+    manualPreview.mutate();
+  }
 
   return (
     <div className="panel artifact-preview-panel">
@@ -196,18 +217,22 @@ export function ArtifactPreviewPanel({
           <p className="eyebrow">Safe rendering</p>
           <h3>Preview</h3>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={!canPreview || preview.isPending}
-          onClick={() => preview.mutate()}
-        >
-          {preview.isPending
-            ? "Loading…"
-            : preview.data === undefined
-              ? "Load preview"
-              : "Reload preview"}
-        </button>
+        {!canPreview && automatic ? null : (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={!canPreview || pending}
+            onClick={requestPreview}
+          >
+            {pending
+              ? "Loading…"
+              : data === undefined
+                ? automatic
+                  ? "Retry preview"
+                  : "Load preview"
+                : "Reload preview"}
+          </button>
+        )}
       </div>
       {canPreview ? (
         <p className="muted-copy">
@@ -217,12 +242,12 @@ export function ArtifactPreviewPanel({
       ) : (
         <div className="compact-empty">{unavailableCopy}</div>
       )}
-      {preview.error === null ? null : <ErrorNotice error={preview.error} />}
-      {preview.data === undefined ? null : (
+      {error === null ? null : <ErrorNotice error={error} />}
+      {data === undefined ? null : (
         <LoadedArtifactPreview
           key={metadata.artifact.revision}
           mediaType={metadata.mediaType}
-          source={preview.data}
+          source={data}
         />
       )}
     </div>

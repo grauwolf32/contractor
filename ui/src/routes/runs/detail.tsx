@@ -613,7 +613,7 @@ function LoadedRunDetail({
           )}
         </div>
       )}
-      <RunOutputGallery runId={run.runId} outputs={run.outputs} />
+      <RunOutputGallery run={run} />
       <RunOutputPublications run={run} />
       <LiveAttempts
         key={`${liveKey}:${snapshotVersion}`}

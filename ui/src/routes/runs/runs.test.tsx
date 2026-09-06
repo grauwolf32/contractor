@@ -1180,10 +1180,7 @@ describe("Run routes", () => {
       screen.queryByRole("button", { name: "Request cancellation" }),
     ).not.toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByText("Preview on demand"));
-    await user.click(
-      await screen.findByRole("button", { name: "Load preview" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Preview result" }));
     expect(
       await screen.findByText("safe report", { selector: "pre" }),
     ).toBeInTheDocument();
