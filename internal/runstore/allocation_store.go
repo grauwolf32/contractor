@@ -131,8 +131,45 @@ func (s *PostgresStore) ListStageAllocations(
 	ctx context.Context,
 	stageExecutionID string,
 ) ([]StageAllocation, error) {
-	if err := validateOpaque("stageExecutionID", stageExecutionID); err != nil {
+	result, err := s.listStageAllocations(ctx, []string{stageExecutionID})
+	if err != nil {
 		return nil, err
+	}
+	if len(result) == 0 {
+		var exists int
+		err := s.db.QueryRow(ctx, `SELECT 1 FROM stage_executions WHERE stage_execution_id = $1`, stageExecutionID).Scan(&exists)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("list allocations for StageExecution %q: %w", stageExecutionID, ErrNotFound)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("verify StageExecution %q: %w", stageExecutionID, err)
+		}
+	}
+	return result, nil
+}
+
+// ListStageAllocationsBatch returns existing allocations for already-authorized
+// executions. Missing/empty executions have no map entry; no existence probes.
+func (s *PostgresStore) ListStageAllocationsBatch(ctx context.Context, ids []string) (map[string][]StageAllocation, error) {
+	rows, err := s.listStageAllocations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]StageAllocation)
+	for _, row := range rows {
+		result[row.StageExecutionID] = append(result[row.StageExecutionID], row)
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecutionIDs []string) ([]StageAllocation, error) {
+	for _, id := range stageExecutionIDs {
+		if err := validateOpaque("stageExecutionID", id); err != nil {
+			return nil, err
+		}
+	}
+	if len(stageExecutionIDs) == 0 {
+		return nil, nil
 	}
 	rows, err := s.db.Query(ctx, `
 SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
@@ -141,10 +178,10 @@ SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
        runtime_configuration_schema_version, runtime_configuration, created_at,
        release_attempted_at, release_completed_at
 FROM stage_allocations
-WHERE stage_execution_id = $1
-ORDER BY logical_agent_name`, stageExecutionID)
+WHERE stage_execution_id = ANY($1::text[])
+ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 	if err != nil {
-		return nil, fmt.Errorf("list allocations for StageExecution %q: %w", stageExecutionID, err)
+		return nil, fmt.Errorf("list StageExecution allocations: %w", err)
 	}
 	defer rows.Close()
 	var result []StageAllocation
@@ -162,7 +199,7 @@ ORDER BY logical_agent_name`, stageExecutionID)
 			&runtimeConfigurationVersion, &runtimeConfiguration, &allocation.CreatedAt,
 			&allocation.ReleaseAttemptedAt, &allocation.ReleaseCompletedAt,
 		); err != nil {
-			return nil, fmt.Errorf("scan allocation for StageExecution %q: %w", stageExecutionID, err)
+			return nil, fmt.Errorf("scan StageExecution allocation: %w", err)
 		}
 		if err := json.Unmarshal(templateRef, &allocation.AgentTemplateRef); err != nil {
 			return nil, fmt.Errorf("decode persisted AgentTemplate ref: %w", err)
@@ -190,19 +227,7 @@ ORDER BY logical_agent_name`, stageExecutionID)
 		result = append(result, allocation)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate allocations for StageExecution %q: %w", stageExecutionID, err)
-	}
-	if len(result) == 0 {
-		var exists int
-		err := s.db.QueryRow(ctx,
-			`SELECT 1 FROM stage_executions WHERE stage_execution_id = $1`, stageExecutionID,
-		).Scan(&exists)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("list allocations for StageExecution %q: %w", stageExecutionID, ErrNotFound)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("verify StageExecution %q: %w", stageExecutionID, err)
-		}
+		return nil, fmt.Errorf("iterate StageExecution allocations: %w", err)
 	}
 	return result, nil
 }

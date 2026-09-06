@@ -516,6 +516,11 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	related, err := h.loadRunDetailRelated(r.Context(), executions)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	attempts := make([]stageAttemptResponse, 0, len(executions))
 	var activeExecutionID *string
 	deletable := deletionBlocker == nil
@@ -532,43 +537,17 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		}
 		var metrics *telemetry.Summary
 		var diagnostics *telemetry.AttemptDiagnostics
-		if h.dependencies.Metrics != nil {
-			if record, metricsErr := h.dependencies.Metrics.GetStageMetrics(
-				r.Context(), execution.StageExecutionID,
-			); metricsErr == nil {
-				value := record.Summary
-				metrics = &value
-				diagnosticValue := telemetry.ProjectAttemptDiagnostics(record.Metrics)
-				diagnostics = &diagnosticValue
-			}
+		if record, ok := related.metrics[execution.StageExecutionID]; ok {
+			value := record.Summary
+			metrics = &value
+			diagnosticValue := telemetry.ProjectAttemptDiagnostics(record.Metrics)
+			diagnostics = &diagnosticValue
 		}
 		var plan *planner.PlannerPlanProjection
-		if h.dependencies.PlannerPlans != nil && execution.PlannerSessionID != nil &&
-			execution.PlannerInvocationID != nil {
-			loaded, present, planErr := h.dependencies.PlannerPlans.LoadPlan(
-				r.Context(), planner.SessionIdentity{
-					SessionID:        *execution.PlannerSessionID,
-					StageExecutionID: execution.StageExecutionID,
-					InvocationID:     *execution.PlannerInvocationID,
-				},
-			)
-			if planErr != nil {
-				h.handleError(w, planErr)
-				return
-			}
-			if present {
-				value := loaded
-				plan = &value
-			}
+		if loaded, ok := related.plans[execution.StageExecutionID]; ok {
+			plan = &loaded
 		}
-		allocations, allocationErr := h.dependencies.Runs.ListStageAllocations(
-			r.Context(), execution.StageExecutionID,
-		)
-		if allocationErr != nil {
-			h.handleError(w, allocationErr)
-			return
-		}
-		runtimeConfiguration := stageRuntimeConfigurationReadModel(allocations)
+		runtimeConfiguration := stageRuntimeConfigurationReadModel(related.allocations[execution.StageExecutionID])
 		if !terminalStageState(execution.State) {
 			value := execution.StageExecutionID
 			activeExecutionID = &value
