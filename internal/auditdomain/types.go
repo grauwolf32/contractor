@@ -138,8 +138,31 @@ type ItemTask struct {
 	CanonicalInventoryDigest string                `json:"canonical_inventory_digest"`
 	Scope                    map[string]string     `json:"scope,omitempty"`
 	Checklist                *ChecklistTask        `json:"checklist,omitempty"`
+	Standard                 *StandardMappingTask  `json:"standard,omitempty"`
 	Operation                *OperationTask        `json:"operation,omitempty"`
 	Finding                  *FindingTask          `json:"finding,omitempty"`
+}
+
+// StandardMappingTask is the immutable, Worker-visible authority copied from
+// one exact retained standard package mapping. It supplements ChecklistTask;
+// the model can reference this identity but cannot create or alter it.
+type StandardMappingTask struct {
+	Scheme           string                   `json:"scheme"`
+	Version          string                   `json:"version"`
+	MappingKey       string                   `json:"mapping_key"`
+	EntryIDs         []string                 `json:"entry_ids"`
+	EvidenceContract StandardEvidenceContract `json:"evidence_contract"`
+}
+
+type StandardEvidenceContract struct {
+	ID                string   `json:"id"`
+	Version           string   `json:"version"`
+	Assessments       []string `json:"assessments"`
+	EvidenceKinds     []string `json:"evidence_kinds"`
+	MinimumEvidence   int      `json:"minimum_evidence"`
+	MaximumEvidence   int      `json:"maximum_evidence"`
+	HumanReview       string   `json:"human_review"`
+	RationaleRequired bool     `json:"rationale_required"`
 }
 
 // FindingTask binds one later-round check to an exact admitted proposal and

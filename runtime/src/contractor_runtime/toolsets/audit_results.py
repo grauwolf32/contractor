@@ -62,7 +62,7 @@ class AuditResultsToolsetFactory:
     """Build the selected result publisher without exposing Audit authority."""
 
     ref = "audit-results@1"
-    exported_tools = frozenset({"submit_check_result"})
+    exported_tools = frozenset({"read_audit_task", "submit_check_result"})
     infrastructure_channels = MappingProxyType({})
 
     def __init__(self, client_factory: ArtifactClientFactory | None = None) -> None:
@@ -92,12 +92,92 @@ class AuditResultsToolsetFactory:
         if metrics is None or not callable(getattr(metrics, "record_tool_call", None)):
             raise TypeError("audit-results@1 requires State.metrics")
         client = self._client_factory(allocation_id, runtime_settings)
+        secrets = gateway_secrets(runtime_settings)
         builders: dict[str, Callable[[], Any]] = {
+            "read_audit_task": lambda: ReadAuditTaskTool(client, metrics, secrets),
             "submit_check_result": lambda: SubmitCheckResultTool(
-                client, metrics, gateway_secrets(runtime_settings), namespace
-            )
+                client, metrics, secrets, namespace
+            ),
         }
         return {name: builders[name]() for name in selected}
+
+
+class ReadAuditTaskTool:
+    name = "read_audit_task"
+    description = (
+        "Read the one assigned immutable Audit task as validated JSON. The tool "
+        "checks the exact task package against the execution manifest and does not "
+        "return raw package bytes."
+    )
+
+    def __init__(
+        self,
+        client: ArtifactClient,
+        metrics: ToolMetrics,
+        secrets: tuple[str, ...],
+    ) -> None:
+        self._client = client
+        self._metrics = metrics
+        self._secrets = secrets
+        self.__name__ = self.name
+        self.__doc__ = self.description
+
+    @property
+    def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
+        return model_visible_exact_refs(getattr(self._client, "known_exact_refs", ()))
+
+    @property
+    def artifact_observation_cursor(self) -> int:
+        return artifact_observation_cursor(self._client)
+
+    def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
+        return model_visible_observations_since(self._client, cursor)
+
+    def clear_artifact_observations(self) -> None:
+        clear_artifact_observations(self._client)
+
+    async def close(self) -> None:
+        self._secrets = ()
+
+    async def __call__(self) -> dict[str, Any]:
+        started_ns = time.perf_counter_ns()
+        try:
+            task_value = await self._client.read_artifact(
+                ArtifactRef(namespace="inputs", name="task")
+            )
+            execution_value = await self._client.read_artifact(
+                ArtifactRef(namespace="inputs", name="execution_manifest")
+            )
+            task, task_package_id = _decode_task_package(task_value.data, task_value.media_type)
+            execution = _decode_execution_manifest(execution_value.data, execution_value.media_type)
+            _match_trusted_inputs(task, task_package_id, task_value.data, execution)
+            result = {
+                "task": task,
+                "taskPackageId": task_package_id,
+                "taskArtifact": task_value.artifact.model_dump(by_alias=True),
+                "executionManifestDigest": _digest(execution_value.data),
+            }
+            self._metrics.record_tool_call(
+                self.name,
+                arguments={},
+                result={
+                    "artifact": result["taskArtifact"],
+                    "itemKey": task["item_key"],
+                    "kind": task["kind"],
+                },
+                secrets=self._secrets,
+                duration_ms=_elapsed_ms(started_ns),
+            )
+            return result
+        except Exception as error:
+            self._metrics.record_tool_call(
+                self.name,
+                arguments={},
+                error=error,
+                secrets=self._secrets,
+                duration_ms=_elapsed_ms(started_ns),
+            )
+            raise
 
 
 class SubmitCheckResultTool:

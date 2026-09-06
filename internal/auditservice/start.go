@@ -154,6 +154,13 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
+	resolvedStandards := make([]auditstandards.ResolvedPackage, len(pinnedStandards))
+	for index, pinned := range pinnedStandards {
+		resolvedStandards[index], err = standardCatalog.ResolvePinned(ctx, audit.ProjectID, pinned)
+		if err != nil {
+			return StartedAudit{}, err
+		}
+	}
 	standardLinks, err := auditStandardLinks(pinnedStandards)
 	if err != nil {
 		return StartedAudit{}, err
@@ -181,7 +188,7 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	inventory, err := buildInventory(profile, selection, inputPayloads)
+	inventory, err := buildInventory(profile, selection, inputPayloads, resolvedStandards)
 	if err != nil {
 		return StartedAudit{}, err
 	}
@@ -426,7 +433,21 @@ func buildInventory(
 	profile config.ResolvedAuditProfile,
 	selection DraftSelection,
 	inputs map[string]artifacts.ReadResult,
+	standards []auditstandards.ResolvedPackage,
 ) (auditdomain.Inventory, error) {
+	if profile.Inventory.Implementation == "standard-mappings@1" {
+		if len(standards) != 1 || standards[0].Source.Artifact.ValidateExact() != nil {
+			return auditdomain.Inventory{}, fmt.Errorf("%w: exact standard inventory source is missing", ErrInvalid)
+		}
+		return auditdomain.BuildStandardMappingInventory(
+			standards[0].Package,
+			auditdomain.InventoryOptions{
+				Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
+				SourceInputName: "standard", SourceRef: standards[0].Source.Artifact,
+				ApprovalRequirement: auditdomain.ApprovalNone, Scope: selection.Scope.Values(),
+			},
+		)
+	}
 	source, exists := inputs[profile.Inventory.SourceInput]
 	if !exists {
 		return auditdomain.Inventory{}, fmt.Errorf("%w: inventory source input is missing", ErrInvalid)

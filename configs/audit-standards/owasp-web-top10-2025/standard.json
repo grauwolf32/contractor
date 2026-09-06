@@ -1,0 +1,216 @@
+{
+  "schema": "contractor.audit-standard.v1",
+  "standard": {
+    "scheme": "owasp-web-top10",
+    "version": "2025",
+    "title": "OWASP Top 10:2025",
+    "description": "Pinned risk-awareness categories with independently authored, bounded Contractor source-analysis scenarios. Scenario coverage is not certification or an exhaustive security assessment.",
+    "source": {
+      "name": "OWASP Top 10:2025",
+      "url": "https://owasp.org/Top10/2025/",
+      "revision": "66ebc4798d2ca72973967a20264bdeb70dcf0a13"
+    },
+    "license": {
+      "id": "CC-BY-SA-4.0",
+      "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "OWASP Foundation, OWASP Top 10:2025. Category identifiers and titles are reproduced; Contractor scenario mappings and statements are independently authored adaptations.",
+      "disclosure": "full"
+    }
+  },
+  "evidenceContracts": [
+    {
+      "id": "bounded-source-risk",
+      "version": "1",
+      "assessments": ["blocked", "inconclusive", "not-tested", "refuted", "supported"],
+      "evidenceKinds": ["observation"],
+      "minimumEvidence": 1,
+      "maximumEvidence": 8,
+      "humanReview": "never",
+      "rationaleRequired": true
+    }
+  ],
+  "entries": [
+    {
+      "id": "A01:2025",
+      "kind": "risk",
+      "title": "Broken Access Control",
+      "statement": "Application authorization controls may fail to enforce the intended subject, object, tenant, or action boundary.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A02:2025",
+      "kind": "risk",
+      "title": "Security Misconfiguration",
+      "statement": "Application-owned configuration and defaults may expose unsafe services, diagnostics, permissions, or deployment behavior.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A03:2025",
+      "kind": "risk",
+      "title": "Software Supply Chain Failures",
+      "statement": "Dependencies and application-owned build or update paths may accept components without sufficient integrity and provenance controls.",
+      "applicability": {"mode": "human-review"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A04:2025",
+      "kind": "risk",
+      "title": "Cryptographic Failures",
+      "statement": "Application-owned cryptographic choices, secret handling, or transport assumptions may fail to protect sensitive data.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A05:2025",
+      "kind": "risk",
+      "title": "Injection",
+      "statement": "Untrusted input may reach an interpreter or structured command boundary without an appropriate encoding, validation, or parameterization control.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A06:2025",
+      "kind": "risk",
+      "title": "Insecure Design",
+      "statement": "Security-relevant trust boundaries and abuse cases may lack an application-owned preventive design control.",
+      "applicability": {"mode": "human-review"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A07:2025",
+      "kind": "risk",
+      "title": "Authentication Failures",
+      "statement": "Application authentication, session, and credential lifecycle paths may permit identity confusion or account compromise.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A08:2025",
+      "kind": "risk",
+      "title": "Software or Data Integrity Failures",
+      "statement": "Application trust decisions may consume software, updates, serialized data, or other content without sufficient integrity validation.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A09:2025",
+      "kind": "risk",
+      "title": "Security Logging and Alerting Failures",
+      "statement": "Application-owned security events may be omitted, expose sensitive data, or lack enough context for downstream detection and response.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    },
+    {
+      "id": "A10:2025",
+      "kind": "risk",
+      "title": "Mishandling of Exceptional Conditions",
+      "statement": "Exceptional paths may fail open, leak sensitive detail, corrupt state, or leave security-relevant resources in an unsafe condition.",
+      "applicability": {"mode": "always"},
+      "allowedMethods": ["source-analysis"],
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"}
+    }
+  ],
+  "mappings": [
+    {
+      "key": "A01:2025",
+      "entryIds": ["A01:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Trace application access-control enforcement",
+      "objective": "Inspect representative application-owned entry points and authorization decisions for missing object, action, role, or tenant enforcement. Assess only the traced paths; record uninspected surfaces as gaps."
+    },
+    {
+      "key": "A02:2025",
+      "entryIds": ["A02:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Review application security configuration",
+      "objective": "Inspect application-owned defaults and deployment configuration for exposed diagnostics, permissive security settings, unsafe headers, or unnecessary services. Treat absent deployment context as a gap."
+    },
+    {
+      "key": "A03:2025",
+      "entryIds": ["A03:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Review dependency and build trust boundaries",
+      "objective": "Inspect available dependency manifests and application-owned build or update logic for unpinned inputs, unsafe sources, and missing integrity controls. Do not infer external registry or CI policy that is absent from the source archive."
+    },
+    {
+      "key": "A04:2025",
+      "entryIds": ["A04:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Trace sensitive-data cryptographic handling",
+      "objective": "Inspect representative application-owned cryptographic, secret-storage, and transport-security paths for obsolete primitives, unsafe modes, embedded secrets, or missing protection. Record unknown infrastructure behavior as gaps."
+    },
+    {
+      "key": "A05:2025",
+      "entryIds": ["A05:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Trace untrusted input to interpreter boundaries",
+      "objective": "Trace representative untrusted inputs to database, shell, template, expression, or parser boundaries and inspect the applicable parameterization, encoding, or validation controls. Preserve unresolved paths as gaps."
+    },
+    {
+      "key": "A06:2025",
+      "entryIds": ["A06:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Inspect security-relevant design controls",
+      "objective": "Inspect source-visible trust boundaries, privileged flows, and abuse-sensitive operations for missing preventive controls. Do not claim that source analysis establishes design completeness; preserve architectural uncertainty as gaps."
+    },
+    {
+      "key": "A07:2025",
+      "entryIds": ["A07:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Review authentication and session paths",
+      "objective": "Inspect representative authentication, credential recovery, session creation, validation, rotation, and invalidation paths for identity or lifecycle weaknesses. Record identity-provider behavior absent from source as gaps."
+    },
+    {
+      "key": "A08:2025",
+      "entryIds": ["A08:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Review software and data integrity decisions",
+      "objective": "Inspect application-owned update, plugin, deserialization, signature, and trusted-data ingestion paths for decisions made without suitable integrity checks. Keep unobserved delivery infrastructure outside the assessed claim."
+    },
+    {
+      "key": "A09:2025",
+      "entryIds": ["A09:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Review security event instrumentation",
+      "objective": "Inspect representative application-owned authentication, authorization, validation, and failure paths for useful security logging without sensitive-data exposure. Treat downstream collection and alert behavior as unverified unless supplied."
+    },
+    {
+      "key": "A10:2025",
+      "entryIds": ["A10:2025"],
+      "workflowRole": "check",
+      "method": "source-analysis",
+      "evidenceContract": {"id": "bounded-source-risk", "version": "1"},
+      "title": "Review exceptional security paths",
+      "objective": "Inspect representative exception, timeout, retry, rollback, and resource-cleanup paths for fail-open behavior, sensitive disclosure, partial authorization, or unsafe state retention. Preserve untraced exceptional paths as gaps."
+    }
+  ]
+}

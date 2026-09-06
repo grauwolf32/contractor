@@ -283,6 +283,14 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
               <strong>{exactProfile.execution.maxItemRunAttempts}</strong>
             </div>
           </div>
+          {exactProfile.standards.length === 0 ? null : (
+            <p className="notice" data-testid="audit-profile-standards">
+              Exact standards pinned at start: {" "}
+              {exactProfile.standards
+                .map((standard) => `${standard.scheme}@${standard.version}`)
+                .join(", ")}
+            </p>
+          )}
           {exactProfile.serverCompatible ? (
             <p className="notice notice-success" role="status">
               This exact profile version is supported by the Server.

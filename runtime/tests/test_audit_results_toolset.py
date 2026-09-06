@@ -24,6 +24,42 @@ from contractor_runtime.toolsets.audit_results import AuditResultsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 
+def test_read_audit_task_returns_validated_json_without_raw_package_bytes() -> None:
+    async def scenario() -> None:
+        task_package, execution_manifest = fixture_inputs()
+        client = FakeAuditArtifactClient(task_package, execution_manifest)
+        state = WorkerState()
+        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await factory.create_selected(
+            selected=["read_audit_task"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="audit-check",
+            runtime_settings=runtime_settings(),
+            workspace=workspace(),
+            state=state,
+        )
+
+        result = await tools["read_audit_task"]()
+
+        assert result["task"]["item_key"] == "check-authz"
+        assert result["task"]["checklist"]["statement"] == (
+            "Authorization is checked before object access."
+        )
+        assert result["taskPackageId"] == "task-check-authz"
+        assert result["taskArtifact"] == {
+            "namespace": "inputs",
+            "name": "task",
+            "revision": "task-r1",
+        }
+        assert result["executionManifestDigest"] == digest(execution_manifest)
+        assert "dataBase64" not in result
+        assert state.metrics.counters["tool_calls"] == 1
+        assert state.metrics.tool_calls[0].arguments == {}
+
+    asyncio.run(scenario())
+
+
 def test_submit_check_result_derives_identity_and_builds_canonical_package() -> None:
     async def scenario() -> None:
         task_package, execution_manifest = fixture_inputs()

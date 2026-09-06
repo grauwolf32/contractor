@@ -1,0 +1,46 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+
+metadata:
+  name: owasp-top10-2025-source-risk
+  version: "1"
+
+spec:
+  mode: risk-assessment
+  standards:
+    - scheme: owasp-web-top10
+      version: "2025"
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+  inventory:
+    implementation: standard-mappings@1
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: audit-top10-source-risk@1
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        source: {source: audit-input, name: source}
+      parameters: {}
+      outputs:
+        result: result
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 10
+    maxItemsTotal: 10
+    maxSubmittedRuns: 30
+    maxItemRunAttempts: 3
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: human-required
+    notApplicable: human-required
+    reportAcceptance: automatic

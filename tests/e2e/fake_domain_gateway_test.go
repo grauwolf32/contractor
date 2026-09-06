@@ -226,7 +226,22 @@ func newBlockedDomainGateway(token string, stages []domainGatewayStage) *domainG
 
 func (g *domainGateway) blockedRequest() <-chan struct{} { return g.blocked }
 
+func (g *domainGateway) blockNextRequest() <-chan struct{} {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.blockNext {
+		return g.blocked
+	}
+	g.blockNext = true
+	g.blocked = make(chan struct{})
+	g.release = make(chan struct{})
+	g.releaseOne = sync.Once{}
+	return g.blocked
+}
+
 func (g *domainGateway) releaseBlockedRequest() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.release != nil {
 		g.releaseOne.Do(func() { close(g.release) })
 	}

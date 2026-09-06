@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -277,6 +278,7 @@ func (i *Importer) retainFindingProposals(
 		return fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
 	}
 	query := findingintake.ListQuery{Limit: 200}
+	var standards retainedStandardIndex
 	for {
 		receipts, err := i.findings.ListRun(
 			ctx, snapshot.Audit.OwnerID, *execution.RunID, query,
@@ -293,6 +295,17 @@ func (i *Importer) retainFindingProposals(
 				receipt.Origin.RunID != *execution.RunID {
 				return fmt.Errorf("%w: Audit child finding origin is inconsistent", ErrPermanent)
 			}
+			if len(receipt.Document.StandardRefs) != 0 {
+				if standards == nil {
+					standards, err = i.loadPinnedStandards(ctx, snapshot)
+					if err != nil {
+						return err
+					}
+				}
+				if validateProposalStandardRefs(receipt.Document, standards) != nil {
+					return fmt.Errorf("%w: finding proposal standard reference is invalid", ErrPermanent)
+				}
+			}
 			if _, _, err := i.findings.ImportIntoAudit(ctx, findingintake.ImportRequest{
 				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
 				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
@@ -308,6 +321,170 @@ func (i *Importer) retainFindingProposals(
 		query.AfterReceiptID = last.ReceiptID
 	}
 }
+
+type retainedStandard struct {
+	pinned auditstandards.PinnedPackage
+	pkg    auditstandards.Package
+}
+
+type retainedStandardIndex map[string]retainedStandard
+
+func (i *Importer) loadPinnedStandards(
+	ctx context.Context, snapshot auditstore.ReconcileSnapshot,
+) (retainedStandardIndex, error) {
+	var baseline struct {
+		Schema    string                         `json:"schema"`
+		Standards []auditstandards.PinnedPackage `json:"standards"`
+	}
+	if json.Unmarshal(snapshot.Audit.BaselineSnapshot, &baseline) != nil ||
+		baseline.Schema != "contractor.audit.baseline.v1" || baseline.Standards == nil {
+		return nil, fmt.Errorf("%w: Audit standard baseline is invalid", ErrPermanent)
+	}
+	result := make(retainedStandardIndex, len(baseline.Standards))
+	for _, pinned := range baseline.Standards {
+		key := retainedStandardKey(pinned.Reference.Scheme, pinned.Reference.Version)
+		if _, duplicate := result[key]; duplicate || auditstandards.ValidatePinnedPackage(pinned) != nil {
+			return nil, fmt.Errorf("%w: Audit standard baseline is invalid", ErrPermanent)
+		}
+		payload, err := i.artifacts.ReadProjectExact(
+			ctx, snapshot.Audit.ProjectID,
+			auditstore.ExactArtifact{
+				Ref: pinned.Retained.Artifact, Digest: pinned.Retained.Digest,
+				MediaType: pinned.Retained.MediaType, SizeBytes: pinned.Retained.SizeBytes,
+			},
+		)
+		if err != nil {
+			return nil, fmt.Errorf("read exact retained Audit standard: %w", err)
+		}
+		pkg, err := auditstandards.ValidateRetainedPayload(payload, pinned)
+		if err != nil {
+			return nil, fmt.Errorf("%w: retained Audit standard is invalid", ErrPermanent)
+		}
+		result[key] = retainedStandard{pinned: pinned, pkg: *pkg}
+	}
+	return result, nil
+}
+
+func (i *Importer) validateMappedProposalStandards(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	task auditdomain.ItemTask,
+	document auditdomain.FindingProposal,
+) error {
+	if task.Standard == nil && len(document.StandardRefs) == 0 {
+		return nil
+	}
+	standards, err := i.loadPinnedStandards(ctx, snapshot)
+	if err != nil {
+		return err
+	}
+	if err := validateProposalStandardRefs(document, standards); err != nil {
+		return err
+	}
+	if task.Standard == nil {
+		return nil
+	}
+	standard, exists := standards[retainedStandardKey(task.Standard.Scheme, task.Standard.Version)]
+	if !exists || !standardTaskMatchesPackage(task, standard) {
+		return errors.New("task standard mapping does not match its retained package")
+	}
+	references := make(map[string]struct{}, len(document.StandardRefs))
+	for _, reference := range document.StandardRefs {
+		if reference.Scheme == task.Standard.Scheme && reference.Version == task.Standard.Version {
+			references[reference.RequirementID] = struct{}{}
+		}
+	}
+	for _, entryID := range task.Standard.EntryIDs {
+		if _, exists := references[entryID]; !exists {
+			return errors.New("proposal omits its assigned standard entry")
+		}
+	}
+	return nil
+}
+
+func validateProposalStandardRefs(
+	document auditdomain.FindingProposal, standards retainedStandardIndex,
+) error {
+	seen := make(map[string]struct{}, len(document.StandardRefs))
+	for _, reference := range document.StandardRefs {
+		key := retainedStandardKey(reference.Scheme, reference.Version)
+		standard, exists := standards[key]
+		if !exists {
+			return errors.New("proposal names an unpinned standard")
+		}
+		identity := key + "\x00" + reference.RequirementID
+		if _, duplicate := seen[identity]; duplicate {
+			return errors.New("proposal repeats a standard reference")
+		}
+		seen[identity] = struct{}{}
+		matched := false
+		for _, entry := range standard.pkg.Document.Entries {
+			matched = matched || entry.ID == reference.RequirementID
+		}
+		if !matched {
+			return errors.New("proposal names an unknown standard entry")
+		}
+	}
+	return nil
+}
+
+func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStandard) bool {
+	if task.Standard == nil || task.Checklist == nil ||
+		task.SourceContentDigest != standard.pinned.Retained.Digest ||
+		!sameRef(task.SourceRef, standard.pinned.Retained.Artifact) {
+		return false
+	}
+	var mapping *auditstandards.Mapping
+	for index := range standard.pkg.Document.Mappings {
+		candidate := &standard.pkg.Document.Mappings[index]
+		if candidate.Key == task.Standard.MappingKey {
+			mapping = candidate
+			break
+		}
+	}
+	if mapping == nil || mapping.Key != task.ItemKey || mapping.WorkflowRole != task.WorkflowRole ||
+		mapping.Objective != task.Checklist.Statement ||
+		task.Checklist.Version != standard.pinned.Reference.Version ||
+		len(task.Checklist.AllowedMethods) != 1 || task.Checklist.AllowedMethods[0] != mapping.Method ||
+		!equalStrings(mapping.EntryIDs, task.Standard.EntryIDs) ||
+		mapping.EvidenceContract.ID != task.Standard.EvidenceContract.ID ||
+		mapping.EvidenceContract.Version != task.Standard.EvidenceContract.Version {
+		return false
+	}
+	for _, contract := range standard.pkg.Document.EvidenceContracts {
+		if contract.ID != mapping.EvidenceContract.ID || contract.Version != mapping.EvidenceContract.Version {
+			continue
+		}
+		selected := task.Standard.EvidenceContract
+		expectedApplicability, expectedReview := "always", "automatic"
+		for _, entryID := range mapping.EntryIDs {
+			for _, entry := range standard.pkg.Document.Entries {
+				if entry.ID == entryID && entry.Applicability.Mode == "human-review" {
+					expectedApplicability, expectedReview = "human-review", "manual"
+				}
+			}
+		}
+		if contract.HumanReview == "required" {
+			expectedReview = "manual"
+		}
+		requiredEvidence := []string{}
+		if contract.MinimumEvidence > 0 {
+			requiredEvidence = contract.EvidenceKinds
+		}
+		return task.Checklist.Applicability == expectedApplicability &&
+			task.Checklist.ReviewPolicy == expectedReview &&
+			equalStrings(task.Checklist.RequiredEvidence, requiredEvidence) &&
+			equalStrings(contract.Assessments, selected.Assessments) &&
+			equalStrings(contract.EvidenceKinds, selected.EvidenceKinds) &&
+			contract.MinimumEvidence == selected.MinimumEvidence &&
+			contract.MaximumEvidence == selected.MaximumEvidence &&
+			contract.HumanReview == selected.HumanReview &&
+			contract.RationaleRequired == selected.RationaleRequired
+	}
+	return false
+}
+
+func retainedStandardKey(scheme, version string) string { return scheme + "\x00" + version }
 
 func (i *Importer) collectContractInvalid(
 	ctx context.Context,
@@ -487,6 +664,14 @@ func (i *Importer) collectSucceeded(
 					return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
 				}
 				seenProposalReceipts[proposal.ReceiptID] = struct{}{}
+				if validationErr := i.validateMappedProposalStandards(
+					ctx, snapshot, members[index].task, proposal.Document,
+				); validationErr != nil {
+					return i.collectInvalid(
+						ctx, claim, execution, members, source,
+						"finding-proposal-standard-reference-invalid",
+					)
+				}
 			}
 			members[index].proposals = resolved
 		}
@@ -607,6 +792,7 @@ func (i *Importer) resolveTaskProposal(
 		}
 		return findingintake.ResolvedProposal{
 			ReceiptID: receipt.ReceiptID, Proposal: hold.Proposal, Origin: receipt.Origin,
+			Document: receipt.Document,
 		}, nil
 	}
 	return findingintake.ResolvedProposal{}, findingintake.ErrNotFound
@@ -780,6 +966,11 @@ func semanticCoverage(
 	}
 	conclusive := result.Assessment == "satisfied" || result.Assessment == "violated" ||
 		result.Assessment == "supported" || result.Assessment == "refuted"
+	if task.Standard != nil && !standardEvidenceContractAccepts(
+		task.Standard.EvidenceContract, result, evidence, conclusive,
+	) {
+		return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
+	}
 	if conclusive && !requiredEvidencePresent(task, result, evidence) {
 		return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
 	}
@@ -821,6 +1012,26 @@ func semanticCoverage(
 		return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
 	}
 	return coverage, nil
+}
+
+func standardEvidenceContractAccepts(
+	contract auditdomain.StandardEvidenceContract,
+	result auditdomain.CheckResult,
+	evidence map[string]validatedEvidence,
+	conclusive bool,
+) bool {
+	if !contains(contract.Assessments, result.Assessment) ||
+		len(result.EvidenceIDs) > contract.MaximumEvidence ||
+		conclusive && len(result.EvidenceIDs) < contract.MinimumEvidence {
+		return false
+	}
+	for _, id := range result.EvidenceIDs {
+		value, exists := evidence[id]
+		if !exists || !contains(contract.EvidenceKinds, value.value.Kind) {
+			return false
+		}
+	}
+	return true
 }
 
 func requiredEvidencePresent(

@@ -25,8 +25,10 @@ The two initial AuditProfiles are deliberately generic, one-round and
 non-certifying. They require an exact source ZIP plus either a custom checklist
 or OpenAPI document. Their child Worker reads the Controller-generated task and
 execution manifest, performs bounded source analysis and uses
+`audit-results@1/read_audit_task` to obtain its validated JSON task and
 `audit-results@1/submit_check_result` to package a strict result without asking
-the model to reproduce item identities or construct ZIP bytes manually.
+the model to decode ZIP bytes, reproduce item identities, or construct ZIP
+bytes manually.
 
 `audit-standards/` is the operator-owned source for immutable curated standard
 packages. Each immediate package directory contains only a strict

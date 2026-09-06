@@ -208,10 +208,20 @@ func validateItemTask(value ItemTask) error {
 		return invalid(CodeInvalid, "task")
 	}
 	if value.Checklist != nil {
-		if value.Kind != "checklist" {
+		if value.Standard == nil && value.Kind != "checklist" ||
+			value.Standard != nil && value.Kind != "standard-mapping" {
 			return invalid(CodeInvalid, "kind")
 		}
-		return validateChecklistTask(*value.Checklist)
+		if err := validateChecklistTask(*value.Checklist); err != nil {
+			return err
+		}
+		if value.Standard != nil {
+			return validateStandardMappingTask(*value.Standard, value.ItemKey, *value.Checklist)
+		}
+		return nil
+	}
+	if value.Standard != nil {
+		return invalid(CodeInvalid, "standard")
 	}
 	if value.Operation != nil {
 		if value.Kind != "operation-trace" {
@@ -223,6 +233,42 @@ func validateItemTask(value ItemTask) error {
 		return invalid(CodeInvalid, "kind")
 	}
 	return validateFindingTask(*value.Finding)
+}
+
+func validateStandardMappingTask(
+	value StandardMappingTask, itemKey string, checklist ChecklistTask,
+) error {
+	if validateIdentifier(value.Scheme, "standard.scheme") != nil ||
+		validateText(value.Version, "standard.version", true) != nil ||
+		validateIdentifier(value.MappingKey, "standard.mapping_key") != nil ||
+		value.MappingKey != itemKey || len(value.EntryIDs) == 0 ||
+		validateSortedStrings(value.EntryIDs, MaximumCoverageValues, "standard.entry_ids", true) != nil {
+		return invalid(CodeInvalid, "standard")
+	}
+	contract := value.EvidenceContract
+	if validateIdentifier(contract.ID, "standard.evidence_contract.id") != nil ||
+		validateText(contract.Version, "standard.evidence_contract.version", true) != nil ||
+		contract.MinimumEvidence < 0 || contract.MaximumEvidence < contract.MinimumEvidence ||
+		contract.MaximumEvidence > MaximumEvidencePerItem ||
+		validateSortedStrings(contract.Assessments, MaximumCoverageValues, "standard.evidence_contract.assessments", true) != nil ||
+		validateSortedStrings(contract.EvidenceKinds, MaximumEvidencePerItem, "standard.evidence_contract.evidence_kinds", true) != nil ||
+		contract.HumanReview != "never" && contract.HumanReview != "required" {
+		return invalid(CodeInvalid, "standard.evidence_contract")
+	}
+	for _, assessment := range contract.Assessments {
+		if !validAssessment(assessment) {
+			return invalid(CodeInvalid, "standard.evidence_contract.assessments")
+		}
+	}
+	required := []string{}
+	if contract.MinimumEvidence > 0 {
+		required = contract.EvidenceKinds
+	}
+	if !equalStringSlices(checklist.RequiredEvidence, required) ||
+		contract.HumanReview == "required" && checklist.ReviewPolicy != "manual" {
+		return invalid(CodeInvalid, "standard.evidence_contract")
+	}
+	return nil
 }
 
 func validateFindingTask(value FindingTask) error {

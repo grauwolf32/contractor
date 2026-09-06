@@ -302,6 +302,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audit-standards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List exact immutable Audit standard package metadata
+         * @description Package bodies are omitted; source, license policy, counts, digest, and exact catalog revision are returned.
+         */
+        get: operations["listAuditStandards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audit-standards/{scheme}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheme: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Get one exact Audit standard package projection
+         * @description Entry and evidence bodies are disclosed only as permitted by the package license policy; raw package bytes are never returned.
+         */
+        get: operations["getAuditStandard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{projectId}/audits": {
         parameters: {
             query?: never;
@@ -1422,8 +1465,104 @@ export interface components {
         /** @enum {unknown} */
         AuditProfileMode: "risk-assessment" | "requirements-verification" | "custom-checklist" | "operation-tracing" | "finding-verification";
         AuditStandardRef: {
-            scheme: components["schemas"]["ConfigId"];
-            version: components["schemas"]["ConfigVersion"];
+            scheme: string;
+            version: string;
+        };
+        AuditStandardSource: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            revision?: string;
+        };
+        AuditStandardLicense: {
+            /** @enum {unknown} */
+            id: "CC-BY-4.0" | "CC-BY-SA-4.0" | "Apache-2.0" | "MIT" | "LicenseRef-Proprietary";
+            /** Format: uri */
+            url: string;
+            attribution: string;
+            /** @enum {unknown} */
+            disclosure: "metadata" | "identifiers" | "full";
+        };
+        AuditStandardEvidenceContractRef: {
+            id: string;
+            version: string;
+        };
+        AuditStandardApplicability: {
+            /** @enum {unknown} */
+            mode: "always" | "profile-rule" | "human-review";
+            rule?: string;
+        };
+        AuditStandardEntry: {
+            id: string;
+            /** @enum {unknown} */
+            kind: "risk" | "requirement";
+            title?: string;
+            statement?: string;
+            level?: string;
+            applicability?: components["schemas"]["AuditStandardApplicability"];
+            allowedMethods?: ("source-analysis" | "configuration-review" | "documentation-review" | "active-test" | "manual-review")[];
+            evidenceContract?: components["schemas"]["AuditStandardEvidenceContractRef"];
+        };
+        AuditStandardEvidenceContract: {
+            id: string;
+            version: string;
+            assessments: ("satisfied" | "violated" | "inconclusive" | "not-tested" | "blocked" | "not-applicable" | "supported" | "refuted")[];
+            evidenceKinds: ("artifact" | "observation" | "tool-result" | "manual-attestation" | "runtime-metric")[];
+            minimumEvidence: number;
+            maximumEvidence: number;
+            /** @enum {unknown} */
+            humanReview: "never" | "on-inconclusive" | "required";
+            rationaleRequired: boolean;
+        };
+        AuditStandardMapping: {
+            key: string;
+            entryIds: string[];
+            workflowRole: string;
+            /** @enum {unknown} */
+            method: "source-analysis" | "configuration-review" | "documentation-review" | "active-test" | "manual-review";
+            evidenceContract: components["schemas"]["AuditStandardEvidenceContractRef"];
+            title: string;
+            objective: string;
+        };
+        AuditStandardPackage: {
+            reference: components["schemas"]["AuditStandardRef"];
+            title: string;
+            description: string;
+            source: components["schemas"]["AuditStandardSource"];
+            license: components["schemas"]["AuditStandardLicense"];
+            digest: components["schemas"]["Digest"];
+            artifact: components["schemas"]["ArtifactRef"];
+            entryCount: number;
+            mappingCount: number;
+            evidenceContractCount: number;
+            entries?: components["schemas"]["AuditStandardEntry"][];
+            evidenceContracts?: components["schemas"]["AuditStandardEvidenceContract"][];
+            mappings?: components["schemas"]["AuditStandardMapping"][];
+        };
+        AuditStandardPackagePage: {
+            /** @constant */
+            apiVersion: "contractor/v1alpha1";
+            items: components["schemas"]["AuditStandardPackage"][];
+        };
+        AuditStandardPackageResponse: {
+            /** @constant */
+            apiVersion: "contractor/v1alpha1";
+            standard: components["schemas"]["AuditStandardPackage"];
+        };
+        AuditStandardExactPackage: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            digest: components["schemas"]["Digest"];
+            /** @constant */
+            mediaType: "application/vnd.contractor.audit-standard+zip";
+            sizeBytes: number;
+        };
+        AuditPinnedStandard: {
+            reference: components["schemas"]["AuditStandardRef"];
+            title: string;
+            source: components["schemas"]["AuditStandardSource"];
+            license: components["schemas"]["AuditStandardLicense"];
+            catalog: components["schemas"]["AuditStandardExactPackage"];
+            retained: components["schemas"]["AuditStandardExactPackage"];
         };
         AuditProfileInput: {
             required: boolean;
@@ -1431,8 +1570,8 @@ export interface components {
         };
         AuditInventory: {
             /** @enum {unknown} */
-            implementation: "checklist@1" | "openapi-operations@1" | "finding-candidates@1";
-            sourceInput: components["schemas"]["ArtifactName"];
+            implementation: "checklist@1" | "openapi-operations@1" | "finding-candidates@1" | "standard-mappings@1";
+            sourceInput?: components["schemas"]["ArtifactName"];
             itemWorkflowRole: components["schemas"]["ArtifactName"];
         };
         AuditWorkflowInputMapping: {
@@ -1562,6 +1701,7 @@ export interface components {
             runtimeLabels: components["schemas"]["RuntimeInfrastructureId"][];
             runtimeConfig: components["schemas"]["AuditRuntimeSnapshot"];
             skills: components["schemas"]["AuditSkill"][];
+            standards: components["schemas"]["AuditPinnedStandard"][];
             projectHttpTarget?: components["schemas"]["ProjectHTTPTarget"];
             inventory: components["schemas"]["AuditBaselineInventory"];
         };
@@ -4073,6 +4213,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditProfile"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAuditStandards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded standard package catalog */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditStandardPackagePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAuditStandard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheme: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact license-aware package projection */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditStandardPackageResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

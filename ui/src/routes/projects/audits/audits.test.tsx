@@ -44,34 +44,33 @@ const project = {
 
 const profile: AuditProfile = {
   ref: {
-    name: "source-checklist",
+    name: "owasp-top10-2025-source-risk",
     version: "1",
     digest: `sha256:${"2".repeat(64)}`,
   },
-  mode: "custom-checklist",
-  standards: [],
-  inputs: { sources: { required: true, mediaTypes: ["application/zip"] } },
+  mode: "risk-assessment",
+  standards: [{ scheme: "owasp-web-top10", version: "2025" }],
+  inputs: { source: { required: true, mediaTypes: ["application/zip"] } },
   inventory: {
-    implementation: "checklist@1",
-    sourceInput: "sources",
+    implementation: "standard-mappings@1",
     itemWorkflowRole: "check",
   },
   execution: {
     roundMode: "fixed-barrier",
     maxRounds: 1,
     batchSize: 1,
-    maxItemsPerRound: 8,
-    maxItemsTotal: 8,
-    maxSubmittedRuns: 8,
-    maxItemRunAttempts: 2,
+    maxItemsPerRound: 10,
+    maxItemsTotal: 10,
+    maxSubmittedRuns: 30,
+    maxItemRunAttempts: 3,
     deadlineSeconds: 600,
     maxEvidenceBytes: 1_048_576,
     incompleteRound: "assess-with-gaps",
   },
   interaction: {
     activeChecks: "prohibited",
-    findingConfirmation: "disabled",
-    notApplicable: "profile-rule",
+    findingConfirmation: "human-required",
+    notApplicable: "human-required",
     reportAcceptance: "automatic",
   },
   serverCompatible: true,
@@ -98,7 +97,7 @@ function auditAt(state: Audit["state"], revision: number): Audit {
     projectId: project.projectId,
     profile: { ...profile.ref },
     inputs: {
-      sources: {
+      source: {
         ref: { ...sourceArtifact.artifact },
         digest: `sha256:${"1".repeat(64)}`,
         mediaType: sourceArtifact.mediaType,
@@ -127,6 +126,79 @@ function auditAt(state: Audit["state"], revision: number): Audit {
     eventSequence: revision,
     createdAt: "2026-09-06T10:00:00Z",
     updatedAt: `2026-09-06T10:0${revision}:00Z`,
+  };
+}
+
+function top10Baseline(audit: Audit): NonNullable<Audit["baseline"]> {
+  const exactStandard = {
+    artifact: {
+      namespace: "audit-audit_example",
+      name: "standard-owasp-web-top10-2025",
+      revision: "standard-r1",
+    },
+    digest: `sha256:${"c".repeat(64)}`,
+    mediaType: "application/vnd.contractor.audit-standard+zip" as const,
+    sizeBytes: 4096,
+  };
+  return {
+    inputs: audit.inputs,
+    scope: audit.scope,
+    runtimeLabels: [],
+    runtimeConfig: {
+      default: {
+        label: "default",
+        explicit: false,
+        bindingRevision: 1,
+        config: {
+          name: "default-runtime",
+          version: "1",
+          digest: `sha256:${"d".repeat(64)}`,
+        },
+      },
+      labels: [],
+    },
+    skills: [],
+    standards: [
+      {
+        reference: { scheme: "owasp-web-top10", version: "2025" },
+        title: "OWASP Top 10:2025",
+        source: {
+          name: "OWASP Top 10:2025",
+          url: "https://owasp.org/Top10/2025/",
+          revision: "66ebc4798d2ca72973967a20264bdeb70dcf0a13",
+        },
+        license: {
+          id: "CC-BY-SA-4.0",
+          url: "https://creativecommons.org/licenses/by-sa/4.0/",
+          attribution: "OWASP Foundation, OWASP Top 10:2025.",
+          disclosure: "full",
+        },
+        catalog: {
+          ...exactStandard,
+          artifact: {
+            namespace: "audit-standards",
+            name: "std-owasp-web-top10-2025",
+            revision: "catalog-r1",
+          },
+        },
+        retained: exactStandard,
+      },
+    ],
+    inventory: {
+      sourceContentDigest: exactStandard.digest,
+      canonicalInventoryDigest: `sha256:${"e".repeat(64)}`,
+      gaps: [],
+      worklist: {
+        ref: {
+          namespace: "audit-audit_example",
+          name: "round-1-worklist",
+          revision: "worklist-r1",
+        },
+        digest: `sha256:${"f".repeat(64)}`,
+        mediaType: "application/zip",
+        sizeBytes: 2048,
+      },
+    },
   };
 }
 
@@ -305,7 +377,9 @@ describe("Project Audit routes", () => {
         if (path === "/v1/audit-profiles") {
           return jsonResponse({ items: [profile], page: { hasMore: false } });
         }
-        if (path === "/v1/audit-profiles/source-checklist/versions/1") {
+        if (
+          path === "/v1/audit-profiles/owasp-top10-2025-source-risk/versions/1"
+        ) {
           return jsonResponse(profile, {
             headers: { ETag: `"${profile.ref.digest}"` },
           });
@@ -342,8 +416,13 @@ describe("Project Audit routes", () => {
       name: "Create Audit draft",
     });
     expect(createButton).toBeDisabled();
+    expect(
+      await screen.findByText(
+        "Exact standards pinned at start: owasp-web-top10@2025",
+      ),
+    ).toBeVisible();
     await user.selectOptions(
-      await screen.findByLabelText("Input sources"),
+      await screen.findByLabelText("Input source"),
       screen.getByRole("option", {
         name: /sources\/payment-service@revision-7/u,
       }),
@@ -370,10 +449,39 @@ describe("Project Audit routes", () => {
     );
     expect(create?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
     await expect(create?.json()).resolves.toEqual({
-      profile: { name: "source-checklist", version: "1" },
-      inputs: { sources: sourceArtifact.artifact },
+      profile: { name: "owasp-top10-2025-source-risk", version: "1" },
+      inputs: { source: sourceArtifact.artifact },
       scope: { objective: "Map attack surface" },
     });
+  });
+
+  it("shows the exact retained standard identity on the Audit baseline", async () => {
+    const current = auditAt("completed", 3);
+    current.baseline = top10Baseline(current);
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(current, { headers: { ETag: '"3"' } });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+
+    const standards = await screen.findByTestId("audit-baseline-standards");
+    expect(within(standards).getByText("OWASP Top 10:2025")).toBeVisible();
+    expect(within(standards).getByText("owasp-web-top10@2025")).toBeVisible();
+    expect(standards).toHaveTextContent("CC-BY-SA-4.0");
+    expect(
+      within(standards).getByRole("link", { name: "source" }),
+    ).toHaveAttribute("href", "https://owasp.org/Top10/2025/");
   });
 
   it("renders mixed coverage as assessments and refetches active Audits", async () => {

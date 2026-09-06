@@ -138,6 +138,7 @@ type ResolvedProposal struct {
 	ReceiptID string
 	Proposal  ExactArtifact
 	Origin    Origin
+	Document  auditdomain.FindingProposal
 }
 
 type canonicalSubmission struct {

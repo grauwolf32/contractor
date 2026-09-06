@@ -275,8 +275,16 @@ SELECT receipt.receipt_id, hold.proposal_ref
 		if err != nil {
 			return nil, err
 		}
+		hydrated, err := s.hydrateReceiptDocuments(ctx, []Receipt{receipt})
+		if err != nil {
+			return nil, err
+		}
+		if len(hydrated) != 1 {
+			return nil, artifacts.ErrArtifactIntegrity
+		}
 		result = append(result, ResolvedProposal{
 			ReceiptID: receiptID, Proposal: proposal, Origin: receipt.Origin,
+			Document: hydrated[0].Document,
 		})
 	}
 	return result, nil

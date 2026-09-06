@@ -75,7 +75,7 @@ func TestProfileCompatibilityUsesExplicitToolAndOutputClassifications(t *testing
 				`{"schema":"contractor.audit.checklist.v1","items":[{"key":"active","version":"1","statement":"Exercise the endpoint.","applicability":"always","allowed_methods":["http"],"required_evidence":[],"review_policy":"automatic"}]}`,
 			)},
 		},
-	})
+	}, nil)
 	if err != nil || len(inventory.Worklist.Items) != 1 ||
 		inventory.Worklist.Items[0].ApprovalRequirement != auditdomain.ApprovalActiveCheck {
 		t.Fatalf("active Workflow role did not strengthen its inventory gate: (%+v, %v)", inventory.Worklist.Items, err)

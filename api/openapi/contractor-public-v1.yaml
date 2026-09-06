@@ -3061,6 +3061,26 @@ components:
       properties:
         apiVersion: {const: contractor/v1alpha1}
         standard: {$ref: '#/components/schemas/AuditStandardPackage'}
+    AuditStandardExactPackage:
+      type: object
+      additionalProperties: false
+      required: [artifact, digest, mediaType, sizeBytes]
+      properties:
+        artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
+        digest: {$ref: '#/components/schemas/Digest'}
+        mediaType: {type: string, const: application/vnd.contractor.audit-standard+zip}
+        sizeBytes: {type: integer, minimum: 1, maximum: 8388608}
+    AuditPinnedStandard:
+      type: object
+      additionalProperties: false
+      required: [reference, title, source, license, catalog, retained]
+      properties:
+        reference: {$ref: '#/components/schemas/AuditStandardRef'}
+        title: {type: string, minLength: 1, maxLength: 512}
+        source: {$ref: '#/components/schemas/AuditStandardSource'}
+        license: {$ref: '#/components/schemas/AuditStandardLicense'}
+        catalog: {$ref: '#/components/schemas/AuditStandardExactPackage'}
+        retained: {$ref: '#/components/schemas/AuditStandardExactPackage'}
     AuditProfileInput:
       type: object
       additionalProperties: false
@@ -3076,9 +3096,9 @@ components:
     AuditInventory:
       type: object
       additionalProperties: false
-      required: [implementation, sourceInput, itemWorkflowRole]
+      required: [implementation, itemWorkflowRole]
       properties:
-        implementation: {enum: [checklist@1, openapi-operations@1, finding-candidates@1]}
+        implementation: {enum: [checklist@1, openapi-operations@1, finding-candidates@1, standard-mappings@1]}
         sourceInput: {$ref: '#/components/schemas/ArtifactName'}
         itemWorkflowRole: {$ref: '#/components/schemas/ArtifactName'}
     AuditWorkflowInputMapping:
@@ -3275,7 +3295,7 @@ components:
     AuditBaseline:
       type: object
       additionalProperties: false
-      required: [inputs, scope, runtimeLabels, runtimeConfig, skills, inventory]
+      required: [inputs, scope, runtimeLabels, runtimeConfig, skills, standards, inventory]
       properties:
         inputs:
           type: object
@@ -3292,6 +3312,10 @@ components:
           type: array
           maxItems: 128
           items: {$ref: '#/components/schemas/AuditSkill'}
+        standards:
+          type: array
+          maxItems: 16
+          items: {$ref: '#/components/schemas/AuditPinnedStandard'}
         projectHttpTarget: {$ref: '#/components/schemas/ProjectHTTPTarget'}
         inventory: {$ref: '#/components/schemas/AuditBaselineInventory'}
     AuditState:

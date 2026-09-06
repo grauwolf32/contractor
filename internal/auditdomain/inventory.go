@@ -14,6 +14,7 @@ type inventorySubject struct {
 	subjectKey string
 	approval   ApprovalRequirement
 	checklist  *ChecklistTask
+	standard   *StandardMappingTask
 	operation  *OperationTask
 	finding    *FindingTask
 	requested  []string
@@ -60,7 +61,7 @@ func finishInventory(
 			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: copyArtifactRef(options.SourceRef),
 			CanonicalInventoryDigest: canonicalDigest,
 			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
-			Operation: subject.operation, Finding: subject.finding,
+			Standard: subject.standard, Operation: subject.operation, Finding: subject.finding,
 		}
 		documentBytes, encodeErr := EncodeItemTask(document)
 		if encodeErr != nil {
@@ -139,7 +140,8 @@ func ValidateInventory(value Inventory) error {
 	canonical, err := canonicalJSON(parsed)
 	if err != nil || !bytes.Equal(canonical, value.CanonicalInventory) || !equalStringSlices(basis.Gaps, value.Gaps) ||
 		validateSortedStrings(basis.Gaps, MaximumCoverageValues, "inventory.gaps", false) != nil ||
-		basis.Kind != "checklist" && basis.Kind != "openapi-operations" && basis.Kind != "finding-candidates" {
+		basis.Kind != "checklist" && basis.Kind != "standard-mappings" &&
+			basis.Kind != "openapi-operations" && basis.Kind != "finding-candidates" {
 		return invalid(CodeInventoryInvalid, "inventory.canonical")
 	}
 	if err := validateWorklist(value.Worklist); err != nil {
@@ -231,6 +233,19 @@ func validateBasisItem(
 				"required_evidence": task.Checklist.RequiredEvidence, "review_policy": task.Checklist.ReviewPolicy,
 			}) {
 			return invalid(CodeInventoryInvalid, "inventory.checklist")
+		}
+	case "standard-mappings":
+		if task.Checklist == nil || task.Standard == nil || item.Kind != "standard-mapping" ||
+			item.ItemKey != task.Standard.MappingKey || item.SubjectKey != task.Standard.MappingKey ||
+			!equalStringSlices(coverage.Requested, task.Checklist.RequiredEvidence) || len(coverage.Gaps) != 0 ||
+			task.Checklist.ReviewPolicy == "manual" &&
+				item.ApprovalRequirement != ApprovalHumanReview &&
+				item.ApprovalRequirement != ApprovalActiveCheck ||
+			!sameCanonicalValue(subject, map[string]any{
+				"item_key": item.ItemKey, "subject_key": item.SubjectKey,
+				"checklist": task.Checklist, "standard": task.Standard,
+			}) {
+			return invalid(CodeInventoryInvalid, "inventory.standard_mappings")
 		}
 	case "openapi-operations":
 		pathTemplate, pathOK := subject["path"].(string)

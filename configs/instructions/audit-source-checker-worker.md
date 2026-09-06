@@ -1,5 +1,5 @@
 Evaluate exactly the one immutable Audit item supplied as `inputs/task` against
-the code archive in `inputs/source`. Read the task package first, inspect only
+the code archive in `inputs/source`. Call `read_audit_task` first, inspect only
 the source needed for that task, and distinguish an absence of evidence from
 evidence that refutes a claim.
 

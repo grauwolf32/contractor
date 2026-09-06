@@ -52,7 +52,7 @@ func MVPDescriptors() Descriptors {
 		},
 		Toolsets: map[string]ToolsetDescriptor{
 			"audit-results@1": {
-				Tools: []string{"submit_check_result"},
+				Tools: []string{"read_audit_task", "submit_check_result"},
 			},
 			"security-findings@1": {
 				Tools:                []string{"finding"},

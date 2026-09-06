@@ -29,6 +29,35 @@ type auditProgramAudit struct {
 	CurrentRoundID    string `json:"currentRoundId,omitempty"`
 	SubmittedRunCount int    `json:"submittedRunCount"`
 	OutstandingRuns   int    `json:"outstandingRunCount"`
+	Baseline          *struct {
+		Standards []struct {
+			Reference struct {
+				Scheme  string `json:"scheme"`
+				Version string `json:"version"`
+			} `json:"reference"`
+			Source struct {
+				Revision string `json:"revision"`
+			} `json:"source"`
+			License struct {
+				ID string `json:"id"`
+			} `json:"license"`
+			Catalog  auditProgramExactPackage `json:"catalog"`
+			Retained auditProgramExactPackage `json:"retained"`
+		} `json:"standards"`
+	} `json:"baseline,omitempty"`
+}
+
+type auditProgramExactPackage struct {
+	Artifact artifactRef `json:"artifact"`
+	Digest   string      `json:"digest"`
+}
+
+type auditProgramReview struct {
+	RequestID   string `json:"requestId"`
+	SubjectKind string `json:"subjectKind"`
+	Kind        string `json:"kind"`
+	State       string `json:"state"`
+	Revision    uint64 `json:"revision"`
 }
 
 type auditProgramItem struct {
@@ -71,7 +100,9 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	// One Runtime intentionally executes all fourteen Worker allocations in
+	// order. Keep the deadline bounded but leave room for slower CI hosts.
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -170,7 +201,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 
 	checklistAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"source-checklist", map[string]artifactRef{"source": source, "checklist": checklist},
+		"source-checklist", map[string]artifactRef{"source": source, "checklist": checklist}, 2, false,
 	)
 	checklistCoverage := getAuditProgramCoverage(t, client, publicBaseURL, checklistAudit.AuditID)
 	if len(checklistCoverage) != 2 || checklistCoverage[0].Coverage.Status != "satisfied" ||
@@ -182,7 +213,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 
 	openAPIAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"openapi-operation-trace", map[string]artifactRef{"source": source, "openapi": openAPI},
+		"openapi-operation-trace", map[string]artifactRef{"source": source, "openapi": openAPI}, 2, false,
 	)
 	openAPICoverage := getAuditProgramCoverage(t, client, publicBaseURL, openAPIAudit.AuditID)
 	if len(openAPICoverage) != 2 {
@@ -199,8 +230,18 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	assertAuditProgramReport(t, client, publicBaseURL, openAPIAudit.AuditID, "completed-with-gaps")
 	deleteCollectedAuditRuns(t, ctx, client, publicBaseURL, openAPIAudit.AuditID)
 
-	if gateway.CompletedStages() != 4 || len(gateway.Failures()) != 0 {
-		t.Fatalf("Audit gateway stages/failures = %d/%v, want 4/none", gateway.CompletedStages(), gateway.Failures())
+	gateway.blockNextRequest()
+	top10Audit := runAuditProgram(
+		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
+		"owasp-top10-2025-source-risk", map[string]artifactRef{"source": source}, 10, true,
+	)
+	assertTop10AuditBaseline(t, client, publicBaseURL, top10Audit)
+	top10Coverage := getAuditProgramCoverage(t, client, publicBaseURL, top10Audit.AuditID)
+	assertTop10Coverage(t, top10Coverage)
+	assertAuditProgramReport(t, client, publicBaseURL, top10Audit.AuditID, "completed-with-gaps")
+
+	if gateway.CompletedStages() != 14 || len(gateway.Failures()) != 0 {
+		t.Fatalf("Audit gateway stages/failures = %d/%v, want 14/none", gateway.CompletedStages(), gateway.Failures())
 	}
 	for _, secret := range []string{publicToken, llmGatewayToken} {
 		if strings.Contains(server.logs.redacted(), secret) || strings.Contains(runtimeProcess.logs.redacted(), secret) {
@@ -213,10 +254,11 @@ func auditProgramGatewayStages() []domainGatewayStage {
 	tools := []string{
 		"list_skills", "list_source_files", "load_skill", "load_skill_resource",
 		"open_source_archive", "read_artifact", "read_source", "search_source",
-		"submit_check_result",
+		"read_audit_task", "submit_check_result",
 	}
 	result := func(name, assessment string, completed, gaps []string, evidence []map[string]string) domainGatewayStage {
 		return domainGatewayStage{name: name, tools: tools, steps: []domainGatewayStep{
+			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
 			toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
 			toolGatewayStep("read_source", fixedArguments(map[string]any{
 				"path": "app.py", "start_line": 1, "max_lines": 100,
@@ -233,7 +275,7 @@ func auditProgramGatewayStages() []domainGatewayStage {
 			}),
 		}}
 	}
-	return []domainGatewayStage{
+	stages := []domainGatewayStage{
 		result("checklist/check-authz", "satisfied", []string{"source-trace"}, []string{}, []map[string]string{{
 			"kind": "source-trace", "summary": "Authorization call precedes the fixture object response.",
 		}}),
@@ -245,6 +287,48 @@ func auditProgramGatewayStages() []domainGatewayStage {
 			"kind": "source-trace", "summary": "GET operation maps to source/app.py.",
 		}}),
 	}
+	riskTools := append(append([]string{}, tools...), "finding", "write_artifact")
+	top10Results := []struct {
+		key        string
+		assessment string
+	}{
+		{"A01:2025", "supported"}, {"A02:2025", "refuted"},
+		{"A03:2025", "inconclusive"}, {"A04:2025", "not-tested"},
+		{"A05:2025", "supported"}, {"A06:2025", "refuted"},
+		{"A07:2025", "refuted"}, {"A08:2025", "inconclusive"},
+		{"A09:2025", "supported"}, {"A10:2025", "not-tested"},
+	}
+	for _, candidate := range top10Results {
+		completed, gaps, evidence := []string{}, []string{}, []map[string]string(nil)
+		if candidate.assessment == "supported" || candidate.assessment == "refuted" {
+			completed = []string{"observation"}
+			evidence = []map[string]string{{
+				"kind": "observation", "summary": "Bounded source observation from source/app.py.",
+			}}
+		} else {
+			gaps = []string{"fixture-context-gap"}
+		}
+		stages = append(stages, domainGatewayStage{
+			name: "top10/" + candidate.key, tools: riskTools, steps: []domainGatewayStep{
+				toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
+				toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
+				toolGatewayStep("read_source", fixedArguments(map[string]any{
+					"path": "app.py", "start_line": 1, "max_lines": 100,
+				})),
+				toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
+					"assessment": candidate.assessment,
+					"summary":    "Bounded OWASP Top 10 fixture assessment based on source/app.py.",
+					"completed":  completed,
+					"gaps":       gaps,
+					"evidence":   evidence,
+				})),
+				finalGatewayStep("Canonical Audit result package published", map[string]domainArtifactBinding{
+					"result": {namespace: "audit-risk", name: "result"},
+				}),
+			},
+		})
+	}
+	return stages
 }
 
 func assertAuditProfilesCompatible(t *testing.T, client *http.Client, baseURL string) {
@@ -259,7 +343,10 @@ func assertAuditProfilesCompatible(t *testing.T, client *http.Client, baseURL st
 		} `json:"items"`
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
-	wanted := map[string]bool{"source-checklist@1": false, "openapi-operation-trace@1": false}
+	wanted := map[string]bool{
+		"source-checklist@1": false, "openapi-operation-trace@1": false,
+		"owasp-top10-2025-source-risk@1": false,
+	}
 	for _, profile := range page.Items {
 		selector := profile.Ref.Name + "@" + profile.Ref.Version
 		if _, exists := wanted[selector]; exists {
@@ -281,6 +368,8 @@ func runAuditProgram(
 	client *http.Client,
 	baseURL, projectID, profile string,
 	inputs map[string]artifactRef,
+	expectedItems int,
+	requiresApproval bool,
 ) auditProgramAudit {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
@@ -328,11 +417,16 @@ func runAuditProgram(
 	}
 	decodeAuditProgramResponse(t, startResponse, &started)
 	startResponse.Body.Close()
-	if started.Audit.State != "active" || len(started.Items) != 2 {
+	if started.Audit.State != "active" || len(started.Items) != expectedItems {
 		t.Fatalf("start %s Audit = %+v", profile, started)
 	}
+	if requiresApproval {
+		approvePendingAuditItems(t, client, baseURL, draft.AuditID)
+	}
 	gateway.releaseBlockedRequest()
-	return waitForAuditProgram(t, ctx, server, runtimeProcess, gateway, client, baseURL, draft.AuditID)
+	return waitForAuditProgram(
+		t, ctx, server, runtimeProcess, gateway, client, baseURL, draft.AuditID, expectedItems,
+	)
 }
 
 func waitForAuditProgram(
@@ -342,6 +436,7 @@ func waitForAuditProgram(
 	gateway *domainGateway,
 	client *http.Client,
 	baseURL, auditID string,
+	expectedRuns int,
 ) auditProgramAudit {
 	t.Helper()
 	ticker := time.NewTicker(150 * time.Millisecond)
@@ -351,7 +446,7 @@ func waitForAuditProgram(
 		if auditProgramTryGET(ctx, client, baseURL+"/v1/audits/"+url.PathEscape(auditID), &audit) == nil {
 			switch audit.State {
 			case "completed":
-				if audit.SubmittedRunCount != 2 || audit.OutstandingRuns != 0 {
+				if audit.SubmittedRunCount != expectedRuns || audit.OutstandingRuns != 0 {
 					t.Fatalf("completed Audit counters = %+v", audit)
 				}
 				return audit
@@ -374,6 +469,107 @@ func waitForAuditProgram(
 				runtimeProcess.logs.redacted(publicToken, llmGatewayToken), gateway.Failures())
 		case <-ticker.C:
 		}
+	}
+}
+
+func approvePendingAuditItems(
+	t *testing.T, client *http.Client, baseURL, auditID string,
+) {
+	t.Helper()
+	var page struct {
+		Items []auditProgramReview `json:"items"`
+	}
+	auditProgramGET(t, client, baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/reviews?limit=100", &page)
+	pending := 0
+	for _, review := range page.Items {
+		if review.State != "pending" {
+			continue
+		}
+		if review.SubjectKind != "audit-item-action" || review.Kind != "requirement-applicability" ||
+			review.Revision == 0 {
+			t.Fatalf("unexpected pending Top 10 review: %+v", review)
+		}
+		body, err := json.Marshal(map[string]string{
+			"action": "approve", "rationale": "Approve this exact bounded source-analysis scenario.",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		request, err := http.NewRequest(
+			http.MethodPost,
+			baseURL+"/v1/audits/"+url.PathEscape(auditID)+"/reviews/"+
+				url.PathEscape(review.RequestID)+"/decisions",
+			bytes.NewReader(body),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Authorization", "Bearer "+publicToken)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Idempotency-Key", "audit-program-review-"+review.RequestID)
+		request.Header.Set("If-Match", fmt.Sprintf("\"%d\"", review.Revision))
+		response := do(t, client, request, http.StatusOK)
+		response.Body.Close()
+		pending++
+	}
+	if pending != 2 {
+		t.Fatalf("pending Top 10 applicability reviews = %d, want 2; all=%+v", pending, page.Items)
+	}
+}
+
+func assertTop10AuditBaseline(
+	t *testing.T, client *http.Client, baseURL string, audit auditProgramAudit,
+) {
+	t.Helper()
+	if audit.Baseline == nil || len(audit.Baseline.Standards) != 1 {
+		t.Fatalf("Top 10 Audit exact standard baseline = %+v", audit.Baseline)
+	}
+	standard := audit.Baseline.Standards[0]
+	if standard.Reference.Scheme != "owasp-web-top10" || standard.Reference.Version != "2025" ||
+		standard.Source.Revision != "66ebc4798d2ca72973967a20264bdeb70dcf0a13" ||
+		standard.License.ID != "CC-BY-SA-4.0" || standard.Catalog.Digest == "" ||
+		standard.Catalog.Digest != standard.Retained.Digest || standard.Catalog.Artifact.Revision == nil ||
+		standard.Retained.Artifact.Revision == nil {
+		t.Fatalf("Top 10 Audit did not retain exact licensed provenance: %+v", standard)
+	}
+	var detail struct {
+		Standard struct {
+			Digest       string `json:"digest"`
+			EntryCount   int    `json:"entryCount"`
+			MappingCount int    `json:"mappingCount"`
+			Entries      []struct {
+				ID string `json:"id"`
+			} `json:"entries"`
+		} `json:"standard"`
+	}
+	auditProgramGET(t, client, baseURL+"/v1/audit-standards/owasp-web-top10/versions/2025", &detail)
+	if detail.Standard.Digest != standard.Catalog.Digest || detail.Standard.EntryCount != 10 ||
+		detail.Standard.MappingCount != 10 || len(detail.Standard.Entries) != 10 {
+		t.Fatalf("Top 10 exact catalog projection = %+v", detail.Standard)
+	}
+}
+
+func assertTop10Coverage(t *testing.T, rows []auditProgramCoverage) {
+	t.Helper()
+	if len(rows) != 10 {
+		t.Fatalf("Top 10 coverage count = %d, want 10", len(rows))
+	}
+	want := map[string]string{
+		"A01:2025": "violated", "A02:2025": "satisfied", "A03:2025": "inconclusive",
+		"A04:2025": "not-tested", "A05:2025": "violated", "A06:2025": "satisfied",
+		"A07:2025": "satisfied", "A08:2025": "inconclusive", "A09:2025": "violated",
+		"A10:2025": "not-tested",
+	}
+	for _, row := range rows {
+		status, exists := want[row.ItemKey]
+		if !exists || row.Coverage.Status != status ||
+			len(row.Coverage.Requested) != 1 || row.Coverage.Requested[0] != "observation" {
+			t.Fatalf("Top 10 coverage row is not an exact mixed projection: %+v", row)
+		}
+		delete(want, row.ItemKey)
+	}
+	if len(want) != 0 {
+		t.Fatalf("Top 10 coverage omitted categories: %+v", want)
 	}
 }
 

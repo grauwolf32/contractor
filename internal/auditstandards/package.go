@@ -105,6 +105,23 @@ func Validate(payload []byte, expected Reference) (*Package, error) {
 	}, nil
 }
 
+// ValidateRetainedPayload binds protected Project bytes back to the complete
+// immutable package identity copied into an Audit baseline.
+func ValidateRetainedPayload(payload []byte, pinned PinnedPackage) (*Package, error) {
+	if ValidatePinnedPackage(pinned) != nil || int64(len(payload)) != pinned.Retained.SizeBytes ||
+		digest(payload) != pinned.Retained.Digest {
+		return nil, fmt.Errorf("%w: retained Audit standard identity", ErrDrift)
+	}
+	pkg, err := Validate(payload, pinned.Reference)
+	if err != nil || pkg.Digest != pinned.Retained.Digest ||
+		pkg.Document.Standard.Title != pinned.Title ||
+		pkg.Document.Standard.Source != pinned.Source ||
+		pkg.Document.Standard.License != pinned.License {
+		return nil, fmt.Errorf("%w: retained Audit standard provenance", ErrDrift)
+	}
+	return pkg, nil
+}
+
 func canonicalDocument(document Document) ([]byte, error) {
 	normalizeDocument(&document)
 	if err := validateDocument(document); err != nil {

@@ -62,6 +62,12 @@ type AuditSection =
   | "report";
 type AuditExactArtifact = Audit["inputs"][string];
 
+function compactDigest(digest: string): string {
+  return digest.length <= 28
+    ? digest
+    : `${digest.slice(0, 15)}…${digest.slice(-8)}`;
+}
+
 const SECTIONS: readonly { id: AuditSection; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "coverage", label: "Coverage" },
@@ -402,10 +408,36 @@ function AuditOverview({ audit }: { audit: Audit }) {
               <dd>{baseline.skills.length}</dd>
             </div>
             <div>
+              <dt>Standards</dt>
+              <dd>{baseline.standards.length}</dd>
+            </div>
+            <div>
               <dt>Runtime configs</dt>
               <dd>{1 + baseline.runtimeConfig.labels.length}</dd>
             </div>
           </dl>
+          {baseline.standards.length === 0 ? null : (
+            <div className="audit-gap-block" data-testid="audit-baseline-standards">
+              <h4>Exact standards</h4>
+              <ul className="audit-string-list">
+                {baseline.standards.map((standard) => (
+                  <li
+                    key={`${standard.reference.scheme}@${standard.reference.version}`}
+                  >
+                    <strong>{standard.title}</strong>{" "}
+                    <code>
+                      {standard.reference.scheme}@{standard.reference.version}
+                    </code>{" "}
+                    · <code>{compactDigest(standard.retained.digest)}</code> ·{" "}
+                    <a href={standard.source.url} rel="noreferrer" target="_blank">
+                      source
+                    </a>{" "}
+                    · {standard.license.id}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="audit-gap-block">
             <h4>Inventory gaps</h4>
             <StringList

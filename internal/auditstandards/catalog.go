@@ -282,6 +282,43 @@ func (c *Catalog) Pin(
 	return result, nil
 }
 
+// ResolvePinned reads the protected Project-scoped copy named by an Audit
+// baseline and revalidates both its bytes and copied provenance. It never
+// consults the mutable current catalog binding.
+func (c *Catalog) ResolvePinned(
+	ctx context.Context,
+	projectID string,
+	pinned PinnedPackage,
+) (ResolvedPackage, error) {
+	if c == nil || c.service == nil || strings.TrimSpace(projectID) == "" ||
+		ValidatePinnedPackage(pinned) != nil {
+		return ResolvedPackage{}, validationError(CodeManifestInvalid, ManifestPath)
+	}
+	store, err := c.service.Project(projectID)
+	if err != nil {
+		return ResolvedPackage{}, err
+	}
+	read, err := store.Read(ctx, pinned.Retained.Artifact)
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return ResolvedPackage{}, ErrNotFound
+	}
+	if err != nil {
+		return ResolvedPackage{}, err
+	}
+	if read.Ref.Revision == nil || pinned.Retained.Artifact.Revision == nil ||
+		*read.Ref.Revision != *pinned.Retained.Artifact.Revision ||
+		read.Payload.MediaType != pinned.Retained.MediaType ||
+		int64(len(read.Payload.Data)) != pinned.Retained.SizeBytes ||
+		digest(read.Payload.Data) != pinned.Retained.Digest {
+		return ResolvedPackage{}, fmt.Errorf("%w: retained Audit standard identity", ErrDrift)
+	}
+	pkg, err := ValidateRetainedPayload(read.Payload.Data, pinned)
+	if err != nil {
+		return ResolvedPackage{}, err
+	}
+	return ResolvedPackage{Package: *pkg, Source: pinned.Retained}, nil
+}
+
 func (c *Catalog) writeRetained(
 	ctx context.Context,
 	projectID string,

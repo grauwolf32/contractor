@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -68,6 +69,7 @@ type auditBaselineResponse struct {
 	RuntimeLabels     []string                            `json:"runtimeLabels"`
 	RuntimeConfig     auditRuntimeSnapshotResponse        `json:"runtimeConfig"`
 	Skills            []auditSkillResponse                `json:"skills"`
+	Standards         []auditstandards.PinnedPackage      `json:"standards"`
 	ProjectHTTPTarget *contracts.HTTPOriginTargetRef      `json:"projectHttpTarget,omitempty"`
 	Inventory         auditBaselineInventoryResponse      `json:"inventory"`
 }
@@ -840,7 +842,8 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			RuntimeConfig: auditRuntimeSnapshotResponse{
 				Default: baseline.RuntimeConfig.Default, Labels: baseline.RuntimeConfig.Labels,
 			},
-			Skills: skills, ProjectHTTPTarget: baseline.ProjectHTTPTarget,
+			Skills: skills, Standards: append([]auditstandards.PinnedPackage{}, baseline.Standards...),
+			ProjectHTTPTarget: baseline.ProjectHTTPTarget,
 			Inventory: auditBaselineInventoryResponse{
 				SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 				CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,

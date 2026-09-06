@@ -1,0 +1,72 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: audit-top10-source-risk
+  version: "1"
+
+spec:
+  parameters: {}
+
+  inputs:
+    task:
+      required: true
+      mediaTypes: [application/zip]
+    execution_manifest:
+      required: true
+      mediaTypes: [application/json]
+    source:
+      required: true
+      mediaTypes: [application/zip]
+
+  outputs:
+    result:
+      required: true
+      primary: true
+      mediaTypes: [application/zip]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: check
+  stages:
+    check:
+      objective: Evaluate one exact OWASP Top 10 source-risk scenario and publish its bounded result
+      instructions:
+        ref: instructions/audit-risk-source-checker-worker.md
+      planner: passthrough@1
+      agents:
+        checker:
+          template: audit_risk_source_checker@1
+          namespace: audit-risk
+      context:
+        artifacts:
+          task:
+            namespace: inputs
+            name: task
+            required: true
+          execution_manifest:
+            namespace: inputs
+            name: execution_manifest
+            required: true
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          result:
+            required: true
+            mediaTypes: [application/zip]
+            from: {namespace: audit-risk, name: result}
+      workflowOutputs:
+        result: result
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

@@ -137,6 +137,16 @@ A profile MAY combine sources, but it does not create a full Cartesian product
 of requirements and operations unless the profile explicitly defines that
 bounded expansion.
 
+`standard-mappings@1` is the deterministic inventory implementation for one
+exact standard package. Such a profile declares exactly one `standards` entry
+and omits `inventory.sourceInput`: the trusted inventory source is the
+Audit-retained package revision, not a user-uploaded copy. Each mapping becomes
+one item and task package carrying the exact scheme, version, mapping key,
+entry IDs, and complete evidence-contract snapshot. The first implementation
+requires every mapping to select `itemWorkflowRole`, rejects unevaluated
+`profile-rule` applicability and `on-inconclusive` review semantics, and does
+not call a model or the network while building the inventory.
+
 OWASP Top 10 is a risk-awareness document, not an exhaustive compliance
 checklist. A risk-assessment report MUST NOT claim “OWASP certified” or infer
 complete security from a lack of findings. ASVS assessments pin an exact
@@ -214,6 +224,9 @@ Workflow:
 - all required child inputs and parameters have exactly one mapping;
 - unknown child slots and unknown logical output names are rejected;
 - `audit-input` names exist and have at least one compatible media type;
+- `standard-mappings@1` has no `sourceInput`, uses exactly one retained package,
+  and still maps ordinary declared Audit inputs such as `source` into its child
+  Workflow;
 - `item-package` is accepted only by an artifact slot compatible with the
   versioned Audit package media type;
 - `execution-manifest` maps the Controller-generated exact one-execution
@@ -322,15 +335,21 @@ checklist items also start in `awaiting_review`; no model-authored marker can
 make either item runnable. Report acceptance and item decisions use the shared
 exact-subject review ledger described in section 14.
 
+For standard-backed items, package-authored `human-review` applicability or a
+`required` evidence-contract review starts the item in `awaiting_review` and
+uses the same exact-subject applicability decision as manual checklist items.
+The current executable mapping subset rejects standard-package policies it
+cannot yet enforce rather than silently weakening them.
+
 The stable start error is `audit_profile_unsupported`; its bounded reason codes
 describe missing Server capabilities rather than transient Worker availability.
 The current implementation emits `batching_unsupported`,
-`automatic_active_checks_unsupported`, `finding_confirmation_unsupported`, and
-`assessment_unsupported` for the not-yet-supported finding-candidate inventory
-entry point. Older closed reason values remain valid wire values for compatible
-clients but are not evidence that the current Server lacks discovery, human
-review, or multiple-round execution. A successfully started Audit may still
-wait in the ordinary queue for a compatible Runtime Agent.
+`automatic_active_checks_unsupported`, and `assessment_unsupported` for the
+not-yet-supported finding-candidate inventory entry point. Older closed reason
+values remain valid wire values for compatible clients but are not evidence
+that the current Server lacks discovery, human finding confirmation, human
+review, report acceptance, or multiple-round execution. A successfully started
+Audit may still wait in the ordinary queue for a compatible Runtime Agent.
 
 ## 5. Baseline and scope
 
@@ -365,6 +384,14 @@ Scope is not encoded in ArtifactRef and never becomes a model-selectable
 argument. The existing `ProjectScope -> RunScope` trust boundary remains: the
 trusted Run Service resolves and forks exact inputs, and Runtime receives only
 allocation-scoped Run authority.
+
+For a standard-backed item, `ItemOrigin.sourceRef` points at the exact retained
+package and `entryKey`/`entryVersion` identify the selected mapping and standard
+version. The exact task package is the authoritative join to its entry IDs and
+evidence contract. A proposal associated with the result must name every
+assigned entry using the same pinned scheme/version. The importer reopens the
+retained package, rejects unknown, duplicate, unpinned, or wrong-version
+references, and never accepts model-authored standard membership.
 
 ## 6. Durable domain model
 
@@ -577,13 +604,15 @@ membership. Proposals are never silently ignored or associated merely because
 they share a Run.
 
 The initial Runtime exposes the optional `audit-results@1` Toolset only when an
-AgentTemplate selects it. `submit_check_result` reads the exact `inputs/task`
-and `inputs/execution_manifest` bindings itself and derives the item key,
-subject key, requested coverage and manifest digest. The model supplies only
-the assessment, summary, completed coverage, explicit gaps and bounded evidence
-summaries. The tool creates the canonical package in the selected agent
-namespace; it does not identify an Audit, select another item, accept evidence
-or bypass the trusted importer.
+AgentTemplate selects it. `read_audit_task` reads the exact `inputs/task` and
+`inputs/execution_manifest`, validates their identity, and returns the decoded
+task JSON instead of exposing an opaque base64 ZIP for the model to interpret.
+`submit_check_result` independently repeats those checks and derives the item
+key, subject key, requested coverage and manifest digest. The model supplies
+only the assessment, summary, completed coverage, explicit gaps and bounded
+evidence summaries. The tool creates the canonical package in the selected
+agent namespace; neither tool identifies an Audit, selects another item,
+accepts evidence, or bypasses the trusted importer.
 
 ### 7.3 WorklistManifest
 
@@ -1373,14 +1402,20 @@ top-level lifecycle state is unchanged.
 
 ### 18.1 Top 10 risk assessment
 
-1. Owner selects exact Top 10/profile version, baseline inputs, and scope.
-2. Discovery proposes bounded hypotheses for selected categories/assets.
-3. Controller validates an immutable worklist; policy requests active-check
-   review where required.
-4. Checks run as independent ordinary Runs and proposals enter the inbox.
-5. Assessment records evidence, findings, and gaps; accepted new work forms a
-   later Round.
-6. Report is limited to explored scenarios and never presented as certification.
+1. Owner selects `owasp-top10-2025-source-risk@1`, an exact source artifact,
+   and scope. The Server pins the exact `owasp-web-top10@2025` package.
+2. `standard-mappings@1` creates the immutable ten-category denominator from
+   package mappings; no duplicate checklist input or model expansion is used.
+3. Context-sensitive A03 and A06 items wait for exact human applicability
+   decisions. The remaining bounded source scenarios are immediately ready.
+4. Checks run as independent ordinary Runs. A supported traced issue may emit
+   an evidence-bound proposal with its assigned exact category reference.
+5. Proposals require human finding confirmation; item assessments and gaps do
+   not imply confirmation.
+6. The report retains all ten category scenarios and exact package/profile/task
+   identities. It is limited to those scenarios and is never presented as
+   Top 10 compliance, certification, exhaustive vulnerability discovery, or a
+   claim that the application is secure.
 
 ### 18.2 ASVS or custom checklist
 
@@ -1514,10 +1549,10 @@ source Run deletion; exact item-action/report decisions; a documented
 external-script example.
 
 **Increment 3:** the curated licensed versioned standard package catalog,
-canonical seeding, exact Audit pins, and license-aware read API are implemented.
-Curated Top 10/ASVS program data, comparison of Audits for the same system,
-retest of accepted findings against a new baseline, and bounded multi-item
-executions remain follow-up work.
+canonical seeding, exact Audit pins, license-aware read API, and bounded OWASP
+Top 10:2025 source-risk program are implemented. Curated ASVS program data,
+comparison of Audits for the same system, retest of accepted findings against a
+new baseline, and bounded multi-item executions remain follow-up work.
 
 Deferred: a generic event-driven workflow language, arbitrary nested Audit
 graphs, mutable accepted worklists, semantic auto-merge, cross-Project analysis,

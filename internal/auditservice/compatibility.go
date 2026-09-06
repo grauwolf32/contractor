@@ -44,9 +44,10 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	}
 	ordered := orderedReasons(reasons)
 	return Compatibility{
-		ServerCompatible:        len(ordered) == 0,
-		RequiresInputValidation: profile.Inventory.Implementation == "checklist@1",
-		Reasons:                 ordered,
+		ServerCompatible: len(ordered) == 0,
+		RequiresInputValidation: profile.Inventory.Implementation == "checklist@1" ||
+			profile.Inventory.Implementation == "standard-mappings@1",
+		Reasons: ordered,
 	}
 }
 

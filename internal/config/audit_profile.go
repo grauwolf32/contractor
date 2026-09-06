@@ -64,7 +64,7 @@ type AuditProfileInput struct {
 
 type AuditInventory struct {
 	Implementation   string `json:"implementation"`
-	SourceInput      string `json:"sourceInput"`
+	SourceInput      string `json:"sourceInput,omitempty"`
 	ItemWorkflowRole string `json:"itemWorkflowRole"`
 }
 
@@ -308,7 +308,7 @@ func (l *loader) resolveAuditProfile(
 	if err != nil {
 		return ResolvedAuditProfile{}, err
 	}
-	inventory, err := resolveAuditInventory(spec.Inventory, inputs, workflows)
+	inventory, err := resolveAuditInventory(spec.Inventory, inputs, workflows, standards)
 	if err != nil {
 		return ResolvedAuditProfile{}, err
 	}
@@ -623,6 +623,7 @@ func resolveAuditInventory(
 	source *auditInventorySource,
 	inputs map[string]AuditProfileInput,
 	workflows map[string]ResolvedAuditWorkflowBinding,
+	standards []AuditStandardRef,
 ) (AuditInventory, error) {
 	if source == nil {
 		return AuditInventory{}, fmt.Errorf("spec.inventory is required")
@@ -631,18 +632,27 @@ func resolveAuditInventory(
 	if !exists {
 		return AuditInventory{}, fmt.Errorf("spec.inventory.implementation is unsupported")
 	}
-	if err := validateAuditMapKey("spec.inventory.sourceInput", source.SourceInput); err != nil {
-		return AuditInventory{}, err
-	}
-	input, exists := inputs[source.SourceInput]
-	if !exists {
-		return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput names unknown Audit input %q", source.SourceInput)
-	}
-	if !input.Required {
-		return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput must name a required Audit input")
-	}
-	if !mediaTypesIntersect(input.MediaTypes, acceptedMediaTypes) {
-		return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput media types are incompatible with %s", source.Implementation)
+	if source.Implementation == "standard-mappings@1" {
+		if source.SourceInput != "" {
+			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput must be omitted for standard-mappings@1")
+		}
+		if len(standards) != 1 {
+			return AuditInventory{}, fmt.Errorf("standard-mappings@1 requires exactly one spec.standards entry")
+		}
+	} else {
+		if err := validateAuditMapKey("spec.inventory.sourceInput", source.SourceInput); err != nil {
+			return AuditInventory{}, err
+		}
+		input, exists := inputs[source.SourceInput]
+		if !exists {
+			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput names unknown Audit input %q", source.SourceInput)
+		}
+		if !input.Required {
+			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput must name a required Audit input")
+		}
+		if !mediaTypesIntersect(input.MediaTypes, acceptedMediaTypes) {
+			return AuditInventory{}, fmt.Errorf("spec.inventory.sourceInput media types are incompatible with %s", source.Implementation)
+		}
 	}
 	if err := validateAuditMapKey("spec.inventory.itemWorkflowRole", source.ItemWorkflowRole); err != nil {
 		return AuditInventory{}, err
@@ -682,6 +692,7 @@ var auditInventoryMediaTypes = map[string][]string{
 	"openapi-operations@1": {"application/json", "application/yaml", "application/zip"},
 	"checklist@1":          {"application/json", "application/yaml", "application/zip"},
 	"finding-candidates@1": {"application/json", "application/zip"},
+	"standard-mappings@1":  {},
 }
 
 func validateAuditModeInventory(mode AuditProfileMode, implementation string) error {
@@ -692,7 +703,8 @@ func validateAuditModeInventory(mode AuditProfileMode, implementation string) er
 	case AuditModeFindingVerification:
 		valid = implementation == "finding-candidates@1"
 	case AuditModeRiskAssessment, AuditModeRequirementsVerification, AuditModeCustomChecklist:
-		valid = implementation == "checklist@1"
+		valid = implementation == "checklist@1" ||
+			(mode != AuditModeCustomChecklist && implementation == "standard-mappings@1")
 	}
 	if !valid {
 		return fmt.Errorf("spec.inventory.implementation %q is incompatible with mode %q", implementation, mode)
