@@ -3,8 +3,8 @@ id: V33-001
 title: Group Workflows, Agents and Skills in Catalog and expose agent base prompts
 milestone: catalog-and-agent-prompts
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: dff39f7536884ee204c701688f476a28a12e13f1
 depends_on: [V4-010, V23-009]
 languages: [go, typescript, css]
 
@@ -61,3 +61,17 @@ tests:
   - {name: typecheck, command: "make ui-typecheck", covers: [A2, A3]}
   - {name: api-contract, command: "make verify-public-api", covers: [A1]}
   - {name: browser, command: "cd ui && pnpm exec playwright test e2e/catalog.spec.ts e2e/evals-skills.spec.ts", covers: [A2, A3]}
+
+completion:
+  implementation:
+    - Catalog groups Workflows, Agents and Skills with legacy route redirects.
+    - Exact loaded AgentTemplate instructions are available through authenticated API and Preview/Source/Copy UI.
+    - Workflow bindings link to Agent versions; Runtime instances remain in Operations.
+  verified_by:
+    - go test ./internal/config ./internal/httpapi/public
+    - make verify-public-api ui-typecheck ui-build
+    - All 40 UI test files passed, 233 tests total.
+    - Focused ESLint and Prettier checks passed.
+    - Catalog and Evals/Skills browser scenarios passed against the production UI build with mocked API; desktop/mobile screenshots inspected.
+  browser_environment:
+    CONTRACTOR_UI_E2E_BASE_URL: http://127.0.0.1:4185
