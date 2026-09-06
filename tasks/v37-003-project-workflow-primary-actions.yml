@@ -3,7 +3,7 @@ id: "V37-003"
 title: "Put Project source actions and Workflow Run setup at the start of the page"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V28-003", "V33-001", "V35-004"]
 languages: ["typescript"]
@@ -19,6 +19,14 @@ context:
   metadata: >-
     Use existing contract fields and an honest fallback now. V37-007 later integrates authored
     presentation metadata; this task must not wait for the Catalog API.
+  project_action_behavior: >-
+    Add sources opens the existing Sources ProjectArtifactDialog. Run analysis moves focus to the
+    existing recommendation chooser and never guesses or starts a Workflow. Keep Refresh visible;
+    place Delete Project inside a keyboard-accessible Additional actions disclosure.
+  workflow_detail_behavior: >-
+    Keep the exact selector and the complete Run form visible before implementation detail. Put
+    slots, Stage graph, Worker bindings, credentials and transitions in one clearly named closed
+    technical disclosure; validation and missing-input guidance remain outside that disclosure.
   browser_verification: >-
     Build the UI with make ui-build and serve it using the documented UI development or Node
     server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
