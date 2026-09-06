@@ -1,0 +1,94 @@
+schema_version: '1.0'
+id: V35-004
+title: Add Git SSH-key Settings and a shared Workflow/Project import dialog
+milestone: git-artifact-import
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V35-003
+languages:
+- typescript
+goal: Let users configure a private repository key and materialize a Git snapshot wherever Workflow or
+  Project artifact selection already happens.
+context:
+  specification: docs/spec/24-git-artifacts.md
+  product: Import a repository snapshot into an ordinary ZIP Artifact in UserScope or owned ProjectScope.
+    Workflow input selection uses the returned exact ref. No clone at Run execution, automatic refresh,
+    Git write, new job queue or automatic repair.
+  deployment: PostgreSQL remains the registry and default blob backend; optional filesystem uses V34.
+    Git fetch/object storage/ZIP generation run in memory with no git subprocess, temporary checkout,
+    key file or PVC. Read-only CA/known_hosts configuration mounts are allowed.
+  authority: One encrypted SSH key per authenticated owner, used only by Server import. Existing Artifact
+    ASCII names, reserved namespaces, ownership, lifecycle, exact revision and CAS rules apply. Keys never
+    enter Artifact bytes, URLs, logs, browser storage or RuntimeSettings.
+  settings: One owner key with configured state, public fingerprint/type and update time. Replace/remove
+    through /v1/settings/git-key. Private input is transient, cleared after success or dialog close; no
+    readback/localStorage/URL/logging. Explain unencrypted supported-key requirement and safe configuration/trust
+    errors.
+  dialog: Shared dialog accepts URL, optional branch/tag and validated ASCII Artifact namespace/name.
+    Offer Git import next to existing local-file/library input options in standalone and Project-bound
+    Workflow forms and Project artifacts. Use UserScope for standalone inputs, owned ProjectScope for
+    Project inputs/artifacts.
+  interaction: Show one cancellable pending operation with the 120-second bound, no fictitious percent
+    progress. Successful import shows resolved commit and selects the returned exact ArtifactRef in the
+    intended Workflow input slot. Preserve other draft inputs; do not launch a Run or modify Workflow
+    YAML.
+  replacement: Existing names require explicit current-revision CAS replacement or another name. No automatic
+    import retry after lost response, timeout or CAS conflict; refresh metadata to inspect the outcome.
+    Closing after successful import leaves the ordinary artifact in its library.
+  presentation: Display gitSource alongside existing authorized artifact/version metadata when present.
+    Ordinary file upload/selection remains usable when Git is disabled; operation errors distinguish owner
+    key, operator trust, remote access/ref, unsupported content, budget and capacity without exposing
+    secrets.
+scope:
+  in:
+  - Implement the Settings key editor with safe transient form state and non-secret metadata display.
+  - Build one import dialog shared by Workflow input and Project artifact entry points, keeping their
+    scope and CAS ownership.
+  - Select exact imported refs, expose commit provenance, preserve draft state and handle cancellation/ambiguous
+    responses honestly.
+  - Add browser coverage for standalone and Project-bound flows, keyboard/focus behavior, key redaction
+    and conflict recovery.
+  out:
+  - Git repository browser, branch-list API, key download, multiple key profiles, live progress service
+    and automatic workflow execution.
+requirements:
+- id: R1
+  text: Private keys never persist in browser storage or appear in replayable request diagnostics.
+- id: R2
+  text: Successful import binds the exact returned revision to only the selected slot; artifact names
+    remain under existing ASCII validation.
+- id: R3
+  text: Error/close/cancel cannot silently overwrite a binding, lose unrelated inputs or promise removal
+    of an already committed artifact.
+acceptance_criteria:
+- id: A1
+  given: An owner opening Settings.
+  when: The key is added, replaced, removed or rejected as invalid.
+  then: Only configured state/fingerprint is displayed; transient key input is cleared at the defined
+    boundaries and prior valid state survives invalid replacement.
+- id: A2
+  given: Standalone and Project-bound Workflow drafts and a Project artifact list.
+  when: The shared dialog successfully imports a selected branch/tag.
+  then: The proper scope contains an ordinary ZIP; the exact returned ref and commit are visible and other
+    draft inputs remain unchanged.
+- id: A3
+  given: Invalid ASCII names, existing bindings, cancellation, lost responses, capacity and host/access
+    errors.
+  when: The user submits or closes the dialog.
+  then: No automatic overwrite/retry/Run launch occurs; errors are actionable, focus is managed and committed
+    outcomes can be inspected through metadata.
+tests:
+- name: ui
+  command: make ui-typecheck ui-lint ui-test
+  covers:
+  - A1
+  - A2
+  - A3
+- name: browser
+  command: cd ui && corepack pnpm exec playwright test e2e/git-artifacts.spec.ts
+  covers:
+  - A1
+  - A2
+  - A3

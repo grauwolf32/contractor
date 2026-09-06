@@ -567,6 +567,13 @@ milestones:
       metadata stays in PostgreSQL. Kubernetes without PVC is supported; ephemeral
       filesystem loss and offline orphan cleanup are explicit. S3 remains deferred.
 
+  - id: git-artifact-import
+    exit_task: V35-005
+    outcome: >-
+      An owner configures one encrypted SSH key and imports a bounded repository
+      snapshot into an ordinary User/Project Artifact. Workflow inputs pin exact
+      revisions with immutable commit provenance; Server import needs no PVC.
+
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
   verdict: ready_to_implement_in_dependency_order
@@ -2251,3 +2258,8 @@ tasks:
   - {id: V34-005, file: v34-005-blob-backends-release-gate.yml}
   - {id: V34-006, file: v34-006-overlay-export-size-contract.yml}
   - {id: V36-001, file: v36-001-server-process-config.yml}
+  - {id: V35-001, file: v35-001-git-key-settings-and-contracts.yml}
+  - {id: V35-002, file: v35-002-bounded-memory-git-snapshots.yml}
+  - {id: V35-003, file: v35-003-git-artifact-publication-and-provenance.yml}
+  - {id: V35-004, file: v35-004-git-settings-and-import-ui.yml}
+  - {id: V35-005, file: v35-005-git-artifacts-release-gate.yml}

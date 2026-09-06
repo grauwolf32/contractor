@@ -91,6 +91,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1/settings/git-key", current.gitKeySettings)
+	mux.HandleFunc("PUT /v1/settings/git-key", current.gitKeySettings)
+	mux.HandleFunc("DELETE /v1/settings/git-key", current.gitKeySettings)
 	mux.HandleFunc("POST /v1/auth/login", current.login)
 	mux.HandleFunc("GET /v1/auth/session", current.getSession)
 	mux.HandleFunc("POST /v1/auth/logout", current.logout)

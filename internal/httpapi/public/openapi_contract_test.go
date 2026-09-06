@@ -76,6 +76,9 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	}
 	sort.Strings(implemented)
 	wantImplemented := []string{
+		"DELETE /v1/settings/git-key",
+		"GET /v1/settings/git-key",
+		"PUT /v1/settings/git-key",
 		"DELETE /v1/audits/{auditId}",
 		"DELETE /v1/operations/credentials/{credentialId}",
 		"DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}",
@@ -168,6 +171,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
 		"PUT /v1/queue/control",
 	}
+	sort.Strings(wantImplemented)
 	if !reflect.DeepEqual(implemented, wantImplemented) {
 		t.Fatalf("implemented public operations = %v, want %v", implemented, wantImplemented)
 	}
@@ -1013,6 +1017,13 @@ func assertSafePublicSchemaFields(t *testing.T, value any, path string) {
 	case map[string]any:
 		if properties, ok := current["properties"].(map[string]any); ok {
 			for name := range properties {
+				if name == "privateKey" && path == "$/paths//v1/settings/git-key/put/requestBody/content/application/json/schema" {
+					schema, ok := properties[name].(map[string]any)
+					if !ok || schema["writeOnly"] != true {
+						t.Error("Git private key must be write-only")
+					}
+					continue
+				}
 				if _, rejected := forbidden[strings.ToLower(name)]; rejected {
 					t.Errorf("private or unsafe public schema field %s/properties/%s", path, name)
 				}

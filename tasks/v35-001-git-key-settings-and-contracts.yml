@@ -1,0 +1,91 @@
+schema_version: '1.0'
+id: V35-001
+title: Define Git import contracts and owner-scoped encrypted SSH-key settings
+milestone: git-artifact-import
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on:
+- V34-005
+languages:
+- go
+- sql
+- openapi
+- typescript
+goal: Give an authenticated owner one protected Git SSH key and establish strict import/trust contracts
+  before transport implementation.
+context:
+  specification: docs/spec/24-git-artifacts.md
+  product: Import a repository snapshot into an ordinary ZIP Artifact in UserScope or owned ProjectScope.
+    Workflow input selection uses the returned exact ref. No clone at Run execution, automatic refresh,
+    Git write, new job queue or automatic repair.
+  deployment: PostgreSQL remains the registry and default blob backend; optional filesystem uses V34.
+    Git fetch/object storage/ZIP generation run in memory with no git subprocess, temporary checkout,
+    key file or PVC. Read-only CA/known_hosts configuration mounts are allowed.
+  authority: One encrypted SSH key per authenticated owner, used only by Server import. Existing Artifact
+    ASCII names, reserved namespaces, ownership, lifecycle, exact revision and CAS rules apply. Keys never
+    enter Artifact bytes, URLs, logs, browser storage or RuntimeSettings.
+  key_contract: GET/PUT/DELETE /v1/settings/git-key. PUT accepts privateKey up to 32 KiB; support unencrypted
+    OpenSSH/PEM Ed25519 and RSA at minimum. Reject passphrase-protected or malformed keys explicitly,
+    preserving the previous key. Return configured state, public fingerprint/type and update time only;
+    never return private bytes.
+  encryption: Reuse --credential-master-key-file and existing authenticated encryption with owner/purpose/generation
+    in authenticated data. Include Git-key rows in startup master-key requirements. Replace/delete affects
+    future imports; an admitted import may finish with its captured generation. No LLM credential-record
+    reuse or long SQL lock during fetch.
+  network_configuration: Repeated --git-allowed-remote host:port or comma-separated CONTRACTOR_GIT_ALLOWED_REMOTES;
+    CLI wins and empty disables network import only. --git-known-hosts-file / CONTRACTOR_GIT_KNOWN_HOSTS_FILE
+    selects optional absolute read-only SSH trust; missing trust disables SSH, not anonymous HTTPS.
+  import_contract: POST /v1/artifacts/{namespace}/{name}/git-import and /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import
+    accept repositoryUrl and optional branch/tag ref, with existing create/CAS headers. Plan 64 KiB JSON,
+    120 s deadline and optional gitSource metadata containing normalized URL, requested ref, full resolved
+    commit and import time. Routes remain marked planned until V35-003 implements them.
+scope:
+  in:
+  - Add migrations/repository/service for one encrypted key per owner and non-secret metadata.
+  - Implement authenticated Settings key routes with existing CSRF and bounded errors; verify replacement/deletion
+    and cross-owner isolation.
+  - Define strict startup allowlist/trust parsing and import/provenance OpenAPI schemas; generate clients
+    through existing tooling.
+  - Extend startup key availability/integrity requirements to Git keys and expose safe configuration-unavailable
+    errors.
+  out:
+  - Multiple keys, passphrase storage, HTTPS tokens, host-key UI, Git transfer and import-route implementation.
+requirements:
+- id: R1
+  text: No private-key readback, plaintext persistence, global-key fallback or credential logging.
+- id: R2
+  text: Replacing/removing a key never rewrites imported artifacts; malformed replacement preserves the
+    previous generation.
+acceptance_criteria:
+- id: A1
+  given: Two owners and a configured master key.
+  when: Keys are set, inspected, replaced and deleted through authenticated public routes.
+  then: Each owner sees only own non-secret metadata; ciphertext survives restart and no response/database
+    plaintext/log contains a key canary.
+- id: A2
+  given: Malformed, encrypted or oversized input and missing/wrong master key.
+  when: Settings mutation or startup is attempted.
+  then: Errors are safe, no plaintext fallback occurs and previous valid state remains intact.
+- id: A3
+  given: Empty/invalid remote allowlists, missing SSH trust and conflicting CLI/environment values.
+  when: Serve configuration and generated import contracts are validated.
+  then: Precedence is deterministic; Git configuration does not prevent unrelated artifact use, and the
+    defined API distinguishes key/trust/import failures.
+tests:
+- name: unit
+  command: go test -race ./internal/credentials ./internal/app ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+- name: postgres
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -tags=integration ./internal/credentials
+    ./internal/app ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+- name: contract
+  command: make verify-public-api ui-typecheck ui-generate-check
+  covers:
+  - A3

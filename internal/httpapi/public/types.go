@@ -215,6 +215,7 @@ type FindingProposalManagement interface {
 }
 
 type Dependencies struct {
+	GitKeys                 GitKeySettings
 	Authentication          *auth.Service
 	BrowserOrigins          auth.OriginPolicy
 	InsecureLoopbackCookie  bool

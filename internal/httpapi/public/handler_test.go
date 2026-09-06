@@ -544,6 +544,7 @@ func newHandlerFixtureWithAuth(
 	origins auth.OriginPolicy,
 	insecureLoopbackCookie bool,
 	logger *slog.Logger,
+	configure ...func(*Dependencies),
 ) handlerFixture {
 	t.Helper()
 	manager, err := config.NewManager(config.ManagerOptions{
@@ -589,7 +590,7 @@ func newHandlerFixtureWithAuth(
 		t.Fatalf("create public event Hub: %v", err)
 	}
 	t.Cleanup(eventHub.Close)
-	handler, err := NewHandler(Dependencies{
+	dependencies := Dependencies{
 		Authentication: authentication, BrowserOrigins: origins,
 		InsecureLoopbackCookie: insecureLoopbackCookie,
 		Config:                 manager, ConfigurationPublisher: manager,
@@ -612,7 +613,11 @@ func newHandlerFixtureWithAuth(
 		Now: func() time.Time {
 			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
 		},
-	})
+	}
+	for _, apply := range configure {
+		apply(&dependencies)
+	}
+	handler, err := NewHandler(dependencies)
 	if err != nil {
 		t.Fatalf("NewHandler: %v", err)
 	}

@@ -1,0 +1,103 @@
+schema_version: '1.0'
+id: V35-002
+title: Fetch bounded Git snapshots over HTTPS and SSH entirely in memory
+milestone: git-artifact-import
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V35-001
+languages:
+- go
+goal: Prove a production Git reader can resolve one remote ref and produce a deterministic source ZIP
+  without local storage or unbounded decoding.
+context:
+  specification: docs/spec/24-git-artifacts.md
+  product: Import a repository snapshot into an ordinary ZIP Artifact in UserScope or owned ProjectScope.
+    Workflow input selection uses the returned exact ref. No clone at Run execution, automatic refresh,
+    Git write, new job queue or automatic repair.
+  deployment: PostgreSQL remains the registry and default blob backend; optional filesystem uses V34.
+    Git fetch/object storage/ZIP generation run in memory with no git subprocess, temporary checkout,
+    key file or PVC. Read-only CA/known_hosts configuration mounts are allowed.
+  authority: One encrypted SSH key per authenticated owner, used only by Server import. Existing Artifact
+    ASCII names, reserved namespaces, ownership, lifecycle, exact revision and CAS rules apply. Keys never
+    enter Artifact bytes, URLs, logs, browser storage or RuntimeSettings.
+  transport: Anonymous HTTPS and SSH (including normalized git@host:path). Reject URL passwords/query/fragment,
+    local/file/git/helper transports. Require exact operator host:port allowlist; verify TLS and known_hosts,
+    disable redirects, reject loopback/link-local/unspecified/multicast actual destinations. Explicitly
+    allowlisted corporate hosts may use private addresses. No host SSH agent, shell, hooks, filters or
+    credential helpers.
+  snapshot: Omitted ref selects default branch; branch/tag refs and unambiguous short names resolve once
+    to a full commit OID. Archive that exact tracked regular-file tree even if branch moves. No arbitrary
+    commit-ID fetch in this slice. Reject unsupported object formats, empty trees, unsafe paths, symlinks,
+    submodules and recognizable LFS pointers; do not silently skip content.
+  bounds: One import per process, 120 seconds end to end, 128 MiB cumulative received Git bytes and 256
+    MiB cumulative decoded object bytes including deltas. ZIP <=64 MiB, <=10000 entries, <=64 MiB expanded
+    total, <=4 MiB per file and existing Runtime path rules. Shallow selected-ref fetch where possible;
+    fail explicitly instead of unbounded history fallback.
+  implementation_proof: Choose an in-process Git library only after a real-repository memory-store proof.
+    Bound ref advertisements, object counts, delta depth, parser allocations and cancellation, not only
+    ZIP size. Record concrete decoder caps and observed memory in spec 24. Production must work without
+    any writable tmp directory; test fixtures may use native Git/SSH tools.
+  packaging: Stable path order, normalized timestamps and ordinary modes; exclude Git internals and transport
+    configuration. Preserve complete tracked tree rather than applying host gitignore/contractorignore
+    source-directory bundling behavior. Reuse safe archive validation helpers where compatible, not a
+    filesystem checkout adapter.
+scope:
+  in:
+  - Implement a testable in-memory transport/snapshot package with credential-generation and host-verifier
+    inputs from trusted Server composition.
+  - Enforce destination policy at actual connection time and never forward credentials to redirects/alternate
+    remotes.
+  - Implement bounded selected-ref fetch, object decoding, deterministic ZIP construction and SHA/commit
+    provenance output.
+  - Prove limits, cancellation and no local writes with hostile packs and real public/private test repositories;
+    document supported object/key formats.
+  out:
+  - Artifact publication, UI, history browsing, arbitrary OID fetch, LFS downloads, submodule recursion
+    and sparse checkout.
+requirements:
+- id: R1
+  text: No executable repository content and no hidden disk fallback, even in PostgreSQL mode.
+- id: R2
+  text: Pack/decode limits must interrupt growth before output materialization; a small final tree does
+    not justify unlimited history.
+- id: R3
+  text: All successful snapshot bytes correspond to the one recorded commit; incomplete or unsupported
+    trees are errors.
+acceptance_criteria:
+- id: A1
+  given: Public HTTPS and private SSH repositories with branches/tags.
+  when: The selected/default ref is imported while a branch also advances.
+  then: Verified deterministic ZIP bytes match the resolved commit; private access uses only the supplied
+    owner key and verified host.
+- id: A2
+  given: A read-only process root and no writable tmp directory.
+  when: Real Git fetch and archive creation execute.
+  then: No disk/key/pack/checkout write is attempted; observed peak memory and chosen decoder caps are
+    recorded.
+- id: A3
+  given: Oversized/malformed packs, delta expansion, excessive refs/objects, unsafe trees, deadline and
+    cancellation.
+  when: Transport and ZIP construction reach each boundary.
+  then: Work stops with bounded safe errors; allocations/network work terminate and no partial snapshot
+    succeeds.
+- id: A4
+  given: Forbidden URL schemes/destinations, redirects and unknown/changed SSH host keys.
+  when: A remote operation is attempted.
+  then: No forbidden connection or credential disclosure occurs; no implicit trust or unbounded-history
+    fallback is used.
+tests:
+- name: unit
+  command: go test -race ./internal/gitimport
+  covers:
+  - A1
+  - A3
+  - A4
+- name: real_git
+  command: go test -race -tags=integration -count=1 ./internal/gitimport
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4

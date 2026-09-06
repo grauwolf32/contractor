@@ -22,6 +22,8 @@ const (
 // and an optional ServerConfig document have been applied. Environment and
 // command-line settings are layered over it by ParseConfig.
 type serverConfigValues struct {
+	gitAllowedRemotes           []string
+	gitKnownHostsFile           string
 	listenAddress               string
 	privateListenAddress        string
 	privateURL                  string
@@ -55,6 +57,8 @@ type serverConfigDocument struct {
 // Pointer leaves distinguish an omitted setting from an explicit false or
 // empty value. Secret bytes and connection URLs intentionally have no fields.
 type serverConfigSpec struct {
+	GitAllowedRemotes           *[]string `yaml:"gitAllowedRemotes"`
+	GitKnownHostsFile           *string   `yaml:"gitKnownHostsFile"`
 	Listen                      *string   `yaml:"listen"`
 	PrivateListen               *string   `yaml:"privateListen"`
 	PrivateURL                  *string   `yaml:"privateUrl"`
@@ -185,6 +189,10 @@ func applyServerConfigSpec(values *serverConfigValues, spec serverConfigSpec, ba
 	if err := setDuration(&values.plannerTimeout, spec.PlannerTimeout, "plannerTimeout"); err != nil {
 		return err
 	}
+	if spec.GitAllowedRemotes != nil {
+		values.gitAllowedRemotes = append([]string(nil), (*spec.GitAllowedRemotes)...)
+	}
+	setConfigPath(&values.gitKnownHostsFile, spec.GitKnownHostsFile, base)
 	setString(&values.artifactBlobBackend, spec.ArtifactBlobBackend)
 	setConfigPath(&values.artifactBlobPath, spec.ArtifactBlobPath, base)
 	setConfigPath(&values.operatorConfigRoot, spec.OperatorConfigRoot, base)

@@ -1,0 +1,99 @@
+schema_version: '1.0'
+id: V35-005
+title: Verify Git Artifact import with real remotes, both blob backends and no PVC
+milestone: git-artifact-import
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V35-004
+languages:
+- go
+- python
+- typescript
+- yaml
+goal: Demonstrate the full Settings->Git->Artifact->Workflow path under bounded resources and realistic
+  remote/storage failures.
+context:
+  specification: docs/spec/24-git-artifacts.md
+  product: Import a repository snapshot into an ordinary ZIP Artifact in UserScope or owned ProjectScope.
+    Workflow input selection uses the returned exact ref. No clone at Run execution, automatic refresh,
+    Git write, new job queue or automatic repair.
+  deployment: PostgreSQL remains the registry and default blob backend; optional filesystem uses V34.
+    Git fetch/object storage/ZIP generation run in memory with no git subprocess, temporary checkout,
+    key file or PVC. Read-only CA/known_hosts configuration mounts are allowed.
+  authority: One encrypted SSH key per authenticated owner, used only by Server import. Existing Artifact
+    ASCII names, reserved namespaces, ownership, lifecycle, exact revision and CAS rules apply. Keys never
+    enter Artifact bytes, URLs, logs, browser storage or RuntimeSettings.
+  gate: Add make test-git-artifacts and a conformance/failure matrix with concrete tests. Use isolated
+    real PostgreSQL schemas plus local real Git HTTPS/SSH fixtures and containerized production Server;
+    fixture processes may use native Git, production import may not.
+  deployment_evidence: Run Server with read-only root and PostgreSQL blobs without writable Git/blob/tmp
+    paths or PVC. Read-only known_hosts/CA/master-key configuration is allowed; existing managed-config
+    memory emptyDir is unrelated. Repeat publication with filesystem blobs and preserve V34 lost-file
+    behavior.
+  bounds: Verify 120 s/cancellation, one Git import plus shared four Artifact transfers, 128 MiB received
+    and 256 MiB decoded Git caps, concrete decoder caps from V35-002, 64 MiB ZIP, 10000 entries, 64 MiB
+    expanded tree and 4 MiB/file. Measure actual peak RSS including Git object storage/ZIP/driver copies.
+  proof: Test anonymous HTTPS/private SSH, owner-key replacement/deletion, unknown/changed host keys,
+    forbidden remotes/redirects, ref movement, unsupported LFS/submodule/symlink content, malicious packs,
+    CAS/Project lifecycle/ambiguous commit and retained exact provenance. Key canaries must be absent
+    from API responses, generated archives and logs.
+  consumers: Open successful imported ZIPs with the existing Runtime source-analysis/workspace consumers
+    and run a real Workflow using an exact imported input. Verify a later branch update/import does not
+    change that Run input or its source record.
+scope:
+  in:
+  - Create real-remote, container, PostgreSQL and browser release fixtures/matrix and make test-git-artifacts.
+  - Prove supported imports, bounded adversarial failures, SQL/transfer admission and immutable provenance
+    through actual public/private execution paths.
+  - Record observed memory, tested Git/key/object formats, proxy timeout settings and no-PVC deployment
+    instructions.
+  - Document deliberate first-slice exclusions and failure recovery without claiming resumable jobs, refresh
+    or durable filesystem recovery.
+  out:
+  - S3, HA certification, mandatory PVC, arbitrary OID/history browser, LFS/submodule support, Git writes
+    and HTTPS token management.
+requirements:
+- id: R1
+  text: Tests must fail rather than silently skip the real-remote/no-writable-Git-directory release criteria.
+- id: R2
+  text: No canary key leaks, unauthorized fetch, unbounded decoder growth, partial successful snapshot
+    or source-history rewrite.
+- id: R3
+  text: Measured RAM includes real copies and object storage; admission limits are not presented as a
+    process memory ceiling.
+acceptance_criteria:
+- id: A1
+  given: A read-only-root Server, real PostgreSQL and HTTPS/SSH Git fixtures.
+  when: Settings and both import surfaces publish snapshots and a Workflow consumes an exact imported
+    ref.
+  then: No local Git storage/PVC is needed; Runtime consumes the ZIP and source URL/ref/commit metadata
+    remains traceable after branch movement and key removal.
+- id: A2
+  given: Both blob backends with owner/CAS/lifecycle conflicts, malformed packs, cancelled requests, forbidden
+    hosts and saturated budgets.
+  when: The failure matrix executes.
+  then: All limits and trust/ownership checks hold; committed outcomes remain truthful, no secrets leak
+    and admission/SQL resources are released.
+- id: A3
+  given: Maximum supported snapshots and concurrent ordinary transfers.
+  when: The production container is measured and browser scenarios run.
+  then: Actual memory and timeout requirements are recorded, all target consumers accept valid snapshots
+    and the shared UI preserves exact refs/draft state.
+tests:
+- name: release
+  command: make test-git-artifacts
+  covers:
+  - A1
+  - A2
+  - A3
+- name: blob_regression
+  command: make test-artifact-blob-backends
+  covers:
+  - A1
+  - A2
+- name: ui
+  command: make ui-typecheck ui-generate-check
+  covers:
+  - A3

@@ -4,6 +4,72 @@
  */
 
 export interface paths {
+    "/v1/settings/git-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read configured state and public fingerprint of the owner's Git SSH key */
+        get: operations["getGitKey"];
+        /** Validate and replace the owner's encrypted Git SSH private key */
+        put: operations["replaceGitKey"];
+        post?: never;
+        /** Remove the owner's configured Git key without changing imported artifacts */
+        delete: operations["deleteGitKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/artifacts/{namespace}/{name}/git-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import one bounded Git snapshot as an exact source ZIP artifact
+         * @description Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+         */
+        post: operations["importGitArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import one bounded Git snapshot as an exact source ZIP artifact
+         * @description Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+         */
+        post: operations["importProjectGitArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/login": {
         parameters: {
             query?: never;
@@ -1460,6 +1526,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        GitKeyState: {
+            configured: boolean;
+            fingerprint?: string;
+            keyType?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+        };
+        GitSource: {
+            repositoryUrl: string;
+            requestedRef: string | null;
+            resolvedCommit: string;
+            /** Format: date-time */
+            importedAt: string;
+        };
+        GitImportRequest: {
+            repositoryUrl: string;
+            ref?: string;
+        };
+        GitImportResult: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            /** @constant */
+            mediaType: "application/zip";
+            size: number;
+            gitSource: components["schemas"]["GitSource"];
+        };
         RequestId: string;
         ResourceId: string;
         /** @enum {string} */
@@ -2349,6 +2440,7 @@ export interface components {
             size: number;
         };
         ArtifactMetadata: {
+            gitSource?: components["schemas"]["GitSource"];
             artifact: components["schemas"]["ExactArtifactRef"];
             mediaType: components["schemas"]["MediaType"];
             size: number;
@@ -3621,6 +3713,27 @@ export interface components {
         };
     };
     responses: {
+        /** @description Non-secret configured state; private key is never returned */
+        GitKeyState: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["GitKeyState"];
+            };
+        };
+        /** @description Complete exact source ZIP and immutable Git provenance */
+        GitImportResult: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                ETag?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["GitImportResult"];
+            };
+        };
         /** @description Mutation completed with no response body */
         NoContent: {
             headers: {
@@ -3961,6 +4074,134 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getGitKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["GitKeyState"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    replaceGitKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    privateKey: string;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["GitKeyState"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    deleteGitKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Key is absent */
+            204: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    importGitArtifact: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: "*";
+                "If-Match"?: string;
+            };
+            path: {
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitImportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["GitImportResult"];
+            201: components["responses"]["GitImportResult"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Error422"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    importProjectGitArtifact: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-None-Match"?: "*";
+                "If-Match"?: string;
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+                namespace: components["parameters"]["ArtifactNamespace"];
+                name: components["parameters"]["ArtifactName"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitImportRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["GitImportResult"];
+            201: components["responses"]["GitImportResult"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["Error422"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
     login: {
         parameters: {
             query?: never;

@@ -1,0 +1,101 @@
+schema_version: '1.0'
+id: V35-003
+title: Publish Git snapshots and immutable provenance through User and Project APIs
+milestone: git-artifact-import
+priority: P2
+status: pending
+implementation_commit: null
+depends_on:
+- V35-002
+languages:
+- go
+- sql
+- openapi
+- typescript
+goal: Make Git import a synchronous ordinary Artifact mutation with atomic source provenance and exact
+  reusable Workflow inputs.
+context:
+  specification: docs/spec/24-git-artifacts.md
+  product: Import a repository snapshot into an ordinary ZIP Artifact in UserScope or owned ProjectScope.
+    Workflow input selection uses the returned exact ref. No clone at Run execution, automatic refresh,
+    Git write, new job queue or automatic repair.
+  deployment: PostgreSQL remains the registry and default blob backend; optional filesystem uses V34.
+    Git fetch/object storage/ZIP generation run in memory with no git subprocess, temporary checkout,
+    key file or PVC. Read-only CA/known_hosts configuration mounts are allowed.
+  authority: One encrypted SSH key per authenticated owner, used only by Server import. Existing Artifact
+    ASCII names, reserved namespaces, ownership, lifecycle, exact revision and CAS rules apply. Keys never
+    enter Artifact bytes, URLs, logs, browser storage or RuntimeSettings.
+  routes: Implement POST /v1/artifacts/{namespace}/{name}/git-import and /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import
+    with repositoryUrl and optional ref. Use If-None-Match:* or exact If-Match, 201/200 write responses
+    plus gitSource, authenticated ownership and browser CSRF. Request JSON <=64 KiB; whole operation <=120
+    s.
+  admission: Acquire one process Git-import slot and one of the shared four Artifact-transfer slots before
+    fetch; reject promptly when either is full and release on all exits. Nested preparation/publication
+    reuses the transfer lease. Metadata operations remain available.
+  publication: Validate authority/name/CAS before fetch, then recheck them and Project lifecycle in the
+    short authoritative transaction. Fetch and ZIP creation hold no SQL connection. Prepare the V34 blob
+    outside the transaction, then publish revision and source metadata atomically. Filesystem failures
+    use existing orphan/ambiguous-commit rules.
+  provenance: Optional authorized gitSource stores normalized URL, requested ref, full resolved commit
+    and import time per Artifact version. Digest deduplication must not merge different origins. Exact
+    User/Project->Run forks retain accessible origin/lineage; subsequent imports, key deletion and branch
+    movement cannot rewrite it. Purge follows retained-version ownership.
+  failure: No durable job/progress channel or automatic mutation retries. Safe errors distinguish key/trust/access/ref/unsupported
+    tree/budget/deadline/capacity and preserve ordinary CAS/blob errors. Cancellation or lost response
+    can race with a complete commit; recover through metadata inspection, never claim rollback when outcome
+    is ambiguous.
+scope:
+  in:
+  - Add immutable per-version Git-source persistence and authorized metadata/version projection.
+  - Compose key generation, validated transport, deadline and shared admission into both import endpoints.
+  - Atomically publish complete ZIP and provenance, preserving create/CAS, scope and lifecycle behavior
+    for both blob backends.
+  - Generate clients and test exact provenance across Run input forks, concurrent replacements, key deletion
+    and retained-version purge.
+  out:
+  - UI, clone at execution, automatic refresh/repair, scheduler changes, finding-origin redesign and duplicate
+    blob storage.
+requirements:
+- id: R1
+  text: One successful revision has one immutable source record; different repository origins never collapse
+    merely because bytes match.
+- id: R2
+  text: No SQL pool connection spans network/ZIP work; one nested operation cannot reacquire and deadlock
+    on its own transfer slot.
+- id: R3
+  text: Lost acknowledgements preserve any committed artifact; retries do not bypass CAS or delete referenced
+    filesystem content.
+acceptance_criteria:
+- id: A1
+  given: An authorized owner and owned Project using either blob backend.
+  when: Import create/replacement runs through the public API.
+  then: Complete ZIP, exact ref and matching provenance commit together; invalid authority/CAS publishes
+    nothing.
+- id: A2
+  given: Identical ZIP bytes from two repositories and an exact input fork retained by a Run.
+  when: A new import, key removal and source cleanup occur.
+  then: Each version retains its correct commit/origin; the retained Run input is readable and traceable
+    independently of key/branch state.
+- id: A3
+  given: An in-flight import, ordinary transfers, Project deletion and request/commit failure races.
+  when: Capacity, cancellation, timeout and concurrent mutations occur.
+  then: Admission stays bounded, metadata remains usable, authorization/CAS is rechecked, SQL connections
+    are not held across fetch and ambiguous commits remain truthful.
+tests:
+- name: api
+  command: go test -race ./internal/artifacts ./internal/httpapi/public ./internal/gitimport
+  covers:
+  - A1
+  - A2
+  - A3
+- name: postgres
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -tags=integration ./internal/artifacts
+    ./internal/httpapi/public ./internal/gitimport
+  covers:
+  - A1
+  - A2
+  - A3
+- name: contract
+  command: make verify-public-api ui-typecheck ui-generate-check
+  covers:
+  - A1

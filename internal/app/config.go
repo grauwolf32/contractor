@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
 type repeatedStringFlag struct {
@@ -85,6 +86,15 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	workerRequestTimeout := settings.workerRequestTimeout
 	plannerTimeout := settings.plannerTimeout
 	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
+	gitRemotes := repeatedStringFlag{values: settings.gitAllowedRemotes, clearOnFirstSet: true}
+	if value := getenv("CONTRACTOR_GIT_ALLOWED_REMOTES"); value != "" {
+		gitRemotes.values = strings.Split(value, ",")
+		gitRemotes.clearOnFirstSet = true
+	}
+	gitKnownHosts := settings.gitKnownHostsFile
+	if value := getenv("CONTRACTOR_GIT_KNOWN_HOSTS_FILE"); value != "" {
+		gitKnownHosts = value
+	}
 	blobBackend := settings.artifactBlobBackend
 	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_BACKEND"); value != "" {
 		blobBackend = value
@@ -160,6 +170,8 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.Var(&gitRemotes, "git-allowed-remote", "allowed Git remote host:port; repeatable")
+	flags.StringVar(&gitKnownHosts, "git-known-hosts-file", gitKnownHosts, "absolute read-only SSH known_hosts file")
 	flags.StringVar(&serverConfigPath, "config", serverConfigPath, "strict YAML ServerConfig file")
 	flags.StringVar(&serverConfigPath, "server-config", serverConfigPath, "alias for --config")
 	flags.StringVar(&blobBackend, "artifact-blob-backend", blobBackend, "Artifact payload backend: postgresql or filesystem")
@@ -280,7 +292,12 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	gitConfig := gitimport.Config{AllowedRemotes: gitRemotes.values, KnownHostsFile: gitKnownHosts}
+	if err := gitimport.ValidateConfig(gitConfig); err != nil {
+		return Config{}, err
+	}
 	return Config{
+		GitImport:           gitConfig,
 		ArtifactBlobBackend: selectedBlobBackend, ArtifactBlobPath: blobPath,
 		ListenAddress: listenAddress, PrivateListenAddress: privateListenAddress, PrivateURL: privateURL,
 		ShutdownTimeout: shutdownTimeout, RuntimeRequestTimeout: runtimeRequestTimeout,

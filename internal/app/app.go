@@ -29,6 +29,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	"github.com/grauwolf32/contractor/internal/gitimport"
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -66,6 +67,7 @@ type Config struct {
 	DatabaseURL           string
 	ArtifactBlobBackend   artifacts.BlobBackend
 	ArtifactBlobPath      string
+	GitImport             gitimport.Config
 	// ConfigRoot is the deprecated alias retained for callers that inspect
 	// parsed settings. Runtime composition uses the two explicit roots below.
 	ConfigRoot                  string
@@ -225,6 +227,14 @@ func RunCLI(
 		return errors.New("encrypted credential count is invalid")
 	}
 	activeCredentialCount += storedRuntimeCredentialCount
+	gitKeyCount, err := credentials.NewGitKeys(pool, nil).Count(ctx)
+	if err != nil {
+		return errors.New("inspect encrypted Git keys")
+	}
+	if gitKeyCount > math.MaxInt64-activeCredentialCount {
+		return errors.New("encrypted credential count is invalid")
+	}
+	activeCredentialCount += gitKeyCount
 	tokenCipher, err := credentials.RequireTokenCipher(cfg.CredentialMasterKeyFile, activeCredentialCount)
 	if err != nil {
 		return fmt.Errorf("configure encrypted LLM credentials: %w", err)
@@ -236,6 +246,10 @@ func RunCLI(
 		if err := runtimeCredentialRepository.VerifyStoredKey(ctx, tokenCipher.KeyID()); err != nil {
 			return fmt.Errorf("verify encrypted Runtime credential key: %w", err)
 		}
+	}
+	gitKeys := credentials.NewGitKeys(pool, tokenCipher)
+	if err := gitKeys.Verify(ctx); err != nil {
+		return errors.New("verify encrypted Git keys")
 	}
 	encryptedCredentialProvider, err := credentials.NewEncryptedProvider(credentialRepository, tokenCipher)
 	if err != nil {
@@ -648,6 +662,7 @@ func RunCLI(
 		Runs: runstore.NewPostgresStore(pool), RunCreator: runCreationService, Artifacts: artifactService,
 		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
 		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
+		GitKeys:                gitKeys,
 		RuntimeAgentPrincipals: principalOperations,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 auditService,

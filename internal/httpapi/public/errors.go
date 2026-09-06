@@ -84,6 +84,10 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 				AllocationIDs: append([]string(nil), runtimeCredentialInUse.Usage.AllocationIDs...),
 			},
 		})
+	case errors.Is(err, credentials.ErrGitKeyInvalid):
+		h.writeError(w, http.StatusBadRequest, "git_key_invalid", "Git SSH key must be a supported unencrypted private key of at most 32 KiB", false)
+	case errors.Is(err, credentials.ErrGitKeyMissing):
+		h.writeError(w, http.StatusUnprocessableEntity, "git_key_missing", "Git SSH key is not configured", false)
 	case errors.Is(err, credentials.ErrRuntimeCredentialNotFound):
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, credentials.ErrRuntimeCredentialConflict):

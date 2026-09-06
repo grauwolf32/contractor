@@ -40,6 +40,126 @@ tags:
   - {name: Events, description: Read-only WebSocket upgrade}
 
 paths:
+  /v1/settings/git-key:
+    get:
+      operationId: getGitKey
+      tags: [Settings]
+      summary: Read configured state and public fingerprint of the owner's Git SSH key
+      x-contractor-implementation: implemented
+      responses:
+        '200': {$ref: '#/components/responses/GitKeyState'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+    put:
+      operationId: replaceGitKey
+      tags: [Settings]
+      summary: Validate and replace the owner's encrypted Git SSH private key
+      x-contractor-implementation: implemented
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [privateKey]
+              properties:
+                privateKey: {type: string, minLength: 1, maxLength: 32768, writeOnly: true}
+      responses:
+        '200': {$ref: '#/components/responses/GitKeyState'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+    delete:
+      operationId: deleteGitKey
+      tags: [Settings]
+      summary: Remove the owner's configured Git key without changing imported artifacts
+      x-contractor-implementation: implemented
+      responses:
+        '204':
+          description: Key is absent
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+
+  /v1/artifacts/{namespace}/{name}/git-import:
+    parameters:
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    post:
+      operationId: importGitArtifact
+      tags: [Artifacts]
+      summary: Import one bounded Git snapshot as an exact source ZIP artifact
+      description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+      x-contractor-implementation: planned
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema: {type: string, const: '*'}
+        - name: If-Match
+          in: header
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GitImportRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/GitImportResult'}
+        '201': {$ref: '#/components/responses/GitImportResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+
+  /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+      - $ref: '#/components/parameters/ArtifactNamespace'
+      - $ref: '#/components/parameters/ArtifactName'
+    post:
+      operationId: importProjectGitArtifact
+      tags: [Artifacts]
+      summary: Import one bounded Git snapshot as an exact source ZIP artifact
+      description: Requires explicit create or CAS precondition; no automatic refresh or mutation retry. Whole operation is bounded to 120 seconds.
+      x-contractor-implementation: planned
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema: {type: string, const: '*'}
+        - name: If-Match
+          in: header
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GitImportRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/GitImportResult'}
+        '201': {$ref: '#/components/responses/GitImportResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/Error422'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+
   /v1/auth/login:
     post:
       operationId: login
@@ -2726,6 +2846,16 @@ components:
       required: true
       schema: {type: string, const: no-store}
   responses:
+    GitKeyState:
+      description: Non-secret configured state; private key is never returned
+      headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/GitKeyState'}}}
+    GitImportResult:
+      description: Complete exact source ZIP and immutable Git provenance
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        ETag: {schema: {type: string}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/GitImportResult'}}}
     NoContent:
       description: Mutation completed with no response body
       headers:
@@ -2888,6 +3018,40 @@ components:
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
 
   schemas:
+    GitKeyState:
+      type: object
+      additionalProperties: false
+      required: [configured]
+      properties:
+        configured: {type: boolean}
+        fingerprint: {type: string, maxLength: 128}
+        keyType: {type: string, maxLength: 128}
+        updatedAt: {type: string, format: date-time}
+    GitSource:
+      type: object
+      additionalProperties: false
+      required: [repositoryUrl, requestedRef, resolvedCommit, importedAt]
+      properties:
+        repositoryUrl: {type: string, maxLength: 4096}
+        requestedRef: {type: [string, 'null'], maxLength: 1024}
+        resolvedCommit: {type: string, pattern: '^[0-9a-f]{40}$'}
+        importedAt: {type: string, format: date-time}
+    GitImportRequest:
+      type: object
+      additionalProperties: false
+      required: [repositoryUrl]
+      properties:
+        repositoryUrl: {type: string, minLength: 1, maxLength: 4096}
+        ref: {type: string, minLength: 1, maxLength: 1024}
+    GitImportResult:
+      type: object
+      additionalProperties: false
+      required: [artifact, mediaType, size, gitSource]
+      properties:
+        artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
+        mediaType: {type: string, const: application/zip}
+        size: {type: integer, minimum: 1, maximum: 67108864}
+        gitSource: {$ref: '#/components/schemas/GitSource'}
     RequestId:
       type: string
       minLength: 1
@@ -4205,6 +4369,7 @@ components:
       additionalProperties: false
       required: [artifact, mediaType, size, current, frozen, createdAt]
       properties:
+        gitSource: {$ref: '#/components/schemas/GitSource'}
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
         mediaType: {$ref: '#/components/schemas/MediaType'}
         size: {type: integer, minimum: 0, maximum: 67108864}
