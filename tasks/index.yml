@@ -9,6 +9,19 @@ project:
 
 execution_policy:
   task_files_are_self_contained: true
+  task_statuses:
+    pending: Not yet taken into development.
+    in_progress: Taken into development; implementation or verification is ongoing.
+    completed: Finished under completion_rule and implementation_commit_rule.
+    complete: Legacy alias of completed; existing task files remain valid.
+  task_status_rule: >-
+    Set status to in_progress in the task file before beginning implementation.
+    Keep it in_progress while implementation or required verification remains;
+    an intermediate commit does not complete the task. Set status to completed
+    only after completion_rule is satisfied, and record implementation_commit.
+    Treat complete and completed as finished when checking dependencies; pending
+    and in_progress are unfinished. Do not independently take an in_progress
+    task already being worked on unless explicitly assigned to continue it.
   dependency_rule: >-
     A task may start only after every ID in depends_on is complete. The worker
     may inspect code produced by those dependencies but is not expected to read
@@ -2398,12 +2411,12 @@ tasks:
   - {id: V34-004, file: v34-004-offline-blob-cleanup.yml}
   - {id: V34-005, file: v34-005-blob-backends-release-gate.yml}
   - {id: V34-006, file: v34-006-overlay-export-size-contract.yml}
-  - {id: V36-001, file: v36-001-server-process-config.yml}
   - {id: V35-001, file: v35-001-git-key-settings-and-contracts.yml}
   - {id: V35-002, file: v35-002-bounded-memory-git-snapshots.yml}
   - {id: V35-003, file: v35-003-git-artifact-publication-and-provenance.yml}
   - {id: V35-004, file: v35-004-git-settings-and-import-ui.yml}
   - {id: V35-005, file: v35-005-git-artifacts-release-gate.yml}
+  - {id: V36-001, file: v36-001-server-process-config.yml}
   - {id: V37-001, file: v37-001-accessible-dialogs.yml}
   - {id: V37-002, file: v37-002-run-draft-continuity.yml}
   - {id: V37-003, file: v37-003-project-workflow-primary-actions.yml}
