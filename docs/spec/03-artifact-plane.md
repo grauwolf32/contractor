@@ -469,8 +469,11 @@ may be collected only after no binding, retained revision, pin or lineage edge
 outside the purge set references them. Removing a cross-scope provenance edge
 does not remove the independently retained target artifact. Scope registry
 deletion and relational reference checks are one transaction; physical blob
-cleanup is completed synchronously for the PostgreSQL backend and must be
-retryable before an asynchronous backend reports lifecycle completion.
+cleanup is completed synchronously for the PostgreSQL backend. The optional
+filesystem mode in [23](23-artifact-blob-backends.md) uses best-effort unlink
+after registry commit; a completed lifecycle may leave physical orphans for
+offline cleanup. Referenced metadata is never purged merely because a file is
+missing. Future backends must define their own physical cleanup contract.
 
 ## A2A and ADK
 
@@ -504,6 +507,12 @@ with explicit revision preconditions.
 
 ## Service and storage boundaries
 
+The generic Artifact payload limit is 64 MiB (67,108,864 bytes), enforced by
+public/private APIs, clients and persistence. Specialized package and tool
+limits remain independent: raising the transport limit does not raise Skill
+or Audit package budgets, model disclosure limits or workspace expansion
+limits. Source archive uploads may use the full generic limit.
+
 ```text
 ArtifactStore
   -> ArtifactRegistry
@@ -514,8 +523,11 @@ ArtifactStore
 
 The initial registry is PostgreSQL because binding CAS, scope forks and
 Stage-output recording need transactions. `ArtifactBlobStore` is replaceable:
-bytes may initially live in PostgreSQL and later in S3 without changing
-ArtifactRef.
+bytes live in PostgreSQL by default, with an explicit filesystem startup option
+defined in [23](23-artifact-blob-backends.md). S3-compatible storage is a planned
+third option whose implementation details are deferred. ArtifactRef is
+independent of the selected backend, and PostgreSQL mode requires no local
+blob filesystem or Kubernetes PVC.
 
 For the first slice, RunStore and ArtifactRegistry participate in the same
 PostgreSQL transaction when Scheduler accepts a StageResult, applies Workflow

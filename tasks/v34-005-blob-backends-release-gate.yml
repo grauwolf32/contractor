@@ -1,0 +1,99 @@
+schema_version: '1.0'
+id: V34-005
+title: Verify blob backends in Kubernetes-compatible deployments without PVC
+milestone: artifact-blob-backends
+priority: P2
+status: in_progress
+implementation_commit: null
+verification:
+  status: passed
+  date: '2026-09-06'
+  release_gate: make test-artifact-blob-backends passed with real PostgreSQL 17 and Podman scratch containers.
+  regression: Go package regressions, 22 Runtime tests, 32 selected UI tests, UI typecheck and generated API parity passed.
+  deployment: kubectl kustomize rendered the one-replica filesystem example; both examples validated without PVC.
+  final_process_peak_rss_kib:
+    postgresql: 1065884
+    filesystem: 560860
+  evidence: docs/artifact-blob-storage.md
+depends_on:
+- V34-004
+- V34-006
+languages:
+- go
+- python
+- yaml
+goal: Demonstrate PostgreSQL and ephemeral-filesystem behavior through real Server/API paths, including
+  no-PVC startup and the deliberately limited filesystem failure contract.
+context:
+  specification: docs/spec/23-artifact-blob-backends.md
+  deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
+    PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
+    and physical orphans after failure are accepted, but successful responses must never invent content.
+    S3 is a reserved future backend and must fail startup as unsupported in this increment.
+  deployment_examples: Provide a PostgreSQL-mode Server example with readOnlyRootFilesystem and no
+    blob/tmp volume or PVC. Read-only configuration/secret mounts are allowed. Existing managed configuration
+    may use a separately documented memory emptyDir; it is not blob storage. Provide a one-replica
+    filesystem example with an explicit emptyDir blob path; PVC is optional and S3 examples must
+    not imply implemented support.
+  verification: Use real PostgreSQL plus containerized Server/public/private API tests. Keep demo
+    data isolated. Test restart while retaining PostgreSQL, and separately recreate the filesystem
+    directory to prove explicit missing-content behavior. Verify both adapters and report peak memory
+    under 64 MiB concurrent transfers.
+scope:
+  in:
+  - Add a production-path backend conformance/failure matrix and a make test-artifact-blob-backends
+    target.
+  - Add no-PVC deployment manifests/runbook and matching container tests with a read-only root.
+  - Verify exact 64 MiB transfer, oversize and saturation, cancellation, CAS, shared/Audit/Skill
+    retention and offline orphan cleanup.
+  - Exercise restart, filesystem volume loss, registry-commit ambiguity and failed unlink with truthful
+    outcomes.
+  - Document PostgreSQL as the durable-payload choice without local storage, optional filesystem
+    persistence, same-root replica requirements and reserved unsupported S3.
+  out:
+  - S3 design/implementation, Kubernetes operator/Helm product, mandatory PVC, Git clone workflows
+    and HA certification for arbitrary shared filesystems.
+requirements:
+- id: R1
+  text: No-PVC PostgreSQL operation is a release criterion, not a future deployment suggestion.
+- id: R2
+  text: Filesystem tests accept orphan accumulation and lost ephemeral bytes but never false successful
+    reads or unsafe deletion.
+- id: R3
+  text: Report actual peak memory including copies and driver buffers rather than equating four transfer
+    slots to a process memory ceiling.
+acceptance_criteria:
+- id: A1
+  given: A containerized Server with read-only root, no PVC and PostgreSQL blobs.
+  when: A 64 MiB artifact is written, the Server is restarted and the exact revision is read.
+  then: Bytes survive in PostgreSQL with no Artifact local writes; public/private API behavior agrees.
+- id: A2
+  given: A one-replica filesystem deployment using emptyDir and retained metadata.
+  when: Its volume is replaced, unlink fails in another case, and offline cleanup is exercised.
+  then: Lost bytes return explicit errors, logical deletion can complete with orphans, and cleanup
+    preserves referenced objects.
+- id: A3
+  given: Concurrent maximum-size transfers and an additional request.
+  when: Memory, rejection and cancellation behavior are measured.
+  then: The shared four-operation budget holds without unbounded queued buffers or nested-call deadlock;
+    peak memory is recorded.
+- id: A4
+  given: Backend mismatch, unsupported S3 and representative ordinary/Audit/Skill flows.
+  when: The release matrix executes.
+  then: Invalid startups fail safely and both implemented backends satisfy ownership, CAS and retention
+    contracts.
+tests:
+- name: process
+  command: make test-artifact-blob-backends
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- name: regression
+  command: go test ./internal/artifacts ./internal/app ./internal/httpapi/public ./internal/httpapi/privateartifacts
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4

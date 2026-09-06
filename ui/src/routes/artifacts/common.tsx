@@ -33,10 +33,12 @@ export function formatTimestamp(value: string): string {
 export function ArtifactFileDrop({
   file,
   inputRevision,
+  maximumBytes = MAXIMUM_ARTIFACT_BYTES,
   onSelect,
 }: {
   file: File | null;
   inputRevision?: number;
+  maximumBytes?: number;
   onSelect: (file: File | undefined) => void;
 }) {
   const copyId = useId();
@@ -83,7 +85,7 @@ export function ArtifactFileDrop({
       </strong>
       <small>
         {file === null
-          ? "or choose one local file, up to 16 MiB"
+          ? `or choose one local file, up to ${maximumBytes / (1024 * 1024)} MiB`
           : `${formatBytes(file.size)} · ready to upload`}
       </small>
       <button
@@ -279,7 +281,7 @@ export function ArtifactWriteForm({
       return;
     }
     if (file.size > MAXIMUM_ARTIFACT_BYTES) {
-      setValidationError("Artifact exceeds the 16 MiB upload limit.");
+      setValidationError("Artifact exceeds the 64 MiB upload limit.");
       return;
     }
     mutation.mutate({

@@ -1,0 +1,121 @@
+# Example only: supply your image/bootstrap configs, database and owner-only
+# authentication/PKI secrets before applying. See docs/artifact-blob-storage.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contractor-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: contractor-server
+  template:
+    metadata:
+      labels:
+        app: contractor-server
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: server
+          image: contractor-server:local
+          command: [/contractor-server]
+          args: [serve, --credential-master-key-file=/secrets/credential-master-key]
+          securityContext:
+            # Projected secrets are root-owned; the Server checks owner-only files.
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: CONTRACTOR_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: contractor-database
+                  key: url
+            - name: CONTRACTOR_ARTIFACT_BLOB_BACKEND
+              value: postgresql
+            - name: CONTRACTOR_OPERATOR_CONFIG_ROOT
+              value: /configs
+            - name: CONTRACTOR_MANAGED_CONFIG_ROOT
+              value: /managed
+            - name: CONTRACTOR_LOCAL_AUTH_FILE
+              value: /secrets/local-auth.yaml
+            - name: CONTRACTOR_BROWSER_ORIGINS
+              value: https://contractor.example.invalid
+            - name: CONTRACTOR_PUBLIC_LISTEN
+              value: 0.0.0.0:8080
+            - name: CONTRACTOR_PRIVATE_LISTEN
+              value: 0.0.0.0:8443
+            - name: CONTRACTOR_PRIVATE_URL
+              value: https://contractor-server:8443
+            - name: CONTRACTOR_CA_FILE
+              value: /secrets/ca.crt
+            - name: CONTRACTOR_CONTROL_PLANE_CERT_FILE
+              value: /secrets/control-plane.crt
+            - name: CONTRACTOR_CONTROL_PLANE_KEY_FILE
+              value: /secrets/control-plane.key
+          ports:
+            - name: public
+              containerPort: 8080
+            - name: private
+              containerPort: 8443
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: public
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: credentials
+              mountPath: /secrets/local-auth.yaml
+              subPath: local-auth.yaml
+              readOnly: true
+            - name: credentials
+              mountPath: /secrets/credential-master-key
+              subPath: credential-master-key
+              readOnly: true
+            - name: credentials
+              mountPath: /secrets/ca.crt
+              subPath: ca.crt
+              readOnly: true
+            - name: credentials
+              mountPath: /secrets/control-plane.crt
+              subPath: control-plane.crt
+              readOnly: true
+            - name: credentials
+              mountPath: /secrets/control-plane.key
+              subPath: control-plane.key
+              readOnly: true
+            - name: managed-config
+              mountPath: /managed
+      volumes:
+        - name: credentials
+          secret:
+            secretName: contractor-server-credentials
+            defaultMode: 0400
+        - name: managed-config
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contractor-server
+spec:
+  selector:
+    app: contractor-server
+  ports:
+    - name: public
+      port: 8080
+      targetPort: public
+    - name: private
+      port: 8443
+      targetPort: private

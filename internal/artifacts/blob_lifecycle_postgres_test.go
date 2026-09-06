@@ -99,3 +99,101 @@ func TestFilesystemMissingContentKeepsMetadata(t *testing.T) {
 		t.Fatalf("lost metadata: %v", err)
 	}
 }
+
+// The registry commit remains successful when unlink fails. Offline cleanup can
+// later converge without a cleanup queue or a second logical deletion.
+func TestFilesystemFailedUnlinkLeavesCleanableOrphan(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	ctx = WithBlobRuntime(ctx, NewBlobRuntime(failedUnlinkStore{BlobStore: files}, nil))
+	createArtifactRun(t, ctx, pool, "unlink-run", true)
+	run, _ := NewService(NewPostgresRepository(pool)).Run("unlink-run")
+	if _, err := run.Write(ctx, ArtifactRef{Namespace: "scratch", Name: "orphan"}, Payload{MediaType: "text/plain", Data: []byte("unlink failure")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runstore.NewPostgresStore(pool).TransitionRun(ctx, "unlink-run", runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runstore.NewPostgresStore(pool).DeleteReleasedTerminalRun(ctx, "user-1", "unlink-run"); err != nil {
+		t.Fatalf("unlink failed logical deletion: %v", err)
+	}
+	report, err := CleanupFilesystemBlobs(ctx, pool, path, true)
+	if err != nil || report.Referenced != 0 || report.Orphans != 1 || report.Removed != 1 {
+		t.Fatalf("orphan cleanup: %+v %v", report, err)
+	}
+}
+
+type failedUnlinkStore struct{ BlobStore }
+
+func (failedUnlinkStore) Delete(context.Context, BlobObject) error { return os.ErrPermission }
+
+// Inject response loss after PostgreSQL actually completed the write. The
+// caller sees an ambiguous error; eagerly unlinking its candidate would lose
+// referenced content. A CAS retry remains a conflict with one durable revision.
+func TestFilesystemLostWriteAcknowledgementKeepsCommittedBytes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	if err := ClaimBlobBackend(ctx, pool, BlobFilesystem); err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir()
+	files, err := OpenFilesystemBlobStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer files.Close()
+	ctx = WithBlobRuntime(ctx, NewBlobRuntime(files, nil))
+	broken, _ := NewService(NewPostgresRepository(lostAcknowledgementDB{DBTX: pool})).User("user-1")
+	target := ArtifactRef{Namespace: "docs", Name: "committed"}
+	payload := Payload{MediaType: "text/plain", Data: []byte("committed before connection loss")}
+	if _, err := broken.Write(ctx, target, payload, nil); !errors.Is(err, errLostAcknowledgement) {
+		t.Fatalf("write failure: %v", err)
+	}
+	normal, _ := NewService(NewPostgresRepository(pool)).User("user-1")
+	read, err := normal.Read(ctx, target)
+	if err != nil || string(read.Payload.Data) != string(payload.Data) {
+		t.Fatalf("committed bytes lost: %v", err)
+	}
+	if _, err := normal.Write(ctx, target, payload, nil); err == nil {
+		t.Fatal("CAS retry created another revision")
+	}
+	var revisions int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&revisions); err != nil || revisions != 1 {
+		t.Fatalf("revisions=%d err=%v", revisions, err)
+	}
+	report, err := CleanupFilesystemBlobs(ctx, pool, path, true)
+	if err != nil || report.Referenced != 1 || report.Missing != 0 || report.Orphans != 1 {
+		t.Fatalf("ambiguous write cleanup: %+v %v", report, err)
+	}
+	if _, err := normal.Read(ctx, read.Ref); err != nil {
+		t.Fatal(err)
+	}
+}
+
+var errLostAcknowledgement = errors.New("injected lost write acknowledgement")
+
+type lostAcknowledgementDB struct{ postgres.DBTX }
+
+func (db lostAcknowledgementDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return lostAcknowledgementRow{Row: db.DBTX.QueryRow(ctx, sql, args...)}
+}
+
+type lostAcknowledgementRow struct{ pgx.Row }
+
+func (row lostAcknowledgementRow) Scan(dest ...any) error {
+	if err := row.Row.Scan(dest...); err != nil {
+		return err
+	}
+	return errLostAcknowledgement
+}

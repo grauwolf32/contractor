@@ -64,7 +64,7 @@ the Runtime rejects traversal, links, special/encrypted files, duplicate
 normalized names, and bounded-archive violations before replacing an already
 opened tree. The initial limits are 10,000 entries, 64 MiB declared
 uncompressed total, and 4 MiB per file; the outer Artifact API still limits the
-compressed payload to 16 MiB.
+compressed payload to 64 MiB.
 
 The model-visible interface is read-only: `open_source_archive`,
 `list_source_files`, `search_source`, and `read_source`. Dependency/VCS/build

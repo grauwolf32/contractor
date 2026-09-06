@@ -560,6 +560,13 @@ milestones:
       Catalog groups Workflows, Agents and Skills, with exact-version base
       instruction viewing, safe Markdown/source/copy and compatible legacy links.
 
+  - id: artifact-blob-backends
+    exit_task: V34-005
+    outcome: >-
+      Server startup selects PostgreSQL or filesystem payloads while exact Artifact
+      metadata stays in PostgreSQL. Kubernetes without PVC is supported; ephemeral
+      filesystem loss and offline orphan cleanup are explicit. S3 remains deferred.
+
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
   verdict: ready_to_implement_in_dependency_order
@@ -2236,3 +2243,9 @@ tasks:
   - {id: V31-007, file: v31-007-podman-workflow-deployment.yml}
   - {id: V31-008, file: v31-008-podman-release-gate.yml}
   - {id: V33-001, file: v33-001-catalog-and-agent-prompts.yml}
+  - {id: V34-001, file: v34-001-blob-contracts-and-postgres.yml}
+  - {id: V34-002, file: v34-002-filesystem-blob-adapter.yml}
+  - {id: V34-003, file: v34-003-blob-registry-and-transfer-integration.yml}
+  - {id: V34-004, file: v34-004-offline-blob-cleanup.yml}
+  - {id: V34-005, file: v34-005-blob-backends-release-gate.yml}
+  - {id: V34-006, file: v34-006-overlay-export-size-contract.yml}

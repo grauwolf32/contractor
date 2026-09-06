@@ -1,0 +1,26 @@
+# Strategic merge patch for postgresql.yaml; no PVC. Use with kustomize or
+# kubectl patch --local --type=strategic on the Deployment document.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contractor-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    spec:
+      containers:
+        - name: server
+          env:
+            - name: CONTRACTOR_ARTIFACT_BLOB_BACKEND
+              value: filesystem
+            - name: CONTRACTOR_ARTIFACT_BLOB_PATH
+              value: /blobs
+          volumeMounts:
+            - name: artifact-blobs
+              mountPath: /blobs
+      volumes:
+        - name: artifact-blobs
+          emptyDir:
+            sizeLimit: 4Gi

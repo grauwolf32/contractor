@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -765,16 +766,23 @@ func (h *handler) runArtifactsByNamespace(
 	}
 	result := make(map[string]contracts.ArtifactRef, len(refs))
 	for _, ref := range refs {
-		read, err := store.Read(r.Context(), ref)
+		metadata, err := store.Metadata(r.Context(), ref)
 		if err != nil {
 			return nil, err
 		}
-		result[ref.Name] = read.Ref
+		result[ref.Name] = metadata.Ref
 	}
 	return result, nil
 }
 
 func (h *handler) getRunOutput(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return

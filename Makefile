@@ -433,3 +433,13 @@ build:
 verify: lint test build ui-verify
 
 release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audit-program-library-e2e
+
+.PHONY: test-artifact-blob-backends
+test-artifact-blob-backends:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
+	go test -race -tags=integration -count=1 ./internal/artifacts ./internal/app ./internal/persistence/postgres ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/auditstore ./internal/findingintake ./internal/projectlifecycle
+	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -count=1 ./internal/artifacts -run 'TestPostgresIntegration(64MiB|InputFork|ProjectInput|ProjectScope|Publishes|DeletesReleased|ArtifactCAS|SkillFork)'
+	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 ./internal/findingintake
+	cd runtime && uv run pytest -q tests/test_artifacts.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py
+	go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$$' -v

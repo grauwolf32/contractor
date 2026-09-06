@@ -1,0 +1,7 @@
+# Build a static binary first; pass a prepared context containing that binary
+# and your immutable operator/bootstrap configs. No build toolchain or /tmp is
+# present in the final image.
+FROM scratch
+COPY contractor-server /contractor-server
+COPY configs /configs
+ENTRYPOINT ["/contractor-server"]

@@ -1424,6 +1424,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
 
   /v1/runs/{runId}/artifacts:
     parameters:

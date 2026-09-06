@@ -168,8 +168,9 @@ artifact in the allocation's logical namespace using media type
 arbitrary bytes use base64. Internal names are collision-resistant and the
 exact returned ref is retained in allocation memory. `http_read_body` accepts
 only a request ID created by that allocation, never an arbitrary ArtifactRef.
-The JSON envelope itself must also fit the Artifact plane's 16 MiB payload
-limit, so base64 expansion can make the effective binary-body limit smaller.
+The JSON envelope itself must also fit the Artifact plane's 64 MiB payload
+limit after text escaping or base64 encoding. The raw response-body limit
+remains independently capped at 16 MiB.
 Bindings use the reserved `http.body.` prefix: generic model-visible Artifact
 tools neither list nor read/write them. This is a Toolset authority boundary,
 not a new Artifact API or storage class.

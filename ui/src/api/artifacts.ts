@@ -2,7 +2,7 @@ import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
 
-export const MAXIMUM_ARTIFACT_BYTES = 16 * 1024 * 1024;
+export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
 export const MAXIMUM_PREVIEW_BYTES = 256 * 1024;
 export const ARTIFACT_PAGE_SIZE = 50;
 
@@ -268,7 +268,7 @@ export async function writeScopedArtifact(
     throw new TypeError("Artifact upload requires one concrete media type");
   }
   if (request.payload.size > MAXIMUM_ARTIFACT_BYTES) {
-    throw new TypeError("Artifact payload exceeds 16 MiB");
+    throw new TypeError("Artifact payload exceeds 64 MiB");
   }
   let headers: Headers;
   if (request.expectedRevision === undefined) {

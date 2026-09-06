@@ -24,7 +24,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.mtls import verify_control_plane_peer
 
-MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
+MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
 MAX_RESPONSE_HEADERS = 64
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -279,7 +279,7 @@ class ArtifactClient:
         if not isinstance(data, bytes):
             raise TypeError("artifact payload must be bytes")
         if len(data) > MAX_ARTIFACT_BYTES:
-            raise ValueError("artifact payload exceeds the 16 MiB limit")
+            raise ValueError("artifact payload exceeds the 64 MiB limit")
         _validate_media_type(media_type)
         headers = {"Accept": "application/json", "Content-Type": media_type}
         expected_status = 201

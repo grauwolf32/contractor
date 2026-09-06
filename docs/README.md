@@ -15,6 +15,7 @@ blob backend remain replaceable deployment adapters.
 ## Entry points
 
 - [Local development and end-to-end MVP](development.md)
+- [Artifact blob storage and no-PVC deployment](artifact-blob-storage.md)
 - [Specification index](spec/README.md)
 - [LikeC4 architecture](spec/architecture.c4)
 - [Workflow Scheduler and Planner](spec/00-workflow-and-planner.md)

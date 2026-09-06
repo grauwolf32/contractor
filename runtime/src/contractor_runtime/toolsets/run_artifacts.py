@@ -222,7 +222,7 @@ class WriteArtifactTool(_BaseTool):
         try:
             require_model_visible_binding(namespace, name)
             if len(data_base64) > MAX_BASE64_PAYLOAD_LENGTH:
-                raise ValueError("base64 artifact payload exceeds the 16 MiB limit")
+                raise ValueError("base64 artifact payload exceeds the 64 MiB limit")
             try:
                 data = base64.b64decode(data_base64, validate=True)
             except (binascii.Error, ValueError) as error:

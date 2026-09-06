@@ -153,6 +153,13 @@ independent of the Go Server release while the supported API version overlaps.
 
 ## Workflow user surface
 
+Server Artifact payload storage is selected at startup, independently of UI
+settings and managed configuration roots: [23](23-artifact-blob-backends.md)
+specifies PostgreSQL by default (no writable blob directory/PVC), optional
+filesystem storage at an explicit path, and deferred S3 support. Ephemeral
+filesystem storage is permitted with explicit missing-content behavior after
+volume loss; backend selection never silently falls back.
+
 The first useful user surface supports:
 
 - listing published Workflow names and exact versions;
@@ -199,7 +206,7 @@ an attempted `skills` namespace to that route instead of duplicating it.
 
 UserScope and ProjectScope uploads share one accessible file-drop component:
 drop and file-picker input select exactly one local file, show its name/size,
-enforce the 16 MiB limit before mutation, derive a safe editable name from the
+enforce the 64 MiB limit before mutation, derive a safe editable name from the
 file stem and infer known media types by browser value or extension. Scope,
 CAS and mutation endpoints remain owned by their containing forms; sharing the
 drop interaction grants no cross-scope authority.

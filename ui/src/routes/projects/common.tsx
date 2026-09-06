@@ -198,7 +198,7 @@ export function ProjectArtifactWriteForm({
       return;
     }
     if (file.size > MAXIMUM_ARTIFACT_BYTES) {
-      setValidationError("Artifact exceeds the 16 MiB upload limit.");
+      setValidationError("Artifact exceeds the 64 MiB upload limit.");
       return;
     }
     mutation.mutate({

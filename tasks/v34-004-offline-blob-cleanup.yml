@@ -3,8 +3,8 @@ id: V34-004
 title: Add offline dry-run cleanup for orphan filesystem blobs
 milestone: artifact-blob-backends
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 69fb7f32b7b6d04523c427b56e3d7bdda7c3ba8a
 depends_on:
 - V34-003
 languages:

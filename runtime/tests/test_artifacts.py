@@ -232,7 +232,7 @@ def test_client_rejects_versioned_write_and_mismatched_or_oversized_responses() 
                 media_type="text/plain",
                 expected_revision=None,
             )
-        with pytest.raises(ValueError, match="16 MiB"):
+        with pytest.raises(ValueError, match="64 MiB"):
             await client.write_artifact(
                 ArtifactRef(namespace="analysis", name="report"),
                 data=b"x" * (MAX_ARTIFACT_BYTES + 1),

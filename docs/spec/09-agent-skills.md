@@ -192,7 +192,8 @@ capability, placement predicate or dependency resolver. They contain no secret.
 The complete `SKILL.md` is at most 256 KiB; one regular reference or asset is at
 most 1 MiB. Text members are valid UTF-8 and have no NUL. In addition:
 
-- stored artifact payload is at most 16 MiB, inherited from ArtifactStore;
+- stored Skill ZIP payload is at most 16 MiB, a package-specific limit below
+  the generic ArtifactStore limit of 64 MiB;
 - the ZIP contains at most 2,000 entries including directories;
 - total declared and actually streamed decompressed bytes are at most 32 MiB.
 

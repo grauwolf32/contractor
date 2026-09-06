@@ -10,7 +10,6 @@ import {
 
 import {
   ARTIFACT_NAME_PATTERN,
-  MAXIMUM_ARTIFACT_BYTES,
   writeArtifact,
   type ArtifactWriteResponse,
 } from "../api/artifacts";
@@ -18,6 +17,8 @@ import { usePublicAPI } from "../api/context";
 import { queryKeys } from "../api/query-keys";
 import { artifactFileStem } from "./artifacts/artifact-file";
 import { ArtifactFileDrop, ErrorNotice } from "./artifacts/common";
+
+const MAXIMUM_SKILL_ARCHIVE_BYTES = 16 * 1024 * 1024;
 
 export function SkillUploadDialog({
   onClose,
@@ -119,7 +120,7 @@ export function SkillUploadDialog({
       );
     } else if (file === null) {
       setError("Choose a Skill ZIP package to upload.");
-    } else if (file.size > MAXIMUM_ARTIFACT_BYTES) {
+    } else if (file.size > MAXIMUM_SKILL_ARCHIVE_BYTES) {
       setError("Skill package exceeds the 16 MiB upload limit.");
     } else {
       mutation.mutate({ name: selectedName, file });
@@ -170,7 +171,11 @@ export function SkillUploadDialog({
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
-            <ArtifactFileDrop file={file} onSelect={selectFile} />
+            <ArtifactFileDrop
+              file={file}
+              maximumBytes={MAXIMUM_SKILL_ARCHIVE_BYTES}
+              onSelect={selectFile}
+            />
           </fieldset>
           {error === null ? null : (
             <p className="form-error" role="alert">

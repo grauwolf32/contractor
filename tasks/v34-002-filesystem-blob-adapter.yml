@@ -25,7 +25,7 @@ context:
     with the same path.
 scope:
   in:
-  - Implement bounded store/open/delete operations and actual startup create/write/rename/read/delete
+  - Implement bounded store/open/delete operations and actual startup create/write/publish/read/delete
     probes.
   - Use rooted filesystem access and reject symlink, special-file and traversal escapes.
   - Publish only complete files; return explicit missing/corrupt content failures and keep storage
