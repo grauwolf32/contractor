@@ -3,7 +3,7 @@ id: V31-008
 title: Verify Podman execution across real processes, crashes and resource faults
 milestone: podman-allocation-execution
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V31-007]
 languages: [go, python]
