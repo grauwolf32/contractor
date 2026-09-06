@@ -3,8 +3,8 @@ id: V31-006
 title: Enable Podman capabilities only after complete bounded startup probes
 milestone: podman-allocation-execution
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c5815646e53eb2e0cc05e26669e748e1f1b1ccb9
 depends_on: [V31-005]
 languages: [python, go]
 
@@ -57,5 +57,24 @@ acceptance_criteria:
 
 tests:
   - {name: discovery, command: "cd runtime && uv run pytest -W error tests/test_podman_capabilities.py tests/test_capabilities.py tests/test_podman_recovery.py", covers: [A1, A2, A3]}
-  - {name: placement, command: "go test -count=1 ./internal/config ./internal/scheduler", covers: [A3]}
+  - {name: placement, command: "go test -count=1 ./internal/config ./internal/scheduler ./internal/controlplane", covers: [A3]}
   - {name: real-prerequisites, command: "make test-podman-supervisor", covers: [A1, A2]}
+
+verification:
+  verified_on: "2026-09-06"
+  image: localhost/contractor-supervisor@sha256:faea9fa41ec757ad3c18bf3a947409692f2fcc374a87c1d209185175b0d215ca
+  environment: Local rootless Podman 6.1.0 with systemd cgroup v2; the real gate uses only the explicitly preinstalled digest-pinned image and never pulls or builds images.
+  results:
+    - Required discovery, capabilities and recovery tests passed, 58 tests with warnings treated as errors and two explicit real-host skips.
+    - Expanded mandatory real Podman gate passed all 52 tests, including supervisor resource enforcement, independent owner lifetime, command execution, positive startup, missing image and an ordinary direct allocation after probe removal.
+    - Exact placement tests passed in internal/config, internal/scheduler and internal/controlplane, both in the worktree and an isolated staged snapshot; the heterogeneous registered fleet preserves memory/direct and local/overlay slots for ordinary tasks.
+    - Isolated staged snapshot passed the full Runtime suite, 1286 tests with warnings treated as errors and 24 explicit skips, without parallel uncommitted changes.
+    - Isolated Runtime source and test lint passed; all 11 changed Python files passed formatting, and the staged patch passed whitespace checks.
+    - No sandbox-owner-labeled containers or Runtime owner/guardian processes remained after the real gate.
+    - Full shared-worktree verification is not green due to parallel audit-results edits; Runtime lint reported an undefined _validate_task_result, and the full worktree suite reported four audit-results failures alongside 1295 passes and 24 skips. Those files were excluded from this implementation commit and left unchanged.
+  limitations:
+    - Podman remains opt-in and requires local direct storage, a preinstalled approved image and verified rootless prerequisites; memory/overlay and host/network fallback are not enabled.
+    - An unreachable recovery engine or uncertain probe cleanup prevents registration; late replies cannot revive readiness, and bind files remain owned for recovery.
+    - Startup probes have finite budgets and short independent bootstrap guardian leases; indefinitely blocked kernel operations retain ownership rather than manufacturing cleanup success.
+    - Bind disk quotas are not enforced; verified scope swap is a finite upper bound, not a claim of zero swap in all descendants.
+    - Reproducible deployment/service-manager instructions and the sample workflow remain V31-007.
