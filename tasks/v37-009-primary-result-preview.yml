@@ -3,7 +3,7 @@ id: "V37-009"
 title: "Highlight declared primary outputs and preview a selected result with one action"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V23-004", "V24-001", "V33-001"]
 languages: ["typescript"]
@@ -22,6 +22,15 @@ context:
     Use the exact Workflow version associated with the Run to identify primary slots. Preserve
     existing safe renderers and media, byte, parser and time limits; use explicit
     unavailable/missing states when metadata or bytes cannot be read.
+  loading_contract: >-
+    Opening Run detail may read the exact immutable Workflow contract used by the Run so output
+    slots can be classified. It must not read any output metadata or payload until the user
+    requests one exact present output. That one action sequences its metadata read and, only
+    when preview policy permits, its bounded content read.
+  missing_contract: >-
+    A declared slot without a present Run output is pending while the Run is non-terminal and
+    missing/unavailable after terminal state. If the exact Workflow contract cannot be read,
+    retain all present outputs as unclassified and promote none of them to primary.
   browser_verification: >-
     Build the UI with make ui-build and serve it using the documented UI development or Node
     server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
