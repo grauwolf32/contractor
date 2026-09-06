@@ -1,4 +1,8 @@
 import {
+  GitImportDialog,
+  GitSourceDetails,
+} from "../artifacts/git-import-dialog";
+import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
@@ -354,6 +358,10 @@ export function WorkflowRunForm({
   const api = usePublicAPI();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [gitSlot, setGitSlot] = useState<string | null>(null);
+  const [importedArtifacts, setImportedArtifacts] = useState<
+    ArtifactMetadata[]
+  >([]);
   const [keyring] = useState(() => new RunDraftKeyring());
   const [parameters, setParameters] = useState<
     Record<string, string | undefined>
@@ -435,8 +443,17 @@ export function WorkflowRunForm({
   });
 
   const artifacts = useMemo(
-    () => artifactInventory.data?.pages.flatMap((page) => page.items) ?? [],
-    [artifactInventory.data],
+    () =>
+      Array.from(
+        new Map(
+          [
+            ...(artifactInventory.data?.pages.flatMap((page) => page.items) ??
+              []),
+            ...importedArtifacts,
+          ].map((item) => [artifactOptionKey(item.artifact), item]),
+        ).values(),
+      ),
+    [artifactInventory.data, importedArtifacts],
   );
   const artifactMap = useMemo(
     () =>
@@ -703,6 +720,36 @@ export function WorkflowRunForm({
       onSubmit={submit}
       noValidate
     >
+      {gitSlot === null ? null : (
+        <GitImportDialog
+          {...(projectId === undefined ? {} : { projectId })}
+          suggestedName={gitSlot}
+          onClose={() => setGitSlot(null)}
+          onImported={(result) => {
+            setImportedArtifacts((current) => [
+              ...current,
+              {
+                artifact: result.artifact,
+                mediaType: result.mediaType,
+                size: result.size,
+                gitSource: result.gitSource,
+                current: true,
+                frozen: false,
+                createdAt: result.gitSource.importedAt,
+              },
+            ]);
+            setArtifactSelections((current) =>
+              updateRecord(
+                current,
+                gitSlot,
+                artifactOptionKey(result.artifact),
+              ),
+            );
+            clearError(`artifact:${gitSlot}`);
+            setGitSlot(null);
+          }}
+        />
+      )}
       <div className="section-heading run-draft-heading">
         <div>
           <p className="eyebrow">Run setup</p>
@@ -871,6 +918,23 @@ export function WorkflowRunForm({
                       </select>
                     </label>
                     <small>Accepts {slot.mediaTypes.join(", ")}</small>
+                    {slot.mediaTypes.some((type) =>
+                      ["application/zip", "*/*"].includes(type),
+                    ) ? (
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => setGitSlot(name)}
+                      >
+                        Import Git for {name}
+                      </button>
+                    ) : null}
+                    <GitSourceDetails
+                      source={
+                        artifactMap.get(artifactSelections[name] ?? "")
+                          ?.gitSource
+                      }
+                    />
                     {error === undefined ? null : (
                       <p
                         className="field-error"

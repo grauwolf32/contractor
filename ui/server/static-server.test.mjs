@@ -87,6 +87,7 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/workflows",
     "/workflows/openapi-from-workspace/3",
     "/artifacts",
+    "/settings",
     "/artifacts/projects/source",
     "/runs",
     "/runs/run_example",

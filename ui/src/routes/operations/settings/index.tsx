@@ -123,6 +123,10 @@ export function OperationsSettingsRoute() {
         </div>
       </header>
 
+      <p>
+        <Link to="/settings">Personal Git key settings</Link>
+      </p>
+
       <section
         className="panel configuration-draft"
         aria-labelledby="workflow-scheduling-heading"

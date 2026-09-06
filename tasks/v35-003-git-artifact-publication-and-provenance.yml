@@ -3,8 +3,8 @@ id: V35-003
 title: Publish Git snapshots and immutable provenance through User and Project APIs
 milestone: git-artifact-import
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: e6bf1c1f856c74c196934595529190b4592ad938
 depends_on:
 - V35-002
 languages:

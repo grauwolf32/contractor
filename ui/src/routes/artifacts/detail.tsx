@@ -1,3 +1,4 @@
+import { GitSourceDetails } from "./git-import-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
@@ -341,6 +342,7 @@ export function ArtifactDetailRoute() {
               <dd>{query.data.frozen ? "yes" : "no"}</dd>
             </div>
           </dl>
+          <GitSourceDetails source={query.data.gitSource} />
           <ArtifactActions
             key={`actions-${query.data.artifact.revision}`}
             metadata={query.data}

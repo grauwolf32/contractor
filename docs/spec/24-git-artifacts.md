@@ -1,7 +1,6 @@
 # 24 — Git repositories as Artifact inputs
 
-Status: **In progress (V35) — Settings API, bounded Git reader and atomic
-Artifact publication implemented; UI and release gate pending**
+Status: **Implemented (V35-001 through V35-004); release gate in progress**
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [17](17-projects-and-queue.md), [23](23-artifact-blob-backends.md).
@@ -15,6 +14,15 @@ one optional SSH private key per owner for private repositories. Anonymous
 HTTPS repositories work without a key; SSH uses the importing owner's key.
 Private HTTPS tokens, multiple named keys, repository browsing and Git writes
 are deferred.
+
+Personal Settings lives at `/settings`, linked beside the signed-in user.
+It is available without the Operations capability; Operations Settings links
+to it. The same Git-import dialog is used by standalone/Project Workflow
+inputs and the Project artifact library. Existing bindings require reviewing
+and confirming their exact revision before replacement. Closing the dialog
+cancels its request and restores focus without closing the parent Run form.
+Successful imports select only the requested input and show the recorded
+commit; metadata detail pages also display Git provenance.
 
 Import materializes a source ZIP and publishes an ordinary exact ArtifactRef.
 A Workflow receives that ref through existing input selection/forking; it does

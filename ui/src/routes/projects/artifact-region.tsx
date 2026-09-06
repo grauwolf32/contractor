@@ -1,3 +1,8 @@
+import {
+  GitImportDialog,
+  GitSourceDetails,
+} from "../artifacts/git-import-dialog";
+import type { GitImportResult } from "../../api/git-artifacts";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router";
@@ -35,7 +40,10 @@ export function ProjectArtifactRegion({
     undefined,
   ]);
   const [shortcut, setShortcut] = useState<ShortcutDefinition | null>(null);
-  const [written, setWritten] = useState<ArtifactWriteResponse | null>(null);
+  const [gitOpen, setGitOpen] = useState(false);
+  const [written, setWritten] = useState<
+    ArtifactWriteResponse | GitImportResult | null
+  >(null);
   const [filterError, setFilterError] = useState<string | null>(null);
   const cursor = cursors.at(-1);
   const query = useQuery({
@@ -89,6 +97,13 @@ export function ProjectArtifactRegion({
         editable, and Other accepts any supported Artifact.
       </p>
       <ProjectArtifactShortcutGrid onSelect={setShortcut} />
+      <button
+        className="secondary-button"
+        type="button"
+        onClick={() => setGitOpen(true)}
+      >
+        Import Git repository
+      </button>
 
       {written === null ? null : (
         <div className="notice notice-success" role="status">
@@ -99,6 +114,9 @@ export function ProjectArtifactRegion({
             Open {written.artifact.namespace}/{written.artifact.name}@
             {written.artifact.revision}
           </Link>
+          {"gitSource" in written ? (
+            <GitSourceDetails source={written.gitSource} />
+          ) : null}
         </div>
       )}
 
@@ -191,6 +209,16 @@ export function ProjectArtifactRegion({
         />
       </div>
 
+      {gitOpen ? (
+        <GitImportDialog
+          projectId={projectId}
+          onClose={() => setGitOpen(false)}
+          onImported={(result) => {
+            finishUpload(result);
+            setGitOpen(false);
+          }}
+        />
+      ) : null}
       {shortcut === null ? null : (
         <ProjectArtifactDialog
           projectId={projectId}

@@ -11,6 +11,7 @@ const CLIENT_ROUTES = new Set([
   "/queue",
   "/workflows",
   "/artifacts",
+  "/settings",
   "/runs",
   "/skills",
   "/catalog",
