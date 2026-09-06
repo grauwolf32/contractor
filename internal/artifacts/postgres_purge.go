@@ -287,13 +287,13 @@ WHERE version.version_id = ANY($1::text[])
       FROM artifact_binding_revisions AS revision
       WHERE revision.version_id = version.version_id
   )
-RETURNING encode(version.blob_sha256, 'hex')`, versionIDs)
+RETURNING version.blob_sha256`, versionIDs)
 	if err != nil {
 		return fmt.Errorf("collect unreferenced Artifact versions: %w", err)
 	}
-	blobDigests := make([]string, 0, len(versionIDs))
+	blobDigests := make([][]byte, 0, len(versionIDs))
 	for rows.Next() {
-		var digest string
+		var digest []byte
 		if err := rows.Scan(&digest); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan unreferenced Artifact blob digest: %w", err)
@@ -310,7 +310,7 @@ RETURNING encode(version.blob_sha256, 'hex')`, versionIDs)
 	}
 	if _, err := p.tx.Exec(ctx, `
 DELETE FROM artifact_blobs AS blob
-WHERE encode(blob.sha256, 'hex') = ANY($1::text[])
+WHERE blob.sha256 = ANY($1::bytea[])
   AND NOT EXISTS (
       SELECT 1
       FROM artifact_versions AS version
