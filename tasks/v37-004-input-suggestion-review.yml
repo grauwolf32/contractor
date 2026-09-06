@@ -22,8 +22,10 @@ context:
     Require explicit selection or confirmation per populated suggested slot before submission;
     do not claim that confirmation validates content. Store confirmation against the input slot
     and exact ArtifactRef. An explicit picker choice or upload confirms only its originating slot;
-    a changed automatic suggestion invalidates only that slot. Optional empty slots remain
-    optional.
+    a changed automatic suggestion invalidates only that slot. An untouched automatic selection
+    follows the changed suggestion; a previously confirmed suggestion stays selected as an older
+    exact revision but requires confirmation again; an independently selected different ref is
+    unaffected. Optional empty slots remain optional.
   specification: >-
     Amend docs/spec/17-projects-and-queue.md and docs/spec/06-server-ui-and-operations.md with
     the distinction between candidate compatibility, reviewed form readiness and Server
