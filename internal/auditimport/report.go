@@ -80,6 +80,51 @@ type reportItem struct {
 	Task             auditstore.ExactArtifact    `json:"task"`
 }
 
+type reportFindingDecision struct {
+	DecisionID      string    `json:"decisionId"`
+	ActorID         string    `json:"actorId"`
+	Verdict         string    `json:"verdict"`
+	Severity        *string   `json:"severity,omitempty"`
+	Rationale       string    `json:"rationale"`
+	SubjectRevision uint64    `json:"subjectRevision"`
+	SubjectDigest   string    `json:"subjectDigest"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+type reportFindingAssessment struct {
+	AssessmentID       string                    `json:"assessmentId"`
+	SemanticAssessment string                    `json:"semanticAssessment"`
+	Result             auditstore.ExactArtifact  `json:"result"`
+	DirectVerification bool                      `json:"directVerification"`
+	Contract           *auditstore.ExactArtifact `json:"contract,omitempty"`
+	AcceptedAt         time.Time                 `json:"acceptedAt"`
+}
+
+type reportFinding struct {
+	FindingID          string                          `json:"findingId"`
+	State              string                          `json:"state"`
+	Revision           uint64                          `json:"revision"`
+	FirstProposal      auditstore.ExactArtifact        `json:"firstProposal"`
+	Title              string                          `json:"title"`
+	Description        string                          `json:"description"`
+	Subject            auditdomain.FindingSubject      `json:"subject"`
+	Hypothesis         string                          `json:"hypothesis,omitempty"`
+	SeveritySuggestion string                          `json:"severitySuggestion,omitempty"`
+	StandardRefs       []auditdomain.StandardReference `json:"standardRefs"`
+	Limitations        []string                        `json:"limitations"`
+	Assessment         *reportFindingAssessment        `json:"assessment,omitempty"`
+	AnalystDecision    *reportFindingDecision          `json:"analystDecision,omitempty"`
+	DuplicateTargetID  *string                         `json:"duplicateTargetId,omitempty"`
+}
+
+type reportFindingSections struct {
+	Confirmed     []reportFinding `json:"confirmed"`
+	Proposed      []reportFinding `json:"proposed"`
+	Rejected      []reportFinding `json:"rejected"`
+	Duplicates    []reportFinding `json:"duplicates"`
+	NeedsEvidence []reportFinding `json:"needsEvidence"`
+}
+
 type machineReport struct {
 	Schema              string                                 `json:"schema"`
 	AuditID             string                                 `json:"auditId"`
@@ -93,6 +138,7 @@ type machineReport struct {
 	AttemptDispositions auditstore.CollectionDispositionCounts `json:"attemptDispositions"`
 	Coverage            reportCoverageSummary                  `json:"coverage"`
 	Items               []reportItem                           `json:"items"`
+	Findings            reportFindingSections                  `json:"findings"`
 	Conclusion          string                                 `json:"conclusion"`
 }
 
@@ -164,6 +210,10 @@ func (i *Importer) Finalize(
 	if err != nil {
 		return false, err
 	}
+	findings, err := i.reportFindings(ctx, snapshot.Audit)
+	if err != nil {
+		return false, err
+	}
 	coverageSummary := summarizeCoverage(coverage)
 	conclusion := "completed"
 	if len(items) == 0 || len(baseline.Inventory.Gaps) != 0 || hasIncompleteCoverage(coverageSummary.Counts) ||
@@ -196,7 +246,7 @@ func (i *Importer) Finalize(
 		},
 		Limits: snapshot.Audit.Limits, StopReason: stopReason,
 		AttemptDispositions: attempts, Coverage: coverageSummary,
-		Items: reportItems, Conclusion: conclusion,
+		Items: reportItems, Findings: findings, Conclusion: conclusion,
 	}
 	machineBytes, err := json.Marshal(report)
 	if err != nil || len(machineBytes) > artifacts.MaxPayloadSize {
@@ -286,6 +336,71 @@ func (i *Importer) allCoverage(
 	}
 }
 
+func (i *Importer) reportFindings(
+	ctx context.Context, audit auditstore.Audit,
+) (reportFindingSections, error) {
+	rows, err := i.store.ListReportFindings(ctx, audit.AuditID)
+	if err != nil {
+		return reportFindingSections{}, err
+	}
+	result := reportFindingSections{
+		Confirmed: []reportFinding{}, Proposed: []reportFinding{}, Rejected: []reportFinding{},
+		Duplicates: []reportFinding{}, NeedsEvidence: []reportFinding{},
+	}
+	for _, row := range rows {
+		payload, err := i.artifacts.ReadProjectExact(ctx, audit.ProjectID, row.FirstProposal)
+		if err != nil {
+			return reportFindingSections{}, err
+		}
+		document, err := auditdomain.DecodeFindingProposal(payload)
+		if err != nil {
+			return reportFindingSections{}, fmt.Errorf("%w: report finding proposal is invalid", ErrPermanent)
+		}
+		value := reportFinding{
+			FindingID: row.FindingID, State: row.State, Revision: row.Revision,
+			FirstProposal: row.FirstProposal, Title: document.Title, Description: document.Description,
+			Subject: document.Subject, Hypothesis: document.Hypothesis,
+			SeveritySuggestion: document.SeveritySuggestion,
+			StandardRefs:       append([]auditdomain.StandardReference{}, document.StandardRefs...),
+			Limitations:        append([]string{}, document.Limitations...),
+			DuplicateTargetID:  row.DuplicateTargetID,
+		}
+		if row.Assessment != nil {
+			value.Assessment = &reportFindingAssessment{
+				AssessmentID:       row.Assessment.AssessmentID,
+				SemanticAssessment: row.Assessment.SemanticAssessment,
+				Result:             row.Assessment.Result,
+				DirectVerification: row.Assessment.DirectVerification,
+				Contract:           row.Assessment.Contract,
+				AcceptedAt:         row.Assessment.AcceptedAt,
+			}
+		}
+		if row.Decision != nil {
+			value.AnalystDecision = &reportFindingDecision{
+				DecisionID: row.Decision.DecisionID, ActorID: row.Decision.ActorID,
+				Verdict: row.Decision.Verdict, Severity: row.Decision.Severity,
+				Rationale: row.Decision.Rationale, SubjectRevision: row.Decision.SubjectRevision,
+				SubjectDigest: row.Decision.SubjectDigest, CreatedAt: row.Decision.CreatedAt,
+			}
+		}
+		switch row.State {
+		case "confirmed":
+			result.Confirmed = append(result.Confirmed, value)
+		case "proposed":
+			result.Proposed = append(result.Proposed, value)
+		case "rejected":
+			result.Rejected = append(result.Rejected, value)
+		case "duplicate":
+			result.Duplicates = append(result.Duplicates, value)
+		case "needs-evidence":
+			result.NeedsEvidence = append(result.NeedsEvidence, value)
+		default:
+			return reportFindingSections{}, fmt.Errorf("%w: report finding state is invalid", ErrPermanent)
+		}
+	}
+	return result, nil
+}
+
 func summarizeCoverage(rows []auditstore.CoverageRow) reportCoverageSummary {
 	result := reportCoverageSummary{SelectedItems: len(rows)}
 	for _, row := range rows {
@@ -341,6 +456,13 @@ func humanSummary(report machineReport) string {
 		report.Coverage.Counts.Blocked, report.Coverage.Counts.NotApplicable,
 		report.Coverage.Counts.Excluded, report.Coverage.Counts.TracedComplete,
 		report.Coverage.Counts.TracedPartial, report.Coverage.Counts.Unmapped,
+	)
+	fmt.Fprintf(
+		&builder,
+		"Findings: confirmed=%d proposed=%d rejected=%d duplicate=%d needs-evidence=%d\n",
+		len(report.Findings.Confirmed), len(report.Findings.Proposed),
+		len(report.Findings.Rejected), len(report.Findings.Duplicates),
+		len(report.Findings.NeedsEvidence),
 	)
 	if report.Coverage.AssessedPercent == nil {
 		builder.WriteString("Applicable coverage: N/A (zero denominator)\n")

@@ -53,7 +53,7 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
 		}
 	}
-	if profile.Interaction.FindingConfirmation == config.AuditFindingHumanRequired || profileCanEmitFindings(profile) {
+	if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled && profileCanEmitFindings(profile) {
 		reasons[ReasonFindingConfirmationUnsupported] = struct{}{}
 	}
 	if profile.Interaction.NotApplicable == config.AuditNotApplicableHumanRequired {

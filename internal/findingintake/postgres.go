@@ -186,6 +186,102 @@ SELECT receipt.receipt_id
 	return s.hydrateReceiptDocuments(ctx, result)
 }
 
+// GetAuditReceipt returns one exact proposal only when the authenticated owner
+// can reach it through the requested Audit. It deliberately uses the same
+// source/Audit-hold hydration path as inbox listing, so deleted source Runs do
+// not weaken integrity checks or provenance.
+func (s *Service) GetAuditReceipt(
+	ctx context.Context,
+	ownerID, auditID, receiptID string,
+) (Receipt, error) {
+	if ownerID == "" || auditID == "" || receiptID == "" {
+		return Receipt{}, ErrInvalid
+	}
+	var admittedID string
+	err := s.pool.QueryRow(ctx, `
+SELECT receipt.receipt_id
+  FROM finding_proposal_receipts AS receipt
+  JOIN audits AS audit ON audit.audit_id = $2 AND audit.owner_id = $1
+ WHERE receipt.receipt_id = $3 AND receipt.owner_id = $1
+   AND (receipt.audit_id = $2 OR EXISTS (
+       SELECT 1 FROM finding_proposal_audit_holds AS hold
+        WHERE hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
+   ))`, ownerID, auditID, receiptID).Scan(&admittedID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Receipt{}, ErrNotFound
+	}
+	if err != nil {
+		return Receipt{}, fmt.Errorf("authorize Audit finding receipt: %w", err)
+	}
+	receipt, err := readReceiptByID(ctx, s.pool, admittedID)
+	if err != nil {
+		return Receipt{}, err
+	}
+	values, err := s.hydrateReceiptDocuments(ctx, []Receipt{receipt})
+	if err != nil {
+		return Receipt{}, err
+	}
+	return values[0], nil
+}
+
+// ResolveAuditProposals converts Runtime-injected invocation-local keys into
+// exact receipts already retained by the same Audit execution. It rejects
+// ambiguous, foreign, missing, or repeated keys and never falls back to a
+// Run-wide client-key guess.
+func (s *Service) ResolveAuditProposals(
+	ctx context.Context,
+	ownerID, auditID, executionID, runID string,
+	keys []ProposalKey,
+) ([]ResolvedProposal, error) {
+	if ownerID == "" || auditID == "" || executionID == "" || runID == "" ||
+		len(keys) > auditdomain.MaximumProposalsPerItem {
+		return nil, ErrInvalid
+	}
+	result := make([]ResolvedProposal, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		if !validIdentity(key.InvocationID) || !validIdentity(key.ClientKey) {
+			return nil, ErrInvalid
+		}
+		identity := key.InvocationID + "\x00" + key.ClientKey
+		if _, duplicate := seen[identity]; duplicate {
+			return nil, ErrConflict
+		}
+		seen[identity] = struct{}{}
+		var receiptID string
+		var heldProposalJSON []byte
+		err := s.pool.QueryRow(ctx, `
+SELECT receipt.receipt_id, hold.proposal_ref
+  FROM finding_proposal_receipts AS receipt
+  JOIN finding_proposal_audit_holds AS hold
+    ON hold.receipt_id = receipt.receipt_id AND hold.audit_id = $2
+  JOIN audits AS audit ON audit.audit_id = hold.audit_id
+ WHERE audit.owner_id = $1 AND receipt.owner_id = $1
+   AND receipt.audit_id = $2 AND receipt.audit_execution_id = $3
+   AND receipt.run_id = $4 AND receipt.invocation_id = $5
+   AND receipt.client_key = $6`, ownerID, auditID, executionID, runID,
+			key.InvocationID, key.ClientKey).Scan(&receiptID, &heldProposalJSON)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		if err != nil {
+			return nil, fmt.Errorf("resolve Audit proposal selection: %w", err)
+		}
+		var proposal ExactArtifact
+		if json.Unmarshal(heldProposalJSON, &proposal) != nil || proposal.Ref.ValidateExact() != nil {
+			return nil, artifacts.ErrArtifactIntegrity
+		}
+		receipt, err := readReceiptByID(ctx, s.pool, receiptID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, ResolvedProposal{
+			ReceiptID: receiptID, Proposal: proposal, Origin: receipt.Origin,
+		})
+	}
+	return result, nil
+}
+
 func (s *Service) hydrateReceiptDocuments(
 	ctx context.Context,
 	receipts []Receipt,

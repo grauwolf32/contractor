@@ -6,14 +6,24 @@ import {
   AUDIT_ID_PATTERN,
   auditMutationAudit,
   auditNeedsPolling,
+  createAuditFindingReview,
+  decideAuditFinding,
   getAudit,
   getAuditReport,
   listAuditCoverage,
+  listAuditFindingProvenance,
+  listAuditFindings,
   listAuditItems,
+  listAuditReviews,
   mutateAudit,
   type Audit,
+  type AuditAnalystVerdict,
   type AuditCoverageRow,
+  type AuditFinding,
+  type AuditFindingSeverity,
   type AuditMutationAction,
+  type AuditReviewRequest,
+  type DecideAuditFindingRequest,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError } from "../../../api/error";
@@ -29,13 +39,22 @@ import { StateBadge } from "../../runs/components";
 
 import "./styles.css";
 
-type AuditSection = "overview" | "coverage" | "checks" | "runs" | "report";
+type AuditSection =
+  | "overview"
+  | "coverage"
+  | "findings"
+  | "checks"
+  | "reviews"
+  | "runs"
+  | "report";
 type AuditExactArtifact = Audit["inputs"][string];
 
 const SECTIONS: readonly { id: AuditSection; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "coverage", label: "Coverage" },
+  { id: "findings", label: "Findings" },
   { id: "checks", label: "Checks" },
+  { id: "reviews", label: "Reviews" },
   { id: "runs", label: "Runs" },
   { id: "report", label: "Report" },
 ];
@@ -596,6 +615,461 @@ function AuditCoverage({
   );
 }
 
+const FINDING_VERDICTS: readonly {
+  value: AuditAnalystVerdict;
+  label: string;
+}[] = [
+  { value: "true_positive", label: "True positive" },
+  { value: "false_positive", label: "False positive" },
+  { value: "needs_evidence", label: "Needs evidence" },
+  { value: "duplicate", label: "Duplicate" },
+  { value: "reopen", label: "Reopen" },
+];
+
+const FINDING_SEVERITIES: readonly AuditFindingSeverity[] = [
+  "informational",
+  "low",
+  "medium",
+  "high",
+  "critical",
+];
+
+function FindingReviewControls({
+  audit,
+  finding,
+  pendingReview,
+  findings,
+}: {
+  audit: Audit;
+  finding: AuditFinding;
+  pendingReview?: AuditReviewRequest;
+  findings: AuditFinding[];
+}) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const [verdict, setVerdict] = useState<AuditAnalystVerdict>("true_positive");
+  const [severity, setSeverity] = useState<AuditFindingSeverity>(
+    finding.analystSeverity ?? "medium",
+  );
+  const [rationale, setRationale] = useState("");
+  const duplicateCandidates = findings.filter(
+    (candidate) => candidate.findingId !== finding.findingId,
+  );
+  const [duplicateTargetId, setDuplicateTargetId] = useState(
+    duplicateCandidates[0]?.findingId ?? "",
+  );
+  const [keyring] = useState(
+    () =>
+      new MutationDraftKeyring<Record<string, string | number | undefined>>(
+        "audit-finding-review",
+      ),
+  );
+
+  async function invalidate(): Promise<void> {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.detail(audit.auditId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.findings(audit.auditId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.reviews(audit.auditId),
+      }),
+    ]);
+  }
+
+  const createReview = useMutation({
+    mutationFn: () => {
+      const draft = {
+        operation: "create",
+        auditId: audit.auditId,
+        findingId: finding.findingId,
+        revision: finding.revision,
+      };
+      return createAuditFindingReview(api, {
+        auditId: audit.auditId,
+        findingId: finding.findingId,
+        expectedRevision: finding.revision,
+        idempotencyKey: keyring.keyFor(draft),
+      });
+    },
+    onSuccess: invalidate,
+    onError: invalidate,
+  });
+  const decide = useMutation({
+    mutationFn: () => {
+      if (pendingReview === undefined) {
+        throw new Error("The exact finding review is no longer pending");
+      }
+      const decision: DecideAuditFindingRequest = {
+        verdict,
+        rationale: rationale.trim(),
+        ...(verdict === "true_positive" ? { severity } : {}),
+        ...(verdict === "duplicate" ? { duplicateTargetId } : {}),
+      };
+      const draft = {
+        operation: "decide",
+        auditId: audit.auditId,
+        requestId: pendingReview.requestId,
+        revision: pendingReview.revision,
+        verdict,
+        severity: decision.severity,
+        rationale: decision.rationale,
+        duplicateTargetId: decision.duplicateTargetId,
+      };
+      return decideAuditFinding(api, {
+        auditId: audit.auditId,
+        requestId: pendingReview.requestId,
+        expectedRevision: pendingReview.revision,
+        idempotencyKey: keyring.keyFor(draft),
+        decision,
+      });
+    },
+    onSuccess: async () => {
+      setRationale("");
+      await invalidate();
+    },
+    onError: invalidate,
+  });
+
+  if (pendingReview === undefined) {
+    return (
+      <div className="audit-finding-review-actions">
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={createReview.isPending}
+          onClick={() => createReview.mutate()}
+        >
+          {createReview.isPending
+            ? "Opening exact review…"
+            : finding.analystVerdict === undefined
+              ? "Review finding"
+              : "Correct analyst rating"}
+        </button>
+        {createReview.error === null ? null : (
+          <AuditMutationNotice error={createReview.error} />
+        )}
+      </div>
+    );
+  }
+
+  const invalidDuplicate =
+    verdict === "duplicate" && duplicateTargetId.length === 0;
+  return (
+    <form
+      className="audit-finding-review-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        decide.mutate();
+      }}
+    >
+      <p className="eyebrow">
+        Exact review {pendingReview.requestId} · finding revision{" "}
+        {pendingReview.subjectRevision}
+      </p>
+      <div className="audit-review-fields">
+        <label>
+          Decision
+          <select
+            value={verdict}
+            onChange={(event) =>
+              setVerdict(event.target.value as AuditAnalystVerdict)
+            }
+          >
+            {FINDING_VERDICTS.map((candidate) => (
+              <option key={candidate.value} value={candidate.value}>
+                {candidate.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {verdict === "true_positive" ? (
+          <label>
+            Severity
+            <select
+              value={severity}
+              onChange={(event) =>
+                setSeverity(event.target.value as AuditFindingSeverity)
+              }
+            >
+              {FINDING_SEVERITIES.map((candidate) => (
+                <option key={candidate} value={candidate}>
+                  {candidate}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {verdict === "duplicate" ? (
+          <label>
+            Canonical finding
+            <select
+              value={duplicateTargetId}
+              onChange={(event) => setDuplicateTargetId(event.target.value)}
+            >
+              {duplicateCandidates.length === 0 ? (
+                <option value="">No other finding</option>
+              ) : null}
+              {duplicateCandidates.map((candidate) => (
+                <option key={candidate.findingId} value={candidate.findingId}>
+                  {candidate.firstProposal.document.title} ·{" "}
+                  {candidate.findingId}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
+      <label>
+        Analyst rationale
+        <textarea
+          required
+          rows={3}
+          value={rationale}
+          onChange={(event) => setRationale(event.target.value)}
+          placeholder="Record the evidence-based reason for this decision."
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={
+          decide.isPending || rationale.trim() === "" || invalidDuplicate
+        }
+      >
+        {decide.isPending ? "Recording decision…" : "Record decision"}
+      </button>
+      {decide.error === null ? null : (
+        <AuditMutationNotice error={decide.error} />
+      )}
+    </form>
+  );
+}
+
+function FindingProvenanceView({
+  audit,
+  finding,
+}: {
+  audit: Audit;
+  finding: AuditFinding;
+}) {
+  const api = usePublicAPI();
+  const [expanded, setExpanded] = useState(false);
+  const provenance = useQuery({
+    queryKey: queryKeys.audits.provenance(
+      audit.auditId,
+      finding.findingId,
+      audit.revision,
+      finding.revision,
+    ),
+    queryFn: () =>
+      listAuditFindingProvenance(api, audit.auditId, finding.findingId, {
+        auditRevision: audit.revision,
+        findingRevision: finding.revision,
+      }),
+    enabled: expanded,
+    retry: false,
+  });
+  return (
+    <div className="audit-finding-provenance">
+      <button
+        className="text-button"
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        {expanded ? "Hide provenance" : "Show provenance"}
+      </button>
+      {!expanded ? null : provenance.isPending ? (
+        <p className="loading-copy">Loading exact provenance…</p>
+      ) : provenance.error !== null ? (
+        <ErrorNotice error={provenance.error} />
+      ) : (
+        <ol className="audit-provenance-list">
+          {provenance.data.items.map((record) => (
+            <li key={record.recordId}>
+              <div>
+                <StateBadge state={record.kind} />
+                <strong>{record.origin.workflow.name}</strong>
+                <code>@{record.origin.workflow.version}</code>
+              </div>
+              <span>
+                {record.origin.logicalAgentName} · {record.origin.runId}
+                {record.origin.runDeleted ? " · Run deleted" : ""}
+              </span>
+              {record.assessment === undefined ? null : (
+                <span>
+                  assessment {record.assessment.semanticAssessment} ·{" "}
+                  {record.supportsCurrentAssessment ? "current" : "historical"}
+                </span>
+              )}
+            </li>
+          ))}
+          {provenance.data.items.length === 0 ? (
+            <li>No retained provenance records.</li>
+          ) : null}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function AuditFindings({ audit }: { audit: Audit }) {
+  const api = usePublicAPI();
+  const findings = useQuery({
+    queryKey: queryKeys.audits.findings(audit.auditId),
+    queryFn: () => listAuditFindings(api, audit.auditId),
+    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
+    refetchOnReconnect: true,
+  });
+  const reviews = useQuery({
+    queryKey: queryKeys.audits.reviews(audit.auditId),
+    queryFn: () => listAuditReviews(api, audit.auditId),
+    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
+    refetchOnReconnect: true,
+  });
+  if (findings.isPending || reviews.isPending) {
+    return <p className="loading-copy">Loading findings…</p>;
+  }
+  if (findings.error !== null) return <ErrorNotice error={findings.error} />;
+  if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
+  if (findings.data.items.length === 0) {
+    return (
+      <div className="empty-state panel">
+        <h3>No finding candidates</h3>
+        <p>A successful Run alone does not create or confirm a finding.</p>
+      </div>
+    );
+  }
+  const pending = new Map(
+    reviews.data.items
+      .filter((request) => request.state === "pending")
+      .map((request) => [request.findingId, request]),
+  );
+  return (
+    <div className="audit-finding-list">
+      {findings.data.items.map((finding) => (
+        <article className="panel audit-finding-card" key={finding.findingId}>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">{finding.findingId}</p>
+              <h3>{finding.firstProposal.document.title}</h3>
+            </div>
+            <StateBadge state={finding.state} />
+          </div>
+          <p>{finding.firstProposal.document.description}</p>
+          <dl className="metadata-grid">
+            <div>
+              <dt>Model suggestion</dt>
+              <dd>
+                {finding.firstProposal.document.severity_suggestion || "none"}
+              </dd>
+            </div>
+            <div>
+              <dt>Analyst rating</dt>
+              <dd>
+                {finding.analystVerdict === undefined
+                  ? "Unreviewed"
+                  : `${finding.analystVerdict}${
+                      finding.analystSeverity === undefined
+                        ? ""
+                        : ` · ${finding.analystSeverity}`
+                    }`}
+              </dd>
+            </div>
+            <div>
+              <dt>Source Workflow</dt>
+              <dd>
+                {finding.firstProposal.origin.workflow.name}@
+                {finding.firstProposal.origin.workflow.version}
+              </dd>
+            </div>
+            <div>
+              <dt>Current verification</dt>
+              <dd>
+                {finding.currentAssessment?.semanticAssessment ??
+                  "not accepted"}
+              </dd>
+            </div>
+          </dl>
+          {finding.duplicateTargetId === undefined ? null : (
+            <p className="muted-copy">
+              Duplicate of <code>{finding.duplicateTargetId}</code>
+            </p>
+          )}
+          <FindingProvenanceView audit={audit} finding={finding} />
+          <FindingReviewControls
+            audit={audit}
+            finding={finding}
+            findings={findings.data.items}
+            {...(pending.has(finding.findingId)
+              ? { pendingReview: pending.get(finding.findingId)! }
+              : {})}
+          />
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function AuditReviews({ audit }: { audit: Audit }) {
+  const api = usePublicAPI();
+  const reviews = useQuery({
+    queryKey: queryKeys.audits.reviews(audit.auditId),
+    queryFn: () => listAuditReviews(api, audit.auditId),
+    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
+    refetchOnReconnect: true,
+  });
+  if (reviews.isPending)
+    return <p className="loading-copy">Loading reviews…</p>;
+  if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
+  return (
+    <section className="panel audit-section-panel">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Immutable analyst history</p>
+          <h3>Finding reviews</h3>
+        </div>
+        <span>{reviews.data.items.length} recorded</span>
+      </div>
+      {reviews.data.items.length === 0 ? (
+        <p className="muted-copy">No finding review has been opened.</p>
+      ) : (
+        <ol className="audit-review-history">
+          {reviews.data.items.map((review) => (
+            <li key={review.requestId}>
+              <div>
+                <strong>{review.findingId}</strong>
+                <StateBadge state={review.state} />
+              </div>
+              <span>
+                subject revision {review.subjectRevision} · requested{" "}
+                {formatTimestamp(review.createdAt)}
+              </span>
+              {review.decision === undefined ? (
+                <span>No decision recorded.</span>
+              ) : (
+                <>
+                  <span>
+                    {review.decision.verdict}
+                    {review.decision.severity === undefined
+                      ? ""
+                      : ` · ${review.decision.severity}`}
+                    {" · "}
+                    {review.decision.actorId}
+                  </span>
+                  <p>{review.decision.rationale}</p>
+                </>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 function AuditRuns({
   audit,
   api,
@@ -793,8 +1267,12 @@ function AuditSectionContent({
       return <AuditOverview audit={audit} />;
     case "coverage":
       return <AuditCoverage audit={audit} api={api} />;
+    case "findings":
+      return <AuditFindings audit={audit} />;
     case "checks":
       return <AuditChecks audit={audit} api={api} />;
+    case "reviews":
+      return <AuditReviews audit={audit} />;
     case "runs":
       return <AuditRuns audit={audit} api={api} />;
     case "report":

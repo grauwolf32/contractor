@@ -149,9 +149,82 @@
 }
 
 .audit-detail-stack,
-.audit-check-list {
+.audit-check-list,
+.audit-finding-list {
   display: grid;
   gap: 1rem;
+}
+
+.audit-finding-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.audit-finding-review-actions,
+.audit-finding-provenance {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.audit-finding-review-form {
+  display: grid;
+  gap: 0.8rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+}
+
+.audit-finding-review-form > label,
+.audit-review-fields label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.audit-review-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.audit-provenance-list,
+.audit-review-history {
+  display: grid;
+  width: 100%;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-provenance-list li,
+.audit-review-history li {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface-raised);
+  padding: 0.75rem;
+}
+
+.audit-provenance-list li > div,
+.audit-review-history li > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.audit-provenance-list span,
+.audit-review-history span {
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+
+.audit-review-history p {
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .audit-artifact-list {
@@ -233,7 +306,8 @@
 
 @media (max-width: 800px) {
   .audit-card-grid,
-  .audit-profile-summary {
+  .audit-profile-summary,
+  .audit-review-fields {
     grid-template-columns: 1fr;
   }
 

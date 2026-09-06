@@ -506,12 +506,13 @@ unreferenced evidence, missing or aliased content members, duplicate content
 ownership, and any other unreferenced package member make the complete package
 an `invalid-result`. Evidence may instead reference an exact revision in the
 same RunScope. The importer never follows a path or accepts an unversioned or
-foreign-scope reference. The initial finding-intake increment retains every
-trusted child-Run proposal in the Audit inbox before committing the collection
-receipt, including proposals from technically failed Runs. A non-empty
-`proposals` association array remains rejected until finding triage can resolve
-its invocation-local client keys to exact receipts and validate item
-membership; proposals are never silently ignored or associated merely because
+foreign-scope reference. Finding intake retains every trusted child-Run
+proposal in the Audit inbox before committing the collection receipt,
+including proposals from technically failed Runs. A non-empty `proposals`
+association contains exact `(invocation_id, client_key)` selections injected
+by Runtime and is accepted only when finding triage resolves every selection
+to one receipt retained by the same Audit execution and validates item
+membership. Proposals are never silently ignored or associated merely because
 they share a Run.
 
 The initial Runtime exposes the optional `audit-results@1` Toolset only when an
@@ -1187,9 +1188,11 @@ cursors bind to those revisions; a change during traversal returns a conflict
 and requires restarting rather than silently mixing histories. A script may
 pass the revisions obtained from finding detail to the first provenance page
 to detect an intervening edit. Cross-Audit snapshot export is not required.
-The public contract includes a small documented script example that reads
-ratings and follows pagination to emit one finding's complete backtrace; no
-analytics service, dashboard or direct SQL access is required.
+The public contract includes
+[`docs/examples/audit-finding-backtrace.sh`](../examples/audit-finding-backtrace.sh),
+which reads ratings and follows revision-bound pagination to emit one
+finding's complete backtrace; no analytics service, dashboard or direct SQL
+access is required.
 
 Profile endpoints are a dedicated read-only projection, not generic managed
 configuration publication. Every item identifies exact name/version/digest and

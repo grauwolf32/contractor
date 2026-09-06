@@ -30,7 +30,6 @@ func TestProfileCompatibilityReasonsAreClosedOrderedAndDeduplicated(t *testing.T
 		ReasonMultipleRoundsUnsupported,
 		ReasonBatchingUnsupported,
 		ReasonActiveCheckApprovalUnsupported,
-		ReasonFindingConfirmationUnsupported,
 		ReasonManualApplicabilityUnsupported,
 		ReasonReportAcceptanceUnsupported,
 	}

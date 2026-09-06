@@ -125,6 +125,50 @@ func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T)
 	}
 }
 
+func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+
+	proposalRevision := "proposal-r1"
+	proposal := findingintake.ResolvedProposal{
+		ReceiptID: "finding-receipt", Proposal: findingintake.ExactArtifact{
+			Ref: contracts.ArtifactRef{
+				Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
+			},
+			Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+		},
+	}
+	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{proposal}}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebuildHarnessResult(t, &harness, []auditdomain.ProposalSelection{{
+		InvocationID: "worker-invocation-1", ClientKey: "candidate-1",
+	}})
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect proposal association = (%t, %v)", worked, err)
+	}
+	associations := harness.store.collected.Items[0].FindingAssociations
+	if len(associations) != 1 || associations[0].ReceiptID != proposal.ReceiptID ||
+		associations[0].Proposal.Digest != proposal.Proposal.Digest ||
+		associations[0].SemanticAssessment != "satisfied" {
+		t.Fatalf("finding associations = %+v", associations)
+	}
+}
+
 func TestImporterRejectsUnexpectedProposalWhenFindingsAreDisabled(t *testing.T) {
 	harness := newImportHarness(t)
 	revision := "finding-revision"
@@ -207,11 +251,42 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 			Completed: []string{}, Gaps: []string{"policy-excluded"},
 		},
 	}
+	proposalDocument := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-report",
+		Title: "Untrusted redirect target", Description: "A redirect target may cross the intended origin.",
+		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "redirect-handler"},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
+		SeveritySuggestion: "medium", Limitations: []string{"Dynamic behavior was not exercised."},
+	}
+	proposalBytes, err := auditdomain.EncodeFindingProposal(proposalDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposalRevision := "proposal-report-r1"
+	proposalArtifact := auditstore.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: "audit-test", Name: "proposal-report", Revision: &proposalRevision,
+		},
+		Digest: digestBytes(proposalBytes), MediaType: "application/json", SizeBytes: int64(len(proposalBytes)),
+	}
+	analystSeverity := "high"
 	store := &fakeImportStore{
 		items: []auditstore.Item{item}, coverage: []auditstore.CoverageRow{coverage},
 		counts: auditstore.CollectionDispositionCounts{ExecutionFailed: 1},
+		findings: []auditstore.ReportFinding{
+			{FindingID: "finding-confirmed", State: "confirmed", FirstProposal: proposalArtifact,
+				Revision: 3, Decision: &auditstore.ReportFindingDecision{
+					DecisionID: "decision-report", ActorID: "owner-report", Verdict: "true_positive",
+					Severity: &analystSeverity, Rationale: "Confirmed against retained evidence.",
+					SubjectRevision: 2, SubjectDigest: digestBytes([]byte("finding-subject")), CreatedAt: time.Unix(90, 0),
+				}},
+			{FindingID: "finding-proposed", State: "proposed", FirstProposal: proposalArtifact, Revision: 1},
+		},
 	}
-	artifactAccess := &fakeImportArtifacts{project: map[string][]byte{}, writes: map[string][]byte{}}
+	artifactAccess := &fakeImportArtifacts{
+		project: map[string][]byte{refKey(proposalArtifact.Ref): proposalBytes}, writes: map[string][]byte{},
+	}
 	importer, err := New(store, &fakeImportRuns{}, artifactAccess)
 	if err != nil {
 		t.Fatal(err)
@@ -243,10 +318,15 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 	machineBytes := artifactAccess.writes["report.json"]
 	if !containsBytes(machineBytes, `"conclusion":"completed-with-gaps"`) ||
 		!containsBytes(machineBytes, `"zeroDenominator":true`) ||
-		!containsBytes(machineBytes, `"executionFailed":1`) {
+		!containsBytes(machineBytes, `"executionFailed":1`) ||
+		!containsBytes(machineBytes, `"confirmed":[{"findingId":"finding-confirmed"`) ||
+		!containsBytes(machineBytes, `"proposed":[{"findingId":"finding-proposed"`) ||
+		!containsBytes(machineBytes, `"severitySuggestion":"medium"`) ||
+		!containsBytes(machineBytes, `"verdict":"true_positive"`) {
 		t.Fatalf("machine report is not truthful: %s", machineBytes)
 	}
-	if !containsBytes(artifactAccess.writes["report.txt"], "not a security or compliance certification") {
+	if !containsBytes(artifactAccess.writes["report.txt"], "Findings: confirmed=1 proposed=1") ||
+		!containsBytes(artifactAccess.writes["report.txt"], "not a security or compliance certification") {
 		t.Fatalf("human summary omitted qualification: %s", artifactAccess.writes["report.txt"])
 	}
 }
@@ -381,7 +461,7 @@ func newImportHarness(t *testing.T) importHarness {
 			ItemKey: "check-1", SubjectKey: "check-1", Assessment: "satisfied",
 			Summary: "The required evidence is present.", EvidenceIDs: []string{"ev-1"},
 			Coverage:  auditdomain.ResultCoverage{Requested: []string{"source"}, Completed: []string{"source"}, Gaps: []string{}},
-			Proposals: []string{},
+			Proposals: []auditdomain.ProposalSelection{},
 		}},
 	})
 	if err != nil {
@@ -462,6 +542,7 @@ type fakeImportStore struct {
 	collected auditstore.CollectParams
 	items     []auditstore.Item
 	coverage  []auditstore.CoverageRow
+	findings  []auditstore.ReportFinding
 	counts    auditstore.CollectionDispositionCounts
 	committed auditstore.CommitReportParams
 }
@@ -484,6 +565,9 @@ func (f *fakeImportStore) ListCoverage(_ context.Context, _, _ string, after, li
 func (f *fakeImportStore) CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error) {
 	return f.counts, nil
 }
+func (f *fakeImportStore) ListReportFindings(context.Context, string) ([]auditstore.ReportFinding, error) {
+	return append([]auditstore.ReportFinding{}, f.findings...), nil
+}
 func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error) {
 	f.collected = params
 	return auditstore.CollectionReceipt{}, true, nil
@@ -502,6 +586,13 @@ func (f *fakeImportRuns) GetRun(context.Context, string) (runstore.WorkflowRun, 
 type fakeFindingRetention struct {
 	receipts []findingintake.Receipt
 	imports  []findingintake.ImportRequest
+	resolved []findingintake.ResolvedProposal
+}
+
+func (f *fakeFindingRetention) ResolveAuditProposals(
+	context.Context, string, string, string, string, []findingintake.ProposalKey,
+) ([]findingintake.ResolvedProposal, error) {
+	return append([]findingintake.ResolvedProposal(nil), f.resolved...), nil
 }
 
 func (f *fakeFindingRetention) ListRun(
@@ -524,6 +615,48 @@ type fakeImportArtifacts struct {
 	frozen         bool
 	missingBinding bool
 	writes         map[string][]byte
+}
+
+func rebuildHarnessResult(
+	t *testing.T, harness *importHarness, proposals []auditdomain.ProposalSelection,
+) {
+	t.Helper()
+	manifestBytes := harness.artifacts.project[refKey(harness.execution.Manifest.Ref)]
+	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: digestBytes(manifestBytes),
+		Results: []auditdomain.CheckResult{{
+			ItemKey: "check-1", SubjectKey: "check-1", Assessment: "satisfied",
+			Summary: "The required evidence is present.", EvidenceIDs: []string{"ev-1"},
+			Coverage: auditdomain.ResultCoverage{
+				Requested: []string{"source"}, Completed: []string{"source"}, Gaps: []string{},
+			},
+			Proposals: proposals,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := auditdomain.EncodeEvidence(auditdomain.EvidenceEnvelope{
+		Schema: auditdomain.EvidenceSchema, Evidence: []auditdomain.Evidence{{
+			ID: "ev-1", Kind: "source", Summary: "Static source evidence", ContentMemberID: "ev-body",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, pkg, err := auditdomain.BuildPackage(
+		"result-1", auditdomain.PackageKindCheckResults, "", []auditdomain.PackageInput{
+			{ID: auditdomain.CheckResultsMemberID, Path: "check-results.json", MediaType: "application/json", Data: resultSet},
+			{ID: auditdomain.EvidenceMemberID, Path: "evidence.json", MediaType: "application/json", Data: evidence},
+			{ID: "ev-body", Path: "evidence/source.txt", MediaType: "text/plain", Data: []byte("evidence")},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.artifacts.runPayload = payload
+	harness.artifacts.runDescriptor.Digest = pkg.Digest
+	harness.artifacts.runDescriptor.SizeBytes = int64(len(payload))
 }
 
 func (f *fakeImportArtifacts) ReadProjectExact(_ context.Context, _ string, artifact auditstore.ExactArtifact) ([]byte, error) {

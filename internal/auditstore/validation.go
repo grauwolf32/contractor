@@ -658,6 +658,7 @@ func validateCollect(params CollectParams) error {
 		return invalidf("collection payload is too large")
 	}
 	seenItems := make(map[string]struct{}, len(params.Items))
+	seenFindingReceipts := make(map[string]struct{})
 	collectionBytes := 0
 	for _, item := range params.Items {
 		if err := validateID("executionItemID", item.ExecutionItemID); err != nil {
@@ -686,6 +687,32 @@ func validateCollect(params CollectParams) error {
 			}
 		} else if item.Result != nil {
 			return invalidf("non-accepted collection item forbids a result")
+		}
+		if item.Disposition != CollectionAccepted && len(item.FindingAssociations) != 0 {
+			return invalidf("non-accepted collection item forbids finding associations")
+		}
+		if len(item.FindingAssociations) > 128 {
+			return invalidf("collection item has too many finding associations")
+		}
+		for _, association := range item.FindingAssociations {
+			if err := validateID("finding assessment ID", association.AssessmentID); err != nil {
+				return err
+			}
+			if err := validateID("finding receipt ID", association.ReceiptID); err != nil {
+				return err
+			}
+			if _, duplicate := seenFindingReceipts[association.ReceiptID]; duplicate {
+				return invalidf("finding receipt is associated more than once")
+			}
+			seenFindingReceipts[association.ReceiptID] = struct{}{}
+			if err := validateExactArtifact("finding proposal", association.Proposal, true); err != nil {
+				return err
+			}
+			switch association.SemanticAssessment {
+			case "supported", "refuted", "inconclusive", "blocked", "satisfied", "violated", "not-tested":
+			default:
+				return invalidf("finding semantic assessment is invalid")
+			}
 		}
 		if item.Disposition == CollectionExecutionCancelled && item.Retryable {
 			return invalidf("cancelled collection item cannot retry")

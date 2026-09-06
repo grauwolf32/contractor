@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -25,10 +26,15 @@ func New(options Options) (*Service, error) {
 	if options.Now == nil {
 		options.Now = time.Now
 	}
+	findings, err := findingintake.New(options.Pool)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		pool: options.Pool, profiles: options.Profiles,
 		transactionLLMCredentials: options.TransactionLLMCredentials,
 		credentialGuard:           options.CredentialGuard,
+		findings:                  findings,
 		now:                       options.Now,
 	}, nil
 }

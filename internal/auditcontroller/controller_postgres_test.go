@@ -251,7 +251,7 @@ func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 			Coverage: auditdomain.ResultCoverage{
 				Requested: requested, Completed: append([]string{}, requested...), Gaps: []string{},
 			},
-			Proposals: []string{},
+			Proposals: []auditdomain.ProposalSelection{},
 		}},
 	})
 	if err != nil {

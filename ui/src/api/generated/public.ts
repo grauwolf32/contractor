@@ -475,6 +475,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/finding-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** List unconfirmed candidate finding receipts in one owned Audit inbox */
+        get: operations["listAuditFindingProposals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/finding-proposal-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retain one exact ordinary-Run proposal in a compatible owned Audit */
+        post: operations["importAuditFindingProposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** List candidate and analyst-reviewed findings for one owned Audit */
+        get: operations["listAuditFindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings/{findingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        /** Get one exact finding revision and its current assessment and analyst rating */
+        get: operations["getAuditFinding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings/{findingId}/provenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        /** List revision-bound exact proposal and verification provenance */
+        get: operations["listAuditFindingProvenance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings/{findingId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create or reuse a pending review bound to the exact finding revision */
+        post: operations["createAuditFindingReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        /** List exact finding review requests and immutable decisions */
+        get: operations["listAuditReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/reviews/{requestId}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                requestId: components["parameters"]["ReviewRequestId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append one owner decision for an exact unexpired review subject */
+        post: operations["decideAuditReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/queue": {
         parameters: {
             query?: never;
@@ -610,6 +766,25 @@ export interface paths {
         };
         /** List exact input, intermediate, and output bindings in one owned RunScope */
         get: operations["listRunArtifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{runId}/finding-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        /** List unconfirmed candidate finding receipts emitted by one owned Run */
+        get: operations["listRunFindingProposals"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1580,6 +1755,216 @@ export interface components {
             audit: components["schemas"]["Audit"];
             round: components["schemas"]["AuditRound"];
             items: components["schemas"]["AuditItem"][];
+        };
+        FindingExactArtifact: {
+            ref: components["schemas"]["ExactArtifactRef"];
+            digest: components["schemas"]["Digest"];
+            mediaType: components["schemas"]["MediaType"];
+            sizeBytes: number;
+        };
+        FindingSubject: {
+            kind: string;
+            key: string;
+        };
+        FindingStandardReference: {
+            scheme: string;
+            version: string;
+            requirement_id: string;
+        };
+        FindingProposedCheck: {
+            objective: string;
+            method: string;
+        };
+        FindingProposalDocument: {
+            /** @constant */
+            schema: "contractor.audit.finding-proposal.v1";
+            client_key: string;
+            title: string;
+            description: string;
+            subject: components["schemas"]["FindingSubject"];
+            hypothesis?: string;
+            preconditions: string[];
+            standard_refs: components["schemas"]["FindingStandardReference"][];
+            evidence_ids: string[];
+            proposed_checks: components["schemas"]["FindingProposedCheck"][];
+            /** @enum {unknown} */
+            severity_suggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
+            limitations: string[];
+        };
+        FindingWorkflowOrigin: {
+            name: components["schemas"]["ConfigId"];
+            version: components["schemas"]["ConfigVersion"];
+            schemaVersion: string;
+            configurationRef: components["schemas"]["WorkflowRef"];
+            closureDigest: components["schemas"]["Digest"];
+        };
+        FindingAuditOrigin: {
+            auditId: components["schemas"]["ResourceId"];
+            executionId: components["schemas"]["ResourceId"];
+            role: components["schemas"]["AuditExecutionRole"];
+        };
+        FindingOrigin: {
+            runId: components["schemas"]["ResourceId"];
+            stageExecutionId: components["schemas"]["ResourceId"];
+            allocationId: components["schemas"]["ResourceId"];
+            invocationId: components["schemas"]["ResourceId"];
+            logicalAgentName: components["schemas"]["ArtifactName"];
+            workflow: components["schemas"]["FindingWorkflowOrigin"];
+            audit?: components["schemas"]["FindingAuditOrigin"];
+            runDeleted: boolean;
+        };
+        FindingAuditHold: {
+            auditId: components["schemas"]["ResourceId"];
+            projectId: components["schemas"]["ResourceId"];
+            proposal: components["schemas"]["FindingExactArtifact"];
+            evidence: components["schemas"]["FindingExactArtifact"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        FindingProposalReceipt: {
+            receiptId: components["schemas"]["ResourceId"];
+            proposalId: components["schemas"]["ResourceId"];
+            requestDigest: components["schemas"]["Digest"];
+            clientKey: string;
+            proposal: components["schemas"]["FindingExactArtifact"];
+            document: components["schemas"]["FindingProposalDocument"];
+            evidence: components["schemas"]["FindingExactArtifact"][];
+            origin: components["schemas"]["FindingOrigin"];
+            /** @enum {unknown} */
+            retention: "source-held" | "audit-held" | "discarded";
+            auditHolds: components["schemas"]["FindingAuditHold"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        FindingProposalPage: {
+            items: components["schemas"]["FindingProposalReceipt"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        ImportFindingProposalRequest: {
+            runId: components["schemas"]["ResourceId"];
+            proposal: components["schemas"]["ExactArtifactRef"];
+        };
+        ImportFindingProposalResponse: {
+            hold: components["schemas"]["FindingAuditHold"];
+            replayed: boolean;
+        };
+        /** @enum {unknown} */
+        AuditFindingState: "proposed" | "confirmed" | "rejected" | "duplicate" | "needs-evidence";
+        /** @enum {unknown} */
+        AuditFindingSeverity: "informational" | "low" | "medium" | "high" | "critical";
+        /** @enum {unknown} */
+        AuditAnalystVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
+        /** @enum {unknown} */
+        AuditReviewState: "pending" | "decided" | "expired";
+        AuditFindingAssessment: {
+            assessmentId: components["schemas"]["ResourceId"];
+            /** @enum {unknown} */
+            semanticAssessment: "supported" | "refuted" | "inconclusive" | "blocked" | "satisfied" | "violated" | "not-tested";
+            result: components["schemas"]["AuditExactArtifact"];
+            receiptId: components["schemas"]["ResourceId"];
+            itemId?: components["schemas"]["ResourceId"];
+            executionItemId?: components["schemas"]["ResourceId"];
+            collectionReceiptId?: components["schemas"]["ResourceId"];
+            directVerification: boolean;
+            contract?: components["schemas"]["AuditExactArtifact"];
+            /** Format: date-time */
+            acceptedAt: string;
+        };
+        AuditReviewDecision: {
+            decisionId: components["schemas"]["ResourceId"];
+            requestId: components["schemas"]["ResourceId"];
+            auditId: components["schemas"]["ResourceId"];
+            findingId: components["schemas"]["ResourceId"];
+            actorId: string;
+            verdict: components["schemas"]["AuditAnalystVerdict"];
+            severity?: components["schemas"]["AuditFindingSeverity"];
+            rationale: string;
+            duplicateTargetId?: components["schemas"]["ResourceId"];
+            subjectRevision: number;
+            subjectDigest: components["schemas"]["Digest"];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AuditReviewRequest: {
+            requestId: components["schemas"]["ResourceId"];
+            auditId: components["schemas"]["ResourceId"];
+            findingId: components["schemas"]["ResourceId"];
+            /** @constant */
+            kind: "finding-triage";
+            subjectRevision: number;
+            subjectDigest: components["schemas"]["Digest"];
+            requestedActions: components["schemas"]["AuditAnalystVerdict"][];
+            state: components["schemas"]["AuditReviewState"];
+            /** Format: date-time */
+            expiresAt?: string;
+            revision: number;
+            decision?: components["schemas"]["AuditReviewDecision"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AuditFinding: {
+            findingId: components["schemas"]["ResourceId"];
+            auditId: components["schemas"]["ResourceId"];
+            state: components["schemas"]["AuditFindingState"];
+            /** @enum {unknown} */
+            rejectionReason?: "false-positive" | "policy" | "out-of-scope";
+            duplicateTargetId?: components["schemas"]["ResourceId"];
+            firstProposal: components["schemas"]["FindingProposalReceipt"];
+            currentAssessment?: components["schemas"]["AuditFindingAssessment"];
+            analystDecision?: components["schemas"]["AuditReviewDecision"];
+            analystVerdict?: components["schemas"]["AuditAnalystVerdict"];
+            analystSeverity?: components["schemas"]["AuditFindingSeverity"];
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AuditFindingPage: {
+            items: components["schemas"]["AuditFinding"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        AuditReviewPage: {
+            items: components["schemas"]["AuditReviewRequest"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        AuditFindingProvenance: {
+            recordId: components["schemas"]["ResourceId"];
+            /** @enum {unknown} */
+            kind: "source-proposal" | "check-attempt" | "direct-verification";
+            receiptId: components["schemas"]["ResourceId"];
+            /** @enum {unknown} */
+            relation?: "first" | "contributing";
+            proposal: components["schemas"]["AuditExactArtifact"];
+            origin: components["schemas"]["FindingOrigin"];
+            assessment?: components["schemas"]["AuditFindingAssessment"];
+            supportsCurrentAssessment: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AuditFindingProvenancePage: {
+            findingRevision: number;
+            auditRevision: number;
+            items: components["schemas"]["AuditFindingProvenance"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        CreateAuditFindingReviewRequest: {
+            /** Format: date-time */
+            expiresAt?: string;
+        };
+        DecideAuditFindingRequest: {
+            verdict: components["schemas"]["AuditAnalystVerdict"];
+            severity?: components["schemas"]["AuditFindingSeverity"];
+            rationale: string;
+            duplicateTargetId?: components["schemas"]["ResourceId"];
+        };
+        AuditFindingDecisionResult: {
+            finding: components["schemas"]["AuditFinding"];
+            request: components["schemas"]["AuditReviewRequest"];
+            decision: components["schemas"]["AuditReviewDecision"];
+            replayed: boolean;
         };
         RuntimeInfrastructureId: string;
         RuntimeCredentialId: string;
@@ -3010,6 +3395,8 @@ export interface components {
         RuntimeAgentId: string;
         ProjectId: components["schemas"]["ResourceId"];
         AuditId: components["schemas"]["ResourceId"];
+        FindingId: components["schemas"]["ResourceId"];
+        ReviewRequestId: components["schemas"]["ResourceId"];
         IdempotencyKey: string;
         IfMatch: string;
         RequiredIfMatch: string;
@@ -4046,6 +4433,309 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    listAuditFindingProposals: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable oldest-first finding proposal receipt page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingProposalPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    importAuditFindingProposal: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportFindingProposalRequest"];
+            };
+        };
+        responses: {
+            /** @description Exact import replay */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportFindingProposalResponse"];
+                };
+            };
+            /** @description Exact proposal and evidence revisions retained by the Audit */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportFindingProposalResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAuditFindings: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                state?: components["schemas"]["AuditFindingState"];
+                verdict?: "true_positive" | "false_positive" | "unreviewed";
+                severity?: components["schemas"]["AuditFindingSeverity"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable oldest-first finding page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditFindingPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAuditFinding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact finding projection */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditFinding"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAuditFindingProvenance: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                auditRevision?: number;
+                findingRevision?: number;
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revision-bound provenance page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditFindingProvenancePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createAuditFindingReview: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                findingId: components["parameters"]["FindingId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAuditFindingReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Pending exact-subject review request */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditReviewRequest"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAuditReviews: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+                finding?: components["schemas"]["ResourceId"];
+                state?: components["schemas"]["AuditReviewState"];
+            };
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable oldest-first review page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditReviewPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    decideAuditReview: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                requestId: components["parameters"]["ReviewRequestId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideAuditFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Immutable decision and current finding projection */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditFindingDecisionResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     listRunQueue: {
         parameters: {
             query?: {
@@ -4389,6 +5079,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArtifactPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listRunFindingProposals: {
+        parameters: {
+            query?: {
+                limit?: components["parameters"]["Limit"];
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stable oldest-first finding proposal receipt page */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingProposalPage"];
                 };
             };
             400: components["responses"]["BadRequest"];

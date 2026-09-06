@@ -14,6 +14,7 @@ from types import MappingProxyType
 from typing import Any
 
 import jcs
+from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
@@ -143,7 +144,9 @@ class SubmitCheckResultTool:
         summary: str,
         completed: list[str],
         gaps: list[str],
+        tool_context: ToolContext,
         evidence: list[dict[str, str]] | None = None,
+        proposal_keys: list[str] | None = None,
     ) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
         metric_arguments = {
@@ -152,11 +155,13 @@ class SubmitCheckResultTool:
             "completed_count": len(completed) if isinstance(completed, list) else 0,
             "gap_count": len(gaps) if isinstance(gaps, list) else 0,
             "evidence_count": len(evidence) if isinstance(evidence, list) else 0,
+            "proposal_count": len(proposal_keys) if isinstance(proposal_keys, list) else 0,
         }
         try:
             normalized_evidence = _validate_arguments(
                 assessment, summary, completed, gaps, evidence
             )
+            normalized_proposals = _validate_proposal_keys(proposal_keys)
             task_value = await self._client.read_artifact(
                 ArtifactRef(namespace="inputs", name="task")
             )
@@ -174,6 +179,10 @@ class SubmitCheckResultTool:
                 completed=completed,
                 gaps=gaps,
                 evidence=normalized_evidence,
+                proposals=[
+                    {"invocation_id": tool_context.invocation_id, "client_key": key}
+                    for key in normalized_proposals
+                ],
             )
             written = await self._client.write_artifact(
                 ArtifactRef(namespace=self._namespace, name="result"),
@@ -250,6 +259,14 @@ def _validate_values(field: str, values: list[str]) -> None:
     for value in values:
         if not isinstance(value, str) or IDENTIFIER.fullmatch(value) is None:
             raise ValueError(f"{field} contains an invalid value")
+
+
+def _validate_proposal_keys(value: list[str] | None) -> list[str]:
+    result = [] if value is None else value
+    _validate_values("proposal_keys", result)
+    if len(result) > 128:
+        raise ValueError("proposal_keys exceeds its bound")
+    return result
 
 
 def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any], str]:
@@ -329,6 +346,7 @@ def _build_result_package(
     completed: list[str],
     gaps: list[str],
     evidence: list[dict[str, str]],
+    proposals: list[dict[str, str]],
 ) -> bytes:
     requested = _requested_coverage(task)
     if any(value not in requested for value in completed):
@@ -357,7 +375,7 @@ def _build_result_package(
                     "completed": completed,
                     "gaps": gaps,
                 },
-                "proposals": [],
+                "proposals": proposals,
             }
         ],
     }

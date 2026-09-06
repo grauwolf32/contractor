@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -231,6 +232,153 @@ func TestAuditFindingProposalHandlersExposeInboxAndExactImport(t *testing.T) {
 	}
 }
 
+func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *testing.T) {
+	now := time.Date(2026, 9, 6, 4, 0, 0, 0, time.UTC)
+	severity := auditservice.SeverityHigh
+	verdict := auditservice.VerdictTruePositive
+	decision := auditservice.ReviewDecision{
+		DecisionID: "decision-one", RequestID: "review-one", AuditID: "audit-fixed",
+		FindingID: "finding-one", ActorID: "user-1", Verdict: verdict, Severity: &severity,
+		Rationale: "Confirmed from exact evidence.", SubjectRevision: 3,
+		SubjectDigest: auditHandlerDigest("finding-subject"), CreatedAt: now.Add(time.Second),
+	}
+	management := &fakeAuditManagement{
+		audit: auditstore.Audit{AuditID: "audit-fixed", OwnerID: "user-1", Revision: 9},
+		findings: []auditservice.Finding{
+			{FindingID: "finding-one", AuditID: "audit-fixed", State: auditservice.FindingConfirmed,
+				AnalystVerdict: &verdict, AnalystSeverity: &severity, Revision: 4,
+				CreatedAt: now, UpdatedAt: now.Add(time.Second)},
+			{FindingID: "finding-two", AuditID: "audit-fixed", State: auditservice.FindingProposed,
+				Revision: 1, CreatedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second)},
+		},
+		reviews: []auditservice.ReviewRequest{{
+			RequestID: "review-one", AuditID: "audit-fixed", FindingID: "finding-one",
+			Kind: auditservice.FindingReviewKind, SubjectRevision: 3,
+			SubjectDigest:    auditHandlerDigest("finding-subject"),
+			RequestedActions: []auditservice.AnalystVerdict{auditservice.VerdictTruePositive},
+			State:            auditservice.ReviewPending, Revision: 1, CreatedAt: now, UpdatedAt: now,
+		}},
+		provenance: []auditservice.FindingProvenance{
+			{RecordID: "proposal:one", Kind: auditservice.ProvenanceSourceProposal,
+				ReceiptID: "receipt-one", CreatedAt: now},
+			{RecordID: "assessment:one", Kind: auditservice.ProvenanceCheckAttempt,
+				ReceiptID: "receipt-one", CreatedAt: now.Add(time.Second)},
+		},
+	}
+	h := auditTestHandler(management)
+
+	listRequest := auditAuthenticatedRequest(http.MethodGet,
+		"/v1/audits/audit-fixed/findings?limit=1&verdict=true_positive&severity=high", nil)
+	listRequest.SetPathValue("auditId", "audit-fixed")
+	listResponse := httptest.NewRecorder()
+	h.listAuditFindings(listResponse, listRequest)
+	var findingPage findingPageResponse
+	if err := json.Unmarshal(listResponse.Body.Bytes(), &findingPage); err != nil {
+		t.Fatal(err)
+	}
+	if listResponse.Code != http.StatusOK || len(findingPage.Items) != 1 || !findingPage.Page.HasMore ||
+		findingPage.Page.NextCursor == nil || management.findingListParams.OwnerID != "user-1" ||
+		management.findingListParams.Limit != 2 || management.findingListParams.Verdict == nil ||
+		*management.findingListParams.Verdict != verdict || management.findingListParams.Severity == nil ||
+		*management.findingListParams.Severity != severity {
+		t.Fatalf("finding page = %d %+v params=%+v body=%s", listResponse.Code, findingPage,
+			management.findingListParams, listResponse.Body.String())
+	}
+
+	detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/findings/finding-one", nil)
+	detail.SetPathValue("auditId", "audit-fixed")
+	detail.SetPathValue("findingId", "finding-one")
+	detailResponse := httptest.NewRecorder()
+	h.getAuditFinding(detailResponse, detail)
+	if detailResponse.Code != http.StatusOK || detailResponse.Header().Get("ETag") != `"4"` {
+		t.Fatalf("finding detail = %d headers=%v body=%s", detailResponse.Code,
+			detailResponse.Header(), detailResponse.Body.String())
+	}
+
+	create := auditAuthenticatedRequest(http.MethodPost,
+		"/v1/audits/audit-fixed/findings/finding-one/reviews", []byte(`{}`))
+	create.SetPathValue("auditId", "audit-fixed")
+	create.SetPathValue("findingId", "finding-one")
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("If-Match", `"4"`)
+	create.Header.Set("Idempotency-Key", "create-review-one")
+	createResponse := httptest.NewRecorder()
+	h.createAuditFindingReview(createResponse, create)
+	if createResponse.Code != http.StatusCreated || createResponse.Header().Get("ETag") != `"1"` ||
+		management.createReviewParams.OwnerID != "user-1" ||
+		management.createReviewParams.ExpectedRevision != 4 ||
+		management.createReviewParams.IdempotencyKey != "create-review-one" ||
+		management.createReviewParams.RequestDigest == "" {
+		t.Fatalf("create review = %d headers=%v params=%+v body=%s", createResponse.Code,
+			createResponse.Header(), management.createReviewParams, createResponse.Body.String())
+	}
+
+	management.reviews[0].State = auditservice.ReviewDecided
+	management.reviews[0].Revision = 2
+	management.reviews[0].Decision = &decision
+	management.decisionReplayed = true
+	decide := auditAuthenticatedRequest(http.MethodPost,
+		"/v1/audits/audit-fixed/reviews/review-one/decisions",
+		[]byte(`{"verdict":"true_positive","severity":"high","rationale":"Confirmed from exact evidence."}`))
+	decide.SetPathValue("auditId", "audit-fixed")
+	decide.SetPathValue("requestId", "review-one")
+	decide.Header.Set("Content-Type", "application/json")
+	decide.Header.Set("If-Match", `"1"`)
+	decide.Header.Set("Idempotency-Key", "decide-review-one")
+	decideResponse := httptest.NewRecorder()
+	h.decideAuditReview(decideResponse, decide)
+	if decideResponse.Code != http.StatusOK || decideResponse.Header().Get("ETag") != `"2"` ||
+		decideResponse.Header().Get("Idempotency-Replayed") != "true" ||
+		management.decideFindingParams.ExpectedRequestRevision != 1 ||
+		management.decideFindingParams.Verdict != verdict ||
+		management.decideFindingParams.Severity == nil ||
+		*management.decideFindingParams.Severity != severity ||
+		management.decideFindingParams.RequestDigest == "" {
+		t.Fatalf("decide review = %d headers=%v params=%+v body=%s", decideResponse.Code,
+			decideResponse.Header(), management.decideFindingParams, decideResponse.Body.String())
+	}
+
+	provenance := auditAuthenticatedRequest(http.MethodGet,
+		"/v1/audits/audit-fixed/findings/finding-one/provenance?limit=1", nil)
+	provenance.SetPathValue("auditId", "audit-fixed")
+	provenance.SetPathValue("findingId", "finding-one")
+	provenanceResponse := httptest.NewRecorder()
+	h.listAuditFindingProvenance(provenanceResponse, provenance)
+	var provenancePage findingProvenancePageResponse
+	if err := json.Unmarshal(provenanceResponse.Body.Bytes(), &provenancePage); err != nil {
+		t.Fatal(err)
+	}
+	if provenanceResponse.Code != http.StatusOK || provenancePage.AuditRevision != 9 ||
+		provenancePage.FindingRevision != 4 || len(provenancePage.Items) != 1 ||
+		provenancePage.Page.NextCursor == nil || management.provenanceParams.Limit != 2 {
+		t.Fatalf("provenance page = %d %+v params=%+v body=%s", provenanceResponse.Code,
+			provenancePage, management.provenanceParams, provenanceResponse.Body.String())
+	}
+	management.audit.Revision = 10
+	stale := auditAuthenticatedRequest(http.MethodGet,
+		"/v1/audits/audit-fixed/findings/finding-one/provenance?cursor="+
+			url.QueryEscape(*provenancePage.Page.NextCursor), nil)
+	stale.SetPathValue("auditId", "audit-fixed")
+	stale.SetPathValue("findingId", "finding-one")
+	staleResponse := httptest.NewRecorder()
+	h.listAuditFindingProvenance(staleResponse, stale)
+	if staleResponse.Code != http.StatusConflict {
+		t.Fatalf("stale provenance cursor = %d body=%s", staleResponse.Code, staleResponse.Body.String())
+	}
+
+	missingCAS := auditAuthenticatedRequest(http.MethodPost,
+		"/v1/audits/audit-fixed/findings/finding-one/reviews", []byte(`{}`))
+	missingCAS.SetPathValue("auditId", "audit-fixed")
+	missingCAS.SetPathValue("findingId", "finding-one")
+	missingCAS.Header.Set("Content-Type", "application/json")
+	missingCAS.Header.Set("Idempotency-Key", "missing-cas")
+	missingCASResponse := httptest.NewRecorder()
+	h.createAuditFindingReview(missingCASResponse, missingCAS)
+	if missingCASResponse.Code != http.StatusBadRequest {
+		t.Fatalf("missing review CAS = %d body=%s", missingCASResponse.Code, missingCASResponse.Body.String())
+	}
+}
+
 func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 	now := time.Date(2026, 9, 6, 1, 0, 0, 0, time.UTC)
 	revision := "input-r1"
@@ -291,14 +439,24 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 }
 
 type fakeAuditManagement struct {
-	profiles []auditservice.ProfileProjection
-	audit    auditstore.Audit
-	started  auditservice.StartedAudit
-	created  auditservice.CreateDraftParams
-	start    auditservice.StartParams
-	mutation auditservice.MutationParams
-	err      error
-	report   auditservice.ReportProjection
+	profiles            []auditservice.ProfileProjection
+	audit               auditstore.Audit
+	started             auditservice.StartedAudit
+	created             auditservice.CreateDraftParams
+	start               auditservice.StartParams
+	mutation            auditservice.MutationParams
+	err                 error
+	report              auditservice.ReportProjection
+	findings            []auditservice.Finding
+	reviews             []auditservice.ReviewRequest
+	provenance          []auditservice.FindingProvenance
+	findingListParams   auditservice.FindingListParams
+	reviewListParams    auditservice.ReviewListParams
+	createReviewParams  auditservice.CreateFindingReviewParams
+	decideFindingParams auditservice.DecideFindingParams
+	provenanceParams    auditservice.ProvenanceListParams
+	reviewReplayed      bool
+	decisionReplayed    bool
 }
 
 type fakeFindingProposalManagement struct {
@@ -422,6 +580,68 @@ func (f *fakeAuditManagement) GetReport(
 	context.Context, string, string,
 ) (auditservice.ReportProjection, error) {
 	return f.report, f.err
+}
+
+func (f *fakeAuditManagement) ListFindings(
+	_ context.Context, params auditservice.FindingListParams,
+) ([]auditservice.Finding, error) {
+	f.findingListParams = params
+	return append([]auditservice.Finding(nil), f.findings...), f.err
+}
+
+func (f *fakeAuditManagement) GetFinding(
+	context.Context, string, string, string,
+) (auditservice.Finding, error) {
+	if len(f.findings) == 0 {
+		return auditservice.Finding{}, f.err
+	}
+	return f.findings[0], f.err
+}
+
+func (f *fakeAuditManagement) CreateFindingReview(
+	_ context.Context, params auditservice.CreateFindingReviewParams,
+) (auditservice.FindingReviewResult, error) {
+	f.createReviewParams = params
+	if len(f.reviews) == 0 {
+		return auditservice.FindingReviewResult{}, f.err
+	}
+	return auditservice.FindingReviewResult{Request: f.reviews[0], Replayed: f.reviewReplayed}, f.err
+}
+
+func (f *fakeAuditManagement) DecideFinding(
+	_ context.Context, params auditservice.DecideFindingParams,
+) (auditservice.FindingDecisionResult, error) {
+	f.decideFindingParams = params
+	if len(f.findings) == 0 || len(f.reviews) == 0 || f.reviews[0].Decision == nil {
+		return auditservice.FindingDecisionResult{}, f.err
+	}
+	return auditservice.FindingDecisionResult{
+		Finding: f.findings[0], Request: f.reviews[0], Decision: *f.reviews[0].Decision,
+		Replayed: f.decisionReplayed,
+	}, f.err
+}
+
+func (f *fakeAuditManagement) GetReview(
+	context.Context, string, string, string,
+) (auditservice.ReviewRequest, error) {
+	if len(f.reviews) == 0 {
+		return auditservice.ReviewRequest{}, f.err
+	}
+	return f.reviews[0], f.err
+}
+
+func (f *fakeAuditManagement) ListReviews(
+	_ context.Context, params auditservice.ReviewListParams,
+) ([]auditservice.ReviewRequest, error) {
+	f.reviewListParams = params
+	return append([]auditservice.ReviewRequest(nil), f.reviews...), f.err
+}
+
+func (f *fakeAuditManagement) ListFindingProvenance(
+	_ context.Context, params auditservice.ProvenanceListParams,
+) ([]auditservice.FindingProvenance, error) {
+	f.provenanceParams = params
+	return append([]auditservice.FindingProvenance(nil), f.provenance...), f.err
 }
 
 func auditTestHandler(audits AuditManagement) *handler {

@@ -376,6 +376,54 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	if _, err = store.ObserveTerminal(ctx, ObserveTerminalParams{Claim: newClaim, ExecutionID: executionThree.ExecutionID, RunID: "run-three", Generation: generation, Sequence: sequence}); err != nil {
 		t.Fatal(err)
 	}
+	proposal := testExact("audit-findings", "candidate-one", "proposal-r1")
+	proposal.MediaType = "application/json"
+	proposal.SizeBytes = 128
+	proposalJSON, err := json.Marshal(proposal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposalRefJSON, err := json.Marshal(proposal.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `
+INSERT INTO finding_proposal_receipts (
+    receipt_id, proposal_id, allocation_id, runtime_agent_id,
+    runtime_instance_id, stage_execution_id, logical_agent_name,
+    invocation_id, submission_id, client_key, request_digest,
+    run_id, owner_id, project_id, audit_execution_id, audit_id, audit_role,
+    workflow_name, workflow_version, workflow_schema_version,
+    workflow_configuration_ref, workflow_closure_digest,
+    proposal_ref, proposal_digest, proposal_media_type,
+    proposal_size_bytes, evidence
+) VALUES (
+    'finding-receipt-one', 'finding-proposal-one', 'allocation-finding-one',
+    'runtime-finding-one', 'instance-finding-one', 'stage-finding-one', 'worker',
+    'invocation-finding-one', 'submission-finding-one', 'candidate-one', $1,
+    'run-three', $2, $3, $4, $5, 'check',
+    'audit-check', '1', 'contractor/v1alpha1',
+    '{"name":"audit-check","version":"1"}'::jsonb, $6,
+    $7::jsonb, $8, 'application/json', 128, '[]'::jsonb
+)`,
+		testDigest("d"), create.OwnerID, project.ProjectID,
+		executionThree.ExecutionID, create.AuditID, testDigest("e"),
+		proposalRefJSON, proposal.Digest,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `
+INSERT INTO finding_proposal_retention (receipt_id)
+VALUES ('finding-receipt-one')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `
+INSERT INTO finding_proposal_audit_holds (
+    receipt_id, audit_id, project_id, proposal_ref, evidence
+) VALUES ('finding-receipt-one', $1, $2, $3::jsonb, '[]'::jsonb)`,
+		create.AuditID, project.ProjectID, proposalJSON); err != nil {
+		t.Fatal(err)
+	}
 	acceptedResult := testExact("outputs", "result", "result-r1")
 	acceptedReceipt, inserted, err := store.Collect(ctx, CollectParams{
 		Claim: newClaim, ReceiptID: "receipt-three", ExecutionID: executionThree.ExecutionID,
@@ -389,10 +437,29 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 			FinalDisposition: FinalAccepted,
 			Result:           &acceptedResult,
 			Coverage:         Coverage{Status: CoverageSatisfied, Requested: []string{}, Completed: []string{"check"}, Gaps: []string{}},
+			FindingAssociations: []FindingAssociation{{
+				AssessmentID: "finding-assessment-one", ReceiptID: "finding-receipt-one",
+				Proposal: proposal, SemanticAssessment: "supported",
+			}},
 		}},
 	})
 	if err != nil || !inserted || len(acceptedReceipt.Retained) != 1 {
 		t.Fatalf("accepted collection = (%+v, %t, %v)", acceptedReceipt, inserted, err)
+	}
+	var findingState string
+	var findingRevision, assessmentCount int
+	if err := pool.QueryRow(ctx, `
+SELECT finding.state, finding.revision,
+       (SELECT count(*) FROM audit_finding_assessments AS assessment
+         WHERE assessment.finding_id = finding.finding_id)
+  FROM audit_findings AS finding
+ WHERE finding.audit_id = $1 AND finding.first_receipt_id = 'finding-receipt-one'`,
+		create.AuditID).Scan(&findingState, &findingRevision, &assessmentCount); err != nil {
+		t.Fatal(err)
+	}
+	if findingState != "proposed" || findingRevision != 2 || assessmentCount != 1 {
+		t.Fatalf("accepted finding assessment = state %q revision %d count %d",
+			findingState, findingRevision, assessmentCount)
 	}
 	if _, inserted, err = store.Collect(ctx, CollectParams{
 		Claim: newClaim, ReceiptID: "receipt-three-drift", ExecutionID: executionThree.ExecutionID,

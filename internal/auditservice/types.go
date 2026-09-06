@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -46,6 +47,7 @@ type Service struct {
 	profiles                  ProfileCatalog
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 	credentialGuard           CredentialReferenceGuard
+	findings                  *findingintake.Service
 	now                       func() time.Time
 }
 

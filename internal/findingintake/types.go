@@ -129,6 +129,17 @@ type ImportRequest struct {
 	Proposal contracts.ArtifactRef
 }
 
+type ProposalKey struct {
+	InvocationID string `json:"invocationId"`
+	ClientKey    string `json:"clientKey"`
+}
+
+type ResolvedProposal struct {
+	ReceiptID string
+	Proposal  ExactArtifact
+	Origin    Origin
+}
+
 type canonicalSubmission struct {
 	request       Submission
 	proposalBytes []byte

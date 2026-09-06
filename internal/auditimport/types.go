@@ -18,6 +18,7 @@ type Store interface {
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ListItems(context.Context, string) ([]auditstore.Item, error)
 	ListCoverage(context.Context, string, string, int, int) ([]auditstore.CoverageRow, error)
+	ListReportFindings(context.Context, string) ([]auditstore.ReportFinding, error)
 	CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error)
 	Collect(context.Context, auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error)
 	CommitReport(context.Context, auditstore.CommitReportParams) (auditstore.Audit, error)
@@ -33,6 +34,9 @@ type RunReader interface {
 type FindingRetention interface {
 	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
 	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+	ResolveAuditProposals(
+		context.Context, string, string, string, string, []findingintake.ProposalKey,
+	) ([]findingintake.ResolvedProposal, error)
 }
 
 type Importer struct {

@@ -294,7 +294,19 @@ func validateCheckResultSet(value CheckResultSet) error {
 		if err := validateResultCoverage(result.Coverage); err != nil {
 			return err
 		}
-		if err := validateUniqueStrings(result.Proposals, MaximumProposalsPerItem, "results.proposals", true); err != nil {
+		previousProposal := ""
+		for _, proposal := range result.Proposals {
+			if validateIdentifier(proposal.InvocationID, "results.proposals.invocation_id") != nil ||
+				validateIdentifier(proposal.ClientKey, "results.proposals.client_key") != nil {
+				return invalid(CodeResultSetInvalid, "results.proposals")
+			}
+			key := proposal.InvocationID + "\x00" + proposal.ClientKey
+			if key <= previousProposal {
+				return invalid(CodeResultSetInvalid, "results.proposals")
+			}
+			previousProposal = key
+		}
+		if len(result.Proposals) > MaximumProposalsPerItem {
 			return invalid(CodeResultSetInvalid, "results.proposals")
 		}
 	}

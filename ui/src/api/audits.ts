@@ -21,6 +21,18 @@ export type AuditReport = components["schemas"]["AuditReport"];
 export type AuditStartResponse = components["schemas"]["AuditStartResponse"];
 export type CreateAuditRequest = components["schemas"]["CreateAuditRequest"];
 export type ExactArtifactRef = components["schemas"]["ExactArtifactRef"];
+export type AuditFinding = components["schemas"]["AuditFinding"];
+export type AuditFindingPage = components["schemas"]["AuditFindingPage"];
+export type AuditFindingState = components["schemas"]["AuditFindingState"];
+export type AuditFindingSeverity =
+  components["schemas"]["AuditFindingSeverity"];
+export type AuditAnalystVerdict = components["schemas"]["AuditAnalystVerdict"];
+export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
+export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
+export type AuditFindingProvenancePage =
+  components["schemas"]["AuditFindingProvenancePage"];
+export type DecideAuditFindingRequest =
+  components["schemas"]["DecideAuditFindingRequest"];
 
 export interface PageRequest {
   cursor?: string;
@@ -438,6 +450,153 @@ export async function getAuditReport(
     throw invalidAuditResponse(result.response.status);
   }
   return structuredClone(report);
+}
+
+export async function listAuditFindings(
+  api: PublicAPI,
+  auditId: string,
+  request: PageRequest = {},
+): Promise<AuditFindingPage> {
+  requireAuditID(auditId);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/findings", {
+      params: {
+        path: { auditId },
+        query: {
+          limit: AUDIT_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  const page = safePage(requireData(result), result.response.status);
+  return { items: structuredClone(page.items), page: page.page };
+}
+
+export async function getAuditFinding(
+  api: PublicAPI,
+  auditId: string,
+  findingId: string,
+): Promise<AuditFinding> {
+  requireAuditID(auditId);
+  requireAuditID(findingId);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/findings/{findingId}", {
+      params: { path: { auditId, findingId } },
+    }),
+  );
+  const finding = requireData(result);
+  if (finding.auditId !== auditId || finding.findingId !== findingId) {
+    throw invalidAuditResponse(result.response.status);
+  }
+  requireRevisionETag(result.response, finding.revision);
+  return structuredClone(finding);
+}
+
+export async function listAuditReviews(
+  api: PublicAPI,
+  auditId: string,
+  request: PageRequest & { finding?: string } = {},
+): Promise<AuditReviewPage> {
+  requireAuditID(auditId);
+  if (request.finding !== undefined) requireAuditID(request.finding);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/reviews", {
+      params: {
+        path: { auditId },
+        query: {
+          limit: AUDIT_PAGE_SIZE,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          ...(request.finding === undefined
+            ? {}
+            : { finding: request.finding }),
+        },
+      },
+    }),
+  );
+  const page = safePage(requireData(result), result.response.status);
+  return { items: structuredClone(page.items), page: page.page };
+}
+
+export async function createAuditFindingReview(
+  api: PublicAPI,
+  options: {
+    auditId: string;
+    findingId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+  },
+): Promise<AuditReviewRequest> {
+  requireAuditID(options.auditId);
+  requireAuditID(options.findingId);
+  requireAuditRevision(options.expectedRevision);
+  const result = await api.request((client) =>
+    client.POST("/v1/audits/{auditId}/findings/{findingId}/reviews", {
+      params: {
+        path: { auditId: options.auditId, findingId: options.findingId },
+        header: {
+          "Idempotency-Key": options.idempotencyKey,
+          "If-Match": `"${options.expectedRevision}"`,
+        },
+      },
+      body: {},
+    }),
+  );
+  return structuredClone(requireData(result));
+}
+
+export async function decideAuditFinding(
+  api: PublicAPI,
+  options: {
+    auditId: string;
+    requestId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+    decision: DecideAuditFindingRequest;
+  },
+): Promise<components["schemas"]["AuditFindingDecisionResult"]> {
+  requireAuditID(options.auditId);
+  requireAuditID(options.requestId);
+  requireAuditRevision(options.expectedRevision);
+  const result = await api.request((client) =>
+    client.POST("/v1/audits/{auditId}/reviews/{requestId}/decisions", {
+      params: {
+        path: { auditId: options.auditId, requestId: options.requestId },
+        header: {
+          "Idempotency-Key": options.idempotencyKey,
+          "If-Match": `"${options.expectedRevision}"`,
+        },
+      },
+      body: options.decision,
+    }),
+  );
+  return structuredClone(requireData(result));
+}
+
+export async function listAuditFindingProvenance(
+  api: PublicAPI,
+  auditId: string,
+  findingId: string,
+  request: PageRequest & { auditRevision: number; findingRevision: number },
+): Promise<AuditFindingProvenancePage> {
+  requireAuditID(auditId);
+  requireAuditID(findingId);
+  requireAuditRevision(request.auditRevision);
+  requireAuditRevision(request.findingRevision);
+  const result = await api.request((client) =>
+    client.GET("/v1/audits/{auditId}/findings/{findingId}/provenance", {
+      params: {
+        path: { auditId, findingId },
+        query: {
+          limit: AUDIT_PAGE_SIZE,
+          auditRevision: request.auditRevision,
+          findingRevision: request.findingRevision,
+          ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+        },
+      },
+    }),
+  );
+  return structuredClone(requireData(result));
 }
 
 export function auditMutationAudit(value: Audit | AuditStartResponse): Audit {

@@ -35,8 +35,8 @@ func TestAuditEnvelopeCodecsAndResultMembership(t *testing.T) {
 	valid := CheckResultSet{
 		Schema: CheckResultsSchema, ExecutionManifestDigest: digest,
 		Results: []CheckResult{
-			{ItemKey: "item-2", SubjectKey: "subject-2", Assessment: "inconclusive", Summary: "not enough evidence", EvidenceIDs: []string{}, Coverage: ResultCoverage{Requested: []string{}, Completed: []string{}, Gaps: []string{"unknown"}}, Proposals: []string{}},
-			{ItemKey: "item-1", SubjectKey: "subject-1", Assessment: "supported", Summary: "observed", EvidenceIDs: []string{"ev-2", "ev-1"}, Coverage: ResultCoverage{Requested: []string{"validation", "trace"}, Completed: []string{"trace", "validation"}, Gaps: []string{}}, Proposals: []string{}},
+			{ItemKey: "item-2", SubjectKey: "subject-2", Assessment: "inconclusive", Summary: "not enough evidence", EvidenceIDs: []string{}, Coverage: ResultCoverage{Requested: []string{}, Completed: []string{}, Gaps: []string{"unknown"}}, Proposals: []ProposalSelection{}},
+			{ItemKey: "item-1", SubjectKey: "subject-1", Assessment: "supported", Summary: "observed", EvidenceIDs: []string{"ev-2", "ev-1"}, Coverage: ResultCoverage{Requested: []string{"validation", "trace"}, Completed: []string{"trace", "validation"}, Gaps: []string{}}, Proposals: []ProposalSelection{{InvocationID: "invocation-1", ClientKey: "candidate-1"}}},
 		},
 	}
 	if err := ValidateResultSet(valid, manifest); err != nil {
@@ -64,11 +64,26 @@ func TestAuditEnvelopeCodecsAndResultMembership(t *testing.T) {
 		}},
 		{name: "wrong subject", mutate: func(value *CheckResultSet) { value.Results[1].SubjectKey = "subject-wrong" }},
 		{name: "wrong manifest", mutate: func(value *CheckResultSet) { value.ExecutionManifestDigest = testDigest('c') }},
+		{name: "duplicate proposal", mutate: func(value *CheckResultSet) {
+			value.Results[1].Proposals = []ProposalSelection{
+				{InvocationID: "invocation-1", ClientKey: "candidate-1"},
+				{InvocationID: "invocation-1", ClientKey: "candidate-1"},
+			}
+		}},
+		{name: "unsorted proposals", mutate: func(value *CheckResultSet) {
+			value.Results[1].Proposals = []ProposalSelection{
+				{InvocationID: "invocation-2", ClientKey: "candidate-2"},
+				{InvocationID: "invocation-1", ClientKey: "candidate-1"},
+			}
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			candidate := valid
 			candidate.Results = append([]CheckResult(nil), valid.Results...)
+			for index := range candidate.Results {
+				candidate.Results[index].Proposals = append([]ProposalSelection(nil), valid.Results[index].Proposals...)
+			}
 			test.mutate(&candidate)
 			if err := ValidateResultSet(candidate, manifest); ErrorCode(err) != CodeResultSetInvalid {
 				t.Fatalf("error = %v", err)

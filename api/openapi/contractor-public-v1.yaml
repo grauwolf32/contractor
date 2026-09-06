@@ -949,6 +949,157 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/audits/{auditId}/findings:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: listAuditFindings
+      tags: [Audits]
+      summary: List candidate and analyst-reviewed findings for one owned Audit
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingState'}}
+        - {name: verdict, in: query, required: false, schema: {enum: [true_positive, false_positive, unreviewed]}}
+        - {name: severity, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingSeverity'}}
+      responses:
+        '200':
+          description: Stable oldest-first finding page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFindingPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/findings/{findingId}:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+      - $ref: '#/components/parameters/FindingId'
+    get:
+      operationId: getAuditFinding
+      tags: [Audits]
+      summary: Get one exact finding revision and its current assessment and analyst rating
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Exact finding projection
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFinding'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/findings/{findingId}/provenance:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+      - $ref: '#/components/parameters/FindingId'
+    get:
+      operationId: listAuditFindingProvenance
+      tags: [Audits]
+      summary: List revision-bound exact proposal and verification provenance
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}}
+        - {name: findingRevision, in: query, required: false, schema: {type: integer, minimum: 1}}
+      responses:
+        '200':
+          description: Revision-bound provenance page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFindingProvenancePage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/findings/{findingId}/reviews:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+      - $ref: '#/components/parameters/FindingId'
+    post:
+      operationId: createAuditFindingReview
+      tags: [Audits]
+      summary: Create or reuse a pending review bound to the exact finding revision
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/CreateAuditFindingReviewRequest'}}}
+      responses:
+        '201':
+          description: Pending exact-subject review request
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewRequest'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/reviews:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: listAuditReviews
+      tags: [Audits]
+      summary: List exact finding review requests and immutable decisions
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - {name: finding, in: query, required: false, schema: {$ref: '#/components/schemas/ResourceId'}}
+        - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditReviewState'}}
+      responses:
+        '200':
+          description: Stable oldest-first review page
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewPage'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/reviews/{requestId}/decisions:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+      - $ref: '#/components/parameters/ReviewRequestId'
+    post:
+      operationId: decideAuditReview
+      tags: [Audits]
+      summary: Append one owner decision for an exact unexpired review subject
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/DecideAuditFindingRequest'}}}
+      responses:
+        '200':
+          description: Immutable decision and current finding projection
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFindingDecisionResult'}}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/queue:
     get:
       operationId: listRunQueue
@@ -2323,6 +2474,16 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/ResourceId'}
+    FindingId:
+      name: findingId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceId'}
+    ReviewRequestId:
+      name: requestId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ResourceId'}
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -3301,6 +3462,138 @@ components:
       required: [hold, replayed]
       properties:
         hold: {$ref: '#/components/schemas/FindingAuditHold'}
+        replayed: {type: boolean}
+    AuditFindingState: {enum: [proposed, confirmed, rejected, duplicate, needs-evidence]}
+    AuditFindingSeverity: {enum: [informational, low, medium, high, critical]}
+    AuditAnalystVerdict: {enum: [true_positive, false_positive, duplicate, reopen, needs_evidence]}
+    AuditReviewState: {enum: [pending, decided, expired]}
+    AuditFindingAssessment:
+      type: object
+      additionalProperties: false
+      required: [assessmentId, semanticAssessment, result, receiptId, directVerification, acceptedAt]
+      properties:
+        assessmentId: {$ref: '#/components/schemas/ResourceId'}
+        semanticAssessment: {enum: [supported, refuted, inconclusive, blocked, satisfied, violated, not-tested]}
+        result: {$ref: '#/components/schemas/AuditExactArtifact'}
+        receiptId: {$ref: '#/components/schemas/ResourceId'}
+        itemId: {$ref: '#/components/schemas/ResourceId'}
+        executionItemId: {$ref: '#/components/schemas/ResourceId'}
+        collectionReceiptId: {$ref: '#/components/schemas/ResourceId'}
+        directVerification: {type: boolean}
+        contract: {$ref: '#/components/schemas/AuditExactArtifact'}
+        acceptedAt: {type: string, format: date-time}
+    AuditReviewDecision:
+      type: object
+      additionalProperties: false
+      required: [decisionId, requestId, auditId, findingId, actorId, verdict, rationale, subjectRevision, subjectDigest, createdAt]
+      properties:
+        decisionId: {$ref: '#/components/schemas/ResourceId'}
+        requestId: {$ref: '#/components/schemas/ResourceId'}
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        findingId: {$ref: '#/components/schemas/ResourceId'}
+        actorId: {type: string, minLength: 1, maxLength: 256}
+        verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
+        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
+        subjectRevision: {type: integer, minimum: 1}
+        subjectDigest: {$ref: '#/components/schemas/Digest'}
+        createdAt: {type: string, format: date-time}
+    AuditReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, auditId, findingId, kind, subjectRevision, subjectDigest, requestedActions, state, revision, createdAt, updatedAt]
+      properties:
+        requestId: {$ref: '#/components/schemas/ResourceId'}
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        findingId: {$ref: '#/components/schemas/ResourceId'}
+        kind: {type: string, const: finding-triage}
+        subjectRevision: {type: integer, minimum: 1}
+        subjectDigest: {$ref: '#/components/schemas/Digest'}
+        requestedActions: {type: array, minItems: 1, maxItems: 16, items: {$ref: '#/components/schemas/AuditAnalystVerdict'}}
+        state: {$ref: '#/components/schemas/AuditReviewState'}
+        expiresAt: {type: string, format: date-time}
+        revision: {type: integer, minimum: 1}
+        decision: {$ref: '#/components/schemas/AuditReviewDecision'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AuditFinding:
+      type: object
+      additionalProperties: false
+      required: [findingId, auditId, state, firstProposal, revision, createdAt, updatedAt]
+      properties:
+        findingId: {$ref: '#/components/schemas/ResourceId'}
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        state: {$ref: '#/components/schemas/AuditFindingState'}
+        rejectionReason: {enum: [false-positive, policy, out-of-scope]}
+        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
+        firstProposal: {$ref: '#/components/schemas/FindingProposalReceipt'}
+        currentAssessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
+        analystDecision: {$ref: '#/components/schemas/AuditReviewDecision'}
+        analystVerdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
+        analystSeverity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        revision: {type: integer, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AuditFindingPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFinding'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    AuditReviewPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditReviewRequest'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    AuditFindingProvenance:
+      type: object
+      additionalProperties: false
+      required: [recordId, kind, receiptId, proposal, origin, supportsCurrentAssessment, createdAt]
+      properties:
+        recordId: {$ref: '#/components/schemas/ResourceId'}
+        kind: {enum: [source-proposal, check-attempt, direct-verification]}
+        receiptId: {$ref: '#/components/schemas/ResourceId'}
+        relation: {enum: [first, contributing]}
+        proposal: {$ref: '#/components/schemas/AuditExactArtifact'}
+        origin: {$ref: '#/components/schemas/FindingOrigin'}
+        assessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
+        supportsCurrentAssessment: {type: boolean}
+        createdAt: {type: string, format: date-time}
+    AuditFindingProvenancePage:
+      type: object
+      additionalProperties: false
+      required: [findingRevision, auditRevision, items, page]
+      properties:
+        findingRevision: {type: integer, minimum: 1}
+        auditRevision: {type: integer, minimum: 1}
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditFindingProvenance'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    CreateAuditFindingReviewRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expiresAt: {type: string, format: date-time}
+    DecideAuditFindingRequest:
+      type: object
+      additionalProperties: false
+      required: [verdict, rationale]
+      properties:
+        verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
+        severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+        duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
+    AuditFindingDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [finding, request, decision, replayed]
+      properties:
+        finding: {$ref: '#/components/schemas/AuditFinding'}
+        request: {$ref: '#/components/schemas/AuditReviewRequest'}
+        decision: {$ref: '#/components/schemas/AuditReviewDecision'}
         replayed: {type: boolean}
     RuntimeInfrastructureId:
       type: string

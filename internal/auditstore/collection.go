@@ -11,17 +11,28 @@ import (
 )
 
 type collectionItemJSON struct {
-	ExecutionItemID  string          `json:"execution_item_id"`
-	Disposition      string          `json:"disposition"`
-	ResultRef        json.RawMessage `json:"result_ref,omitempty"`
-	ResultDigest     *string         `json:"result_digest,omitempty"`
-	Retryable        bool            `json:"retryable"`
-	FinalDisposition string          `json:"final_disposition"`
-	Status           string          `json:"status"`
-	Requested        []string        `json:"requested"`
-	Completed        []string        `json:"completed"`
-	Gaps             []string        `json:"gaps"`
-	Rationale        string          `json:"rationale"`
+	ExecutionItemID     string                   `json:"execution_item_id"`
+	Disposition         string                   `json:"disposition"`
+	ResultRef           json.RawMessage          `json:"result_ref,omitempty"`
+	ResultDigest        *string                  `json:"result_digest,omitempty"`
+	Retryable           bool                     `json:"retryable"`
+	FinalDisposition    string                   `json:"final_disposition"`
+	Status              string                   `json:"status"`
+	Requested           []string                 `json:"requested"`
+	Completed           []string                 `json:"completed"`
+	Gaps                []string                 `json:"gaps"`
+	Rationale           string                   `json:"rationale"`
+	FindingAssociations []findingAssociationJSON `json:"finding_associations"`
+}
+
+type findingAssociationJSON struct {
+	AssessmentID       string          `json:"assessment_id"`
+	ReceiptID          string          `json:"receipt_id"`
+	ProposalRef        json.RawMessage `json:"proposal_ref"`
+	ProposalDigest     string          `json:"proposal_digest"`
+	ProposalMediaType  string          `json:"proposal_media_type"`
+	ProposalSizeBytes  int64           `json:"proposal_size_bytes"`
+	SemanticAssessment string          `json:"semantic_assessment"`
 }
 
 type artifactLinkJSON struct {
@@ -55,12 +66,24 @@ func (s *PostgresStore) Collect(
 			value := item.Result.Digest
 			resultDigest = &value
 		}
+		associations := make([]findingAssociationJSON, len(item.FindingAssociations))
+		for associationIndex, association := range item.FindingAssociations {
+			proposalRef, _ := json.Marshal(association.Proposal.Ref)
+			associations[associationIndex] = findingAssociationJSON{
+				AssessmentID: association.AssessmentID, ReceiptID: association.ReceiptID,
+				ProposalRef: proposalRef, ProposalDigest: association.Proposal.Digest,
+				ProposalMediaType:  association.Proposal.MediaType,
+				ProposalSizeBytes:  association.Proposal.SizeBytes,
+				SemanticAssessment: association.SemanticAssessment,
+			}
+		}
 		items[index] = collectionItemJSON{
 			ExecutionItemID: item.ExecutionItemID, Disposition: string(item.Disposition),
 			ResultRef: resultRef, ResultDigest: resultDigest, Retryable: item.Retryable,
 			FinalDisposition: string(item.FinalDisposition), Status: string(item.Coverage.Status),
 			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
 			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
+			FindingAssociations: associations,
 		}
 	}
 	encodedItems, _ := json.Marshal(items)
@@ -96,7 +119,8 @@ WITH collection_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($10::jsonb) AS item(
         execution_item_id text, disposition text, result_ref jsonb,
         result_digest text, retryable boolean, final_disposition text,
-        status text, requested jsonb, completed jsonb, gaps jsonb, rationale text
+        status text, requested jsonb, completed jsonb, gaps jsonb, rationale text,
+        finding_associations jsonb
     )
 ), live_claim AS MATERIALIZED (
     SELECT claim.audit_id
@@ -127,16 +151,41 @@ WITH collection_input AS MATERIALIZED (
         ON input.execution_item_id = member.execution_item_id
        AND input.disposition = $6
        AND member.state = 'collecting'
+), finding_input AS MATERIALIZED (
+    SELECT item.execution_item_id, association.*
+      FROM collection_input AS item
+      CROSS JOIN LATERAL jsonb_to_recordset(item.finding_associations) AS association(
+          assessment_id text, receipt_id text, proposal_ref jsonb,
+          proposal_digest text, proposal_media_type text,
+          proposal_size_bytes bigint, semantic_assessment text
+      )
+), finding_validation AS MATERIALIZED (
+    SELECT count(input.receipt_id)::integer AS input_count,
+           count(*) FILTER (
+               WHERE contribution.receipt_id IS NOT NULL
+                 AND member.execution_item_id IS NOT NULL
+           )::integer AS matched_count
+      FROM finding_input AS input
+      LEFT JOIN audit_finding_contributions AS contribution
+       ON contribution.audit_id = $1 AND contribution.receipt_id = input.receipt_id
+       AND contribution.proposal_ref #> '{ref}' = input.proposal_ref
+       AND contribution.proposal_ref #>> '{digest}' = input.proposal_digest
+       AND contribution.proposal_ref #>> '{mediaType}' = input.proposal_media_type
+       AND (contribution.proposal_ref #>> '{sizeBytes}')::bigint = input.proposal_size_bytes
+      LEFT JOIN audit_execution_items AS member
+       ON member.execution_item_id = input.execution_item_id
+       AND member.execution_id = $4 AND member.audit_id = $1
 ), advanced_audit AS (
     UPDATE audits AS audit
        SET retained_evidence_bytes = audit.retained_evidence_bytes + $12,
            revision = audit.revision + 1,
            next_event_sequence = audit.next_event_sequence + 1,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
-      FROM execution_gate, member_validation
+      FROM execution_gate, member_validation, finding_validation
      WHERE audit.audit_id = execution_gate.audit_id
        AND member_validation.stored_count = jsonb_array_length($10::jsonb)
        AND member_validation.matched_count = member_validation.stored_count
+       AND finding_validation.input_count = finding_validation.matched_count
        AND audit.retained_evidence_bytes + $12 <= audit.max_evidence_bytes
     RETURNING audit.audit_id, audit.max_item_run_attempts, audit.next_event_sequence
 ), inserted_receipt AS (
@@ -185,6 +234,40 @@ WITH collection_input AS MATERIALIZED (
       JOIN collection_input AS input USING (execution_item_id)
       CROSS JOIN advanced_audit AS advanced
      WHERE item.item_id = attempt.item_id AND item.state = 'collecting'
+), inserted_finding_assessments AS (
+    INSERT INTO audit_finding_assessments (
+        assessment_id, finding_id, audit_id, receipt_id, item_id,
+        execution_item_id, collection_receipt_id, semantic_assessment,
+        result_ref, result_digest
+    )
+    SELECT input.assessment_id, contribution.finding_id, receipt.audit_id,
+           input.receipt_id, member.item_id, input.execution_item_id,
+           receipt.receipt_id, input.semantic_assessment,
+           collected.result_ref, collected.result_digest
+      FROM finding_input AS input
+      JOIN audit_finding_contributions AS contribution
+       ON contribution.audit_id = $1 AND contribution.receipt_id = input.receipt_id
+       AND contribution.proposal_ref #> '{ref}' = input.proposal_ref
+       AND contribution.proposal_ref #>> '{digest}' = input.proposal_digest
+       AND contribution.proposal_ref #>> '{mediaType}' = input.proposal_media_type
+       AND (contribution.proposal_ref #>> '{sizeBytes}')::bigint = input.proposal_size_bytes
+      JOIN audit_execution_items AS member
+        ON member.execution_item_id = input.execution_item_id
+       AND member.execution_id = $4
+      JOIN collection_input AS collected
+        ON collected.execution_item_id = input.execution_item_id
+      CROSS JOIN inserted_receipt AS receipt
+    RETURNING assessment_id, finding_id, audit_id
+), updated_findings AS (
+    UPDATE audit_findings AS finding
+       SET current_assessment_id = assessment.assessment_id,
+           current_decision_id = NULL, state = 'proposed',
+           rejection_reason = NULL, duplicate_target_id = NULL,
+           revision = finding.revision + 1,
+           updated_at = GREATEST(clock_timestamp(), finding.updated_at + interval '1 microsecond')
+      FROM inserted_finding_assessments AS assessment
+     WHERE finding.finding_id = assessment.finding_id
+       AND finding.audit_id = assessment.audit_id
 ), updated_coverage AS (
     UPDATE audit_coverage_rows AS coverage
        SET status = input.status,

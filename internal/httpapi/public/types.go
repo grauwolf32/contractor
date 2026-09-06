@@ -194,6 +194,13 @@ type AuditManagement interface {
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
 	ListCoverage(context.Context, string, string, string, int, int) ([]auditstore.CoverageRow, error)
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
+	ListFindings(context.Context, auditservice.FindingListParams) ([]auditservice.Finding, error)
+	GetFinding(context.Context, string, string, string) (auditservice.Finding, error)
+	CreateFindingReview(context.Context, auditservice.CreateFindingReviewParams) (auditservice.FindingReviewResult, error)
+	DecideFinding(context.Context, auditservice.DecideFindingParams) (auditservice.FindingDecisionResult, error)
+	GetReview(context.Context, string, string, string) (auditservice.ReviewRequest, error)
+	ListReviews(context.Context, auditservice.ReviewListParams) ([]auditservice.ReviewRequest, error)
+	ListFindingProvenance(context.Context, auditservice.ProvenanceListParams) ([]auditservice.FindingProvenance, error)
 }
 
 type FindingProposalManagement interface {

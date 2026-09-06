@@ -5,7 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../../../config/runtime-config";
 import { PublicAPI } from "../../../api/client";
-import type { Audit, AuditProfile } from "../../../api/audits";
+import type {
+  Audit,
+  AuditFinding,
+  AuditProfile,
+  AuditReviewRequest,
+} from "../../../api/audits";
 import { Application } from "../../../app/application";
 import { applicationRoutes } from "../../../app/router";
 
@@ -122,6 +127,68 @@ function auditAt(state: Audit["state"], revision: number): Audit {
     eventSequence: revision,
     createdAt: "2026-09-06T10:00:00Z",
     updatedAt: `2026-09-06T10:0${revision}:00Z`,
+  };
+}
+
+function findingAt(
+  state: AuditFinding["state"],
+  revision: number,
+): AuditFinding {
+  return {
+    findingId: "finding_example",
+    auditId: "audit_example",
+    state,
+    firstProposal: {
+      receiptId: "receipt_example",
+      proposalId: "proposal_example",
+      requestDigest: `sha256:${"3".repeat(64)}`,
+      clientKey: "candidate-authz",
+      proposal: {
+        ref: {
+          namespace: "audit-findings",
+          name: "candidate-authz",
+          revision: "proposal-r1",
+        },
+        digest: `sha256:${"4".repeat(64)}`,
+        mediaType: "application/json",
+        sizeBytes: 512,
+      },
+      document: {
+        schema: "contractor.audit.finding-proposal.v1",
+        client_key: "candidate-authz",
+        title: "Missing object authorization",
+        description: "The order endpoint may read another owner's record.",
+        subject: { kind: "component", key: "orders" },
+        preconditions: [],
+        standard_refs: [],
+        evidence_ids: [],
+        proposed_checks: [],
+        severity_suggestion: "high",
+        limitations: [],
+      },
+      evidence: [],
+      origin: {
+        runId: "run_source",
+        stageExecutionId: "stage_source",
+        allocationId: "allocation_source",
+        invocationId: "invocation_source",
+        logicalAgentName: "reviewer",
+        workflow: {
+          name: "source-review",
+          version: "1",
+          schemaVersion: "contractor/v1alpha1",
+          configurationRef: { name: "source-review", version: "1" },
+          closureDigest: `sha256:${"5".repeat(64)}`,
+        },
+        runDeleted: true,
+      },
+      retention: "audit-held",
+      auditHolds: [],
+      createdAt: "2026-09-06T10:00:00Z",
+    },
+    revision,
+    createdAt: "2026-09-06T10:00:00Z",
+    updatedAt: "2026-09-06T10:00:00Z",
   };
 }
 
@@ -302,6 +369,155 @@ describe("Project Audit routes", () => {
     await vi.advanceTimersByTimeAsync(1_100);
     await vi.waitFor(() => expect(auditReads).toBeGreaterThan(readsBeforePoll));
     vi.useRealTimers();
+  });
+
+  it("reviews a finding with exact revisions and renders immutable history", async () => {
+    const requests: Request[] = [];
+    let currentAudit = auditAt("completed", 2);
+    let currentFinding = findingAt("proposed", 1);
+    let reviews: AuditReviewRequest[] = [];
+    const pendingReview: AuditReviewRequest = {
+      requestId: "review_example",
+      auditId: currentAudit.auditId,
+      findingId: currentFinding.findingId,
+      kind: "finding-triage",
+      subjectRevision: 1,
+      subjectDigest: `sha256:${"6".repeat(64)}`,
+      requestedActions: [
+        "true_positive",
+        "false_positive",
+        "duplicate",
+        "reopen",
+        "needs_evidence",
+      ],
+      state: "pending",
+      revision: 1,
+      createdAt: currentAudit.createdAt,
+      updatedAt: currentAudit.updatedAt,
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request.clone());
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(currentAudit, {
+            headers: { ETag: `"${currentAudit.revision}"` },
+          });
+        }
+        if (path === "/v1/audits/audit_example/findings") {
+          return jsonResponse({
+            items: [currentFinding],
+            page: { hasMore: false },
+          });
+        }
+        if (path === "/v1/audits/audit_example/reviews") {
+          return jsonResponse({ items: reviews, page: { hasMore: false } });
+        }
+        if (
+          path ===
+            "/v1/audits/audit_example/findings/finding_example/reviews" &&
+          request.method === "POST"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"1"');
+          reviews = [pendingReview];
+          currentAudit = auditAt("completed", 3);
+          return jsonResponse(pendingReview, {
+            status: 201,
+            headers: { ETag: '"1"' },
+          });
+        }
+        if (
+          path ===
+            "/v1/audits/audit_example/reviews/review_example/decisions" &&
+          request.method === "POST"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"1"');
+          const body = (await request.json()) as Record<string, unknown>;
+          expect(body).toEqual({
+            verdict: "true_positive",
+            severity: "high",
+            rationale: "Confirmed from exact source evidence.",
+          });
+          const decision = {
+            decisionId: "decision_example",
+            requestId: pendingReview.requestId,
+            auditId: currentAudit.auditId,
+            findingId: currentFinding.findingId,
+            actorId: session.principal.userId,
+            verdict: "true_positive" as const,
+            severity: "high" as const,
+            rationale: "Confirmed from exact source evidence.",
+            subjectRevision: 1,
+            subjectDigest: pendingReview.subjectDigest,
+            createdAt: currentAudit.updatedAt,
+          };
+          currentFinding = {
+            ...currentFinding,
+            state: "confirmed",
+            revision: 2,
+            analystVerdict: "true_positive",
+            analystSeverity: "high",
+            analystDecision: decision,
+          };
+          reviews = [
+            { ...pendingReview, state: "decided", revision: 2, decision },
+          ];
+          currentAudit = auditAt("completed", 4);
+          return jsonResponse({
+            finding: currentFinding,
+            request: reviews[0],
+            decision,
+            replayed: false,
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/findings",
+    );
+    const user = userEvent.setup();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Missing object authorization",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("Unreviewed")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review finding" }));
+    await user.selectOptions(await screen.findByLabelText("Severity"), "high");
+    await user.type(
+      screen.getByLabelText("Analyst rationale"),
+      "Confirmed from exact source evidence.",
+    );
+    await user.click(screen.getByRole("button", { name: "Record decision" }));
+
+    expect(await screen.findByText("true_positive · high")).toBeVisible();
+    const mutationRequests = requests.filter(
+      (request) => request.method === "POST",
+    );
+    expect(mutationRequests).toHaveLength(2);
+    expect(mutationRequests[0]?.headers.get("Idempotency-Key")).toMatch(
+      /^audit-finding-review-ui-/u,
+    );
+    expect(mutationRequests[1]?.headers.get("Idempotency-Key")).toMatch(
+      /^audit-finding-review-ui-/u,
+    );
+
+    await user.click(screen.getByRole("link", { name: "Reviews" }));
+    expect(
+      await screen.findByRole("heading", { name: "Finding reviews" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Confirmed from exact source evidence."),
+    ).toBeVisible();
   });
 
   it("recovers a stale pause from the authoritative revision", async () => {

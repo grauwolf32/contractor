@@ -114,6 +114,35 @@ export const queryKeys = {
       ["audits", "detail", auditId, "coverage", cursor ?? null] as const,
     report: (auditId: string) =>
       ["audits", "detail", auditId, "report"] as const,
+    findings: (auditId: string, cursor?: string) =>
+      ["audits", "detail", auditId, "findings", cursor ?? null] as const,
+    reviews: (auditId: string, findingId?: string, cursor?: string) =>
+      [
+        "audits",
+        "detail",
+        auditId,
+        "reviews",
+        findingId ?? null,
+        cursor ?? null,
+      ] as const,
+    provenance: (
+      auditId: string,
+      findingId: string,
+      auditRevision: number,
+      findingRevision: number,
+      cursor?: string,
+    ) =>
+      [
+        "audits",
+        "detail",
+        auditId,
+        "findings",
+        findingId,
+        "provenance",
+        auditRevision,
+        findingRevision,
+        cursor ?? null,
+      ] as const,
   },
   queue: {
     all: ["queue"] as const,

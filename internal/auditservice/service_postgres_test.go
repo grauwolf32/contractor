@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -13,10 +14,12 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	managedcredentials "github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -305,6 +308,280 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 		t.Fatalf("started saturated Audit = %+v", started)
 	}
 }
+
+func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+
+	const ownerID = "owner-finding-review"
+	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-finding-review", OwnerID: ownerID, Kind: projectstore.KindProject,
+		Name: "Finding review", IdempotencyKey: "create-finding-review-project",
+		RequestDigest: serviceTestDigest("finding-review-project"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const auditID = "audit-finding-review"
+	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: auditID, OwnerID: ownerID, ProjectID: project.ProjectID,
+		Profile: auditstore.ProfileIdentity{
+			Name: "finding-review", Version: "1", Digest: serviceTestDigest("finding-profile"),
+		},
+		ProfileSnapshot: json.RawMessage(`{"interaction":{"findingConfirmation":"human-required"}}`),
+		InputSelection:  json.RawMessage(`{}`),
+		Limits: auditstore.Limits{
+			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 2, MaxItemsTotal: 2,
+			MaxSubmittedRuns: 2, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1 << 20,
+		},
+		IdempotencyKey: "create-finding-review-audit", RequestDigest: serviceTestDigest("finding-audit"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	firstID := seedAuditFinding(t, ctx, pool, project.ProjectID, ownerID, auditID, "first")
+	secondID := seedAuditFinding(t, ctx, pool, project.ProjectID, ownerID, auditID, "second")
+	intake, err := findingintake.New(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 9, 6, 3, 0, 0, 0, time.UTC)
+	service := &Service{pool: pool, findings: intake, now: func() time.Time { return now }}
+
+	listed, err := service.ListFindings(ctx, FindingListParams{OwnerID: ownerID, AuditID: auditID, Limit: 10})
+	if err != nil || len(listed) != 2 || listed[0].AnalystVerdict != nil ||
+		listed[0].FirstProposal.Origin.RunDeleted != true {
+		t.Fatalf("initial findings = (%+v, %v)", listed, err)
+	}
+	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,
+		RequestID: "review-first-1", IdempotencyKey: "review-first-1",
+		RequestDigest: serviceTestDigest("review-first-1"),
+	})
+	if err != nil || request.Replayed || request.Request.SubjectRevision != 1 ||
+		request.Request.State != ReviewPending {
+		t.Fatalf("create finding review = (%+v, %v)", request, err)
+	}
+	severity := SeverityHigh
+	decisionParams := DecideFindingParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: request.Request.RequestID,
+		ExpectedRequestRevision: request.Request.Revision, DecisionID: "decision-first-1",
+		Verdict: VerdictTruePositive, Severity: &severity, Rationale: "Confirmed by exact evidence.",
+		IdempotencyKey: "decision-first-1", RequestDigest: serviceTestDigest("decision-first-1"),
+	}
+	decided, err := service.DecideFinding(ctx, decisionParams)
+	if err != nil || decided.Finding.State != FindingConfirmed || decided.Finding.Revision != 2 ||
+		decided.Finding.AnalystVerdict == nil || *decided.Finding.AnalystVerdict != VerdictTruePositive ||
+		decided.Finding.AnalystSeverity == nil || *decided.Finding.AnalystSeverity != SeverityHigh {
+		t.Fatalf("true-positive decision = (%+v, %v)", decided, err)
+	}
+	reportFindings, err := auditstore.NewPostgresStore(pool).ListReportFindings(ctx, auditID)
+	var reportFinding *auditstore.ReportFinding
+	for index := range reportFindings {
+		if reportFindings[index].FindingID == firstID {
+			reportFinding = &reportFindings[index]
+		}
+	}
+	if err != nil || len(reportFindings) != 2 || reportFinding == nil ||
+		reportFinding.Decision == nil || reportFinding.Decision.Verdict != string(VerdictTruePositive) ||
+		reportFinding.Decision.Severity == nil || *reportFinding.Decision.Severity != string(SeverityHigh) {
+		t.Fatalf("report finding snapshot = (%+v, %v)", reportFindings, err)
+	}
+	decisionParams.DecisionID = "ignored-replay-id"
+	replayed, err := service.DecideFinding(ctx, decisionParams)
+	if err != nil || !replayed.Replayed || replayed.Decision.DecisionID != "decision-first-1" {
+		t.Fatalf("decision replay = (%+v, %v)", replayed, err)
+	}
+	if _, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, ExpectedRevision: 1,
+		RequestID: "stale-review", IdempotencyKey: "stale-review",
+		RequestDigest: serviceTestDigest("stale-review"),
+	}); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("stale finding revision error = %v", err)
+	}
+
+	corrected := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 2,
+		"correction", VerdictTruePositive, reviewStringPointer(string(SeverityMedium)), nil)
+	if corrected.State != FindingConfirmed || corrected.AnalystSeverity == nil ||
+		*corrected.AnalystSeverity != SeverityMedium || corrected.Revision != 3 {
+		t.Fatalf("corrected finding = %+v", corrected)
+	}
+	falsePositive := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 3,
+		"false-positive", VerdictFalsePositive, nil, nil)
+	if falsePositive.State != FindingRejected || falsePositive.AnalystVerdict == nil ||
+		*falsePositive.AnalystVerdict != VerdictFalsePositive || falsePositive.RejectionReason == nil {
+		t.Fatalf("false-positive finding = %+v", falsePositive)
+	}
+	reopened := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 4,
+		"reopen", VerdictReopen, nil, nil)
+	if reopened.State != FindingProposed || reopened.AnalystVerdict != nil || reopened.Revision != 5 {
+		t.Fatalf("reopened finding = %+v", reopened)
+	}
+
+	secondReview, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: secondID, ExpectedRevision: 1,
+		RequestID: "review-second-cycle", IdempotencyKey: "review-second-cycle",
+		RequestDigest: serviceTestDigest("review-second-cycle"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicate := decideFindingForTest(t, ctx, service, ownerID, auditID, firstID, 5,
+		"duplicate", VerdictDuplicate, nil, &secondID)
+	if duplicate.State != FindingDuplicate || duplicate.DuplicateTargetID == nil ||
+		*duplicate.DuplicateTargetID != secondID {
+		t.Fatalf("duplicate finding = %+v", duplicate)
+	}
+	_, err = service.DecideFinding(ctx, DecideFindingParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
+		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-cycle",
+		Verdict: VerdictDuplicate, DuplicateTargetID: &firstID, Rationale: "Would form a cycle.",
+		IdempotencyKey: "decision-second-cycle", RequestDigest: serviceTestDigest("decision-second-cycle"),
+	})
+	if !errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("duplicate cycle error = %v", err)
+	}
+	now = now.Add(defaultReviewTTL + time.Second)
+	_, err = service.DecideFinding(ctx, DecideFindingParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: secondReview.Request.RequestID,
+		ExpectedRequestRevision: secondReview.Request.Revision, DecisionID: "decision-second-expired",
+		Verdict: VerdictNeedsEvidence, Rationale: "This request has expired.",
+		IdempotencyKey: "decision-second-expired", RequestDigest: serviceTestDigest("decision-second-expired"),
+	})
+	if !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("expired review decision error = %v", err)
+	}
+	expiredReview, err := service.GetReview(ctx, ownerID, auditID, secondReview.Request.RequestID)
+	if err != nil || expiredReview.State != ReviewExpired || expiredReview.Revision != 2 {
+		t.Fatalf("persisted expired review = (%+v, %v)", expiredReview, err)
+	}
+
+	history, err := service.ListReviews(ctx, ReviewListParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: &firstID, Limit: 10,
+	})
+	if err != nil || len(history) != 5 || history[0].Decision == nil || history[4].Decision == nil {
+		t.Fatalf("finding decision history = (%+v, %v)", history, err)
+	}
+	provenance, err := service.ListFindingProvenance(ctx, ProvenanceListParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, Limit: 10,
+	})
+	if err != nil || len(provenance) != 1 || provenance[0].Kind != ProvenanceSourceProposal ||
+		!provenance[0].Origin.RunDeleted {
+		t.Fatalf("deleted-Run provenance = (%+v, %v)", provenance, err)
+	}
+	if _, err := service.GetFinding(ctx, "another-owner", auditID, firstID); !errors.Is(err, auditstore.ErrNotFound) {
+		t.Fatalf("foreign finding read error = %v", err)
+	}
+}
+
+func seedAuditFinding(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	projectID, ownerID, auditID, suffix string,
+) string {
+	t.Helper()
+	document := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-" + suffix,
+		Title: "Candidate " + suffix, Description: "A retained candidate for review.",
+		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "component-" + suffix},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
+		SeveritySuggestion: "medium", Limitations: []string{},
+	}
+	payload, err := auditdomain.EncodeFindingProposal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(projectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	written, err := projectArtifacts.Write(ctx,
+		contracts.ArtifactRef{Namespace: "audit-finding-proposals", Name: "candidate-" + suffix},
+		artifacts.Payload{MediaType: "application/json", Data: payload}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposal := findingintake.ExactArtifact{
+		Ref: written.Ref, Digest: digestBytes(payload), MediaType: written.MediaType, SizeBytes: written.Size,
+	}
+	proposalJSON, _ := json.Marshal(proposal)
+	proposalRefJSON, _ := json.Marshal(proposal.Ref)
+	receiptID := "receipt-" + suffix
+	if _, err := pool.Exec(ctx, `
+INSERT INTO finding_proposal_receipts (
+    receipt_id, proposal_id, allocation_id, runtime_agent_id,
+    runtime_instance_id, stage_execution_id, logical_agent_name,
+    invocation_id, submission_id, client_key, request_digest,
+    run_id, owner_id, project_id,
+    workflow_name, workflow_version, workflow_schema_version,
+    workflow_configuration_ref, workflow_closure_digest,
+    proposal_ref, proposal_digest, proposal_media_type,
+    proposal_size_bytes, evidence
+) VALUES ($1, $2, $3, 'runtime-review', 'instance-review', 'stage-review', 'worker',
+          $4, $5, $6, $7, $8, $9, $10,
+          'finding-source', '1', 'contractor/v1alpha1',
+          '{"name":"finding-source","version":"1"}'::jsonb, $11,
+          $12::jsonb, $13, 'application/json', $14, '[]'::jsonb)`,
+		receiptID, "proposal-"+suffix, "allocation-"+suffix,
+		"invocation-"+suffix, "submission-"+suffix, document.ClientKey,
+		serviceTestDigest("request-"+suffix), "deleted-run-"+suffix, ownerID, projectID,
+		serviceTestDigest("workflow-"+suffix), proposalRefJSON, proposal.Digest, proposal.SizeBytes,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO finding_proposal_retention (
+    receipt_id, state, source_run_deleted_at
+) VALUES ($1, 'audit-held', clock_timestamp())`, receiptID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+INSERT INTO finding_proposal_audit_holds (
+    receipt_id, audit_id, project_id, proposal_ref, evidence
+) VALUES ($1, $2, $3, $4::jsonb, '[]'::jsonb)`,
+		receiptID, auditID, projectID, proposalJSON); err != nil {
+		t.Fatal(err)
+	}
+	return "finding-" + receiptID
+}
+
+func decideFindingForTest(
+	t *testing.T, ctx context.Context, service *Service,
+	ownerID, auditID, findingID string, findingRevision uint64, key string,
+	verdict AnalystVerdict, severityValue *string, duplicateTarget *string,
+) Finding {
+	t.Helper()
+	request, err := service.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: ownerID, AuditID: auditID, FindingID: findingID,
+		ExpectedRevision: findingRevision, RequestID: "review-" + key,
+		IdempotencyKey: "review-" + key, RequestDigest: serviceTestDigest("review-" + key),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var severity *FindingSeverity
+	if severityValue != nil {
+		value := FindingSeverity(*severityValue)
+		severity = &value
+	}
+	result, err := service.DecideFinding(ctx, DecideFindingParams{
+		OwnerID: ownerID, AuditID: auditID, RequestID: request.Request.RequestID,
+		ExpectedRequestRevision: request.Request.Revision, DecisionID: "decision-" + key,
+		Verdict: verdict, Severity: severity, Rationale: "Analyst decision for " + key + ".",
+		DuplicateTargetID: duplicateTarget, IdempotencyKey: "decision-" + key,
+		RequestDigest: serviceTestDigest("decision-" + key),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result.Finding
+}
+
+func reviewStringPointer(value string) *string { return &value }
 
 type switchableProfileCatalog struct {
 	mu        sync.Mutex

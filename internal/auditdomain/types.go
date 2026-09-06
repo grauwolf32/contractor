@@ -179,13 +179,21 @@ type CheckResultSet struct {
 }
 
 type CheckResult struct {
-	ItemKey     string         `json:"item_key"`
-	SubjectKey  string         `json:"subject_key"`
-	Assessment  string         `json:"assessment"`
-	Summary     string         `json:"summary"`
-	EvidenceIDs []string       `json:"evidence_ids"`
-	Coverage    ResultCoverage `json:"coverage"`
-	Proposals   []string       `json:"proposals"`
+	ItemKey     string              `json:"item_key"`
+	SubjectKey  string              `json:"subject_key"`
+	Assessment  string              `json:"assessment"`
+	Summary     string              `json:"summary"`
+	EvidenceIDs []string            `json:"evidence_ids"`
+	Coverage    ResultCoverage      `json:"coverage"`
+	Proposals   []ProposalSelection `json:"proposals"`
+}
+
+// ProposalSelection is emitted by trusted Runtime tooling. The model chooses
+// only the client key; Runtime injects the current invocation identity so the
+// importer never guesses a receipt from shared Run, subject, or batch state.
+type ProposalSelection struct {
+	InvocationID string `json:"invocation_id"`
+	ClientKey    string `json:"client_key"`
 }
 
 type ResultCoverage struct {

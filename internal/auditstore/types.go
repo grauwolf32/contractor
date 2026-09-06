@@ -549,12 +549,23 @@ type ObserveSubmissionFailureParams struct {
 }
 
 type CollectionItem struct {
-	ExecutionItemID  string
-	Disposition      CollectionDisposition
-	Result           *ExactArtifact
-	Retryable        bool
-	FinalDisposition FinalDisposition
-	Coverage         Coverage
+	ExecutionItemID     string
+	Disposition         CollectionDisposition
+	Result              *ExactArtifact
+	Retryable           bool
+	FinalDisposition    FinalDisposition
+	Coverage            Coverage
+	FindingAssociations []FindingAssociation
+}
+
+// FindingAssociation is trusted importer output. It binds one exact intake
+// receipt to the accepted result for this precise execution item; Workers
+// cannot write these rows through the generic Artifact API.
+type FindingAssociation struct {
+	AssessmentID       string
+	ReceiptID          string
+	Proposal           ExactArtifact
+	SemanticAssessment string
 }
 
 type ArtifactLink struct {
@@ -634,6 +645,40 @@ type CollectionDispositionCounts struct {
 	ExecutionFailed    int `json:"executionFailed"`
 	ExecutionCancelled int `json:"executionCancelled"`
 	ContractInvalid    int `json:"contractInvalid"`
+}
+
+// ReportFinding is the trusted, bounded finding projection consumed while an
+// immutable Audit report is assembled. The proposal document remains in the
+// Artifact plane; this row pins its exact retained version and the exact
+// assessment/analyst decision (if any) selected by this report revision.
+type ReportFinding struct {
+	FindingID         string
+	State             string
+	FirstProposal     ExactArtifact
+	DuplicateTargetID *string
+	Assessment        *ReportFindingAssessment
+	Decision          *ReportFindingDecision
+	Revision          uint64
+}
+
+type ReportFindingAssessment struct {
+	AssessmentID       string
+	SemanticAssessment string
+	Result             ExactArtifact
+	DirectVerification bool
+	Contract           *ExactArtifact
+	AcceptedAt         time.Time
+}
+
+type ReportFindingDecision struct {
+	DecisionID      string
+	ActorID         string
+	Verdict         string
+	Severity        *string
+	Rationale       string
+	SubjectRevision uint64
+	SubjectDigest   string
+	CreatedAt       time.Time
 }
 
 type CommitReportParams struct {

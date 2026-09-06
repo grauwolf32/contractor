@@ -45,7 +45,9 @@ def test_submit_check_result_derives_identity_and_builds_canonical_package() -> 
             summary="The checked control is present.",
             completed=["source-trace"],
             gaps=[],
+            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
             evidence=[{"kind": "source-trace", "summary": "Guard at app.py:12."}],
+            proposal_keys=["candidate-authz"],
         )
 
         assert result["artifact"] == {
@@ -72,7 +74,12 @@ def test_submit_check_result_derives_identity_and_builds_canonical_package() -> 
                         "completed": ["source-trace"],
                         "gaps": [],
                     },
-                    "proposals": [],
+                    "proposals": [
+                        {
+                            "invocation_id": "worker-invocation-1",
+                            "client_key": "candidate-authz",
+                        }
+                    ],
                 }
             ],
         }
@@ -98,6 +105,7 @@ def test_submit_check_result_derives_identity_and_builds_canonical_package() -> 
             "completed_count": 1,
             "gap_count": 0,
             "evidence_count": 1,
+            "proposal_count": 1,
         }
         assert "Guard at app.py" not in repr(metric)
 
@@ -124,12 +132,22 @@ def test_submit_check_result_rejects_forged_manifest_before_write() -> None:
 
         with pytest.raises(ValueError, match="identities differ"):
             await tools["submit_check_result"](
-                "inconclusive", "A bounded gap remains.", [], ["missing-source"], []
+                "inconclusive",
+                "A bounded gap remains.",
+                [],
+                ["missing-source"],
+                FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+                [],
             )
         assert client.written_payload == b""
         assert state.metrics.counters["tool_errors"] == 1
 
     asyncio.run(scenario())
+
+
+class FakeToolContext:
+    def __init__(self, invocation_id: str) -> None:
+        self.invocation_id = invocation_id
 
 
 def fixture_inputs() -> tuple[bytes, bytes]:

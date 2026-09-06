@@ -17,7 +17,7 @@ func TestDecodeCheckResultPackageValidatesMemberAndEvidenceClosure(t *testing.T)
 			ItemKey: "check-1", SubjectKey: "subject-1", Assessment: "inconclusive",
 			Summary: "A bounded gap remains.", EvidenceIDs: []string{"ev-1"},
 			Coverage:  ResultCoverage{Requested: []string{"source"}, Completed: []string{}, Gaps: []string{"missing-source"}},
-			Proposals: []string{},
+			Proposals: []ProposalSelection{},
 		}},
 	})
 	if err != nil {

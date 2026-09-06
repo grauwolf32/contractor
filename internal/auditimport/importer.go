@@ -19,12 +19,13 @@ import (
 const provenanceSchema = "contractor.audit.collection-provenance.v1"
 
 type preparedMember struct {
-	member auditstore.ExecutionItem
-	item   auditstore.Item
-	task   auditdomain.ItemTask
-	result auditdomain.CheckResult
-	cover  auditstore.Coverage
-	origin json.RawMessage
+	member    auditstore.ExecutionItem
+	item      auditstore.Item
+	task      auditdomain.ItemTask
+	result    auditdomain.CheckResult
+	cover     auditstore.Coverage
+	origin    json.RawMessage
+	proposals []findingintake.ResolvedProposal
 }
 
 type validatedEvidence struct {
@@ -272,10 +273,41 @@ func (i *Importer) collectSucceeded(
 		}
 		evidenceByID[value.ID] = validated
 	}
+	seenProposalReceipts := make(map[string]struct{})
 	for index := range members {
 		value, exists := resultByKey[members[index].item.ItemKey]
-		if !exists || value.SubjectKey != members[index].item.SubjectKey || len(value.Proposals) != 0 {
+		if !exists || value.SubjectKey != members[index].item.SubjectKey {
 			return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
+		}
+		if len(value.Proposals) != 0 {
+			if i.findings == nil {
+				return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
+			}
+			keys := make([]findingintake.ProposalKey, len(value.Proposals))
+			for proposalIndex, proposal := range value.Proposals {
+				keys[proposalIndex] = findingintake.ProposalKey{
+					InvocationID: proposal.InvocationID, ClientKey: proposal.ClientKey,
+				}
+			}
+			resolved, resolveErr := i.findings.ResolveAuditProposals(
+				ctx, snapshot.Audit.OwnerID, snapshot.Audit.AuditID,
+				execution.ExecutionID, *execution.RunID, keys,
+			)
+			if resolveErr != nil {
+				if errors.Is(resolveErr, findingintake.ErrInvalid) ||
+					errors.Is(resolveErr, findingintake.ErrNotFound) ||
+					errors.Is(resolveErr, findingintake.ErrConflict) {
+					return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
+				}
+				return false, resolveErr
+			}
+			for _, proposal := range resolved {
+				if _, duplicate := seenProposalReceipts[proposal.ReceiptID]; duplicate {
+					return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
+				}
+				seenProposalReceipts[proposal.ReceiptID] = struct{}{}
+			}
+			members[index].proposals = resolved
 		}
 		coverage, validationErr := semanticCoverage(profile.Mode, members[index].task, value, evidenceByID)
 		if validationErr != nil {
@@ -321,6 +353,22 @@ func (i *Importer) collectSucceeded(
 			ExecutionItemID: member.member.ExecutionItemID,
 			Disposition:     auditstore.CollectionAccepted, Result: &retainedResult,
 			FinalDisposition: auditstore.FinalAccepted, Coverage: member.cover,
+		}
+		for _, proposal := range member.proposals {
+			collectionItems[index].FindingAssociations = append(
+				collectionItems[index].FindingAssociations,
+				auditstore.FindingAssociation{
+					AssessmentID: deterministicID(
+						"finding-assessment", member.member.ExecutionItemID, proposal.ReceiptID,
+					),
+					ReceiptID: proposal.ReceiptID,
+					Proposal: auditstore.ExactArtifact{
+						Ref: proposal.Proposal.Ref, Digest: proposal.Proposal.Digest,
+						MediaType: proposal.Proposal.MediaType, SizeBytes: proposal.Proposal.SizeBytes,
+					},
+					SemanticAssessment: member.result.Assessment,
+				},
+			)
 		}
 	}
 	evidenceIDs := sortedEvidenceIDs(evidenceByID)
