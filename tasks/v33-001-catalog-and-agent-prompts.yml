@@ -4,7 +4,7 @@ title: Group Workflows, Agents and Skills in Catalog and expose agent base promp
 milestone: catalog-and-agent-prompts
 priority: P1
 status: completed
-implementation_commit: dff39f7536884ee204c701688f476a28a12e13f1
+implementation_commit: 7eda32e6ab4b361fcc503128a7dbf62bd70345c6
 depends_on: [V4-010, V23-009]
 languages: [go, typescript, css]
 
