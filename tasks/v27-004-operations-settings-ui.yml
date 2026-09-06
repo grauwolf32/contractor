@@ -3,8 +3,8 @@ id: V27-004
 title: Add Workflow scheduling to Operations Settings UI
 milestone: workflow-scheduler-concurrency
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "b3a85056103a683ef61d918059433d92b80fd110"
 depends_on: [V27-003]
 languages: [typescript, react]
 
