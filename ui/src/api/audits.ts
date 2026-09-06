@@ -447,6 +447,7 @@ export async function getAuditReport(
     report === null ||
     typeof report !== "object" ||
     (report.status !== "pending" &&
+      report.status !== "proposed" &&
       report.status !== "ready" &&
       report.status !== "unavailable")
   ) {

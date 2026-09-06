@@ -87,3 +87,44 @@ A completed Audit can legitimately report `completed-with-gaps`,
 bounded execution and collection lifecycle settled; it is not a security or
 compliance certification. The same flow starts `openapi-operation-trace@1` by
 uploading an `openapi` input and changing the exact profile selector.
+
+## Trace one finding after source deletion
+
+The public API retains exact source and verifier provenance owned by the Audit,
+even after a collected child Run is deleted or the mutable Workflow/checklist
+catalog changes. The example script reads one revision-consistent snapshot. If
+an analyst edits the finding between pages, the API returns `409` and the script
+restarts the entire traversal instead of combining revisions.
+
+```sh
+export CONTRACTOR_API_URL="$CONTRACTOR_URL"
+export CONTRACTOR_API_TOKEN="$CONTRACTOR_TOKEN"
+export AUDIT_ID="$audit_id"
+export FINDING_ID=finding_...
+docs/examples/audit-finding-backtrace.sh
+```
+
+The output starts with the current analyst verdict/severity and then emits one
+JSON line per source proposal, check attempt, or direct verification. Deleted
+Runs remain identifiable through their retained exact Workflow closure and
+`runDeleted` provenance; the script does not need database or catalog access.
+
+## Audit release verification
+
+The strict conformance and fault map is
+[`tests/e2e/audits_matrix.yml`](../tests/e2e/audits_matrix.yml). Every case names
+its executable owner and the durable boundary or fault it proves. Run the full
+gate against a disposable PostgreSQL database:
+
+```sh
+export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:contractor@127.0.0.1:5432/contractor_test?sslmode=disable'
+make test-audits-e2e
+```
+
+For diagnosis, the gate is split into `test-audits-matrix`,
+`test-audits-hardening`, `test-audits-process`, and `test-audits-browser`.
+Process tests launch real Server and Runtime processes with mTLS; the browser
+gate serves the independently built frontend against the public API. The
+aggregate `release-verify` target includes the complete Audit gate. A failed
+component is a release failure—coverage rows and a terminal Audit alone are not
+evidence that recovery, retention, isolation, or UI contracts passed.

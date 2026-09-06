@@ -191,6 +191,123 @@ func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	}
 }
 
+func TestPostgresControllersConvergeWithoutDuplicateExecutionAttempts(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 4)
+	settings := settingsstore.NewPostgresStore(harness.pool)
+	if _, err := settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 4, ExpectedRevision: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	controllers := []*Controller{
+		harness.controllerForHolder(t, "controller-a"),
+		harness.controllerForHolder(t, "controller-b"),
+	}
+	if worked, err := controllers[0].RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("activate immutable round = (%t, %v)", worked, err)
+	}
+	preflightClaims, err := harness.audits.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "controller-preflight", Lease: 5 * time.Second, Limit: 1,
+	})
+	if err != nil || len(preflightClaims) != 1 {
+		t.Fatalf("preflight claim = (%+v, %v)", preflightClaims, err)
+	}
+	preflightSnapshot, err := harness.audits.GetReconcileSnapshot(ctx, preflightClaims[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := harness.builder(t).Prepare(ctx, preflightSnapshot, preflightSnapshot.Items[0], 1); err != nil {
+		t.Fatalf("preflight pinned submission: %v", err)
+	}
+	if err := harness.audits.ReleaseClaim(ctx, preflightClaims[0]); err != nil {
+		t.Fatal(err)
+	}
+	for cycle := 0; cycle < 12; cycle++ {
+		start := make(chan struct{})
+		type result struct {
+			worked bool
+			err    error
+		}
+		results := make(chan result, len(controllers))
+		for _, controller := range controllers {
+			go func(controller *Controller) {
+				<-start
+				worked, err := controller.RunOnce(ctx)
+				results <- result{worked: worked, err: err}
+			}(controller)
+		}
+		close(start)
+		for range controllers {
+			if result := <-results; result.err != nil {
+				t.Fatalf("concurrent controller cycle %d: %v", cycle, result.err)
+			}
+		}
+
+		executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(executions) == 4 {
+			break
+		}
+	}
+
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(executions) != 4 {
+		current, currentErr := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+		round, roundErr := harness.audits.GetRound(ctx, harness.started.Audit.AuditID, harness.started.Round.RoundID)
+		reason := "<nil>"
+		if current.StopReason != nil {
+			reason = current.StopReason.Code + ": " + current.StopReason.Message
+		}
+		t.Fatalf("execution count after two-controller reconciliation = %d, want 4: %+v; Audit state/reason=(%s, %s, %v); round=(%+v, %v)", len(executions), executions, current.State, reason, currentErr, round, roundErr)
+	}
+	seenItems := make(map[string]bool, len(executions))
+	seenRuns := make(map[string]bool, len(executions))
+	for _, execution := range executions {
+		if execution.State != auditstore.ExecutionSubmitted || execution.RunID == nil {
+			t.Fatalf("execution is not durably submitted: %+v", execution)
+		}
+		if seenRuns[*execution.RunID] {
+			t.Fatalf("duplicate child Run %q", *execution.RunID)
+		}
+		seenRuns[*execution.RunID] = true
+		members, err := harness.audits.ListExecutionItems(ctx, execution.ExecutionID)
+		if err != nil || len(members) != 1 {
+			t.Fatalf("execution %s members = (%+v, %v)", execution.ExecutionID, members, err)
+		}
+		if members[0].ItemAttempt != 1 || seenItems[members[0].ItemID] {
+			t.Fatalf("duplicate or non-first logical attempt: %+v", members[0])
+		}
+		seenItems[members[0].ItemID] = true
+	}
+	if len(seenItems) != 4 {
+		t.Fatalf("distinct reconciled items = %d, want 4", len(seenItems))
+	}
+	audit, err := harness.audits.Get(ctx, harness.started.Audit.OwnerID, harness.started.Audit.AuditID)
+	if err != nil || audit.SubmittedRunCount != 4 || audit.OutstandingRunCount != 4 {
+		t.Fatalf("Audit counters after reconciliation = (%+v, %v)", audit, err)
+	}
+
+	// A fresh process-local Controller has no wakeup history. It must still
+	// reconcile PostgreSQL and observe the full dispatch window without
+	// creating a fifth execution or a second attempt for any item.
+	restarted := harness.controllerForHolder(t, "controller-after-restart")
+	if worked, err := restarted.RunOnce(ctx); err != nil || worked {
+		t.Fatalf("restarted controller at full window = (%t, %v), want no work", worked, err)
+	}
+	replayed, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(replayed) != 4 {
+		t.Fatalf("executions after restart reconciliation = (%+v, %v)", replayed, err)
+	}
+}
+
 func TestPostgresControllerCollectsAndPublishesExactAuditReport(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -659,6 +776,26 @@ func (h *postgresControllerHarness) controller(t *testing.T) *Controller {
 			NewID: func(prefix string) (string, error) {
 				ids++
 				return fmt.Sprintf("%s%d", prefix, ids), nil
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return controller
+}
+
+func (h *postgresControllerHarness) controllerForHolder(t *testing.T, holderID string) *Controller {
+	t.Helper()
+	var ids int
+	controller, err := New(
+		h.audits, h.runs, h.runService, h.builder(t), &postgresNotifier{},
+		Options{
+			HolderID: holderID, ClaimLease: 5 * time.Second,
+			OperationTimeout: time.Second, ClaimBatch: 1,
+			NewID: func(prefix string) (string, error) {
+				ids++
+				return fmt.Sprintf("%s%s_%d", prefix, holderID, ids), nil
 			},
 		},
 	)

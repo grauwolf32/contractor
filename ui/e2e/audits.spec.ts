@@ -44,7 +44,8 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   if (typeof configuredBaseURL !== "string") {
     throw new Error("Playwright baseURL is required");
   }
-  const apiOrigin = "http://127.0.0.3:8080";
+  const apiOrigin =
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
   const project = {
     projectId: PROJECT_ID,
     kind: "project",
@@ -315,4 +316,380 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   }));
   expect(JSON.stringify(storage)).not.toContain("PROFILE_PACKAGE");
   expect(storage.search).toBe("");
+});
+
+test("Audit UI reviews exact evidence and completes destructive lifecycle controls", async ({
+  page,
+}, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  const apiOrigin =
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+  const auditId = "audit_review_browser";
+  const now = "2026-09-06T11:00:00Z";
+  const exact = (name: string, revision: string) => ({
+    ref: { namespace: "audit-review-browser", name, revision },
+    digest: `sha256:${"0".repeat(64)}`,
+    mediaType: name.endsWith(".json") ? "application/json" : "text/plain",
+    sizeBytes: 64,
+  });
+  // Keep the digest expression explicit because the browser contract requires
+  // a complete sha256 value, even in a mocked independently served UI flow.
+  const machineArtifact = {
+    ...exact("report.json", "report-machine-r1"),
+    digest: `sha256:${"7".repeat(64)}`,
+  };
+  const summaryArtifact = {
+    ...exact("report.txt", "report-summary-r1"),
+    digest: `sha256:${"8".repeat(64)}`,
+  };
+  const project = {
+    projectId: PROJECT_ID,
+    kind: "project",
+    name: "Audit review fixture",
+    description: "Browser lifecycle fixture",
+    lifecycle: "active",
+    revision: "1",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const baseAudit = {
+    auditId,
+    projectId: PROJECT_ID,
+    profile: {
+      name: "source-checklist",
+      version: "1",
+      digest: PROFILE_DIGEST,
+    },
+    inputs: {},
+    scope: { objective: "Review retained evidence." },
+    runtimeLabels: [],
+    dispatchState: "closed",
+    holdState: "held",
+    limits: {
+      maxRounds: 1,
+      batchSize: 1,
+      maxItemsPerRound: 8,
+      maxItemsTotal: 8,
+      maxSubmittedRuns: 8,
+      maxItemRunAttempts: 2,
+      maxEvidenceBytes: 1_048_576,
+    },
+    reservedRunCount: 1,
+    submittedRunCount: 1,
+    outstandingRunCount: 0,
+    retainedEvidenceBytes: 512,
+    eventSequence: 5,
+    createdAt: now,
+    updatedAt: now,
+  };
+  let audit: Record<string, unknown> = {
+    ...baseAudit,
+    state: "waiting_review",
+    revision: 1,
+  };
+  const proposal = {
+    receiptId: "receipt_browser",
+    proposalId: "proposal_browser",
+    requestDigest: `sha256:${"3".repeat(64)}`,
+    clientKey: "candidate-browser",
+    proposal: {
+      ref: {
+        namespace: "audit-findings",
+        name: "candidate-browser",
+        revision: "proposal-r1",
+      },
+      digest: `sha256:${"4".repeat(64)}`,
+      mediaType: "application/json",
+      sizeBytes: 128,
+    },
+    document: {
+      schema: "contractor.audit.finding-proposal.v1",
+      client_key: "candidate-browser",
+      title: "Retained authorization bypass",
+      description: "Exact source evidence requires an analyst decision.",
+      subject: { kind: "component", key: "orders" },
+      preconditions: [],
+      standard_refs: [],
+      evidence_ids: [],
+      proposed_checks: [],
+      severity_suggestion: "high",
+      limitations: [],
+    },
+    evidence: [],
+    origin: {
+      runId: "run_deleted_source",
+      stageExecutionId: "stage_source",
+      allocationId: "allocation_source",
+      invocationId: "invocation_source",
+      logicalAgentName: "reviewer",
+      workflow: {
+        name: "source-review",
+        version: "1",
+        schemaVersion: "contractor/v1alpha1",
+        configurationRef: { name: "source-review", version: "1" },
+        closureDigest: `sha256:${"5".repeat(64)}`,
+      },
+      runDeleted: true,
+    },
+    retention: "audit-held",
+    auditHolds: [],
+    createdAt: now,
+  };
+  const findingId = "finding_browser";
+  let finding: Record<string, unknown> = {
+    findingId,
+    auditId,
+    state: "proposed",
+    firstProposal: proposal,
+    revision: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const reviewId = "review_browser";
+  const reviewSubjectDigest = `sha256:${"6".repeat(64)}`;
+  let review: Record<string, unknown> = {
+    requestId: reviewId,
+    auditId,
+    findingId,
+    subjectKind: "finding",
+    subjectId: findingId,
+    kind: "finding-triage",
+    subjectRevision: 1,
+    subjectDigest: reviewSubjectDigest,
+    requestedActions: [
+      "true_positive",
+      "false_positive",
+      "duplicate",
+      "reopen",
+      "needs_evidence",
+    ],
+    state: "pending",
+    revision: 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const mutations: Array<{
+    method: string;
+    path: string;
+    ifMatch: string | undefined;
+  }> = [];
+
+  await page.route("**/runtime-config.json", (route) =>
+    route.fulfill({
+      json: {
+        uiVersion: "0.1.0",
+        supportedApiVersions: [API_VERSION],
+        apiBaseUrl: apiOrigin,
+      },
+    }),
+  );
+  await page.route(`${apiOrigin}/v1/**`, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": new URL(configuredBaseURL).origin,
+          "access-control-allow-credentials": "true",
+          "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
+          "access-control-allow-headers":
+            "content-type, idempotency-key, if-match, x-csrf-token",
+        },
+      });
+      return;
+    }
+    if (path === "/v1/auth/session") {
+      await fulfillJSON(route, {
+        principal: {
+          userId: "user_browser",
+          username: "browser",
+          capabilities: ["user", "operations"],
+        },
+        csrfToken: "b".repeat(43),
+        idleExpiresAt: "2099-01-01T00:00:00Z",
+        absoluteExpiresAt: "2099-01-02T00:00:00Z",
+      });
+      return;
+    }
+    if (path === `/v1/projects/${PROJECT_ID}`) {
+      await fulfillJSON(route, project, 200, { etag: '"1"' });
+      return;
+    }
+    if (path === `/v1/audits/${auditId}` && request.method() === "GET") {
+      await fulfillJSON(route, audit, 200, { etag: `"${audit.revision}"` });
+      return;
+    }
+    if (path === `/v1/audits/${auditId}/findings`) {
+      await fulfillJSON(route, { items: [finding], page: { hasMore: false } });
+      return;
+    }
+    if (path === `/v1/audits/${auditId}/reviews`) {
+      await fulfillJSON(route, { items: [review], page: { hasMore: false } });
+      return;
+    }
+    if (path === `/v1/audits/${auditId}/findings/${findingId}/provenance`) {
+      await fulfillJSON(route, {
+        auditRevision: audit.revision,
+        findingRevision: finding.revision,
+        items: [
+          {
+            recordId: "source:receipt_browser",
+            kind: "source-proposal",
+            receiptId: proposal.receiptId,
+            relation: "source",
+            proposal: proposal.proposal,
+            origin: proposal.origin,
+            supportsCurrentAssessment: false,
+            createdAt: now,
+          },
+        ],
+        page: { hasMore: false },
+      });
+      return;
+    }
+    if (
+      path === `/v1/audits/${auditId}/reviews/${reviewId}/decisions` &&
+      request.method() === "POST"
+    ) {
+      mutations.push({
+        method: request.method(),
+        path,
+        ifMatch: request.headers()["if-match"],
+      });
+      const decision = {
+        decisionId: "decision_browser",
+        requestId: reviewId,
+        auditId,
+        findingId,
+        actorId: "user_browser",
+        verdict: "true_positive",
+        severity: "high",
+        rationale: "Confirmed against the retained exact source revision.",
+        subjectRevision: 1,
+        subjectDigest: reviewSubjectDigest,
+        createdAt: now,
+      };
+      finding = {
+        ...finding,
+        state: "confirmed",
+        revision: 2,
+        analystVerdict: "true_positive",
+        analystSeverity: "high",
+        analystDecision: decision,
+      };
+      review = { ...review, state: "decided", revision: 2, decision };
+      audit = { ...audit, revision: 2, eventSequence: 6 };
+      await fulfillJSON(route, {
+        finding,
+        request: review,
+        decision,
+        replayed: false,
+      });
+      return;
+    }
+    if (path === `/v1/audits/${auditId}/report`) {
+      await fulfillJSON(route, {
+        status: "proposed",
+        machineArtifact,
+        summaryArtifact,
+        machine: {
+          conclusion: "completed-with-gaps",
+          certification: false,
+        },
+        summary:
+          "One exact finding awaits report acceptance; this is not a certification.",
+      });
+      return;
+    }
+    if (
+      path === `/v1/audits/${auditId}/cancel` &&
+      request.method() === "POST"
+    ) {
+      mutations.push({
+        method: request.method(),
+        path,
+        ifMatch: request.headers()["if-match"],
+      });
+      audit = {
+        ...audit,
+        state: "cancelled",
+        revision: 3,
+        eventSequence: 7,
+        holdState: "released",
+      };
+      await fulfillJSON(route, audit, 200, { etag: '"3"' });
+      return;
+    }
+    if (path === `/v1/audits/${auditId}` && request.method() === "DELETE") {
+      mutations.push({
+        method: request.method(),
+        path,
+        ifMatch: request.headers()["if-match"],
+      });
+      audit = {
+        ...audit,
+        state: "deleting",
+        revision: 4,
+        eventSequence: 8,
+      };
+      await fulfillJSON(route, audit, 200, { etag: '"4"' });
+      return;
+    }
+    await fulfillJSON(
+      route,
+      {
+        code: "not_found",
+        message: "not found",
+        retryable: false,
+        requestId: "request-review-browser",
+      },
+      404,
+    );
+  });
+
+  await page.goto(`/projects/${PROJECT_ID}/audits/${auditId}/findings`);
+  await expect(
+    page.getByRole("heading", { name: "Retained authorization bypass" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Show provenance" }).click();
+  await expect(page.getByText("source-review")).toBeVisible();
+  await expect(page.getByText(/Run deleted/u)).toBeVisible();
+  await page.getByLabel("Severity").selectOption("high");
+  await page
+    .getByLabel("Analyst rationale")
+    .fill("Confirmed against the retained exact source revision.");
+  await page.getByRole("button", { name: "Record decision" }).click();
+  await expect(page.getByText("true_positive · high")).toBeVisible();
+
+  await page.getByRole("link", { name: "Report" }).click();
+  await expect(
+    page.getByText("This exact report is awaiting owner acceptance."),
+  ).toBeVisible();
+  await expect(page.getByText(/not a certification/u)).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText("cancelled", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByText("deleting", { exact: true })).toBeVisible();
+
+  expect(mutations).toEqual([
+    {
+      method: "POST",
+      path: `/v1/audits/${auditId}/reviews/${reviewId}/decisions`,
+      ifMatch: '"1"',
+    },
+    {
+      method: "POST",
+      path: `/v1/audits/${auditId}/cancel`,
+      ifMatch: '"2"',
+    },
+    {
+      method: "DELETE",
+      path: `/v1/audits/${auditId}`,
+      ifMatch: '"3"',
+    },
+  ]);
 });

@@ -45,7 +45,7 @@ func TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage(t *testing.
 		Ref: contracts.ArtifactRef{
 			Namespace: "audit-fixture", Name: "round-two", Revision: &revision,
 		},
-		Digest: pkg.Digest, MediaType: auditdomain.PackageMediaType, SizeBytes: int64(len(archive)),
+		Digest: pkg.Digest,
 	}
 	builder := &PinnedSubmissionBuilder{artifacts: &fakeBuilderArtifactAccess{
 		payload: artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: archive},
@@ -146,9 +146,11 @@ func (f *fakeBuilderArtifactAccess) PutImmutableProject(
 }
 
 func (f *fakeBuilderArtifactAccess) ResolveProjectExact(
-	context.Context, string, auditstore.ExactArtifact,
+	_ context.Context, _ string, descriptor auditstore.ExactArtifact,
 ) (auditstore.ExactArtifact, error) {
-	return auditstore.ExactArtifact{}, errors.New("unexpected exact resolve")
+	descriptor.MediaType = f.payload.MediaType
+	descriptor.SizeBytes = int64(len(f.payload.Data))
+	return descriptor, nil
 }
 
 func (f *fakeBuilderArtifactAccess) ReadProjectExact(
