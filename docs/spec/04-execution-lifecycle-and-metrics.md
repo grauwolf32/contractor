@@ -400,6 +400,14 @@ summarizer already returns the strict schema and is not followed by the ordinary
 result finalizer. Allocation drain/finalization itself still performs no model
 or tool calls.
 
+The planned explicit Audit-check strategy in
+[25](25-audit-worker-finalization.md) uses the same semantic completion boundary
+but gates on collected valid per-item results, may continue the still-active
+invocation with bounded reminders, and builds its ZIP/WorkerResult in code.
+It does not invoke the ordinary LLM serializer or alter ordinary Workflows.
+This work occurs before terminal WorkerCompletion, not during allocation drain;
+cancellation, hard budgets and write fences keep their existing precedence.
+
 ## Execution reports
 
 [22](22-performance-metrics-and-profiling.md) defines the optional

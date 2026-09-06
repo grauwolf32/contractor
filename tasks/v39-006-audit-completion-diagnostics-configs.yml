@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V39-006
+title: "Expose bounded completion diagnostics and versioned Audit examples"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V39-005"]
+languages: ["go","python","yaml"]
+
+goal: >-
+  Make collection/publication failures distinguishable in existing reports and diagnostics, and provide explicitly versioned opt-in examples without changing live catalog bindings.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  diagnostics: >-
+    Report only contract kind, collecting/sealed/publishing/published/failed phase, accepted/total item counts, reminder count and stable failure code. Persist terminal facts through existing ExecutionReport/Run diagnostics. Bound missing keys; no raw summaries/evidence/source in reports or high-cardinality metric labels.
+  errors: >-
+    Use audit_result_incomplete, audit_result_publication_failed and audit_result_publication_conflict; distinguish these from ordinary worker_result_missing/worker_result_finalizer_failed. Invalid contract/size and existing conflicting output are non-retryable; incomplete and unresolved transport failure may be retried only by existing Stage/Audit policy.
+  rollout: >-
+    New AgentTemplate/Workflow/AuditProfile versions explicitly select @2 and workerCompletion. Prompts describe incremental item_key submission, revisioned corrections, truthful incomplete assessments and progress receipts instead of an immediate artifact receipt. Preserve @1 versions and do not rebind existing Audits.
+  retry_limits: >-
+    Explain that completion guarantees valid submissions before success, not exactly-once calls or eventual model success. Create-only result bindings survive Stage retries; different newly collected bytes conflict. Opt-in examples fail the child Run on failed/interrupted stages and let existing Audit policy decide whether to create a fresh child Run. Incomplete assessments may be valid accepted results, not necessarily automatic retry requests.
+
+scope:
+  in:
+    - "Add strict bounded completion report data and propagate it through current server diagnostic views with safe unknown/omitted compatibility."
+    - "Document metrics accounting: true model/tool calls only, reminders in ordinary budgets, programmatic publication as its own phase."
+    - "Add versioned opt-in repository configs and instructions with validated contract/result binding ownership."
+    - "Document capability-first rollout and limitations (single passthrough Worker, no target summarizer or durable partial recovery)."
+    - "Show Run-scope publication conflicts and retry ownership; verify opted-in example failure/interruption transitions end the child Run instead of implying transparent Stage recovery after a write."
+  out:
+    - "New generic observability UI, raw-content retention changes, running live workflows, credential/config mutations and demo deployment."
+
+deliverables:
+  - path: internal/contracts
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/httpapi/public
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/src/contractor_runtime/instrumentation.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_completion_diagnostics.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: configs/agent-templates
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: configs/workflows
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: configs/audit-profiles
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: configs/instructions
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: docs/spec/25-audit-worker-finalization.md
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+
+requirements:
+  - {id: R1, text: "Old reports remain readable; ordinary Run diagnostics and legacy model/tool counters retain their meanings."}
+  - {id: R2, text: "Accepted local data and successful ZIP publication never appear as accepted Audit coverage."}
+  - {id: R3, text: "Configs opt in with new immutable versions only and cannot trigger rollout just by being added."}
+  - {id: R4, text: "Messages distinguish missing items from write conflicts and ordinary serializer failures without exposing retained content."}
+
+acceptance_criteria:
+  - id: A1
+    given: "No-call, partial collection and publication failure"
+    when: "terminal reports are read"
+    then: "Diagnostics show the correct phase/counts/code without raw content or invented model/tool calls."
+  - id: A2
+    given: "Old and new repository profile versions"
+    when: "loaded"
+    then: "Old closures remain unchanged and new closures validate the explicit single-Worker @2 contract."
+  - id: A3
+    given: "A technically succeeded new Audit Run"
+    when: "displayed before or after importer rejection"
+    then: "Reports do not misrepresent publication as evidence acceptance."
+  - id: A4
+    given: "The versioned examples and a publisher authorization/transport failure"
+    when: "Validated and reported"
+    then: "Example retry ownership matches the Run-scoped create-only contract; programmatic failures add no LLM errors or fictitious tool calls."
+
+tests:
+  - command: "go test ./internal/contracts ./internal/config ./internal/httpapi/public"
+    covers: ["A1","A2","A3","A4"]
+  - command: "cd runtime && uv run --frozen pytest tests/test_audit_completion_diagnostics.py tests/test_audit_completion_runtime.py"
+    covers: ["A1","A3","A4"]

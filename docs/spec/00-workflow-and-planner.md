@@ -1176,6 +1176,13 @@ summarizer has separate soft-limit and accounting semantics under
 [15](15-worker-summarization.md) and, when used, replaces the ordinary
 result-finalizer phase.
 
+The explicit Audit-check completion contract in
+[25](25-audit-worker-finalization.md) is a planned opt-in strategy at that same
+completion boundary. It requires validated data for each assigned check and
+uses deterministic ZIP/result publication rather than the ordinary LLM
+serializer. Bounded reminders consume the same invocation budget. Only the
+trusted Audit check binding enables it; ordinary workflow behavior is unchanged.
+
 `streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
 `maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
 The Stage/Planner deadline remains an execution limit outside ModelPolicy and
@@ -1212,6 +1219,11 @@ allocations and collects their reports. Scheduler-owned cancellation or
 interruption instead uses the bounded `aborting` path.
 
 ### Passthrough baseline
+
+The following describes ordinary completion. The pinned Audit-check strategy
+in [25](25-audit-worker-finalization.md) replaces its text/LLM-serializer steps
+with validated collection and Runtime-owned publication, while preserving the
+same WorkerCompletion, Planner and Scheduler ownership boundaries.
 
 `PassthroughPlanner` is the baseline integration path. It requires one prepared
 Worker, sends the deterministic Stage input through the direct A2A

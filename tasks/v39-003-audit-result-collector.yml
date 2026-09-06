@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: V39-003
+title: "Collect and validate Audit results incrementally with revisioned updates"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V39-001","V39-004"]
+languages: ["python"]
+
+goal: >-
+  Implement audit-results@2 per-item collection without artifact writes, preserving legacy @1 behavior and giving the model actionable progress/error receipts.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  tool_contract: >-
+    submit_check_result accepts item_key plus assessment/summary/completed/gaps/evidence/proposal_keys and optional expected_revision. item_key may be omitted only for one task. Keep an atomic complete ordered results-array convenience form with no scalar/revision mixing. Derive subject, requested coverage, manifest digest and proposal invocation identity from trusted input.
+  revisions: >-
+    First accepted item gets revision 1. Same canonical content without expected_revision replays the receipt; changed content requires the current expected_revision and increments revision. A repeated explicit update may replay only its immediately preceding matching expected_revision/content. Stale/conflicting submissions are errors with no mutation.
+  lifecycle: >-
+    One collector per allocation/invocation/pinned task digest; isolated from ADK mutable State and shared-session carry. Accept in any arrival order under a lock. No durable partial completion; failure/cancel/process loss discards it. Sealing rejects further writes.
+
+scope:
+  in:
+    - "Use the V39-004 pure encoder/size check for prospective collector admission; do not duplicate serialization estimates."
+    - "Read only the validated exact input snapshot in both tools; current input alias changes cannot change the assignment."
+    - "Validate task-local standard assessment/kind/count constraints and not-tested operation coverage using shared Go/Python acceptance fixtures."
+    - "Define mixed full-batch/scalar behavior: identical existing members replay, absent members create, any changed existing member rejects the entire batch; corrections require scalar expected_revision."
+    - "Implement a separate v2 collector/tool module using V39-001 interfaces; leave @1 callable semantics unchanged."
+    - "Validate trusted membership, assessment vocabulary, coverage and locally available evidence requirements before storage; return field/item errors without raw payload echoes."
+    - "Enforce whole-collection count/byte bounds and prospective canonical package bounds before accepting a write/update."
+    - "Support idempotent retries, explicit revisioned corrections, atomic full-batch convenience, safe copies and content-free progress receipts."
+    - "Test absent/invalid calls, parallel/reordered submission, evidence omission and invocation reuse."
+  out:
+    - "A2A integration, activation/registration before common finalization is wired, artifact publication, model retry loops and general persistent draft storage."
+
+deliverables:
+  - path: api/testdata/audit-completion/task-local-validation.json
+    description: "Shared positive/negative task-local cases for the Python collector and the Go importer release checks."
+  - path: runtime/src/contractor_runtime/toolsets/audit_results_v2.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_result_collector.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_results_toolset.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+
+requirements:
+  - {id: R1, text: "Success means data recorded, never ZIP published or Audit accepted; no ArtifactRef is returned by the submit tool."}
+  - {id: R2, text: "Conclusive checklist results with missing required evidence fail before collection changes; completed coverage cannot stand in for evidence."}
+  - {id: R3, text: "Invalid partial/full-batch calls preserve all previously accepted items and their revisions."}
+  - {id: R4, text: "No proposed or failed tool call satisfies any completion condition; all expected item keys must be accepted."}
+  - {id: R5, text: "Limits are aggregate: 64 items, 16 KiB summary, 512 bounded coverage entries, 256 evidence records, 8 MiB canonical collected data and 16 MiB prospective ZIP."}
+
+acceptance_criteria:
+  - id: A1
+    given: "Two assigned checks"
+    when: "submitted separately in reverse order"
+    then: "Both valid results accumulate without an artifact write and receipts report truthful remaining keys."
+  - id: A2
+    given: "Missing evidence, unknown key or invalid enum"
+    when: "submitted"
+    then: "A bounded actionable error is returned; no item or revision is accepted."
+  - id: A3
+    given: "Concurrent identical calls and conflicting/stale updates"
+    when: "processed"
+    then: "State remains bounded and atomic, identical replays reuse receipts, and only matching explicit updates change revisions."
+  - id: A4
+    given: "Collector is sealed, cancelled or reused for another invocation"
+    when: "late/stale calls arrive"
+    then: "They cannot mutate the sealed output or satisfy the next invocation."
+  - id: A5
+    given: "A pinned standard/operation task, changed current input aliases, or mixed batch/scalar submissions"
+    when: "read or submitted"
+    then: "Both tools retain exact task identity; task-local invalid data is rejected consistently with Go, and mixed submissions obey atomic create/replay/conflict semantics."
+  - id: A6
+    given: "A prospective replacement near member, aggregate evidence or ZIP-size bounds"
+    when: "validated by the real shared encoder"
+    then: "Admission and publication size decisions agree, and a rejected replacement preserves the previous value and revision."
+
+tests:
+  - command: "cd runtime && uv run --frozen pytest tests/test_audit_result_collector.py tests/test_audit_results_toolset.py"
+    covers: ["A1","A2","A3","A4","A5","A6"]

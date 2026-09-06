@@ -101,6 +101,11 @@ prompt after new tool results. Its ratio and output reserve are a deterministic
 pre-emptive boundary, not a guarantee that every provider will accept the next
 request. Independent model/tool/hard-token budgets remain mandatory.
 
+These rules apply to the ordinary completion strategy. The planned opt-in
+`audit-check-results@1` contract in [25](25-audit-worker-finalization.md) rejects
+summarizer configuration in its first version: tool-free summarization cannot
+satisfy missing per-item submissions or bypass the Audit completion gate.
+
 The trigger is checked at a safe boundary:
 
 1. a model response completes;

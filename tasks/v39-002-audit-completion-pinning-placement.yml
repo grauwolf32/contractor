@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: V39-002
+title: "Pin Audit completion authority through Run creation and Runtime placement"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V39-001"]
+languages: ["go"]
+
+goal: >-
+  Ensure only the explicitly selected trusted Audit check Worker receives the completion contract and only a supporting Runtime can execute it.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  pinning: >-
+    The immutable child Run carries the selected contract from the resolved AuditProfile. Scheduler and Control Plane derive input refs from trusted forks and resultArtifact from selected Stage bindings; persist the resolved choice with allocation preparation and replay it exactly. Completion capability is required in addition to worker/toolset capabilities.
+
+scope:
+  in:
+    - "Propagate authoritative AuditExecution/check-role binding through child Run snapshots, Stage preparation and selected allocation requests."
+    - "Check exact manifest/task membership, selected output ownership and ordinary Run restrictions before model work."
+    - "Require capabilities.completionContracts audit-check-results@1 and audit-results@2 during placement; preserve contract on retries/recovery."
+    - "Add mixed-fleet, spoofed-label, different logical Worker and immutable snapshot tests using existing allocation boundaries."
+    - "Persist trusted contract provenance atomically with Audit child-Run ownership, including schema migration/old-row omission and recovery after process restart or catalog replacement."
+    - "Preserve the contract through reachable escalation variants; distinguish same-Run Stage attempts from Audit retries with new child-Run output bindings."
+  out:
+    - "Implementing Python collector/publisher, model reminders, accepting Audit evidence or altering ordinary scheduling limits."
+
+deliverables:
+  - path: internal/auditservice
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/runstore/audit_run.go
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/persistence/migrations
+    description: "Persist immutable Run/allocation completion authority with backward-compatible omission and ownership constraints."
+  - path: internal/scheduler
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/controlplane
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/scheduler/audit_completion_test.go
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/controlplane/audit_completion_test.go
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+
+requirements:
+  - {id: R1, text: "Public Run creation cannot supply or infer a completion contract from metadata, even with the same Workflow or Audit-looking labels."}
+  - {id: R2, text: "An omitted contract and non-targeted Worker preserve existing allocation semantics."}
+  - {id: R3, text: "Placement never silently downgrades unsupported contracts; direct prepare is expected to reject them independently."}
+  - {id: R4, text: "Retry/restart uses pinned refs and settings, not the current catalog or a newly edited profile."}
+
+acceptance_criteria:
+  - id: A1
+    given: "An ordinary Run with forged audit labels"
+    when: "prepared"
+    then: "Receives no Audit completion contract or gate."
+  - id: A2
+    given: "An opted-in Audit check with other non-targeted work"
+    when: "prepared and recovered"
+    then: "Only the target gets the same exact contract across attempts."
+  - id: A3
+    given: "A mixed Runtime fleet"
+    when: "scheduled"
+    then: "Only explicitly capable instances qualify; lack of support yields the existing bounded no-capacity/unsupported diagnostic, not ordinary execution."
+  - id: A4
+    given: "An isolated PostgreSQL database with old and opted-in Runs"
+    when: "Creation rolls back, services restart, catalog changes or the target escalates"
+    then: "No orphan authority survives rollback; old Runs stay ordinary and opted-in Runs recover the original owned contract without downgrade."
+
+tests:
+  - command: "go test ./internal/auditservice ./internal/runstore ./internal/scheduler ./internal/controlplane"
+    covers: ["A1","A2","A3"]
+  - command: "go test -race ./internal/scheduler ./internal/controlplane"
+    covers: ["A2","A3"]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/auditservice ./internal/runstore ./internal/scheduler -run AuditCompletion'
+    covers: ["A2","A4"]

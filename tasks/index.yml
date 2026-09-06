@@ -59,7 +59,10 @@ fixed_decisions:
     model_output: >-
       Main Worker authors bounded terminal semantic text without output_schema;
       one mandatory tool-free ADK result finalizer copies the exact subtask ID
-      and text into strict WorkerModelResult.
+      and text into strict WorkerModelResult for ordinary completion. Planned
+      V39 adds an explicit Audit-check strategy at the same completion boundary;
+      it validates collected per-item data and constructs ZIP/WorkerResult in
+      code without changing ordinary completion or the optional summarizer.
     result_projection: >-
       Runtime validates the subtask echo, stamps trusted identity, deterministic
       observations, summarized state and only current-invocation exact artifact
@@ -176,6 +179,13 @@ fixed_decisions:
       Technical Run outcome, observation, requirement/hypothesis assessment,
       finding triage and Audit completion remain distinct. Empty, partial or
       inconclusive work never implies a clean security or compliance verdict.
+    worker_completion_planned: >-
+      V39 pins audit-check-results@1 from an explicit AuditProfile check binding
+      to one passthrough Worker selecting audit-results@2. Runtime collects
+      validated items with revisioned corrections, gives at most two same-budget
+      reminders for missing submissions, then seals and deterministically
+      publishes one ZIP. No ordinary Workflow mandatory-tool policy, label-based
+      activation, partial durable acceptance or automatic demo rollout is added.
   persistence:
     database: PostgreSQL
     mvp_blob_backend: PostgreSQL bytea addressed through ArtifactStore
@@ -594,6 +604,39 @@ milestones:
       Experiment setup and bounded, truthful comparison have an explicit product
       and API contract with implementation tasks; this milestone delivers the
       design and decomposition, not the Evals implementation.
+
+  - id: audit-worker-completion
+    exit_task: V39-007
+    outcome: >-
+      Explicitly opted-in Audit check Workers submit results incrementally;
+      one common completion boundary enforces complete validated collection and
+      publishes a deterministic ZIP without an LLM serializer. Ordinary and
+      legacy workflows remain unchanged, and real importer/fault tests verify
+      authority, bounded continuation, publication and cancellation.
+
+audit_worker_completion_planning:
+  planned_on: "2026-09-06"
+  status: planned_not_implemented
+  specification: docs/spec/25-audit-worker-finalization.md
+  plan_review: docs/reviews/2026-09-06-audit-worker-completion-plan.md
+  tasks: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
+  delivery_order:
+    - {wave: 1, tasks: [V39-001], outcome: Inert contracts and real-ADK continuation proof before freezing interfaces.}
+    - {wave: 2, tasks: [V39-002, V39-004], outcome: "Independent Server propagation and pure encoder/publication implementation."}
+    - {wave: 3, tasks: [V39-003], outcome: Collector using the actual canonical encoder for admission limits.}
+    - {wave: 4, tasks: [V39-005], outcome: Common completion gate and Runtime activation.}
+    - {wave: 5, tasks: [V39-006], outcome: Bounded diagnostics and versioned opt-in configurations.}
+    - {wave: 6, tasks: [V39-007], outcome: Required database and real importer integration with no skipped release gates.}
+  implementation_boundaries:
+    - V39-002 owns Server pinning/placement; V39-003 owns a new v2 tool module; V39-004 owns a separate pure publisher module.
+    - V39-001 proves ADK continuation and freezes interfaces; V39-004 owns the pure encoder consumed by V39-003; V39-005 alone wires the common Runtime completion boundary and advertises capability.
+    - Legacy audit-results@1 and immutable configuration versions remain intact; no task authorizes demo rollout or modification of running Audits.
+  accepted_limits:
+    - The first version targets one passthrough Worker per complete task set and rejects its terminal summarizer.
+    - Partial collected results are invocation-local and lost on cancellation/process loss; durable partial completion remains deferred.
+    - Runtime validation improves model feedback but never substitutes for independent atomic Audit importer acceptance.
+    - Successful completion requires accepted data for every item; exactly-once tool calls and eventual model success are not guaranteed.
+    - Run-scoped create-only output survives Stage attempts; changed bytes conflict, while an Audit retry gets a new child Run/binding. Examples delegate retry to Audit policy.
 
 ui_usability_planning:
   planned_on: "2026-09-06"
@@ -2367,3 +2410,10 @@ tasks:
   - {id: V37-011, file: v37-011-operations-progressive-forms.yml}
   - {id: V37-012, file: v37-012-ui-journey-verification.yml}
   - {id: V38-001, file: v38-001-evals-experience-contract.yml}
+  - {id: V39-001, file: v39-001-audit-completion-contracts.yml}
+  - {id: V39-002, file: v39-002-audit-completion-pinning-placement.yml}
+  - {id: V39-003, file: v39-003-audit-result-collector.yml}
+  - {id: V39-004, file: v39-004-audit-result-publication.yml}
+  - {id: V39-005, file: v39-005-common-worker-completion-gate.yml}
+  - {id: V39-006, file: v39-006-audit-completion-diagnostics-configs.yml}
+  - {id: V39-007, file: v39-007-audit-completion-release-gate.yml}

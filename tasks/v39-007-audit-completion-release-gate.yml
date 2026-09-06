@@ -1,0 +1,85 @@
+schema_version: "1.0"
+id: V39-007
+title: "Verify incremental Audit completion across Runtime and the real importer"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V39-006"]
+languages: ["go","python"]
+
+goal: >-
+  Prove the opted-in contract through real Server/Runtime/artifact/importer boundaries with deterministic models and a fault matrix, while retaining ordinary and legacy regressions.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  acceptance: >-
+    Use scripted model/tool responses, production artifact APIs and the Go Audit importer. A batch of at least two checks must be submitted separately/reversed, deterministically published and accepted atomically. No live provider or running demo mutation is needed.
+  faults: >-
+    Cover missing calls; failed calls only; partial/full invalid batches; missing required evidence; unknown item; identical retries and stale/explicit updates; parallel submission; hard budgets; unsupported runtime; forged metadata; process loss/shared session reuse; cancellation before/after seal/write; dropped write reply and conflicting bytes.
+  evidence: >-
+    Regression fixtures reproduce the observed satisfied + completed coverage + empty evidence packet. It must fail locally before acceptance, allow a valid correction, and still be independently rejected by the Go importer if deliberately injected outside the tool.
+  required_environment: >-
+    Add make test-audit-completion-e2e with an isolated CONTRACTOR_TEST_DATABASE_URL and scripted-model Runtime/Go-importer bridge. The target fails when required prerequisites are absent or selected persistence/bridge cases skip. Plain go test ./... and make verify can skip PostgreSQL cases and do not alone prove this release gate. Do not print database credentials.
+
+scope:
+  in:
+    - "Add process/integration fixtures proving selected-contract propagation, incremental collection, gated completion, exact publication and importer acceptance."
+    - "Exercise negative activation and capability cases, ordinary LLM/summarizer paths and legacy @1 compatibility."
+    - "Assert byte determinism, no extra Audit model serialization call, bounded retry/reminder counts and cleanup under injected faults."
+    - "Record reproducible automated verification and any residual risks; mark completion only after all acceptance gates pass."
+    - "Cover Run creation rollback/restart, base/escalated bindings, changed input aliases, mixed scalar/batch replay, standard evidence rules, exact-budget normal completion and the pinned real ADK Runner's continuation callbacks."
+    - "Consume V39-003 api/testdata/audit-completion/task-local-validation.json from both languages, separating local rejection from valid inconclusive coverage and importer-only policy checks."
+    - "Test a write followed by lost completion/process failure, then a fresh same-Run attempt with identical and different data/proposal IDs and a separate new Audit child Run. Assert the documented recognition/conflict/isolation outcomes."
+  out:
+    - "Live model benchmarks, automatically rerunning user Audits, editing historical task statuses or upgrading demo services."
+
+deliverables:
+  - path: Makefile
+    description: "Dedicated test-audit-completion-e2e target that fails on missing required integration prerequisites/skips."
+  - path: runtime/tests/test_audit_completion_e2e.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/auditimport/completion_integration_test.go
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: docs/reviews/audit-completion-release-gate.md
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+
+requirements:
+  - {id: R1, text: "At least one test feeds actual new Runtime ZIP bytes through the real Go importer, not two independent mocks."}
+  - {id: R2, text: "All writes and fault injection use isolated test Runs/databases; do not claim live-model or demo verification from fixture results."}
+  - {id: R3, text: "Publication and cancellation races cannot produce accepted partial batches or overwrite another output."}
+  - {id: R4, text: "The release evidence lists exactly which tests ran and leaves implementation_commit null until the implementation commit exists."}
+  - {id: R5, text: "Mandatory PostgreSQL recovery and real Runtime-ZIP/importer bridge cases must execute, not skip; broader unit checks do not substitute for them."}
+
+acceptance_criteria:
+  - id: A1
+    given: "A new opted-in two-item Audit"
+    when: "executes via deterministic model through production boundaries"
+    then: "Both separate submissions become one exact package and accepted results with zero LLM serializer calls."
+  - id: A2
+    given: "A full negative/fault matrix"
+    when: "executed"
+    then: "Failures remain bounded, non-bypassable and leave no leaked slot/collector or false coverage."
+  - id: A3
+    given: "Ordinary workflow, optional summarizer and legacy @1 Audit fixtures"
+    when: "run alongside new tests"
+    then: "All old completion semantics remain unchanged."
+  - id: A4
+    given: "The dedicated release target with absent prerequisites or a selected integration test that skips"
+    when: "Invoked"
+    then: "It fails clearly; a passing run records executed database/restart/bridge cases, real-Runner continuation and the same-Run/new-Run retry matrix."
+
+tests:
+  - command: "make test-audit-completion-e2e"
+    covers: ["A1","A2","A3","A4"]
+  - command: "go test ./..."
+    covers: ["A1","A2","A3"]
+  - command: "cd runtime && uv run --frozen pytest"
+    covers: ["A1","A2","A3"]
+  - command: "make verify"
+    covers: ["A1","A2","A3"]

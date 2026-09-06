@@ -1,0 +1,79 @@
+schema_version: "1.0"
+id: V39-004
+title: "Publish sealed Audit result sets as deterministic ZIP artifacts"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V39-001"]
+languages: ["python"]
+
+goal: >-
+  Provide a model-independent finalization publisher over immutable V39-001 snapshots, with deterministic bytes and bounded verification of ambiguous writes.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  inputs: >-
+    Consume only a sealed snapshot: trusted ordered tasks, exact execution-manifest bytes, normalized accepted item contents and the Server-declared result binding. Do not depend on the concrete collector. Output a verified exact artifact receipt; no model calls or fake tool metrics.
+  serialization: >-
+    Preserve the existing check-results package shape and importer rules. Use task order, stable evidence/member IDs, canonical JSON, fixed ZIP time/permissions and ZIP_STORED. Item revisions, acceptance order and wall clock are not package inputs. Proposal invocation IDs remain semantic inputs.
+  replay: >-
+    Create-only write. On conflict or ambiguous transport outcome allow bounded read-back of the declared binding; identical bytes/media type can return its verified exact revision. Different content is a non-retryable conflict. At most two writes and two package-size-bounded read-backs within the existing deadline; never overwrite or ask the model to repair publication. Authorization/authentication and write-fence rejection are terminal, not transport retries.
+  attempt_scope: >-
+    The binding belongs to the Run and survives Stage attempts. A later invocation must independently collect a full valid set before same-byte recognition; different bytes, including changed proposal invocation IDs, conflict. Only a new Audit child Run supplies a fresh binding. Do not use an old artifact as a collector checkpoint.
+
+scope:
+  in:
+    - "Implement pure deterministic package construction/size estimation and a bounded artifact publisher using the shared sealed snapshot interface."
+    - "Expose the exact pure encoder/size validator to V39-003 in a separate module without artifact I/O; collector admission and publication share per-member/ZIP limits."
+    - "Reuse existing audit package conventions without changing @1 tool behavior or importer acceptance."
+    - "Verify exact receipts, same-content read-back and CAS conflict handling; preserve cancellation and write fencing."
+    - "Return distinct safe publication failure/conflict/size errors and ensure no successful result is claimed on an unresolved outcome."
+  out:
+    - "Collector implementation, model prompts/reminders, increasing artifact privileges, automatic Stage retry or cross-invocation persistence."
+
+deliverables:
+  - path: runtime/src/contractor_runtime/audit_result_encoding.py
+    description: "Pure canonical encoding/size validation shared by the collector and publisher; no transport or collector state dependency."
+  - path: runtime/src/contractor_runtime/audit_result_publication.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_result_publication.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+
+requirements:
+  - {id: R1, text: "Equivalent sealed values and manifest bytes produce byte-identical ZIP regardless of call order; no random or timestamp fields are introduced."}
+  - {id: R2, text: "Only complete validated sealed sets can be published to the explicitly declared result binding."}
+  - {id: R3, text: "Existing different artifact bytes are never overwritten; dropped replies can be recognized only through verified read-back."}
+  - {id: R4, text: "Cancellation/failure may leave a diagnostic artifact but never implies successful WorkerCompletion or accepted Audit coverage."}
+  - {id: R5, text: "All retry paths have explicit write/read counts and deadline/response-size bounds; authorization and fenced-write errors do not retry or become LLM failures."}
+
+acceptance_criteria:
+  - id: A1
+    given: "Equivalent snapshots collected in different orders"
+    when: "serialized"
+    then: "ZIP bytes, member order, evidence IDs and digests are identical."
+  - id: A2
+    given: "Write succeeds but reply is lost"
+    when: "bounded reconciliation runs"
+    then: "The same exact artifact is recognized without a second model call or overwrite."
+  - id: A3
+    given: "Different existing output, oversized set or cancellation"
+    when: "publication attempted"
+    then: "The appropriate bounded failure is returned and no success or foreign-scope write occurs."
+  - id: A4
+    given: "A prior Stage attempt wrote the Run's result before failing"
+    when: "A fresh invocation supplies an independently complete sealed set"
+    then: "Equal bytes can be recognized; changed bytes/proposal invocation IDs conflict without overwrite; a new child Run can publish to its fresh binding."
+  - id: A5
+    given: "Repeated lost replies, oversized read-back, authorization rejection or a fenced allocation"
+    when: "Publication is reconciled"
+    then: "At most two writes/two bounded reads occur, terminal authority errors stop immediately, and no unverifiable success is returned."
+
+tests:
+  - command: "cd runtime && uv run --frozen pytest tests/test_audit_result_publication.py tests/test_audit_results_toolset.py"
+    covers: ["A1","A2","A3","A4","A5"]

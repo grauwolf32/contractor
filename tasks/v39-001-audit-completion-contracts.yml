@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V39-001
+title: "Define opt-in Audit Worker completion contracts and shared interfaces"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V21-001","V26-004","V28-002"]
+languages: ["go","python","yaml"]
+
+goal: >-
+  Add inert, versioned configuration/private-wire contracts and bounded Python interfaces, and prove the ADK continuation seam before freezing them, without enabling the Audit strategy.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  interfaces: >-
+    Define strict AllocationSpec.completionContract {kind, task, executionManifest, resultArtifact} and capabilities.completionContracts. task and executionManifest are exact RunScope refs; resultArtifact is versionless and must match declared grants/result binding. Define bounded immutable normalized item/snapshot/receipt types, collector revision operations, publisher input/output and the common boundary's continue/complete/fail result. No concrete collector or publisher implementation in this task.
+  continuation_probe: >-
+    The current instrumentation before_run_callback consumes a one-use prepared token and initializes invocation State. Demonstrate two scripted model turns through the pinned real ADK Runner and production instrumentation with one logical invocation, reducer and cleanup. A small internal lifecycle seam is in scope; Audit activation and production completion dispatch remain V39-005. Record how resumption preserves counters, tool ordinals and observed refs before declaring the interfaces stable.
+
+scope:
+  in:
+    - "Add workerCompletion to resolved AuditProfile check bindings and their authoring schema, validation, canonical snapshots and digest calculation."
+    - "Validate stage/agent existence, single-Worker passthrough ownership of the canonical result output, audit-results@2 selection, no simultaneous @1 and no optional summarizer on the target."
+    - "Apply target constraints to all reachable escalation variants; register the inert audit-results@2 Server descriptor without advertising Runtime support."
+    - "Add strict Go/Python/private JSON schemas and shared valid/invalid fixtures for completion contracts and capabilities; omission remains compatible."
+    - "Define pure bounded interfaces in a dedicated Python module, including per-item positive revisions, exact replay semantics and sealed snapshot ownership."
+    - "Specify the publisher-owned canonical encoder/size-check interface consumed by collector admission, including per-member and aggregate limits."
+  out:
+    - "Runtime activation, placement changes, production Audit model loops, collector behavior, ZIP writes and public Run-create overrides."
+
+deliverables:
+  - path: internal/config/audit_profile.go
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/config/descriptors.go
+    description: "Register the authoring-only @2 descriptor separately from fleet capabilities."
+  - path: internal/contracts/private_v2.go
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: api/v1alpha1/allocation.schema.json
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/src/contractor_runtime/contracts.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/src/contractor_runtime/audit_completion_contracts.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_completion_contracts.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_completion_continuation.py
+    description: "Early real-Runner/scripted-model proof of the invocation ownership seam; no live provider."
+  - path: runtime/src/contractor_runtime/instrumentation.py
+    description: "If needed, add the narrow continuation lifecycle seam without enabling the Audit gate."
+
+requirements:
+  - {id: R1, text: "Unknown contract kinds, foreign/unversioned input refs, invalid targets and incompatible toolset/summarizer selections are rejected."}
+  - {id: R2, text: "Old config digests/snapshots decode without invented fields or activation; new choices affect canonical digests."}
+  - {id: R3, text: "Interfaces define 64 items, 16 KiB summary, 256 aggregate evidence records, 8 MiB collected data and 16 MiB package limits, with no model-editable state."}
+  - {id: R4, text: "No Runtime advertises or enables support solely because the new types exist."}
+  - {id: R5, text: "Base and escalated target configurations preserve the contract; the real-Runner continuation probe does not reinitialize invocation State, counters or cleanup."}
+
+acceptance_criteria:
+  - id: A1
+    given: "Old snapshots and ordinary workflows"
+    when: "decoded or initialized"
+    then: "Keep their prior semantics with no Audit tool requirement."
+  - id: A2
+    given: "New Audit binding or private request"
+    when: "validated against shared fixtures"
+    then: "Both languages accept the same valid inputs and reject spoofed/unknown/incompatible shapes."
+  - id: A3
+    given: "Independent collector and publisher implementations"
+    when: "use the exported interfaces"
+    then: "They exchange an immutable trusted-order sealed snapshot and verified exact publication receipt without coupling collector state to the transport publisher; both use the pure encoder interface."
+  - id: A4
+    given: "The pinned ADK Runner, production instrumentation and a scripted two-turn model"
+    when: "A Runtime-authored reminder continues the same logical invocation"
+    then: "Both turns are observed under one invocation; model/tool counters and artifact observations persist, and begin/terminal cleanup each occur once."
+
+tests:
+  - command: "go test ./internal/config ./internal/contracts"
+    covers: ["A1","A2"]
+  - command: "cd runtime && uv run --frozen pytest tests/test_audit_completion_contracts.py tests/test_audit_completion_continuation.py tests/test_allocation_contracts.py tests/test_contracts.py tests/test_instrumentation.py"
+    covers: ["A1","A2","A3","A4"]

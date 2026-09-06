@@ -25,6 +25,14 @@ still validates and durably accepts that candidate.
 
 ## Four result layers
 
+The following model/serializer path is the default ordinary completion
+strategy. [25](25-audit-worker-finalization.md) defines the planned explicit
+`audit-check-results@1` strategy at the same Runtime-owned completion boundary:
+validated incremental submissions, bounded continuation for missing items,
+and deterministic package/WorkerResult construction without an LLM serializer.
+It is activated by a trusted AuditProfile binding, never by labels or the mere
+presence of a tool. Ordinary Workflows keep the behavior below.
+
 The word “result” refers to four different facts. They are separate contracts:
 
 1. terminal Worker text is authored by the main tool-using model. It says what
@@ -162,11 +170,18 @@ Workflow authors must include this mandatory call in the normal Worker budget;
 Runtime does not grant hidden finalization capacity. Missing, blank, over-64
 KiB or known-secret-bearing terminal text is rejected before the finalizer.
 
-The optional terminal summarizer in [15](15-worker-summarization.md) is the one
+The optional terminal summarizer in [15](15-worker-summarization.md) is an
 exception to this ordinary two-phase path: it already is an independent
 tool-free structured terminal Agent. Its valid `WorkerModelResult` is checked
 and projected directly with `summarized=true`, without a redundant result
 finalizer call or normal-budget charge.
+
+The separately pinned Audit-check strategy in [25](25-audit-worker-finalization.md)
+is another exception. It performs its completeness gate before terminal State
+or session teardown, may continue the same invocation within its remaining
+budget, and supplies only Runtime-verified publication receipts. Version 1 does
+not combine this strategy with optional terminal summarization. Its phase,
+failure and accounting rules supplement the ordinary serializer rules below.
 
 Runtime does not ask either model to serialize `WorkerResult`,
 `WorkerCompletion` or `StageResult`.

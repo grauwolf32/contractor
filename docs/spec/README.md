@@ -57,6 +57,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [22](22-performance-metrics-and-profiling.md) | Partially implemented: performance collection/history and Go profiling; Operations API integration, UI and release gate remain |
 | [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
 | [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
+| [25](25-audit-worker-finalization.md) | Planned: explicit Audit-check completion contracts, incremental results and deterministic Runtime ZIP publication; ordinary Workflows unchanged |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

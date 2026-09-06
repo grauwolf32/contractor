@@ -38,6 +38,7 @@ blob backend remain replaceable deployment adapters.
 - [Projects, reusable artifacts and global Queue](spec/17-projects-and-queue.md)
 - [Run and workspace lifecycle controls](spec/18-run-and-workspace-lifecycle-controls.md)
 - [Project-bound multi-Run Audits](spec/19-audits.md)
+- [Audit Worker completion contracts](spec/25-audit-worker-finalization.md) — agreed target design and V39 implementation tasks; not yet deployed.
 - [Workflow Scheduler concurrency control](spec/20-scheduler-concurrency-control.md)
 - [Allocation-scoped Podman execution](spec/21-podman-sandbox.md) — implemented, opt-in local/direct sandbox with verified cleanup.
 - [Operations performance metrics and Go profiling](spec/22-performance-metrics-and-profiling.md) — collection/history and profiling implemented; Operations API integration, UI and release gate remain.

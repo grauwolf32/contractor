@@ -266,7 +266,10 @@ before Run execution if the selected policy is incompatible:
   AgentTemplate exposes any model-visible Contractor tool or Agent Skill and
   does not use `maxWorkerCalls`. `maxModelCalls` and `maxTotalTokens` include
   the mandatory one-shot result-finalizer call after every ordinary terminal
-  Worker response;
+  Worker response. The explicitly pinned Audit-check strategy in
+  [25](25-audit-worker-finalization.md) instead spends model/tool budget only on
+  main turns and bounded completion reminders; its programmatic ZIP finalizer
+  makes no model call. That strategy is not inferred from AgentTemplate tools;
 - a Worker whose AgentTemplate enables terminal summarization additionally
   requires `contextWindowTokens` so Runtime can derive its soft context
   boundary;

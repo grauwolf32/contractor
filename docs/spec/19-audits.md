@@ -624,7 +624,7 @@ to one receipt retained by the same Audit execution and validates item
 membership. Proposals are never silently ignored or associated merely because
 they share a Run.
 
-The initial Runtime exposes the optional `audit-results@1` Toolset only when an
+The legacy Runtime exposes the optional `audit-results@1` Toolset only when an
 AgentTemplate selects it. `read_audit_task` reads the exact `inputs/task` and
 `inputs/execution_manifest`, validates their identity, and returns one ordered
 `tasks` array instead of exposing opaque base64 ZIPs for the model to interpret.
@@ -638,6 +638,19 @@ completed coverage, explicit gaps, bounded evidence summaries, and proposal
 receipt keys. The tool creates one canonical package in the selected agent
 namespace; neither tool identifies an Audit, selects or reorders items, accepts
 evidence, or bypasses the trusted importer.
+
+The agreed opt-in successor is specified by
+[25](25-audit-worker-finalization.md), tracked by V39-001–007 and not yet
+implemented. An explicit check-binding `workerCompletion` pins
+`audit-check-results@1` to one logical Worker and selects `audit-results@2`.
+The model records validated per-item data in Runtime, can explicitly correct a
+recorded item with revision checks, and receives progress receipts rather than
+artifact receipts. The common completion boundary enforces complete successful
+submission, gives at most two same-budget reminders, then deterministically
+publishes the full canonical ZIP and assembles WorkerResult without an LLM
+serializer. Durable import, atomic batch acceptance and retry ownership remain
+unchanged. Ordinary Workflows and existing @1 configurations do not acquire a
+mandatory-tool rule.
 
 ### 7.3 WorklistManifest
 

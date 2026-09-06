@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V39-005
+title: "Integrate common Worker finalization with the Audit completeness gate"
+milestone: audit-worker-completion
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V39-002","V39-003","V39-004"]
+languages: ["python"]
+
+goal: >-
+  Dispatch from one common semantic completion boundary to either existing ordinary completion or the explicit Audit gate and deterministic publisher.
+
+context:
+  design: >-
+    docs/spec/25-audit-worker-finalization.md
+  compatibility: >-
+    This is an opt-in Audit-check completion strategy, not a global mandatory-tool policy. Omitted contracts and audit-results@1 retain existing behavior. Ordinary text/LLM-finalizer and summarizer paths remain unchanged. Do not deploy, mutate immutable catalog versions, or change running Audits.
+  authority: >-
+    Only an immutable AuditProfile kind: check binding may specify workerCompletion {kind: audit-check-results@1, stage, agent}. V1 targets a passthrough@1 stage with one Worker, selects audit-results@2, and rejects a terminal summarizer. Server derives exact task/manifest refs and the output binding; labels, task text and tools do not activate it.
+  boundary: >-
+    The common boundary returns continue/complete/fail before terminal State, WorkerCompletion or invocation/session teardown. It is not allocation drain. Ordinary completion keeps the one-shot LLM serializer or existing optional summarizer with their exact accounting.
+  gate: >-
+    For audit-check-results@1, each normal finish checks successfully accepted collector entries. Missing items trigger at most two deterministic reminders per invocation, using trusted missing keys, same invocation/session/deadline and existing budgets. A proposed, failed or invalid call never counts. A complete normal finish seals and publishes, then constructs WorkerResult from request ID, bounded deterministic summary, trusted exact receipt and observations with summarized=false.
+  failures: >-
+    After reminders return retryable audit_result_incomplete. Hard model/tool/token budget, timeout, sandbox failure and cancellation take precedence with no hidden retry/publication. A failing main invocation cannot be turned into success by a full collector. V1 rejects terminal summarizer configuration for the target; ordinary summarizers remain unchanged.
+
+scope:
+  in:
+    - "Introduce the common completion dispatch while preserving established invocation ownership, cancellation shielding and ordinary request shapes."
+    - "Integrate the V39-001 real-ADK continuation seam: begin invocation, counters/reducer and tool ordinals initialize once; reminders preserve artifact observations; terminal State and cleanup happen once."
+    - "Wire collector begin/end/seal and deterministic publication; clear partial data across all exit paths and shared-session reuse."
+    - "Register audit-results@2 and advertise completion capability only when integration is functional; reject unsupported/untrusted direct prepare."
+    - "Extend trusted artifact projection for verified finalizer receipts, without accepting model-authored refs."
+    - "Provide fake-model tests proving continuation, non-bypassable completeness and zero Audit serializer calls."
+    - "Translate collector/publication failures before generic model-error handling; reaching an allowed call limit at normal complete finish is distinct from a budget exception or a forbidden next call."
+  out:
+    - "Global mandatory-tool callback, replacing ordinary LLM finalization, new budgets, durable partial checks and automatic demo deployment."
+
+deliverables:
+  - path: runtime/src/contractor_runtime/adk_runtime.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/src/contractor_runtime/instrumentation.py
+    description: "Preserve one invocation's reducer, tool ordinals and observations across real Runner continuation turns."
+  - path: runtime/src/contractor_runtime/factories.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/src/contractor_runtime/capabilities.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_audit_completion_runtime.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: runtime/tests/test_adk_runtime.py
+    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+
+requirements:
+  - {id: R1, text: "Missing contract never branches based on labels, tools or response text; ordinary behavior and model accounting are unchanged."}
+  - {id: R2, text: "Two reminders at most, no new A2A invocation or reset budget; normal complete collection may succeed even with empty terminal prose."}
+  - {id: R3, text: "No successful Audit WorkerCompletion precedes verified package publication; technical success is still not importer acceptance."}
+  - {id: R4, text: "Cancel/deadline/sandbox/budget failure and session cleanup remain authoritative at every continuation/publication boundary."}
+
+acceptance_criteria:
+  - id: A1
+    given: "Ordinary Worker with or without optional summarizer"
+    when: "finishes"
+    then: "Uses exactly the existing finalization path without an Audit gate."
+  - id: A2
+    given: "Audit Worker finishes without submission or with a partial/invalid batch"
+    when: "gate executes"
+    then: "It receives bounded same-budget reminders then fails if still incomplete; no ZIP is published."
+  - id: A3
+    given: "Audit Worker submits all required valid items"
+    when: "normally finishes"
+    then: "Runtime produces the ZIP and trusted result with no LLM finalizer call."
+  - id: A4
+    given: "Shared sessions, hard budget exhaustion or cancellation during continuation/publication"
+    when: "invocation ends"
+    then: "No state/authority leaks, hidden calls, partial success or double cleanup occur."
+  - id: A5
+    given: "A real ADK Runner with scripted responses and exactly sufficient model/tool budget"
+    when: "The full collection normally finishes on the last allowed call, or missing data requires one more call"
+    then: "The complete case publishes without a serializer or budget failure; the incomplete case cannot exceed its budget. Across reminders IDs, counters, tool ordinals and observations remain continuous."
+
+tests:
+  - command: "cd runtime && uv run --frozen pytest tests/test_audit_completion_runtime.py tests/test_audit_completion_continuation.py tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_result_finalizer.py tests/test_app.py tests/test_capabilities.py"
+    covers: ["A1","A2","A3","A4","A5"]
