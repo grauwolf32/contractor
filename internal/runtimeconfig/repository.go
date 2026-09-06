@@ -294,9 +294,21 @@ DELETE FROM runtime_label_bindings WHERE label = $1 AND revision = $2::numeric`,
 	return ErrConflict
 }
 
-// LockBindings locks each requested row in lexical label order. It is intended
-// for caller-owned transactions that compose Run pinning with other stores.
+// LockBindings holds shared locks in lexical label order until the owning
+// transaction settles. Independent pins are compatible, but rebind/delete
+// cannot change an observed binding. Callers that mutate bindings must instead
+// use LockBindingsForUpdate to avoid shared-to-exclusive lock upgrades.
 func (r *Repository) LockBindings(ctx context.Context, labels []string) ([]Binding, error) {
+	return r.lockBindings(ctx, labels, "FOR SHARE")
+}
+
+// LockBindingsForUpdate preserves exclusive binding-before-principal ordering
+// for rebind/delete, including the other labels validated by those mutations.
+func (r *Repository) LockBindingsForUpdate(ctx context.Context, labels []string) ([]Binding, error) {
+	return r.lockBindings(ctx, labels, "FOR UPDATE")
+}
+
+func (r *Repository) lockBindings(ctx context.Context, labels []string, mode string) ([]Binding, error) {
 	ordered := append([]string(nil), labels...)
 	for _, label := range ordered {
 		if err := validateLabel(label); err != nil {
@@ -311,7 +323,7 @@ func (r *Repository) LockBindings(ctx context.Context, labels []string) ([]Bindi
 	}
 	result := make([]Binding, 0, len(ordered))
 	for _, label := range ordered {
-		binding, err := scanBinding(r.db.QueryRow(ctx, bindingSelect+` WHERE label = $1 FOR UPDATE`, label))
+		binding, err := scanBinding(r.db.QueryRow(ctx, bindingSelect+` WHERE label = $1 `+mode, label))
 		if err != nil {
 			return nil, err
 		}

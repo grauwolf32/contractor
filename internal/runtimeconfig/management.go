@@ -177,7 +177,7 @@ func (s *ManagementService) Rebind(
 				return nil
 			}
 			repository := NewRepository(tx)
-			if _, err := repository.LockBindings(ctx, labelsToLock); err != nil {
+			if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
 				return err
 			}
 			principalRepository := NewPrincipalRepository(tx)
@@ -248,7 +248,7 @@ func (s *ManagementService) DeleteBinding(
 				return nil
 			}
 			repository := NewRepository(tx)
-			if _, err := repository.LockBindings(ctx, []string{label}); err != nil {
+			if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
 				return err
 			}
 			principals, err := NewPrincipalRepository(tx).ListByLabel(ctx, label)

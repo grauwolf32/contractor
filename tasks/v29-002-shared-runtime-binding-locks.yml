@@ -3,7 +3,7 @@ id: V29-002
 title: Allow concurrent Runtime binding pinning without serializing all Run creation
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V29-001

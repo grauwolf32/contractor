@@ -57,7 +57,7 @@ func (s *BindingService) Rebind(
 	err = s.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			repository := NewRepository(tx)
-			if _, err := repository.LockBindings(ctx, labelsToLock); err != nil {
+			if _, err := repository.LockBindingsForUpdate(ctx, labelsToLock); err != nil {
 				return err
 			}
 			principalRepository := NewPrincipalRepository(tx)
@@ -101,7 +101,7 @@ func (s *BindingService) Delete(ctx context.Context, label string, expectedRevis
 	return s.credentials.WithCredentialReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			repository := NewRepository(tx)
-			if _, err := repository.LockBindings(ctx, []string{label}); err != nil {
+			if _, err := repository.LockBindingsForUpdate(ctx, []string{label}); err != nil {
 				return err
 			}
 			principals, err := NewPrincipalRepository(tx).ListByLabel(ctx, label)
