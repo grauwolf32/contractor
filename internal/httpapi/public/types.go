@@ -232,6 +232,7 @@ type Dependencies struct {
 	Projects                ProjectManagement
 	Audits                  AuditManagement
 	FindingProposals        FindingProposalManagement
+	FindingCollections      FindingCollectionManagement
 	Runs                    RunReader
 	RunCreator              RunCreationService
 	PlannerPlans            PlannerPlanReader

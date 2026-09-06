@@ -266,6 +266,24 @@ func (e CredentialManagerDescriptorImplementation) Valid() bool {
 	}
 }
 
+// Defines values for FindingCollectionSourceSelectionKind.
+const (
+	FindingCollectionSourceSelectionKindAudit FindingCollectionSourceSelectionKind = "audit"
+	FindingCollectionSourceSelectionKindRun   FindingCollectionSourceSelectionKind = "run"
+)
+
+// Valid indicates whether the value is a known member of the FindingCollectionSourceSelectionKind enum.
+func (e FindingCollectionSourceSelectionKind) Valid() bool {
+	switch e {
+	case FindingCollectionSourceSelectionKindAudit:
+		return true
+	case FindingCollectionSourceSelectionKindRun:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingProposalDocumentSchema.
 const (
 	ContractorAuditFindingProposalV1 FindingProposalDocumentSchema = "contractor.audit.finding-proposal.v1"
@@ -2082,6 +2100,27 @@ type FindingAuditOrigin struct {
 	Role        AuditExecutionRole `json:"role"`
 }
 
+// FindingCollectionFindingSelection defines model for FindingCollectionFindingSelection.
+type FindingCollectionFindingSelection struct {
+	FindingId FindingCollectionIdentity `json:"findingId"`
+	Revision  int                       `json:"revision"`
+}
+
+// FindingCollectionIdentity defines model for FindingCollectionIdentity.
+type FindingCollectionIdentity = string
+
+// FindingCollectionSourceSelection defines model for FindingCollectionSourceSelection.
+type FindingCollectionSourceSelection struct {
+	// Findings Must be empty for Run sources; finding IDs are unique within an Audit source.
+	Findings   []FindingCollectionFindingSelection  `json:"findings"`
+	Id         FindingCollectionIdentity            `json:"id"`
+	Kind       FindingCollectionSourceSelectionKind `json:"kind"`
+	ReceiptIds []FindingCollectionIdentity          `json:"receiptIds"`
+}
+
+// FindingCollectionSourceSelectionKind defines model for FindingCollectionSourceSelection.Kind.
+type FindingCollectionSourceSelectionKind string
+
 // FindingExactArtifact defines model for FindingExactArtifact.
 type FindingExactArtifact struct {
 	Digest    Digest           `json:"digest"`
@@ -2680,6 +2719,22 @@ type PublishConfigurationRequest1 struct {
 	LlmGateway LLMGatewayBody `json:"llmGateway"`
 	Name       ConfigId       `json:"name"`
 	Version    ConfigVersion  `json:"version"`
+}
+
+// PublishFindingCollectionRequest defines model for PublishFindingCollectionRequest.
+type PublishFindingCollectionRequest struct {
+	ClientKey ArtifactName `json:"clientKey"`
+
+	// Sources Unique kind/id pairs. At most 256 explicit receipt/finding selectors in total; expansion must also fit the collection limits.
+	Sources []FindingCollectionSourceSelection `json:"sources"`
+}
+
+// PublishedFindingCollection defines model for PublishedFindingCollection.
+type PublishedFindingCollection struct {
+	Artifact   FindingExactArtifact `json:"artifact"`
+	EntryCount int                  `json:"entryCount"`
+	Replayed   bool                 `json:"replayed"`
+	SnapshotAt time.Time            `json:"snapshotAt"`
 }
 
 // RequestId defines model for RequestId.
@@ -3805,6 +3860,15 @@ type ConnectEventsWebSocketParams struct {
 // ConnectEventsWebSocketParamsSecWebSocketProtocol defines parameters for ConnectEventsWebSocket.
 type ConnectEventsWebSocketParamsSecWebSocketProtocol string
 
+// PublishFindingCollectionParams defines parameters for PublishFindingCollection.
+type PublishFindingCollectionParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // ListAllocationResourceHistoryParams defines parameters for ListAllocationResourceHistory.
 type ListAllocationResourceHistoryParams struct {
 	// RunId Exact Run ID, not a prefix or label filter.
@@ -4254,6 +4318,9 @@ type LoginJSONRequestBody = LoginRequest
 
 // PublishConfigurationJSONRequestBody defines body for PublishConfiguration for application/json ContentType.
 type PublishConfigurationJSONRequestBody = PublishConfigurationRequest
+
+// PublishFindingCollectionJSONRequestBody defines body for PublishFindingCollection for application/json ContentType.
+type PublishFindingCollectionJSONRequestBody = PublishFindingCollectionRequest
 
 // CreateCredentialJSONRequestBody defines body for CreateCredential for application/json ContentType.
 type CreateCredentialJSONRequestBody = CreateCredentialRequest
@@ -6050,6 +6117,36 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/events/ws (the `ConnectEventsWebSocket` operationId).
 	ConnectEventsWebSocket(ctx context.Context, params *ConnectEventsWebSocketParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PublishFindingCollectionWithBody Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+	//
+	// Select explicit receipt IDs or exact Audit finding revisions. Finding
+	// selection includes every contributing receipt. Arrays select exactly
+	// their members; empty arrays do not mean all. The server captures review
+	// observations and embeds all exact proposal/evidence bytes atomically.
+	// The same clientKey and normalized selection replay the original exact
+	// artifact even after source deletion; changed selection conflicts.
+	// Publication creates no Audit finding, decision or verification worklist.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+	PublishFindingCollectionWithBody(ctx context.Context, params *PublishFindingCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishFindingCollection Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+	//
+	// Select explicit receipt IDs or exact Audit finding revisions. Finding
+	// selection includes every contributing receipt. Arrays select exactly
+	// their members; empty arrays do not mean all. The server captures review
+	// observations and embeds all exact proposal/evidence bytes atomically.
+	// The same clientKey and normalized selection replay the original exact
+	// artifact even after source deletion; changed selection conflicts.
+	// Publication creates no Audit finding, decision or verification worklist.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+	PublishFindingCollection(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAllocationResourceHistory Read terminal allocation resource summaries
 	//
 	// Owner-authorized history, including missing reports. Descending finishedAt and allocationId keyset pagination pins an upper boundary. finishedAt is the StageExecution terminal timestamp, not a late report arrival time. Historical collection policy is independent of current switches.
@@ -7224,6 +7321,56 @@ func (c *Client) GetConfiguration(ctx context.Context, kind ConfigurationKindPar
 // Corresponds with GET /v1/events/ws (the `ConnectEventsWebSocket` operationId).
 func (c *Client) ConnectEventsWebSocket(ctx context.Context, params *ConnectEventsWebSocketParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewConnectEventsWebSocketRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishFindingCollectionWithBody Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+//
+// Select explicit receipt IDs or exact Audit finding revisions. Finding
+// selection includes every contributing receipt. Arrays select exactly
+// their members; empty arrays do not mean all. The server captures review
+// observations and embeds all exact proposal/evidence bytes atomically.
+// The same clientKey and normalized selection replay the original exact
+// artifact even after source deletion; changed selection conflicts.
+// Publication creates no Audit finding, decision or verification worklist.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+func (c *Client) PublishFindingCollectionWithBody(ctx context.Context, params *PublishFindingCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishFindingCollectionRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishFindingCollection Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+//
+// Select explicit receipt IDs or exact Audit finding revisions. Finding
+// selection includes every contributing receipt. Arrays select exactly
+// their members; empty arrays do not mean all. The server captures review
+// observations and embeds all exact proposal/evidence bytes atomically.
+// The same clientKey and normalized selection replay the original exact
+// artifact even after source deletion; changed selection conflicts.
+// Publication creates no Audit finding, decision or verification worklist.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+func (c *Client) PublishFindingCollection(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishFindingCollectionRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -11045,6 +11192,72 @@ func NewConnectEventsWebSocketRequest(server string, params *ConnectEventsWebSoc
 		}
 
 		req.Header.Set("Sec-WebSocket-Protocol", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewPublishFindingCollectionRequest calls the generic PublishFindingCollection builder with application/json body
+func NewPublishFindingCollectionRequest(server string, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPublishFindingCollectionRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewPublishFindingCollectionRequestWithBody constructs an http.Request for the PublishFindingCollection method, with any body, and a specified content type
+func NewPublishFindingCollectionRequestWithBody(server string, params *PublishFindingCollectionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/finding-collections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Origin != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
 
 	}
 
@@ -15719,6 +15932,36 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/events/ws (the `ConnectEventsWebSocket` operationId).
 	ConnectEventsWebSocketWithResponse(ctx context.Context, params *ConnectEventsWebSocketParams, reqEditors ...RequestEditorFn) (*ConnectEventsWebSocketResponse, error)
+
+	// PublishFindingCollectionWithBodyWithResponse Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+	//
+	// Select explicit receipt IDs or exact Audit finding revisions. Finding
+	// selection includes every contributing receipt. Arrays select exactly
+	// their members; empty arrays do not mean all. The server captures review
+	// observations and embeds all exact proposal/evidence bytes atomically.
+	// The same clientKey and normalized selection replay the original exact
+	// artifact even after source deletion; changed selection conflicts.
+	// Publication creates no Audit finding, decision or verification worklist.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+	PublishFindingCollectionWithBodyWithResponse(ctx context.Context, params *PublishFindingCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishFindingCollectionResponse, error)
+
+	// PublishFindingCollectionWithResponse Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+	//
+	// Select explicit receipt IDs or exact Audit finding revisions. Finding
+	// selection includes every contributing receipt. Arrays select exactly
+	// their members; empty arrays do not mean all. The server captures review
+	// observations and embeds all exact proposal/evidence bytes atomically.
+	// The same clientKey and normalized selection replay the original exact
+	// artifact even after source deletion; changed selection conflicts.
+	// Publication creates no Audit finding, decision or verification worklist.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+	PublishFindingCollectionWithResponse(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishFindingCollectionResponse, error)
 
 	// ListAllocationResourceHistoryWithResponse Read terminal allocation resource summaries
 	//
@@ -20688,6 +20931,198 @@ func (r ConnectEventsWebSocketResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ConnectEventsWebSocketResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PublishFindingCollectionResponse200Headers the declared response headers of an HTTP 200 response for PublishFindingCollection
+type PublishFindingCollectionResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// PublishFindingCollectionResponse201Headers the declared response headers of an HTTP 201 response for PublishFindingCollection
+type PublishFindingCollectionResponse201Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// PublishFindingCollectionResponse400Headers the declared response headers of an HTTP 400 response for PublishFindingCollection
+type PublishFindingCollectionResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse401Headers the declared response headers of an HTTP 401 response for PublishFindingCollection
+type PublishFindingCollectionResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// PublishFindingCollectionResponse403Headers the declared response headers of an HTTP 403 response for PublishFindingCollection
+type PublishFindingCollectionResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse404Headers the declared response headers of an HTTP 404 response for PublishFindingCollection
+type PublishFindingCollectionResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse409Headers the declared response headers of an HTTP 409 response for PublishFindingCollection
+type PublishFindingCollectionResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse413Headers the declared response headers of an HTTP 413 response for PublishFindingCollection
+type PublishFindingCollectionResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse422Headers the declared response headers of an HTTP 422 response for PublishFindingCollection
+type PublishFindingCollectionResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse500Headers the declared response headers of an HTTP 500 response for PublishFindingCollection
+type PublishFindingCollectionResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// PublishFindingCollectionResponse503Headers the declared response headers of an HTTP 503 response for PublishFindingCollection
+type PublishFindingCollectionResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type PublishFindingCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PublishedFindingCollection
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *PublishedFindingCollection
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PublishFindingCollectionResponse200Headers
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *PublishFindingCollectionResponse201Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PublishFindingCollectionResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *PublishFindingCollectionResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *PublishFindingCollectionResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *PublishFindingCollectionResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *PublishFindingCollectionResponse409Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *PublishFindingCollectionResponse413Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *PublishFindingCollectionResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *PublishFindingCollectionResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PublishFindingCollectionResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON200() *PublishedFindingCollection {
+	return r.JSON200
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON201() *PublishedFindingCollection {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PublishFindingCollectionResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PublishFindingCollectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PublishFindingCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PublishFindingCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PublishFindingCollectionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -28744,6 +29179,48 @@ func (c *ClientWithResponses) ConnectEventsWebSocketWithResponse(ctx context.Con
 	return ParseConnectEventsWebSocketResponse(rsp)
 }
 
+// PublishFindingCollectionWithBodyWithResponse Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+//
+// Select explicit receipt IDs or exact Audit finding revisions. Finding
+// selection includes every contributing receipt. Arrays select exactly
+// their members; empty arrays do not mean all. The server captures review
+// observations and embeds all exact proposal/evidence bytes atomically.
+// The same clientKey and normalized selection replay the original exact
+// artifact even after source deletion; changed selection conflicts.
+// Publication creates no Audit finding, decision or verification worklist.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+func (c *ClientWithResponses) PublishFindingCollectionWithBodyWithResponse(ctx context.Context, params *PublishFindingCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishFindingCollectionResponse, error) {
+	rsp, err := c.PublishFindingCollectionWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishFindingCollectionResponse(rsp)
+}
+
+// PublishFindingCollectionWithResponse Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+//
+// Select explicit receipt IDs or exact Audit finding revisions. Finding
+// selection includes every contributing receipt. Arrays select exactly
+// their members; empty arrays do not mean all. The server captures review
+// observations and embeds all exact proposal/evidence bytes atomically.
+// The same clientKey and normalized selection replay the original exact
+// artifact even after source deletion; changed selection conflicts.
+// Publication creates no Audit finding, decision or verification worklist.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/finding-collections (the `PublishFindingCollection` operationId).
+func (c *ClientWithResponses) PublishFindingCollectionWithResponse(ctx context.Context, params *PublishFindingCollectionParams, body PublishFindingCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishFindingCollectionResponse, error) {
+	rsp, err := c.PublishFindingCollection(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishFindingCollectionResponse(rsp)
+}
+
 // ListAllocationResourceHistoryWithResponse Read terminal allocation resource summaries
 //
 // Owner-authorized history, including missing reports. Descending finishedAt and allocationId keyset pagination pins an upper boundary. finishedAt is the StageExecution terminal timestamp, not a late report arrival time. Historical collection policy is independent of current switches.
@@ -35194,6 +35671,243 @@ func ParseConnectEventsWebSocketResponse(rsp *http.Response) (*ConnectEventsWebS
 			headers.XRequestID = value
 		}
 		response.Headers500 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePublishFindingCollectionResponse parses an HTTP response from a PublishFindingCollectionWithResponse call
+func ParsePublishFindingCollectionResponse(rsp *http.Response) (*PublishFindingCollectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PublishFindingCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PublishedFindingCollection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest PublishedFindingCollection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PublishFindingCollectionResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 201:
+		var headers PublishFindingCollectionResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers201 = &headers
+	case rsp.StatusCode == 400:
+		var headers PublishFindingCollectionResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers PublishFindingCollectionResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers PublishFindingCollectionResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers PublishFindingCollectionResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers PublishFindingCollectionResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 413:
+		var headers PublishFindingCollectionResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 422:
+		var headers PublishFindingCollectionResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers PublishFindingCollectionResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PublishFindingCollectionResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil

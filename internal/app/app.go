@@ -663,6 +663,10 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Git importer: %w", err)
 	}
+	collectionPublisher, err := findingintake.NewCollectionPublisher(pool, auditService)
+	if err != nil {
+		return fmt.Errorf("configure finding collection publisher: %w", err)
+	}
 	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
 		Authentication: authentication, BrowserOrigins: browserOrigins,
 		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
@@ -676,6 +680,7 @@ func RunCLI(
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 auditService,
 		FindingProposals:       findingService,
+		FindingCollections:     collectionPublisher,
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
 		Operations:             registry,

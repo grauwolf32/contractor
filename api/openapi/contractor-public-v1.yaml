@@ -40,6 +40,55 @@ tags:
   - {name: Events, description: Read-only WebSocket upgrade}
 
 paths:
+  /v1/finding-collections:
+    post:
+      operationId: publishFindingCollection
+      tags: [Artifacts]
+      summary: Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+      description: |
+        Select explicit receipt IDs or exact Audit finding revisions. Finding
+        selection includes every contributing receipt. Arrays select exactly
+        their members; empty arrays do not mean all. The server captures review
+        observations and embeds all exact proposal/evidence bytes atomically.
+        The same clientKey and normalized selection replay the original exact
+        artifact even after source deletion; changed selection conflicts.
+        Publication creates no Audit finding, decision or verification worklist.
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PublishFindingCollectionRequest'}
+      responses:
+        '200':
+          description: Original exact collection replayed without refreshing source data
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublishedFindingCollection'}
+        '201':
+          description: Complete collection and replay receipt published atomically
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublishedFindingCollection'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
   /v1/settings/git-key:
     get:
       operationId: getGitKey
@@ -3986,6 +4035,56 @@ components:
       properties:
         objective: {type: string, minLength: 1, maxLength: 65536}
         method: {type: string, minLength: 1, maxLength: 160}
+    FindingCollectionIdentity:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'
+    FindingCollectionFindingSelection:
+      type: object
+      additionalProperties: false
+      required: [findingId, revision]
+      properties:
+        findingId: {$ref: '#/components/schemas/FindingCollectionIdentity'}
+        revision: {type: integer, minimum: 1, maximum: 9007199254740991}
+    FindingCollectionSourceSelection:
+      type: object
+      additionalProperties: false
+      required: [kind, id, receiptIds, findings]
+      properties:
+        kind: {type: string, enum: [run, audit]}
+        id: {$ref: '#/components/schemas/FindingCollectionIdentity'}
+        receiptIds:
+          type: array
+          maxItems: 256
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/FindingCollectionIdentity'}
+        findings:
+          type: array
+          maxItems: 256
+          description: Must be empty for Run sources; finding IDs are unique within an Audit source.
+          items: {$ref: '#/components/schemas/FindingCollectionFindingSelection'}
+    PublishFindingCollectionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientKey, sources]
+      properties:
+        clientKey: {$ref: '#/components/schemas/ArtifactName'}
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 64
+          description: Unique kind/id pairs. At most 256 explicit receipt/finding selectors in total; expansion must also fit the collection limits.
+          items: {$ref: '#/components/schemas/FindingCollectionSourceSelection'}
+    PublishedFindingCollection:
+      type: object
+      additionalProperties: false
+      required: [artifact, snapshotAt, entryCount, replayed]
+      properties:
+        artifact: {$ref: '#/components/schemas/FindingExactArtifact'}
+        snapshotAt: {type: string, format: date-time}
+        entryCount: {type: integer, minimum: 0, maximum: 256}
+        replayed: {type: boolean}
     FindingProposalDocument:
       type: object
       additionalProperties: false

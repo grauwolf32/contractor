@@ -4,6 +4,32 @@
  */
 
 export interface paths {
+    "/v1/finding-collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish an immutable selection of finding receipts as a reusable UserScope ZIP
+         * @description Select explicit receipt IDs or exact Audit finding revisions. Finding
+         *     selection includes every contributing receipt. Arrays select exactly
+         *     their members; empty arrays do not mean all. The server captures review
+         *     observations and embeds all exact proposal/evidence bytes atomically.
+         *     The same clientKey and normalized selection replay the original exact
+         *     artifact even after source deletion; changed selection conflicts.
+         *     Publication creates no Audit finding, decision or verification worklist.
+         */
+        post: operations["publishFindingCollection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/settings/git-key": {
         parameters: {
             query?: never;
@@ -2157,6 +2183,31 @@ export interface components {
             objective: string;
             method: string;
         };
+        FindingCollectionIdentity: string;
+        FindingCollectionFindingSelection: {
+            findingId: components["schemas"]["FindingCollectionIdentity"];
+            revision: number;
+        };
+        FindingCollectionSourceSelection: {
+            /** @enum {string} */
+            kind: "run" | "audit";
+            id: components["schemas"]["FindingCollectionIdentity"];
+            receiptIds: components["schemas"]["FindingCollectionIdentity"][];
+            /** @description Must be empty for Run sources; finding IDs are unique within an Audit source. */
+            findings: components["schemas"]["FindingCollectionFindingSelection"][];
+        };
+        PublishFindingCollectionRequest: {
+            clientKey: components["schemas"]["ArtifactName"];
+            /** @description Unique kind/id pairs. At most 256 explicit receipt/finding selectors in total; expansion must also fit the collection limits. */
+            sources: components["schemas"]["FindingCollectionSourceSelection"][];
+        };
+        PublishedFindingCollection: {
+            artifact: components["schemas"]["FindingExactArtifact"];
+            /** Format: date-time */
+            snapshotAt: string;
+            entryCount: number;
+            replayed: boolean;
+        };
         FindingProposalDocument: {
             /** @constant */
             schema: "contractor.audit.finding-proposal.v1";
@@ -4098,6 +4149,57 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    publishFindingCollection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishFindingCollectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Original exact collection replayed without refreshing source data */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedFindingCollection"];
+                };
+            };
+            /** @description Complete collection and replay receipt published atomically */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedFindingCollection"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
     getGitKey: {
         parameters: {
             query?: never;

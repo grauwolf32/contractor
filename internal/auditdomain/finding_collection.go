@@ -52,6 +52,7 @@ type FindingCollectionEntry struct {
 	RunID              string                        `json:"run_id"`
 	InvocationID       string                        `json:"invocation_id"`
 	AuditOrigin        *FindingCollectionAuditOrigin `json:"audit_origin,omitempty"`
+	AuditHolds         []string                      `json:"audit_holds,omitempty"`
 	Retention          string                        `json:"retention"`
 	ProposalDocumentID string                        `json:"proposal_document_id"`
 	Evidence           []FindingCollectionEvidence   `json:"evidence"`
@@ -189,6 +190,17 @@ func validateFindingCollection(value FindingCollection) error {
 		selected := sources["run\x00"+entry.RunID]
 		if entry.AuditOrigin != nil {
 			selected = selected || sources["audit\x00"+entry.AuditOrigin.AuditID]
+		}
+		if len(entry.AuditHolds) > MaximumCollectionSources {
+			return invalid(CodeLimitExceeded, "collection.audit_holds")
+		}
+		priorHold := ""
+		for _, auditID := range entry.AuditHolds {
+			if validateIdentifier(auditID, "audit_id") != nil || auditID <= priorHold {
+				return invalid(CodeInvalid, "collection.audit_holds")
+			}
+			selected = selected || sources["audit\x00"+auditID]
+			priorHold = auditID
 		}
 		proposal, ok := documents[entry.ProposalDocumentID]
 		if !ok || proposal.MediaType != JSONMediaType || proposal.SizeBytes == 0 || proposal.SizeBytes > MaximumDocumentBytes {

@@ -137,6 +137,30 @@ func TestFindingCollectionSharesEvidenceWithoutMergingReceipts(t *testing.T) {
 	}
 }
 
+func TestFindingCollectionAuditHoldPreservesMembershipWithoutReview(t *testing.T) {
+	value, contents, _, _ := collectionFixture(t)
+	value.Sources = []FindingCollectionSource{{Kind: "audit", ID: "audit-a"}}
+	for i := range value.Entries {
+		value.Entries[i].AuditOrigin = nil
+		value.Entries[i].Reviews = []FindingCollectionReview{}
+		value.Entries[i].AuditHolds = []string{"audit-a"}
+	}
+	payload, err := BuildFindingCollectionPackage(value, contents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, _, err := DecodeFindingCollectionPackage(payload)
+	if err != nil || !reflect.DeepEqual(decoded, value) {
+		t.Fatalf("hold provenance: %+v %v", decoded, err)
+	}
+	for _, holds := range [][]string{{"audit-a", "audit-a"}, {"audit-z", "audit-a"}, {"../audit"}, {"audit-foreign"}} {
+		value.Entries[0].AuditHolds = holds
+		if _, err := EncodeFindingCollection(value); err == nil {
+			t.Fatalf("invalid hold membership accepted: %v", holds)
+		}
+	}
+}
+
 func TestFindingCollectionRejectsInvalidMetadata(t *testing.T) {
 	cases := []struct {
 		name   string

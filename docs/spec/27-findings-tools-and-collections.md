@@ -1,10 +1,11 @@
 # Finding tools and immutable collections
 
 Status: V43-001 specifies the contract and implements the Go codec, package
-validation and deterministic destination mapping. Server publication (V43-002),
-Runtime preparation and `list_findings` (V43-003), agent integration (V43-004)
+validation and deterministic destination mapping. V43-002 implements Server
+publication through `POST /v1/finding-collections`. Runtime preparation and
+`list_findings` (V43-003), agent integration (V43-004)
 and the process gate (V43-005) remain pending. This document does not activate
-a tool, endpoint or configuration version.
+a Runtime tool or configuration version.
 
 ## Responsibilities and compatibility
 
@@ -65,7 +66,7 @@ Artifact plane's own namespace/name/revision constraints.
 | Collection | `schema: contractor.findings.collection.v1`, `snapshot_at`, `sources`, `documents`, `entries` |
 | Source | `kind: run\|audit`, `id` |
 | Document | `id`, `scope: {kind: run\|project\|user, id}`, exact `ref`, `digest`, `media_type`, `size_bytes` |
-| Entry | `receipt_id`, `proposal_id`, `run_id`, `invocation_id`, optional `audit_origin`, `retention`, `proposal_document_id`, `evidence`, `reviews` |
+| Entry | `receipt_id`, `proposal_id`, `run_id`, `invocation_id`, optional `audit_origin`, optional `audit_holds`, `retention`, `proposal_document_id`, `evidence`, `reviews` |
 | Audit origin | `audit_id`, `execution_id`, `role` |
 | Evidence link | `evidence_id`, `document_id` |
 | Review observation | `audit_id`, `finding_id`, `revision`, `state`; optional `decision_id`, `assessment_id`, `duplicate_target_id` |
@@ -74,7 +75,7 @@ Artifact plane's own namespace/name/revision constraints.
 zeros omitted. It records when the selection was captured; it is not a query for
 the latest database state. `sources` records the requested Run/Audit scopes.
 Every entry must match a Run source through `run_id`, or an Audit source through
-its Audit origin or a review observation. This is a consistency check, not proof
+its Audit origin, an Audit hold or a review observation. This is a consistency check, not proof
 of server authority.
 
 Document `scope` identifies where the exact retained bytes were read. It can be
@@ -82,6 +83,13 @@ a producer Run or an authorized retained Project/User artifact. Entry origin
 still identifies the producing Run/invocation even when retained bytes came from
 an Audit hold in ProjectScope. No owner identity or source scope in this JSON
 grants read access.
+
+Optional `audit_holds` contains up to 64 sorted unique Audit IDs with retained
+copies of this receipt. It preserves source membership independently of producer
+origin and review state; it does not create a finding ID or imply confirmation.
+Absent or empty holds encode by omitting the member. V43-002 added this optional
+provenance before Runtime adoption; the original conformance fixture remains
+byte-identical.
 
 `retention` captures the existing receipt state: `source-held`, `audit-held` or
 `discarded`. It never substitutes for package byte availability. A discarded
@@ -149,6 +157,55 @@ and `documents`; missing bytes never turn a nonempty selection into an empty one
 
 ## Server publication and reader preparation
 
+The owner-authenticated `POST /v1/finding-collections` request is:
+
+```json
+{
+  "clientKey": "review-snapshot-1",
+  "sources": [
+    {"kind": "run", "id": "run-1", "receiptIds": ["receipt-1"], "findings": []},
+    {"kind": "audit", "id": "audit-1", "receiptIds": [],
+     "findings": [{"findingId": "finding-2", "revision": 3}]}
+  ]
+}
+```
+
+`clientKey` is an Artifact name (1–128 bytes). Selector identities use 1–128
+ASCII bytes under the identifier pattern above. Sources are unique by kind/ID;
+receipts and finding IDs are unique within a source. Both arrays are required.
+Run sources have an empty `findings` array. The request has at most 256 selectors
+across all sources; expansion of finding contributions must also fit the package
+entry/byte bounds. Overlap across sources is permitted and deduplicates only the
+same receipt identity. Input order is normalized for replay identity.
+
+The caller enumerates its desired receipt IDs using existing paginated APIs.
+Empty arrays explicitly select nothing; there is no implicit “all”, live filter
+or fallback to the first page. Admission/retention/review policy is expressed by
+the selected IDs and finding revisions. A missing or foreign source/receipt is
+404; a stale finding revision is 409. Selected rejected, unreviewed or discarded
+records are not silently skipped. An unavailable exact document fails the entire
+publication. Invalid selectors are 400; package codec failures retain their
+bounded 422 codes.
+
+A successful response contains `artifact` (`ref`, `digest`, `mediaType`,
+`sizeBytes`), `snapshotAt`, `entryCount` and `replayed`. Creation returns 201;
+replay returns 200. The exact ZIP is written to the authenticated owner's
+`finding-collections/<clientKey>` binding. A small ordinary JSON artifact in
+`finding-collection-receipts/<clientKey>` records the normalized request digest
+and exact ZIP metadata. Both writes commit together. This receipt is publication
+metadata, not a second finding store or review authority. The public API schema
+owns the precise HTTP field spelling and error envelopes.
+
+The same key and normalized request replay the original exact ZIP before looking
+up sources or current reviews. A changed request conflicts. A pre-existing ZIP
+without the paired receipt conflicts; missing or inconsistent retained ZIP bytes
+fail explicitly. Existing Artifact-plane lifecycle rules apply to these UserScope
+bindings and their exact revisions; publication does not modify them on replay.
+If a transaction aborts before publication, the explicit source IDs remain fixed;
+retry validates the requested finding revisions again and either captures them
+or conflicts. Concurrent snapshots use repeatable-read transactions and bounded
+retry on definite PostgreSQL serialization aborts.
+
 V43-002 owns owner-authorized source selection, snapshot capture, assembly and
 publication through the existing Artifact plane. Selection is explicit about
 receipts versus admitted Audit findings and any retention/review filters.
@@ -207,7 +264,7 @@ case-sensitively. `subject_key` requires `subject_kind`; absent values mean no
 filter, while empty strings are invalid. Limit defaults to 20, range 1–100.
 
 Each item returns `receipt_id`, `proposal_id`, `run_id`, `invocation_id`, optional
-`audit_origin`, `retention`, the original `subject`, `title_preview`,
+`audit_origin` and `audit_holds`, `retention`, the original `subject`, `title_preview`,
 `description_preview`, `has_hypothesis`, `proposal`, `evidence` and `reviews`.
 `proposal` is `{ref, digest, media_type, size_bytes, source: {scope, ref}}`;
 `evidence` items add `evidence_id` to that same shape. The top-level `ref` is the
@@ -255,7 +312,12 @@ from different Runs. Document and package hashes were independently generated
 using Python; Go codec tests require exact conformance and reject inconsistent
 metadata, byte content and evidence membership.
 
-V43-002 adds database publication/retention tests. V43-003 consumes this same
+V43-002 adds required PostgreSQL publication/retention tests and an HTTP test
+that passes the ZIP into ordinary Run creation. They cover concurrent replay,
+later review changes, all finding contributions, foreign/missing sources, source
+Run deletion and rollback after the ZIP write but before its receipt. They run
+with `-tags=integration` and fail when explicitly selected without a test database.
+V43-003 consumes this same
 fixture for Python decoding, real ArtifactClient preparation behavior, previews,
 pagination and independent tool selection. V43-004 selects new immutable config
 versions; old versions remain reproducible. V43-005 proves producer → publication
