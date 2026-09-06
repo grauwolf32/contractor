@@ -10,7 +10,7 @@ dependencies = [
   "google-adk==2.8.0",
   "httpx>=0.28,<1",
   "jcs>=0.2,<1",
-  "litellm==1.98.0",
+  "openai==2.54.0",
   "opentelemetry-proto==1.42.1",
   "pydantic>=2.11,<3",
   "pyyaml>=6.0,<7",

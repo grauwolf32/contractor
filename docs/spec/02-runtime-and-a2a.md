@@ -488,6 +488,29 @@ by [07](07-runtime-labels-and-infrastructure-config.md).
 backend, not a required Contractor component; a compatible backend can replace
 it without changing Workflow, AgentTemplate or allocation semantics.
 
+The Python Runtime implements `openai-compatible@1` with a Contractor-owned ADK
+`BaseLlm` adapter and an allocation-owned `AsyncOpenAI` client. It does not
+import a LiteLLM client SDK: LiteLLM, when selected, remains the one shared
+external Gateway. The adapter sends the exact resolved model alias, translates
+ADK text and function-call history, tools and strict response schemas to Chat
+Completions, and projects model text/reasoning, function calls, finish reason and
+provider-reported usage back to ADK. Non-text task data remains an Artifact; an
+unsupported inline content part fails closed instead of disappearing from the
+model request.
+
+The OpenAI client uses `max_retries=3`, meaning one initial HTTP attempt and at
+most three SDK retries. Its standard retry classification includes connection
+loss/timeouts and retryable HTTP statuses such as 408, 409, 429 and 5xx. One
+outer Runtime deadline caps the entire SDK attempt series at the resolved
+`requestTimeoutSeconds` plus 60 seconds; an enclosing Stage cancellation or
+deadline can stop it earlier. Every attempt retains the same allocation-owned
+Gateway route and never falls back around a configured proxy. The series is one
+logical ModelPolicy call because Runtime receives at most one usable response.
+If a response was lost after the Gateway accepted it, however, repeated Gateway
+work and billing are possible and only the accepted final response's usage can
+be added to the Worker token counters. Gateway-side quotas therefore remain the
+hard authority for all physical attempts.
+
 Secret fields are accepted only over the private mTLS control channel, retained
 in memory for the active allocation and redacted from logs, Agent Cards,
 WorkerHandle, metrics and durable StageExecution state. They are erased during

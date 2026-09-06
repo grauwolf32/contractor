@@ -30,9 +30,12 @@ context:
     structured result finalizer.
   security: >-
     Provider exceptions and request data may contain credentials or model-visible
-    content. Preserve the existing secret-free GatewayModelError boundary, zero
-    hidden retries, allocation-owned HTTP/proxy client, cancellation propagation,
-    bounded timeout and credential erasure/close behavior.
+    content. Preserve the secret-free GatewayModelError boundary, allocation-owned
+    HTTP/proxy client, cancellation propagation, bounded timeout and credential
+    erasure/close behavior. Use the OpenAI SDK's three bounded retries; the whole
+    SDK attempt series has only a 60-second grace beyond the configured single-call
+    timeout. A lost response can still produce repeated Gateway billing, so these
+    transport attempts do not masquerade as additional successful model results.
 
 scope:
   in:
@@ -45,7 +48,7 @@ scope:
   out:
     - "Optimizing or replacing the shared LiteLLM proxy process, its PostgreSQL database, UI or key APIs."
     - "Changing Workflow, AgentTemplate, ModelPolicy, Scheduler, Planner or AllocationSpec schemas."
-    - "Adding provider-specific routing to Runtime, hidden retries, streaming UI events or a Responses API migration."
+    - "Adding provider-specific routing to Runtime, unbounded/nested retry layers, streaming UI events or a Responses API migration."
     - "Depending on the experimental google.adk.labs.openai package at runtime."
 
 deliverables:
@@ -68,8 +71,10 @@ requirements:
   - id: R1
     text: >-
       One configured AsyncOpenAI client performs each request with the exact
-      allocation Gateway URL/token, bounded timeout and max_retries=0; proxy
-      routing remains allocation-owned and never mutates process globals.
+      allocation Gateway URL/token, bounded timeout and max_retries=3. One outer
+      deadline limits the complete SDK attempt series to request_timeout_seconds
+      plus 60 seconds; proxy routing remains allocation-owned and never mutates
+      process globals.
   - id: R2
     text: >-
       ADK Content roles, multipart text, function calls/responses and function
@@ -102,9 +107,9 @@ acceptance_criteria:
     when: "The response is projected through Worker instrumentation"
     then: "Prompt, completion, total and cached counts remain available to existing deterministic budget accounting."
   - id: A3
-    given: "Cancellation, provider failure, ordinary finalize, abort or release"
+    given: "Transient transport/status failures, cancellation, provider failure, ordinary finalize, abort or release"
     when: "The model boundary exits"
-    then: "Cancellation is not wrapped, errors contain no secret/provider message, and owned client resources and credentials are cleared idempotently."
+    then: "The SDK makes at most three retries inside the bounded aggregate deadline, cancellation is not wrapped, errors contain no secret/provider message, and owned client resources and credentials are cleared idempotently."
   - id: A4
     given: "A clean synchronized Runtime environment"
     when: "Production Runtime modules and one full offline Worker lifecycle are exercised"
@@ -113,8 +118,16 @@ acceptance_criteria:
 tests:
   - command: "cd runtime && uv sync --locked && uv run pytest tests/test_openai_gateway_llm.py tests/test_dependency_smoke.py tests/test_adk_runtime.py tests/test_result_finalizer.py tests/test_worker_summarizer.py tests/test_http_proxy_adapter.py"
     covers: ["A1", "A2", "A3", "A4"]
-  - command: "cd runtime && uv run ruff check src tests && uv run ruff format --check src tests"
+  - command: >-
+      cd runtime && uv run ruff check src tests && uv run ruff format --check
+      src/contractor_runtime/adk_runtime.py
+      src/contractor_runtime/model_client.py
+      src/contractor_runtime/openai_gateway_llm.py
+      tests/test_adk_runtime.py
+      tests/test_dependency_smoke.py
+      tests/test_http_proxy_adapter.py
+      tests/test_live_gateway.py
+      tests/test_openai_gateway_llm.py
     covers: ["A1", "A3", "A4"]
   - command: "cd runtime && uv run python -c \"import sys; import contractor_runtime.cli; assert 'litellm' not in sys.modules\""
     covers: ["A4"]
-

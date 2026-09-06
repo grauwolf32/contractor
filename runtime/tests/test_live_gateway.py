@@ -11,7 +11,11 @@ import pytest
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
-from contractor_runtime.adk_runtime import AdkWorkerRuntime, AdkWorkerRuntimeFactory, GatewayLiteLlm
+from contractor_runtime.adk_runtime import (
+    AdkWorkerRuntime,
+    AdkWorkerRuntimeFactory,
+    OpenAICompatibleGatewayLlm,
+)
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -24,6 +28,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.factories import WorkerBuildContext
 from contractor_runtime.metrics import MetricsState
+from contractor_runtime.model_client import new_gateway_client
 from contractor_runtime.summarizer import TerminalSummarizer
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -40,11 +45,13 @@ def test_live_gateway_returns_content_and_usage_for_worker_metrics() -> None:
     async def scenario() -> None:
         assert GATEWAY_URL is not None
         assert GATEWAY_TOKEN is not None
-        model = GatewayLiteLlm(
-            model=f"openai/{GATEWAY_MODEL}",
-            api_base=GATEWAY_URL,
-            api_key=GATEWAY_TOKEN,
-            timeout=180.0,
+        model = OpenAICompatibleGatewayLlm(
+            model=GATEWAY_MODEL,
+            client_handle=new_gateway_client(
+                base_url=GATEWAY_URL,
+                api_key=GATEWAY_TOKEN,
+                timeout_seconds=180.0,
+            ),
         )
         request = LlmRequest(
             contents=[
@@ -67,7 +74,7 @@ def test_live_gateway_returns_content_and_usage_for_worker_metrics() -> None:
                         part.text for part in response.content.parts or [] if part.text is not None
                     )
         finally:
-            model.clear_credentials()
+            await model.close()
 
         assert any('"ok":true' in text.replace(" ", "") for text in texts)
         assert metrics.counters["llm_calls"] == 1
@@ -87,12 +94,13 @@ def test_live_terminal_summarizer_returns_one_strict_worker_result() -> None:
     async def scenario() -> None:
         assert GATEWAY_URL is not None
         assert GATEWAY_TOKEN is not None
-        model = GatewayLiteLlm(
-            model=f"openai/{GATEWAY_MODEL}",
-            api_base=GATEWAY_URL,
-            api_key=GATEWAY_TOKEN,
-            timeout=180.0,
-            num_retries=0,
+        model = OpenAICompatibleGatewayLlm(
+            model=GATEWAY_MODEL,
+            client_handle=new_gateway_client(
+                base_url=GATEWAY_URL,
+                api_key=GATEWAY_TOKEN,
+                timeout_seconds=180.0,
+            ),
         )
         policy = ResolvedModelPolicy(
             ref=ModelPolicyRef(
@@ -116,13 +124,16 @@ def test_live_terminal_summarizer_returns_one_strict_worker_result() -> None:
             '"transcript":[],"transcriptTruncated":false}'
         )
 
-        candidate = await summarizer.run(prompt=prompt, invocation_id="live-summary")
-        result = WorkerModelResult.model_validate_json(candidate)
+        try:
+            candidate = await summarizer.run(prompt=prompt, invocation_id="live-summary")
+            result = WorkerModelResult.model_validate_json(candidate)
 
-        assert result.subtask_id == "live-summary-1"
-        assert result.result.strip()
-        assert summarizer.usage.model_calls == 1
-        assert summarizer.usage.token_usage_unavailable in {0, 1}
+            assert result.subtask_id == "live-summary-1"
+            assert result.result.strip()
+            assert summarizer.usage.model_calls == 1
+            assert summarizer.usage.token_usage_unavailable in {0, 1}
+        finally:
+            await model.close()
 
     asyncio.run(scenario())
 

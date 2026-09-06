@@ -17,7 +17,6 @@ from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
 from google.adk.tools import FunctionTool
@@ -56,11 +55,12 @@ from contractor_runtime.instrumentation import (
     WorkerInstrumentationPlugin,
     WorkerSummarizationRequested,
 )
-from contractor_runtime.model_client import (
-    clear_gateway_client_options,
-    gateway_client_options,
-)
+from contractor_runtime.model_client import build_gateway_client
 from contractor_runtime.observations import lean_workspace_summary
+from contractor_runtime.openai_gateway_llm import (
+    GatewayModelError,
+    OpenAICompatibleGatewayLlm,
+)
 from contractor_runtime.projectfs import (
     MAX_EXPORTED_RESULT_ARTIFACTS,
     MAX_EXPORTED_RESULT_JSON_BYTES,
@@ -88,9 +88,6 @@ from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_b
 from contractor_runtime.worker_state import InvocationPhase, WorkerStateStore
 
 if TYPE_CHECKING:
-    from google.adk.models.llm_request import LlmRequest
-    from google.adk.models.llm_response import LlmResponse
-
     from contractor_runtime.factories import WorkerBuildContext
 
 INVOCATION_CLEANUP_TIMEOUT_SECONDS = 5.0
@@ -102,14 +99,6 @@ SAFE_TOOL_ERROR_CODE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 class ModelFactory(Protocol):
     def __call__(self, context: WorkerBuildContext) -> BaseLlm: ...
-
-
-class GatewayModelError(RuntimeError):
-    """Secret-free boundary error for failures below the LLM Gateway adapter."""
-
-    def __init__(self, provider_error_type: str) -> None:
-        self.provider_error_type = provider_error_type
-        super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
 class WorkerBudgetExceeded(RuntimeError):
@@ -192,33 +181,11 @@ class _InvocationBudget:
         )
 
 
-class GatewayLiteLlm(LiteLlm):
-    """LiteLLM client whose allocation credential can be explicitly erased."""
-
-    async def generate_content_async(
-        self, llm_request: LlmRequest, stream: bool = False
-    ) -> AsyncGenerator[LlmResponse]:
-        provider_error_type: str | None = None
-        try:
-            async for response in super().generate_content_async(llm_request, stream=stream):
-                yield response
-            return
-        except asyncio.CancelledError:
-            raise
-        except Exception as error:
-            # Do not retain the provider exception: it may contain request headers or the token.
-            provider_error_type = type(error).__name__
-        raise GatewayModelError(provider_error_type or "UnknownProviderError") from None
-
-    def clear_credentials(self) -> None:
-        clear_gateway_client_options(self._additional_args)
-
-
 def gateway_model(context: WorkerBuildContext) -> BaseLlm:
     policy = context.model_policy
-    return GatewayLiteLlm(
-        model=f"openai/{policy.model}",
-        **gateway_client_options(context),
+    return OpenAICompatibleGatewayLlm(
+        model=policy.model,
+        client_handle=build_gateway_client(context),
     )
 
 
@@ -250,6 +217,7 @@ class AdkWorkerRuntimeFactory:
         if prepared is not None:
             context = replace(context, agent_skills=prepared)
         runtime: AdkWorkerRuntime | None = None
+        model: BaseLlm | None = None
         try:
             workspace_exporter: WorkspaceAutoExporter | None = None
             if context.workspace_export is not None:
@@ -266,24 +234,36 @@ class AdkWorkerRuntimeFactory:
                     namespace=context.namespace,
                     slots=context.workspace_export,
                 )
+            model = self._model_factory(context)
             runtime = AdkWorkerRuntime(
                 context,
-                self._model_factory(context),
+                model,
                 model_factory=self._model_factory,
                 workspace_exporter=workspace_exporter,
             )
             await runtime.start()
             return runtime
         except asyncio.CancelledError:
-            if prepared is not None:
-                await prepared.close()
+            if runtime is not None:
+                with contextlib.suppress(Exception):
+                    await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+            else:
+                if isinstance(model, OpenAICompatibleGatewayLlm):
+                    with contextlib.suppress(Exception):
+                        await model.close()
+                if prepared is not None:
+                    await prepared.close()
             raise
         except Exception:
             if runtime is not None:
                 with contextlib.suppress(Exception):
                     await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
-            elif prepared is not None:
-                await prepared.close()
+            else:
+                if isinstance(model, OpenAICompatibleGatewayLlm):
+                    with contextlib.suppress(Exception):
+                        await model.close()
+                if prepared is not None:
+                    await prepared.close()
             raise
 
 
@@ -868,6 +848,7 @@ class AdkWorkerRuntime:
             raise RuntimeError("Worker summarization was requested while disabled")
         usage = SummarizerUsage()
         summarizer: TerminalSummarizer | None = None
+        summary_model: BaseLlm | None = None
         try:
             groups = transcript.finish()
             live_state = await self._worker_state.snapshot()
@@ -936,6 +917,12 @@ class AdkWorkerRuntime:
         except Exception:
             usage = summarizer.usage if summarizer is not None else usage
             failure_code = "runtime_failed"
+        finally:
+            if (
+                isinstance(summary_model, OpenAICompatibleGatewayLlm)
+                and summary_model is not self._model
+            ):
+                await summary_model.close()
 
         await self._complete_summarizer_attempt(
             invocation_id=invocation_id,
@@ -1109,8 +1096,11 @@ class AdkWorkerRuntime:
         finally:
             model = self._model
             self._model = None
-            if isinstance(model, GatewayLiteLlm):
-                model.clear_credentials()
+            if isinstance(model, OpenAICompatibleGatewayLlm):
+                try:
+                    await model.close()
+                except Exception as error:
+                    failures.append(error)
             self._agent = None
             self._result_finalizer = None
             self._instrumentation = None

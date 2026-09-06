@@ -1,28 +1,35 @@
+import asyncio
+import importlib.util
 from importlib.metadata import version
 
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.types import AgentCard
 from google.adk.agents import LlmAgent
-from google.adk.models.lite_llm import LiteLlm
+from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
 from contractor_runtime.a2a_server import build_agent_card, build_worker_a2a_application
-from contractor_runtime.adk_runtime import GatewayLiteLlm
+from contractor_runtime.adk_runtime import OpenAICompatibleGatewayLlm
 from contractor_runtime.contracts import StageContentRequest, WorkerCompletion, WorkerModelResult
+from contractor_runtime.model_client import new_gateway_client
 
 
 def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
     assert version("google-adk") == "2.8.0"
     assert version("a2a-sdk") == "1.1.2"
-    assert version("litellm") == "1.98.0"
+    assert version("openai") == "2.54.0"
+    assert importlib.util.find_spec("litellm") is None
 
-    model = GatewayLiteLlm(
-        model="openai/smoke-model",
-        api_base="https://llm.example/v1",
-        api_key="temporary-smoke-token",
+    model = OpenAICompatibleGatewayLlm(
+        model="smoke-model",
+        client_handle=new_gateway_client(
+            base_url="https://llm.example/v1",
+            api_key="temporary-smoke-token",
+            timeout_seconds=120,
+        ),
     )
-    assert isinstance(model, LiteLlm)
+    assert isinstance(model, BaseLlm)
     agent = LlmAgent(
         name="smoke_worker",
         model=model,
@@ -48,7 +55,7 @@ def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:
     assert isinstance(card, AgentCard)
     assert application is not None
     assert DefaultRequestHandler is not None
-    model.clear_credentials()
+    asyncio.run(model.close())
 
 
 class SmokeWorker:

@@ -29,7 +29,11 @@ from contractor_runtime.adapters.http_proxy import (
     ProxySubprocessError,
     ProxySubprocessLauncher,
 )
-from contractor_runtime.adk_runtime import GatewayLiteLlm, GatewayModelError, gateway_model
+from contractor_runtime.adk_runtime import (
+    GatewayModelError,
+    OpenAICompatibleGatewayLlm,
+    gateway_model,
+)
 from contractor_runtime.contracts import HTTPProxySettingsV2
 from contractor_runtime.factories import FactoryRegistry
 
@@ -64,7 +68,7 @@ def test_llm_gateway_target_routes_only_model_traffic_and_changes_no_globals() -
                 adapter_handles=adapter.handles,
             )
             model = gateway_model(context)
-            assert isinstance(model, GatewayLiteLlm)
+            assert isinstance(model, OpenAICompatibleGatewayLlm)
             request = LlmRequest(
                 contents=[types.Content(role="user", parts=[types.Part(text="Return ok")])],
                 config=types.GenerateContentConfig(max_output_tokens=32),
@@ -95,7 +99,7 @@ def test_llm_gateway_target_routes_only_model_traffic_and_changes_no_globals() -
             assert len(proxy.requests) == 1
             assert proxy.requests[0].target.startswith("http://gateway.example/v1/chat/completions")
             assert proxy.requests[0].headers["proxy-authorization"].startswith("Basic ")
-            model.clear_credentials()
+            await model.close()
             await adapter.close()
         assert {name: os.environ.get(name) for name in proxy_environment} == proxy_environment
 
@@ -169,7 +173,13 @@ def test_tool_http_and_subprocess_use_authenticated_tls_proxy_and_remove_ca(
 def test_proxy_failures_are_bounded_and_never_fall_back(
     tmp_path: Path,
     failure: str,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    async def no_retry_delay(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("openai._base_client.anyio.sleep", no_retry_delay)
+
     async def scenario() -> None:
         backend_calls = 0
 
@@ -304,8 +314,10 @@ async def assert_safe_model_proxy_failure(proxy_url: str, backend_url: str) -> N
     rendered = f"{captured.value!s} {captured.value!r} {adapter!r} {adapter.metrics!r}"
     for forbidden in (PROXY_PASSWORD, BACKEND_SECRET, proxy_url, GATEWAY_TOKEN):
         assert forbidden not in rendered
-    assert adapter.metrics.failed_operations == 1
-    model.clear_credentials()
+    # The SDK owns the bounded 1 + 3 attempt policy. Every failure remains on
+    # this allocation's proxy route; there is no direct fallback.
+    assert adapter.metrics.failed_operations == 4
+    await model.close()
     await adapter.close()
 
 

@@ -8,9 +8,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fakes.model import json_result, scripted_model, text_result, thought_result, tool_call
-from google.adk.models.lite_llm import LiteLlm
+from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 
 from contractor_runtime.adapters import (
@@ -22,8 +23,8 @@ from contractor_runtime.adapters import (
 from contractor_runtime.adk_runtime import (
     AdkWorkerRuntime,
     AdkWorkerRuntimeFactory,
-    GatewayLiteLlm,
     GatewayModelError,
+    OpenAICompatibleGatewayLlm,
     gateway_model,
 )
 from contractor_runtime.allocation import WorkerState
@@ -47,6 +48,7 @@ from contractor_runtime.contracts import (
     WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.model_client import new_gateway_client
 from contractor_runtime.session_lifecycle import WorkerSessionLifecycleError
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
@@ -1239,6 +1241,73 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
     asyncio.run(scenario())
 
 
+def test_adk_worker_closes_ephemeral_gateway_summarizer_client(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        async def summarize(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "id": "chatcmpl-summary",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "worker-summary-model",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "stop",
+                            "message": {
+                                "role": "assistant",
+                                "content": '{"subtaskId":"0","result":"Bounded summary"}',
+                            },
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 4,
+                        "completion_tokens": 3,
+                        "total_tokens": 7,
+                    },
+                },
+            )
+
+        summary_http = httpx.AsyncClient(
+            transport=httpx.MockTransport(summarize),
+            trust_env=False,
+        )
+        summary_model = OpenAICompatibleGatewayLlm(
+            model="worker-summary-model",
+            client_handle=new_gateway_client(
+                base_url="https://gateway.example/v1",
+                api_key=SECRET,
+                timeout_seconds=120,
+                http_client=summary_http,
+            ),
+        )
+        normal_model = scripted_model([tool_call("probe", {}, call_id="summary-probe")])
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {"probe": probe},
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=10,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None
+        assert completion.result.result == "Bounded summary"
+        assert summary_model.closed
+        assert not summary_http.is_closed
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+        await summary_http.aclose()
+
+    asyncio.run(scenario())
+
+
 def test_adk_worker_keeps_a_valid_normal_result_at_the_soft_boundary(tmp_path: Path) -> None:
     async def scenario() -> None:
         state = WorkerState()
@@ -1398,7 +1467,7 @@ def test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure(
 def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
     tmp_path: Path,
 ) -> None:
-    class TimeoutSummaryModel(LiteLlm):
+    class TimeoutSummaryModel(BaseLlm):
         async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
             del stream
             if False:
@@ -1411,11 +1480,7 @@ def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
 
         state = WorkerState()
         normal_model = scripted_model([tool_call("probe", {}, call_id="timeout-probe")])
-        summary_model = TimeoutSummaryModel(
-            model="openai/worker-summary-model",
-            api_base="https://gateway.invalid/v1",
-            api_key=SECRET,
-        )
+        summary_model = TimeoutSummaryModel(model="worker-summary-model")
         runtime = await create_runtime(
             tmp_path,
             state,
@@ -1754,40 +1819,19 @@ def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
     asyncio.run(scenario())
 
 
-def test_gateway_adapter_discards_secret_bearing_provider_exception(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def leaking_provider(_model: LiteLlm, _request: LlmRequest, stream: bool = False) -> Any:
-        del stream
-        if False:
-            yield None
-        raise RuntimeError(f"provider rejected Authorization: Bearer {SECRET}")
-
-    monkeypatch.setattr(LiteLlm, "generate_content_async", leaking_provider)
-    model = GatewayLiteLlm(
-        model="openai/worker-model",
-        api_base="https://llm.example/v1",
-        api_key=SECRET,
-    )
-
+def test_gateway_model_bounds_sdk_retries_and_aggregate_timeout(tmp_path: Path) -> None:
     async def scenario() -> None:
-        with pytest.raises(GatewayModelError) as captured:
-            async for _response in model.generate_content_async(LlmRequest()):
-                pass
-        assert SECRET not in repr(captured.value)
-        assert captured.value.__context__ is None
-        assert captured.value.provider_error_type == "RuntimeError"
+        context = build_context(tmp_path, WorkerState(), {})
+        model = gateway_model(context)
+
+        assert isinstance(model, OpenAICompatibleGatewayLlm)
+        assert model._client_handle.client.max_retries == 3
+        assert model._client_handle.operation_timeout_seconds == (
+            context.runtime_settings.request_timeout_seconds + 60
+        )
+        await model.close()
 
     asyncio.run(scenario())
-    model.clear_credentials()
-
-
-def test_gateway_model_disables_hidden_provider_retries(tmp_path: Path) -> None:
-    model = gateway_model(build_context(tmp_path, WorkerState(), {}))
-
-    assert isinstance(model, GatewayLiteLlm)
-    assert model._additional_args["num_retries"] == 0
-    model.clear_credentials()
 
 
 async def create_runtime(

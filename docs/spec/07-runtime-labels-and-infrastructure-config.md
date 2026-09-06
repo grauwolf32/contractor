@@ -743,10 +743,13 @@ it, and removed with the allocation workspace.
 
 For a selected target, proxying is fail-closed: connection, authentication or
 TLS failure is returned as the bounded model/tool error and never retries the
-same request directly. Proxy credentials are sent only to the configured proxy
-authority. The optional CA bundle augments the Runtime's ordinary public trust
-roots only for targeted allocation clients; it never replaces or augments the
-private Contractor mTLS context.
+same request directly. The model client may perform the bounded same-route SDK
+retry series defined by [02](02-runtime-and-a2a.md); every physical attempt still
+uses this allocation's proxy and is visible in its adapter operation counters.
+Proxy credentials are sent only to the configured proxy authority. The optional
+CA bundle augments the Runtime's ordinary public trust roots only for targeted
+allocation clients; it never replaces or augments the private Contractor mTLS
+context.
 
 Telemetry instrumentation emits bounded framework-neutral spans/events for
 model calls, selected tool calls, A2A task lifecycle and Worker errors. By
