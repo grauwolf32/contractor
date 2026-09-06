@@ -3,8 +3,8 @@ id: V27-005
 title: Prove Scheduler concurrency settings across production boundaries
 milestone: workflow-scheduler-concurrency
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "742790d376479e635ca19ac203f4246e4c767e7b"
 depends_on: [V24-006, V27-004]
 languages: [go, sql, python, typescript, yaml]
 
@@ -62,4 +62,4 @@ tests:
   - {name: process, command: "make test-scheduler-concurrency-e2e", covers: [A1, A2, A3, A4]}
   - {name: race, command: "go test -race ./internal/scheduler ./internal/settingsstore ./internal/projectlifecycle", covers: [A2, A3]}
   - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A3, A4]}
-  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make release-verify", covers: [A1, A2, A3, A4]}
