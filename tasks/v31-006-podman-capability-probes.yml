@@ -3,7 +3,7 @@ id: V31-006
 title: Enable Podman capabilities only after complete bounded startup probes
 milestone: podman-allocation-execution
 priority: P0
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V31-005]
 languages: [python, go]
