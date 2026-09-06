@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testing.T) {
@@ -81,9 +83,23 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		t.Fatal(err)
 	}
 
-	limitedConfig := pool.Config()
-	limitedConfig.MaxConns = 2
-	limited, err := pgxpool.NewWithConfig(ctx, limitedConfig)
+	schema := pool.Config().ConnConfig.RuntimeParams["search_path"]
+	limitedURL := databaseURL
+	if strings.HasPrefix(databaseURL, "postgres://") || strings.HasPrefix(databaseURL, "postgresql://") {
+		parsed, parseErr := url.Parse(databaseURL)
+		if parseErr != nil {
+			t.Fatal("invalid test database URL")
+		}
+		query := parsed.Query()
+		query.Set("search_path", schema)
+		parsed.RawQuery = query.Encode()
+		limitedURL = parsed.String()
+	} else {
+		limitedURL += " search_path=" + schema
+	}
+	// Exercise the production finite-budget pool with one connection held by
+	// LISTEN and exactly one left for the complete transaction-bound lookup.
+	limited, err := persistencepostgres.OpenPool(ctx, limitedURL, persistencepostgres.PoolOptions{MaxConnections: 2})
 	if err != nil {
 		t.Fatal(err)
 	}

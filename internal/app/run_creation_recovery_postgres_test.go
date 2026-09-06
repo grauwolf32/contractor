@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	neturl "net/url"
 	"os"
 	"strings"
 	"testing"
@@ -149,12 +150,20 @@ func isolatedRecoveryPool(t *testing.T, ctx context.Context) *pgxpool.Pool {
 	if _, err := admin.Exec(ctx, `CREATE SCHEMA `+quoted); err != nil {
 		t.Fatal(err)
 	}
-	configuration, err := pgxpool.ParseConfig(url)
-	if err != nil {
-		t.Fatal(err)
+	isolatedURL := url
+	if strings.HasPrefix(url, "postgres://") || strings.HasPrefix(url, "postgresql://") {
+		parsed, parseErr := neturl.Parse(url)
+		if parseErr != nil {
+			t.Fatal("invalid test database URL")
+		}
+		query := parsed.Query()
+		query.Set("search_path", schema)
+		parsed.RawQuery = query.Encode()
+		isolatedURL = parsed.String()
+	} else {
+		isolatedURL += " search_path=" + schema
 	}
-	configuration.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, configuration)
+	pool, err := persistencepostgres.OpenPool(ctx, isolatedURL, persistencepostgres.PoolOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -166,7 +166,7 @@ func RunCLI(
 	if cfg.PlannerTimeout <= 0 {
 		return errors.New("Planner timeout is required")
 	}
-	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, persistencepostgres.PoolOptions{})
+	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, persistencepostgres.PoolOptions{Logger: logger})
 	if err != nil {
 		return err
 	}

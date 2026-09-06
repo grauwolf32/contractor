@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -29,7 +29,7 @@ func (p *PostgresPurger) PurgeAuditNamespace(
 	if !strings.HasPrefix(namespace, "audit-") || validateComponent(namespace) != nil {
 		return ErrInvalidName
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := persistencepostgres.WithCleanupBudget(ctx)
 	defer cancel()
 	if err := p.lockScope(ctx, scope); err != nil {
 		return err
@@ -105,7 +105,7 @@ func (p *PostgresPurger) PurgeRun(ctx context.Context, runID string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := persistencepostgres.WithCleanupBudget(ctx)
 	defer cancel()
 	if err := p.lockScope(ctx, scope); err != nil {
 		return err
@@ -165,7 +165,7 @@ func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) err
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := persistencepostgres.WithCleanupBudget(ctx)
 	defer cancel()
 	if err := p.lockScope(ctx, scope); err != nil {
 		return err
@@ -231,6 +231,9 @@ func (p *PostgresPurger) lockScope(ctx context.Context, scope Scope) error {
 	}
 	if isolation != "read committed" && isolation != "read uncommitted" {
 		return fmt.Errorf("Artifact purge requires READ COMMITTED isolation")
+	}
+	if err := persistencepostgres.ApplyTransactionBudget(ctx, p.tx); err != nil {
+		return err
 	}
 	_, err := p.tx.Exec(ctx, `SELECT 1 FROM artifact_scopes
 WHERE scope_kind = $1 AND scope_id = $2 FOR UPDATE`, scope.kind, scope.id)

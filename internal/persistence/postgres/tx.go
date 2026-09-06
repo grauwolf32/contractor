@@ -40,6 +40,9 @@ func InTx(
 		}
 	}()
 
+	if err := ApplyTransactionBudget(ctx, tx); err != nil {
+		return err
+	}
 	if err := fn(tx); err != nil {
 		return err
 	}

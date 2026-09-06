@@ -3,7 +3,7 @@ id: V29-007
 title: Bound database waits and verify the PostgreSQL hardening milestone
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V29-001
@@ -65,3 +65,20 @@ tests:
   command: make verify
   covers:
   - A3
+notes:
+- >-
+  2026-09-06: Implemented finite pool acquire, client query, server statement,
+  lock and idle-transaction budgets, transaction-local migration/physical
+  cleanup policies, cancellation-safe rollback and rate-limited safe pool
+  pressure diagnostics. Real PostgreSQL 17.11 budget, recovery, maintenance,
+  migration replay and long-lived LISTEN/shutdown tests pass. PG-01 through
+  PG-07 regression fixtures were rerun; production OpenPool is now also used
+  by the constrained transaction-credential and Run creation recovery probes.
+- >-
+  Required PostgreSQL race suite passed. make verify passed formatting, vet
+  and Ruff but failed TestMigratedAnalysisSkillsAreCompleteDeterministicAndClosed
+  because audit_asvs_source_verifier.yaml unexpectedly selects skills/trace.
+  This separate ASVS assertion was not changed. Remaining aggregate targets
+  passed independently: Runtime 835 passed/3 skipped, UI 227 tests plus 6
+  server tests, Go/UI builds. Keep in_progress until make verify passes.
+- 'Evidence: docs/reviews/2026-09-06-postgres-v29-budgets.md'

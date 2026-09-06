@@ -21,7 +21,7 @@ func runMigrateCLI(
 	if err != nil {
 		return err
 	}
-	pool, err := persistencepostgres.OpenPool(ctx, databaseURL, persistencepostgres.PoolOptions{})
+	pool, err := persistencepostgres.OpenPool(ctx, databaseURL, persistencepostgres.PoolOptions{Logger: logger})
 	if err != nil {
 		return fmt.Errorf("open migration database: %w", err)
 	}

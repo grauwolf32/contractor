@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -16,11 +17,14 @@ import (
 var ErrInvalidDatabaseConfiguration = errors.New("invalid PostgreSQL database configuration")
 
 // PoolOptions contains process-level connection settings. Zero values retain
-// pgx defaults except for ConnectTimeout, whose zero value means 5 seconds.
+// pgx connection-count defaults. ConnectTimeout defaults to 5 seconds;
+// database-operation budgets use DefaultBudgets rather than unbounded waits.
 type PoolOptions struct {
 	MaxConnections int32
 	MinConnections int32
 	ConnectTimeout time.Duration
+	Budgets        Budgets
+	Logger         *slog.Logger
 }
 
 // OpenPool parses databaseURL without logging it, applies bounded pool
@@ -43,6 +47,9 @@ func OpenPool(ctx context.Context, databaseURL string, options PoolOptions) (*pg
 	if options.MinConnections > 0 {
 		config.MinConns = options.MinConnections
 	}
+	if config.MinConns > config.MaxConns {
+		return nil, fmt.Errorf("invalid PostgreSQL pool connection limits")
+	}
 	connectTimeout := options.ConnectTimeout
 	if connectTimeout == 0 {
 		connectTimeout = 5 * time.Second
@@ -51,14 +58,24 @@ func OpenPool(ctx context.Context, databaseURL string, options PoolOptions) (*pg
 		return nil, fmt.Errorf("PostgreSQL connect timeout must be positive")
 	}
 	config.ConnConfig.ConnectTimeout = connectTimeout
+	budgets, err := options.Budgets.normalized()
+	if err != nil {
+		return nil, err
+	}
+	config.ConnConfig.RuntimeParams["statement_timeout"] = timeoutSetting(budgets.StatementTimeout)
+	config.ConnConfig.RuntimeParams["lock_timeout"] = timeoutSetting(budgets.LockTimeout)
+	config.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = timeoutSetting(budgets.IdleTransactionTimeout)
+	config.ConnConfig.Tracer = &budgetTracer{budgets: budgets, logger: options.Logger}
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		return nil, fmt.Errorf("create PostgreSQL pool: %w", err)
+		return nil, WrapError("create PostgreSQL pool", err)
 	}
-	if err := pool.Ping(ctx); err != nil {
+	pingCtx, cancel := context.WithTimeout(ctx, budgets.QueryTimeout)
+	defer cancel()
+	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
+		return nil, WrapError("ping PostgreSQL", err)
 	}
 	return pool, nil
 }
