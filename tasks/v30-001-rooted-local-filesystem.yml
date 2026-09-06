@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: V30-001
+title: Add bounded rooted disk operations and workspace coordination
+milestone: local-direct-disk-authority
+priority: P0
+status: in_progress
+implementation_commit: null
+depends_on: [V11-012, V14-003]
+languages: [python]
+
+goal: >-
+  Provide the local filesystem and operation-ownership primitives needed to
+  make local direct workspaces authoritative on disk without exposing host paths.
+
+context:
+  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  current_boundary: >-
+    DirectWorkspaceSession currently stores managed text in memory and writes
+    deltas through fsspec. Existing atomic text writes use directory descriptors;
+    other operations and future external writers need the same rooted guarantees.
+  contract: >-
+    All model paths are normalized relative paths beneath one allocation content
+    root. Completed external changes are supported; arbitrary concurrent host
+    writers have no transactional or lost-update guarantee. Memory and overlay
+    behavior must remain unchanged.
+
+scope:
+  in:
+    - Add private rooted local read/stat/traversal/write/mkdir/copy/move/remove primitives under runtime/src/contractor_runtime/projectfs.
+    - Use descriptor-relative access or equivalent containment for root, parent and leaf replacement; reject traversal and normalized-name collisions.
+    - Reject existing symlinks, multiply linked files and special files without following links or blocking on FIFOs/devices.
+    - Bound reads, scans and deadlines even when files grow or disappear; return content-free existing workspace errors.
+    - Add an allocation-owned operation guard usable by filesystem calls and a future executor; hold it across read/transform/write.
+    - Offload blocking I/O and retain ownership through cancellation until the underlying operation has completed or the workspace is fenced.
+    - Add tests/test_projectfs_local_io.py and tests/test_projectfs_operation_guard.py.
+  out:
+    - Switching production session behavior, Podman, public schemas, new tools, watchers or persistent source-content caches.
+
+requirements:
+  - {id: R1, text: Neither source nor destination access can escape the allocation content root through path replacement.}
+  - {id: R2, text: Single-file replacement is atomic and failed input/type validation changes no files.}
+  - {id: R3, text: Cancellation of an await does not release a still-running mutation or permit concurrent release cleanup.}
+  - {id: R4, text: Complete scans never return a partial tree as complete; uncertainty produces bounded safe failure without stale fallback.}
+
+acceptance_criteria:
+  - id: A1
+    given: Real files with root/parent/leaf links, hard links, FIFOs and adversarial component replacement.
+    when: Each supported filesystem primitive runs.
+    then: Outside bytes remain inaccessible and unchanged; unsupported types fail without an indefinite block.
+  - id: A2
+    given: A read or scan whose target grows, disappears or exceeds configured bounds.
+    when: The operation acquires current state.
+    then: Reads remain bounded and errors contain no physical paths or file contents.
+  - id: A3
+    given: A blocked filesystem mutation alongside heartbeat ticks, another operation and release.
+    when: The caller times out or is cancelled.
+    then: Heartbeats continue while mutation ownership remains held; subsequent mutation/cleanup cannot race it.
+  - id: A4
+    given: Valid text replacement and injected preflight or physical I/O failures.
+    when: The primitive completes or recovers.
+    then: Atomic replacement and temporary-file cleanup are verified; unconfirmed recovery is not reported as success.
+
+tests:
+  - {name: primitives, command: "cd runtime && uv run pytest -W error tests/test_projectfs_local_io.py tests/test_projectfs_operation_guard.py", covers: [A1, A2, A3, A4]}
+  - {name: existing-security, command: "cd runtime && uv run pytest -W error tests/test_projectfs_security.py tests/test_projectfs_concurrency.py tests/test_workspace_provider.py", covers: [A1, A3, A4]}

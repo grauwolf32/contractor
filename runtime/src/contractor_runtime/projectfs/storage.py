@@ -14,6 +14,7 @@ from typing import Protocol
 import jcs
 
 from contractor_runtime.contracts import WorkspaceModeV2
+from contractor_runtime.projectfs.errors import WorkspaceStorageError as WorkspaceStorageError
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
     normalize_project_path,
@@ -21,10 +22,6 @@ from contractor_runtime.projectfs.paths import (
 )
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
 from contractor_runtime.settings import WorkspaceLimits
-
-
-class WorkspaceStorageError(RuntimeError):
-    """Stable storage/path failure without backend details."""
 
 
 @dataclass(frozen=True, slots=True)
