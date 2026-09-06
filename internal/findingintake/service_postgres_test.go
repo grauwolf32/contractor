@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -27,7 +28,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *testing.T) {
+	testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t)
+}
+
 func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
+	testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t)
+}
+
+func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedFindingPool(t, ctx)
@@ -63,6 +72,10 @@ func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
 	})
 	stage.Agents["builder"] = binding
 	workflow.Stages[workflow.EntryStage] = stage
+	workflow.Outputs["result"] = workflowconfig.ArtifactSlot{
+		Required: true, Primary: true,
+		MediaTypes: []string{auditdomain.DirectVerificationsMediaType},
+	}
 	workflowJSON, err := json.Marshal(workflow)
 	if err != nil {
 		t.Fatal(err)
@@ -190,6 +203,37 @@ func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
 	if err != nil || replayed {
 		t.Fatalf("second receipt = (%+v, replay=%v, %v)", secondReceipt, replayed, err)
 	}
+	claimOnlyInput := testSubmission("worker-invocation-4", "candidate-claim-only", nil)
+	claimOnlyReceipt, replayed, err := service.Submit(ctx, grant, claimOnlyInput)
+	if err != nil || replayed {
+		t.Fatalf("claim-only receipt = (%+v, replay=%v, %v)", claimOnlyReceipt, replayed, err)
+	}
+	directOutput, err := auditdomain.EncodeDirectVerificationSet(auditdomain.DirectVerificationSet{
+		Schema: auditdomain.DirectVerificationsSchema,
+		Verifications: []auditdomain.DirectVerificationResult{{
+			InvocationID: firstInput.InvocationID, ClientKey: firstInput.Proposal.ClientKey,
+			Assessment: "supported", Summary: "The exact retained trace verifies the candidate.",
+			EvidenceIDs: []string{"evidence-1"},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	directSource, err := runArtifacts.Write(ctx,
+		artifacts.ArtifactRef{Namespace: "builder", Name: "direct-result"},
+		artifacts.Payload{
+			MediaType: auditdomain.DirectVerificationsMediaType,
+			Data:      directOutput,
+		}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactService.BindOutputExact(
+		ctx, runID, "result", directSource.Ref, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
 
 	const auditID = "finding-audit"
 	if _, _, err := auditstore.NewPostgresStore(pool).CreateDraft(ctx, auditstore.CreateDraftParams{
@@ -220,6 +264,14 @@ func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
 	if err != nil || !replayed || !sameRef(replayHold.Proposal.Ref, hold.Proposal.Ref) {
 		t.Fatalf("replayed Audit import = (%+v, replay=%v, %v)", replayHold, replayed, err)
 	}
+	var prematureAssessments int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_finding_assessments
+ WHERE receipt_id = $1 AND direct_verification`, firstReceipt.ReceiptID).Scan(
+		&prematureAssessments,
+	); err != nil || prematureAssessments != 0 {
+		t.Fatalf("direct assessment before successful frozen Run = (%d, %v)", prematureAssessments, err)
+	}
 	projectArtifacts, err := artifactService.Project(projectID)
 	if err != nil {
 		t.Fatal(err)
@@ -232,16 +284,82 @@ func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
 	if err := runs.MarkStageAllocationReleased(ctx, allocationID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := runs.TransitionRun(ctx, runID, runstore.RunRunning, runstore.RunFailed,
-		runstore.Reason{Code: "finding_test_failed"}); err != nil {
+	if err := artifactService.FreezeRunOutputs(ctx, runID); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(ctx, runID, runstore.RunRunning, runstore.RunSucceeded,
+		runstore.Reason{Code: "finding_test_succeeded"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
+	}); err != nil || !replayed {
+		t.Fatalf("terminal direct-verification import replay = (replay=%v, %v)", replayed, err)
+	}
+	if _, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: claimOnlyReceipt.Proposal.Ref,
+	}); err != nil || replayed {
+		t.Fatalf("claim-only terminal import = (replay=%v, %v)", replayed, err)
+	}
+	var resultRefJSON, contractRefJSON []byte
+	var directAssessmentID, directResultDigest, directContractDigest string
+	if err := pool.QueryRow(ctx, `
+SELECT assessment_id, result_ref, result_digest, contract_ref, contract_digest
+  FROM audit_finding_assessments
+ WHERE receipt_id = $1 AND direct_verification`, firstReceipt.ReceiptID).Scan(
+		&directAssessmentID, &resultRefJSON, &directResultDigest,
+		&contractRefJSON, &directContractDigest,
+	); err != nil {
+		t.Fatalf("read accepted direct verification: %v", err)
+	}
+	var directResultRef, directContractRef contracts.ArtifactRef
+	if json.Unmarshal(resultRefJSON, &directResultRef) != nil ||
+		json.Unmarshal(contractRefJSON, &directContractRef) != nil ||
+		directResultRef.ValidateExact() != nil || directContractRef.ValidateExact() != nil ||
+		directAssessmentID == "" || directResultDigest == "" || directContractDigest == "" {
+		t.Fatalf("direct verification refs = (%s, %+v, %s, %+v, %s)",
+			directAssessmentID, directResultRef, directResultDigest, directContractRef, directContractDigest)
+	}
+	var claimOnlyAssessments int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_finding_assessments
+ WHERE receipt_id = $1 AND direct_verification`, claimOnlyReceipt.ReceiptID).Scan(
+		&claimOnlyAssessments,
+	); err != nil || claimOnlyAssessments != 0 {
+		t.Fatalf("successful Run claim without exact result assessment = (%d, %v)", claimOnlyAssessments, err)
+	}
+	var retainedBefore int64
+	if err := pool.QueryRow(ctx, `
+SELECT retained_evidence_bytes FROM audits WHERE audit_id = $1`, auditID).Scan(&retainedBefore); err != nil {
+		t.Fatal(err)
+	}
+	if _, replayed, err := service.ImportIntoAudit(ctx, ImportRequest{
+		OwnerID: ownerID, AuditID: auditID, RunID: runID, Proposal: firstReceipt.Proposal.Ref,
+	}); err != nil || !replayed {
+		t.Fatalf("accepted direct-verification replay = (replay=%v, %v)", replayed, err)
+	}
+	var retainedAfter int64
+	var directLinks int
+	if err := pool.QueryRow(ctx, `
+SELECT retained_evidence_bytes FROM audits WHERE audit_id = $1`, auditID).Scan(&retainedAfter); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_artifact_links
+ WHERE audit_id = $1 AND logical_key LIKE 'finding/%/direct-%'`, auditID).Scan(&directLinks); err != nil {
+		t.Fatal(err)
+	}
+	if retainedAfter != retainedBefore || directLinks != 2 {
+		t.Fatalf("direct replay retention = (before=%d after=%d links=%d)",
+			retainedBefore, retainedAfter, directLinks)
 	}
 	if err := runs.DeleteReleasedTerminalRun(ctx, ownerID, runID); err != nil {
 		t.Fatal(err)
 	}
 	listed, err := service.ListAuditInbox(ctx, ownerID, auditID, ListQuery{Limit: 10})
-	if err != nil || len(listed) != 1 || listed[0].Retention != RetentionAuditHeld ||
-		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 {
+	if err != nil || len(listed) != 2 || listed[0].Retention != RetentionAuditHeld ||
+		!listed[0].Origin.RunDeleted || len(listed[0].AuditHolds) != 1 ||
+		listed[1].Retention != RetentionAuditHeld || !listed[1].Origin.RunDeleted {
 		t.Fatalf("Audit inbox after Run deletion = (%+v, %v)", listed, err)
 	}
 	secondAfterDelete, err := readReceiptByID(ctx, pool, secondReceipt.ReceiptID)
@@ -253,6 +371,13 @@ func TestPostgresFindingReceiptReplayRetentionAndRunDeletion(t *testing.T) {
 	}
 	if _, err := projectArtifacts.Read(ctx, hold.Proposal.Ref); err != nil {
 		t.Fatalf("retained proposal after Run deletion: %v", err)
+	}
+	for name, ref := range map[string]contracts.ArtifactRef{
+		"direct result": directResultRef, "direct contract": directContractRef,
+	} {
+		if _, err := projectArtifacts.Read(ctx, ref); err != nil {
+			t.Fatalf("retained %s after Run deletion: %v", name, err)
+		}
 	}
 	var sourcePins int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM artifact_pins WHERE run_id = $1`, runID).Scan(&sourcePins); err != nil {

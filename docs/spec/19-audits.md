@@ -1076,6 +1076,39 @@ verification does not create an accepted verification reference. Without a
 valid result contract the finding remains a candidate with no accepted
 verification, eligible for further checks or human evidence review.
 
+The first implementation opts in through exactly one required primary
+Workflow output whose declared media types include
+`application/vnd.contractor.audit.direct-verifications+json`. Multiple matching
+primary outputs are ambiguous and therefore do not verify anything. The frozen
+output uses this bounded, strictly decoded envelope:
+
+```yaml
+schema: contractor.audit.direct-verifications.v1
+verifications:
+  - invocation_id: worker-invocation-7
+    client_key: candidate-local-7
+    assessment: supported
+    summary: The exact retained trace establishes the reported path.
+    evidence_ids: [ev-12]
+```
+
+Entries are ordered by `(invocation_id, client_key)`, identities are unique,
+and assessments are limited to `supported`, `refuted`, `inconclusive`, or
+`blocked`. Every selected evidence ID must belong to the exact proposal
+receipt. The Server matches only the receipt currently being imported; it does
+not search by title, subject, Run-wide client key, or mutable binding.
+
+On acceptance the Server forks the exact frozen result into the Audit namespace
+and creates a frozen contract artifact containing the immutable
+`ResolvedWorkflow` snapshot, its closure digest, the selected output declaration,
+the result schema, and the identity/evidence binding rule. Both exact refs and
+digests are stored on the assessment and as Audit artifact links. Their bytes
+count against the Audit evidence budget and survive permitted source Run and
+catalog deletion. Replay validates the deterministic assessment identity and
+does not add links or retained bytes again. An absent, unfrozen, malformed,
+ambiguous, mismatched, or budget-exceeding opt-in output leaves the proposal
+unassessed; it never turns Run success into evidence.
+
 Finding assessment accepts both item-attempt result refs and these direct
 Workflow result refs. Further checks may supplement either path without
 changing the original source. The API exposes a direct verification record

@@ -38,6 +38,14 @@ func DecodeCheckResultSet(data []byte) (CheckResultSet, error) {
 	return decodeDocument(data, validateCheckResultSet)
 }
 
+func EncodeDirectVerificationSet(value DirectVerificationSet) ([]byte, error) {
+	return encodeDocument(value, validateDirectVerificationSet)
+}
+
+func DecodeDirectVerificationSet(data []byte) (DirectVerificationSet, error) {
+	return decodeDocument(data, validateDirectVerificationSet)
+}
+
 func EncodeFindingProposal(value FindingProposal) ([]byte, error) {
 	return encodeDocument(value, validateFindingProposal)
 }
@@ -385,6 +393,34 @@ func validateCheckResultSet(value CheckResultSet) error {
 	return nil
 }
 
+func validateDirectVerificationSet(value DirectVerificationSet) error {
+	if value.Schema != DirectVerificationsSchema {
+		return invalid(CodeSchemaUnsupported, "schema")
+	}
+	if len(value.Verifications) == 0 || len(value.Verifications) > MaximumItems {
+		return invalid(CodeLimitExceeded, "verifications")
+	}
+	previous := ""
+	for _, result := range value.Verifications {
+		if validateIdentifier(result.InvocationID, "verifications.invocation_id") != nil ||
+			validateIdentifier(result.ClientKey, "verifications.client_key") != nil ||
+			!validDirectAssessment(result.Assessment) ||
+			validateText(result.Summary, "verifications.summary", true) != nil ||
+			validateSortedStrings(
+				result.EvidenceIDs, MaximumEvidencePerItem,
+				"verifications.evidence_ids", true,
+			) != nil {
+			return invalid(CodeResultSetInvalid, "verifications")
+		}
+		identity := result.InvocationID + "\x00" + result.ClientKey
+		if identity <= previous {
+			return invalid(CodeResultSetInvalid, "verifications.identity")
+		}
+		previous = identity
+	}
+	return nil
+}
+
 func validateResultCoverage(value ResultCoverage) error {
 	if validateUniqueStrings(value.Requested, MaximumCoverageValues, "coverage.requested", true) != nil ||
 		validateUniqueStrings(value.Completed, MaximumCoverageValues, "coverage.completed", true) != nil ||
@@ -502,6 +538,15 @@ func validApprovalRequirement(value ApprovalRequirement) bool {
 func validAssessment(value string) bool {
 	switch value {
 	case "supported", "refuted", "inconclusive", "blocked", "satisfied", "violated", "not-tested", "not-applicable":
+		return true
+	default:
+		return false
+	}
+}
+
+func validDirectAssessment(value string) bool {
+	switch value {
+	case "supported", "refuted", "inconclusive", "blocked":
 		return true
 	default:
 		return false

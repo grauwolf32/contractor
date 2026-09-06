@@ -7,18 +7,24 @@ import (
 )
 
 const (
-	PackageSchema           = "contractor.audit.package.v1"
-	ChecklistSchema         = "contractor.audit.checklist.v1"
-	WorklistSchema          = "contractor.audit.worklist.v1"
-	TaskSchema              = "contractor.audit.item-task.v1"
-	ExecutionManifestSchema = "contractor.audit.execution-manifest.v1"
-	CheckResultsSchema      = "contractor.audit.check-results.v1"
-	FindingProposalSchema   = "contractor.audit.finding-proposal.v1"
-	EvidenceSchema          = "contractor.audit.evidence.v1"
-	CoverageSchema          = "contractor.audit.coverage.v1"
-	InventoryBasisSchema    = "contractor.audit.inventory-basis.v1"
-	FindingInventorySchema  = "contractor.audit.finding-inventory.v1"
+	PackageSchema             = "contractor.audit.package.v1"
+	ChecklistSchema           = "contractor.audit.checklist.v1"
+	WorklistSchema            = "contractor.audit.worklist.v1"
+	TaskSchema                = "contractor.audit.item-task.v1"
+	ExecutionManifestSchema   = "contractor.audit.execution-manifest.v1"
+	CheckResultsSchema        = "contractor.audit.check-results.v1"
+	DirectVerificationsSchema = "contractor.audit.direct-verifications.v1"
+	FindingProposalSchema     = "contractor.audit.finding-proposal.v1"
+	EvidenceSchema            = "contractor.audit.evidence.v1"
+	CoverageSchema            = "contractor.audit.coverage.v1"
+	InventoryBasisSchema      = "contractor.audit.inventory-basis.v1"
+	FindingInventorySchema    = "contractor.audit.finding-inventory.v1"
 )
+
+// DirectVerificationsMediaType opts one exact primary Workflow output into
+// trusted direct-finding verification during Audit import. Merely succeeding
+// or producing another primary output never implies verification.
+const DirectVerificationsMediaType = "application/vnd.contractor.audit.direct-verifications+json"
 
 type PackageKind string
 
@@ -220,6 +226,23 @@ type CheckResult struct {
 	EvidenceIDs []string            `json:"evidence_ids"`
 	Coverage    ResultCoverage      `json:"coverage"`
 	Proposals   []ProposalSelection `json:"proposals"`
+}
+
+// DirectVerificationSet describes findings that were both discovered and
+// checked by the same Workflow invocation. The Runtime-generated invocation
+// identity and proposal-local key bind each entry to a trusted finding receipt;
+// evidence identifiers must match that receipt before the Server accepts it.
+type DirectVerificationSet struct {
+	Schema        string                     `json:"schema"`
+	Verifications []DirectVerificationResult `json:"verifications"`
+}
+
+type DirectVerificationResult struct {
+	InvocationID string   `json:"invocation_id"`
+	ClientKey    string   `json:"client_key"`
+	Assessment   string   `json:"assessment"`
+	Summary      string   `json:"summary"`
+	EvidenceIDs  []string `json:"evidence_ids"`
 }
 
 // ProposalSelection is emitted by trusted Runtime tooling. The model chooses

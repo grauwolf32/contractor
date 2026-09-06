@@ -125,6 +125,12 @@ cases:
     faults: []
     expected: A check result may select a proposal emitted by the same invocation without a prior hypothesis; trusted import binds only that exact local receipt to the existing execution item and never invents an extra item from Run success.
     test: {source: internal/auditimport/importer_test.go, kind: go_test, name: TestImporterAssociatesOnlyExactInvocationLocalFindingProposal}
+  - id: direct_workflow_verification_requires_exact_opt_in
+    category: findings
+    acceptance: [A3, A5]
+    faults: []
+    expected: A successful Run creates direct verification only from one frozen required primary output with the pinned direct-verification media type, exact invocation-local proposal identity and retained result/contract revisions; a proposal absent from that result remains unassessed and replay does not duplicate retained bytes.
+    test: {source: internal/findingintake/service_postgres_test.go, kind: go_test, name: TestPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion}
   - id: gaps_do_not_become_conclusive_coverage
     category: reporting
     acceptance: [A2]

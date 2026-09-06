@@ -371,11 +371,15 @@ func (s *Service) ImportIntoAudit(
 	var result AuditHold
 	var replayed bool
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		var receiptID, projectID string
+		var receiptID, projectID, invocationID, clientKey, workflowClosureDigest string
+		var proposalDigest, proposalMediaType string
+		var proposalSizeBytes int64
 		var proposalRefJSON, evidenceJSON []byte
 		requestedProposal, _ := json.Marshal(request.Proposal)
 		err := tx.QueryRow(ctx, `
-SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence
+SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evidence,
+       receipt.invocation_id, receipt.client_key, receipt.workflow_closure_digest,
+       receipt.proposal_digest, receipt.proposal_media_type, receipt.proposal_size_bytes
   FROM finding_proposal_receipts AS receipt
   JOIN finding_proposal_retention AS retention USING (receipt_id)
   JOIN workflow_runs AS run ON run.run_id = receipt.run_id
@@ -396,7 +400,11 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
    AND audit.profile_snapshot #>> '{interaction,findingConfirmation}' = 'human-required'
  FOR UPDATE OF receipt, retention, audit`,
 			request.OwnerID, request.AuditID, request.RunID, requestedProposal,
-		).Scan(&receiptID, &projectID, &proposalRefJSON, &evidenceJSON)
+		).Scan(
+			&receiptID, &projectID, &proposalRefJSON, &evidenceJSON,
+			&invocationID, &clientKey, &workflowClosureDigest,
+			&proposalDigest, &proposalMediaType, &proposalSizeBytes,
+		)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -409,6 +417,11 @@ SELECT receipt.receipt_id, audit.project_id, receipt.proposal_ref, receipt.evide
 			json.Unmarshal(evidenceJSON, &evidence) != nil || !sameRef(sourceProposal, request.Proposal) {
 			return ErrConflict
 		}
+		proposalSource := ExactArtifact{
+			Ref: sourceProposal, Digest: proposalDigest,
+			MediaType: proposalMediaType, SizeBytes: proposalSizeBytes,
+		}
+		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 		var heldProposalJSON, heldEvidenceJSON []byte
 		var createdAt time.Time
 		err = tx.QueryRow(ctx, `
@@ -424,55 +437,68 @@ SELECT proposal_ref, evidence, created_at
 			}
 			result.AuditID, result.ProjectID, result.CreatedAt = request.AuditID, projectID, createdAt
 			replayed = true
-			return nil
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
+		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return err
-		}
-
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-		namespace := auditdomain.ArtifactNamespace(request.AuditID)
-		proposalSource, err := exactArtifactFromRun(ctx, artifactService, request.RunID, sourceProposal)
-		if err != nil {
-			return err
-		}
-		result.Proposal, err = retainFindingArtifact(
-			ctx, artifactService, request.RunID, projectID, namespace,
-			deterministicID("finding-proposal", receiptID), proposalSource,
-		)
-		if err != nil {
-			return err
-		}
-		result.Evidence = make([]ExactArtifact, 0, len(evidence))
-		for index, source := range evidence {
-			verified, err := exactArtifactFromRun(ctx, artifactService, request.RunID, source.Ref)
-			if err != nil || verified.Digest != source.Digest ||
-				verified.MediaType != source.MediaType || verified.SizeBytes != source.SizeBytes {
-				if err != nil {
-					return err
-				}
+		} else {
+			namespace := auditdomain.ArtifactNamespace(request.AuditID)
+			verifiedProposal, verifyErr := exactArtifactFromRun(
+				ctx, artifactService, request.RunID, sourceProposal,
+			)
+			if verifyErr != nil {
+				return verifyErr
+			}
+			if verifiedProposal.Digest != proposalSource.Digest ||
+				verifiedProposal.MediaType != proposalSource.MediaType ||
+				verifiedProposal.SizeBytes != proposalSource.SizeBytes {
 				return artifacts.ErrArtifactIntegrity
 			}
-			retained, err := retainFindingArtifact(
+			result.Proposal, err = retainFindingArtifact(
 				ctx, artifactService, request.RunID, projectID, namespace,
-				deterministicID("finding-evidence", receiptID, strconv.Itoa(index+1)), verified,
+				deterministicID("finding-proposal", receiptID), proposalSource,
 			)
 			if err != nil {
 				return err
 			}
-			result.Evidence = append(result.Evidence, retained)
-		}
-		result.AuditID, result.ProjectID = request.AuditID, projectID
-		proposalJSON, _ := json.Marshal(result.Proposal)
-		retainedEvidenceJSON, _ := json.Marshal(result.Evidence)
-		err = tx.QueryRow(ctx, `
+			result.Evidence = make([]ExactArtifact, 0, len(evidence))
+			for index, source := range evidence {
+				verified, err := exactArtifactFromRun(ctx, artifactService, request.RunID, source.Ref)
+				if err != nil || verified.Digest != source.Digest ||
+					verified.MediaType != source.MediaType || verified.SizeBytes != source.SizeBytes {
+					if err != nil {
+						return err
+					}
+					return artifacts.ErrArtifactIntegrity
+				}
+				retained, err := retainFindingArtifact(
+					ctx, artifactService, request.RunID, projectID, namespace,
+					deterministicID("finding-evidence", receiptID, strconv.Itoa(index+1)), verified,
+				)
+				if err != nil {
+					return err
+				}
+				result.Evidence = append(result.Evidence, retained)
+			}
+			result.AuditID, result.ProjectID = request.AuditID, projectID
+			proposalJSON, _ := json.Marshal(result.Proposal)
+			retainedEvidenceJSON, _ := json.Marshal(result.Evidence)
+			err = tx.QueryRow(ctx, `
 INSERT INTO finding_proposal_audit_holds (
     receipt_id, audit_id, project_id, proposal_ref, evidence
 ) VALUES ($1, $2, $3, $4, $5)
 RETURNING created_at`, receiptID, request.AuditID, projectID, proposalJSON, retainedEvidenceJSON).Scan(
-			&result.CreatedAt,
-		)
-		return err
+				&result.CreatedAt,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		return tryAcceptDirectVerification(ctx, tx, artifactService, directVerificationInput{
+			AuditID: request.AuditID, ProjectID: projectID,
+			ReceiptID: receiptID, RunID: request.RunID,
+			InvocationID: invocationID, ClientKey: clientKey,
+			WorkflowClosureDigest: workflowClosureDigest,
+			Proposal:              proposalSource,
+		})
 	})
 	if err != nil {
 		return AuditHold{}, false, err

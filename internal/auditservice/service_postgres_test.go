@@ -837,7 +837,7 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	provenance, err := service.ListFindingProvenance(ctx, ProvenanceListParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, Limit: 10,
 	})
-	if err != nil || len(provenance) != 3 || provenance[0].Kind != ProvenanceSourceProposal ||
+	if err != nil || len(provenance) != 4 || provenance[0].Kind != ProvenanceSourceProposal ||
 		!provenance[0].Origin.RunDeleted || provenance[1].Attempt == nil ||
 		provenance[1].Attempt.ItemAttempt != 1 ||
 		provenance[1].Attempt.CollectionDisposition == nil ||
@@ -847,7 +847,12 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 		provenance[2].Assessment.SemanticAssessment != "supported" ||
 		provenance[2].Attempt.Result == nil || !provenance[2].Attempt.RunDeleted ||
 		provenance[2].Attempt.RunProvenance == nil ||
-		provenance[2].Attempt.RunProvenance.RunID != "deleted-run-attempt-two" {
+		provenance[2].Attempt.RunProvenance.RunID != "deleted-run-attempt-two" ||
+		provenance[3].Kind != ProvenanceDirect || provenance[3].Attempt != nil ||
+		provenance[3].Assessment == nil || !provenance[3].Assessment.DirectVerification ||
+		provenance[3].Assessment.Contract == nil ||
+		provenance[3].Assessment.SemanticAssessment != "supported" ||
+		!provenance[3].Origin.RunDeleted {
 		t.Fatalf("deleted-Run provenance = (%+v, %v)", provenance, err)
 	}
 	if _, err := service.GetFinding(ctx, "another-owner", auditID, firstID); !errors.Is(err, auditstore.ErrNotFound) {
@@ -992,6 +997,20 @@ INSERT INTO audit_finding_assessments (
     'execution-item-attempt-two', 'collection-attempt-two', 'supported',
     $2::jsonb, $3
 )`, auditID, resultRef, digest("result"), findingID, proposalReceiptID); err != nil {
+			return err
+		}
+		directResultRef := `{"namespace":"audit-results","name":"direct","revision":"direct-result-r1"}`
+		directContractRef := `{"namespace":"audit-contracts","name":"direct","revision":"direct-contract-r1"}`
+		if _, err := tx.Exec(ctx, `
+INSERT INTO audit_finding_assessments (
+    assessment_id, finding_id, audit_id, receipt_id,
+    semantic_assessment, result_ref, result_digest,
+    direct_verification, contract_ref, contract_digest
+) VALUES (
+    'assessment-direct', $4, $1, $5, 'supported', $2::jsonb, $3,
+    true, $6::jsonb, $7
+)`, auditID, directResultRef, digest("direct-result"), findingID,
+			proposalReceiptID, directContractRef, digest("direct-contract")); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `

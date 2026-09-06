@@ -107,6 +107,62 @@ func TestDispatchExecutionManifestRequiresExactTaskRefs(t *testing.T) {
 	}
 }
 
+func TestDirectVerificationSetRequiresCanonicalExactIdentities(t *testing.T) {
+	valid := DirectVerificationSet{
+		Schema: DirectVerificationsSchema,
+		Verifications: []DirectVerificationResult{
+			{
+				InvocationID: "invocation-1", ClientKey: "candidate-1",
+				Assessment: "supported", Summary: "The exact trace reaches the sink.",
+				EvidenceIDs: []string{"evidence-1", "evidence-2"},
+			},
+			{
+				InvocationID: "invocation-2", ClientKey: "candidate-1",
+				Assessment: "inconclusive", Summary: "A required branch was unavailable.",
+				EvidenceIDs: []string{},
+			},
+		},
+	}
+	encoded, err := EncodeDirectVerificationSet(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeDirectVerificationSet(encoded)
+	if err != nil || len(decoded.Verifications) != 2 {
+		t.Fatalf("round trip = %+v, %v", decoded, err)
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*DirectVerificationSet)
+	}{
+		{name: "empty", mutate: func(value *DirectVerificationSet) { value.Verifications = []DirectVerificationResult{} }},
+		{name: "duplicate", mutate: func(value *DirectVerificationSet) { value.Verifications[1] = value.Verifications[0] }},
+		{name: "unsorted", mutate: func(value *DirectVerificationSet) {
+			value.Verifications[0], value.Verifications[1] = value.Verifications[1], value.Verifications[0]
+		}},
+		{name: "unsupported assessment", mutate: func(value *DirectVerificationSet) { value.Verifications[0].Assessment = "satisfied" }},
+		{name: "unsorted evidence", mutate: func(value *DirectVerificationSet) {
+			value.Verifications[0].EvidenceIDs = []string{"evidence-2", "evidence-1"}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := valid
+			candidate.Verifications = append([]DirectVerificationResult(nil), valid.Verifications...)
+			for index := range candidate.Verifications {
+				candidate.Verifications[index].EvidenceIDs = append(
+					[]string(nil), valid.Verifications[index].EvidenceIDs...,
+				)
+			}
+			test.mutate(&candidate)
+			if _, err := EncodeDirectVerificationSet(candidate); err == nil {
+				t.Fatal("invalid direct verification set was accepted")
+			}
+		})
+	}
+}
+
 func TestAuditEnvelopeDecodeRejectsUnknownAndDuplicateKeys(t *testing.T) {
 	digest := testDigest('a')
 	unknown := []byte(`{"schema":"contractor.audit.check-results.v1","execution_manifest_digest":"` + digest + `","results":[],"unknown":true}`)
