@@ -49,6 +49,39 @@ from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.workspace import AllocationWorkspace
 
 
+@pytest.mark.parametrize("limit_offset", [0, -1])
+def test_export_respects_a_lower_transport_budget_without_partial_checkpoint(
+    monkeypatch: pytest.MonkeyPatch, limit_offset: int
+) -> None:
+    async def scenario() -> None:
+        session = await overlay("transport-budget")
+        await session.write_text("source.txt", "changed\n")
+        bundle = await session.prepare_export()
+        assert len(bundle.state) > len(bundle.diff)
+        monkeypatch.setattr(
+            "contractor_runtime.projectfs.exporter.MAX_ARTIFACT_BYTES",
+            len(bundle.state) + limit_offset,
+        )
+        client = MemoryArtifactClient()
+        exporter = make_exporter(session, client)
+
+        if limit_offset < 0:
+            with pytest.raises(WorkspaceExportError) as rejected:
+                await exporter.export(worker_result())
+            assert rejected.value.cause == "workspace_limit_exceeded"
+            assert client.calls == []
+            assert await session.changed_paths() == ("source.txt",)
+        else:
+            await exporter.export(worker_result())
+            restored = decode_workspace_state(
+                client.binding("workspace_state").data, session._source, session.limits
+            )
+            assert restored.snapshot() == await session.snapshot()
+            assert await session.changed_paths() == ()
+
+    asyncio.run(scenario())
+
+
 def test_export_persists_exact_cumulative_state_and_checkpoint_diff(
     tmp_path: Path,
 ) -> None:

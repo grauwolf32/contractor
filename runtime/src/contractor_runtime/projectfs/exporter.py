@@ -18,6 +18,7 @@ from contractor_runtime.contracts import (
     WorkerResult,
 )
 from contractor_runtime.projectfs.overlay import (
+    MAX_WORKSPACE_EXPORT_BYTES,
     WORKSPACE_OVERLAY_MEDIA_TYPE,
     OverlayWorkspaceSession,
     WorkspaceStateError,
@@ -76,7 +77,9 @@ class WorkspaceAutoExporter:
         if self._reserved_slots & result.artifacts.keys():
             raise WorkspaceExportError("reserved_result_slot", retryable=False)
         try:
-            bundle = await self._workspace.prepare_export(max_payload_bytes=MAX_ARTIFACT_BYTES)
+            bundle = await self._workspace.prepare_export(
+                max_payload_bytes=min(MAX_ARTIFACT_BYTES, MAX_WORKSPACE_EXPORT_BYTES)
+            )
             state_ref = await self._write_binding(
                 self._state_slot,
                 bundle.state,

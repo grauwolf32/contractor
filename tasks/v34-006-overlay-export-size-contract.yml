@@ -1,0 +1,58 @@
+schema_version: "1.0"
+id: V34-006
+title: Keep overlay export limits compatible with 64 MiB Artifacts
+milestone: artifact-blob-backends
+priority: P1
+status: in_progress
+implementation_commit: null
+verification:
+  status: implementation_and_checks_passed_awaiting_commit
+  evidence: >-
+    Reproduced workspace_limit_exceeded in the existing cumulative checkpoint
+    test before the fix. After the fix, 30 overlay/exporter/checkpoint selected
+    tests and all 11 auto-export/overlay module tests pass. Ruff check and format
+    check pass. Added exact effective-bound and overflow checkpoint regressions.
+depends_on: [V11-010]
+languages: [python]
+
+goal: >-
+  Restore checkpoint/export after the generic Artifact ceiling increased to
+  64 MiB while preserving the independent 16 MiB overlay-state contract.
+
+context:
+  evidence: >-
+    projectfs/exporter.py passes MAX_ARTIFACT_BYTES to prepare_export. That
+    constant is now 64 MiB, but projectfs/overlay.py rejects max_payload_bytes
+    above MAX_WORKSPACE_EXPORT_BYTES (16 MiB). The mismatch rejects even small
+    otherwise valid exports. decode_workspace_state also caps input at 16 MiB.
+  direction: >-
+    Use the minimum of the transport and overlay export budgets, or an
+    equivalent single effective-limit helper shared by the integration. Do not
+    raise overlay/decoder limits implicitly merely because transport grew.
+  scheduling: Fix immediately because the incompatible argument blocks even small overlay exports.
+
+scope:
+  in:
+    - Pass a compatible effective budget from exporter to prepare_export.
+    - Align export validation and decode bounds without duplicating unrelated Artifact transport limits.
+    - Add checkpoint and rehydration regression coverage with the real 64 MiB transport constant.
+  out:
+    - Raising overlay budgets, blob backend implementation or changing generic 64 MiB Artifact support.
+
+requirements:
+  - {id: R1, text: Small valid overlay exports succeed with the production 64 MiB Artifact constant.}
+  - {id: R2, text: Export never accepts state beyond the independent 16 MiB budget or writes a checkpoint the decoder cannot consume.}
+  - {id: R3, text: An oversized failed export does not advance the successful checkpoint or publish partial state.}
+
+acceptance_criteria:
+  - id: A1
+    given: A small changed overlay and the production 64 MiB Artifact transport limit.
+    when: The exporter checkpoints and a fresh workspace rehydrates its state.
+    then: Export succeeds and rehydrated content and digest agree.
+  - id: A2
+    given: Valid state fixtures at and above the effective overlay size bound.
+    when: Export and state decode run.
+    then: The bound is applied consistently and overflow leaves no partial publication or advanced checkpoint.
+
+tests:
+  - {name: runtime, command: "cd runtime && uv run pytest tests -k 'overlay or exporter or checkpoint'", covers: [A1, A2]}

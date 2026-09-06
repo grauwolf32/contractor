@@ -559,6 +559,11 @@ choose among multiple matches.
 
 ## Auto export and A2A ordering
 
+Overlay state has an independent 16 MiB ceiling. The exporter passes the
+minimum of that ceiling and the generic Artifact transport limit (currently
+64 MiB) to export preparation. Increasing transport capacity must not make
+small overlay exports invalid or implicitly raise overlay decode budgets.
+
 For overlay with `export`, Runtime augments every successful normal
 `WorkerResult` after semantic output and deterministic observations have been
 validated and before its `WorkerCompletion` becomes terminal over A2A:

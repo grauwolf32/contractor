@@ -299,7 +299,8 @@ def decode_workspace_state(
     limits: WorkspaceLimits,
 ) -> ManagedWorkspaceTree:
     maximum = min(
-        16 * 1024 * 1024, max(1 << 20, limits.max_managed_text_bytes + 512 * limits.max_files)
+        MAX_WORKSPACE_EXPORT_BYTES,
+        max(1 << 20, limits.max_managed_text_bytes + 512 * limits.max_files),
     )
     if not isinstance(payload, bytes) or len(payload) > maximum:
         raise WorkspaceStateError("workspace_state_invalid")
