@@ -45,6 +45,7 @@ type auditProfileResponse struct {
 }
 
 type auditProfileWorkflowResponse struct {
+	Kind       config.AuditWorkflowRoleKind                    `json:"kind"`
 	Workflow   config.WorkflowRef                              `json:"workflow"`
 	Inputs     map[string]config.AuditWorkflowInputMapping     `json:"inputs"`
 	Parameters map[string]config.AuditWorkflowParameterMapping `json:"parameters"`
@@ -782,7 +783,7 @@ func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) a
 		result.Workflows = make(map[string]auditProfileWorkflowResponse, len(profile.Workflows))
 		for role, binding := range profile.Workflows {
 			result.Workflows[role] = auditProfileWorkflowResponse{
-				Workflow: binding.Workflow.Ref, Inputs: binding.Inputs,
+				Kind: binding.Kind, Workflow: binding.Workflow.Ref, Inputs: binding.Inputs,
 				Parameters: binding.Parameters, Outputs: binding.Outputs,
 			}
 		}

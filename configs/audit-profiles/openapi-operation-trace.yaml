@@ -21,6 +21,7 @@ spec:
     itemWorkflowRole: trace
   workflows:
     trace:
+      kind: check
       ref: audit-source-check@1
       inputs:
         task: {source: item-package}

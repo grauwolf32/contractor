@@ -180,6 +180,7 @@ spec:
     itemWorkflowRole: check
   workflows:
     check:
+      kind: check
       ref: openapi-from-workspace@5
       inputs:
         source: {source: audit-input, name: source}

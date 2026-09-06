@@ -22,6 +22,7 @@ func TestProfileCompatibilityReasonsAreClosedOrderedAndDeduplicated(t *testing.T
 		ReportAcceptance:    config.AuditReportHumanRequired,
 	}
 	binding := profile.Workflows["check"]
+	binding.Kind = config.AuditWorkflowDiscovery
 	profile.Workflows["discovery"] = binding
 
 	got := ProfileCompatibility(profile).Reasons

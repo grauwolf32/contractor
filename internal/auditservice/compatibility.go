@@ -2,7 +2,6 @@ package auditservice
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -33,12 +32,10 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}
 	for role := range profile.Workflows {
-		if role == profile.Inventory.ItemWorkflowRole {
-			continue
-		}
-		if strings.Contains(strings.ToLower(role), "discover") {
+		switch profile.Workflows[role].Kind {
+		case config.AuditWorkflowDiscovery:
 			reasons[ReasonDiscoveryUnsupported] = struct{}{}
-		} else {
+		case config.AuditWorkflowAssessment:
 			reasons[ReasonAssessmentUnsupported] = struct{}{}
 		}
 	}

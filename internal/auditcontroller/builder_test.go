@@ -15,6 +15,7 @@ func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testi
 	task := builderExact("task", "task-r1")
 	execution := builderExact("execution-manifest", "execution-r1")
 	binding := config.ResolvedAuditWorkflowBinding{
+		Kind: config.AuditWorkflowCheck,
 		Inputs: map[string]config.AuditWorkflowInputMapping{
 			"source":             {Source: config.AuditInputFromAudit, Name: "source"},
 			"task":               {Source: config.AuditInputFromItemPackage},
@@ -44,8 +45,8 @@ func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testi
 
 func builderExact(name, revision string) auditstore.ExactArtifact {
 	return auditstore.ExactArtifact{
-		Ref: contracts.ArtifactRef{Namespace: "audit-fixture", Name: name, Revision: &revision},
-		Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Ref:       contracts.ArtifactRef{Namespace: "audit-fixture", Name: name, Revision: &revision},
+		Digest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		MediaType: "application/json", SizeBytes: 1,
 	}
 }

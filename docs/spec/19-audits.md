@@ -169,6 +169,7 @@ spec:
     itemWorkflowRole: trace
   workflows:
     trace:
+      kind: check
       ref: security-trace-operation@1
       inputs:
         source: {source: audit-input, name: source}
@@ -200,7 +201,12 @@ Workflow names in this example are proposed definitions, not claims that they
 exist in the current catalog. A repository profile may only reference
 Workflows that actually resolve in the same configuration snapshot.
 
-Every workflow binding pins a complete `ResolvedWorkflow` closure. Its
+Every workflow binding has an explicit `kind: check | discovery | assessment`
+and pins a complete `ResolvedWorkflow` closure. The map key is only the
+operator-chosen role name; the Server never infers behavior from substrings
+such as `discover` or `assess`. `inventory.itemWorkflowRole` MUST name a
+`check` binding. A profile may contain several names of the same kind when
+their input/result contracts are distinct. Each binding's
 `inputs`, `parameters`, and `outputs` maps are validated against the selected
 Workflow:
 

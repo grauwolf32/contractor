@@ -1448,6 +1448,8 @@ export interface components {
             value?: string;
         };
         AuditProfileWorkflow: {
+            /** @enum {unknown} */
+            kind: "check" | "discovery" | "assessment";
             workflow: components["schemas"]["WorkflowRef"];
             inputs: {
                 [key: string]: components["schemas"]["AuditWorkflowInputMapping"];

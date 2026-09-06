@@ -379,6 +379,7 @@ spec:
     itemWorkflowRole: check
   workflows:
     check:
+      kind: check
       ref: taint-trace-from-workspace@2
       inputs:
         source: {source: audit-input, name: source}
@@ -426,6 +427,7 @@ spec:
     roundMode: fixed-barrier
   workflows:
     check:
+      kind: check
       outputs: {result: taint_report}
       parameters: {target: {name: subjectKey, source: item-field}}
       inputs: {source: {name: source, source: audit-input}}
@@ -450,6 +452,7 @@ spec:
   inventory: {implementation: checklist@1, sourceInput: checklist, itemWorkflowRole: a}
   workflows:
     a:
+      kind: check
       ref: security-analysis@2
       inputs:
         context: {source: retained-output, role: b, name: result}
@@ -459,6 +462,7 @@ spec:
         authorization_scope: {source: scope-field, name: authorizationScope}
       outputs: {result: security_report}
     b:
+      kind: assessment
       ref: security-analysis@2
       inputs:
         context: {source: retained-output, role: a, name: result}

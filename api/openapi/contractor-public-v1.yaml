@@ -2923,8 +2923,9 @@ components:
     AuditProfileWorkflow:
       type: object
       additionalProperties: false
-      required: [workflow, inputs, parameters, outputs]
+      required: [kind, workflow, inputs, parameters, outputs]
       properties:
+        kind: {enum: [check, discovery, assessment]}
         workflow: {$ref: '#/components/schemas/WorkflowRef'}
         inputs:
           type: object

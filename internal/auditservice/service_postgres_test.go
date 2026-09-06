@@ -886,6 +886,7 @@ spec:
     itemWorkflowRole: check
   workflows:
     check:
+      kind: check
       ref: audit-check@1
       inputs:
         task: {source: item-package}

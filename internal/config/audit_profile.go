@@ -97,7 +97,21 @@ type AuditWorkflowParameterMapping struct {
 	Value  string                       `json:"value,omitempty"`
 }
 
+type AuditWorkflowRoleKind string
+
+const (
+	AuditWorkflowCheck      AuditWorkflowRoleKind = "check"
+	AuditWorkflowDiscovery  AuditWorkflowRoleKind = "discovery"
+	AuditWorkflowAssessment AuditWorkflowRoleKind = "assessment"
+)
+
+func (kind AuditWorkflowRoleKind) valid() bool {
+	return kind == AuditWorkflowCheck || kind == AuditWorkflowDiscovery ||
+		kind == AuditWorkflowAssessment
+}
+
 type ResolvedAuditWorkflowBinding struct {
+	Kind       AuditWorkflowRoleKind                    `json:"kind"`
 	Workflow   ResolvedWorkflow                         `json:"workflow"`
 	Inputs     map[string]AuditWorkflowInputMapping     `json:"inputs"`
 	Parameters map[string]AuditWorkflowParameterMapping `json:"parameters"`
@@ -202,6 +216,7 @@ type auditInventorySource struct {
 }
 
 type auditWorkflowBindingSource struct {
+	Kind       string                                      `yaml:"kind"`
 	Ref        string                                      `yaml:"ref"`
 	Inputs     *map[string]auditWorkflowInputMappingSource `yaml:"inputs"`
 	Parameters *map[string]auditParameterMappingSource     `yaml:"parameters"`
@@ -398,6 +413,10 @@ func (l *loader) resolveAuditWorkflowBindings(
 		if err := validateAuditMapKey("spec.workflows role", role); err != nil {
 			return nil, err
 		}
+		kind := AuditWorkflowRoleKind(candidate.Kind)
+		if !kind.valid() {
+			return nil, fmt.Errorf("spec.workflows.%s.kind is invalid", role)
+		}
 		selector, err := ParseSelector(candidate.Ref)
 		if err != nil {
 			return nil, fmt.Errorf("spec.workflows.%s.ref: %w", role, err)
@@ -419,7 +438,7 @@ func (l *loader) resolveAuditWorkflowBindings(
 			return nil, err
 		}
 		result[role] = ResolvedAuditWorkflowBinding{
-			Workflow: cloneWorkflow(workflow), Inputs: inputs,
+			Kind: kind, Workflow: cloneWorkflow(workflow), Inputs: inputs,
 			Parameters: parameters, Outputs: outputs,
 		}
 	}
@@ -632,6 +651,9 @@ func resolveAuditInventory(
 		return AuditInventory{}, fmt.Errorf("spec.inventory.itemWorkflowRole names unknown role %q", source.ItemWorkflowRole)
 	}
 	itemBinding := workflows[source.ItemWorkflowRole]
+	if itemBinding.Kind != AuditWorkflowCheck {
+		return AuditInventory{}, fmt.Errorf("spec.inventory.itemWorkflowRole must name a check Workflow role")
+	}
 	hasItemContext := false
 	for _, mapping := range itemBinding.Inputs {
 		if mapping.Source == AuditInputFromItemPackage {
@@ -817,7 +839,7 @@ func auditProfileDigest(selector Selector, profile ResolvedAuditProfile) (string
 	workflows := make(map[string]any, len(profile.Workflows))
 	for role, binding := range profile.Workflows {
 		workflows[role] = map[string]any{
-			"workflow": binding.Workflow, "inputs": binding.Inputs,
+			"kind": binding.Kind, "workflow": binding.Workflow, "inputs": binding.Inputs,
 			"parameters": binding.Parameters, "outputs": binding.Outputs,
 		}
 	}
