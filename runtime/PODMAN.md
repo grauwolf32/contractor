@@ -2,8 +2,9 @@
 
 V31-001 registers authoring/placement contracts and parses immutable startup
 policy. It does **not** install an execution factory, invoke Podman, pull images
-or advertise `podman@1` / `code-execution@1`. Actual engine, supervisor,
-allocation lifecycle and startup probes are subsequent V31 tasks.
+or advertise `podman@1` / `code-execution@1`. V31-002 adds a private engine
+adapter, still without startup/allocation wiring or capability advertisement.
+The supervisor, allocation lifecycle and full startup probes are subsequent tasks.
 
 The profile requires an explicit Stage project workspace in `direct` mode and
 local Runtime workspace storage. Ordinary `local-workdir@1` Workers keep their
@@ -80,3 +81,85 @@ uv run pytest -W error tests/test_podman_settings.py tests/test_podman_contracts
 
 From the repository root, also run
 `go test -count=1 ./internal/config ./internal/scheduler ./internal/controlplane`.
+
+## Private engine adapter (V31-002)
+
+`PodmanEngine` exposes `open`, `create`, `inspect`, `start`, `stop`, `remove`,
+`discover` and `close`. Calls take absolute monotonic deadlines, with a 120-second
+implementation ceiling and the configured shorter preparation ceiling for
+creation. Future lifecycle wiring converts its lease/invocation deadlines once
+and retains the workspace guard/content until removal is confirmed.
+
+The adapter rejects a root/elevated host identity and checks local engine
+rootless status. It uses `/usr/bin/podman --remote=false` with structured argv,
+not a host shell. Host environment is constructed from the current passwd entry,
+fixed executable search path, `/run/user/<uid>`, the corresponding local D-Bus
+address and locale. Runtime secrets, proxies, remote-engine selectors and custom
+environment variables are not copied. A private executable/transport seam exists
+for deterministic tests, not for Workflow configuration.
+
+Creation uses the pinned image with pull disabled, keep-id UID/GID mapping,
+private namespaces, no network, dropped capabilities, no-new-privileges,
+explicit resource limits and disabled persistent container logging. Image volumes,
+health checks, proxy inheritance and default container environment are disabled.
+The fixed container environment is PATH, HOME=/tmp and LANG. The only project
+bind is the trusted hydrated `run_workdir` at `/workspace`; `/tmp` is bounded
+tmpfs. Bind propagation is private and nonrecursive, with private SELinux
+relabeling rather than disabled host confinement or recursive ownership changes.
+The approved image entrypoint remains the responsibility of V31-003.
+
+The service owner holds a nonblocking exclusive flock in the private directory
+`/run/user/<uid>/contractor-podman-owners`. All services sharing a local engine
+must use that same lock namespace. The directory and lock file must be owned by
+the Runtime user and have modes 0700 and 0600. Symlinks, hard-linked lock files,
+inode replacement and permission changes fail closed. Lock files are never
+unlinked on release, avoiding concurrent owners locking different inodes.
+
+Every create attempt gets a generated immutable creation ID before CLI launch.
+Creation records five labels under `io.contractor.sandbox.`: managed=1, owner,
+incarnation, allocation and creation. The generated name is
+`contractor-<creation-id>`. Engine operations retain full container IDs and verify
+all labels plus the exact name/ID from inspect. Discovery filters by owner and
+managed label but independently verifies every returned container. It includes
+predecessors for later recovery; they can be removed, not started as new work.
+
+An uncertain create is reconciled by its original creation label, not replayed.
+If no resource can yet be found, the attempt remains owned: absence does not
+authorize a second create or unlocking the service. This deliberately sacrifices
+availability on ambiguous failures. When discovery later finds the resource,
+verified removal clears the attempt, even if create never returned its ID.
+Repeated start does not restart exited work. Stop/remove exit codes alone are
+not confirmation: inspect verifies termination/removal, and failed inspect only
+means absence if `podman container exists` returns its documented code 1. Code
+125 is uncertainty. No broad or forced removal is used; `ps --all` is read-only,
+owner-filtered discovery. At most 1024 active attempts/discovered resources are
+accepted; confirmed removal releases the active record and pinned descriptor.
+
+Engine operations are serialized by an owning task. Cancelling/timing out its
+caller leaves that task and the service lock retained, including delayed CLI
+spawn and kernel reaping. Waiting callers have their own finite deadlines and
+cannot launch after cancellation. CLI stdout/stderr are drained concurrently,
+with a combined 1 MiB hard bound; stderr is discarded, never logged. A CLI
+timeout/overflow closes pipes and kills/reaps the CLI child while its
+leader is still alive. This is **not** evidence that its container has stopped.
+An unconfirmed kernel operation prevents owner release rather than reporting a
+reusable resource. Inherited output pipes are closed at the deadline; no group
+signal is sent using a remembered PID after the CLI leader has exited.
+
+This adapter does not claim isolation against arbitrary same-user host writers
+replacing a bind path between checks. Only trusted allocation hydration code may
+supply the root; pin checks complement, not replace, lifecycle/guard ownership.
+It also does not yet guarantee Runtime-death cleanup: V31-003/V31-004 must fence
+or terminate in-flight CLI operations as well as workload processes before
+successor recovery. Mock CLI tests do not establish effective kernel resource,
+UID mapping, confinement or descendant/liveness guarantees; the real rootless
+image/probe gates remain mandatory before advertisement.
+
+Run `cd runtime && uv run pytest -W error tests/test_podman_engine.py tests/test_podman_contracts.py`.
+The gate includes a scripted engine transport, real fake CLI child processes,
+delayed spawn, bounded output, cancelled waiters and cross-process owner locks.
+It does not create or delete real Podman containers.
+
+Flag and exit-code references: [Podman create](https://docs.podman.io/en/latest/markdown/podman-create.1.html),
+[local/remote engine selection](https://docs.podman.io/en/latest/markdown/podman.1.html),
+[container exists](https://docs.podman.io/en/latest/markdown/podman-container-exists.1.html).

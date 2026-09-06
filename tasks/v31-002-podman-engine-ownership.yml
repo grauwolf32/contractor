@@ -58,3 +58,18 @@ acceptance_criteria:
 
 tests:
   - {name: engine, command: "cd runtime && uv run pytest -W error tests/test_podman_engine.py tests/test_podman_contracts.py", covers: [A1, A2, A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - Required engine/contracts gate passed, 74 tests with warnings treated as errors.
+    - Extended settings/capability regression gate passed, 168 tests before the final delayed-spawn cases were added and checked by the required gate.
+    - Real fake-CLI child processes prove argv/environment separation, bounded stdout/stderr, timeout/reaping and retained delayed spawn; no real containers are created.
+    - Cross-process flock and inode/link/permission tests prove live-owner exclusion; scripted engine faults cover uncertain create, exact ownership, predecessors and unconfirmed cleanup.
+    - make verify passed, including formatting/lint, Go tests/build, Runtime tests, UI generation/lint/typecheck/tests/server tests and production build.
+    - Final explicit env-host, privilege and cgroup flags and exact CLI-child termination were rechecked by the required gate after aggregate verification.
+  boundaries:
+    - No AllocationService wiring or production capability advertisement is introduced.
+    - An absent uncertain create remains retained; it never authorizes another create or owner release.
+    - Runtime-death fencing must cover in-flight CLI operations as well as workloads in V31-003/V31-004; this adapter does not claim that guarantee.
+    - Effective rootless resource limits, confinement, image/supervisor, mount permissions and workload descendant/liveness proofs remain mandatory real-container gates in subsequent tasks.

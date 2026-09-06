@@ -1,6 +1,6 @@
 # 21 — Allocation-scoped Podman execution sandbox
 
-Status: **Contracts/settings implemented in V31-001; execution implementation pending**
+Status: **Contracts/settings and private engine implemented in V31-001/V31-002; execution profile not enabled**
 
 Depends on: [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
