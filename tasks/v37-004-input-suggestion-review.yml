@@ -3,8 +3,8 @@ id: "V37-004"
 title: "Distinguish format-compatible input suggestions from reviewed Run inputs"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "bce3f0179966cc4aeed93e61753e546388aba57a"
 depends_on: ["V37-002", "V23-007"]
 languages: ["typescript"]
 goal: "Prevent MIME-only suggestions from being presented as verified semantic input suitability."
