@@ -6,6 +6,7 @@ import asyncio
 import shutil
 import stat
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -72,7 +73,12 @@ class WorkspaceProvider(Protocol):
 class LocalWorkspaceProvider:
     """Own marker-authenticated immediate children below one dedicated root."""
 
-    def __init__(self, settings: WorkspaceSettings) -> None:
+    def __init__(
+        self,
+        settings: WorkspaceSettings,
+        *,
+        before_initialize: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
         if settings.storage != "local" or settings.work_root is None:
             raise ValueError("local workspace provider requires a local work root")
         self._root = settings.work_root
@@ -81,6 +87,7 @@ class LocalWorkspaceProvider:
         self._filesystem = LocalFileSystem(auto_mkdir=False)
         self._initialization_lock = asyncio.Lock()
         self._initialized = False
+        self._before_initialize = before_initialize
 
     @property
     def capability(self) -> WorkspaceCapabilitySnapshot:
@@ -129,6 +136,13 @@ class LocalWorkspaceProvider:
         async with self._initialization_lock:
             if self._initialized:
                 return
+            if self._before_initialize is not None:
+                await self._before_initialize()
+            else:
+                # Disabling Podman cannot authorize deleting a previous bind.
+                from contractor_runtime.podman_workroots import check_root_policy
+
+                await asyncio.to_thread(check_root_policy, self._root, None)
             await asyncio.to_thread(_initialize_and_cleanup_local_root, self._root)
             self._initialized = True
 
@@ -186,11 +200,15 @@ class _IsolatedMemoryFileSystem(MemoryFileSystem):
         self.pseudo_dirs = [""]
 
 
-def build_workspace_provider(settings: WorkspaceSettings | None) -> WorkspaceProvider | None:
+def build_workspace_provider(
+    settings: WorkspaceSettings | None,
+    *,
+    before_initialize: Callable[[], Awaitable[None]] | None = None,
+) -> WorkspaceProvider | None:
     if settings is None:
         return None
     if settings.storage == "local":
-        return LocalWorkspaceProvider(settings)
+        return LocalWorkspaceProvider(settings, before_initialize=before_initialize)
     if settings.storage == "memory":
         return MemoryWorkspaceProvider(settings)
     raise ValueError("unsupported workspace storage")

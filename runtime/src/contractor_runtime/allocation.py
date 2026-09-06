@@ -60,6 +60,7 @@ from contractor_runtime.projectfs import (
 )
 from contractor_runtime.resource_metrics import ProcessReading, ResourceCollector
 from contractor_runtime.sandbox_contracts import SandboxContractError, validate_sandbox_selection
+from contractor_runtime.sandbox_lifecycle import PreparedExecution
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.worker_state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
@@ -116,6 +117,7 @@ class _AllocationContext:
     worker_state: WorkerStateStore | None
     runtime_settings: RuntimeSettings | None = field(repr=False)
     worker: WorkerRuntime | None = field(repr=False)
+    execution: PreparedExecution | None = field(default=None, repr=False)
     resource_metrics: ResourceCollector | None = field(default=None, repr=False)
     prepare_response: PrepareAllocationResponse | None = None
     termination_kind: str | None = None
@@ -159,6 +161,8 @@ class AllocationService:
     def _force_exit(self, code: int) -> Any:
         # Embedders/tests may replace process exit. Even then an unconfirmed
         # shutdown must not retain a sampler or manufacture a final boundary.
+        if self._context is not None and self._context.execution is not None:
+            self._context.execution.reject()
         if self._context is not None and self._context.resource_metrics is not None:
             self._context.resource_metrics.close()
         return self._exit_process(code)
@@ -263,6 +267,7 @@ class AllocationService:
             tools: dict[str, ToolInstance] = {}
             worker_state: WorkerStateStore | None = None
             worker: WorkerRuntime | None = None
+            execution: PreparedExecution | None = None
             # The slot lock and validation have accepted this owner. Include
             # adapter/workspace/Worker preparation in the requested interval.
             resource_metrics = self._start_resources(spec)
@@ -271,6 +276,14 @@ class AllocationService:
                     spec.lease_expires_at,
                     self._now() + timedelta(seconds=spec.runtime_settings.request_timeout_seconds),
                 )
+                lifecycle = self._factories.execution_lifecycle
+                if lifecycle is not None:
+                    # Even embedded preparation cannot hydrate/delete orphan
+                    # storage until this service's predecessor is removed.
+                    await lifecycle.recover(
+                        deadline=asyncio.get_running_loop().time()
+                        + max(0.0, (adapter_deadline - self._now()).total_seconds())
+                    )
                 if isinstance(spec, AllocationSpecV2):
                     adapter_host = await AllocationAdapterHost.create(
                         spec,
@@ -299,6 +312,10 @@ class AllocationService:
                         allocation_id=spec.allocation_id,
                         timeout_seconds=remaining,
                     )
+                if sandbox.ref == "podman@1":
+                    assert lifecycle is not None and project_workspace is not None
+                    execution = lifecycle.allocate(spec.allocation_id, project_workspace)
+                    await execution.prepare(deadline=adapter_deadline)
                 worker_state = WorkerStateStore()
                 tools = await self._create_tools(
                     spec,
@@ -363,6 +380,7 @@ class AllocationService:
                     worker_state=worker_state,
                     runtime_settings=spec.runtime_settings,
                     worker=worker,
+                    execution=execution,
                     resource_metrics=resource_metrics,
                     prepare_response=response,
                 )
@@ -379,6 +397,7 @@ class AllocationService:
                     tools,
                     worker,
                     adapter_host,
+                    execution,
                 )
                 if not error.cleanup_confirmed:
                     await self._state.fence_allocation(spec.allocation_id)
@@ -398,6 +417,7 @@ class AllocationService:
                     tools,
                     worker,
                     adapter_host,
+                    execution,
                 )
                 raise AllocationError(
                     error.code,
@@ -414,6 +434,7 @@ class AllocationService:
                     tools,
                     worker,
                     adapter_host,
+                    execution,
                 )
                 if not error.cleanup_confirmed:
                     await self._state.fence_allocation(spec.allocation_id)
@@ -433,6 +454,7 @@ class AllocationService:
                     tools,
                     worker,
                     adapter_host,
+                    execution,
                 )
                 raise
             except asyncio.CancelledError:
@@ -444,6 +466,7 @@ class AllocationService:
                     tools,
                     worker,
                     adapter_host,
+                    execution,
                 )
                 raise
             except Exception as error:
@@ -455,6 +478,7 @@ class AllocationService:
                     tools,
                     worker,
                     adapter_host,
+                    execution,
                 )
                 raise AllocationError(
                     "allocation_preparation_failed",
@@ -594,6 +618,9 @@ class AllocationService:
         deadline: datetime,
     ) -> None:
         await _close_tools(context.tools)
+        if context.execution is not None:
+            context.execution.reject()
+            await context.execution.remove(deadline=deadline)
         if context.project_workspace is not None:
             await self._cleanup_project_workspace(context.project_workspace)
             context.project_workspace = None
@@ -708,6 +735,13 @@ class AllocationService:
             raise AllocationError(
                 "unsupported_sandbox_profile",
                 "AgentTemplate selects an unavailable SandboxProfile",
+                retryable=False,
+                status_code=422,
+            )
+        if sandbox_ref == "podman@1" and self._factories.execution_lifecycle is None:
+            raise AllocationError(
+                "sandbox_unavailable",
+                "sandbox lifecycle is unavailable",
                 retryable=False,
                 status_code=422,
             )
@@ -961,6 +995,8 @@ class AllocationService:
 
             context.termination_kind = kind
             context.termination_id = operation_id
+            if context.execution is not None:
+                context.execution.reject()
             await self._state.begin_draining(allocation_id)
             worker = context.worker
             if worker is None:
@@ -999,6 +1035,7 @@ class AllocationService:
 
             context.worker = None
             await self._stop_tools_or_exit(context, deadline)
+            await self._stop_execution_or_exit(context, deadline)
             await self._stop_adapters_or_exit(context, deadline)
             if kind == "abort":
                 await self._discard_project_workspace_or_exit(context, deadline)
@@ -1019,6 +1056,8 @@ class AllocationService:
 
         if timeout_seconds <= 0:
             raise ValueError("Worker shutdown grace must be positive")
+        if context.execution is not None:
+            context.execution.reject()
         if context.worker is None:
             if context.release_cleanup_task is not None:
                 await self._state.fence_allocation(context.allocation_id)
@@ -1125,6 +1164,7 @@ class AllocationService:
         context: _AllocationContext,
         deadline: datetime,
     ) -> None:
+        await self._stop_execution_or_exit(context, deadline, remove=True)
         project_workspace = context.project_workspace
         if project_workspace is None:
             return
@@ -1149,6 +1189,29 @@ class AllocationService:
             ) from None
         context.project_workspace = None
 
+    async def _stop_execution_or_exit(
+        self, context: _AllocationContext, deadline: datetime, *, remove: bool = False
+    ) -> None:
+        if context.execution is None:
+            return
+        context.execution.reject()
+        try:
+            operation = context.execution.remove if remove else context.execution.stop
+            await _await_before_deadline(
+                lambda: operation(deadline=deadline), deadline=deadline, now=self._now
+            )
+        except BaseException as error:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            if isinstance(error, asyncio.CancelledError):
+                raise
+            raise AllocationError(
+                "sandbox_cleanup_unconfirmed",
+                "allocation sandbox cleanup is unconfirmed",
+                retryable=False,
+                status_code=503,
+            ) from None
+
     async def _cleanup_project_workspace(
         self,
         project_workspace: DirectWorkspaceSession,
@@ -1168,7 +1231,48 @@ class AllocationService:
         tools: Mapping[str, ToolInstance],
         worker: WorkerRuntime | None,
         adapter_host: AllocationAdapterHost | None,
+        execution: PreparedExecution | None = None,
     ) -> None:
+        if execution is not None:
+            # Keep a full owner even when readiness was never committed. A
+            # release confirmation must not bypass an uncertain prepare.
+            assert workspace is not None and adapter_host is not None
+            context = _AllocationContext(
+                allocation_id=spec.allocation_id,
+                run_id=spec.run_id,
+                stage_execution_id=spec.stage_execution_id,
+                logical_agent_name=spec.logical_agent_name,
+                namespace=spec.namespace,
+                fingerprint=_spec_fingerprint(spec, self._fingerprint_key),
+                started_at=self._now(),
+                workspace=workspace,
+                sandbox=sandbox,
+                project_workspace=project_workspace,
+                adapter_host=adapter_host,
+                tools=dict(tools),
+                worker_state=None,
+                runtime_settings=spec.runtime_settings,
+                worker=worker,
+                execution=execution,
+            )
+            self._context = context
+            execution.reject()
+            deadline = self._now() + timedelta(
+                seconds=spec.runtime_settings.request_timeout_seconds
+            )
+            try:
+                if worker is not None:
+                    await _await_before_deadline(
+                        lambda: worker.abort(deadline), deadline=deadline, now=self._now
+                    )
+                    context.worker = None
+                await self._prepare_release_cleanup(context)
+            except BaseException:
+                await self._state.fence_allocation(spec.allocation_id)
+                self._force_exit(70)
+                raise
+            self._context = None
+            return
         failed = False
         cancelled: asyncio.CancelledError | None = None
         deadline = self._now() + timedelta(seconds=spec.runtime_settings.request_timeout_seconds)

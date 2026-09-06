@@ -159,6 +159,43 @@ class PodmanEngine:
         deadline = self._deadline(deadline)
         return await self._operations.run(operation, deadline)
 
+    async def supervisor_state(self, identity: SandboxIdentity, *, deadline: float) -> dict:
+        """Private verified attachment record; never a tool-visible inspect API."""
+
+        async def operation():
+            await self._ready()
+            raw = self._json(
+                await self._call(("container", "inspect", identity.container_id), deadline)
+            )
+            if not isinstance(raw, list) or len(raw) != 1:
+                raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
+            state = self._parse_inspect(raw[0], identity.container_id)
+            if state.identity != identity or state.status != "running" or not state.running:
+                raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
+            # Verify again after capture so state from a replaced/foreign
+            # resource cannot authorize opening a cgroup.
+            if await self._inspect(identity, deadline) != state:
+                raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
+            return raw[0]["State"]
+
+        return await self._operations.run(operation, self._deadline(deadline))
+
+    async def confirm_removed(self, allocation_id: str, *, deadline: float) -> None:
+        async def operation():
+            await self._ready()
+            record = self._records.get(allocation_id)
+            if record is not None and record.attempted:
+                raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
+            if any(item.allocation_id == allocation_id for item in await self._discover(deadline)):
+                raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
+            if record is not None:
+                # A joined operation that never issued create is unambiguous;
+                # release its pin, unlike an absent *attempted* creation.
+                await asyncio.to_thread(record.content.close)
+                del self._records[allocation_id]
+
+        await self._operations.run(operation, self._deadline(deadline))
+
     async def start(self, identity: SandboxIdentity, *, deadline: float) -> None:
         deadline = self._deadline(deadline)
 
@@ -291,7 +328,12 @@ class PodmanEngine:
             records = self._json(result)
             if not isinstance(records, list) or len(records) != 1:
                 raise ValueError("invalid inspect record")
-            raw = records[0]
+            return self._parse_inspect(records[0], container_id)
+        except (KeyError, TypeError, ValueError):
+            raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE) from None
+
+    def _parse_inspect(self, raw: dict, container_id: str) -> ContainerState:
+        try:
             labels = raw["Config"]["Labels"]
             identity = SandboxIdentity(
                 owner=labels[LABEL_PREFIX + "owner"],

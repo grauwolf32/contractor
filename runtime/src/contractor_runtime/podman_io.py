@@ -38,8 +38,9 @@ class OwnedOperations:
         self._task: asyncio.Task[object] | None = None
 
     async def run(self, operation: Callable[[], Awaitable[T]], deadline: float) -> T:
+        timeout = remaining(deadline)
         try:
-            await asyncio.wait_for(self._lock.acquire(), remaining(deadline))
+            await asyncio.wait_for(self._lock.acquire(), timeout)
         except TimeoutError:
             raise SandboxContractError(SandboxErrorCode.TIMEOUT) from None
 

@@ -39,6 +39,13 @@ class LeaseWatchdog:
     def last_ack(self) -> int:
         return self._last_ack
 
+    @property
+    def confirmed_deadline(self) -> float | None:
+        """Read-only authority for sandbox renewal; never re-arms a lease."""
+        if self._expired or self._deadline is None or self._monotonic() >= self._deadline:
+            return None
+        return self._deadline
+
     async def arm(self, lease_seconds: float) -> None:
         """Start a new lease generation after successful registration."""
 

@@ -121,6 +121,11 @@ async def discover_capabilities(
     loop = asyncio.get_running_loop()
     deadline = loop.time() + total_timeout_seconds
 
+    # This is a startup gate, not an optional capability probe: failure must
+    # prevent workspace-provider initialization and its orphan deletion.
+    if factories.execution_lifecycle is not None:
+        await factories.execution_lifecycle.recover(deadline=deadline)
+
     for ref, factory in sorted(factories.worker_runtimes.items()):
         result = await _probe_one(
             "runtime", ref, factory.probe, deadline, per_factory_timeout_seconds

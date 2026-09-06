@@ -1,0 +1,32 @@
+"""Private allocation lifecycle hooks, separate from scratch and tool execution."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from contractor_runtime.projectfs import DirectWorkspaceSession
+
+
+class PreparedExecution(Protocol):
+    def reject(self) -> None: ...
+
+    async def prepare(self, *, deadline: datetime) -> None: ...
+
+    async def stop(self, *, deadline: datetime) -> None: ...
+
+    async def remove(self, *, deadline: datetime) -> None: ...
+
+
+class ExecutionLifecycle(Protocol):
+    async def recover(self, *, deadline: float) -> None: ...
+
+    async def prepare_root(self, root: Path) -> None: ...
+
+    def allocate(
+        self, allocation_id: str, workspace: DirectWorkspaceSession
+    ) -> PreparedExecution: ...
+
+    async def close(self, *, deadline: float) -> None: ...

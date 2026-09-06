@@ -5,7 +5,9 @@ policy. It does **not** install an execution factory, invoke Podman, pull images
 or advertise `podman@1` / `code-execution@1`. V31-002 adds a private engine
 adapter, still without startup/allocation wiring or capability advertisement.
 V31-003 adds the approved image and independent guardian/completion proof;
-allocation lifecycle, command tooling and full startup probes remain subsequent tasks.
+V31-004 adds the allocation lifecycle and startup recovery gate. Command tooling
+and positive capability advertisement remain V31-005/V31-006; enabling policy
+currently starts recovery, but does not advertise `podman@1` or `code-execution@1`.
 
 The profile requires an explicit Stage project workspace in `direct` mode and
 local Runtime workspace storage. Ordinary `local-workdir@1` Workers keep their
@@ -153,9 +155,8 @@ signal is sent using a remembered PID after the CLI leader has exited.
 This adapter does not claim isolation against arbitrary same-user host writers
 replacing a bind path between checks. Only trusted allocation hydration code may
 supply the root; pin checks complement, not replace, lifecycle/guard ownership.
-It also does not yet guarantee Runtime-death cleanup: V31-003/V31-004 must fence
-or terminate in-flight CLI operations as well as workload processes before
-successor recovery. Mock CLI tests do not establish effective kernel resource,
+The engine alone does not guarantee Runtime-death cleanup: the V31-004 owner
+below retains in-flight CLI ownership across Runtime death. Mock CLI tests do not establish effective kernel resource,
 UID mapping, confinement or descendant/liveness guarantees; the real rootless
 image/probe gates remain mandatory before advertisement.
 
@@ -224,7 +225,7 @@ guard until termination is confirmed; an exception is not permission to release
 files or reuse the allocation. Guardian spawn owns duplicated descriptors and
 reaps late children even after caller cancellation.
 
-Integration obligations for V31-004/V31-005 remain explicit:
+Lifecycle/executor integration obligations remain explicit:
 
 - Hold the service owner, pin/hydrate content, start only the inert image and
   arm/verify the guardian before permitting any workload launch.
@@ -252,3 +253,76 @@ checks actual CPU throttling, memory OOM enforcement, PID exhaustion, tmpfs size
 network isolation, seccomp/no-new-privileges and mutual host/container file edits.
 
 Kernel semantics: [cgroup v2 freezer, kill and populated state](https://docs.kernel.org/admin-guide/cgroup-v2.html).
+
+## Allocation lifecycle and surviving owner (V31-004)
+
+`PodmanWorkdirFactory` prepares ordinary private scratch; its path is never a
+container ID. After project hydration, `AllocationService` records a private
+`PreparedExecution` handle before awaiting container creation/start and guardian
+readiness. Only then are selected tools and the Worker constructed. Identical
+prepare reuses the allocation; conflicting prepare is rejected. Individual A2A
+calls, including an `INPUT_REQUIRED` pause, do not stop or recreate its container.
+Neither the Worker context nor ordinary tools receive lifecycle/engine handles.
+
+Finalize rejects execution, lets the existing Worker termination/artifact path
+finish and confirms container stop, retaining bind data. Abort and confirmed
+lease loss remove the container before discarding project files. Release retains
+one shielded cleanup task and removes container, project files, scratch and
+adapters in that order. A timeout/cancelled response does not cancel ownership or
+authorize idle capacity. Failed prepare also retains its context when removal is
+uncertain, so authoritative release cannot bypass its outstanding resources.
+The existing artifact write fence and release-confirmation edge are unchanged.
+
+An independent host owner process runs the engine and holds its service flock.
+Runtime communicates over two inherited, close-on-exec `SOCK_SEQPACKET` pairs:
+serialized lifecycle RPC and a separately serviced health/rejection channel.
+Packets are bounded to 8 KiB. There is no listening filesystem/network socket,
+shell RPC, model-visible channel, inherited Runtime environment or stdout
+protocol. Caller cancellation retains a late RPC response until it can be
+drained; a subsequent remove cannot mistake a late prepare response for proof.
+
+Runtime sends a pulse every 250 ms using `LeaseWatchdog.confirmed_deadline`.
+The owner caps authority at the earlier of that confirmed lease and receipt
+time plus three seconds; it may not renew its own liveness indefinitely. The
+allocation-spec lease is the initial confirmed-lease snapshot, not a permanent
+allocation TTL: successful subsequent heartbeat acknowledgements extend the
+guardian's authority through the watchdog. Expired or replayed acknowledgements
+do not revive execution. Runtime event-loop stalls therefore expire the guardian
+even while the independent owner is alive.
+
+On Runtime EOF the owner disconnects the guardian immediately, joins uncertain
+engine operations, discovers/removes exact owned containers and only then
+releases its flock. A late create may finish, but cannot proceed to start after
+authority loss. An unconfirmed/absent create remains fenced; no second create or
+global prune is issued. The owner never deletes workspace files. A successor
+must acquire the same owner and complete recovery before scratch orphan cleanup,
+workspace-provider initialization or capability discovery. Cleanup uncertainty
+fails startup instead of advertising idle capacity.
+
+Dedicated scratch/project roots retain `.contractor-podman-owner-v1`, outside
+the mounted content. A disabled or differently configured owner cannot silently
+delete those roots' predecessors. The marker is not automatically removed;
+changing owner or disabling this deployment on the same roots requires an
+operator migration after confirmed teardown. Embedders using built-in factories
+receive the same project-provider recovery gate. Manually constructed providers
+must supply their trusted `before_initialize` recovery hook.
+
+Deployment must let both the host owner and guardian survive Runtime termination
+long enough to finish their work; killing the whole service cgroup defeats that
+assumption. Killing the owner/guardian themselves, arbitrary same-user host
+mutation, host failure and indefinitely blocked kernel operations are not
+bounded-success guarantees. No cleanup receipt is synthesized for uncertainty.
+Service-manager configuration and positive capability probes remain later tasks.
+
+Verification from `runtime`:
+
+```sh
+uv run pytest -W error tests/test_podman_allocation.py tests/test_podman_recovery.py
+uv run pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_projectfs_storage.py
+CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_owner_integration.py
+```
+
+The last command additionally requires the explicitly preinstalled digest-pinned
+`CONTRACTOR_TEST_PODMAN_IMAGE`. It proves owner-lock exclusivity, graceful owner
+close, Runtime SIGKILL cleanup and Runtime SIGSTOP lease expiry with a real
+workload writer. It never pulls/builds an image and does not delete bind data.

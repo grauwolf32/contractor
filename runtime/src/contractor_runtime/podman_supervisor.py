@@ -175,8 +175,9 @@ class GuardianClient:
 
     async def _receive(self, expected: str, deadline: float) -> None:
         try:
+            timeout = remaining(deadline)
             raw = await asyncio.wait_for(
-                asyncio.get_running_loop().sock_recv(self._control, 257), remaining(deadline)
+                asyncio.get_running_loop().sock_recv(self._control, 257), timeout
             )
             if len(raw) > 256 or json.loads(raw) != {"status": expected}:
                 raise ValueError("unconfirmed guardian response")

@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import signal
+import time
 from collections.abc import Callable, Sequence
 
 from contractor_runtime.allocation import AllocationService
@@ -16,6 +17,8 @@ from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.log import configure_logging
 from contractor_runtime.mtls import runtime_agent_client_context, runtime_agent_server_context
+from contractor_runtime.podman_lifecycle import PodmanLifecycle
+from contractor_runtime.podman_workroots import check_root_policy
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings, parse_settings
 from contractor_runtime.state import RuntimeState
@@ -32,6 +35,43 @@ async def serve(
     stop_requested: asyncio.Event | None = None,
     server_factory: Callable[..., RuntimeServer] = RuntimeServer,
     install_signal_handlers: bool = True,
+) -> None:
+    lifecycle = PodmanLifecycle(settings.podman) if settings.podman.enabled else None
+    try:
+        roots = [settings.work_root]
+        if settings.workspace is not None and settings.workspace.work_root is not None:
+            roots.append(settings.workspace.work_root)
+        for root in roots:
+            await asyncio.to_thread(
+                check_root_policy, root, settings.podman.owner if lifecycle is not None else None
+            )
+        if lifecycle is not None:
+            await lifecycle.recover(deadline=time.monotonic() + settings.podman.prepare_max_seconds)
+        await _serve(
+            settings,
+            state=state,
+            transport=transport,
+            stop_requested=stop_requested,
+            server_factory=server_factory,
+            install_signal_handlers=install_signal_handlers,
+            lifecycle=lifecycle,
+        )
+    finally:
+        if lifecycle is not None:
+            # EOF still delegates cleanup to the surviving owner if this
+            # bounded graceful close cannot confirm it. Never kill the owner.
+            await lifecycle.close(deadline=time.monotonic() + settings.shutdown_grace_seconds)
+
+
+async def _serve(
+    settings: Settings,
+    *,
+    state: RuntimeState | None,
+    transport: ControlTransport | None,
+    stop_requested: asyncio.Event | None,
+    server_factory: Callable[..., RuntimeServer],
+    install_signal_handlers: bool,
+    lifecycle: PodmanLifecycle | None,
 ) -> None:
     runtime_state = state or RuntimeState()
     stop = stop_requested or asyncio.Event()
@@ -62,6 +102,7 @@ async def serve(
         ),
         enabled_runtime_adapters=settings.enabled_runtime_adapters,
         workspace_settings=settings.workspace,
+        execution_lifecycle=lifecycle,
     )
     allocation_service = AllocationService(
         runtime_state,
@@ -76,6 +117,8 @@ async def serve(
     watchdog = LeaseWatchdog(
         lambda: allocation_service.expire_control_lease(settings.shutdown_grace_seconds)
     )
+    if lifecycle is not None:
+        lifecycle.bind_health(lambda: watchdog.confirmed_deadline, stop.set)
     control = ControlClient(
         settings,
         runtime_state,
@@ -147,6 +190,14 @@ async def serve(
             # do not let a second await skip listener cleanup in this finally.
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await watchdog_task
+        if lifecycle is not None:
+            # Stop work and remove binds before the outer owner close. The
+            # existing write fence/abort behavior is preserved by this seam.
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(
+                    allocation_service.expire_control_lease(settings.shutdown_grace_seconds),
+                    timeout=settings.shutdown_grace_seconds,
+                )
         await runtime_state.begin_stopping()
         server.should_exit = True
         try:

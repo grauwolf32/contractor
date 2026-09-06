@@ -28,6 +28,7 @@ from contractor_runtime.contracts import (
     WorkerSummarizerConfig,
 )
 from contractor_runtime.projectfs import WorkspaceProvider, build_workspace_provider
+from contractor_runtime.sandbox_lifecycle import ExecutionLifecycle
 from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.audit_results import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.caido import CaidoToolsetFactory
@@ -169,6 +170,7 @@ class FactoryRegistry:
     artifact_client_factory: Callable[[str, RuntimeSettings], ArtifactClient] | None = field(
         default=None, repr=False
     )
+    execution_lifecycle: ExecutionLifecycle | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         _validate_registry("WorkerRuntime", self.worker_runtimes)
@@ -185,6 +187,7 @@ def built_in_factories(
     model_factory: ModelFactory | None = None,
     enabled_runtime_adapters: Sequence[str] | None = None,
     workspace_settings: WorkspaceSettings | None = None,
+    execution_lifecycle: ExecutionLifecycle | None = None,
 ) -> FactoryRegistry:
     runtime = AdkWorkerRuntimeFactory(model_factory, artifact_client_factory)
     filesystem_toolset = FilesystemToolsetFactory()
@@ -206,6 +209,14 @@ def built_in_factories(
     taint_annotations_toolset = TaintAnnotationsToolsetFactory()
     text_toolset = TextArtifactsToolsetFactory(artifact_client_factory)
     sandbox = LocalWorkdirFactory(work_root)
+    before_initialize = None
+    if execution_lifecycle is not None and workspace_settings is not None:
+        project_root = workspace_settings.work_root
+        if project_root is not None:
+
+            async def before_initialize():
+                await execution_lifecycle.prepare_root(project_root)
+
     telemetry = OTLPHTTPAdapterFactory()
     proxy = HTTPProxyAdapterFactory()
     caido = CaidoGraphQLAdapterFactory()
@@ -237,11 +248,27 @@ def built_in_factories(
             text_toolset.ref: text_toolset,
             workspace_changes_toolset.ref: workspace_changes_toolset,
         },
-        sandbox_profiles={sandbox.ref: sandbox},
+        sandbox_profiles={
+            sandbox.ref: sandbox,
+            **({"podman@1": PodmanWorkdirFactory(work_root)} if execution_lifecycle else {}),
+        },
         runtime_adapters=runtime_adapters,
-        workspace_provider=build_workspace_provider(workspace_settings),
+        workspace_provider=build_workspace_provider(
+            workspace_settings, before_initialize=before_initialize
+        ),
         artifact_client_factory=artifact_client_factory,
+        execution_lifecycle=execution_lifecycle,
     )
+
+
+class PodmanWorkdirFactory(LocalWorkdirFactory):
+    """Scratch only. Execution starts after project hydration in AllocationService."""
+
+    ref = "podman@1"
+
+    async def probe(self) -> bool:
+        # Positive advertisement requires the full V31-006 executor/probe gate.
+        return False
 
 
 class StubADKWorkerRuntimeFactory:
