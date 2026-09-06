@@ -77,6 +77,11 @@
   color: var(--link);
 }
 
+.catalog-prompt-toolbar > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .catalog-version-form {
   display: flex;
   align-items: end;
