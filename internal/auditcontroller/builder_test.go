@@ -1,8 +1,11 @@
 package auditcontroller
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -12,6 +15,53 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
+
+func TestBatchedTaskPayloadBoundFitsTwoSixMiBTasksAndRejectsThird(t *testing.T) {
+	selectedBytes := int64(6 << 20)
+	if !fitsBatchedTaskPayload(selectedBytes, 6<<20) {
+		t.Fatal("two 6 MiB task packages should fit the conservative task-set envelope")
+	}
+	selectedBytes += 6 << 20
+	if fitsBatchedTaskPayload(selectedBytes, 6<<20) {
+		t.Fatal("three 6 MiB task packages exceed the Audit task-set envelope")
+	}
+	if fitsBatchedTaskPayload(auditdomain.MaximumArchiveBytes, 1) {
+		t.Fatal("a maximum-size single task must not be wrapped with another member")
+	}
+}
+
+func TestBatchedTaskPayloadReserveCoversCanonicalZIPStructure(t *testing.T) {
+	inputs := make([]auditdomain.PackageInput, auditstore.MaxCollectionItems)
+	for index := range inputs {
+		inputs[index] = auditdomain.PackageInput{
+			ID: fmt.Sprintf("task-%03d", index), Path: fmt.Sprintf("tasks/%03d.zip", index),
+			MediaType: auditdomain.PackageMediaType, Data: []byte{},
+		}
+	}
+	payload, _, err := auditdomain.BuildPackage(
+		"task-set-structural-bound", auditdomain.PackageKindTaskSet, "", inputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestBytes := 0
+	for _, member := range archive.File {
+		if member.Name == "manifest.json" {
+			manifestBytes = int(member.UncompressedSize64)
+		}
+	}
+	if manifestBytes == 0 {
+		t.Fatal("canonical task set has no manifest bytes")
+	}
+	structuralBytes := len(payload) - manifestBytes
+	if structuralBytes > maximumTaskSetZIPStructureBytes {
+		t.Fatalf("canonical task-set ZIP structure uses %d bytes, maximum %d", structuralBytes, maximumTaskSetZIPStructureBytes)
+	}
+}
 
 func TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage(t *testing.T) {
 	taskRevision := "task-r1"

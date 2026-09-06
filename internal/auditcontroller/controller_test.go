@@ -97,6 +97,42 @@ func TestControllerBatchGroupsOnlyCompatibleItemEnvelopes(t *testing.T) {
 	}
 }
 
+func TestControllerLeavesMembersOmittedByByteBoundedPreparationReady(t *testing.T) {
+	harness := newControllerHarness(t, 3, 2)
+	harness.store.mu.Lock()
+	harness.store.audit.Limits.BatchSize = 3
+	harness.store.mu.Unlock()
+	harness.controller.builder = prefixSubmissionBuilder{maximum: 2}
+
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("activate batch round = (%t, %v)", worked, err)
+	}
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("dispatch reduced batch = (%t, %v)", worked, err)
+	}
+	first := harness.store.executionMembers(0)
+	if len(first) != 2 || first[0].ItemID != "item-0" || first[1].ItemID != "item-1" {
+		t.Fatalf("first reduced batch = %+v", first)
+	}
+	if state := harness.store.itemState(2); state != auditstore.ItemReady {
+		t.Fatalf("omitted item state = %q, want ready", state)
+	}
+	if audit := harness.store.auditSnapshot(); audit.State != auditstore.AuditActive || audit.StopReason != nil {
+		t.Fatalf("batch reduction prematurely stopped Audit: %+v", audit)
+	}
+
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("dispatch omitted item = (%t, %v)", worked, err)
+	}
+	second := harness.store.executionMembers(1)
+	if len(second) != 1 || second[0].ItemID != "item-2" {
+		t.Fatalf("remaining batch = %+v", second)
+	}
+	if got := harness.creator.createdCount(); got != 2 {
+		t.Fatalf("three byte-bounded items created %d Runs, want 2", got)
+	}
+}
+
 func TestControllerReplaysIntentAfterSubmissionFailure(t *testing.T) {
 	harness := newControllerHarness(t, 1, 1)
 	harness.creator.failNext.Store(true)
@@ -302,6 +338,8 @@ func (h *controllerHarness) finishOldest(t *testing.T, state runstore.WorkflowRu
 
 type fakeSubmissionBuilder struct{}
 
+type prefixSubmissionBuilder struct{ maximum int }
+
 type fakeRoundBuilder struct{ calls atomic.Int64 }
 
 func (b *fakeRoundBuilder) PrepareNextRound(
@@ -376,6 +414,21 @@ func (fakeSubmissionBuilder) PrepareBatch(
 			ExecutionID: executionID, ExecutionManifest: manifest, RequestDigest: requestDigest,
 		},
 	}, nil
+}
+
+func (b prefixSubmissionBuilder) PrepareBatch(
+	ctx context.Context, snapshot auditstore.ReconcileSnapshot, selected []CheckExecutionMember,
+) (PreparedSubmission, error) {
+	if len(selected) > b.maximum {
+		selected = selected[:b.maximum]
+	}
+	return fakeSubmissionBuilder{}.PrepareBatch(ctx, snapshot, selected)
+}
+
+func (prefixSubmissionBuilder) PrepareRole(
+	ctx context.Context, snapshot auditstore.ReconcileSnapshot, workflowRole string, attempt int,
+) (PreparedSubmission, error) {
+	return fakeSubmissionBuilder{}.PrepareRole(ctx, snapshot, workflowRole, attempt)
 }
 
 type fakeControllerStore struct {

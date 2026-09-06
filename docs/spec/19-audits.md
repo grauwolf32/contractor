@@ -447,8 +447,10 @@ the Audit or Round and do not create fake items. Each execution has at most one
 Run and one immutable execution-input manifest. One Run can belong to at most
 one AuditExecution.
 
-A check execution contains one to `batchSize` compatible items, subject to the
-Server maximum. Each item retains its own batch ordinal, attempt, result,
+A check execution contains one to `batchSize` compatible items, subject to both
+the Server item-count maximum and the encoded Audit package byte bounds.
+`batchSize` is a ceiling, not a promise that every compatible count-sized group
+fits one Run. Each item retains its own batch ordinal, attempt, result,
 evidence, proposal membership, coverage, and settlement. Retry creates a new
 `AuditExecution` and `AuditExecutionItem` for every retried item; the Controller
 may regroup ready retries without changing item identity or attempt history.
@@ -920,7 +922,13 @@ multi-host placement.
 
 For check work, selection starts at the lowest ready immutable item ordinal and
 fills up to the profile's `batchSize` with later compatible items. It may skip
-an incompatible item and form a partial batch. Compatibility requires the same
+an incompatible item and form an ordered candidate batch. Before reserving an
+execution, the trusted submission builder resolves exact Artifact metadata and
+shortens that batch at the first member that would overflow the deterministic
+`item-task-set` byte envelope. A valid task package that cannot join another
+member is dispatched through the unwrapped single-item path; package capacity
+is not `dispatch_contract_invalid` and does not consume an attempt for omitted
+items. Compatibility requires the same
 pinned named Workflow role and closure, resolved Run inputs and scalar
 parameters, baseline/workspace, credential/tool authority, and exact approval
 kind/subject digest. The Store rechecks item state, next attempt, approval

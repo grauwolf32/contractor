@@ -18,6 +18,16 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 )
 
+const (
+	// Task sets use zip.Store, so their archive contains every nested task byte.
+	// Reserve the maximum package manifest plus more than the complete ZIP header
+	// footprint for the Server maximum of 64 short, generated member paths.
+	maximumTaskSetZIPStructureBytes = 64 << 10
+	maximumBatchedTaskPayloadBytes  = int64(
+		auditdomain.MaximumArchiveBytes - auditdomain.MaximumManifestBytes - maximumTaskSetZIPStructureBytes,
+	)
+)
+
 type RoleOutputLookup interface {
 	GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error)
 }
@@ -243,6 +253,10 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	return b.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: item, Attempt: attempt}})
 }
 
+// PrepareBatch may reduce candidates to a non-empty ordered prefix when the
+// exact resolved task sizes cannot fit one deterministic item-task-set. The
+// returned intent is the authoritative selected membership; omitted items have
+// not consumed an attempt and remain ready for later reconciliation.
 func (b *PinnedSubmissionBuilder) PrepareBatch(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
@@ -272,12 +286,13 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
-	manifestItems := make([]auditdomain.ExecutionItem, len(selected))
-	tasks := make([]auditstore.ExactArtifact, len(selected))
+	manifestItems := make([]auditdomain.ExecutionItem, 0, len(selected))
+	tasks := make([]auditstore.ExactArtifact, 0, len(selected))
 	attemptIdentity := make([]string, 0, len(selected)*2)
 	seenItems := make(map[string]struct{}, len(selected))
 	previousOrdinal := -1
-	for index, member := range selected {
+	var selectedTaskBytes int64
+	for _, member := range selected {
 		item, attempt := member.Item, member.Attempt
 		if item.AuditID != audit.AuditID || item.RoundID != snapshot.Round.RoundID ||
 			item.RoundID != *audit.CurrentRoundID || item.WorkflowRole != first.Item.WorkflowRole ||
@@ -288,8 +303,6 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if _, duplicate := seenItems[item.ItemID]; duplicate {
 			return PreparedSubmission{}, invalidSubmission("Audit batch repeats an item")
 		}
-		seenItems[item.ItemID] = struct{}{}
-		previousOrdinal = item.Ordinal
 		manifestItem, findErr := findManifestItem(roundManifest, item)
 		if findErr != nil {
 			return PreparedSubmission{}, findErr
@@ -302,10 +315,19 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 			manifestItem.TaskPackageDigest != task.Digest {
 			return PreparedSubmission{}, invalidSubmission("item task does not match its execution manifest")
 		}
+		if len(tasks) != 0 && !fitsBatchedTaskPayload(selectedTaskBytes, task.SizeBytes) {
+			break
+		}
+		index := len(tasks)
+		seenItems[item.ItemID] = struct{}{}
+		previousOrdinal = item.Ordinal
 		manifestItem.Ordinal = index
-		manifestItems[index], tasks[index] = manifestItem, task
+		manifestItems = append(manifestItems, manifestItem)
+		tasks = append(tasks, task)
+		selectedTaskBytes += task.SizeBytes
 		attemptIdentity = append(attemptIdentity, item.ItemID, strconv.Itoa(attempt))
 	}
+	selected = selected[:len(tasks)]
 	manifest := auditdomain.ExecutionManifest{
 		Schema: auditdomain.ExecutionManifestSchema,
 		Items:  manifestItems,
@@ -409,6 +431,12 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		ExecutionManifest: manifestArtifact, RequestDigest: requestDigest,
 	}
 	return PreparedSubmission{Intent: intent, Run: run}, nil
+}
+
+func fitsBatchedTaskPayload(selectedBytes, candidateBytes int64) bool {
+	return selectedBytes > 0 && candidateBytes > 0 &&
+		selectedBytes <= maximumBatchedTaskPayloadBytes &&
+		candidateBytes <= maximumBatchedTaskPayloadBytes-selectedBytes
 }
 
 func (b *PinnedSubmissionBuilder) buildTaskInput(
