@@ -3,7 +3,7 @@ id: "V37-002"
 title: "Preserve Run drafts across navigation and upload files in the selected input slot"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V37-001"]
 languages: ["typescript"]
@@ -26,6 +26,11 @@ context:
     Retain RunDraftKeyring and an ambiguous submission outcome with the draft. Only an unchanged
     canonical request at the same endpoint reuses its submitted key. A changed request or
     intentional new Run uses a new key; never auto-submit after restoration.
+  capacity_policy: >-
+    Retain at most 16 modified or ambiguously submitted drafts for one authenticated owner.
+    Pristine forms may be released when they unmount. At capacity, opening another draft shows
+    the exact retained Workflow/scope identities and requires the user to choose one to discard;
+    the store never selects or evicts a draft on its own.
   browser_verification: >-
     Build the UI with make ui-build and serve it using the documented UI development or Node
     server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
