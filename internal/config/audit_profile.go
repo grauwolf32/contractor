@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -12,6 +13,8 @@ const (
 	MaxAuditProfileStandards  = 16
 	MaxAuditProfileInputs     = 32
 	MaxAuditProfileWorkflows  = 16
+	MaxAuditStandardLevels    = 16
+	MaxAuditStandardEntries   = 4_096
 	MaxAuditRounds            = 32
 	MaxAuditBatchSize         = 64
 	MaxAuditItemsPerRound     = 10_000
@@ -63,9 +66,19 @@ type AuditProfileInput struct {
 }
 
 type AuditInventory struct {
-	Implementation   string `json:"implementation"`
-	SourceInput      string `json:"sourceInput,omitempty"`
-	ItemWorkflowRole string `json:"itemWorkflowRole"`
+	Implementation    string                  `json:"implementation"`
+	SourceInput       string                  `json:"sourceInput,omitempty"`
+	ItemWorkflowRole  string                  `json:"itemWorkflowRole"`
+	StandardSelection *AuditStandardSelection `json:"standardSelection,omitempty"`
+}
+
+// AuditStandardSelection is an exact, profile-authored denominator. EntryIDs
+// are authoritative; Scope and Levels describe that bounded selection without
+// asking the Server or a model to infer a standard-specific hierarchy.
+type AuditStandardSelection struct {
+	Scope    string   `json:"scope"`
+	Levels   []string `json:"levels"`
+	EntryIDs []string `json:"entryIds"`
 }
 
 type AuditWorkflowInputSource string
@@ -210,9 +223,16 @@ type auditProfileInputSource struct {
 }
 
 type auditInventorySource struct {
-	Implementation   string `yaml:"implementation"`
-	SourceInput      string `yaml:"sourceInput"`
-	ItemWorkflowRole string `yaml:"itemWorkflowRole"`
+	Implementation    string                        `yaml:"implementation"`
+	SourceInput       string                        `yaml:"sourceInput"`
+	ItemWorkflowRole  string                        `yaml:"itemWorkflowRole"`
+	StandardSelection *auditStandardSelectionSource `yaml:"standardSelection,omitempty"`
+}
+
+type auditStandardSelectionSource struct {
+	Scope    string   `yaml:"scope"`
+	Levels   []string `yaml:"levels"`
+	EntryIDs []string `yaml:"entryIds"`
 }
 
 type auditWorkflowBindingSource struct {
@@ -321,6 +341,13 @@ func (l *loader) resolveAuditProfile(
 	execution, err := resolveAuditExecutionPolicy(spec.Execution)
 	if err != nil {
 		return ResolvedAuditProfile{}, err
+	}
+	if selection := inventory.StandardSelection; selection != nil &&
+		(len(selection.EntryIDs) > execution.MaxItemsPerRound ||
+			len(selection.EntryIDs) > execution.MaxItemsTotal) {
+		return ResolvedAuditProfile{}, fmt.Errorf(
+			"spec.inventory.standardSelection.entryIds exceeds the configured item limits",
+		)
 	}
 	interaction, err := resolveAuditInteractionPolicy(spec.Interaction)
 	if err != nil {
@@ -640,6 +667,9 @@ func resolveAuditInventory(
 			return AuditInventory{}, fmt.Errorf("standard-mappings@1 requires exactly one spec.standards entry")
 		}
 	} else {
+		if source.StandardSelection != nil {
+			return AuditInventory{}, fmt.Errorf("spec.inventory.standardSelection is only valid for standard-mappings@1")
+		}
 		if err := validateAuditMapKey("spec.inventory.sourceInput", source.SourceInput); err != nil {
 			return AuditInventory{}, err
 		}
@@ -682,10 +712,64 @@ func resolveAuditInventory(
 	if !hasItemContext {
 		return AuditInventory{}, fmt.Errorf("spec.inventory.itemWorkflowRole must receive item-package or item-field context")
 	}
+	selection, err := resolveAuditStandardSelection(source.StandardSelection)
+	if err != nil {
+		return AuditInventory{}, err
+	}
 	return AuditInventory{
 		Implementation: source.Implementation, SourceInput: source.SourceInput,
-		ItemWorkflowRole: source.ItemWorkflowRole,
+		ItemWorkflowRole: source.ItemWorkflowRole, StandardSelection: selection,
 	}, nil
+}
+
+func resolveAuditStandardSelection(
+	source *auditStandardSelectionSource,
+) (*AuditStandardSelection, error) {
+	if source == nil {
+		return nil, nil
+	}
+	if !utf8.ValidString(source.Scope) || source.Scope != strings.TrimSpace(source.Scope) ||
+		source.Scope == "" || len([]byte(source.Scope)) > 512 {
+		return nil, fmt.Errorf("spec.inventory.standardSelection.scope must be non-empty UTF-8 and at most 512 bytes")
+	}
+	if len(source.Levels) == 0 || len(source.Levels) > MaxAuditStandardLevels {
+		return nil, fmt.Errorf("spec.inventory.standardSelection.levels must contain between 1 and %d values", MaxAuditStandardLevels)
+	}
+	if len(source.EntryIDs) == 0 || len(source.EntryIDs) > MaxAuditStandardEntries {
+		return nil, fmt.Errorf("spec.inventory.standardSelection.entryIds must contain between 1 and %d values", MaxAuditStandardEntries)
+	}
+	levels, err := normalizeAuditSelectionValues(
+		"spec.inventory.standardSelection.levels", source.Levels, 128,
+	)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := normalizeAuditSelectionValues(
+		"spec.inventory.standardSelection.entryIds", source.EntryIDs, 128,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &AuditStandardSelection{
+		Scope: source.Scope, Levels: levels, EntryIDs: entries,
+	}, nil
+}
+
+func normalizeAuditSelectionValues(field string, source []string, maximum int) ([]string, error) {
+	result := append([]string{}, source...)
+	for index, value := range result {
+		if !utf8.ValidString(value) || value != strings.TrimSpace(value) || value == "" ||
+			strings.ContainsRune(value, 0) || len([]byte(value)) > maximum {
+			return nil, fmt.Errorf("%s[%d] is invalid", field, index)
+		}
+	}
+	sort.Strings(result)
+	for index := 1; index < len(result); index++ {
+		if result[index] == result[index-1] {
+			return nil, fmt.Errorf("%s contains duplicate %q", field, result[index])
+		}
+	}
+	return result, nil
 }
 
 var auditInventoryMediaTypes = map[string][]string{
@@ -909,6 +993,12 @@ func auditProfileDigestWithRoleKinds(
 
 func cloneAuditProfile(source ResolvedAuditProfile) ResolvedAuditProfile {
 	result := source
+	if source.Inventory.StandardSelection != nil {
+		selection := *source.Inventory.StandardSelection
+		selection.Levels = append([]string{}, source.Inventory.StandardSelection.Levels...)
+		selection.EntryIDs = append([]string{}, source.Inventory.StandardSelection.EntryIDs...)
+		result.Inventory.StandardSelection = &selection
+	}
 	result.Standards = append([]AuditStandardRef{}, source.Standards...)
 	result.Inputs = make(map[string]AuditProfileInput, len(source.Inputs))
 	for name, input := range source.Inputs {

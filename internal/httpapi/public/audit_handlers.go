@@ -82,10 +82,11 @@ type auditSkillResponse struct {
 }
 
 type auditBaselineInventoryResponse struct {
-	SourceContentDigest      string                   `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                   `json:"canonicalInventoryDigest"`
-	Gaps                     []string                 `json:"gaps"`
-	Worklist                 auditstore.ExactArtifact `json:"worklist"`
+	SourceContentDigest      string                         `json:"sourceContentDigest"`
+	CanonicalInventoryDigest string                         `json:"canonicalInventoryDigest"`
+	StandardSelection        *config.AuditStandardSelection `json:"standardSelection,omitempty"`
+	Gaps                     []string                       `json:"gaps"`
+	Worklist                 auditstore.ExactArtifact       `json:"worklist"`
 }
 
 type auditProfileIdentityResponse struct {
@@ -847,6 +848,7 @@ func auditReadModel(source auditstore.Audit) (auditResponse, error) {
 			Inventory: auditBaselineInventoryResponse{
 				SourceContentDigest:      baseline.Inventory.SourceContentDigest,
 				CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
+				StandardSelection:        baseline.Inventory.StandardSelection,
 				Gaps:                     append([]string{}, baseline.Inventory.Gaps...),
 				Worklist:                 baseline.Inventory.Worklist,
 			},

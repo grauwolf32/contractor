@@ -228,6 +228,7 @@ func (s *Service) startInTransaction(
 		Inventory: BaselineInventory{
 			SourceContentDigest:      inventory.SourceContentDigest,
 			CanonicalInventoryDigest: inventory.CanonicalInventoryDigest,
+			StandardSelection:        cloneAuditStandardSelection(profile.Inventory.StandardSelection),
 			Gaps:                     append([]string{}, inventory.Gaps...), Worklist: worklistArtifact,
 			ExecutionManifest: executionManifest,
 		},
@@ -248,6 +249,17 @@ func (s *Service) startInTransaction(
 		}
 		if task.Checklist != nil {
 			origin.EntryVersion = task.Checklist.Version
+		}
+		if task.Standard != nil {
+			origin.Standard = &auditstore.StandardItemOrigin{
+				Scheme: task.Standard.Scheme, Version: task.Standard.Version,
+				MappingKey: task.Standard.MappingKey,
+				EntryIDs:   append([]string{}, task.Standard.EntryIDs...),
+				EvidenceContract: auditstore.StandardEvidenceOrigin{
+					ID:      task.Standard.EvidenceContract.ID,
+					Version: task.Standard.EvidenceContract.Version,
+				},
+			}
 		}
 		itemID := deterministicID("item", audit.AuditID, item.ItemKey)
 		approvalKind, approvalDigest, initialState, err := materializedItemApproval(
@@ -439,12 +451,21 @@ func buildInventory(
 		if len(standards) != 1 || standards[0].Source.Artifact.ValidateExact() != nil {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: exact standard inventory source is missing", ErrInvalid)
 		}
+		var standardSelection *auditdomain.StandardSelection
+		if profile.Inventory.StandardSelection != nil {
+			standardSelection = &auditdomain.StandardSelection{
+				Scope:    profile.Inventory.StandardSelection.Scope,
+				Levels:   append([]string{}, profile.Inventory.StandardSelection.Levels...),
+				EntryIDs: append([]string{}, profile.Inventory.StandardSelection.EntryIDs...),
+			}
+		}
 		return auditdomain.BuildStandardMappingInventory(
 			standards[0].Package,
 			auditdomain.InventoryOptions{
 				Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
 				SourceInputName: "standard", SourceRef: standards[0].Source.Artifact,
 				ApprovalRequirement: auditdomain.ApprovalNone, Scope: selection.Scope.Values(),
+				StandardSelection: standardSelection,
 			},
 		)
 	}

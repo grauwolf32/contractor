@@ -19,11 +19,12 @@ import (
 const ReportSchema = "contractor.audit.report.v1"
 
 type reportProfile struct {
-	Name      string                    `json:"name"`
-	Version   string                    `json:"version"`
-	Digest    string                    `json:"digest"`
-	Mode      config.AuditProfileMode   `json:"mode"`
-	Standards []config.AuditStandardRef `json:"standards"`
+	Name              string                         `json:"name"`
+	Version           string                         `json:"version"`
+	Digest            string                         `json:"digest"`
+	Mode              config.AuditProfileMode        `json:"mode"`
+	Standards         []config.AuditStandardRef      `json:"standards"`
+	StandardSelection *config.AuditStandardSelection `json:"standardSelection,omitempty"`
 }
 
 type reportRound struct {
@@ -41,6 +42,7 @@ type reportBaseline struct {
 	Worklist                 auditstore.ExactArtifact            `json:"worklist"`
 	InventoryGaps            []string                            `json:"inventoryGaps"`
 	Standards                []auditstandards.PinnedPackage      `json:"standards"`
+	StandardSelection        *config.AuditStandardSelection      `json:"standardSelection,omitempty"`
 }
 
 type reportStopReason struct {
@@ -168,10 +170,11 @@ func (i *Importer) Finalize(
 		Scope     map[string]string                   `json:"scope"`
 		Standards []auditstandards.PinnedPackage      `json:"standards"`
 		Inventory struct {
-			SourceContentDigest      string                   `json:"sourceContentDigest"`
-			CanonicalInventoryDigest string                   `json:"canonicalInventoryDigest"`
-			Worklist                 auditstore.ExactArtifact `json:"worklist"`
-			Gaps                     []string                 `json:"gaps"`
+			SourceContentDigest      string                         `json:"sourceContentDigest"`
+			CanonicalInventoryDigest string                         `json:"canonicalInventoryDigest"`
+			Worklist                 auditstore.ExactArtifact       `json:"worklist"`
+			Gaps                     []string                       `json:"gaps"`
+			StandardSelection        *config.AuditStandardSelection `json:"standardSelection,omitempty"`
 		} `json:"inventory"`
 	}
 	if json.Unmarshal(snapshot.Audit.BaselineSnapshot, &baseline) != nil ||
@@ -233,7 +236,8 @@ func (i *Importer) Finalize(
 		Profile: reportProfile{
 			Name: snapshot.Audit.Profile.Name, Version: snapshot.Audit.Profile.Version,
 			Digest: snapshot.Audit.Profile.Digest, Mode: profile.Mode,
-			Standards: append([]config.AuditStandardRef{}, profile.Standards...),
+			Standards:         append([]config.AuditStandardRef{}, profile.Standards...),
+			StandardSelection: cloneReportStandardSelection(profile.Inventory.StandardSelection),
 		},
 		Baseline: reportBaseline{
 			Digest: digestBytes(snapshot.Audit.BaselineSnapshot),
@@ -243,6 +247,7 @@ func (i *Importer) Finalize(
 			Worklist:                 baseline.Inventory.Worklist,
 			InventoryGaps:            append([]string{}, baseline.Inventory.Gaps...),
 			Standards:                append([]auditstandards.PinnedPackage{}, baseline.Standards...),
+			StandardSelection:        cloneReportStandardSelection(baseline.Inventory.StandardSelection),
 		},
 		Round: reportRound{
 			RoundID: snapshot.Round.RoundID, Ordinal: snapshot.Round.Ordinal,
@@ -457,6 +462,11 @@ func humanSummary(report machineReport) string {
 	fmt.Fprintf(&builder, "- Profile: %s@%s (%s)\n", markdownText(report.Profile.Name), markdownText(report.Profile.Version), markdownText(string(report.Profile.Mode)))
 	fmt.Fprintf(&builder, "- Conclusion: %s\n", markdownText(report.Conclusion))
 	fmt.Fprintf(&builder, "- Selected items: %d\n", report.Coverage.SelectedItems)
+	if selection := report.Baseline.StandardSelection; selection != nil {
+		fmt.Fprintf(&builder, "- Standard selection: %s\n", markdownText(selection.Scope))
+		fmt.Fprintf(&builder, "- Selected levels: %s\n", markdownText(strings.Join(selection.Levels, ", ")))
+		fmt.Fprintf(&builder, "- Exact selected requirements: %d\n", len(selection.EntryIDs))
+	}
 	if report.Coverage.AssessedPercent == nil {
 		builder.WriteString("- Applicable coverage: N/A (zero denominator)\n")
 	} else {
@@ -523,4 +533,16 @@ func cloneStringMap(values map[string]string) map[string]string {
 		result[key] = value
 	}
 	return result
+}
+
+func cloneReportStandardSelection(
+	source *config.AuditStandardSelection,
+) *config.AuditStandardSelection {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.Levels = append([]string(nil), source.Levels...)
+	result.EntryIDs = append([]string(nil), source.EntryIDs...)
+	return &result
 }

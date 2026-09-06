@@ -285,11 +285,25 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
           </div>
           {exactProfile.standards.length === 0 ? null : (
             <p className="notice" data-testid="audit-profile-standards">
-              Exact standards pinned at start: {" "}
+              Exact standards pinned at start:{" "}
               {exactProfile.standards
                 .map((standard) => `${standard.scheme}@${standard.version}`)
                 .join(", ")}
             </p>
+          )}
+          {exactProfile.inventory.standardSelection === undefined ? null : (
+            <div
+              className="notice"
+              data-testid="audit-profile-standard-selection"
+            >
+              <strong>{exactProfile.inventory.standardSelection.scope}</strong>
+              <p>
+                Levels{" "}
+                {exactProfile.inventory.standardSelection.levels.join(", ")} ·{" "}
+                {exactProfile.inventory.standardSelection.entryIds.length} exact
+                requirements
+              </p>
+            </div>
           )}
           {exactProfile.serverCompatible ? (
             <p className="notice notice-success" role="status">

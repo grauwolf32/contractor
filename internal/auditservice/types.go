@@ -86,11 +86,12 @@ type DraftSelection struct {
 }
 
 type BaselineInventory struct {
-	SourceContentDigest      string                        `json:"sourceContentDigest"`
-	CanonicalInventoryDigest string                        `json:"canonicalInventoryDigest"`
-	Gaps                     []string                      `json:"gaps"`
-	Worklist                 auditstore.ExactArtifact      `json:"worklist"`
-	ExecutionManifest        auditdomain.ExecutionManifest `json:"executionManifest"`
+	SourceContentDigest      string                         `json:"sourceContentDigest"`
+	CanonicalInventoryDigest string                         `json:"canonicalInventoryDigest"`
+	StandardSelection        *config.AuditStandardSelection `json:"standardSelection,omitempty"`
+	Gaps                     []string                       `json:"gaps"`
+	Worklist                 auditstore.ExactArtifact       `json:"worklist"`
+	ExecutionManifest        auditdomain.ExecutionManifest  `json:"executionManifest"`
 }
 
 type BaselineSnapshot struct {

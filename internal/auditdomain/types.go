@@ -365,6 +365,16 @@ type InventoryOptions struct {
 	SourceRef           contracts.ArtifactRef
 	Scope               map[string]string
 	ApprovalRequirement ApprovalRequirement
+	StandardSelection   *StandardSelection
+}
+
+// StandardSelection is the already-normalized exact denominator selected by
+// an immutable AuditProfile. EntryIDs carry authority; Scope and Levels are
+// retained descriptive constraints checked against the pinned package.
+type StandardSelection struct {
+	Scope    string   `json:"scope"`
+	Levels   []string `json:"levels"`
+	EntryIDs []string `json:"entry_ids"`
 }
 
 type GeneratedTask struct {
@@ -386,10 +396,11 @@ type Inventory struct {
 }
 
 type inventoryBasis struct {
-	Schema   string           `json:"schema"`
-	Kind     string           `json:"kind"`
-	Subjects []map[string]any `json:"subjects"`
-	Gaps     []string         `json:"gaps"`
+	Schema    string             `json:"schema"`
+	Kind      string             `json:"kind"`
+	Selection *StandardSelection `json:"selection,omitempty"`
+	Subjects  []map[string]any   `json:"subjects"`
+	Gaps      []string           `json:"gaps"`
 }
 
 // rawDocument is used only while applying strict codecs to dynamic, trusted

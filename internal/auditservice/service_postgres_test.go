@@ -347,6 +347,73 @@ SELECT count(*)
 	if roundCount != 1 || artifactCount != 6 {
 		t.Fatalf("manual materialization rows = rounds %d, Audit bindings %d", roundCount, artifactCount)
 	}
+
+	notApplicableDraft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-api-manual-not-applicable", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile: ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:  map[string]contracts.ArtifactRef{"checklist": manual.Ref},
+		Scope:   Scope{}, IdempotencyKey: "create-manual-not-applicable",
+		RequestDigest: serviceTestDigest("create-manual-not-applicable"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notApplicableStarted, err := service.Start(ctx, StartParams{
+		OwnerID: project.OwnerID, AuditID: notApplicableDraft.AuditID,
+		ExpectedRevision: notApplicableDraft.Revision,
+		IdempotencyKey:   "start-manual-not-applicable",
+		RequestDigest:    serviceTestDigest("start-manual-not-applicable"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notApplicableReviews, err := service.ListReviews(ctx, ReviewListParams{
+		OwnerID: project.OwnerID, AuditID: notApplicableDraft.AuditID, Limit: 10,
+	})
+	if err != nil || len(notApplicableReviews) != 1 ||
+		!containsRequestedReviewAction(notApplicableReviews[0].RequestedActions, ReviewNotApplicable) {
+		t.Fatalf("not-applicable review authority = (%+v, %v)", notApplicableReviews, err)
+	}
+	rationale := "This exact documentation requirement is outside the approved application scope."
+	decision, err := service.DecideActionReview(ctx, DecideActionReviewParams{
+		OwnerID: project.OwnerID, AuditID: notApplicableDraft.AuditID,
+		RequestID:               notApplicableReviews[0].RequestID,
+		ExpectedRequestRevision: notApplicableReviews[0].Revision,
+		DecisionID:              "decision-manual-not-applicable",
+		Action:                  ReviewNotApplicable, Rationale: rationale,
+		IdempotencyKey: "decision-manual-not-applicable",
+		RequestDigest:  serviceTestDigest("decision-manual-not-applicable"),
+	})
+	if err != nil || decision.Decision.Action != ReviewNotApplicable {
+		t.Fatalf("not-applicable decision = (%+v, %v)", decision, err)
+	}
+	notApplicableItems, err := service.ListItems(ctx, auditstore.ListItemsParams{
+		OwnerID: project.OwnerID, AuditID: notApplicableDraft.AuditID, Limit: 10,
+	})
+	if err != nil || len(notApplicableItems) != 1 ||
+		notApplicableItems[0].State != auditstore.ItemSettled ||
+		notApplicableItems[0].FinalDisposition == nil ||
+		*notApplicableItems[0].FinalDisposition != auditstore.FinalNotApplicable {
+		t.Fatalf("not-applicable item = (%+v, %v)", notApplicableItems, err)
+	}
+	notApplicableCoverage, err := service.ListCoverage(
+		ctx, project.OwnerID, notApplicableDraft.AuditID,
+		notApplicableStarted.Round.RoundID, -1, 10,
+	)
+	if err != nil || len(notApplicableCoverage) != 1 ||
+		notApplicableCoverage[0].Coverage.Status != auditstore.CoverageNotApplicable ||
+		notApplicableCoverage[0].Coverage.Rationale != rationale {
+		t.Fatalf("not-applicable coverage = (%+v, %v)", notApplicableCoverage, err)
+	}
+}
+
+func containsRequestedReviewAction(values []ReviewRequestedAction, action ReviewAction) bool {
+	for _, value := range values {
+		if value == ReviewRequestedAction(action) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {

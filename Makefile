@@ -290,7 +290,7 @@ test-lifecycle-controls-browser: test-ui-stack
 
 test-lifecycle-controls-release: test-lifecycle-controls-hardening test-lifecycle-controls-e2e test-lifecycle-controls-browser
 
-.PHONY: test-audits-matrix test-audits-hardening test-audits-process test-audits-browser test-audits-e2e test-top10-audit-e2e
+.PHONY: test-audits-matrix test-audits-hardening test-audits-process test-audits-browser test-audits-e2e test-top10-audit-e2e test-asvs-audit-e2e
 
 test-audits-matrix: test-hardening-matrices
 
@@ -308,6 +308,12 @@ test-top10-audit-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
 	go test -count=1 ./tests/eval/audit_programs -run '^TestTop10'
+	go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$$'
+
+test-asvs-audit-e2e:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	go test -count=1 ./tests/eval/audit_programs -run '^TestASVS'
 	go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$$'
 
 # The browser process is built and served independently from the Go API. The

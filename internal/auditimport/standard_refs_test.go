@@ -76,6 +76,46 @@ func TestStandardTaskMatchesItsExactRetainedMapping(t *testing.T) {
 	if standardTaskMatchesPackage(task, standard) {
 		t.Fatal("task with an invented standard review policy matched retained mapping")
 	}
+
+	_, selectedPackage, err := auditstandards.PackageDirectory(filepath.Join(
+		"..", "..", "configs", "audit-standards", "owasp-asvs-5.0.0",
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedRevision := "selected-standard-r1"
+	selectedRef := contracts.ArtifactRef{
+		Namespace: "audit-example", Name: "selected-standard", Revision: &selectedRevision,
+	}
+	selectedPinned := auditstandards.PinnedPackage{
+		Reference: selectedPackage.Reference(), Title: selectedPackage.Document.Standard.Title,
+		Source: selectedPackage.Document.Standard.Source, License: selectedPackage.Document.Standard.License,
+		Retained: auditstandards.ExactPackage{
+			Artifact: selectedRef, Digest: selectedPackage.Digest, MediaType: auditstandards.MediaType,
+			SizeBytes: int64(len(selectedPackage.Payload())),
+		},
+	}
+	selectedInventory, err := auditdomain.BuildStandardMappingInventory(*selectedPackage, auditdomain.InventoryOptions{
+		Round: 1, WorkflowRole: "check", SourceInputName: "standard", SourceRef: selectedRef,
+		ApprovalRequirement: auditdomain.ApprovalNone,
+		StandardSelection: &auditdomain.StandardSelection{
+			Scope: "one exact requirement", Levels: []string{"1"},
+			EntryIDs: []string{"v5.0.0-1.2.4"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedTask := selectedInventory.Tasks[0].Document
+	selectedStandard := retainedStandard{pinned: selectedPinned, pkg: *selectedPackage}
+	if selectedTask.Checklist.Statement == selectedPackage.Document.Mappings[0].Objective ||
+		!standardTaskMatchesPackage(selectedTask, selectedStandard) {
+		t.Fatal("exact selected standard statement did not match its retained mapping")
+	}
+	selectedTask.Checklist.Statement += " model-authored suffix"
+	if standardTaskMatchesPackage(selectedTask, selectedStandard) {
+		t.Fatal("task with non-authoritative selected statement matched retained mapping")
+	}
 }
 
 func TestStandardEvidenceContractRejectsInventedAssessmentAndKind(t *testing.T) {

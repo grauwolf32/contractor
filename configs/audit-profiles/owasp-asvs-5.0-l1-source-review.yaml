@@ -1,0 +1,55 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+
+metadata:
+  name: owasp-asvs-5-0-l1-source-review
+  version: "1"
+
+spec:
+  mode: requirements-verification
+  standards:
+    - scheme: owasp-asvs
+      version: "5.0.0"
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+  inventory:
+    implementation: standard-mappings@1
+    itemWorkflowRole: check
+    standardSelection:
+      scope: ASVS 5.0 Level 1 source and documentation pilot (5 requirements)
+      levels: ["1"]
+      entryIds:
+        - v5.0.0-1.2.4
+        - v5.0.0-1.2.5
+        - v5.0.0-1.3.2
+        - v5.0.0-1.5.1
+        - v5.0.0-2.1.1
+  workflows:
+    check:
+      kind: check
+      ref: audit-asvs-source-verification@1
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        source: {source: audit-input, name: source}
+      parameters: {}
+      outputs:
+        result: result
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 5
+    maxItemsTotal: 5
+    maxSubmittedRuns: 12
+    maxItemRunAttempts: 2
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: human-required
+    notApplicable: human-required
+    reportAcceptance: automatic

@@ -358,7 +358,25 @@ type ItemOrigin struct {
 	CanonicalInventoryDigest string                 `json:"canonicalInventoryDigest,omitempty"`
 	EntryKey                 string                 `json:"entryKey"`
 	EntryVersion             string                 `json:"entryVersion,omitempty"`
+	Standard                 *StandardItemOrigin    `json:"standard,omitempty"`
 	ProvenanceIncomplete     bool                   `json:"provenanceIncomplete,omitempty"`
+}
+
+// StandardItemOrigin identifies the authoritative mapping that caused a
+// standard-backed Audit item to exist. Finding proposals may carry additional
+// standardRefs, but those model-authored references never replace this causal
+// Server-authored origin.
+type StandardItemOrigin struct {
+	Scheme           string                 `json:"scheme"`
+	Version          string                 `json:"version"`
+	MappingKey       string                 `json:"mappingKey"`
+	EntryIDs         []string               `json:"entryIds"`
+	EvidenceContract StandardEvidenceOrigin `json:"evidenceContract"`
+}
+
+type StandardEvidenceOrigin struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
 }
 
 type MaterializedItem struct {

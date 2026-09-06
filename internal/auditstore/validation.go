@@ -403,6 +403,38 @@ func validateItemOrigin(value ItemOrigin, itemKey string, allowIncomplete bool) 
 	if err := validateText("item origin entry version", value.EntryVersion, 256, false); err != nil {
 		return err
 	}
+	if value.Standard != nil {
+		standard := value.Standard
+		if standard.MappingKey != value.EntryKey || standard.Version != value.EntryVersion ||
+			len(standard.EntryIDs) == 0 || len(standard.EntryIDs) > 64 {
+			return invalidf("item origin standard identity is invalid")
+		}
+		fields := []struct {
+			name  string
+			value string
+		}{
+			{name: "scheme", value: standard.Scheme},
+			{name: "version", value: standard.Version},
+			{name: "mapping key", value: standard.MappingKey},
+			{name: "evidence contract ID", value: standard.EvidenceContract.ID},
+			{name: "evidence contract version", value: standard.EvidenceContract.Version},
+		}
+		for _, field := range fields {
+			if err := validateText("item origin standard "+field.name, field.value, 128, true); err != nil {
+				return err
+			}
+		}
+		previous := ""
+		for _, entryID := range standard.EntryIDs {
+			if err := validateText("item origin standard entry ID", entryID, 128, true); err != nil {
+				return err
+			}
+			if entryID <= previous {
+				return invalidf("item origin standard entry IDs are invalid")
+			}
+			previous = entryID
+		}
+	}
 	encoded, err := json.Marshal(value)
 	if err != nil || len(encoded) > 16<<10 {
 		return invalidf("item origin is too large")

@@ -2,6 +2,7 @@ package auditdomain
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 )
@@ -27,10 +28,16 @@ func BuildStandardMappingInventory(
 	for _, entry := range document.Entries {
 		entries[entry.ID] = entry
 	}
+	mappings, selection, err := selectedStandardMappings(
+		document, entries, options.StandardSelection,
+	)
+	if err != nil {
+		return Inventory{}, err
+	}
 
-	basisSubjects := make([]map[string]any, 0, len(document.Mappings))
-	subjects := make([]inventorySubject, 0, len(document.Mappings))
-	for _, mapping := range document.Mappings {
+	basisSubjects := make([]map[string]any, 0, len(mappings))
+	subjects := make([]inventorySubject, 0, len(mappings))
+	for _, mapping := range mappings {
 		if mapping.WorkflowRole != options.WorkflowRole {
 			return Inventory{}, invalid(CodeInventoryInvalid, "standard_mapping.workflow_role")
 		}
@@ -70,8 +77,15 @@ func BuildStandardMappingInventory(
 				HumanReview: contract.HumanReview, RationaleRequired: contract.RationaleRequired,
 			},
 		}
+		statement := mapping.Objective
+		// An exact selected requirements denominator carries the normative
+		// requirement statement into each task. Legacy all-mapping profiles
+		// retain their existing scenario-objective behavior (Top 10).
+		if selection != nil && len(entryIDs) == 1 {
+			statement = entries[entryIDs[0]].Statement
+		}
 		checklist := &ChecklistTask{
-			Version: document.Standard.Version, Statement: mapping.Objective,
+			Version: document.Standard.Version, Statement: statement,
 			Applicability: applicability, AllowedMethods: []string{mapping.Method},
 			RequiredEvidence: append([]string{}, requested...), ReviewPolicy: reviewPolicy,
 		}
@@ -91,7 +105,7 @@ func BuildStandardMappingInventory(
 		})
 	}
 	basis := inventoryBasis{
-		Schema: InventoryBasisSchema, Kind: "standard-mappings",
+		Schema: InventoryBasisSchema, Kind: "standard-mappings", Selection: selection,
 		Subjects: basisSubjects, Gaps: []string{},
 	}
 	return finishInventory(
@@ -100,3 +114,85 @@ func BuildStandardMappingInventory(
 }
 
 func standardContractKey(id, version string) string { return id + "\x00" + version }
+
+func selectedStandardMappings(
+	document auditstandards.Document,
+	entries map[string]auditstandards.Entry,
+	requested *StandardSelection,
+) ([]auditstandards.Mapping, *StandardSelection, error) {
+	if requested == nil {
+		return append([]auditstandards.Mapping{}, document.Mappings...), nil, nil
+	}
+	selection := &StandardSelection{
+		Scope:    requested.Scope,
+		Levels:   append([]string{}, requested.Levels...),
+		EntryIDs: append([]string{}, requested.EntryIDs...),
+	}
+	sort.Strings(selection.Levels)
+	sort.Strings(selection.EntryIDs)
+	if selection.Scope == "" || selection.Scope != strings.TrimSpace(selection.Scope) ||
+		len([]byte(selection.Scope)) > 512 || len(selection.Levels) == 0 || len(selection.EntryIDs) == 0 ||
+		len(selection.Levels) > 16 || len(selection.EntryIDs) > MaximumItems ||
+		!strictlySortedNonEmpty(selection.Levels) || !strictlySortedNonEmpty(selection.EntryIDs) {
+		return nil, nil, invalid(CodeInventoryInvalid, "standard_selection")
+	}
+	selected := make(map[string]struct{}, len(selection.EntryIDs))
+	seenLevels := make(map[string]struct{}, len(selection.Levels))
+	for _, entryID := range selection.EntryIDs {
+		entry, exists := entries[entryID]
+		if !exists || !containsString(selection.Levels, entry.Level) {
+			return nil, nil, invalid(CodeInventoryInvalid, "standard_selection.entry_ids")
+		}
+		selected[entryID] = struct{}{}
+		seenLevels[entry.Level] = struct{}{}
+	}
+	if len(seenLevels) != len(selection.Levels) {
+		return nil, nil, invalid(CodeInventoryInvalid, "standard_selection.levels")
+	}
+	result := make([]auditstandards.Mapping, 0, len(selection.EntryIDs))
+	seenEntries := make(map[string]struct{}, len(selection.EntryIDs))
+	for _, mapping := range document.Mappings {
+		matches := false
+		for _, entryID := range mapping.EntryIDs {
+			if _, exists := selected[entryID]; exists {
+				matches = true
+				break
+			}
+		}
+		if !matches {
+			continue
+		}
+		// One selected requirement is one denominator row. Multi-entry or
+		// aliased mappings are rejected instead of silently collapsing it.
+		if len(mapping.EntryIDs) != 1 || mapping.Key != mapping.EntryIDs[0] {
+			return nil, nil, invalid(CodeInventoryInvalid, "standard_selection.mapping")
+		}
+		entryID := mapping.EntryIDs[0]
+		if _, duplicate := seenEntries[entryID]; duplicate {
+			return nil, nil, invalid(CodeInventoryInvalid, "standard_selection.mapping")
+		}
+		seenEntries[entryID] = struct{}{}
+		result = append(result, mapping)
+	}
+	if len(result) != len(selection.EntryIDs) {
+		return nil, nil, invalid(CodeInventoryInvalid, "standard_selection.mapping")
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Key < result[j].Key })
+	return result, selection, nil
+}
+
+func strictlySortedNonEmpty(values []string) bool {
+	previous := ""
+	for _, value := range values {
+		if value == "" || value <= previous {
+			return false
+		}
+		previous = value
+	}
+	return true
+}
+
+func containsString(values []string, candidate string) bool {
+	index := sort.SearchStrings(values, candidate)
+	return index < len(values) && values[index] == candidate
+}

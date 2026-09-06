@@ -417,7 +417,10 @@ function AuditOverview({ audit }: { audit: Audit }) {
             </div>
           </dl>
           {baseline.standards.length === 0 ? null : (
-            <div className="audit-gap-block" data-testid="audit-baseline-standards">
+            <div
+              className="audit-gap-block"
+              data-testid="audit-baseline-standards"
+            >
               <h4>Exact standards</h4>
               <ul className="audit-string-list">
                 {baseline.standards.map((standard) => (
@@ -429,13 +432,34 @@ function AuditOverview({ audit }: { audit: Audit }) {
                       {standard.reference.scheme}@{standard.reference.version}
                     </code>{" "}
                     · <code>{compactDigest(standard.retained.digest)}</code> ·{" "}
-                    <a href={standard.source.url} rel="noreferrer" target="_blank">
+                    <a
+                      href={standard.source.url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
                       source
                     </a>{" "}
                     · {standard.license.id}
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {baseline.inventory.standardSelection === undefined ? null : (
+            <div
+              className="audit-gap-block"
+              data-testid="audit-baseline-standard-selection"
+            >
+              <h4>Selected denominator</h4>
+              <p>{baseline.inventory.standardSelection.scope}</p>
+              <p>
+                Level {baseline.inventory.standardSelection.levels.join(", ")} ·{" "}
+                {baseline.inventory.standardSelection.entryIds.length} exact
+                requirements
+              </p>
+              <StringList
+                values={baseline.inventory.standardSelection.entryIds}
+              />
             </div>
           )}
           <div className="audit-gap-block">
@@ -526,6 +550,17 @@ function AuditChecks({
                   : `@${item.origin.entryVersion}`}
               </dd>
             </div>
+            {item.origin.standard === undefined ? null : (
+              <div>
+                <dt>Causal standard mapping</dt>
+                <dd>
+                  <code>
+                    {item.origin.standard.scheme}@{item.origin.standard.version}
+                    /{item.origin.standard.mappingKey}
+                  </code>
+                </dd>
+              </div>
+            )}
           </dl>
           <div className="audit-artifact-list">
             <ExactArtifactLink
@@ -973,6 +1008,16 @@ function FindingProvenanceView({
                   <span>
                     inventory entry {record.attempt.itemOrigin.entryKey}
                   </span>
+                  {record.attempt.itemOrigin.standard === undefined ? null : (
+                    <span>
+                      causal standard mapping{" "}
+                      <strong>
+                        {record.attempt.itemOrigin.standard.scheme}@
+                        {record.attempt.itemOrigin.standard.version}/
+                        {record.attempt.itemOrigin.standard.mappingKey}
+                      </strong>
+                    </span>
+                  )}
                   <ExactArtifactLink
                     projectId={audit.projectId}
                     artifact={record.attempt.task}
@@ -1165,25 +1210,39 @@ function ActionReviewControls({
           maxLength={65_536}
           rows={3}
           onChange={(event) => setRationale(event.target.value)}
-          placeholder="Explain why this exact action or report is accepted or rejected."
+          placeholder="Explain why this exact action applies, is rejected, or is not applicable."
         />
       </label>
       <div className="button-row">
-        <button
-          type="button"
-          disabled={unavailable}
-          onClick={() => decision.mutate("approve")}
-        >
-          Approve exact subject
-        </button>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={unavailable}
-          onClick={() => decision.mutate("reject")}
-        >
-          Reject
-        </button>
+        {review.requestedActions.includes("approve") ? (
+          <button
+            type="button"
+            disabled={unavailable}
+            onClick={() => decision.mutate("approve")}
+          >
+            Approve exact subject
+          </button>
+        ) : null}
+        {review.requestedActions.includes("reject") ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={unavailable}
+            onClick={() => decision.mutate("reject")}
+          >
+            Reject
+          </button>
+        ) : null}
+        {review.requestedActions.includes("not_applicable") ? (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={unavailable}
+            onClick={() => decision.mutate("not_applicable")}
+          >
+            Mark not applicable
+          </button>
+        ) : null}
       </div>
       {decision.error === null ? null : (
         <AuditMutationNotice error={decision.error} />

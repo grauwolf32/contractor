@@ -364,6 +364,17 @@ describe("Project Audit routes", () => {
   it("creates a draft from one compatible exact Project Artifact", async () => {
     const requests: Request[] = [];
     const draft = auditAt("draft", 1);
+    const selectedProfile: AuditProfile = {
+      ...profile,
+      inventory: {
+        ...profile.inventory,
+        standardSelection: {
+          scope: "ASVS 5.0 Level 1 source pilot",
+          levels: ["1"],
+          entryIds: ["v5.0.0-1.2.4", "v5.0.0-1.2.5"],
+        },
+      },
+    };
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {
@@ -375,13 +386,16 @@ describe("Project Audit routes", () => {
           return jsonResponse(project, { headers: { ETag: '"1"' } });
         }
         if (path === "/v1/audit-profiles") {
-          return jsonResponse({ items: [profile], page: { hasMore: false } });
+          return jsonResponse({
+            items: [selectedProfile],
+            page: { hasMore: false },
+          });
         }
         if (
           path === "/v1/audit-profiles/owasp-top10-2025-source-risk/versions/1"
         ) {
-          return jsonResponse(profile, {
-            headers: { ETag: `"${profile.ref.digest}"` },
+          return jsonResponse(selectedProfile, {
+            headers: { ETag: `"${selectedProfile.ref.digest}"` },
           });
         }
         if (path === "/v1/projects/project_example/artifacts") {
@@ -421,6 +435,12 @@ describe("Project Audit routes", () => {
         "Exact standards pinned at start: owasp-web-top10@2025",
       ),
     ).toBeVisible();
+    expect(
+      await screen.findByTestId("audit-profile-standard-selection"),
+    ).toHaveTextContent("ASVS 5.0 Level 1 source pilot");
+    expect(
+      screen.getByTestId("audit-profile-standard-selection"),
+    ).toHaveTextContent("2 exact requirements");
     await user.selectOptions(
       await screen.findByLabelText("Input source"),
       screen.getByRole("option", {
@@ -458,6 +478,11 @@ describe("Project Audit routes", () => {
   it("shows the exact retained standard identity on the Audit baseline", async () => {
     const current = auditAt("completed", 3);
     current.baseline = top10Baseline(current);
+    current.baseline.inventory.standardSelection = {
+      scope: "ASVS 5.0 Level 1 source pilot",
+      levels: ["1"],
+      entryIds: ["v5.0.0-1.2.4", "v5.0.0-2.1.1"],
+    };
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {
@@ -482,6 +507,10 @@ describe("Project Audit routes", () => {
     expect(
       within(standards).getByRole("link", { name: "source" }),
     ).toHaveAttribute("href", "https://owasp.org/Top10/2025/");
+    const selection = screen.getByTestId("audit-baseline-standard-selection");
+    expect(selection).toHaveTextContent("ASVS 5.0 Level 1 source pilot");
+    expect(selection).toHaveTextContent("v5.0.0-1.2.4");
+    expect(selection).toHaveTextContent("v5.0.0-2.1.1");
   });
 
   it("renders mixed coverage as assessments and refetches active Audits", async () => {
@@ -892,6 +921,122 @@ describe("Project Audit routes", () => {
     expect(
       screen.getByText("The target and exact active request are approved."),
     ).toBeVisible();
+  });
+
+  it("marks only an authorized applicability review as not applicable", async () => {
+    const currentAudit = auditAt("active", 3);
+    const review: AuditReviewRequest = {
+      requestId: "review_applicability",
+      auditId: currentAudit.auditId,
+      subjectKind: "audit-item-action",
+      subjectId: "item_asvs_documentation",
+      kind: "requirement-applicability",
+      subjectRevision: 1,
+      subjectDigest: `sha256:${"c".repeat(64)}`,
+      requestedActions: ["approve", "reject", "not_applicable"],
+      state: "pending",
+      revision: 1,
+      createdAt: currentAudit.createdAt,
+      updatedAt: currentAudit.updatedAt,
+    };
+    let decided = false;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(currentAudit, { headers: { ETag: '"3"' } });
+        }
+        if (
+          path === "/v1/audits/audit_example/reviews" &&
+          request.method === "GET"
+        ) {
+          return jsonResponse({
+            items: decided
+              ? [
+                  {
+                    ...review,
+                    state: "decided",
+                    revision: 2,
+                    decision: {
+                      decisionId: "decision_not_applicable",
+                      requestId: review.requestId,
+                      auditId: review.auditId,
+                      action: "not_applicable",
+                      actorId: session.principal.userId,
+                      rationale:
+                        "Documentation is outside this exact application scope.",
+                      subjectRevision: review.subjectRevision,
+                      subjectDigest: review.subjectDigest,
+                      createdAt: currentAudit.updatedAt,
+                    },
+                  },
+                ]
+              : [review],
+            page: { hasMore: false },
+          });
+        }
+        if (
+          path ===
+            "/v1/audits/audit_example/reviews/review_applicability/decisions" &&
+          request.method === "POST"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"1"');
+          expect(await request.json()).toEqual({
+            action: "not_applicable",
+            rationale: "Documentation is outside this exact application scope.",
+          });
+          decided = true;
+          return jsonResponse({
+            request: review,
+            decision: {
+              decisionId: "decision_not_applicable",
+              requestId: review.requestId,
+              auditId: review.auditId,
+              action: "not_applicable",
+              actorId: session.principal.userId,
+              rationale:
+                "Documentation is outside this exact application scope.",
+              subjectRevision: review.subjectRevision,
+              subjectDigest: review.subjectDigest,
+              createdAt: currentAudit.updatedAt,
+            },
+            replayed: false,
+          });
+        }
+        if (path === "/v1/audits/audit_example/items") {
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }
+        if (path === "/v1/audits/audit_example/report") {
+          return jsonResponse({ status: "pending" });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/reviews",
+    );
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByLabelText("Rationale"),
+      "Documentation is outside this exact application scope.",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Mark not applicable" }),
+    );
+    expect(
+      await screen.findByText("not_applicable", {
+        exact: false,
+        selector: "span",
+      }),
+    ).toBeVisible();
+    expect(decided).toBe(true);
   });
 
   it("recovers a stale pause from the authoritative revision", async () => {

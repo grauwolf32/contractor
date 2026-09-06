@@ -147,6 +147,17 @@ requires every mapping to select `itemWorkflowRole`, rejects unevaluated
 `profile-rule` applicability and `on-inconclusive` review semantics, and does
 not call a model or the network while building the inventory.
 
+A requirements-verification profile MAY add `inventory.standardSelection` with
+an operator-authored `scope`, a sorted set of `levels`, and a sorted set of
+version-qualified `entryIds`. The entry IDs are the authoritative denominator;
+scope and levels are retained explanatory constraints. Every selected entry
+MUST exist at one selected level and MUST have exactly one one-entry mapping
+whose key equals that entry ID. Missing, duplicate, dangling, or wrong-version
+selection fails Server startup before an Audit can start. The exact selection
+is included in the profile digest, canonical inventory, Audit baseline, API,
+and reports. Profiles without this field retain the all-mappings behavior used
+by the curated Top 10 risk program.
+
 OWASP Top 10 is a risk-awareness document, not an exhaustive compliance
 checklist. A risk-assessment report MUST NOT claim “OWASP certified” or infer
 complete security from a lack of findings. ASVS assessments pin an exact
@@ -1379,7 +1390,10 @@ Unreviewed findings display no analyst rating. Stale edits refetch current
 state after conflict and never overwrite another decision silently.
 
 The Reviews view also renders pending item-action and report requests with an
-explicit rationale and exact-subject approve/reject controls. A proposed report
+explicit rationale and exact-subject controls. Applicability reviews offer
+`approve`, `reject`, and `not_applicable`; the last action settles the item with
+a durable owner rationale and removes only that item from the applicable
+denominator. Other item and report reviews remain approve/reject. A proposed report
 is readable before acceptance and links back to that request; it is never
 presented as an accepted result.
 
@@ -1419,11 +1433,23 @@ top-level lifecycle state is unchanged.
 
 ### 18.2 ASVS or custom checklist
 
-1. A versioned requirements package defines the denominator.
-2. Automatable requirements receive checks; others receive evidence/review work.
-3. Trace, HTTP, and documentary evidence links to exact requirement IDs.
-4. Assessment applies the evidence contract; N/A requires rationale/authority.
-5. Report includes every selected item, including untested and inconclusive.
+1. The curated `owasp-asvs-5-0-l1-source-review@1` pilot pins
+   `owasp-asvs@5.0.0` and an explicit five-requirement Level 1 denominator. It
+   does not claim to represent all ASVS requirements or certification.
+2. Each selected version-qualified requirement creates exactly one item. Four
+   source checks are immediately eligible; the documentary requirement waits
+   for an exact applicability decision.
+3. Trace and documentary evidence link to exact requirement IDs and immutable
+   mapping/evidence-contract snapshots.
+4. A human `not_applicable` decision requires rationale. Worker output cannot
+   author that authority.
+5. Item origin retains the causal standard scheme/version, mapping key, entry
+   IDs, and evidence-contract version separately from incidental standard refs
+   on a finding proposal. Attempt provenance retains the actual verification
+   Workflow after its ordinary Run or the current catalog entry is removed.
+6. Report includes every selected item, including satisfied, violated,
+   not-applicable, not-tested, and inconclusive outcomes, and states the exact
+   limited selection.
 
 ### 18.3 OpenAPI operation tracing
 

@@ -443,7 +443,7 @@ func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStan
 		}
 	}
 	if mapping == nil || mapping.Key != task.ItemKey || mapping.WorkflowRole != task.WorkflowRole ||
-		mapping.Objective != task.Checklist.Statement ||
+		!standardTaskStatementMatches(task.Checklist.Statement, *mapping, standard.pkg) ||
 		task.Checklist.Version != standard.pinned.Reference.Version ||
 		len(task.Checklist.AllowedMethods) != 1 || task.Checklist.AllowedMethods[0] != mapping.Method ||
 		!equalStrings(mapping.EntryIDs, task.Standard.EntryIDs) ||
@@ -480,6 +480,27 @@ func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStan
 			contract.MaximumEvidence == selected.MaximumEvidence &&
 			contract.HumanReview == selected.HumanReview &&
 			contract.RationaleRequired == selected.RationaleRequired
+	}
+	return false
+}
+
+func standardTaskStatementMatches(
+	statement string, mapping auditstandards.Mapping, pkg auditstandards.Package,
+) bool {
+	if statement == mapping.Objective {
+		return true
+	}
+	// Exact one-entry selections deliberately carry the authoritative standard
+	// statement instead of the broader Contractor-authored mapping objective.
+	// Accept only that other exact, retained-package value; model-authored text
+	// cannot satisfy this boundary.
+	if len(mapping.EntryIDs) != 1 {
+		return false
+	}
+	for _, entry := range pkg.Document.Entries {
+		if entry.ID == mapping.EntryIDs[0] {
+			return statement == entry.Statement
+		}
 	}
 	return false
 }
@@ -1087,15 +1108,16 @@ func taskGaps(task auditdomain.ItemTask) []string {
 
 func encodeTaskOrigin(task auditdomain.ItemTask) (json.RawMessage, error) {
 	value := struct {
-		SourceRef                contracts.ArtifactRef `json:"sourceRef"`
-		SourceContentDigest      string                `json:"sourceContentDigest"`
-		CanonicalInventoryDigest string                `json:"canonicalInventoryDigest"`
-		EntryKey                 string                `json:"entryKey"`
-		EntryVersion             string                `json:"entryVersion,omitempty"`
+		SourceRef                contracts.ArtifactRef            `json:"sourceRef"`
+		SourceContentDigest      string                           `json:"sourceContentDigest"`
+		CanonicalInventoryDigest string                           `json:"canonicalInventoryDigest"`
+		EntryKey                 string                           `json:"entryKey"`
+		EntryVersion             string                           `json:"entryVersion,omitempty"`
+		Standard                 *auditdomain.StandardMappingTask `json:"standard,omitempty"`
 	}{
 		SourceRef: task.SourceRef, SourceContentDigest: task.SourceContentDigest,
 		CanonicalInventoryDigest: task.CanonicalInventoryDigest,
-		EntryKey:                 task.ItemKey,
+		EntryKey:                 task.ItemKey, Standard: task.Standard,
 	}
 	if task.Checklist != nil {
 		value.EntryVersion = task.Checklist.Version

@@ -1573,6 +1573,12 @@ export interface components {
             implementation: "checklist@1" | "openapi-operations@1" | "finding-candidates@1" | "standard-mappings@1";
             sourceInput?: components["schemas"]["ArtifactName"];
             itemWorkflowRole: components["schemas"]["ArtifactName"];
+            standardSelection?: components["schemas"]["AuditStandardSelection"];
+        };
+        AuditStandardSelection: {
+            scope: string;
+            levels: string[];
+            entryIds: string[];
         };
         AuditWorkflowInputMapping: {
             /** @enum {unknown} */
@@ -1690,6 +1696,7 @@ export interface components {
         AuditBaselineInventory: {
             sourceContentDigest: components["schemas"]["Digest"];
             canonicalInventoryDigest: components["schemas"]["Digest"];
+            standardSelection?: components["schemas"]["AuditStandardSelection"];
             gaps: string[];
             worklist: components["schemas"]["AuditExactArtifact"];
         };
@@ -1851,8 +1858,20 @@ export interface components {
             canonicalInventoryDigest?: components["schemas"]["Digest"];
             entryKey: string;
             entryVersion?: string;
+            standard?: components["schemas"]["AuditStandardItemOrigin"];
             /** @description True only for an item materialized before durable origin projection existed. */
             provenanceIncomplete?: boolean;
+        };
+        AuditStandardEvidenceOrigin: {
+            id: string;
+            version: string;
+        };
+        AuditStandardItemOrigin: {
+            scheme: string;
+            version: string;
+            mappingKey: string;
+            entryIds: string[];
+            evidenceContract: components["schemas"]["AuditStandardEvidenceOrigin"];
         };
         AuditItem: {
             itemId: components["schemas"]["ResourceId"];
@@ -2022,9 +2041,9 @@ export interface components {
         /** @enum {unknown} */
         AuditAnalystVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
         /** @enum {unknown} */
-        AuditReviewAction: "approve" | "reject";
+        AuditReviewAction: "approve" | "reject" | "not_applicable";
         /** @enum {unknown} */
-        AuditReviewRequestedAction: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence" | "approve" | "reject";
+        AuditReviewRequestedAction: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence" | "approve" | "reject" | "not_applicable";
         /** @enum {unknown} */
         AuditReviewSubjectKind: "finding" | "audit-item-action" | "audit-report";
         /** @enum {unknown} */

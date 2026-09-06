@@ -159,7 +159,10 @@ WITH project_gate AS MATERIALIZED (
     )
     SELECT 'review-' || item.item_id, item.audit_id, NULL,
            'audit-item-action', item.item_id, item.approval_kind,
-           1, item.approval_subject_digest, '["approve","reject"]'::jsonb,
+           1, item.approval_subject_digest,
+           CASE WHEN item.approval_kind = 'requirement-applicability'
+                THEN '["approve","reject","not_applicable"]'::jsonb
+                ELSE '["approve","reject"]'::jsonb END,
            'pending', started.deadline_at, 'auto:' || item.item_id,
            item.approval_subject_digest
       FROM inserted_items AS item JOIN started USING (audit_id)
@@ -384,7 +387,10 @@ WITH live_claim AS MATERIALIZED (
     )
     SELECT 'review-' || item.item_id, item.audit_id, NULL,
            'audit-item-action', item.item_id, item.approval_kind,
-           1, item.approval_subject_digest, '["approve","reject"]'::jsonb,
+           1, item.approval_subject_digest,
+           CASE WHEN item.approval_kind = 'requirement-applicability'
+                THEN '["approve","reject","not_applicable"]'::jsonb
+                ELSE '["approve","reject"]'::jsonb END,
            'pending', advanced.deadline_at, 'auto:' || item.item_id,
            item.approval_subject_digest
       FROM inserted_items AS item JOIN advanced USING (audit_id)

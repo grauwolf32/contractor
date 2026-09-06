@@ -106,7 +106,8 @@ UPDATE audit_review_requests
 				return auditstore.ErrPrecondition
 			}
 			if err := validateAndApplyItemDecision(
-				ctx, tx, params.AuditID, subjectID, kind, subjectDigest, params.Action,
+				ctx, tx, params.AuditID, subjectID, kind, subjectDigest,
+				params.Action, params.Rationale,
 			); err != nil {
 				return err
 			}
@@ -187,7 +188,7 @@ UPDATE audits AS audit
 
 func validateAndApplyItemDecision(
 	ctx context.Context, tx pgx.Tx, auditID, itemID, kind, digest string,
-	action ReviewAction,
+	action ReviewAction, rationale string,
 ) error {
 	var state auditstore.ItemState
 	var approvalKind auditstore.ItemApprovalKind
@@ -217,6 +218,35 @@ UPDATE audit_items
 			return err
 		}
 		if tag.RowsAffected() != 1 {
+			return auditstore.ErrPrecondition
+		}
+		return nil
+	}
+	if action == ReviewNotApplicable {
+		if approvalKind != auditstore.ItemApprovalApplicability {
+			return auditstore.ErrPrecondition
+		}
+		tag, err := tx.Exec(ctx, `
+UPDATE audit_items
+   SET state = 'settled', final_disposition = 'not-applicable',
+       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id = $1 AND item_id = $2 AND state = 'awaiting_review'`, auditID, itemID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() != 1 {
+			return auditstore.ErrPrecondition
+		}
+		coverageTag, err := tx.Exec(ctx, `
+UPDATE audit_coverage_rows
+   SET status = 'not-applicable', completed = '[]'::jsonb, gaps = '[]'::jsonb,
+       rationale = $3,
+       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+ WHERE audit_id = $1 AND item_id = $2`, auditID, itemID, rationale)
+		if err != nil {
+			return err
+		}
+		if coverageTag.RowsAffected() != 1 {
 			return auditstore.ErrPrecondition
 		}
 		return nil

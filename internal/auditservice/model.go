@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -114,7 +115,28 @@ func ValidateBaseline(value BaselineSnapshot) error {
 		auditdomain.ValidateDispatchExecutionManifest(value.Inventory.ExecutionManifest) != nil {
 		return fmt.Errorf("%w: Audit baseline inventory is invalid", ErrInvalid)
 	}
+	if selection := value.Inventory.StandardSelection; selection != nil {
+		if selection.Scope == "" || !utf8.ValidString(selection.Scope) || len([]byte(selection.Scope)) > 512 ||
+			strings.TrimSpace(selection.Scope) != selection.Scope || strings.ContainsRune(selection.Scope, 0) ||
+			len(selection.Levels) == 0 || len(selection.Levels) > config.MaxAuditStandardLevels ||
+			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > config.MaxAuditStandardEntries ||
+			!strictSortedAuditValues(selection.Levels) || !strictSortedAuditValues(selection.EntryIDs) {
+			return fmt.Errorf("%w: Audit baseline standard selection is invalid", ErrInvalid)
+		}
+	}
 	return nil
+}
+
+func strictSortedAuditValues(values []string) bool {
+	previous := ""
+	for _, value := range values {
+		if !utf8.ValidString(value) || value == "" || value <= previous ||
+			len([]byte(value)) > 128 || strings.TrimSpace(value) != value || strings.ContainsRune(value, 0) {
+			return false
+		}
+		previous = value
+	}
+	return true
 }
 
 func normalizeScope(value Scope) (Scope, error) {
@@ -263,6 +285,7 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		result.ProjectHTTPTarget = &target
 	}
 	result.Inventory.Gaps = append([]string(nil), source.Inventory.Gaps...)
+	result.Inventory.StandardSelection = cloneAuditStandardSelection(source.Inventory.StandardSelection)
 	result.Inventory.ExecutionManifest.Items = append(
 		[]auditdomain.ExecutionItem(nil), source.Inventory.ExecutionManifest.Items...,
 	)
@@ -280,6 +303,18 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		}
 	}
 	return result
+}
+
+func cloneAuditStandardSelection(
+	source *config.AuditStandardSelection,
+) *config.AuditStandardSelection {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.Levels = append([]string(nil), source.Levels...)
+	result.EntryIDs = append([]string(nil), source.EntryIDs...)
+	return &result
 }
 
 func cloneExactPackageRef(value *auditstandards.ExactPackage) {

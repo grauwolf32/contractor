@@ -34,12 +34,13 @@ const (
 type ReviewAction string
 
 const (
-	ReviewApprove ReviewAction = "approve"
-	ReviewReject  ReviewAction = "reject"
+	ReviewApprove       ReviewAction = "approve"
+	ReviewReject        ReviewAction = "reject"
+	ReviewNotApplicable ReviewAction = "not_applicable"
 )
 
 func (action ReviewAction) Valid() bool {
-	return action == ReviewApprove || action == ReviewReject
+	return action == ReviewApprove || action == ReviewReject || action == ReviewNotApplicable
 }
 
 // ReviewRequestedAction is the closed public union used by the shared review

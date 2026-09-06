@@ -144,6 +144,16 @@ func ValidateInventory(value Inventory) error {
 			basis.Kind != "openapi-operations" && basis.Kind != "finding-candidates" {
 		return invalid(CodeInventoryInvalid, "inventory.canonical")
 	}
+	if basis.Selection != nil {
+		selection := basis.Selection
+		if basis.Kind != "standard-mappings" || selection.Scope == "" ||
+			selection.Scope != strings.TrimSpace(selection.Scope) || len([]byte(selection.Scope)) > 512 ||
+			len(selection.Levels) == 0 || len(selection.Levels) > 16 ||
+			len(selection.EntryIDs) == 0 || len(selection.EntryIDs) > MaximumItems ||
+			!strictlySortedNonEmpty(selection.Levels) || !strictlySortedNonEmpty(selection.EntryIDs) {
+			return invalid(CodeInventoryInvalid, "inventory.standard_selection")
+		}
+	}
 	if err := validateWorklist(value.Worklist); err != nil {
 		return err
 	}
@@ -246,6 +256,10 @@ func validateBasisItem(
 				"checklist": task.Checklist, "standard": task.Standard,
 			}) {
 			return invalid(CodeInventoryInvalid, "inventory.standard_mappings")
+		}
+		if basis.Selection != nil && (len(task.Standard.EntryIDs) != 1 ||
+			!containsString(basis.Selection.EntryIDs, task.Standard.EntryIDs[0])) {
+			return invalid(CodeInventoryInvalid, "inventory.standard_selection")
 		}
 	case "openapi-operations":
 		pathTemplate, pathOK := subject["path"].(string)
