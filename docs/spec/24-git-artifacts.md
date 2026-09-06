@@ -1,6 +1,6 @@
 # 24 — Git repositories as Artifact inputs
 
-Status: **Implemented (V35-001 through V35-004); release gate in progress**
+Status: **Implemented and verified (V35-001 through V35-005)**
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [17](17-projects-and-queue.md), [23](23-artifact-blob-backends.md).
@@ -44,7 +44,8 @@ returned ref to the selected input slot and preserves every other input.
 
 The first slice accepts anonymous `https://host/path`,
 `ssh://user@host[:port]/path`, and conventional `git@host:path` URLs. Normalize
-the latter to an SSH URL. Reject passwords, URL query/fragment credentials,
+the latter to an SSH URL, preserving its home-relative path as `/~/path`;
+an explicitly absolute SCP path remains absolute. Reject passwords, URL query/fragment credentials,
 local paths, `file://`, `git://`, remote helpers and unsupported schemes.
 Transport credentials never enter the normalized repository URL.
 
@@ -267,6 +268,9 @@ existing Runtime source consumers. Test the actual Server with read-only root,
 PostgreSQL blobs and no writable Git/blob/tmp directory or PVC, then repeat
 Artifact publication with filesystem storage. Measure memory and verify that
 key/canary material appears nowhere in responses, artifacts or captured logs.
+
+The reproducible gate, deployment instructions, failure matrix and measured
+memory are documented in [Git artifacts](../git-artifacts.md).
 
 Git provenance is stored in `artifact_git_sources`, keyed by `artifact_versions.version_id`;
 metadata queries join it without reading blobs. The ordinary exact input fork

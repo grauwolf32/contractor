@@ -2,8 +2,8 @@
 // Reconciled on 2026-09-06 against spec/task changes since 9509666c, including
 // working-tree amendments. Task files remain authoritative for delivery status.
 // Dashed #planned elements and tagged relationships mark pending/in-progress work:
-// Podman activation V31-004–008, performance API/UI V32-005–006/008 and Git
-// import V35-002–005. Implemented primitives do not imply an enabled feature.
+// Podman activation V31-004–008 and performance API/UI V32-005–006/008.
+// Git import V35-001–005 is implemented and verified by its release gate.
 specification {
   element actor {
     style {
@@ -199,7 +199,7 @@ model {
     }
 
     gitSources = storage 'Artifact version Git provenance — repository / requested ref / exact commit / import time' {
-      #contractor #planned
+      #contractor
     }
   }
 
@@ -242,7 +242,7 @@ model {
       }
 
       gitImportApi = component 'Git Import API — ordinary UserScope / ProjectScope source ZIP creation or CAS replacement' {
-        #contractor #planned
+        #contractor
       }
 
       auditApi = component 'Audit / read-only AuditProfile API — owner commands, exact review decisions and revision polling' {
@@ -436,7 +436,7 @@ model {
       }
 
       gitImporter = component 'Git Snapshot Importer — one admitted fetch/ZIP/publication, in-memory objects, 120 s deadline' {
-        #contractor #planned
+        #contractor
       }
     }
 
@@ -510,8 +510,8 @@ model {
     productSurface.catalogApi -> orchestration.agentTemplateCatalog 'Read template + instruction ref/digest/text from one loaded snapshot; no path API or invocation context'
     productSurface.gitKeyApi -> identityConfiguration.authService 'Bind owner; require CSRF for key replacement/removal'
     productSurface.gitKeyApi -> identityConfiguration.gitKeyService 'One owner key: metadata-only GET, validated PUT and DELETE'
-    productSurface.gitImportApi -> identityConfiguration.authService 'Authorize owner/Project and create/CAS headers before fetch' #planned
-    productSurface.gitImportApi -> artifactPlane.gitImporter 'Import repository URL and branch/tag into one ordinary exact ArtifactRef; never start a Run' #planned
+    productSurface.gitImportApi -> identityConfiguration.authService 'Authorize owner/Project and create/CAS headers before fetch'
+    productSurface.gitImportApi -> artifactPlane.gitImporter 'Import repository URL and branch/tag into one ordinary exact ArtifactRef; never start a Run'
     productSurface.auditApi -> identityConfiguration.authService 'Authorize owner and ordinary Project; CSRF, idempotency and revision CAS'
     productSurface.userArtifactApi -> identityConfiguration.authService 'Authenticate session and bind owner scope'
     productSurface.authApi -> identityConfiguration.authService 'Verify Argon2id login; issue/revoke session + CSRF'
@@ -631,15 +631,15 @@ model {
     artifactPlane.artifactPurger -> artifactPlane.blobStore 'Unreferenced exact objects only: PostgreSQL transactional delete; filesystem best-effort unlink after registry commit'
     artifactPlane.blobCleanup -> artifactPlane.artifactRegistry 'Scan complete references in bounded batches; report missing objects without deleting metadata'
     artifactPlane.blobCleanup -> artifactPlane.blobStore 'Remove only unreferenced exact generations/staging files with all writers stopped'
-    artifactPlane.gitImporter -> artifactPlane.transferBudget 'Hold one of four transfer slots from before fetch through publication/response; one active import' #planned
-    artifactPlane.gitImporter -> identityConfiguration.gitKeyService 'Capture importing owner key generation for SSH; no SQL lock held during transfer' #planned
-    artifactPlane.gitImporter -> artifactPlane.artifactService 'Publish deterministic tracked-file ZIP up to 64 MiB; ordinary authority/CAS and exact input forks' #planned
-    artifactPlane.gitImporter -> artifactPlane.artifactRegistry 'Atomically attach per-version Git origin; recheck CAS and Project lifecycle after fetch' #planned
+    artifactPlane.gitImporter -> artifactPlane.transferBudget 'Hold one of four transfer slots from before fetch through publication/response; one active import'
+    artifactPlane.gitImporter -> identityConfiguration.gitKeyService 'Capture importing owner key generation for SSH; no SQL lock held during transfer'
+    artifactPlane.gitImporter -> artifactPlane.artifactService 'Publish deterministic tracked-file ZIP up to 64 MiB; ordinary authority/CAS and exact input forks'
+    artifactPlane.gitImporter -> artifactPlane.artifactRegistry 'Atomically attach per-version Git origin; recheck CAS and Project lifecycle after fetch'
 
     identityConfiguration.processSettings -> artifactPlane.blobStore 'Choose backend/path at startup and verify installation pin; no automatic fallback or online migration'
     identityConfiguration.processSettings -> performanceMonitoring 'performance-metrics defaults true; false skips middleware, buffers, timers and diagnostic pool'
     identityConfiguration.processSettings -> profilingListener 'Independent pprof opt-in defaults false; numeric loopback listener, bounded shutdown'
-    identityConfiguration.processSettings -> artifactPlane.gitImporter 'Explicit remote host:port allowlist and read-only SSH trust; empty allowlist disables import' #planned
+    identityConfiguration.processSettings -> artifactPlane.gitImporter 'Explicit remote host:port allowlist and read-only SSH trust; empty allowlist disables import'
     performanceMonitoring.httpAccounting -> performanceMonitoring.serverSampler 'Snapshot fixed counters/histograms; exclude health, performance reads and profiling traffic'
     performanceMonitoring.serverSampler -> performanceMonitoring.liveFrames '15 s frames, monotonic CPU/rates, explicit unknown/partial groups; no forced GC'
     performanceMonitoring.postgresCollector -> performanceMonitoring.diagnosticPool 'Separate bounded statistics/size cycles; no overlap, query text or immediate retry'
@@ -865,8 +865,8 @@ model {
   browser -> server.productSurface.authApi 'Direct login / session / logout with credentialed CORS'
   browser -> server.productSurface.publicApi 'Direct authenticated Project, Run and Queue queries/mutations'
   browser -> server.productSurface.catalogApi 'Catalog Workflows / Agents: exact definitions and base prompts with Preview, Source and Copy'
-  browser -> server.productSurface.gitKeyApi 'Planned Settings editor; existing owner key API returns safe metadata only' #planned
-  browser -> server.productSurface.gitImportApi 'Planned shared Workflow/Project input import dialog; select returned exact source ref' #planned
+  browser -> server.productSurface.gitKeyApi 'Settings editor; existing owner key API returns safe metadata only'
+  browser -> server.productSurface.gitImportApi 'Shared Workflow/Project input import dialog; select returned exact source ref'
   browser -> server.productSurface.auditApi 'Project Audits UI: bounded revision polling, lifecycle commands, coverage/findings/reviews/report'
   browser -> server.productSurface.userArtifactApi 'Direct UserScope / ProjectScope Artifact queries/uploads/downloads'
   browser -> server.runtimeOperations.operationsApi 'Direct Runtime visibility and configuration management'
@@ -879,7 +879,7 @@ model {
   apiClient -> server.productSurface.auditApi 'Read exact profiles; manage owner Audits and exact human decisions'
   apiClient -> server.productSurface.userArtifactApi 'Upload / read / list UserScope or ProjectScope artifacts'
   apiClient -> server.productSurface.gitKeyApi 'Authenticated owner key management; no private readback'
-  apiClient -> server.productSurface.gitImportApi 'Planned bounded Git import with explicit create/CAS headers' #planned
+  apiClient -> server.productSurface.gitImportApi 'Bounded Git import with explicit create/CAS headers'
 
   operator -> server.profilingListener 'Local pprof client or SSH tunnel; profiles streamed to client, never Operations or report storage'
   operator -> server.artifactPlane.blobCleanup 'Offline CLI: dry-run report; apply only with all writers stopped'
@@ -905,9 +905,9 @@ model {
   server.artifactPlane.blobStore -> artifactDatabase.artifactBlobs 'Installation backend pin + blob registry; default PostgreSQL bytes share registry transaction, no blob directory/PVC'
   server.artifactPlane.blobStore -> blobBackend 'Filesystem only: unique verified immutable objects, atomic publish, post-commit best-effort unlink; loss is explicit missing content'
   server.artifactPlane.blobStore -> futureS3 'Deferred backend; no current S3 adapter or fallback' #planned
-  server.artifactPlane.artifactRegistry -> artifactDatabase.gitSources 'Planned immutable per-version origin in same revision transaction; exact forks preserve provenance' #planned
-  server.artifactPlane.gitImporter -> gitKnownHosts 'SSH verifies configured host keys; no TOFU, host agent or machine-key fallback' #planned
-  server.artifactPlane.gitImporter -> gitRemote 'Bounded in-process HTTPS/SSH fetch; allowlisted actual destination, no redirects, disk checkout, hooks or subprocesses' #planned
+  server.artifactPlane.artifactRegistry -> artifactDatabase.gitSources 'Immutable per-version origin in same revision transaction; exact forks preserve provenance'
+  server.artifactPlane.gitImporter -> gitKnownHosts 'SSH verifies configured host keys; no TOFU, host agent or machine-key fallback'
+  server.artifactPlane.gitImporter -> gitRemote 'Bounded in-process HTTPS/SSH fetch; allowlisted actual destination, no redirects, disk checkout, hooks or subprocesses'
   server.identityConfiguration.gitKeyService -> artifactDatabase.gitKeys 'Store/replace/remove ciphertext and non-secret metadata; one owner key generation'
   server.identityConfiguration.gitKeyService -> credentialMasterKey 'Reuse bootstrap encryption key; validate key rows at startup, decrypt only for admitted owner import'
   server.identityConfiguration.processSettings -> serverConfigFile 'Strict optional ServerConfig; relative paths resolved beside file, secrets stay outside YAML'
@@ -1292,7 +1292,7 @@ views {
       navigateTo catalog
     }
     include server.productSurface.gitImportApi with {
-      title 'Planned Git Import API'
+      title 'Git Import API'
       navigateTo gitArtifacts
     }
     include server.productSurface.auditApi with {
@@ -3087,17 +3087,17 @@ views {
   }
 
   view gitArtifacts {
-    title 'Artifacts / Planned Git Snapshot Import'
-    description 'V35-001 key/settings contracts are implemented; V35-002 fetch is in progress, publication/UI/gate remain planned. One allowlisted HTTPS/SSH snapshot becomes an ordinary exact source ZIP. No clone during execution, local checkout, hooks, automatic refresh or new job queue.'
+    title 'Artifacts / Git Snapshot Import'
+    description 'V35-001–005 implemented and verified with real remotes, both blob backends, memory-workspace Runtime and browser scenarios. One allowlisted HTTPS/SSH snapshot becomes an ordinary exact source ZIP. No clone during execution, local checkout, hooks, automatic refresh or new job queue.'
 
     include browser with {
-      title 'Workflow / Project Import Dialog (planned)'
+      title 'Workflow / Project Import Dialog'
     }
     include server.productSurface.gitImportApi with {
-      title 'Owner Import / CAS API (planned)'
+      title 'Owner Import / CAS API'
     }
     include server.artifactPlane.gitImporter with {
-      title 'Bounded In-memory Git Snapshot (planned)'
+      title 'Bounded In-memory Git Snapshot'
     }
     include server.identityConfiguration.gitKeyService with {
       title 'Owner Key Generation'
@@ -3157,10 +3157,10 @@ views {
 
   view gitSettings {
     title 'Surface / Owner Git SSH-key Settings'
-    description 'V35-001 API/storage implemented; V35-004 browser editor is planned. One owner key is write-only, encrypted with owner/purpose/generation identity. Replacement affects later imports; existing snapshots and provenance survive key deletion.'
+    description 'V35-001 API/storage and V35-004 Personal Settings editor are implemented. One owner key is write-only, encrypted with owner/purpose/generation identity. Replacement affects later imports; existing snapshots and provenance survive key deletion.'
 
     include browser with {
-      title 'Settings Key Editor (planned)'
+      title 'Settings Key Editor'
     }
     include apiClient with {
       title 'Authenticated API Client'
@@ -3181,7 +3181,7 @@ views {
 
     exclude * -> *
     include browser -> server.productSurface.gitKeyApi with {
-      title 'Replace/remove; clear secret input (planned)'
+      title 'Replace/remove; clear secret input'
     }
     include apiClient -> server.productSurface.gitKeyApi with {
       title 'Existing owner API / CSRF contract'
@@ -3453,7 +3453,7 @@ views {
       title 'Independent Loopback pprof Listener'
     }
     include server.artifactPlane.gitImporter with {
-      title 'Planned Git Import / Remote Allowlist'
+      title 'Git Import / Remote Allowlist'
       navigateTo gitArtifacts
     }
 

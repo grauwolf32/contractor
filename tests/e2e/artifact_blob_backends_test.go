@@ -285,7 +285,7 @@ func blobGatePeak(t *testing.T, name, backend string) {
 	}
 	for _, line := range strings.Split(string(status), "\n") {
 		if strings.HasPrefix(line, "VmHWM:") {
-			t.Logf("%s Server process peak RSS after four 64 MiB transfers: %s", backend, line)
+			t.Logf("%s Server process peak RSS: %s", backend, line)
 			return
 		}
 	}

@@ -3,7 +3,7 @@ id: V35-005
 title: Verify Git Artifact import with real remotes, both blob backends and no PVC
 milestone: git-artifact-import
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V35-004

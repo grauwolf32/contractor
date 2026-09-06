@@ -54,7 +54,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [19](19-audits.md) | Project-bound multi-Run Audits, deterministic inventories, findings, review, coverage and recovery |
 | [20](20-scheduler-concurrency-control.md) | Durable Operations-controlled concurrency across ordinary WorkflowRuns and Audit dispatch backpressure |
 | [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
-| [24](24-git-artifacts.md) | Planned: owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
+| [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

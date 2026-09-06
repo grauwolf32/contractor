@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-git/go-git/v5/plumbing"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -167,6 +168,16 @@ func TestRealHTTPSPinnedCommitAndTags(t *testing.T) {
 	}
 }
 
+func TestDecodedPackCumulativeBudget(t *testing.T) {
+	// Each object is individually allowed; the fifth must be rejected before
+	// inflation even though the compressed pack is tiny and objects deduplicate.
+	entry := packEntry{kind: plumbing.BlobObject, data: make([]byte, maxObjectBytes)}
+	pack := makePack(entry, entry, entry, entry, entry)
+	if _, err := decodePack(context.Background(), pack); !errors.Is(err, ErrBudget) {
+		t.Fatalf("cumulative decoded bytes: %v", err)
+	}
+}
+
 func newSigner(t *testing.T) ssh.Signer {
 	t.Helper()
 	_, private, err := ed25519.GenerateKey(rand.Reader)
@@ -227,7 +238,7 @@ func serveGitSSH(t *testing.T, repo string, owner ssh.Signer) (string, ssh.Signe
 					}
 					for request := range requests {
 						var payload struct{ Command string }
-						if request.Type != "exec" || ssh.Unmarshal(request.Payload, &payload) != nil || payload.Command != "git-upload-pack '/repo.git'" {
+						if request.Type != "exec" || ssh.Unmarshal(request.Payload, &payload) != nil || (payload.Command != "git-upload-pack '/repo.git'" && payload.Command != "git-upload-pack 'relative/repo.git'") {
 							_ = request.Reply(false, nil)
 							continue
 						}
@@ -271,6 +282,15 @@ func TestRealSSHOwnerKeyAndStrictHostTrust(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSnapshot(t, snapshot, commit)
+	relative, err := ParseRemote("ssh://git@" + address + "/~/relative/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativeSnapshot, err := client.Fetch(context.Background(), relative, "main", owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertSnapshot(t, relativeSnapshot, commit)
 	if _, err := client.Fetch(context.Background(), remote, "main", newSigner(t)); !errors.Is(err, ErrRemote) {
 		t.Fatalf("wrong owner: %v", err)
 	}

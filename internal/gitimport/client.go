@@ -53,10 +53,15 @@ func ParseRemote(raw string) (Remote, error) {
 	}
 	if strings.HasPrefix(raw, "git@") && !strings.Contains(raw, "://") {
 		host, path, ok := strings.Cut(strings.TrimPrefix(raw, "git@"), ":")
-		if !ok || host == "" || path == "" {
+		if !ok || host == "" || path == "" || strings.ContainsAny(path, "?#") {
 			return Remote{}, ErrURL
 		}
-		raw = "ssh://git@" + host + "/" + strings.TrimPrefix(path, "/")
+		// Preserve SCP's path relative to the SSH account's home. Adding only
+		// a slash would silently turn git@host:repo into the absolute /repo.
+		if !strings.HasPrefix(path, "/") {
+			path = "/~/" + path
+		}
+		raw = (&url.URL{Scheme: "ssh", User: url.User("git"), Host: host, Path: path}).String()
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Opaque != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.Host == "" || u.Path == "" || u.Path == "/" || (u.Scheme != "https" && u.Scheme != "ssh") || strings.ContainsAny(u.Path, "\x00\r\n\\") {
@@ -89,7 +94,14 @@ func ParseRemote(raw string) (Remote, error) {
 		return Remote{}, ErrURL
 	}
 	u.Host = address
-	return Remote{URL: u.String(), Scheme: u.Scheme, Address: address, User: user, Path: u.Path}, nil
+	path := u.Path
+	if u.Scheme == "ssh" && strings.HasPrefix(path, "/~/") {
+		path = strings.TrimPrefix(path, "/~/")
+		if path == "" {
+			return Remote{}, ErrURL
+		}
+	}
+	return Remote{URL: u.String(), Scheme: u.Scheme, Address: address, User: user, Path: path}, nil
 }
 
 // Client uses go-git's protocol/pack primitives, not Clone or filesystem stores.

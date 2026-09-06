@@ -16,7 +16,7 @@ blob backend remain replaceable deployment adapters.
 
 - [Local development and end-to-end MVP](development.md)
 - [Artifact blob storage and no-PVC deployment](artifact-blob-storage.md)
-- [Git repository artifacts](spec/24-git-artifacts.md) — planned SSH-key Settings and Workflow/Project snapshot import.
+- [Git repository artifacts](git-artifacts.md) — SSH-key Settings, Workflow/Project import, deployment and release verification; [specification](spec/24-git-artifacts.md).
 - [Specification index](spec/README.md)
 - [LikeC4 architecture](spec/architecture.c4)
 - [Workflow Scheduler and Planner](spec/00-workflow-and-planner.md)

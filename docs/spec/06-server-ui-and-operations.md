@@ -160,7 +160,7 @@ filesystem storage at an explicit path, and deferred S3 support. Ephemeral
 filesystem storage is permitted with explicit missing-content behavior after
 volume loss; backend selection never silently falls back.
 
-The planned [Git artifact surface](24-git-artifacts.md) adds one owner-scoped
+The [Git artifact surface](24-git-artifacts.md) provides one owner-scoped
 encrypted SSH key in Settings and a shared repository URL/ref import dialog
 for Workflow inputs and Project artifacts. Import produces an ordinary exact
 source ZIP ref with commit provenance; it does not launch a Run or require PVC.

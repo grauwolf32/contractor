@@ -529,7 +529,7 @@ third option whose implementation details are deferred. ArtifactRef is
 independent of the selected backend, and PostgreSQL mode requires no local
 blob filesystem or Kubernetes PVC.
 
-The planned [Git import](24-git-artifacts.md) creates ordinary source ZIP
+The [Git import](24-git-artifacts.md) creates ordinary source ZIP
 artifacts through this boundary. Immutable per-version repository/ref/commit
 metadata preserves origin across exact input forks without changing ArtifactRef
 or turning a Workflow input into a live repository reference.

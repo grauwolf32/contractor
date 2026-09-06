@@ -28,8 +28,22 @@ func TestRemotePolicy(t *testing.T) {
 		})
 	}
 	remote, err := ParseRemote("git@EXAMPLE.com:team/repo.git")
-	if err != nil || remote.URL != "ssh://git@example.com:22/team/repo.git" {
+	if err != nil || remote.URL != "ssh://git@example.com:22/~/team/repo.git" || remote.Path != "team/repo.git" {
 		t.Fatalf("remote=%+v err=%v", remote, err)
+	}
+	for _, raw := range []string{"git@EXAMPLE.com:team/repo.git", "git@example.com:/team/repo.git", "git@example.com:team/100%repo.git", "ssh://git@example.com/~/team/repo.git"} {
+		parsed, err := ParseRemote(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := ParseRemote(parsed.URL)
+		if err != nil || parsed != again {
+			t.Fatalf("normalization changed remote: %+v -> %+v: %v", parsed, again, err)
+		}
+	}
+	absolute, _ := ParseRemote("git@example.com:/team/repo.git")
+	if absolute.Path != "/team/repo.git" {
+		t.Fatalf("absolute SCP path changed: %+v", absolute)
 	}
 	client, _ := NewClient(Config{AllowedRemotes: []string{"127.0.0.1:443"}})
 	if _, err := client.dial(context.Background(), "tcp", "127.0.0.1:443"); !errors.Is(err, ErrDestination) {
@@ -257,6 +271,34 @@ func TestSnapshotContentAndDeterminism(t *testing.T) {
 			objects, commit := snapshotObjects(tc.mode, tc.name, tc.data)
 			if _, _, err := archiveSnapshot(context.Background(), objects, commit); !errors.Is(err, tc.want) {
 				t.Fatalf("got %v", err)
+			}
+		})
+	}
+}
+
+func TestSnapshotEntryAndExpandedLimits(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		count int
+		size  int
+	}{
+		{"entries", maxEntries + 1, 0},
+		{"expanded", MaxArchiveBytes/maxFileBytes + 1, maxFileBytes},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			blob := &gitObject{kind: plumbing.BlobObject, data: make([]byte, tc.size)}
+			blobHash := objectHash(blob)
+			var treeData []byte
+			for index := range tc.count {
+				treeData = append(treeData, treeEntry("100644", fmt.Sprintf("file-%05d", index), blobHash)...)
+			}
+			tree := &gitObject{kind: plumbing.TreeObject, data: treeData}
+			treeHash := objectHash(tree)
+			commit := &gitObject{kind: plumbing.CommitObject, data: []byte("tree " + treeHash.String() + "\n\nfixture\n")}
+			commitHash := objectHash(commit)
+			objects := map[plumbing.Hash]*gitObject{blobHash: blob, treeHash: tree, commitHash: commit}
+			if _, _, err := archiveSnapshot(context.Background(), objects, commitHash); !errors.Is(err, ErrBudget) {
+				t.Fatalf("snapshot limit: %v", err)
 			}
 		})
 	}

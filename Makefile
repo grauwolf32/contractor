@@ -440,6 +440,18 @@ verify: lint test build ui-verify
 release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audit-program-library-e2e
 
 .PHONY: test-artifact-blob-backends
+.PHONY: test-git-artifacts
+test-git-artifacts:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	@command -v git >/dev/null || (echo "native git is required for fixtures" >&2; exit 1)
+	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)
+	go test -race -tags=integration -count=1 ./internal/credentials ./internal/gitimport ./internal/artifacts ./internal/httpapi/public ./internal/app ./internal/persistence/postgres
+	cd runtime && uv sync --locked
+	cd runtime && uv run pytest -q tests/test_source_analysis_toolset.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py
+	$(MAKE) ui-typecheck ui-lint ui-test verify-public-api
+	node ui/server/git-artifacts-gate.mjs
+	go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestGitArtifactsProductionContainers$$' -v
+
 test-artifact-blob-backends:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	@command -v podman >/dev/null || (echo "podman is required" >&2; exit 1)

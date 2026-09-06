@@ -3,8 +3,8 @@ id: V35-004
 title: Add Git SSH-key Settings and a shared Workflow/Project import dialog
 milestone: git-artifact-import
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 195db3b54d098dc02b2a8eb966ce32b66ba9c3c8
 depends_on:
 - V35-003
 languages:
