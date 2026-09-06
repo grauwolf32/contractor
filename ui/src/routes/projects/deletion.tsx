@@ -1,5 +1,6 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { Project, ProjectDeletionPhase } from "../../api/projects";
+import { Dialog } from "../../app/dialog";
 import { ErrorNotice, formatTimestamp } from "../artifacts/common";
 
 const deletionPhaseCopy: Record<
@@ -43,68 +44,61 @@ export function DeleteProjectDialog({
 }) {
   const heading = useId();
   const warning = useId();
+  const cancelButton = useRef<HTMLButtonElement>(null);
   const [confirmation, setConfirmation] = useState("");
   const resourceLabel = project.kind === "evaluation" ? "Eval" : "Project";
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent): void {
-      if (event.key === "Escape" && !pending) {
-        onCancel();
-      }
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onCancel, pending]);
   return (
-    <div className="project-dialog-backdrop" role="presentation">
-      <section
-        className="project-dialog project-delete-dialog panel"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby={heading}
-        aria-describedby={warning}
-      >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Permanent workspace deletion</p>
-            <h2 id={heading}>Delete {project.name}?</h2>
-          </div>
+    <Dialog
+      className="project-dialog project-delete-dialog panel"
+      labelledBy={heading}
+      describedBy={warning}
+      initialFocusRef={cancelButton}
+      onRequestClose={() => {
+        if (!pending) onCancel();
+      }}
+      role="alertdialog"
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Permanent workspace deletion</p>
+          <h2 id={heading}>Delete {project.name}?</h2>
         </div>
-        <p className="project-delete-warning" id={warning}>
-          This cancels every active Run and permanently deletes all Project
-          Runs, execution history, and Project-scoped Artifacts. Shared User
-          Artifacts, Skills, and Runtime credentials are retained.
-        </p>
-        <label>
-          Type <strong>{project.name}</strong> to confirm
-          <input
-            value={confirmation}
-            disabled={pending}
-            autoComplete="off"
-            onChange={(event) => setConfirmation(event.currentTarget.value)}
-          />
-        </label>
-        {error === null ? null : <ErrorNotice error={error} />}
-        <div className="run-delete-dialog-actions">
-          <button
-            className="secondary-button"
-            type="button"
-            autoFocus
-            disabled={pending}
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            className="danger-button"
-            type="button"
-            disabled={pending || confirmation !== project.name}
-            onClick={onConfirm}
-          >
-            {pending ? "Starting deletion…" : `Delete ${resourceLabel}`}
-          </button>
-        </div>
-      </section>
-    </div>
+      </div>
+      <p className="project-delete-warning" id={warning}>
+        This cancels every active Run and permanently deletes all Project Runs,
+        execution history, and Project-scoped Artifacts. Shared User Artifacts,
+        Skills, and Runtime credentials are retained.
+      </p>
+      <label>
+        Type <strong>{project.name}</strong> to confirm
+        <input
+          value={confirmation}
+          disabled={pending}
+          autoComplete="off"
+          onChange={(event) => setConfirmation(event.currentTarget.value)}
+        />
+      </label>
+      {error === null ? null : <ErrorNotice error={error} />}
+      <div className="run-delete-dialog-actions">
+        <button
+          ref={cancelButton}
+          className="secondary-button"
+          type="button"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          className="danger-button"
+          type="button"
+          disabled={pending || confirmation !== project.name}
+          onClick={onConfirm}
+        >
+          {pending ? "Starting deletion…" : `Delete ${resourceLabel}`}
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

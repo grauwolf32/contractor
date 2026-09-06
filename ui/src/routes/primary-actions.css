@@ -1,0 +1,162 @@
+.primary-action-cluster {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.additional-actions {
+  position: relative;
+}
+
+.additional-actions > summary {
+  min-height: 2.7rem;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  padding: 0.7rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.additional-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.additional-actions > summary::after {
+  margin-left: 0.55rem;
+  content: "⌄";
+}
+
+.additional-actions[open] > summary {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.additional-actions[open] > summary::after {
+  content: "⌃";
+}
+
+.additional-actions-menu {
+  display: grid;
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: min(20rem, calc(100vw - 2rem));
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  padding: 0.8rem;
+  box-shadow: 0 1rem 2.5rem #0008;
+}
+
+.additional-actions-menu small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.workflow-header-actions {
+  align-self: flex-start;
+}
+
+.workflow-run-primary {
+  scroll-margin-top: 1rem;
+  outline: none;
+}
+
+.workflow-run-primary:focus-visible {
+  border-radius: 0.8rem;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.workflow-technical-details {
+  margin-top: 1.25rem;
+  overflow: clip;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+.workflow-technical-details > summary {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+}
+
+.workflow-technical-details > summary > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.workflow-technical-details > summary small,
+.workflow-technical-details > summary > span:last-child {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.workflow-technical-details > summary > span:last-child {
+  flex: none;
+}
+
+.workflow-technical-details > summary::after {
+  flex: none;
+  color: var(--accent);
+  content: "Show details +";
+  font-size: 0.75rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.workflow-technical-details[open] > summary::after {
+  content: "Hide details −";
+}
+
+.workflow-technical-details-body {
+  display: grid;
+  gap: 1.25rem;
+  border-top: 1px solid var(--line);
+  padding: 1.15rem;
+}
+
+@media (max-width: 760px) {
+  .primary-action-cluster,
+  .workflow-header-actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primary-action-cluster > button,
+  .primary-action-cluster > details,
+  .additional-actions > summary {
+    width: 100%;
+  }
+
+  .additional-actions-menu {
+    position: static;
+    width: 100%;
+    margin-top: 0.45rem;
+    box-shadow: none;
+  }
+
+  .workflow-technical-details > summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workflow-technical-details > summary > span:last-child {
+    white-space: normal;
+  }
+}

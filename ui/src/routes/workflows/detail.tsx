@@ -15,6 +15,8 @@ import {
 import { ErrorNotice } from "../artifacts/common";
 import { WorkflowRunForm } from "./run-form";
 
+import "../primary-actions.css";
+
 type ConsumerConfig = components["schemas"]["ConsumerExecutionConfig"];
 type ResolvedConfig = components["schemas"]["ResolvedStageExecutionConfig"];
 type SuccessTransition = components["schemas"]["WorkflowSucceededTransition"];
@@ -275,6 +277,12 @@ export function WorkflowDetailRoute() {
     enabled: valid,
   });
 
+  function focusRunSetup(): void {
+    const setup = document.getElementById("workflow-run-setup");
+    setup?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    setup?.focus({ preventScroll: true });
+  }
+
   if (!valid) {
     return (
       <section className="route-page">
@@ -296,19 +304,29 @@ export function WorkflowDetailRoute() {
             {name}@{version}
           </h2>
           <p className="lede">
-            Review the immutable contract, then create a Run whose local draft
-            contains only declared strings, exact Artifact revisions, and
-            optional published refs.
+            Configure a Run from declared strings, exact Artifact revisions and
+            optional published refs. Open the technical contract when you need
+            the Stage graph or resolved Worker details.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="workflow-header-actions primary-action-cluster">
+          <button
+            type="button"
+            aria-controls="workflow-run-setup"
+            disabled={query.data === undefined}
+            onClick={focusRunSetup}
+          >
+            Configure Run
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            {query.isFetching ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </header>
 
       {query.isPending ? (
@@ -319,53 +337,84 @@ export function WorkflowDetailRoute() {
         <ErrorNotice error={query.error} />
       ) : (
         <>
-          <div className="workflow-contract-grid">
-            <div className="panel contract-slots">
-              <p className="eyebrow">String parameters</p>
-              {Object.entries(query.data.parameters).length === 0 ? (
-                <p className="compact-empty">None declared.</p>
-              ) : (
-                <ul>
-                  {Object.entries(query.data.parameters)
-                    .sort(([left], [right]) => left.localeCompare(right))
-                    .map(([slot, contract]) => (
-                      <li key={slot}>
-                        <code>{slot}</code>
-                        <span>
-                          {contract.required ? "required" : "optional"} string
-                        </span>
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
-            <SlotContract title="Artifact inputs" slots={query.data.inputs} />
-            <SlotContract title="Declared outputs" slots={query.data.outputs} />
-          </div>
+          <section
+            className="workflow-run-primary"
+            id="workflow-run-setup"
+            tabIndex={-1}
+          >
+            <WorkflowRunForm
+              key={`${query.data.ref.name}@${query.data.ref.version}`}
+              workflow={query.data}
+            />
+          </section>
 
-          <div className="workflow-stages">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Scheduler graph</p>
-                <h3>Stages and escalation</h3>
-              </div>
-              <span>{Object.keys(query.data.stages).length} Stages</span>
-            </div>
-            {Object.keys(query.data.stages)
-              .sort()
-              .map((stageName) => (
-                <StageContract
-                  key={stageName}
-                  name={stageName}
-                  workflow={query.data}
+          <details className="workflow-technical-details">
+            <summary>
+              <span>
+                <strong>Technical Workflow contract</strong>
+                <small>
+                  Inputs, outputs, Stage graph, Workers and resolved execution
+                  settings
+                </small>
+              </span>
+              <span>
+                {Object.keys(query.data.stages).length} Stages ·{" "}
+                {Object.keys(query.data.inputs).length} inputs ·{" "}
+                {Object.keys(query.data.outputs).length} outputs
+              </span>
+            </summary>
+            <div className="workflow-technical-details-body">
+              <div className="workflow-contract-grid">
+                <div className="panel contract-slots">
+                  <p className="eyebrow">String parameters</p>
+                  {Object.entries(query.data.parameters).length === 0 ? (
+                    <p className="compact-empty">None declared.</p>
+                  ) : (
+                    <ul>
+                      {Object.entries(query.data.parameters)
+                        .sort(([left], [right]) => left.localeCompare(right))
+                        .map(([slot, contract]) => (
+                          <li key={slot}>
+                            <code>{slot}</code>
+                            <span>
+                              {contract.required ? "required" : "optional"}{" "}
+                              string
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+                <SlotContract
+                  title="Artifact inputs"
+                  slots={query.data.inputs}
                 />
-              ))}
-          </div>
+                <SlotContract
+                  title="Declared outputs"
+                  slots={query.data.outputs}
+                />
+              </div>
 
-          <WorkflowRunForm
-            key={`${query.data.ref.name}@${query.data.ref.version}`}
-            workflow={query.data}
-          />
+              <div className="workflow-stages">
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">Scheduler graph</p>
+                    <h3>Stages and escalation</h3>
+                  </div>
+                  <span>{Object.keys(query.data.stages).length} Stages</span>
+                </div>
+                {Object.keys(query.data.stages)
+                  .sort()
+                  .map((stageName) => (
+                    <StageContract
+                      key={stageName}
+                      name={stageName}
+                      workflow={query.data}
+                    />
+                  ))}
+              </div>
+            </div>
+          </details>
         </>
       )}
     </section>

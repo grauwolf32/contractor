@@ -4,6 +4,7 @@ import {
   type ReactNode,
   useEffect,
   useId,
+  useRef,
   useState,
 } from "react";
 
@@ -19,6 +20,7 @@ import {
   type ProjectArtifactWriteRequest,
 } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
+import { Dialog } from "../../app/dialog";
 import {
   artifactFileStem,
   inferredArtifactMediaType,
@@ -348,49 +350,40 @@ export function ProjectArtifactDialog({
   onWritten: (result: ArtifactWriteResponse) => void;
 }) {
   const heading = useId();
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+  const closeButton = useRef<HTMLButtonElement>(null);
 
   return (
-    <div className="project-dialog-backdrop" role="presentation">
-      <section
-        className="project-dialog panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={heading}
-      >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Artifact shortcut</p>
-            <h2 id={heading}>{shortcut.label}</h2>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close upload dialog"
-            onClick={onClose}
-          >
-            ×
-          </button>
+    <Dialog
+      className="project-dialog panel"
+      labelledBy={heading}
+      initialFocusRef={closeButton}
+      onRequestClose={onClose}
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Artifact shortcut</p>
+          <h2 id={heading}>{shortcut.label}</h2>
         </div>
-        <p className="muted-copy">
-          The category only suggests editable Artifact metadata. The Server
-          stores the same arbitrary ProjectScope binding as every other upload.
-        </p>
-        <ProjectArtifactWriteForm
-          projectId={projectId}
-          suggested={shortcut}
-          onWritten={onWritten}
-        />
-      </section>
-    </div>
+        <button
+          ref={closeButton}
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close upload dialog"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      <p className="muted-copy">
+        The category only suggests editable Artifact metadata. The Server stores
+        the same arbitrary ProjectScope binding as every other upload.
+      </p>
+      <ProjectArtifactWriteForm
+        projectId={projectId}
+        suggested={shortcut}
+        onWritten={onWritten}
+      />
+    </Dialog>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
@@ -169,10 +169,14 @@ function ProjectWorkflowLauncher({
 
 export function ProjectWorkflowRecommendations({
   projectId,
+  focusRequest = 0,
 }: {
   projectId: string;
+  focusRequest?: number;
 }) {
   const api = usePublicAPI();
+  const section = useRef<HTMLElement>(null);
+  const handledFocusRequest = useRef(0);
   const [selection, setSelection] = useState<WorkflowCompatibility | null>(
     null,
   );
@@ -210,6 +214,25 @@ export function ProjectWorkflowRecommendations({
   );
   const inventoryComplete = !workflows.hasNextPage && !artifacts.hasNextPage;
 
+  useEffect(() => {
+    if (
+      focusRequest === 0 ||
+      focusRequest === handledFocusRequest.current ||
+      workflows.isPending ||
+      artifacts.isPending
+    ) {
+      return;
+    }
+    handledFocusRequest.current = focusRequest;
+    const region = section.current;
+    const target =
+      region?.querySelector<HTMLElement>(
+        'button[aria-label^="Run "]:not(:disabled), button[aria-label^="Configure "]:not(:disabled), .project-all-workflows > summary',
+      ) ?? region;
+    region?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    target?.focus({ preventScroll: true });
+  }, [artifacts.isPending, focusRequest, workflows.isPending]);
+
   async function loadRemainingPage(): Promise<void> {
     await Promise.all([
       workflows.hasNextPage ? workflows.fetchNextPage() : Promise.resolve(),
@@ -219,7 +242,12 @@ export function ProjectWorkflowRecommendations({
 
   if (workflows.isPending || artifacts.isPending) {
     return (
-      <section className="panel project-region" id="project-workflows">
+      <section
+        ref={section}
+        className="panel project-region"
+        id="project-workflows"
+        tabIndex={-1}
+      >
         <p className="loading-copy" aria-live="polite">
           Matching Workflows to Project Artifacts…
         </p>
@@ -228,7 +256,12 @@ export function ProjectWorkflowRecommendations({
   }
   if (workflows.error !== null || artifacts.error !== null) {
     return (
-      <section className="panel project-region" id="project-workflows">
+      <section
+        ref={section}
+        className="panel project-region"
+        id="project-workflows"
+        tabIndex={-1}
+      >
         <p className="eyebrow">Workflow matching</p>
         <h3>Recommended Workflows</h3>
         <ErrorNotice error={workflows.error ?? artifacts.error} />
@@ -237,7 +270,12 @@ export function ProjectWorkflowRecommendations({
   }
 
   return (
-    <section className="panel project-region" id="project-workflows">
+    <section
+      ref={section}
+      className="panel project-region"
+      id="project-workflows"
+      tabIndex={-1}
+    >
       <div className="section-heading">
         <div>
           <p className="eyebrow">Advisory matching</p>

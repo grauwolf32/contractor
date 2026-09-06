@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import { PublicAPIError } from "../../api/error";
@@ -8,11 +9,16 @@ import { ErrorNotice } from "../artifacts/common";
 import { ProjectRegion } from "./common";
 import { ProjectMetadataEditor } from "./metadata-editor";
 import { ProjectHTTPTargetEditor } from "./http-target-editor";
-import { ProjectArtifactRegion } from "./artifact-region";
+import {
+  ProjectArtifactRegion,
+  type ProjectArtifactRegionHandle,
+} from "./artifact-region";
 import { ProjectRunsRegion } from "./runs-region";
 import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { useProjectDeletion } from "./use-project-deletion";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
+
+import "../primary-actions.css";
 
 function ProjectAuditsRegion({ projectId }: { projectId: string }) {
   return (
@@ -42,6 +48,8 @@ function ProjectWorkspaceRoute({
 }) {
   const api = usePublicAPI();
   const { projectId = "" } = useParams();
+  const artifactRegion = useRef<ProjectArtifactRegionHandle>(null);
+  const [analysisFocusRequest, setAnalysisFocusRequest] = useState(0);
   const validProject = PROJECT_ID_PATTERN.test(projectId);
   const destination = expectedKind === "evaluation" ? "/evals" : "/projects";
   const project = useQuery({
@@ -103,19 +111,26 @@ function ProjectWorkspaceRoute({
               : "Reusable inputs and published results stay Project-scoped; every Run still receives its own exact immutable copy."}
           </p>
         </div>
-        <div className="project-header-actions">
-          {activeProject !== undefined ? (
-            <button
-              className="danger-button"
-              type="button"
-              onClick={() => {
-                deletion.reset();
-                setDeleteOpen(true);
-              }}
-            >
-              {deleteLabel}
-            </button>
-          ) : null}
+        <div className="project-header-actions primary-action-cluster">
+          {activeProject === undefined ? null : (
+            <>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => artifactRegion.current?.openSources()}
+              >
+                Add sources
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setAnalysisFocusRequest((request) => request + 1)
+                }
+              >
+                Run analysis
+              </button>
+            </>
+          )}
           <button
             className="secondary-button"
             type="button"
@@ -124,6 +139,26 @@ function ProjectWorkspaceRoute({
           >
             {project.isFetching ? "Refreshing…" : "Refresh"}
           </button>
+          {activeProject === undefined ? null : (
+            <details className="additional-actions">
+              <summary>Additional actions</summary>
+              <div className="additional-actions-menu">
+                <button
+                  className="danger-button"
+                  type="button"
+                  onClick={() => {
+                    deletion.reset();
+                    setDeleteOpen(true);
+                  }}
+                >
+                  {deleteLabel}
+                </button>
+                <small>
+                  Permanently delete this workspace after its Runs drain.
+                </small>
+              </div>
+            </details>
+          )}
         </div>
       </header>
 
@@ -185,10 +220,14 @@ function ProjectWorkspaceRoute({
             />
           </ProjectRegion>
           <ProjectArtifactRegion
+            ref={artifactRegion}
             projectId={project.data.projectId}
             detailRoot={expectedKind === "evaluation" ? "/evals" : "/projects"}
           />
-          <ProjectWorkflowRecommendations projectId={project.data.projectId} />
+          <ProjectWorkflowRecommendations
+            projectId={project.data.projectId}
+            focusRequest={analysisFocusRequest}
+          />
           {expectedKind === "project" ? (
             <ProjectAuditsRegion projectId={project.data.projectId} />
           ) : null}

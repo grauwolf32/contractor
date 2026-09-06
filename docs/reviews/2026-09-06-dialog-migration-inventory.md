@@ -9,9 +9,9 @@ than add another document-level Escape listener or focus trap.
 | Project Workflow launcher        | Inline modal markup, document Escape listener, no focus entry/containment or restoration | Migrated in V37-001                                                                            |
 | Git repository import            | Body portal with a private focus trap and document Escape listener                       | Migrated in V37-001; this is the nested child used by the Run form                             |
 | Skill ZIP upload                 | Private focus trap, scroll lock and restoration                                          | Follow-up migration; behavior is already bounded and V37-001 does not change Skill publication |
-| Project Artifact upload          | Inline modal and document Escape listener                                                | Follow-up migration alongside its next form change                                             |
+| Project Artifact upload          | Inline modal and document Escape listener                                                | Migrated in V37-003 when the Project header gained the direct Add sources action               |
 | HTTP target editor               | Inline modal and pending-aware document Escape listener                                  | Follow-up migration; credential and target semantics remain unchanged                          |
-| Project deletion                 | Inline `alertdialog` with pending-aware Escape                                           | Follow-up migration; retain its typed confirmation and caller-owned pending rule               |
+| Project deletion                 | Inline `alertdialog` with pending-aware Escape                                           | Migrated in V37-003; typed confirmation and caller-owned pending refusal remain unchanged      |
 | completed Run deletion           | Inline `alertdialog` with pending-aware Escape                                           | Follow-up migration; retain terminal-release and deletion rules                                |
 | Audit cancel/delete confirmation | No shared confirmation at the V37 baseline                                               | V37-005 introduces it using the shared primitive                                               |
 

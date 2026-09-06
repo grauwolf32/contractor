@@ -177,6 +177,13 @@ async function installProjectAPI(
       });
       return;
     }
+    if (url.pathname === "/v1/artifacts" && request.method() === "GET") {
+      await fulfillJSON(route, {
+        items: artifactStored ? [artifact] : [],
+        page: { hasMore: false },
+      });
+      return;
+    }
     if (
       url.pathname ===
         `/v1/projects/${PROJECT_ID}/artifacts/sources/browser-source` &&
@@ -292,7 +299,7 @@ test("Project file-drop uploads exact bytes directly to Go API", async ({
   await expect(
     page.getByRole("heading", { name: "Browser workspace" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Sources" }).click();
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Sources" });
   await dialog.getByLabel("Drop a file here").setInputFiles({
     name: "browser-source.zip",
@@ -387,5 +394,110 @@ test("Project recommendation launches an exact Project Run", async ({
         revision: "revision-browser-1",
       },
     },
+  });
+});
+
+test("Project primary actions open Sources, focus analysis and keep deletion secondary", async ({
+  page,
+}, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  const uiOrigin = new URL(configuredBaseURL).origin;
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await installProjectAPI(
+    page,
+    uiOrigin,
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
+    [],
+    { artifactStoredInitially: true, exposeWorkflow: true },
+  );
+
+  await openProjectFromShell(page);
+  const addSources = page.getByRole("button", { name: "Add sources" });
+  const runAnalysis = page.getByRole("button", { name: "Run analysis" });
+  await expect(addSources).toBeInViewport();
+  await expect(runAnalysis).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Delete Project" }),
+  ).toBeHidden();
+  await page.screenshot({
+    path: testInfo.outputPath("project-primary-actions-desktop.png"),
+  });
+
+  await addSources.click();
+  const upload = page.getByRole("dialog", { name: "Sources" });
+  await expect(upload).toBeVisible();
+  await expect(
+    upload.getByRole("button", { name: "Close upload dialog" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(upload).toBeHidden();
+  await expect(addSources).toBeFocused();
+
+  await runAnalysis.click();
+  await expect(
+    page.getByRole("button", { name: "Run openapi-from-source@1" }),
+  ).toBeFocused();
+
+  await page.getByText("Additional actions", { exact: true }).click();
+  const deleteProject = page.getByRole("button", { name: "Delete Project" });
+  await expect(deleteProject).toBeVisible();
+  await deleteProject.click();
+  const deletion = page.getByRole("alertdialog", {
+    name: "Delete Browser workspace?",
+  });
+  await expect(deletion.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(deletion).toBeHidden();
+  await expect(deleteProject).toBeFocused();
+});
+
+test("Workflow Run setup leads while technical contract remains disclosed on demand", async ({
+  page,
+}, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  const uiOrigin = new URL(configuredBaseURL).origin;
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await installProjectAPI(
+    page,
+    uiOrigin,
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080",
+    [],
+    { artifactStoredInitially: true, exposeWorkflow: true },
+  );
+
+  await page.goto("/catalog/workflows/openapi-from-source/1");
+  const configure = page.getByRole("button", { name: "Configure Run" });
+  const setup = page.locator("#workflow-run-setup");
+  const technical = page.locator("details.workflow-technical-details");
+  await expect(configure).toBeInViewport();
+  await expect(
+    setup.getByRole("heading", { name: "Start Workflow Run" }),
+  ).toBeInViewport();
+  await expect(technical).not.toHaveAttribute("open", "");
+  await page.screenshot({
+    path: testInfo.outputPath("workflow-run-first-desktop.png"),
+  });
+
+  await configure.click();
+  await expect(setup).toBeFocused();
+  await technical.getByText("Technical Workflow contract").click();
+  await expect(technical).toHaveAttribute("open", "");
+  await expect(
+    technical.getByText("Artifact inputs", { exact: true }),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBe(390);
+  await page.screenshot({
+    path: testInfo.outputPath("workflow-technical-mobile.png"),
+    fullPage: true,
   });
 });

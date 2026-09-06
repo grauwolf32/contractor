@@ -241,6 +241,7 @@ test("independently served UI completes lifecycle controls without manual reload
   ).toHaveCount(0);
 
   await page.goto(`/projects/${PROJECT_ID}`);
+  await page.getByText("Additional actions", { exact: true }).click();
   await page.getByRole("button", { name: "Delete Project" }).click();
   const dialog = page.getByRole("alertdialog", {
     name: "Delete Lifecycle browser?",

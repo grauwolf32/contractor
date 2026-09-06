@@ -4,7 +4,12 @@ import {
 } from "../artifacts/git-import-dialog";
 import type { GitImportResult } from "../../api/git-artifacts";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import {
+  forwardRef,
+  type FormEvent,
+  useImperativeHandle,
+  useState,
+} from "react";
 import { Link } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
@@ -24,15 +29,34 @@ import {
   ProjectArtifactShortcutGrid,
   ProjectRegion,
 } from "./common";
-import type { ShortcutDefinition } from "./shortcuts";
+import {
+  PROJECT_ARTIFACT_SHORTCUTS,
+  type ShortcutDefinition,
+} from "./shortcuts";
 
-export function ProjectArtifactRegion({
-  projectId,
-  detailRoot,
-}: {
-  projectId: string;
-  detailRoot: "/projects" | "/evals";
-}) {
+function projectSourceShortcut(): ShortcutDefinition {
+  const shortcut = PROJECT_ARTIFACT_SHORTCUTS.find(
+    (candidate) => candidate.id === "sources",
+  );
+  if (shortcut === undefined) {
+    throw new Error("Project Sources shortcut is not configured");
+  }
+  return shortcut;
+}
+
+const SOURCE_SHORTCUT = projectSourceShortcut();
+
+export interface ProjectArtifactRegionHandle {
+  openSources: () => void;
+}
+
+export const ProjectArtifactRegion = forwardRef<
+  ProjectArtifactRegionHandle,
+  {
+    projectId: string;
+    detailRoot: "/projects" | "/evals";
+  }
+>(function ProjectArtifactRegion({ projectId, detailRoot }, ref) {
   const api = usePublicAPI();
   const [namespaceDraft, setNamespaceDraft] = useState("");
   const [namespace, setNamespace] = useState<string | undefined>();
@@ -55,6 +79,17 @@ export function ProjectArtifactRegion({
         ...(cursor === undefined ? {} : { cursor }),
       }),
   });
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      openSources(): void {
+        setGitOpen(false);
+        setShortcut(SOURCE_SHORTCUT);
+      },
+    }),
+    [],
+  );
 
   function applyFilter(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -225,4 +260,4 @@ export function ProjectArtifactRegion({
       )}
     </ProjectRegion>
   );
-}
+});
