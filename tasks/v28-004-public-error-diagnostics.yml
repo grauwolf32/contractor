@@ -4,7 +4,7 @@ title: Add safe internal diagnostics at the public API error boundary
 milestone: implementation-maintainability
 priority: P2
 status: in_progress
-implementation_commit: null
+implementation_commit: 1a45b9febb839d07836c46358da91691b51903c0
 depends_on: [V4-007A, V28-001, V28-002, V28-003]
 languages: [go]
 

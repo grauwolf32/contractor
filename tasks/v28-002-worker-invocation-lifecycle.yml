@@ -3,8 +3,8 @@ id: V28-002
 title: Centralize Worker invocation ownership and cleanup
 milestone: implementation-maintainability
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 29525fa5675ce20ca8d6eb5e7af42827786f02c0
 depends_on: [V19-001, V21-001]
 languages: [python]
 
