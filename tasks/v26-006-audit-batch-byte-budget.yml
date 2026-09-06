@@ -28,7 +28,7 @@ context:
 
 scope:
   in:
-    - Resolve exact task metadata in the trusted submission builder and apply a conservative deterministic task-set byte budget before any intent or payload read.
+    - Resolve exact task metadata in the trusted submission builder and apply a conservative deterministic task-set byte budget before any intent or task-payload read.
     - Preserve ordinal order, compatibility envelopes, item attempt accounting and the existing count limit.
     - Keep the single-item path able to use the full valid Audit task-package limit without wrapping it in a task set.
     - Add regression coverage for three approximately 6 MiB task packages producing a two-item batch plus a later single-item Run rather than finalization.
