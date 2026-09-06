@@ -96,9 +96,18 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	privateKeyFile := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE")
 	developmentWorkerToken := contracts.NewSecretString(getenv("CONTRACTOR_LLM_GATEWAY_TOKEN"))
 	developmentPlannerToken := contracts.NewSecretString(getenv("CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN"))
+	performanceMetrics := deferredBooleanFlag{value: getenv("CONTRACTOR_PERFORMANCE_METRICS"), fallback: true}
+	pprof := deferredBooleanFlag{value: getenv("CONTRACTOR_PPROF")}
+	pprofListen := getenv("CONTRACTOR_PPROF_LISTEN")
+	if pprofListen == "" {
+		pprofListen = "127.0.0.1:6060"
+	}
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.Var(&performanceMetrics, "performance-metrics", "enable Operations performance collection (requires restart)")
+	flags.Var(&pprof, "pprof", "enable independent loopback Go profiling (requires restart)")
+	flags.StringVar(&pprofListen, "pprof-listen", pprofListen, "numeric loopback Go profiling listen address")
 	flags.StringVar(&listenAddress, "listen", listenAddress, "public HTTP listen address")
 	flags.StringVar(&privateListenAddress, "private-listen", privateListenAddress, "private mTLS listen address")
 	flags.StringVar(&privateURL, "private-url", privateURL, "advertised private mTLS base URL")
@@ -157,6 +166,17 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if flags.NArg() != 0 {
 		return Config{}, fmt.Errorf("unexpected positional arguments: %v", flags.Args())
 	}
+	metricsEnabled, err := performanceMetrics.parse("performance-metrics")
+	if err != nil {
+		return Config{}, err
+	}
+	pprofEnabled, err := pprof.parse("pprof")
+	if err != nil {
+		return Config{}, err
+	}
+	if !validPprofListen(pprofListen) {
+		return Config{}, errors.New("pprof-listen must be a numeric loopback IP and TCP port between 1 and 65535")
+	}
 	if managedConfigRoot == "" {
 		managedConfigRoot = filepath.Join(filepath.Dir(operatorConfigRoot), "managed-configs")
 	}
@@ -214,6 +234,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		PublicUserID:   publicUserID, PublicBearerToken: publicBearerToken,
 		LocalAuthFile: localAuthFile, BrowserOrigins: append([]string(nil), browserOrigins.values...),
 		InsecureLoopbackCookie: insecureLoopbackCookie,
+		PerformanceMetrics:     metricsEnabled, Pprof: pprofEnabled, PprofListen: pprofListen,
 	}, nil
 }
 

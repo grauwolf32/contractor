@@ -117,6 +117,7 @@
       "required": ["complete", "adapters"],
       "properties": {
         "complete": {"type": "boolean"},
+        "resources": {"$ref": "performance.schema.json#/$defs/runtimeResources"},
         "durationMs": {"type": "integer", "minimum": 0},
         "stopReason": {"type": "string", "minLength": 1},
         "adapters": {

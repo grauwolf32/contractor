@@ -1332,6 +1332,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operations/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read bounded in-memory Server performance
+         * @description Independent of registry revisions; no SQL or sampling is triggered by this read. Disabled collection returns enabled false without current measurements.
+         */
+        get: operations["getPerformance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/performance/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read bounded performance history with generation boundaries
+         * @description Requires from before to. The 15s step covers at most the current process's last hour; durable steps cover at most seven days. Ranges yielding more than 1000 points are rejected, not silently truncated. Retained history remains readable when collection is disabled.
+         */
+        get: operations["getPerformanceHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/operations/allocation-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read terminal allocation resource summaries
+         * @description Owner-authorized history, including missing reports. Descending finishedAt and allocationId keyset pagination pins an upper boundary. finishedAt is the StageExecution terminal timestamp, not a late report arrival time. Historical collection policy is independent of current switches.
+         */
+        get: operations["listAllocationResourceHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/allocations": {
         parameters: {
             query?: never;
@@ -3253,6 +3313,228 @@ export interface components {
         };
         RuntimeAgentLabelsMutation: {
             labels: components["schemas"]["RuntimeInfrastructureId"][];
+        };
+        /** @description Finite nonnegative measurement. Unknown values are omitted, never replaced with zero. */
+        PerformanceNumber: number;
+        PerformanceInteger: number;
+        /** @enum {unknown} */
+        PerformanceReason: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "missing_baseline" | "permission_denied" | "statistics_disabled" | "database_unavailable" | "budget_exceeded" | "record_limit";
+        PerformanceCoverage: {
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string;
+            durationSeconds: components["schemas"]["PerformanceNumber"];
+            expectedSamples: components["schemas"]["PerformanceInteger"];
+            observedSamples: components["schemas"]["PerformanceInteger"];
+        };
+        /** @description observedAt is the last successful observation, not the read time. Two missed intervals make the group stale; unavailable or never observed groups omit measurements. */
+        PerformanceFreshness: {
+            /** @enum {unknown} */
+            status: "ok" | "partial" | "unavailable";
+            reason?: components["schemas"]["PerformanceReason"];
+            /** Format: date-time */
+            observedAt?: string;
+            /** Format: date-time */
+            lastAttemptAt: string;
+            /** @enum {integer} */
+            intervalSeconds: 15 | 60 | 300;
+            coverage: components["schemas"]["PerformanceCoverage"];
+        };
+        /** @description Cumulative counts at fixed bounds .005,.01,.025,.05,.1,.25,.5,1,2.5,5,10,30,60,+Inf seconds. The last bucket equals count. Merge counts and sums, not quantiles. Empty windows have unknown quantiles; overflow is greater than 60s. */
+        PerformanceHistogram: {
+            count: components["schemas"]["PerformanceInteger"];
+            sumSeconds: components["schemas"]["PerformanceNumber"];
+            buckets: components["schemas"]["PerformanceInteger"][];
+        };
+        PerformanceHTTPSurface: {
+            /** @enum {unknown} */
+            surface: "public" | "private";
+            inFlight: components["schemas"]["PerformanceInteger"];
+            /** @description Rows GET,HEAD,POST,PUT,DELETE,CONNECT,OPTIONS,TRACE,PATCH,other; columns 1xx,2xx,3xx,4xx,5xx,no_response. No request-specific dimensions. */
+            counts: components["schemas"]["PerformanceInteger"][][];
+            duration: components["schemas"]["PerformanceHistogram"];
+        };
+        PerformanceHTTP: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            /** @description Exactly public then private. */
+            surfaces: components["schemas"]["PerformanceHTTPSurface"][];
+        };
+        PerformanceProcess: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            cpuUserSeconds?: components["schemas"]["PerformanceNumber"];
+            cpuSystemSeconds?: components["schemas"]["PerformanceNumber"];
+            cpuCores?: components["schemas"]["PerformanceNumber"];
+            rssBytes?: components["schemas"]["PerformanceInteger"];
+            heapLiveBytes?: components["schemas"]["PerformanceInteger"];
+            goroutines?: components["schemas"]["PerformanceInteger"];
+            gcCycles?: components["schemas"]["PerformanceInteger"];
+            gcPauseSeconds?: components["schemas"]["PerformanceNumber"];
+        };
+        /** @description Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency. */
+        PerformancePool: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            acquiredConnections?: components["schemas"]["PerformanceInteger"];
+            idleConnections?: components["schemas"]["PerformanceInteger"];
+            totalConnections?: components["schemas"]["PerformanceInteger"];
+            maxConnections?: components["schemas"]["PerformanceInteger"];
+            acquireCount?: components["schemas"]["PerformanceInteger"];
+            acquireDurationSeconds?: components["schemas"]["PerformanceNumber"];
+            emptyAcquireCount?: components["schemas"]["PerformanceInteger"];
+            canceledAcquireCount?: components["schemas"]["PerformanceInteger"];
+        };
+        /** @description Aggregates for the current database only. Restricted visibility produces partial or unavailable data; resets invalidate deltas. No SQL text or per-backend records. */
+        PerformanceDatabase: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            /** Format: date-time */
+            statsReset?: string;
+            commits?: components["schemas"]["PerformanceInteger"];
+            rollbacks?: components["schemas"]["PerformanceInteger"];
+            deadlocks?: components["schemas"]["PerformanceInteger"];
+            tempFiles?: components["schemas"]["PerformanceInteger"];
+            tempBytes?: components["schemas"]["PerformanceInteger"];
+            blocksRead?: components["schemas"]["PerformanceInteger"];
+            blocksHit?: components["schemas"]["PerformanceInteger"];
+            activeConnections?: components["schemas"]["PerformanceInteger"];
+            idleConnections?: components["schemas"]["PerformanceInteger"];
+            idleInTransactionConnections?: components["schemas"]["PerformanceInteger"];
+            lockWaitingConnections?: components["schemas"]["PerformanceInteger"];
+            longestTransactionSeconds?: components["schemas"]["PerformanceNumber"];
+            longestIdleTransactionSeconds?: components["schemas"]["PerformanceNumber"];
+            estimatedLiveTuples?: components["schemas"]["PerformanceInteger"];
+            estimatedDeadTuples?: components["schemas"]["PerformanceInteger"];
+        };
+        PerformanceDatabaseSize: {
+            freshness: components["schemas"]["PerformanceFreshness"];
+            sizeBytes?: components["schemas"]["PerformanceInteger"];
+        };
+        /** @description One bounded frame, at most 32 KiB. Groups retain their actual coverage and timestamps; cached DB data is not a fresh process sample. */
+        PerformanceSample: {
+            /** @constant */
+            version: 1;
+            generation: string;
+            /** Format: date-time */
+            observedAt: string;
+            http?: components["schemas"]["PerformanceHTTP"];
+            process?: components["schemas"]["PerformanceProcess"];
+            pool?: components["schemas"]["PerformancePool"];
+            database?: components["schemas"]["PerformanceDatabase"];
+            databaseSize?: components["schemas"]["PerformanceDatabaseSize"];
+        };
+        PerformanceDiagnostics: {
+            skippedSamples: components["schemas"]["PerformanceInteger"];
+            droppedMinutes: components["schemas"]["PerformanceInteger"];
+            pendingMinutes: number;
+            collectorReason?: components["schemas"]["PerformanceReason"];
+            writerReason?: components["schemas"]["PerformanceReason"];
+        };
+        /**
+         * @example {
+         *       "enabled": false,
+         *       "generation": "performance-generation-example",
+         *       "observedAt": "2026-09-06T10:00:00Z",
+         *       "sampleIntervalSeconds": 15,
+         *       "databaseIntervalSeconds": 60,
+         *       "databaseSizeIntervalSeconds": 300,
+         *       "diagnostics": {
+         *         "skippedSamples": 0,
+         *         "droppedMinutes": 0,
+         *         "pendingMinutes": 0
+         *       }
+         *     }
+         */
+        PerformanceSnapshot: {
+            enabled: boolean;
+            generation: string;
+            /** Format: date-time */
+            observedAt: string;
+            /** @constant */
+            sampleIntervalSeconds: 15;
+            /** @constant */
+            databaseIntervalSeconds: 60;
+            /** @constant */
+            databaseSizeIntervalSeconds: 300;
+            current?: components["schemas"]["PerformanceSample"];
+            diagnostics: components["schemas"]["PerformanceDiagnostics"];
+        } & ({
+            /** @constant */
+            enabled?: false;
+        } | {
+            /** @constant */
+            enabled?: true;
+        });
+        /**
+         * @example {
+         *       "from": "2026-09-06T09:00:00Z",
+         *       "to": "2026-09-06T10:00:00Z",
+         *       "step": "1m",
+         *       "points": []
+         *     }
+         */
+        PerformanceHistory: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** @enum {unknown} */
+            step: "15s" | "1m" | "5m" | "1h";
+            points: components["schemas"]["PerformanceSample"][];
+        };
+        /** @description Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency. */
+        RuntimeResourceSummary: {
+            /** @constant */
+            version: 1;
+            /** @constant */
+            scope: "runtime_process";
+            /** @enum {unknown} */
+            status: "complete" | "partial" | "unavailable";
+            /** @enum {unknown} */
+            reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report";
+            durationSeconds?: components["schemas"]["PerformanceNumber"];
+            cpuUserSeconds?: components["schemas"]["PerformanceNumber"];
+            cpuSystemSeconds?: components["schemas"]["PerformanceNumber"];
+            rssStartBytes?: components["schemas"]["PerformanceInteger"];
+            rssEndBytes?: components["schemas"]["PerformanceInteger"];
+            rssPeakObservedBytes?: components["schemas"]["PerformanceInteger"];
+            rssSampleCount?: components["schemas"]["PerformanceInteger"];
+            maxSampleGapSeconds?: components["schemas"]["PerformanceNumber"];
+        } & ({
+            /** @constant */
+            status?: "complete";
+            rssSampleCount: unknown;
+            maxSampleGapSeconds: unknown;
+        } | {
+            /** @enum {unknown} */
+            status?: "partial" | "unavailable";
+        });
+        /**
+         * @example {
+         *       "allocationId": "allocation-example",
+         *       "runId": "run-example",
+         *       "stageExecutionId": "stage-example",
+         *       "finishedAt": "2026-09-06T10:00:00Z",
+         *       "collectionPolicy": "legacy",
+         *       "status": "unavailable",
+         *       "reason": "legacy"
+         *     }
+         */
+        AllocationResourceSummary: {
+            allocationId: components["schemas"]["ResourceId"];
+            runId: components["schemas"]["ResourceId"];
+            stageExecutionId: components["schemas"]["ResourceId"];
+            /** Format: date-time */
+            finishedAt: string;
+            /** @enum {unknown} */
+            collectionPolicy: "requested" | "disabled" | "unsupported" | "legacy";
+            /** @enum {unknown} */
+            status: "disabled" | "unsupported" | "pending" | "available" | "partial" | "unavailable";
+            /** @enum {unknown} */
+            reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report" | "legacy" | "report_missing";
+            resources?: components["schemas"]["RuntimeResourceSummary"];
+        };
+        AllocationResourcePage: {
+            items: components["schemas"]["AllocationResourceSummary"][];
+            page: components["schemas"]["PageInfo"];
         };
         AllocationObservation: {
             allocationId: components["schemas"]["ResourceId"];
@@ -6466,6 +6748,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuntimeAgentPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPerformance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current collection policy, freshness and bounded diagnostics */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceSnapshot"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPerformanceHistory: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                step: "15s" | "1m" | "5m" | "1h";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bounded history; missing samples remain gaps and generations are never merged */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceHistory"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAllocationResourceHistory: {
+        parameters: {
+            query?: {
+                /** @description Exact Run ID, not a prefix or label filter. */
+                runId?: components["schemas"]["ResourceId"];
+                limit?: number;
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Terminal allocation resources or explicit reasons for missing data */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllocationResourcePage"];
                 };
             };
             400: components["responses"]["BadRequest"];

@@ -83,10 +83,12 @@ type ExecutionReport struct {
 }
 
 type RuntimeReport struct {
-	Complete   bool                                          `json:"complete"`
-	DurationMS *int64                                        `json:"durationMs,omitempty"`
-	StopReason *string                                       `json:"stopReason,omitempty"`
-	Adapters   map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
+	Complete       bool                                          `json:"complete"`
+	DurationMS     *int64                                        `json:"durationMs,omitempty"`
+	StopReason     *string                                       `json:"stopReason,omitempty"`
+	Adapters       map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
+	Resources      *RuntimeResources                             `json:"resources,omitempty"`
+	ResourcesError *ResourceReason                               `json:"-"`
 }
 
 func (r RuntimeReport) MarshalJSON() ([]byte, error) {
@@ -99,11 +101,15 @@ func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 }
 
 func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return invalidf("invalid runtime report JSON")
+	}
 	type wireRuntimeReport struct {
 		Complete   bool                       `json:"complete"`
 		DurationMS *int64                     `json:"durationMs,omitempty"`
 		StopReason *string                    `json:"stopReason,omitempty"`
 		Adapters   map[string]json.RawMessage `json:"adapters"`
+		Resources  json.RawMessage            `json:"resources"`
 	}
 	var wire wireRuntimeReport
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -118,6 +124,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 		Complete: wire.Complete, DurationMS: wire.DurationMS, StopReason: wire.StopReason,
 		Adapters: map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{},
 	}
+	r.Resources, r.ResourcesError = decodeOptionalResources(wire.Resources)
 	if wire.Adapters == nil {
 		r.Complete = false
 		return nil
@@ -174,6 +181,25 @@ type AllocationFinalReport struct {
 	FinishedAt   time.Time       `json:"finishedAt"`
 	Worker       ExecutionReport `json:"worker"`
 	Runtime      RuntimeReport   `json:"runtime"`
+}
+
+func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
+	// Check the original report before optional invalid resources are removed.
+	if len(data) > 1024*1024 {
+		return invalidf("allocation final report exceeds 1 MiB")
+	}
+	if err := rejectDuplicateJSONKeys(data); err != nil {
+		return invalidf("invalid allocation report JSON")
+	}
+	type wireReport AllocationFinalReport
+	var value wireReport
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&value); err != nil {
+		return err
+	}
+	*r = AllocationFinalReport(value)
+	return nil
 }
 
 func (r ExecutionReport) Validate() error {
@@ -381,6 +407,11 @@ func (r AllocationFinalReport) Validate() error {
 }
 
 func (r RuntimeReport) validateAdapters() error {
+	if r.Resources != nil {
+		if err := r.Resources.Validate(); err != nil {
+			return err
+		}
+	}
 	if len(r.Adapters) > 64 {
 		return invalidf("runtime adapter metrics exceed 64 entries")
 	}

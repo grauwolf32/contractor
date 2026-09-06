@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/performance.schema.json",
+  "$defs": {
+    "supportedPerformanceMetricsVersions": {
+      "type": "array", "maxItems": 1, "uniqueItems": true,
+      "items": {"type": "integer", "const": 1},
+      "description": "Private-v2 registration capability. Omitted or empty means unsupported; do not advertise 1 until the collector exists."
+    },
+    "performanceMetricsRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["version", "intervalSeconds"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "intervalSeconds": {"type": "integer", "const": 15}
+      }
+    },
+    "resourceNumber": {"type": "number", "minimum": 0, "maximum": 1.7976931348623157e308},
+    "resourceInteger": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "runtimeResources": {
+      "type": "object", "additionalProperties": false,
+      "description": "Producer contract. Receivers isolate invalid resources from valid execution reports and retain only invalid_report as a diagnostic. Cross-field peak/boundary/count and duration/gap invariants are additionally checked by Go/Python validators.",
+      "required": ["version", "scope", "status"],
+      "properties": {
+        "version": {"type": "integer", "const": 1},
+        "scope": {"const": "runtime_process"},
+        "status": {"enum": ["complete", "partial", "unavailable"]},
+        "reason": {"enum": ["unsupported_platform", "read_failed", "sampling_gap", "counter_reset", "invalid_report"]},
+        "durationSeconds": {"$ref": "#/$defs/resourceNumber"},
+        "cpuUserSeconds": {"$ref": "#/$defs/resourceNumber"},
+        "cpuSystemSeconds": {"$ref": "#/$defs/resourceNumber"},
+        "rssStartBytes": {"$ref": "#/$defs/resourceInteger"},
+        "rssEndBytes": {"$ref": "#/$defs/resourceInteger"},
+        "rssPeakObservedBytes": {"$ref": "#/$defs/resourceInteger"},
+        "rssSampleCount": {"$ref": "#/$defs/resourceInteger"},
+        "maxSampleGapSeconds": {"$ref": "#/$defs/resourceNumber"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "complete"}}, "required": ["status"]},
+          "then": {
+            "required": ["durationSeconds", "cpuUserSeconds", "cpuSystemSeconds", "rssStartBytes", "rssEndBytes", "rssPeakObservedBytes", "rssSampleCount", "maxSampleGapSeconds"],
+            "not": {"required": ["reason"]},
+            "properties": {"rssSampleCount": {"minimum": 2}, "maxSampleGapSeconds": {"maximum": 30}}
+          }
+        },
+        {
+          "if": {"required": ["rssPeakObservedBytes"]},
+          "then": {"required": ["rssSampleCount"], "properties": {"rssSampleCount": {"minimum": 1}}}
+        },
+        {
+          "if": {"required": ["rssSampleCount"], "properties": {"rssSampleCount": {"minimum": 1}}},
+          "then": {"required": ["rssPeakObservedBytes"]}
+        },
+        {
+          "if": {"anyOf": [{"required": ["rssStartBytes"]}, {"required": ["rssEndBytes"]}]},
+          "then": {"required": ["rssPeakObservedBytes", "rssSampleCount"], "properties": {"rssSampleCount": {"minimum": 1}}}
+        },
+        {
+          "if": {"required": ["rssStartBytes", "rssEndBytes"]},
+          "then": {"properties": {"rssSampleCount": {"minimum": 2}}}
+        }
+      ]
+    }
+  }
+}

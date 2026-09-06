@@ -91,11 +91,11 @@ test-contracts:
 
 verify-wire-contracts:
 	go test ./internal/contracts/...
-	cd runtime && uv run pytest tests/test_contracts.py
+	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py
 
 test-wire-cross-language:
 	go test ./internal/contracts/... ./internal/config/... -run 'Golden|SharedPython|ResolvedSkills'
-	cd runtime && uv run pytest tests/test_contracts.py -k 'golden or digest or resolved_skills'
+	cd runtime && uv run pytest tests/test_contracts.py tests/test_performance_contracts.py -k 'golden or digest or resolved_skills'
 
 test-memory-contracts:
 	go test ./internal/memory/...
@@ -188,7 +188,7 @@ test-config:
 	go run ./cmd/contractor-server config validate --root ./configs
 
 verify-public-api:
-	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative)$$'
+	go test -count=1 ./internal/httpapi/public -run '^(TestPublicOpenAPIContractIsValidAndPolicySafe|TestPublicEventSchemaIsClosedAndExamplesValidate|TestImplementedPublicHandlersConformToOpenAPI|TestPublicOpenAPIPathsAreRepositoryRelative|TestPerformancePublicContracts)$$'
 
 test-postgres:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)

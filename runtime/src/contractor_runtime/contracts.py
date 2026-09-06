@@ -19,6 +19,8 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
     SecretStr,
     ValidationError,
     field_serializer,
@@ -824,11 +826,112 @@ class ExecutionReport(WireModel):
         return _require_text("reportId", value)
 
 
+ResourceReason = Literal[
+    "unsupported_platform", "read_failed", "sampling_gap", "counter_reset", "invalid_report"
+]
+ResourceNumber = Annotated[float, Field(ge=0, allow_inf_nan=False)]
+ResourceInteger = Annotated[int, Field(ge=0, le=2**53 - 1)]
+
+
+class PerformanceMetricsRequest(WireModel):
+    version: Literal[1]
+    interval_seconds: Literal[15]
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_coerced_literals(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            for key in ("version", "intervalSeconds", "interval_seconds"):
+                if key in value and type(value[key]) is not int:
+                    raise ValueError("performance request fields must be integers")
+        return value
+
+
+class RuntimeResources(WireModel):
+    version: Literal[1]
+    scope: Literal["runtime_process"]
+    status: Literal["complete", "partial", "unavailable"]
+    reason: ResourceReason | None = None
+    duration_seconds: ResourceNumber | None = None
+    cpu_user_seconds: ResourceNumber | None = None
+    cpu_system_seconds: ResourceNumber | None = None
+    rss_start_bytes: ResourceInteger | None = None
+    rss_end_bytes: ResourceInteger | None = None
+    rss_peak_observed_bytes: ResourceInteger | None = None
+    rss_sample_count: ResourceInteger | None = None
+    max_sample_gap_seconds: ResourceNumber | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_and_coerced_version(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            if any(item is None for item in value.values()):
+                raise ValueError("unknown resource fields must be omitted, not null")
+            if "version" in value and type(value["version"]) is not int:
+                raise ValueError("resource version must be an integer")
+        return value
+
+    @model_validator(mode="after")
+    def validate_resources(self) -> Self:
+        if (
+            self.max_sample_gap_seconds is not None
+            and self.duration_seconds is not None
+            and self.max_sample_gap_seconds > self.duration_seconds
+        ):
+            raise ValueError("resource sampling gap exceeds duration")
+        has_samples = self.rss_sample_count is not None and self.rss_sample_count > 0
+        if has_samples != (self.rss_peak_observed_bytes is not None):
+            raise ValueError("resource peak and sample count are inconsistent")
+        boundaries = [v for v in (self.rss_start_bytes, self.rss_end_bytes) if v is not None]
+        if any(
+            self.rss_peak_observed_bytes is None or value > self.rss_peak_observed_bytes
+            for value in boundaries
+        ):
+            raise ValueError("resource boundary exceeds observed peak")
+        if boundaries and (self.rss_sample_count or 0) < len(boundaries):
+            raise ValueError("resource sample count omits boundaries")
+        if self.status == "complete" and (
+            self.reason is not None
+            or self.duration_seconds is None
+            or self.cpu_user_seconds is None
+            or self.cpu_system_seconds is None
+            or len(boundaries) != 2
+            or self.max_sample_gap_seconds is None
+            or self.max_sample_gap_seconds > 30
+        ):
+            raise ValueError(
+                "complete resources require successful boundaries and bounded coverage"
+            )
+        return self
+
+
 class RuntimeReport(WireModel):
     complete: bool
     duration_ms: int | None = Field(default=None, ge=0)
     stop_reason: str | None = None
     adapters: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2] = Field(default_factory=dict)
+    resources: RuntimeResources | None = None
+    _resources_error: ResourceReason | None = PrivateAttr(default=None)
+
+    @property
+    def resources_error(self) -> ResourceReason | None:
+        return self._resources_error
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def isolate_resources(cls, value: Any, handler: ModelWrapValidatorHandler[Self]) -> Self:
+        try:
+            result = handler(value)
+        except ValidationError as error:
+            if not isinstance(value, dict) or "resources" not in value:
+                raise
+            if not all(item["loc"] and item["loc"][0] == "resources" for item in error.errors()):
+                raise
+            result = handler({key: item for key, item in value.items() if key != "resources"})
+            result._resources_error = "invalid_report"
+        if isinstance(value, dict) and "resources" in value and value["resources"] is None:
+            result._resources_error = "invalid_report"
+        return result
 
     @field_validator("stop_reason")
     @classmethod
@@ -1704,6 +1807,9 @@ class AgentRegistrationV2(AgentRegistration):
     initial_labels: list[str] = Field(max_length=32)
     supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
     workspace_capabilities: WorkspaceCapabilitiesV2 | None = None
+    supported_performance_metrics_versions: list[Annotated[int, Field(strict=True, ge=1, le=1)]] = (
+        Field(default_factory=list, max_length=1, exclude_if=lambda value: not value)
+    )
 
     @model_validator(mode="after")
     def validate_v2_registration(self) -> Self:
@@ -1959,6 +2065,7 @@ class AllocationSpecV2(AllocationSpec):
     runtime_settings: RuntimeSettingsV2
     resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenanceV2
     workspace: AllocationWorkspaceSpecV2 | None = None
+    performance_metrics: PerformanceMetricsRequest | None = None
 
 
 class PrepareAllocationRequestV2(VersionedWireModel):
@@ -2006,11 +2113,18 @@ def decode_private_v2[PrivateModelT: WireModel](
 ) -> PrivateModelT:
     """Decode one secret-bearing v2 document without reflecting input in errors."""
 
+    if (
+        issubclass(model, AllocationFinalResponse)
+        and len(raw.encode("utf-8") if isinstance(raw, str) else raw) > 1024 * 1024
+    ):
+        raise PrivateProtocolDecodeError("schema")
     try:
-        value = json.loads(raw, object_pairs_hook=_unique_object)
+        value = json.loads(
+            raw, object_pairs_hook=_unique_object, parse_constant=_invalid_json_constant
+        )
     except _DuplicateJSONKey:
         raise PrivateProtocolDecodeError("duplicate_key") from None
-    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+    except (ValueError, UnicodeDecodeError, TypeError):
         raise PrivateProtocolDecodeError("schema") from None
     if not isinstance(value, dict):
         raise PrivateProtocolDecodeError("schema")
@@ -2035,6 +2149,10 @@ def encode_private_v2(value: WireModel) -> bytes:
 
     dumped = value.model_dump(mode="json", by_alias=True, exclude_none=True)
     return jcs.canonicalize(dumped)
+
+
+def _invalid_json_constant(_value: str) -> Any:
+    raise ValueError("non-standard JSON constant")
 
 
 class _DuplicateJSONKey(ValueError):

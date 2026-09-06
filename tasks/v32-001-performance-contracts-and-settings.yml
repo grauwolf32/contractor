@@ -1,0 +1,114 @@
+schema_version: "1.0"
+id: V32-001
+title: Define performance switches, bounded records and allocation resource contracts
+milestone: operations-performance-and-profiling
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V1-004, V8-003, V4-005]
+languages: [go, python, typescript]
+
+goal: >-
+  Establish validated startup and wire contracts for built-in Operations metrics
+  and independent Go profiling before implementing collectors or listeners.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  startup: >-
+    --performance-metrics / CONTRACTOR_PERFORMANCE_METRICS defaults true;
+    --pprof / CONTRACTOR_PPROF defaults false; --pprof-listen /
+    CONTRACTOR_PPROF_LISTEN defaults 127.0.0.1:6060 and accepts numeric loopback
+    addresses only. Explicit CLI values override environment; invalid effective
+    boolean/address/port values fail startup safely. Changes require restart.
+  authority: >-
+    The metrics switch controls new performance collection only. Existing
+    execution/model/tool/token reports, budgets, OTLP traces, readiness and
+    lifecycle remain independent. Profiling and metrics support all four boolean
+    combinations. Neither feature is model-visible or editable through Operations.
+  compatibility: >-
+    Optional registration supportedPerformanceMetricsVersions is empty/absent or
+    [1]. Only implemented collectors may advertise 1. New Servers accept omitted
+    capabilities and omit requests for unsupported Runtimes without excluding
+    placement. New Runtimes accept omitted collection requests as disabled. Old
+    Servers can reject new registration fields, requiring Server-first upgrade
+    and coordinated rollback rather than a claim of symmetric compatibility.
+
+scope:
+  in:
+    - Add validated Go startup configuration fields and focused environment/CLI tests; later tasks own collector/listener composition.
+    - Define typed internal performance samples, finite histogram buckets, freshness, partial coverage and safe error enums.
+    - Extend Go/Python private registration and AllocationSpecV2 with optional capability and performanceMetrics request contracts.
+    - Define performanceMetrics as version 1 and intervalSeconds 15; omission disables allocation sampling.
+    - Extend RuntimeReport with independently validated optional resources and matching private JSON schemas and cross-language fixtures.
+    - Define public PerformanceSnapshot, PerformanceHistory and AllocationResourceSummary schemas and proposed read-only Operations routes; regenerate TypeScript contracts.
+    - Keep actual version-1 Runtime capability advertisement disabled until V32-004 supplies a working collector.
+  out:
+    - Collection loops, diagnostic connections, migrations, history queries, UI rendering, pprof listeners or changes to execution-budget accounting.
+
+requirements:
+  - id: R1
+    text: >-
+      Performance samples use generation, observation timestamps, actual coverage
+      and ok/partial/unavailable states. Fixed HTTP dimensions are public/private
+      surface, fixed methods plus other and status class plus no_response; no
+      raw path, SQL, Run/allocation ID or user-defined metric dimensions exist.
+  - id: R2
+    text: >-
+      runtime.resources contains version=1, scope=runtime_process,
+      complete/partial/unavailable status, optional bounded reason, durationSeconds,
+      cpuUserSeconds, cpuSystemSeconds, rssStartBytes, rssEndBytes,
+      rssPeakObservedBytes, rssSampleCount and maxSampleGapSeconds. Unknown numeric
+      values are absent; finite nonnegative values and consistent peak/sample
+      combinations are required. The existing 1 MiB final-report cap still applies.
+  - id: R3
+    text: >-
+      Public GET routes are /v1/operations/performance, /performance/history under
+      that Operations prefix, and /v1/operations/allocation-history. History accepts
+      from/to and step 15s|1m|5m|1h; fine data is at most one current-process hour,
+      durable data seven days and all responses at most 1000 points. Allocation
+      history has exact Run filtering and bounded cursor pagination of 50/default,
+      100/maximum. Current collection and historical allocation policy are separate.
+  - id: R4
+    text: >-
+      Malformed optional resource measurements are a telemetry-boundary error,
+      not grounds to discard valid Worker/adapter reports or fail finalization.
+      Whole-envelope syntax, authentication and size validation remain strict.
+
+acceptance_criteria:
+  - id: A1
+    given: Defaults, all switch combinations, environment/CLI overrides and invalid configuration.
+    when: Startup configuration is parsed.
+    then: Effective values are deterministic and safely validated without starting collection or exposing diagnostics.
+  - id: A2
+    given: Old/new registration and prepare payloads, valid/partial resources and malformed numeric/enum fields.
+    when: Go and Python contract fixtures are decoded and round-tripped.
+    then: Omission disables collection, supported fields round-trip and resource-only errors can be isolated from a valid report.
+  - id: A3
+    given: New public schemas and their disabled, missing, partial, reset and history examples.
+    when: OpenAPI validation and TypeScript generation run.
+    then: Routes and closed DTOs follow existing conventions and consumers cannot confuse missing values with zero.
+
+tests:
+  - {name: settings, command: "go test -count=1 ./internal/app", covers: [A1]}
+  - {name: go-contracts, command: "go test -count=1 ./internal/contracts", covers: [A2]}
+  - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_performance_contracts.py tests/test_allocation_contracts.py tests/test_contracts.py", covers: [A2]}
+  - {name: cross-language, command: "make verify-wire-contracts test-wire-cross-language", covers: [A2]}
+  - {name: public-contracts, command: "make verify-public-api ui-typecheck", covers: [A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - Required Go settings and contract tests passed.
+    - Required Python performance, allocation and legacy contract tests passed, 150 tests.
+    - Wire verification and cross-language golden fixture targets passed.
+    - Public OpenAPI validation, performance schema examples and TypeScript typecheck passed.
+    - Go race tests passed for app, contracts, controlplane, telemetry and performance.
+    - Additional Runtime capability, allocation, metrics, control-client and app regressions passed, 54 tests.
+    - Focused Python Ruff lint and format checks passed.
+  boundary: >-
+    This task establishes contracts only: no collectors, history storage,
+    listeners or implemented performance HTTP routes. Runtime does not advertise
+    performance version 1 yet. Invalid resources are isolated with a safe
+    diagnostic without changing Worker/adapter completeness or weakening the
+    original report byte limit and strict JSON boundary. Shared labels, Audit,
+    CLI and unrelated UI changes are excluded from the implementation commit.

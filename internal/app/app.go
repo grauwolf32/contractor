@@ -81,6 +81,9 @@ type Config struct {
 	LocalAuthFile               string
 	BrowserOrigins              []string
 	InsecureLoopbackCookie      bool
+	PerformanceMetrics          bool
+	Pprof                       bool
+	PprofListen                 string
 }
 
 const (

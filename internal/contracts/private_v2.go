@@ -105,24 +105,28 @@ func (k RuntimeCredentialKind) Validate() error {
 }
 
 type AgentRegistrationV2 struct {
-	APIVersion               string                   `json:"apiVersion"`
-	PrivateProtocolVersion   int                      `json:"privateProtocolVersion"`
-	InstanceID               string                   `json:"instanceId"`
-	SoftwareVersion          string                   `json:"softwareVersion"`
-	StartedAt                time.Time                `json:"startedAt"`
-	ControlURL               string                   `json:"controlUrl"`
-	A2AURL                   string                   `json:"a2aUrl"`
-	InitialLabels            []string                 `json:"initialLabels"`
-	SupportedRuntimes        []string                 `json:"supportedRuntimes"`
-	SupportedToolsets        []ToolsetCapability      `json:"supportedToolsets"`
-	SupportedSandboxProfiles []string                 `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters []RuntimeAdapterRef      `json:"supportedRuntimeAdapters"`
-	WorkspaceCapabilities    *WorkspaceCapabilitiesV2 `json:"workspaceCapabilities,omitempty"`
-	ObservedState            AgentObservedState       `json:"observedState"`
-	AllocationID             *string                  `json:"allocationId,omitempty"`
+	APIVersion                          string                     `json:"apiVersion"`
+	PrivateProtocolVersion              int                        `json:"privateProtocolVersion"`
+	InstanceID                          string                     `json:"instanceId"`
+	SoftwareVersion                     string                     `json:"softwareVersion"`
+	StartedAt                           time.Time                  `json:"startedAt"`
+	ControlURL                          string                     `json:"controlUrl"`
+	A2AURL                              string                     `json:"a2aUrl"`
+	InitialLabels                       []string                   `json:"initialLabels"`
+	SupportedRuntimes                   []string                   `json:"supportedRuntimes"`
+	SupportedToolsets                   []ToolsetCapability        `json:"supportedToolsets"`
+	SupportedSandboxProfiles            []string                   `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters            []RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
+	SupportedPerformanceMetricsVersions PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
+	WorkspaceCapabilities               *WorkspaceCapabilitiesV2   `json:"workspaceCapabilities,omitempty"`
+	ObservedState                       AgentObservedState         `json:"observedState"`
+	AllocationID                        *string                    `json:"allocationId,omitempty"`
 }
 
 func (r AgentRegistrationV2) Validate() error {
+	if len(r.SupportedPerformanceMetricsVersions) > 1 || (len(r.SupportedPerformanceMetricsVersions) == 1 && r.SupportedPerformanceMetricsVersions[0] != 1) {
+		return invalidf("unsupported performance metrics capability")
+	}
 	if err := validatePrivateProtocolVersion(r.PrivateProtocolVersion); err != nil {
 		return err
 	}
@@ -747,9 +751,15 @@ type AllocationSpecV2 struct {
 	RuntimeSettings                 RuntimeSettingsV2                 `json:"runtimeSettings"`
 	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenanceV2 `json:"resolvedRuntimeConfigProvenance"`
 	Workspace                       *AllocationWorkspaceSpecV2        `json:"workspace,omitempty"`
+	PerformanceMetrics              *PerformanceMetricsRequest        `json:"performanceMetrics,omitempty"`
 }
 
 func (s AllocationSpecV2) Validate() error {
+	if s.PerformanceMetrics != nil {
+		if err := s.PerformanceMetrics.Validate(); err != nil {
+			return err
+		}
+	}
 	if err := validateAPIVersion(s.APIVersion); err != nil {
 		return err
 	}
@@ -835,13 +845,40 @@ func (m RuntimeAdapterMetricsV2) Validate() error {
 }
 
 type RuntimeReportV2 struct {
-	Complete   bool                                          `json:"complete"`
-	DurationMS *int64                                        `json:"durationMs,omitempty"`
-	StopReason *string                                       `json:"stopReason,omitempty"`
-	Adapters   map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
+	Complete       bool                                          `json:"complete"`
+	DurationMS     *int64                                        `json:"durationMs,omitempty"`
+	StopReason     *string                                       `json:"stopReason,omitempty"`
+	Adapters       map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
+	Resources      *RuntimeResources                             `json:"resources,omitempty"`
+	ResourcesError *ResourceReason                               `json:"-"`
+}
+
+func (r *RuntimeReportV2) UnmarshalJSON(data []byte) error {
+	type wireReport RuntimeReportV2
+	var value wireReport
+	wire := struct {
+		*wireReport
+		Resources json.RawMessage `json:"resources"`
+	}{wireReport: &value}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return err
+	}
+	if err := ensureJSONEOF(decoder); err != nil {
+		return err
+	}
+	value.Resources, value.ResourcesError = decodeOptionalResources(wire.Resources)
+	*r = RuntimeReportV2(value)
+	return nil
 }
 
 func (r RuntimeReportV2) Validate() error {
+	if r.Resources != nil {
+		if err := r.Resources.Validate(); err != nil {
+			return err
+		}
+	}
 	if r.DurationMS != nil && *r.DurationMS < 0 {
 		return invalidf("runtime duration must be non-negative")
 	}
@@ -871,6 +908,7 @@ func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
+	result.SupportedPerformanceMetricsVersions = append([]int(nil), source.SupportedPerformanceMetricsVersions...)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
 		capabilities.Modes = append([]WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)

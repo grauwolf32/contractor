@@ -2368,6 +2368,89 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/operations/performance:
+    get:
+      operationId: getPerformance
+      tags: [Operations]
+      summary: Read bounded in-memory Server performance
+      description: Independent of registry revisions; no SQL or sampling is triggered by this read. Disabled collection returns enabled false without current measurements.
+      x-contractor-implementation: planned
+      responses:
+        '200':
+          description: Current collection policy, freshness and bounded diagnostics
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PerformanceSnapshot'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/performance/history:
+    get:
+      operationId: getPerformanceHistory
+      tags: [Operations]
+      summary: Read bounded performance history with generation boundaries
+      description: Requires from before to. The 15s step covers at most the current process's last hour; durable steps cover at most seven days. Ranges yielding more than 1000 points are rejected, not silently truncated. Retained history remains readable when collection is disabled.
+      x-contractor-implementation: planned
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          required: true
+          schema: {type: string, format: date-time}
+        - name: step
+          in: query
+          required: true
+          schema: {enum: [15s, 1m, 5m, 1h]}
+      responses:
+        '200':
+          description: Bounded history; missing samples remain gaps and generations are never merged
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PerformanceHistory'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/operations/allocation-history:
+    get:
+      operationId: listAllocationResourceHistory
+      tags: [Operations]
+      summary: Read terminal allocation resource summaries
+      description: Owner-authorized history, including missing reports. Descending finishedAt and allocationId keyset pagination pins an upper boundary. finishedAt is the StageExecution terminal timestamp, not a late report arrival time. Historical collection policy is independent of current switches.
+      x-contractor-implementation: planned
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          description: Exact Run ID, not a prefix or label filter.
+          schema: {$ref: '#/components/schemas/ResourceId'}
+        - name: limit
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Terminal allocation resources or explicit reasons for missing data
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AllocationResourcePage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/operations/allocations:
     get:
       operationId: listAllocations
@@ -5483,6 +5566,262 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
+    PerformanceNumber:
+      type: number
+      minimum: 0
+      maximum: 1.7976931348623157e308
+      description: Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+    PerformanceInteger:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740991
+    PerformanceReason:
+      enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, missing_baseline, permission_denied, statistics_disabled, database_unavailable, budget_exceeded, record_limit]
+    PerformanceCoverage:
+      type: object
+      additionalProperties: false
+      required: [startedAt, endedAt, durationSeconds, expectedSamples, observedSamples]
+      properties:
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: string, format: date-time}
+        durationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        expectedSamples: {$ref: '#/components/schemas/PerformanceInteger'}
+        observedSamples: {$ref: '#/components/schemas/PerformanceInteger'}
+    PerformanceFreshness:
+      type: object
+      additionalProperties: false
+      required: [status, lastAttemptAt, intervalSeconds, coverage]
+      description: observedAt is the last successful observation, not the read time. Two missed intervals make the group stale; unavailable or never observed groups omit measurements.
+      properties:
+        status: {enum: [ok, partial, unavailable]}
+        reason: {$ref: '#/components/schemas/PerformanceReason'}
+        observedAt: {type: string, format: date-time}
+        lastAttemptAt: {type: string, format: date-time}
+        intervalSeconds: {type: integer, enum: [15, 60, 300]}
+        coverage: {$ref: '#/components/schemas/PerformanceCoverage'}
+    PerformanceHistogram:
+      type: object
+      additionalProperties: false
+      required: [count, sumSeconds, buckets]
+      description: Cumulative counts at fixed bounds .005,.01,.025,.05,.1,.25,.5,1,2.5,5,10,30,60,+Inf seconds. The last bucket equals count. Merge counts and sums, not quantiles. Empty windows have unknown quantiles; overflow is greater than 60s.
+      properties:
+        count: {$ref: '#/components/schemas/PerformanceInteger'}
+        sumSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        buckets:
+          type: array
+          minItems: 14
+          maxItems: 14
+          items: {$ref: '#/components/schemas/PerformanceInteger'}
+    PerformanceHTTPSurface:
+      type: object
+      additionalProperties: false
+      required: [surface, inFlight, counts, duration]
+      properties:
+        surface: {enum: [public, private]}
+        inFlight: {$ref: '#/components/schemas/PerformanceInteger'}
+        counts:
+          type: array
+          minItems: 10
+          maxItems: 10
+          description: Rows GET,HEAD,POST,PUT,DELETE,CONNECT,OPTIONS,TRACE,PATCH,other; columns 1xx,2xx,3xx,4xx,5xx,no_response. No request-specific dimensions.
+          items:
+            type: array
+            minItems: 6
+            maxItems: 6
+            items: {$ref: '#/components/schemas/PerformanceInteger'}
+        duration: {$ref: '#/components/schemas/PerformanceHistogram'}
+    PerformanceHTTP:
+      type: object
+      additionalProperties: false
+      required: [freshness, surfaces]
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        surfaces:
+          type: array
+          minItems: 2
+          maxItems: 2
+          description: Exactly public then private.
+          items: {$ref: '#/components/schemas/PerformanceHTTPSurface'}
+    PerformanceProcess:
+      type: object
+      additionalProperties: false
+      required: [freshness]
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        cpuUserSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        cpuSystemSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        cpuCores: {$ref: '#/components/schemas/PerformanceNumber'}
+        rssBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        heapLiveBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        goroutines: {$ref: '#/components/schemas/PerformanceInteger'}
+        gcCycles: {$ref: '#/components/schemas/PerformanceInteger'}
+        gcPauseSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+    PerformancePool:
+      type: object
+      additionalProperties: false
+      required: [freshness]
+      description: Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency.
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        acquiredConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        idleConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        totalConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        maxConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        acquireCount: {$ref: '#/components/schemas/PerformanceInteger'}
+        acquireDurationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        emptyAcquireCount: {$ref: '#/components/schemas/PerformanceInteger'}
+        canceledAcquireCount: {$ref: '#/components/schemas/PerformanceInteger'}
+    PerformanceDatabase:
+      type: object
+      additionalProperties: false
+      required: [freshness]
+      description: Aggregates for the current database only. Restricted visibility produces partial or unavailable data; resets invalidate deltas. No SQL text or per-backend records.
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        statsReset: {type: string, format: date-time}
+        commits: {$ref: '#/components/schemas/PerformanceInteger'}
+        rollbacks: {$ref: '#/components/schemas/PerformanceInteger'}
+        deadlocks: {$ref: '#/components/schemas/PerformanceInteger'}
+        tempFiles: {$ref: '#/components/schemas/PerformanceInteger'}
+        tempBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        blocksRead: {$ref: '#/components/schemas/PerformanceInteger'}
+        blocksHit: {$ref: '#/components/schemas/PerformanceInteger'}
+        activeConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        idleConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        idleInTransactionConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        lockWaitingConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        longestTransactionSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        longestIdleTransactionSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        estimatedLiveTuples: {$ref: '#/components/schemas/PerformanceInteger'}
+        estimatedDeadTuples: {$ref: '#/components/schemas/PerformanceInteger'}
+    PerformanceDatabaseSize:
+      type: object
+      additionalProperties: false
+      required: [freshness]
+      properties:
+        freshness: {$ref: '#/components/schemas/PerformanceFreshness'}
+        sizeBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+    PerformanceSample:
+      type: object
+      additionalProperties: false
+      required: [version, generation, observedAt]
+      description: One bounded frame, at most 32 KiB. Groups retain their actual coverage and timestamps; cached DB data is not a fresh process sample.
+      properties:
+        version: {type: integer, const: 1}
+        generation: {type: string, minLength: 1, maxLength: 128}
+        observedAt: {type: string, format: date-time}
+        http: {$ref: '#/components/schemas/PerformanceHTTP'}
+        process: {$ref: '#/components/schemas/PerformanceProcess'}
+        pool: {$ref: '#/components/schemas/PerformancePool'}
+        database: {$ref: '#/components/schemas/PerformanceDatabase'}
+        databaseSize: {$ref: '#/components/schemas/PerformanceDatabaseSize'}
+    PerformanceDiagnostics:
+      type: object
+      additionalProperties: false
+      required: [skippedSamples, droppedMinutes, pendingMinutes]
+      properties:
+        skippedSamples: {$ref: '#/components/schemas/PerformanceInteger'}
+        droppedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
+        pendingMinutes: {type: integer, minimum: 0, maximum: 10}
+        collectorReason: {$ref: '#/components/schemas/PerformanceReason'}
+        writerReason: {$ref: '#/components/schemas/PerformanceReason'}
+    PerformanceSnapshot:
+      type: object
+      additionalProperties: false
+      required: [enabled, generation, observedAt, sampleIntervalSeconds, databaseIntervalSeconds, databaseSizeIntervalSeconds, diagnostics]
+      properties:
+        enabled: {type: boolean}
+        generation: {type: string, minLength: 1, maxLength: 128}
+        observedAt: {type: string, format: date-time}
+        sampleIntervalSeconds: {type: integer, const: 15}
+        databaseIntervalSeconds: {type: integer, const: 60}
+        databaseSizeIntervalSeconds: {type: integer, const: 300}
+        current: {$ref: '#/components/schemas/PerformanceSample'}
+        diagnostics: {$ref: '#/components/schemas/PerformanceDiagnostics'}
+      oneOf:
+        - properties: {enabled: {const: false}}
+          not: {required: [current]}
+        - properties: {enabled: {const: true}}
+      example:
+        enabled: false
+        generation: performance-generation-example
+        observedAt: '2026-09-06T10:00:00Z'
+        sampleIntervalSeconds: 15
+        databaseIntervalSeconds: 60
+        databaseSizeIntervalSeconds: 300
+        diagnostics: {skippedSamples: 0, droppedMinutes: 0, pendingMinutes: 0}
+    PerformanceHistory:
+      type: object
+      additionalProperties: false
+      required: [from, to, step, points]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        step: {enum: [15s, 1m, 5m, 1h]}
+        points:
+          type: array
+          maxItems: 1000
+          items: {$ref: '#/components/schemas/PerformanceSample'}
+      example:
+        from: '2026-09-06T09:00:00Z'
+        to: '2026-09-06T10:00:00Z'
+        step: 1m
+        points: []
+    RuntimeResourceSummary:
+      type: object
+      additionalProperties: false
+      required: [version, scope, status]
+      oneOf:
+        - properties:
+            status: {const: complete}
+            rssSampleCount: {minimum: 2}
+            maxSampleGapSeconds: {maximum: 30}
+          required: [durationSeconds, cpuUserSeconds, cpuSystemSeconds, rssStartBytes, rssEndBytes, rssPeakObservedBytes, rssSampleCount, maxSampleGapSeconds]
+          not: {required: [reason]}
+        - properties:
+            status: {enum: [partial, unavailable]}
+      description: Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
+      properties:
+        version: {type: integer, const: 1}
+        scope: {const: runtime_process}
+        status: {enum: [complete, partial, unavailable]}
+        reason: {enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report]}
+        durationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        cpuUserSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        cpuSystemSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        rssStartBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        rssEndBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        rssPeakObservedBytes: {$ref: '#/components/schemas/PerformanceInteger'}
+        rssSampleCount: {$ref: '#/components/schemas/PerformanceInteger'}
+        maxSampleGapSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+    AllocationResourceSummary:
+      type: object
+      additionalProperties: false
+      required: [allocationId, runId, stageExecutionId, finishedAt, collectionPolicy, status]
+      properties:
+        allocationId: {$ref: '#/components/schemas/ResourceId'}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        stageExecutionId: {$ref: '#/components/schemas/ResourceId'}
+        finishedAt: {type: string, format: date-time}
+        collectionPolicy: {enum: [requested, disabled, unsupported, legacy]}
+        status: {enum: [disabled, unsupported, pending, available, partial, unavailable]}
+        reason: {enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report, legacy, report_missing]}
+        resources: {$ref: '#/components/schemas/RuntimeResourceSummary'}
+      example:
+        allocationId: allocation-example
+        runId: run-example
+        stageExecutionId: stage-example
+        finishedAt: '2026-09-06T10:00:00Z'
+        collectionPolicy: legacy
+        status: unavailable
+        reason: legacy
+    AllocationResourcePage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AllocationResourceSummary'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
     AllocationObservation:
       type: object
       additionalProperties: false

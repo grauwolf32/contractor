@@ -1,0 +1,1133 @@
+{
+  "$defs": {
+    "AgentTemplateRef": {
+      "additionalProperties": false,
+      "properties": {
+        "templateId": {
+          "title": "Templateid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "templateId",
+        "version",
+        "digest"
+      ],
+      "title": "AgentTemplateRef",
+      "type": "object"
+    },
+    "AllocationWorkspaceExportV2": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "State",
+          "type": "string"
+        },
+        "diff": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Diff",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "diff"
+      ],
+      "title": "AllocationWorkspaceExportV2",
+      "type": "object"
+    },
+    "AllocationWorkspaceSourceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact",
+        "target"
+      ],
+      "title": "AllocationWorkspaceSourceV2",
+      "type": "object"
+    },
+    "AllocationWorkspaceSpecV2": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "direct",
+            "overlay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/AllocationWorkspaceSourceV2"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Sources",
+          "type": "array"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationWorkspaceStateV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "export": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationWorkspaceExportV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "mode",
+        "sources"
+      ],
+      "title": "AllocationWorkspaceSpecV2",
+      "type": "object"
+    },
+    "AllocationWorkspaceStateV2": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "title": "AllocationWorkspaceStateV2",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Revision"
+        }
+      },
+      "required": [
+        "namespace",
+        "name"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "CaidoSettingsV2": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "bearerToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        },
+        "caBundlePem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cabundlepem"
+        },
+        "requestTimeoutSeconds": {
+          "title": "Requesttimeoutseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adapter",
+        "endpoint",
+        "requestTimeoutSeconds"
+      ],
+      "title": "CaidoSettingsV2",
+      "type": "object"
+    },
+    "HTTPOriginTargetSettingsV2": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "basicAuth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPProxyBasicAuthV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bearerToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "HTTPOriginTargetSettingsV2",
+      "type": "object"
+    },
+    "HTTPProxyBasicAuthV2": {
+      "additionalProperties": false,
+      "properties": {
+        "username": {
+          "format": "password",
+          "title": "Username",
+          "type": "string",
+          "writeOnly": true
+        },
+        "password": {
+          "format": "password",
+          "title": "Password",
+          "type": "string",
+          "writeOnly": true
+        }
+      },
+      "required": [
+        "username",
+        "password"
+      ],
+      "title": "HTTPProxyBasicAuthV2",
+      "type": "object"
+    },
+    "HTTPProxySettingsV2": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "proxyUrl": {
+          "title": "Proxyurl",
+          "type": "string"
+        },
+        "basicAuth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPProxyBasicAuthV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bearerToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        },
+        "caBundlePem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cabundlepem"
+        },
+        "targets": {
+          "items": {
+            "enum": [
+              "llm-gateway",
+              "tool-http",
+              "tool-subprocess"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "adapter",
+        "proxyUrl",
+        "targets"
+      ],
+      "title": "HTTPProxySettingsV2",
+      "type": "object"
+    },
+    "LLMCredentialRefV2": {
+      "additionalProperties": false,
+      "properties": {
+        "credentialId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Credentialid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credentialId"
+      ],
+      "title": "LLMCredentialRefV2",
+      "type": "object"
+    },
+    "LLMGatewayConfigRef": {
+      "additionalProperties": false,
+      "properties": {
+        "gatewayId": {
+          "title": "Gatewayid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gatewayId",
+        "version",
+        "digest"
+      ],
+      "title": "LLMGatewayConfigRef",
+      "type": "object"
+    },
+    "ModelPolicyRef": {
+      "additionalProperties": false,
+      "properties": {
+        "policyId": {
+          "title": "Policyid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policyId",
+        "version",
+        "digest"
+      ],
+      "title": "ModelPolicyRef",
+      "type": "object"
+    },
+    "PerformanceMetricsRequest": {
+      "$ref": "../v1alpha1/performance.schema.json#/$defs/performanceMetricsRequest"
+    },
+    "ResolvedAgentTemplate": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/AgentTemplateRef"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/WorkerRuntimeRef"
+        },
+        "instructions": {
+          "$ref": "#/$defs/ResolvedInstructions"
+        },
+        "modelPolicy": {
+          "$ref": "#/$defs/ResolvedModelPolicy"
+        },
+        "summarizer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkerSummarizerConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "toolsets": {
+          "items": {
+            "$ref": "#/$defs/ToolsetSelection"
+          },
+          "title": "Toolsets",
+          "type": "array"
+        },
+        "skills": {
+          "items": {
+            "$ref": "#/$defs/ArtifactRef"
+          },
+          "maxItems": 32,
+          "title": "Skills",
+          "type": "array"
+        },
+        "sandboxProfile": {
+          "$ref": "#/$defs/SandboxProfileRef"
+        }
+      },
+      "required": [
+        "ref",
+        "description",
+        "runtime",
+        "instructions",
+        "modelPolicy",
+        "toolsets",
+        "sandboxProfile"
+      ],
+      "title": "ResolvedAgentTemplate",
+      "type": "object"
+    },
+    "ResolvedInstructions": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "digest",
+        "text"
+      ],
+      "title": "ResolvedInstructions",
+      "type": "object"
+    },
+    "ResolvedModelPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ModelPolicyRef"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "contextWindowTokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 100000000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Contextwindowtokens"
+        },
+        "maxOutputTokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxoutputtokens"
+        },
+        "maxModelCalls": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 1000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxmodelcalls"
+        },
+        "maxToolCalls": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 10000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtoolcalls"
+        },
+        "maxWorkerCalls": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 10000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxworkercalls"
+        },
+        "maxTotalTokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 100000000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtotaltokens"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        }
+      },
+      "required": [
+        "ref",
+        "model"
+      ],
+      "title": "ResolvedModelPolicy",
+      "type": "object"
+    },
+    "ResolvedRuntimeConfigProvenanceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/RuntimeLabelBindingProvenanceV2"
+        },
+        "runLabels": {
+          "items": {
+            "$ref": "#/$defs/RuntimeLabelBindingProvenanceV2"
+          },
+          "maxItems": 32,
+          "title": "Runlabels",
+          "type": "array"
+        },
+        "agentLabels": {
+          "items": {
+            "$ref": "#/$defs/RuntimeLabelBindingProvenanceV2"
+          },
+          "maxItems": 32,
+          "title": "Agentlabels",
+          "type": "array"
+        },
+        "runtimeAdapters": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Runtimeadapters",
+          "type": "array"
+        },
+        "llmGatewayConfig": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LLMGatewayConfigRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llmCredential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LLMCredentialRefV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "runtimeCredentialRefs": {
+          "items": {
+            "$ref": "#/$defs/RuntimeCredentialRefV2"
+          },
+          "maxItems": 64,
+          "title": "Runtimecredentialrefs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "default",
+        "runLabels",
+        "agentLabels",
+        "runtimeAdapters",
+        "runtimeCredentialRefs"
+      ],
+      "title": "ResolvedRuntimeConfigProvenanceV2",
+      "type": "object"
+    },
+    "ResolvedSkill": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "packageDigest": {
+          "title": "Packagedigest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "artifact",
+        "packageDigest"
+      ],
+      "title": "ResolvedSkill",
+      "type": "object"
+    },
+    "RuntimeConfigRefV2": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "digest"
+      ],
+      "title": "RuntimeConfigRefV2",
+      "type": "object"
+    },
+    "RuntimeCredentialRefV2": {
+      "additionalProperties": false,
+      "properties": {
+        "credentialId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Credentialid",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "caido-bearer@1",
+            "http-origin-basic@1",
+            "http-origin-bearer@1",
+            "http-proxy-basic@1",
+            "http-proxy-bearer@1",
+            "otlp-headers@1"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credentialId",
+        "kind"
+      ],
+      "title": "RuntimeCredentialRefV2",
+      "type": "object"
+    },
+    "RuntimeLabelBindingProvenanceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "exclusiveMinimum": 0,
+          "maximum": 18446744073709552000,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "config": {
+          "$ref": "#/$defs/RuntimeConfigRefV2"
+        }
+      },
+      "required": [
+        "label",
+        "bindingRevision",
+        "config"
+      ],
+      "title": "RuntimeLabelBindingProvenanceV2",
+      "type": "object"
+    },
+    "RuntimeSettingsV2": {
+      "additionalProperties": false,
+      "properties": {
+        "llmGatewayUrl": {
+          "title": "Llmgatewayurl",
+          "type": "string"
+        },
+        "llmGatewayToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Llmgatewaytoken"
+        },
+        "artifactApiUrl": {
+          "title": "Artifactapiurl",
+          "type": "string"
+        },
+        "telemetry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelemetrySettingsV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "httpProxy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPProxySettingsV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "caido": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaidoSettingsV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "httpOriginTarget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPOriginTargetSettingsV2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requestTimeoutSeconds": {
+          "exclusiveMinimum": 0,
+          "title": "Requesttimeoutseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "llmGatewayUrl",
+        "artifactApiUrl",
+        "requestTimeoutSeconds"
+      ],
+      "title": "RuntimeSettingsV2",
+      "type": "object"
+    },
+    "SandboxProfileRef": {
+      "additionalProperties": false,
+      "properties": {
+        "sandboxProfileId": {
+          "title": "Sandboxprofileid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sandboxProfileId",
+        "version"
+      ],
+      "title": "SandboxProfileRef",
+      "type": "object"
+    },
+    "TelemetrySettingsV2": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "format": "password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "title": "Headers",
+          "type": "object"
+        },
+        "captureContent": {
+          "title": "Capturecontent",
+          "type": "boolean"
+        },
+        "flushTimeoutSeconds": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Flushtimeoutseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adapter",
+        "endpoint",
+        "headers",
+        "captureContent",
+        "flushTimeoutSeconds"
+      ],
+      "title": "TelemetrySettingsV2",
+      "type": "object"
+    },
+    "ToolsetRef": {
+      "additionalProperties": false,
+      "properties": {
+        "toolsetId": {
+          "title": "Toolsetid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "toolsetId",
+        "version"
+      ],
+      "title": "ToolsetRef",
+      "type": "object"
+    },
+    "ToolsetSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ToolsetRef"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        }
+      },
+      "required": [
+        "ref",
+        "tools"
+      ],
+      "title": "ToolsetSelection",
+      "type": "object"
+    },
+    "WorkerRuntimeRef": {
+      "additionalProperties": false,
+      "properties": {
+        "runtimeId": {
+          "title": "Runtimeid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "runtimeId",
+        "version"
+      ],
+      "title": "WorkerRuntimeRef",
+      "type": "object"
+    },
+    "WorkerSessionMode": {
+      "enum": [
+        "isolated",
+        "shared"
+      ],
+      "title": "WorkerSessionMode",
+      "type": "string"
+    },
+    "WorkerSummarizerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "modelPolicy": {
+          "$ref": "#/$defs/ResolvedModelPolicy"
+        },
+        "cumulativeBudget": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 100000000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cumulativebudget"
+        },
+        "contextWindowRatio": {
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Contextwindowratio",
+          "type": "number"
+        }
+      },
+      "required": [
+        "modelPolicy",
+        "contextWindowRatio"
+      ],
+      "title": "WorkerSummarizerConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "contractor/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "allocationId": {
+      "title": "Allocationid",
+      "type": "string"
+    },
+    "runId": {
+      "title": "Runid",
+      "type": "string"
+    },
+    "stageExecutionId": {
+      "title": "Stageexecutionid",
+      "type": "string"
+    },
+    "logicalAgentName": {
+      "title": "Logicalagentname",
+      "type": "string"
+    },
+    "namespace": {
+      "title": "Namespace",
+      "type": "string"
+    },
+    "workerSessionMode": {
+      "$ref": "#/$defs/WorkerSessionMode"
+    },
+    "runMetadataLabels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Runmetadatalabels",
+      "type": "object"
+    },
+    "leaseExpiresAt": {
+      "format": "date-time",
+      "title": "Leaseexpiresat",
+      "type": "string"
+    },
+    "agentTemplate": {
+      "$ref": "#/$defs/ResolvedAgentTemplate"
+    },
+    "resolvedSkills": {
+      "items": {
+        "$ref": "#/$defs/ResolvedSkill"
+      },
+      "maxItems": 32,
+      "title": "Resolvedskills",
+      "type": "array"
+    },
+    "modelPolicy": {
+      "$ref": "#/$defs/ResolvedModelPolicy"
+    },
+    "runtimeSettings": {
+      "$ref": "#/$defs/RuntimeSettingsV2"
+    },
+    "resolvedRuntimeConfigProvenance": {
+      "$ref": "#/$defs/ResolvedRuntimeConfigProvenanceV2"
+    },
+    "workspace": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AllocationWorkspaceSpecV2"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "performanceMetrics": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PerformanceMetricsRequest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "apiVersion",
+    "allocationId",
+    "runId",
+    "stageExecutionId",
+    "logicalAgentName",
+    "namespace",
+    "workerSessionMode",
+    "runMetadataLabels",
+    "leaseExpiresAt",
+    "agentTemplate",
+    "resolvedSkills",
+    "modelPolicy",
+    "runtimeSettings",
+    "resolvedRuntimeConfigProvenance"
+  ],
+  "title": "AllocationSpecV2",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/private-v2/allocation.schema.json"
+}
