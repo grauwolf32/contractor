@@ -358,6 +358,17 @@ func TestOperationsResyncAndLiveInvalidation(t *testing.T) {
 		nestedString(t, event, "data", "resource") != "configuration" {
 		t.Fatalf("Operations event = %#v", event)
 	}
+	if err := harness.operations.InvalidateOperations(controlplane.OperationsSchedulerSettings, ""); err != nil {
+		t.Fatal(err)
+	}
+	settingsEvent := readServerJSON(t, connection)
+	settingsData, ok := settingsEvent["data"].(map[string]any)
+	if !ok || settingsEvent["kind"] != "operations.changed" ||
+		nestedString(t, settingsEvent, "cursor", "sequence") != "258" ||
+		nestedString(t, settingsEvent, "data", "resource") != "schedulerSettings" ||
+		settingsData["resourceId"] != nil {
+		t.Fatalf("Scheduler settings Operations event = %#v", settingsEvent)
+	}
 }
 
 func TestSessionRevocationClosesOnlyItsSockets(t *testing.T) {

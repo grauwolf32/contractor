@@ -56,6 +56,7 @@ type handlerFixture struct {
 	runtimePrincipals  *fakeRuntimeAgentPrincipalManagement
 	projects           *fakeProjectStore
 	operations         *fakeOperationsReader
+	settings           *fakeSchedulerSettings
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -579,6 +580,7 @@ func newHandlerFixtureWithAuth(
 	projects := newFakeProjectStore()
 	runs.projects = projects
 	operations := newFakeOperationsReader()
+	settings := newFakeSchedulerSettings()
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: t.Context(), Authentication: authentication, Origins: origins,
 		Runs: runs, Operations: operations,
@@ -597,7 +599,7 @@ func newHandlerFixtureWithAuth(
 		Projects:               projects,
 		Audits:                 &fakeAuditManagement{},
 		Runs:                   runs, Artifacts: service, Transactions: unit,
-		Operations: operations, OperationsInvalidator: operations, Events: eventHub,
+		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
 		Metrics:                 metrics,
 		PlannerPlans:            plans,
 		BearerToken:             contracts.NewSecretString(testBearerToken),
@@ -622,6 +624,7 @@ func newHandlerFixtureWithAuth(
 		runtimePrincipals: runtimePrincipals,
 		projects:          projects,
 		operations:        operations,
+		settings:          settings,
 	}
 }
 

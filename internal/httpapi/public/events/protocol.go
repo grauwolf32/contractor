@@ -257,6 +257,9 @@ func operationsEventServerFrame(
 	stream Stream,
 	change controlplane.OperationsChange,
 ) ([]byte, error) {
+	if change.Resource == controlplane.OperationsSchedulerSettings && change.ResourceID != "" {
+		return nil, errors.New("Scheduler settings invalidation contains a resource ID")
+	}
 	data, err := json.Marshal(operationsEventData{
 		Resource: change.Resource, ResourceID: change.ResourceID,
 		Revision: strconv.FormatUint(change.Cursor.Revision, 10),

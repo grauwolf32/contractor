@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
@@ -26,6 +27,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	var runtimeLabelInUse *runtimeconfig.LabelInUseError
 	var runNotDeletable *runstore.RunNotDeletableError
 	switch {
+	case errors.Is(err, settingsstore.ErrPrecondition):
+		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.Is(err, auditstore.ErrPrecondition):
 		h.writeError(w, http.StatusPreconditionFailed, "precondition_failed", "resource revision precondition failed", false)
 	case errors.As(err, &auditUnsupported):
@@ -131,6 +134,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, runstore.ErrInvalid), errors.Is(err, projectstore.ErrInvalid),
 		errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid),
 		errors.Is(err, runservice.ErrInvalid),
+		errors.Is(err, settingsstore.ErrInvalid),
 		errors.Is(err, config.ErrInvalidConfigurationKind),
 		errors.Is(err, config.ErrInvalidPublication), errors.Is(err, credentials.ErrInvalid):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the API contract", false)

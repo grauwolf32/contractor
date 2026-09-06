@@ -110,6 +110,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/operations/runtime-credentials/{credentialId}",
 		"GET /v1/operations/runtime-labels",
 		"GET /v1/operations/runtime-labels/{label}",
+		"GET /v1/operations/settings/scheduler",
 		"GET /v1/operations/snapshot",
 		"GET /v1/projects",
 		"GET /v1/projects/{projectId}",
@@ -151,6 +152,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"PUT /v1/artifacts/{namespace}/{name}",
 		"PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels",
 		"PUT /v1/operations/runtime-labels/{label}",
+		"PUT /v1/operations/settings/scheduler",
 		"PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}",
 		"PUT /v1/queue/control",
 	}
@@ -270,6 +272,11 @@ func TestPublicEventSchemaIsClosedAndExamplesValidate(t *testing.T) {
 	unsafePlannerPayload["data"].(map[string]any)["toolPayload"] = map[string]any{"opaque": true}
 	if err := schema.VisitJSON(unsafePlannerPayload, openapi3.EnableJSONSchema2020()); err == nil {
 		t.Fatal("Planner event schema accepted a raw tool payload")
+	}
+	schedulerSettingsWithIdentity := cloneJSONValue(examples[len(examples)-1]).(map[string]any)
+	schedulerSettingsWithIdentity["data"].(map[string]any)["resourceId"] = "singleton"
+	if err := schema.VisitJSON(schedulerSettingsWithIdentity, openapi3.EnableJSONSchema2020()); err == nil {
+		t.Fatal("Scheduler settings event schema accepted a resource identity")
 	}
 }
 
@@ -436,6 +443,32 @@ func TestImplementedPublicHandlersConformToOpenAPI(t *testing.T) {
 		if response := serveAndValidatePublicContract(t, router, fixture.handler, request, true); response.Code != http.StatusOK {
 			t.Fatalf("%s = %d: %s", name, response.Code, response.Body.String())
 		}
+	}
+	getSchedulerSettings := newPublicContractRequest(
+		http.MethodGet, "/v1/operations/settings/scheduler", nil,
+	)
+	currentSchedulerSettings := serveAndValidatePublicContract(
+		t, router, fixture.handler, getSchedulerSettings, true,
+	)
+	if currentSchedulerSettings.Code != http.StatusOK || currentSchedulerSettings.Header().Get("ETag") != `"1"` {
+		t.Fatalf(
+			"get Scheduler settings = %d headers=%v body=%s",
+			currentSchedulerSettings.Code, currentSchedulerSettings.Header(), currentSchedulerSettings.Body.String(),
+		)
+	}
+	putSchedulerSettings := newPublicContractRequest(
+		http.MethodPut, "/v1/operations/settings/scheduler", []byte(`{"maxConcurrentRuns":2}`),
+	)
+	putSchedulerSettings.Header.Set("Content-Type", "application/json")
+	putSchedulerSettings.Header.Set("If-Match", currentSchedulerSettings.Header().Get("ETag"))
+	updatedSchedulerSettings := serveAndValidatePublicContract(
+		t, router, fixture.handler, putSchedulerSettings, true,
+	)
+	if updatedSchedulerSettings.Code != http.StatusOK || updatedSchedulerSettings.Header().Get("ETag") != `"2"` {
+		t.Fatalf(
+			"put Scheduler settings = %d headers=%v body=%s",
+			updatedSchedulerSettings.Code, updatedSchedulerSettings.Header(), updatedSchedulerSettings.Body.String(),
+		)
 	}
 	publishConfiguration := newPublicContractRequest(
 		http.MethodPost,

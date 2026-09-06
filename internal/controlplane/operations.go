@@ -109,10 +109,11 @@ type OperationsCursor struct {
 type OperationsResource string
 
 const (
-	OperationsRuntimeAgent  OperationsResource = "runtimeAgent"
-	OperationsAllocation    OperationsResource = "allocation"
-	OperationsConfiguration OperationsResource = "configuration"
-	OperationsCredential    OperationsResource = "credential"
+	OperationsRuntimeAgent      OperationsResource = "runtimeAgent"
+	OperationsAllocation        OperationsResource = "allocation"
+	OperationsConfiguration     OperationsResource = "configuration"
+	OperationsCredential        OperationsResource = "credential"
+	OperationsSchedulerSettings OperationsResource = "schedulerSettings"
 )
 
 // OperationsChange is a reduced process-local invalidation. SnapshotOperations
@@ -414,7 +415,8 @@ func (r *InMemoryRegistry) InvalidateOperations(
 	resourceID string,
 ) error {
 	if !validOperationsResource(resource) ||
-		resourceID != "" && !operationsResourceIDPattern.MatchString(resourceID) {
+		resourceID != "" && !operationsResourceIDPattern.MatchString(resourceID) ||
+		resource == OperationsSchedulerSettings && resourceID != "" {
 		return ErrInvalidRequest
 	}
 	r.mu.Lock()
@@ -453,7 +455,8 @@ func (r *InMemoryRegistry) recordOperationsChangeLocked(
 
 func validOperationsResource(resource OperationsResource) bool {
 	switch resource {
-	case OperationsRuntimeAgent, OperationsAllocation, OperationsConfiguration, OperationsCredential:
+	case OperationsRuntimeAgent, OperationsAllocation, OperationsConfiguration, OperationsCredential,
+		OperationsSchedulerSettings:
 		return true
 	default:
 		return false

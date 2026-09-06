@@ -28,6 +28,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -82,6 +83,13 @@ type OperationsReader interface {
 
 type OperationsInvalidator interface {
 	InvalidateOperations(controlplane.OperationsResource, string) error
+}
+
+type SchedulerSettingsManagement interface {
+	GetSchedulerSettings(context.Context) (settingsstore.SchedulerSettings, error)
+	UpdateSchedulerSettings(
+		context.Context, settingsstore.UpdateSchedulerSettingsParams,
+	) (settingsstore.SchedulerSettings, error)
 }
 
 // UnitOfWork supplies transaction-bound Run and Artifact stores. The callback
@@ -206,6 +214,7 @@ type Dependencies struct {
 	Metrics                 MetricsReader
 	Operations              OperationsReader
 	OperationsInvalidator   OperationsInvalidator
+	SchedulerSettings       SchedulerSettingsManagement
 	Events                  *publicevents.Hub
 	Artifacts               *artifacts.Service
 	Transactions            UnitOfWork
@@ -805,6 +814,16 @@ func (r *runtimeAgentLabelsMutationRequest) UnmarshalJSON(data []byte) error {
 type operationsCursorResponse struct {
 	Generation string `json:"generation"`
 	Revision   string `json:"revision"`
+}
+
+type schedulerSettingsResponse struct {
+	MaxConcurrentRuns int       `json:"maxConcurrentRuns"`
+	Revision          string    `json:"revision"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+type updateSchedulerSettingsRequest struct {
+	MaxConcurrentRuns int `json:"maxConcurrentRuns"`
 }
 
 type loginRequest struct {

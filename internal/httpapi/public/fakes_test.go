@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
 
 type fakeProjectClaim struct {
@@ -172,6 +173,51 @@ type fakeOperationsReader struct {
 	changes     []controlplane.OperationsChange
 	watchers    map[uint64]chan struct{}
 	nextWatcher uint64
+}
+
+type fakeSchedulerSettings struct {
+	mu      sync.Mutex
+	value   settingsstore.SchedulerSettings
+	updates int
+}
+
+func newFakeSchedulerSettings() *fakeSchedulerSettings {
+	return &fakeSchedulerSettings{value: settingsstore.SchedulerSettings{
+		MaxConcurrentRuns: 1,
+		Revision:          1,
+		UpdatedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
+	}}
+}
+
+func (f *fakeSchedulerSettings) GetSchedulerSettings(
+	context.Context,
+) (settingsstore.SchedulerSettings, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.value, nil
+}
+
+func (f *fakeSchedulerSettings) UpdateSchedulerSettings(
+	_ context.Context,
+	params settingsstore.UpdateSchedulerSettingsParams,
+) (settingsstore.SchedulerSettings, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if params.MaxConcurrentRuns < settingsstore.MinimumConcurrentRuns ||
+		params.MaxConcurrentRuns > settingsstore.MaximumConcurrentRuns || params.ExpectedRevision == 0 {
+		return settingsstore.SchedulerSettings{}, settingsstore.ErrInvalid
+	}
+	if params.ExpectedRevision != f.value.Revision {
+		return settingsstore.SchedulerSettings{}, settingsstore.ErrPrecondition
+	}
+	if params.MaxConcurrentRuns == f.value.MaxConcurrentRuns {
+		return f.value, nil
+	}
+	f.value.MaxConcurrentRuns = params.MaxConcurrentRuns
+	f.value.Revision++
+	f.value.UpdatedAt = f.value.UpdatedAt.Add(time.Microsecond)
+	f.updates++
+	return f.value, nil
 }
 
 func newFakeOperationsReader() *fakeOperationsReader {

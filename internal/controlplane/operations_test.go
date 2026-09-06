@@ -416,6 +416,19 @@ func TestOperationsReplayIsOrderedBoundedAndNotifiesWithoutBlocking(t *testing.T
 		t.Fatalf("expired Operations cursor error = %v", err)
 	}
 	beforeInvalid := registry.SnapshotOperations().Cursor
+	if err := registry.InvalidateOperations(OperationsSchedulerSettings, ""); err != nil {
+		t.Fatalf("Scheduler settings Operations invalidation: %v", err)
+	}
+	schedulerChanges, schedulerCurrent, err := registry.ReplayOperations(beforeInvalid)
+	if err != nil || len(schedulerChanges) != 1 ||
+		schedulerChanges[0].Resource != OperationsSchedulerSettings ||
+		schedulerChanges[0].ResourceID != "" || schedulerChanges[0].Cursor != schedulerCurrent {
+		t.Fatalf("Scheduler settings Operations replay = (%+v, %+v, %v)", schedulerChanges, schedulerCurrent, err)
+	}
+	beforeInvalid = schedulerCurrent
+	if err := registry.InvalidateOperations(OperationsSchedulerSettings, "settings"); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("Scheduler settings invalidation with resource ID error = %v", err)
+	}
 	if err := registry.InvalidateOperations(OperationsResource("raw"), "secret/value"); !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("invalid Operations resource error = %v", err)
 	}

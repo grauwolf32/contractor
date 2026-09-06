@@ -412,6 +412,7 @@ func RunCLI(
 		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
 		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
 	}
+	schedulerSettings := settingsstore.NewPostgresStore(pool)
 	workflowScheduler, err := scheduler.New(
 		runstore.NewPostgresStore(pool),
 		transactions,
@@ -427,7 +428,7 @@ func RunCLI(
 			RuntimeCredentials: runtimeCredentialLifecycle,
 			PlannerTelemetry:   plannerTelemetryRegistry,
 			RunSkills:          &runSkillInitializer{pool: pool},
-			Settings:           settingsstore.NewPostgresStore(pool),
+			Settings:           schedulerSettings,
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
@@ -550,7 +551,10 @@ func RunCLI(
 		Audits:                 auditService,
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
-		Operations:             registry, OperationsInvalidator: registry, Events: eventHub,
+		Operations:              registry,
+		OperationsInvalidator:   registry,
+		SchedulerSettings:       schedulerSettings,
+		Events:                  eventHub,
 		Transactions: postgresPublicUnitOfWork{
 			pool: pool, transactionLLMCredentials: transactionCredentialLookup,
 		},

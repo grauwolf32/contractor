@@ -1056,6 +1056,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/operations/settings/scheduler": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the durable global Scheduler admission settings
+         * @description Returns the singleton desired admission limit used by every Scheduler process. The resource is never a live allocation or Runtime capacity projection.
+         */
+        get: operations["getSchedulerSettings"];
+        /**
+         * CAS-replace the durable global Scheduler admission settings
+         * @description Replaces the complete editable singleton resource under one strong decimal revision. A replacement with the current value is an exact no-op. This changes only future Run admission and never mutates active Runs, Stages or allocations.
+         */
+        put: operations["putSchedulerSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/snapshot": {
         parameters: {
             query?: never;
@@ -1149,6 +1173,15 @@ export interface components {
         };
         UpdateOwnerQueueControlRequest: {
             paused: boolean;
+        };
+        SchedulerSettings: {
+            maxConcurrentRuns: number;
+            revision: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UpdateSchedulerSettingsRequest: {
+            maxConcurrentRuns: number;
         };
         AuditActor: string;
         ConfigId: string;
@@ -2790,6 +2823,12 @@ export interface components {
             };
             content?: never;
         };
+        UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content?: never;
+        };
         UnprocessableEntity: {
             headers: {
                 [name: string]: unknown;
@@ -2916,6 +2955,16 @@ export interface components {
         };
         /** @description Artifact exceeds the 16 MiB limit */
         Error413: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Request Content-Type does not match the operation contract */
+        Error415: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
                 [name: string]: unknown;
@@ -5324,6 +5373,72 @@ export interface operations {
             409: components["responses"]["CredentialInUse"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["GatewayUnavailable"];
+        };
+    };
+    getSchedulerSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current durable Scheduler settings */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchedulerSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    putSchedulerSettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "If-Match": components["parameters"]["RequiredIfMatch"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSchedulerSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Current durable Scheduler settings after replacement or exact no-op */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchedulerSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            412: components["responses"]["PreconditionFailed"];
+            415: components["responses"]["UnsupportedMediaType"];
+            500: components["responses"]["InternalError"];
         };
     };
     getOperationsSnapshot: {

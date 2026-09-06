@@ -67,7 +67,12 @@ export interface LifecycleEventData {
 }
 
 export interface OperationsEventData {
-  resource: "runtimeAgent" | "allocation" | "configuration" | "credential";
+  resource:
+    | "runtimeAgent"
+    | "allocation"
+    | "configuration"
+    | "credential"
+    | "schedulerSettings";
   resourceId?: string;
   revision: string;
 }
@@ -657,7 +662,8 @@ function parseOperationsEvent(value: unknown): OperationsEventData {
     value.resource !== "runtimeAgent" &&
     value.resource !== "allocation" &&
     value.resource !== "configuration" &&
-    value.resource !== "credential"
+    value.resource !== "credential" &&
+    value.resource !== "schedulerSettings"
   ) {
     throw new Error("Operations resource is unknown");
   }
@@ -672,6 +678,9 @@ function parseOperationsEvent(value: unknown): OperationsEventData {
     value.resourceId === undefined
       ? undefined
       : safeIdentifier(value.resourceId);
+  if (value.resource === "schedulerSettings" && resourceId !== undefined) {
+    throw new Error("Scheduler settings invalidation contains a resource ID");
+  }
   return {
     resource: value.resource,
     revision: value.revision,

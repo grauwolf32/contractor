@@ -196,6 +196,32 @@ describe("Run event protocol", () => {
     });
     expect(JSON.stringify(parsed)).not.toMatch(/observedState|credentialId/);
   });
+
+  it("parses Scheduler settings invalidations only without a resource identity", () => {
+    const frame = {
+      version: "contractor.events.v1",
+      type: "event",
+      subscriptionId: "operations-ui-settings",
+      stream: { kind: "operations" },
+      cursor: { generation: "operations-generation-1", sequence: "11" },
+      kind: "operations.changed",
+      occurredAt: "2026-08-31T12:00:01Z",
+      data: { resource: "schedulerSettings", revision: "11" },
+    };
+    expect(parseServerFrame(JSON.stringify(frame))).toMatchObject({
+      type: "event",
+      kind: "operations.changed",
+      data: { resource: "schedulerSettings", revision: "11" },
+    });
+    expect(() =>
+      parseServerFrame(
+        JSON.stringify({
+          ...frame,
+          data: { ...frame.data, resourceId: "singleton" },
+        }),
+      ),
+    ).toThrow("contains a resource ID");
+  });
 });
 
 describe("RunEventsManager", () => {

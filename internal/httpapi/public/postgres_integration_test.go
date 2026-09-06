@@ -23,6 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -53,6 +54,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 	authentication := newTestAuthentication(t)
 	origins := mustTestOrigins(t)
 	operations := newFakeOperationsReader()
+	schedulerSettings := settingsstore.NewPostgresStore(pool)
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: ctx, Authentication: authentication, Origins: origins,
 		Runs: runs, Operations: operations,
@@ -71,13 +73,37 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Audits:                 &fakeAuditManagement{},
 		Runs:                   runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool, credentials: managedCredentials},
-		Operations:   operations, OperationsInvalidator: operations, Events: eventHub,
+		Operations:   operations, OperationsInvalidator: operations,
+		SchedulerSettings: schedulerSettings, Events: eventHub,
 		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	settingsPut := schedulerSettingsRequest(http.MethodPut, `{"maxConcurrentRuns":3}`, `"1"`)
+	settingsPutResponse := httptest.NewRecorder()
+	handler.ServeHTTP(settingsPutResponse, settingsPut)
+	if settingsPutResponse.Code != http.StatusOK || settingsPutResponse.Header().Get("ETag") != `"2"` {
+		t.Fatalf(
+			"PostgreSQL Scheduler settings PUT = %d headers=%v body=%s",
+			settingsPutResponse.Code, settingsPutResponse.Header(), settingsPutResponse.Body.String(),
+		)
+	}
+	persistedSettings, err := settingsstore.NewPostgresStore(pool).GetSchedulerSettings(ctx)
+	if err != nil || persistedSettings.MaxConcurrentRuns != 3 || persistedSettings.Revision != 2 {
+		t.Fatalf("restarted Scheduler settings store = (%+v, %v)", persistedSettings, err)
+	}
+	settingsGet := authenticatedRequest(
+		http.MethodGet, "/v1/operations/settings/scheduler", bytes.NewReader(nil),
+	)
+	settingsGetResponse := httptest.NewRecorder()
+	handler.ServeHTTP(settingsGetResponse, settingsGet)
+	if settingsGetResponse.Code != http.StatusOK ||
+		settingsGetResponse.Body.String() != settingsPutResponse.Body.String() {
+		t.Fatalf("PostgreSQL Scheduler settings GET = %d %s", settingsGetResponse.Code, settingsGetResponse.Body.String())
 	}
 
 	put := authenticatedRequest(http.MethodPut, "/v1/artifacts/projects/source", bytes.NewReader([]byte("original")))

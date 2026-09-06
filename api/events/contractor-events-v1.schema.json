@@ -424,7 +424,7 @@
       "additionalProperties": false,
       "required": ["resource", "revision"],
       "properties": {
-        "resource": { "enum": ["runtimeAgent", "allocation", "configuration", "credential"] },
+        "resource": { "enum": ["runtimeAgent", "allocation", "configuration", "credential", "schedulerSettings"] },
         "resourceId": { "$ref": "#/$defs/SafeIdentifier" },
         "revision": {
           "type": "string",
@@ -432,7 +432,13 @@
           "maxLength": 20,
           "pattern": "^(0|[1-9][0-9]*)$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "resource": { "const": "schedulerSettings" } } },
+          "then": { "not": { "required": ["resourceId"] } }
+        }
+      ]
     },
     "EventFrame": {
       "oneOf": [
@@ -565,6 +571,19 @@
         "resource": "runtimeAgent",
         "resourceId": "runtime-agent-example",
         "revision": "9"
+      }
+    },
+    {
+      "version": "contractor.events.v1",
+      "type": "event",
+      "subscriptionId": "operations",
+      "stream": { "kind": "operations" },
+      "cursor": { "generation": "operations-generation-example", "sequence": "10" },
+      "kind": "operations.changed",
+      "occurredAt": "2026-08-30T12:00:03Z",
+      "data": {
+        "resource": "schedulerSettings",
+        "revision": "10"
       }
     }
   ]

@@ -36,7 +36,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		dependencies.RuntimeAgentPrincipals == nil ||
 		dependencies.Projects == nil || dependencies.Audits == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
-		dependencies.OperationsInvalidator == nil || dependencies.Events == nil ||
+		dependencies.OperationsInvalidator == nil || dependencies.SchedulerSettings == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
 		return nil, fmt.Errorf("public API dependencies are incomplete")
 	}
@@ -148,6 +148,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/operations/snapshot", current.getOperationsSnapshot)
 	mux.HandleFunc("GET /v1/operations/runtime-agents", current.listRuntimeAgents)
 	mux.HandleFunc("GET /v1/operations/allocations", current.listAllocations)
+	mux.HandleFunc("GET /v1/operations/settings/scheduler", current.getSchedulerSettings)
+	mux.HandleFunc("PUT /v1/operations/settings/scheduler", current.putSchedulerSettings)
 	mux.HandleFunc("GET /v1/artifacts", current.listArtifacts)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/metadata", current.getArtifactMetadata)
 	mux.HandleFunc("GET /v1/artifacts/{namespace}/{name}/versions", current.listArtifactVersions)
@@ -197,6 +199,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/operations/snapshot", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/runtime-agents", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/allocations", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/settings/scheduler", current.methodNotAllowed)
 	mux.HandleFunc("/v1/auth/login", current.methodNotAllowed)
 	mux.HandleFunc("/v1/auth/session", current.methodNotAllowed)
 	mux.HandleFunc("/v1/auth/logout", current.methodNotAllowed)
