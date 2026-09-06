@@ -921,7 +921,7 @@ model {
   server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
   runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane 'Trusted allocation final report'
-  runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend 'Content-free bounded OTLP export when selected'
+  runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend 'Bounded OTLP export; explicit trusted-sink content capture'
   runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy 'Selected Worker LLM/tool HTTP only; private Contractor traffic bypasses'
 
   server.orchestration.stagePlanner -> llmGateway 'Streamline/Router calls with resolved Planner policy/Gateway/credential'
@@ -2046,7 +2046,7 @@ views {
       title 'Selected external HTTP only'
     }
     include runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend with {
-      title 'Bounded content-free OTLP'
+      title 'Bounded OTLP; content capture opt-in'
     }
     include runtimeAgent.allocationCapabilities.modelClient -> llmGateway with {
       title 'Pinned model route'
@@ -2297,7 +2297,7 @@ views {
 
   view executionTelemetry {
     title 'Operations / Reports and Telemetry'
-    description 'Trusted Contractor reports are durable. Optional exporters send bounded, content-free telemetry.'
+    description 'Trusted Contractor reports are durable. Optional exporters send bounded telemetry, content-free by default; explicit capture trusts the sink with unredacted content.'
 
     include runtimeAgent.workerExecution.workerInstrumentation with {
       title 'Worker Instrumentation'
