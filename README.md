@@ -41,6 +41,7 @@ The target deployment is deliberately small:
 ## Documentation
 
 - [Documentation overview](docs/README.md)
+- [Command-line client](docs/cli.md)
 - [Local development and end-to-end MVP](docs/development.md)
 - [Working specifications](docs/spec/README.md)
 - [LikeC4 architecture model](docs/spec/architecture.c4)
@@ -90,12 +91,13 @@ For a local private mTLS deployment, generate the CA and both node identities
 without OpenSSL-specific shell scripts:
 
 ```shell
-go run ./cmd/contractor-pki init-ca
-go run ./cmd/contractor-pki issue-control-plane
-go run ./cmd/contractor-pki issue-agent --name agent-local
+go run ./cmd/contractor pki init-ca
+go run ./cmd/contractor pki issue-control-plane
+go run ./cmd/contractor pki issue-runtime --name runtime-local
 make test-mtls
 ```
 
 Generated certificates and 0600 private keys live under `.local/pki/` and are
 ignored by Git. `init-ca` refuses to replace an existing CA unless `--force` is
-explicitly supplied.
+explicitly supplied. The standalone `contractor-pki` commands remain available
+for existing automation.

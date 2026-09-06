@@ -14,6 +14,7 @@ blob backend remain replaceable deployment adapters.
 
 ## Entry points
 
+- [Command-line client](cli.md)
 - [Local development and end-to-end MVP](development.md)
 - [Artifact blob storage and no-PVC deployment](artifact-blob-storage.md)
 - [Git repository artifacts](git-artifacts.md) — SSH-key Settings, Workflow/Project import, deployment and release verification; [specification](spec/24-git-artifacts.md).
