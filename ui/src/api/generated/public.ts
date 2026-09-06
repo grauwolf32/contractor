@@ -3865,7 +3865,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Artifact exceeds the 16 MiB limit */
+        /** @description Artifact exceeds the 64 MiB limit */
         Error413: {
             headers: {
                 "X-Request-ID": components["headers"]["RequestId"];
