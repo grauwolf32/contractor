@@ -233,7 +233,15 @@ def built_in_factories(
     return FactoryRegistry(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
-            **({"code-execution@1": CodeExecutionToolsetFactory()} if execution_lifecycle else {}),
+            **(
+                {
+                    "code-execution@1": CodeExecutionToolsetFactory(
+                        available=lambda: execution_lifecycle.probe_available
+                    )
+                }
+                if execution_lifecycle
+                else {}
+            ),
             artifact_toolset.ref: artifact_toolset,
             audit_results_toolset.ref: audit_results_toolset,
             security_findings_toolset.ref: security_findings_toolset,
@@ -252,7 +260,15 @@ def built_in_factories(
         },
         sandbox_profiles={
             sandbox.ref: sandbox,
-            **({"podman@1": PodmanWorkdirFactory(work_root)} if execution_lifecycle else {}),
+            **(
+                {
+                    "podman@1": PodmanWorkdirFactory(
+                        work_root, available=lambda: execution_lifecycle.probe_available
+                    )
+                }
+                if execution_lifecycle
+                else {}
+            ),
         },
         runtime_adapters=runtime_adapters,
         workspace_provider=build_workspace_provider(
@@ -268,9 +284,12 @@ class PodmanWorkdirFactory(LocalWorkdirFactory):
 
     ref = "podman@1"
 
+    def __init__(self, root: Path, *, available=lambda: False):
+        super().__init__(root)
+        self._available = available
+
     async def probe(self) -> bool:
-        # Positive advertisement requires the full V31-006 executor/probe gate.
-        return False
+        return self._available()
 
 
 class StubADKWorkerRuntimeFactory:

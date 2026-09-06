@@ -4,18 +4,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
+from contractor_runtime.podman_probe import PROBE_CLEANUP_SECONDS, PROBE_TIMEOUT_SECONDS
 from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
 from contractor_runtime.resource_metrics import SUPPORTED_PERFORMANCE_METRICS_VERSIONS
+from contractor_runtime.sandbox_contracts import EXECUTION_TOOLSET, PODMAN_PROFILE
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_FACTORY_PROBE_TIMEOUT_SECONDS = 5.0
 DEFAULT_TOTAL_PROBE_TIMEOUT_SECONDS = 30.0
+PODMAN_TOTAL_PROBE_TIMEOUT_SECONDS = 60.0
 
 
 class CapabilityDiscoveryError(RuntimeError):
@@ -106,11 +111,21 @@ async def discover_capabilities(
     factories: FactoryRegistry,
     *,
     per_factory_timeout_seconds: float = DEFAULT_FACTORY_PROBE_TIMEOUT_SECONDS,
-    total_timeout_seconds: float = DEFAULT_TOTAL_PROBE_TIMEOUT_SECONDS,
+    total_timeout_seconds: float | None = None,
+    podman_timeout_seconds: float = PROBE_TIMEOUT_SECONDS,
 ) -> CapabilitySnapshot:
     """Probe enabled factories once and return their normalized positive set."""
 
-    if per_factory_timeout_seconds <= 0 or total_timeout_seconds <= 0:
+    if total_timeout_seconds is None:
+        total_timeout_seconds = (
+            PODMAN_TOTAL_PROBE_TIMEOUT_SECONDS
+            if factories.execution_lifecycle is not None
+            else DEFAULT_TOTAL_PROBE_TIMEOUT_SECONDS
+        )
+    if any(
+        not math.isfinite(value) or value <= 0
+        for value in (per_factory_timeout_seconds, total_timeout_seconds, podman_timeout_seconds)
+    ):
         raise ValueError("capability probe timeouts must be positive")
 
     runtimes: list[str] = []
@@ -134,6 +149,8 @@ async def discover_capabilities(
             runtimes.append(ref)
 
     for ref, factory in sorted(factories.sandbox_profiles.items()):
+        if ref == PODMAN_PROFILE:
+            continue  # requires the real local workspace probe first
         result = await _probe_one(
             "sandbox", ref, factory.probe, deadline, per_factory_timeout_seconds
         )
@@ -151,7 +168,24 @@ async def discover_capabilities(
         if result is True:
             workspace = factories.workspace_provider.capability
 
+    if (
+        factories.execution_lifecycle is not None
+        and workspace is not None
+        and workspace.storage == "local"
+        and "direct" in workspace.modes
+    ):
+        await _probe_podman(factories, deadline, podman_timeout_seconds)
+        factory = factories.sandbox_profiles.get(PODMAN_PROFILE)
+        if factory is not None and factories.execution_lifecycle.probe_available:
+            result = await _probe_one(
+                "sandbox", PODMAN_PROFILE, factory.probe, deadline, per_factory_timeout_seconds
+            )
+            if result is True:
+                sandboxes.append(PODMAN_PROFILE)
+
     for ref, factory in sorted(factories.toolsets.items()):
+        if ref == EXECUTION_TOOLSET and PODMAN_PROFILE not in sandboxes:
+            continue
         if getattr(factory, "requires_workspace", False) and workspace is None:
             continue
         result = await _probe_one(
@@ -173,6 +207,12 @@ async def discover_capabilities(
         if result is True:
             runtime_adapters.append(ref)
 
+    if PODMAN_PROFILE in sandboxes and (
+        EXECUTION_TOOLSET not in toolsets or not factories.execution_lifecycle.probe_available
+    ):
+        sandboxes.remove(PODMAN_PROFILE)
+        toolsets.pop(EXECUTION_TOOLSET, None)
+
     return CapabilitySnapshot.create(
         runtimes=runtimes,
         toolsets=toolsets,
@@ -180,6 +220,42 @@ async def discover_capabilities(
         runtime_adapters=runtime_adapters,
         workspace=workspace,
     )
+
+
+async def _probe_podman(factories, deadline, timeout):
+    loop = asyncio.get_running_loop()
+    end = min(deadline, loop.time() + timeout)
+    if end - loop.time() <= PROBE_CLEANUP_SECONDS:
+        _log_probe(PODMAN_PROFILE, "sandbox", "total_timeout", 0)
+        return
+    lifecycle, provider = factories.execution_lifecycle, factories.workspace_provider
+    started = loop.time()
+    try:
+        async with asyncio.timeout(end - started):
+            storage = await provider.create("podman-capability-probe")
+            root = Path(storage.root) / "run_workdir"
+            await asyncio.to_thread(root.mkdir, mode=0o700)
+            result = await lifecycle.probe(root, deadline=end)
+            # The only receipt authorizing bind deletion, including negative
+            # capabilities. Cancellation/uncertainty deliberately retains it.
+            await provider.cleanup(storage)
+    except asyncio.CancelledError:
+        lifecycle.reject_probe()
+        raise
+    except Exception:
+        lifecycle.reject_probe()
+        raise CapabilityDiscoveryError("Podman probe cleanup is unconfirmed") from None
+    _log_probe(
+        PODMAN_PROFILE,
+        "sandbox",
+        "available" if result["available"] else result["failure"],
+        _duration_ms(started, loop.time()),
+    )
+    if result["available"]:
+        logger.info(
+            "Runtime Podman effective policy verified",
+            extra=getattr(lifecycle, "probe_diagnostics", {}),
+        )
 
 
 async def _probe_one(

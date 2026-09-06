@@ -17,6 +17,7 @@ from contractor_runtime.podman_command import PodmanCommand
 from contractor_runtime.podman_engine import PodmanEngine
 from contractor_runtime.podman_guardian import CgroupFence
 from contractor_runtime.podman_ownership import open_directory
+from contractor_runtime.podman_probe import PodmanProbe
 from contractor_runtime.podman_settings import PodmanSettings
 from contractor_runtime.podman_supervisor import CompletionGate, GuardianClient, open_fence
 from contractor_runtime.sandbox_contracts import (
@@ -56,6 +57,7 @@ class LifecycleBackend:
         self.lost = False
         self.lease = 0.0
         self.confirmed_lease = 0.0
+        self.probe_test: PodmanProbe | None = None
         self._rejected: dict[str, None] = {}
 
     def pulse(self, lease: float | None) -> None:
@@ -79,6 +81,9 @@ class LifecycleBackend:
 
     def disconnect(self) -> None:
         self.lost = True
+        if self.probe_test is not None:
+            for guardian in self.probe_test.guardians:
+                guardian.disconnect()
         if self.entry is not None:
             self.entry.rejected = True
             if self.entry.guardian is not None:
@@ -104,12 +109,22 @@ class LifecycleBackend:
             await self.engine.remove(identity, deadline=deadline)
         self.recovered = True
 
+    async def probe(self, root: Path, *, deadline: float) -> dict:
+        if not self.recovered or self.closed or self.lost or self.entry is not None:
+            raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+        if self.probe_test is not None:
+            raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED)
+        self.probe_test = PodmanProbe(self.engine, self.settings)
+        result = await self.probe_test.run(root, deadline=deadline)
+        self.probe_test = None  # only a confirmed cleanup releases ownership
+        return result
+
     def _live(self, entry: Entry) -> None:
         if self.lost or entry.rejected or time.monotonic() >= self.lease:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
 
     async def prepare(self, allocation_id: str, root: Path, *, deadline: float) -> SandboxIdentity:
-        if not self.recovered or self.closed:
+        if not self.recovered or self.closed or self.probe_test is not None:
             raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
         entry = self.entry
         if entry is None:
@@ -276,5 +291,8 @@ class LifecycleBackend:
             await self.remove(self.entry.allocation_id, deadline=deadline)
         for identity in await self.engine.discover(deadline=deadline):
             await self.engine.remove(identity, deadline=deadline)
+        if self.probe_test is not None:
+            await self.probe_test._cleanup(deadline)
+            self.probe_test = None
         await self.engine.close(deadline=deadline)
         self.closed = True

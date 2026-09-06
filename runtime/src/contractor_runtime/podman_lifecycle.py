@@ -16,6 +16,7 @@ from pathlib import Path
 from contractor_runtime.podman_executor import PodmanExecutor
 from contractor_runtime.podman_io import OwnedOperations, local_engine_environment, remaining
 from contractor_runtime.podman_owner import encode, receive_rpc, send_rpc
+from contractor_runtime.podman_probe import PROBE_FAILURES
 from contractor_runtime.podman_settings import PodmanSettings
 from contractor_runtime.podman_workroots import check_root_policy
 from contractor_runtime.projectfs import DirectWorkspaceSession
@@ -148,6 +149,66 @@ class PodmanLifecycle:
         self._closed = False
         self._close_confirmed = False
         self._failed = False
+        self._probe_result: dict | None = None
+        self._probe_storage_root: Path | None = None
+
+    def reject_probe(self) -> None:
+        self._failed = True
+
+    @property
+    def probe_available(self) -> bool:
+        return (
+            not self._closed
+            and not self._failed
+            and self._probe_result is not None
+            and self._probe_result["available"] is True
+        )
+
+    @property
+    def probe_diagnostics(self) -> dict:
+        if not self.probe_available:
+            return {}
+        return {
+            "podmanImageDigest": self.settings.image.rsplit("@", 1)[-1],
+            "podmanCPUs": self.settings.cpus,
+            "podmanMemoryBytes": self.settings.memory_bytes,
+            "podmanSwapMaxBytes": self.settings.memory_bytes,
+            "podmanPids": self.settings.pids,
+            "podmanTmpfsBytes": self.settings.tmpfs_bytes,
+            "podmanNetwork": "none",
+            "podmanBindDiskQuotaEnforced": False,
+        }
+
+    async def probe(self, root: Path, *, deadline: float) -> dict:
+        async def operation():
+            if self._closed or self._failed or not self._recovered or self._entry is not None:
+                raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+            if (
+                self._probe_storage_root is not None
+                and self._probe_storage_root != root.parent.parent
+            ):
+                raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
+            self._probe_storage_root = root.parent.parent
+            if self._probe_result is None:
+                assert self._client is not None
+                result = await self._client.request("probe", root=str(root), deadline=deadline)
+                if (
+                    not isinstance(result, dict)
+                    or set(result) != {"available", "failure"}
+                    or type(result["available"]) is not bool
+                    or (result["available"] and result["failure"] is not None)
+                    or (not result["available"] and result["failure"] not in PROBE_FAILURES)
+                ):
+                    raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
+                self._probe_result = result
+            return dict(self._probe_result)
+
+        try:
+            return await self._operations.run(operation, deadline)
+        except BaseException:
+            # A timed-out caller cannot treat a late positive receipt as readiness.
+            self._failed = True
+            raise
 
     def bind_health(self, lease_source: Callable[[], float | None], failure: Callable[[], None]):
         self._lease_source = lease_source

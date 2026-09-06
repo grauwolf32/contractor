@@ -110,6 +110,8 @@ async def serve_owner(
             fields.update({"root", "lease"})
         if op == "execute":
             fields.update({"request", "lease"})
+        if op == "probe":
+            fields.add("root")
         if set(message) != fields:
             raise ValueError("invalid owner operation")
         deadline = deadline_value(message["deadline"])
@@ -139,6 +141,10 @@ async def serve_owner(
             result = asdict(
                 await backend.execute(message["allocation"], request, deadline=deadline)
             )
+        elif op == "probe":
+            if not isinstance(message["root"], str) or len(message["root"]) > 4096:
+                raise ValueError("invalid probe root")
+            result = await backend.probe(Path(message["root"]), deadline=deadline)
         elif op == "close":
             await backend.close(deadline=deadline)
         else:

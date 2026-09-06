@@ -5,9 +5,10 @@ policy. It does **not** install an execution factory, invoke Podman, pull images
 or advertise `podman@1` / `code-execution@1`. V31-002 adds a private engine
 adapter, still without startup/allocation wiring or capability advertisement.
 V31-003 adds the approved image and independent guardian/completion proof;
-V31-004 adds the allocation lifecycle and startup recovery gate. Command tooling
-and positive capability advertisement remain V31-005/V31-006; enabling policy
-currently starts recovery, but does not advertise `podman@1` or `code-execution@1`.
+V31-004 adds the allocation lifecycle and startup recovery gate. V31-005 adds
+bounded `exec_command`; V31-006 enables paired `podman@1` / `code-execution@1`
+advertisement only after the complete startup probe below. Policy is opt-in;
+disabled settings never invoke Podman.
 
 The profile requires an explicit Stage project workspace in `direct` mode and
 local Runtime workspace storage. Ordinary `local-workdir@1` Workers keep their
@@ -274,9 +275,10 @@ uncertain, so authoritative release cannot bypass its outstanding resources.
 The existing artifact write fence and release-confirmation edge are unchanged.
 
 An independent host owner process runs the engine and holds its service flock.
-Runtime communicates over two inherited, close-on-exec `SOCK_SEQPACKET` pairs:
-serialized lifecycle RPC and a separately serviced health/rejection channel.
-Packets are bounded to 8 KiB. There is no listening filesystem/network socket,
+Runtime communicates over two inherited, close-on-exec socket pairs: framed
+`SOCK_STREAM` lifecycle/command RPC (16 MiB maximum JSON frame) and a separately
+serviced `SOCK_SEQPACKET` health/rejection channel (8 KiB maximum packet).
+There is no listening filesystem/network socket,
 shell RPC, model-visible channel, inherited Runtime environment or stdout
 protocol. Caller cancellation retains a late RPC response until it can be
 drained; a subsequent remove cannot mistake a late prepare response for proof.
@@ -312,7 +314,7 @@ long enough to finish their work; killing the whole service cgroup defeats that
 assumption. Killing the owner/guardian themselves, arbitrary same-user host
 mutation, host failure and indefinitely blocked kernel operations are not
 bounded-success guarantees. No cleanup receipt is synthesized for uncertainty.
-Service-manager configuration and positive capability probes remain later tasks.
+Service-manager configuration remains V31-007.
 
 Verification from `runtime`:
 
@@ -326,3 +328,62 @@ The last command additionally requires the explicitly preinstalled digest-pinned
 `CONTRACTOR_TEST_PODMAN_IMAGE`. It proves owner-lock exclusivity, graceful owner
 close, Runtime SIGKILL cleanup and Runtime SIGSTOP lease expiry with a real
 workload writer. It never pulls/builds an image and does not delete bind data.
+
+## Verified startup capabilities (V31-006)
+
+Recovery is mandatory before scratch or workspace orphan cleanup. An unreachable
+engine or unresolved predecessor is not a clean negative probe: startup fails
+unready because old mounts cannot safely be discarded. After recovery, ordinary
+profiles and the workspace provider are probed first. Memory storage or a missing
+local direct capability skips the Podman test without affecting ordinary tools.
+
+For compatible local storage, the provider creates a marker-owned probe workspace.
+The surviving owner uses separate `probe-<random>` allocation identities and the
+same pinned image, mount options, engine transport, cgroup guardian and execution
+UID as real allocations. It verifies:
+
+- Local rootless Podman, systemd cgroup v2, seccomp and the preinstalled image's
+  `cgroup-guardian-v1` label; no pull, build, privilege escalation or fallback.
+- Kernel-enforced finite memory, CPU and PID limits in the pinned scope;
+  scope swap is finite and at most the configured memory limit. Descendant
+  cgroups can impose tighter limits; zero swap is not inferred from CLI flags.
+- Actual nonzero UID/GID, zero effective capabilities, no-new-privileges,
+  seccomp, read-only image, network-none and effective `/tmp` size, plus mutual
+  host/container file visibility using fixed, content-free test programs.
+- A double-forked, new-session writer is rejected by the completion proof and
+  the exact scope becomes empty. A second container's writer is killed by a
+  short guardian deadline while its control socket remains open, without renewals
+  or a Podman stop substituting for expiry.
+- Exact removal of both probe containers before the provider deletes bind files.
+
+Podman-enabled discovery has a 60-second total budget (disabled deployments
+retain their 30-second total); ordinary probes have 5 seconds each,
+and the shared Podman probe has at most 30 seconds, including 8 seconds reserved
+for cleanup. The earlier pre-listener recovery is separately bounded by
+`prepare_max_seconds`. Insufficient remaining cleanup budget skips the optional
+Podman probe before creation. Work runs in the independent owner; blocking file
+checks run off the event loop. A timeout/cancelled reply retains the operation and
+bind directory, invalidates any late success and prevents registration. Recovery
+must confirm removal before the provider can discard these stale files.
+
+Bootstrap runs before an allocation/control lease exists and permits only the
+fixed self-test programs. Its guardian leases are finite (at most eight seconds
+for completion checks and 1.5 seconds for the expiry check), capped by the startup
+deadline, and are never used as authority for model-selected work.
+
+Confirmed negative probes omit both capabilities while preserving unrelated
+usable profiles/tools. Unconfirmed cleanup prevents registration entirely; the
+listener never becomes ready or an allocatable idle slot. Results are cached for
+the immutable process/storage configuration, not dynamically re-probed during an
+allocation. Profile-only selection still grants no model-visible execution tool.
+
+Successful diagnostics contain only the image digest, verified numeric resource
+bounds, network `none`, and `podmanBindDiskQuotaEnforced=false`. They contain no
+host path, owner identity, repository name, command, output or credential. The
+bind has **no per-allocation disk quota**. Failed diagnostics use fixed probe-phase
+identifiers; uncertain cleanup is a content-free startup error.
+
+`make test-podman-supervisor` now includes the full startup capability test, the
+real command/owner tests and the existing adversarial/resource-enforcement gate.
+Set `CONTRACTOR_TEST_PODMAN_IMAGE` to the preinstalled digest-pinned image. The
+normal suite explicitly skips the real-host tests; skips do not satisfy this gate.

@@ -24,9 +24,11 @@ class CodeExecutionToolsetFactory:
     infrastructure_channels = EXECUTION_CHANNELS
     requires_workspace = True
 
+    def __init__(self, *, available=lambda: False):
+        self._available = available
+
     async def probe(self) -> frozenset[str]:
-        # Positive advertisement belongs to the separate V31-006 release gate.
-        return frozenset()
+        return self.exported_tools if self._available() else frozenset()
 
     async def create_selected(
         self,

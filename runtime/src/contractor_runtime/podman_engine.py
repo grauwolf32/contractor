@@ -104,6 +104,33 @@ class PodmanEngine:
 
         await self._operations.run(operation, self._deadline(deadline))
 
+    async def probe_prerequisites(self, *, deadline: float) -> None:
+        """Read the local engine and pinned image; never pull or change policy."""
+
+        async def operation():
+            await self._ready()
+            info = self._json(await self._call(("info", "--format=json"), deadline))
+            host = info.get("host", {})
+            if (
+                host.get("security", {}).get("rootless") is not True
+                or host.get("cgroupVersion") != "v2"
+                or host.get("cgroupManager") != "systemd"
+                or host.get("security", {}).get("seccompEnabled") is not True
+            ):
+                raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+            image = self._json(
+                await self._call(("image", "inspect", self._settings.image), deadline)
+            )
+            if (
+                not isinstance(image, list)
+                or len(image) != 1
+                or image[0].get("Config", {}).get("Labels", {}).get(LABEL_PREFIX + "supervisor")
+                != "cgroup-guardian-v1"
+            ):
+                raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
+
+        await self._operations.run(operation, self._deadline(deadline))
+
     async def create(
         self, allocation_id: str, content_root: Path, *, deadline: float
     ) -> SandboxIdentity:
