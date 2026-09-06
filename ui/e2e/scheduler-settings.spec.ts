@@ -63,6 +63,10 @@ test("operator CAS-updates Scheduler settings and recovers a stale edit", async 
       });
       return;
     }
+    if (path === "/v1/settings/git-key") {
+      await fulfillJSON(route, { configured: false });
+      return;
+    }
     if (path === "/v1/operations/settings/scheduler") {
       if (request.method() === "GET") {
         await fulfillJSON(

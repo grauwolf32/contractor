@@ -13,7 +13,7 @@ const runtimeConfig = {
   apiBaseUrl: "http://127.0.0.1:8080",
 };
 
-async function fixture(t) {
+async function fixture(t, configuredRuntimeConfig = runtimeConfig) {
   const distDir = await mkdtemp(join(tmpdir(), "contractor-ui-test-"));
   await mkdir(join(distDir, "assets"));
   await writeFile(
@@ -25,7 +25,10 @@ async function fixture(t) {
     join(distDir, "assets", "likec4.worker-12345678.js"),
     "export {};",
   );
-  const server = await createStaticServer({ distDir, runtimeConfig });
+  const server = await createStaticServer({
+    distDir,
+    runtimeConfig: configuredRuntimeConfig,
+  });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
@@ -40,7 +43,7 @@ async function fixture(t) {
   return { origin };
 }
 
-function rawRequest(origin, path, method = "GET") {
+function rawRequest(origin, path, method = "GET", headers = {}) {
   const url = new URL(origin);
   return new Promise((resolve, reject) => {
     const request = httpRequest(
@@ -49,6 +52,7 @@ function rawRequest(origin, path, method = "GET") {
         port: url.port,
         method,
         path,
+        headers,
       },
       (response) => {
         const chunks = [];
@@ -66,6 +70,30 @@ function rawRequest(origin, path, method = "GET") {
     request.end();
   });
 }
+
+test("private-network config preserves an IP-literal loopback entrypoint", async (t) => {
+  const privateConfig = {
+    ...runtimeConfig,
+    apiBaseUrl: "http://192.168.1.217:8080",
+  };
+  const { origin } = await fixture(t, privateConfig);
+
+  const local = await rawRequest(origin, "/runtime-config.json");
+  assert.equal(local.status, 200);
+  assert.equal(JSON.parse(local.body).apiBaseUrl, "http://127.0.0.1:8080");
+
+  const lan = await rawRequest(origin, "/runtime-config.json", "GET", {
+    Host: "192.168.1.217:4173",
+  });
+  assert.equal(lan.status, 200);
+  assert.deepEqual(JSON.parse(lan.body), privateConfig);
+
+  const localIndex = await rawRequest(origin, "/");
+  assert.match(
+    localIndex.headers["content-security-policy"],
+    /connect-src 'self' http:\/\/127\.0\.0\.1:8080 ws:\/\/127\.0\.0\.1:8080/,
+  );
+});
 
 test("known client routes get no-store index and a derived CSP", async (t) => {
   const { origin } = await fixture(t);
@@ -87,7 +115,6 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/workflows",
     "/workflows/openapi-from-workspace/3",
     "/artifacts",
-    "/settings",
     "/artifacts/projects/source",
     "/runs",
     "/runs/run_example",
@@ -175,6 +202,7 @@ test("API-looking, missing asset, extension and unknown routes never fall back",
     "/api/anything",
     "/private/control",
     "/assets/missing-12345678.js",
+    "/settings",
     "/unknown",
     "/manifest.json",
     "/workflows/name/1/extra",

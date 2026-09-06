@@ -1,4 +1,3 @@
-import { SettingsRoute } from "../routes/settings";
 import { createBrowserRouter, type RouteObject } from "react-router";
 
 import { AuthenticatedRoute } from "../routes/guard";
@@ -54,7 +53,6 @@ export function applicationRoutes(): RouteObject[] {
           element: <ApplicationShell />,
           children: [
             { index: true, element: <HomeRoute /> },
-            { path: "/settings", element: <SettingsRoute /> },
             {
               path: "/workflows",
               element: <LegacyCatalogRedirect />,

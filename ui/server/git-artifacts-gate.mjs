@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { createStaticServer } from "./static-server.mjs";
 
-// Test the production static router, including direct /settings navigation.
+// Test the production static router and consolidated Operations settings.
 // Isolate build/output directories and bind an OS-selected port so this gate
 // does not replace a running development server or another build's dist.
 const uiRoot = fileURLToPath(new URL("..", import.meta.url));

@@ -3156,11 +3156,11 @@ views {
   }
 
   view gitSettings {
-    title 'Surface / Owner Git SSH-key Settings'
-    description 'V35-001 API/storage and V35-004 Personal Settings editor are implemented. One owner key is write-only, encrypted with owner/purpose/generation identity. Replacement affects later imports; existing snapshots and provenance survive key deletion.'
+    title 'Surface / Operations Settings / Owner Git SSH-key'
+    description 'The owner key editor is the Repository access section of /operations/settings and remains available without the Operations capability; server-wide settings are omitted for that session. One owner key is write-only, encrypted with owner/purpose/generation identity. Replacement affects later imports; existing snapshots and provenance survive key deletion. The removed /settings route has no redirect.'
 
     include browser with {
-      title 'Settings Key Editor'
+      title 'Operations Settings / Repository Access'
     }
     include apiClient with {
       title 'Authenticated API Client'

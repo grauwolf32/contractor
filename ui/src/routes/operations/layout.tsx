@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import {
@@ -103,9 +103,13 @@ function OperationsLiveSubscription({
 
 export function OperationsLayoutRoute() {
   const api = usePublicAPI();
+  const location = useLocation();
   const { session } = useSession();
   const authorized =
     session?.principal.capabilities.includes("operations") === true;
+  const normalizedPath = location.pathname.replace(/\/+$/, "");
+  const personalSettings =
+    !authorized && normalizedPath === "/operations/settings";
   const [connection, setConnection] =
     useState<RunEventConnectionState>("connecting");
   const [liveError, setLiveError] = useState<string>();
@@ -129,7 +133,7 @@ export function OperationsLayoutRoute() {
     enabled: authorized,
   });
 
-  if (!authorized) {
+  if (!authorized && !personalSettings) {
     return (
       <section className="route-page operations-page">
         <p className="eyebrow">Operations capability required</p>
@@ -157,30 +161,36 @@ export function OperationsLayoutRoute() {
             view; they never predict allocation or configuration state.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {query.isFetching ? "Refreshing…" : "Refresh snapshot"}
-        </button>
+        {personalSettings ? null : (
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            {query.isFetching ? "Refreshing…" : "Refresh snapshot"}
+          </button>
+        )}
       </header>
 
       <nav className="operations-navigation" aria-label="Operations sections">
-        {navigation.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={"end" in item ? item.end : false}
-            className={({ isActive }) => (isActive ? "active" : undefined)}
-          >
-            {item.label}
-          </NavLink>
-        ))}
+        {navigation
+          .filter((item) => authorized || item.to === "/operations/settings")
+          .map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={"end" in item ? item.end : false}
+              className={({ isActive }) => (isActive ? "active" : undefined)}
+            >
+              {item.label}
+            </NavLink>
+          ))}
       </nav>
 
-      {query.isPending ? (
+      {personalSettings ? (
+        <Outlet />
+      ) : query.isPending ? (
         <p className="loading-copy" aria-live="polite">
           Loading authoritative Operations snapshot…
         </p>

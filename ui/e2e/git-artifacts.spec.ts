@@ -19,7 +19,11 @@ const workflow = {
 async function fixture(
   page: Page,
   origin: string,
-  options: { failImport?: boolean; pendingImport?: boolean } = {},
+  options: {
+    failImport?: boolean;
+    pendingImport?: boolean;
+    operations?: boolean;
+  } = {},
 ) {
   const writes: Array<{
     path: string;
@@ -80,7 +84,7 @@ async function fixture(
         principal: {
           userId: "owner",
           username: "owner",
-          capabilities: ["user"],
+          capabilities: options.operations ? ["user", "operations"] : ["user"],
         },
         csrfToken: "a".repeat(43),
         idleExpiresAt: "2099-01-01T00:00:00Z",
@@ -116,6 +120,18 @@ async function fixture(
           : { configured: false },
       );
     }
+    if (path === "/v1/operations/snapshot")
+      return reply(route, {
+        cursor: { generation: "git-settings", revision: "1" },
+        runtimeAgents: [],
+        allocations: [],
+      });
+    if (path === "/v1/operations/settings/scheduler")
+      return reply(route, {
+        maxConcurrentRuns: 1,
+        revision: "1",
+        updatedAt: timestamp,
+      });
     if (path.endsWith("/git-import")) {
       writes.push({
         path,
@@ -206,11 +222,13 @@ async function fixture(
   return writes;
 }
 
-test("personal Git key settings work without Operations and retain no browser secret", async ({
+test("Git key settings live under Operations and retain no browser secret", async ({
   page,
 }, info) => {
-  await fixture(page, new URL(String(info.project.use.baseURL)).origin);
-  await page.goto("/settings");
+  await fixture(page, new URL(String(info.project.use.baseURL)).origin, {
+    operations: true,
+  });
+  await page.goto("/operations/settings");
   const input = page.getByLabel("SSH private key");
   await input.fill("fixture-private-key-canary");
   await page.getByRole("button", { name: "Save Git key" }).click();

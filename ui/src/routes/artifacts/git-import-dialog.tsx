@@ -210,8 +210,8 @@ export function GitImportDialog({
         </div>
         <p>
           Import a tracked source snapshot as a ZIP. Private SSH uses your{" "}
-          <Link to="/settings" onClick={close}>
-            Git key in Settings
+          <Link to="/operations/settings#repository-access" onClick={close}>
+            Git key in Operations Settings
           </Link>
           .
         </p>

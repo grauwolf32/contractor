@@ -11,7 +11,6 @@ const CLIENT_ROUTES = new Set([
   "/queue",
   "/workflows",
   "/artifacts",
-  "/settings",
   "/runs",
   "/skills",
   "/catalog",
@@ -60,6 +59,49 @@ function websocketOrigin(apiBaseUrl) {
   const parsed = new URL(apiBaseUrl);
   parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
   return parsed.origin;
+}
+
+function isLoopbackIPLiteral(hostname) {
+  if (hostname === "[::1]") {
+    return true;
+  }
+  const octets = hostname.split(".");
+  return (
+    octets.length === 4 &&
+    octets[0] === "127" &&
+    octets.every((octet) => /^(?:0|[1-9][0-9]{0,2})$/.test(octet)) &&
+    octets.every((octet) => Number(octet) <= 255)
+  );
+}
+
+function apiBaseUrlForRequest(request, configured) {
+  const authority = request.headers.host;
+  if (
+    typeof authority !== "string" ||
+    authority.length === 0 ||
+    authority.length > 255
+  ) {
+    return configured;
+  }
+  let requestOrigin;
+  try {
+    requestOrigin = new URL(`http://${authority}`);
+  } catch {
+    return configured;
+  }
+  if (
+    requestOrigin.username !== "" ||
+    requestOrigin.password !== "" ||
+    !isLoopbackIPLiteral(requestOrigin.hostname)
+  ) {
+    return configured;
+  }
+  const api = new URL(configured);
+  if (api.protocol !== "http:") {
+    return configured;
+  }
+  api.hostname = requestOrigin.hostname;
+  return api.origin;
 }
 
 function securityHeaders(apiBaseUrl) {
@@ -192,17 +234,17 @@ export async function createStaticServer({ distDir, runtimeConfig }) {
   if (index === null) {
     throw new Error("UI index is not a regular file");
   }
-  const runtimeConfigBody = Buffer.from(
-    `${JSON.stringify(runtimeConfig)}\n`,
-    "utf8",
-  );
   const healthBody = Buffer.from(
     `${JSON.stringify({ status: "ok", uiVersion: runtimeConfig.uiVersion })}\n`,
     "utf8",
   );
-  const baseHeaders = securityHeaders(runtimeConfig.apiBaseUrl);
 
   return createServer((request, response) => {
+    const requestAPIBaseURL = apiBaseUrlForRequest(
+      request,
+      runtimeConfig.apiBaseUrl,
+    );
+    const baseHeaders = securityHeaders(requestAPIBaseURL);
     void (async () => {
       if (request.method !== "GET" && request.method !== "HEAD") {
         sendError(request, response, 405, "method not allowed", {
@@ -239,6 +281,13 @@ export async function createStaticServer({ distDir, runtimeConfig }) {
         return;
       }
       if (path === "/runtime-config.json") {
+        const runtimeConfigBody = Buffer.from(
+          `${JSON.stringify({
+            ...runtimeConfig,
+            apiBaseUrl: requestAPIBaseURL,
+          })}\n`,
+          "utf8",
+        );
         send(
           request,
           response,

@@ -123,6 +123,9 @@ function commonResponse(request: Request): Response | undefined {
   if (path === "/v1/operations/snapshot") {
     return response(operationsSnapshot());
   }
+  if (path === "/v1/settings/git-key") {
+    return response({ configured: false });
+  }
   return undefined;
 }
 
@@ -131,6 +134,42 @@ beforeEach(() => {
 });
 
 describe("Operations Scheduler settings", () => {
+  it("keeps personal repository settings available without Operations capability", async () => {
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") {
+          return response({
+            ...session,
+            principal: {
+              ...session.principal,
+              capabilities: ["user"],
+            },
+          });
+        }
+        if (path === "/v1/settings/git-key") {
+          return response({ configured: false });
+        }
+        throw new Error(`unexpected ${request.method} ${request.url}`);
+      }),
+    );
+
+    renderSettings(api);
+
+    expect(
+      await screen.findByRole("heading", { name: "Git SSH key" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 configuration area")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Workflow scheduling" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Operations capability required"),
+    ).not.toBeInTheDocument();
+  });
+
   it("validates, CAS-saves once and settles on the returned value", async () => {
     const requests: Request[] = [];
     let finishPut: ((value: Response) => void) | undefined;
@@ -279,7 +318,9 @@ describe("Operations Scheduler settings", () => {
       }),
     );
     renderSettings(api);
-    expect(await screen.findByText("Workflow scheduling")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Workflow scheduling" }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(SettingsWebSocket.instances).toHaveLength(1));
     const socket = SettingsWebSocket.instances[0];
     act(() => socket?.open());

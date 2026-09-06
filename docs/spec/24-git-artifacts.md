@@ -15,14 +15,16 @@ HTTPS repositories work without a key; SSH uses the importing owner's key.
 Private HTTPS tokens, multiple named keys, repository browsing and Git writes
 are deferred.
 
-Personal Settings lives at `/settings`, linked beside the signed-in user.
-It is available without the Operations capability; Operations Settings links
-to it. The same Git-import dialog is used by standalone/Project Workflow
-inputs and the Project artifact library. Existing bindings require reviewing
-and confirming their exact revision before replacement. Closing the dialog
-cancels its request and restores focus without closing the parent Run form.
-Successful imports select only the requested input and show the recorded
-commit; metadata detail pages also display Git provenance.
+The personal **Repository access** editor lives directly at
+`/operations/settings`, linked beside the signed-in user. It remains available
+without the Operations capability; in that case the page omits server-wide
+Scheduler settings and every other Operations section. The old `/settings`
+route is removed without a compatibility redirect. The same Git-import dialog
+is used by standalone/Project Workflow inputs and the Project artifact library.
+Existing bindings require reviewing and confirming their exact revision before
+replacement. Closing the dialog cancels its request and restores focus without
+closing the parent Run form. Successful imports select only the requested input
+and show the recorded commit; metadata detail pages also display Git provenance.
 
 Import materializes a source ZIP and publishes an ordinary exact ArtifactRef.
 A Workflow receives that ref through existing input selection/forking; it does

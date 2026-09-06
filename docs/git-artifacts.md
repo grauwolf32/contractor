@@ -28,12 +28,15 @@ through the operator's trusted configuration process. There is no interactive
 host acceptance. Trust changes take effect on subsequent imports.
 
 Each authenticated owner can add, replace or remove one unencrypted Ed25519 or
-RSA SSH private key in Personal Settings (`/settings`), without Operations
-access. The Server encrypts it with the existing credential master key. The
-master-key file uses the existing owner-only, base64-encoded 32-byte format;
+RSA SSH private key in the **Repository access** section of Operations Settings
+(`/operations/settings`). That personal section remains available without the
+Operations capability; the server-wide Scheduler section is shown only to an
+operator. The Server encrypts the key with the existing credential master key.
+The master-key file uses the existing owner-only, base64-encoded 32-byte format;
 keep it stable across restarts. Settings returns only configured state, key
 type, fingerprint and update time. An import already holding a signer can
-finish after key replacement/removal. Later imports use the new state.
+finish after key replacement/removal. Later imports use the new state. The old
+`/settings` UI route is not retained or redirected.
 
 Anonymous HTTPS needs no owner key. SSH uses only that owner's configured key;
 there is no SSH agent, password prompt, external credential helper, HTTP proxy
@@ -106,7 +109,7 @@ CONTRACTOR_TEST_DATABASE_URL=postgres://... GOFLAGS=-p=1 \
 | Production Server with read-only root and no Git/tmp/blob write path in PostgreSQL mode; filesystem publication | `TestGitArtifactsProductionContainers` plus `TestRealGitReadOnlyContainer` |
 | Real memory-workspace Runtime consumes imported Project ZIP, edits/exports diff and retains exact source after branch/key change | Both production container cases |
 | Near-cap ZIP with three concurrent ordinary uploads, second Git import rejection, Runtime source-analysis acceptance and key canaries absent from responses/archives/logs | Both production container cases |
-| Personal Settings, explicit replacement CAS, exact Workflow selection, retained drafts, mobile cancel and focus restoration | `git-artifacts.test.tsx` and five `git-artifacts.spec.ts` scenarios; browser gate serves an isolated production UI build |
+| Operations Settings repository access, explicit replacement CAS, exact Workflow selection, retained drafts, mobile cancel and focus restoration | `git-artifacts.test.tsx` and five `git-artifacts.spec.ts` scenarios; browser gate serves an isolated production UI build |
 | Ordinary Artifact limits, storage loss, commit ambiguity, cleanup and public/private consumers | `make test-artifact-blob-backends` |
 
 On Linux, Go 1.25.6 and PostgreSQL 17 (2026-09-06), the production-container

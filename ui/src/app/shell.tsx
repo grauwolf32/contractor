@@ -71,7 +71,7 @@ export function ApplicationShell() {
           <div>
             <strong>{session?.principal.username}</strong>
             <small>UI {UI_VERSION}</small>
-            <NavLink to="/settings">Personal settings</NavLink>
+            <NavLink to="/operations/settings">Settings</NavLink>
           </div>
           <button
             className="text-button"
