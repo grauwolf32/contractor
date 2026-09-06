@@ -3,28 +3,30 @@ package auditstore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 const (
-	MaxPageSize             = 200
-	MaxClaimBatch           = 100
-	MaxReconcileRows        = 200
-	MaxSnapshotBytes        = 16 << 20
-	MaxSummaryBytes         = 64 << 10
-	MaxCollectionItems      = 64
-	MaxArtifactLinksPerCall = 1024
-	MaxArtifactRefBytes     = 4 << 10
-	MaxCoverageArrayBytes   = 1 << 20
-	MaxExecutionInputsBytes = 1 << 20
-	MaxRoundPayloadBytes    = 64 << 20
-	MaxExecutionIntentBytes = 64 << 20
-	MaxCollectionBytes      = 16 << 20
-	MaxRetainedRefsBytes    = 8 << 20
-	MaxAttemptProjection    = MaxPageSize * 10
-	ItemOriginSchema        = "contractor.audit.item-origin.v1"
+	MaxPageSize                    = 200
+	MaxClaimBatch                  = 100
+	MaxReconcileRows               = 200
+	MaxSnapshotBytes               = 16 << 20
+	MaxSummaryBytes                = 64 << 10
+	MaxCollectionItems             = 64
+	MaxArtifactLinksPerCall        = 1024
+	MaxArtifactRefBytes            = 4 << 10
+	MaxCoverageArrayBytes          = 1 << 20
+	MaxExecutionInputsBytes        = 1 << 20
+	MaxRoundPayloadBytes           = 64 << 20
+	MaxExecutionIntentBytes        = 64 << 20
+	MaxCollectionBytes             = 16 << 20
+	MaxRetainedRefsBytes           = 8 << 20
+	MaxAttemptProjection           = MaxPageSize * 10
+	MaxAuditRoleExecutionsPerRound = 256
+	ItemOriginSchema               = "contractor.audit.item-origin.v1"
 )
 
 type AuditState string
@@ -720,7 +722,9 @@ type ReconcileSnapshot struct {
 	Round          *Round
 	Items          []Item
 	Executions     []Execution
+	RoleExecutions []Execution
 	Receipts       []CollectionReceiptSummary
+	RoleReceipts   []CollectionReceiptSummary
 	MoreItems      bool
 	MoreExecutions bool
 	MoreReceipts   bool
@@ -761,4 +765,11 @@ type ControllerRepository interface {
 	NextLiveRunForDeletion(context.Context, ControllerClaim) (string, bool, error)
 	PurgeClaimed(context.Context, ControllerClaim, string) error
 	GetReconcileSnapshot(context.Context, ControllerClaim) (ReconcileSnapshot, error)
+	GetArtifactLink(context.Context, string, string) (ArtifactLink, error)
+}
+
+// RoleOutputLogicalKey is the stable Audit-owned address of one accepted
+// output from a named discovery or assessment role in an immutable Round.
+func RoleOutputLogicalKey(roundOrdinal int, workflowRole, logicalOutput string) string {
+	return fmt.Sprintf("round/%d/role/%s/output/%s", roundOrdinal, workflowRole, logicalOutput)
 }

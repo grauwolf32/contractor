@@ -18,13 +18,220 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 )
 
-type PinnedSubmissionBuilder struct{ artifacts ArtifactAccess }
+type RoleOutputLookup interface {
+	GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error)
+}
 
-func NewPinnedSubmissionBuilder(access ArtifactAccess) (*PinnedSubmissionBuilder, error) {
+type PinnedSubmissionBuilder struct {
+	artifacts ArtifactAccess
+	outputs   RoleOutputLookup
+}
+
+func NewPinnedSubmissionBuilder(
+	access ArtifactAccess, outputLookups ...RoleOutputLookup,
+) (*PinnedSubmissionBuilder, error) {
 	if access == nil {
 		return nil, fmt.Errorf("Audit submission Artifact access is required")
 	}
-	return &PinnedSubmissionBuilder{artifacts: access}, nil
+	if len(outputLookups) > 1 || len(outputLookups) == 1 && outputLookups[0] == nil {
+		return nil, fmt.Errorf("Audit submission output lookup is invalid")
+	}
+	result := &PinnedSubmissionBuilder{artifacts: access}
+	if len(outputLookups) == 1 {
+		result.outputs = outputLookups[0]
+	}
+	return result, nil
+}
+
+func (b *PinnedSubmissionBuilder) PrepareRole(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	workflowRole string,
+	attempt int,
+) (PreparedSubmission, error) {
+	audit := snapshot.Audit
+	if snapshot.Round == nil || audit.CurrentRoundID == nil ||
+		snapshot.Round.RoundID != *audit.CurrentRoundID || attempt < 1 || b.outputs == nil {
+		return PreparedSubmission{}, invalidSubmission("Audit role is outside an immutable current Round")
+	}
+	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
+	if err != nil || profile.Ref.Name != audit.Profile.Name || profile.Ref.Version != audit.Profile.Version ||
+		profile.Ref.Digest != audit.Profile.Digest {
+		return PreparedSubmission{}, invalidSubmission("pinned AuditProfile cannot be decoded")
+	}
+	binding, exists := profile.Workflows[workflowRole]
+	if !exists || binding.Kind != config.AuditWorkflowDiscovery && binding.Kind != config.AuditWorkflowAssessment {
+		return PreparedSubmission{}, invalidSubmission("Audit role is not a discovery or assessment binding")
+	}
+	baseline, err := auditservice.DecodeBaseline(audit.BaselineSnapshot)
+	if err != nil {
+		return PreparedSubmission{}, invalidSubmission("pinned Audit baseline cannot be decoded")
+	}
+	manifest := auditdomain.ExecutionManifest{Schema: auditdomain.ExecutionManifestSchema, Items: []auditdomain.ExecutionItem{}}
+	encodedManifest, err := auditdomain.EncodeExecutionManifest(manifest)
+	if err != nil {
+		return PreparedSubmission{}, invalidSubmission("empty role execution manifest is invalid")
+	}
+	manifestDigest := digestBytes(encodedManifest)
+	manifestArtifact, err := b.artifacts.PutImmutableProject(
+		ctx, audit.ProjectID,
+		contracts.ArtifactRef{
+			Namespace: auditdomain.ArtifactNamespace(audit.AuditID),
+			Name:      "role-manifest-" + stringsDigest(manifestDigest),
+		},
+		artifacts.Payload{MediaType: "application/json", Data: encodedManifest},
+	)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	runInputs, err := b.resolveRoleInputs(ctx, snapshot, workflowRole, binding, baseline, manifestArtifact)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	parameters, err := resolveRoleParameters(binding, baseline.Scope)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	skills, err := selectSkills(binding.Workflow, baseline.Skills)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	kind := auditstore.ExecutionRole(binding.Kind)
+	roundID := snapshot.Round.RoundID
+	attemptText := strconv.Itoa(attempt)
+	executionID := deterministicID(
+		"audit-role-execution", audit.AuditID, roundID, string(kind), workflowRole, attemptText,
+	)
+	submissionKey := deterministicID("audit-role-submission", executionID, manifestDigest)
+	requestDigest, err := submissionDigest(struct {
+		Schema        string                              `json:"schema"`
+		AuditID       string                              `json:"auditId"`
+		RoundID       string                              `json:"roundId"`
+		ExecutionID   string                              `json:"executionId"`
+		Kind          auditstore.ExecutionRole            `json:"kind"`
+		WorkflowRole  string                              `json:"workflowRole"`
+		Attempt       int                                 `json:"attempt"`
+		ProfileDigest string                              `json:"profileDigest"`
+		Manifest      auditstore.ExactArtifact            `json:"manifest"`
+		Workflow      config.ResolvedWorkflow             `json:"workflow"`
+		Parameters    map[string]string                   `json:"parameters"`
+		Inputs        map[string]auditstore.ExactArtifact `json:"inputs"`
+		RuntimeConfig any                                 `json:"runtimeConfig"`
+		Skills        []contracts.RunSkillSnapshot        `json:"skills"`
+		ProjectTarget *contracts.HTTPOriginTargetRef      `json:"projectTarget,omitempty"`
+	}{
+		Schema: "contractor.audit.role-submission.v1", AuditID: audit.AuditID,
+		RoundID: roundID, ExecutionID: executionID, Kind: kind,
+		WorkflowRole: workflowRole, Attempt: attempt, ProfileDigest: audit.Profile.Digest,
+		Manifest: manifestArtifact, Workflow: binding.Workflow, Parameters: parameters,
+		Inputs: runInputs, RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
+		ProjectTarget: baseline.ProjectHTTPTarget,
+	})
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	return PreparedSubmission{
+		Intent: auditstore.CreateExecutionIntentParams{
+			ExecutionID: executionID, RoundID: &roundID, Role: kind,
+			WorkflowRole: workflowRole, RoleAttempt: &attempt,
+			Manifest: manifestArtifact, SubmissionKey: submissionKey,
+			RequestDigest: requestDigest, Members: []auditstore.ExecutionMemberIntent{},
+		},
+		Run: runservice.AuditCreateParams{
+			ExecutionID: executionID, Workflow: binding.Workflow,
+			RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
+			ProjectHTTPTarget: baseline.ProjectHTTPTarget,
+			Parameters:        parameters, Inputs: runInputs,
+			ExecutionManifest: manifestArtifact, RequestDigest: requestDigest,
+		},
+	}, nil
+}
+
+func (b *PinnedSubmissionBuilder) resolveRoleInputs(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	workflowRole string,
+	binding config.ResolvedAuditWorkflowBinding,
+	baseline auditservice.BaselineSnapshot,
+	executionManifest auditstore.ExactArtifact,
+) (map[string]auditstore.ExactArtifact, error) {
+	result := make(map[string]auditstore.ExactArtifact)
+	for _, slot := range sortedKeys(binding.Inputs) {
+		mapping := binding.Inputs[slot]
+		switch mapping.Source {
+		case config.AuditInputFromAudit:
+			input, exists := baseline.Inputs[mapping.Name]
+			if !exists {
+				if binding.Workflow.Inputs[slot].Required {
+					return nil, invalidSubmission("required baseline input is missing")
+				}
+				continue
+			}
+			result[slot] = cloneExact(input)
+		case config.AuditInputFromExecutionManifest:
+			result[slot] = cloneExact(executionManifest)
+		case config.AuditInputFromRetainedOutput:
+			link, err := b.outputs.GetArtifactLink(
+				ctx, snapshot.Audit.AuditID,
+				auditstore.RoleOutputLogicalKey(snapshot.Round.Ordinal, mapping.Role, mapping.Name),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("resolve retained output for role %q: %w", workflowRole, err)
+			}
+			result[slot] = cloneExact(link.Artifact)
+		case config.AuditInputFromItemPackage:
+			return nil, invalidSubmission("non-check Audit role cannot receive an item package")
+		default:
+			return nil, invalidSubmission("Audit role input mapping is invalid")
+		}
+	}
+	return result, nil
+}
+
+func resolveRoleParameters(
+	binding config.ResolvedAuditWorkflowBinding,
+	scope auditservice.Scope,
+) (map[string]string, error) {
+	result := make(map[string]string, len(binding.Parameters))
+	for name, mapping := range binding.Parameters {
+		if mapping.Source == config.AuditParameterItemField {
+			return nil, invalidSubmission("non-check Audit role cannot receive item parameters")
+		}
+		value, err := resolveParameterWithoutItem(mapping, scope)
+		if err != nil {
+			return nil, err
+		}
+		result[name] = value
+	}
+	return result, nil
+}
+
+func resolveParameterWithoutItem(
+	mapping config.AuditWorkflowParameterMapping, scope auditservice.Scope,
+) (string, error) {
+	switch mapping.Source {
+	case config.AuditParameterLiteral:
+		return mapping.Value, nil
+	case config.AuditParameterScopeField:
+		switch mapping.Name {
+		case "objective":
+			return scope.Objective, nil
+		case "target":
+			return scope.Target, nil
+		case "authorizationScope":
+			return scope.AuthorizationScope, nil
+		}
+	}
+	return "", invalidSubmission("Audit role parameter mapping is invalid")
+}
+
+func sortedKeys[T any](values map[string]T) []string {
+	result := make([]string, 0, len(values))
+	for key := range values {
+		result = append(result, key)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func (b *PinnedSubmissionBuilder) Prepare(
@@ -88,8 +295,8 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	if manifestArtifact.Digest != manifestDigest {
 		return PreparedSubmission{}, invalidSubmission("stored execution manifest digest differs")
 	}
-	runInputs, memberInputs, err := resolveInputs(
-		binding, baseline, manifestItem, task, manifestArtifact,
+	runInputs, memberInputs, err := b.resolveInputs(
+		ctx, snapshot, binding, baseline, manifestItem, task, manifestArtifact,
 	)
 	if err != nil {
 		return PreparedSubmission{}, err
@@ -177,7 +384,9 @@ func findManifestItem(
 	return auditdomain.ExecutionItem{}, invalidSubmission("Audit item is absent from baseline manifest")
 }
 
-func resolveInputs(
+func (b *PinnedSubmissionBuilder) resolveInputs(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
 	binding config.ResolvedAuditWorkflowBinding,
 	baseline auditservice.BaselineSnapshot,
 	manifest auditdomain.ExecutionItem,
@@ -219,7 +428,17 @@ func resolveInputs(
 			memberInputs = append(memberInputs, cloneExact(descriptor))
 			consumed++
 		case config.AuditInputFromRetainedOutput:
-			return nil, nil, invalidSubmission("retained-output is unsupported by the fixed-round Controller")
+			if b.outputs == nil || snapshot.Round == nil {
+				return nil, nil, invalidSubmission("retained-output lookup is unavailable")
+			}
+			link, err := b.outputs.GetArtifactLink(
+				ctx, snapshot.Audit.AuditID,
+				auditstore.RoleOutputLogicalKey(snapshot.Round.Ordinal, mapping.Role, mapping.Name),
+			)
+			if err != nil {
+				return nil, nil, fmt.Errorf("resolve retained output for check role: %w", err)
+			}
+			runInputs[slot] = cloneExact(link.Artifact)
 		default:
 			return nil, nil, invalidSubmission("Audit input mapping is invalid")
 		}
@@ -228,6 +447,23 @@ func resolveInputs(
 		return nil, nil, invalidSubmission("execution manifest contains an unmapped input")
 	}
 	return runInputs, memberInputs, nil
+}
+
+// resolveInputs remains a narrow pure helper for contract-focused unit tests.
+// Production dispatch uses PinnedSubmissionBuilder.resolveInputs so a check
+// may also consume an exact, Audit-retained discovery output.
+func resolveInputs(
+	binding config.ResolvedAuditWorkflowBinding,
+	baseline auditservice.BaselineSnapshot,
+	manifest auditdomain.ExecutionItem,
+	task auditstore.ExactArtifact,
+	executionManifest auditstore.ExactArtifact,
+) (map[string]auditstore.ExactArtifact, []auditstore.ExactArtifact, error) {
+	builder := &PinnedSubmissionBuilder{}
+	return builder.resolveInputs(
+		context.Background(), auditstore.ReconcileSnapshot{}, binding, baseline,
+		manifest, task, executionManifest,
+	)
 }
 
 func resolveParameters(

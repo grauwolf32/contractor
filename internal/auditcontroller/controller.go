@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -111,14 +113,6 @@ func (c *Controller) reconcile(
 			})
 			return err == nil, err
 		}
-		if snapshot.Round != nil && snapshot.Round.State == auditstore.RoundAccepted {
-			_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-				Claim: claim, RoundID: snapshot.Round.RoundID,
-				ExpectedRevision: snapshot.Round.Revision,
-				ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
-			})
-			return err == nil, err
-		}
 	}
 
 	if changed, err := c.observeOneTerminal(ctx, claim, snapshot); changed || err != nil {
@@ -139,29 +133,73 @@ func (c *Controller) reconcile(
 			return changed, collectErr
 		}
 	}
-
-	if audit.State == auditstore.AuditActive && snapshot.Round != nil &&
-		snapshot.Round.State == auditstore.RoundExecuting && audit.OutstandingRunCount == 0 &&
-		len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions {
-		_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
-			Claim: claim, RoundID: snapshot.Round.RoundID,
-			ExpectedRevision: snapshot.Round.Revision,
-			ExpectedState:    auditstore.RoundExecuting, TargetState: auditstore.RoundClosed,
-		})
-		return err == nil, err
-	}
-	if audit.State == auditstore.AuditActive && snapshot.Round != nil &&
-		snapshot.Round.State == auditstore.RoundClosed && audit.OutstandingRunCount == 0 &&
-		len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 {
-		reason := auditstore.StopReason{
-			Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
+	if audit.State == auditstore.AuditActive {
+		if changed, err := c.resumeOneIntent(ctx, claim, snapshot); changed || err != nil {
+			return changed, err
 		}
-		_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-			Claim: claim, ExpectedRevision: audit.Revision,
-			ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-			Reason: &reason,
-		})
-		return err == nil, err
+	}
+
+	if audit.State == auditstore.AuditActive && snapshot.Round != nil {
+		switch snapshot.Round.State {
+		case auditstore.RoundAccepted:
+			changed, complete, reason, err := c.reconcileRolePhase(
+				ctx, claim, snapshot, auditstore.ExecutionDiscovery,
+			)
+			if changed || err != nil {
+				return changed, err
+			}
+			if reason != nil {
+				return c.closeForRoleFailure(ctx, claim, audit, reason)
+			}
+			if complete {
+				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+					Claim: claim, RoundID: snapshot.Round.RoundID,
+					ExpectedRevision: snapshot.Round.Revision,
+					ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
+				})
+				return err == nil, err
+			}
+		case auditstore.RoundExecuting:
+			if audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 &&
+				len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions {
+				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+					Claim: claim, RoundID: snapshot.Round.RoundID,
+					ExpectedRevision: snapshot.Round.Revision,
+					ExpectedState:    auditstore.RoundExecuting, TargetState: auditstore.RoundAssessing,
+				})
+				return err == nil, err
+			}
+		case auditstore.RoundAssessing:
+			changed, complete, reason, err := c.reconcileRolePhase(
+				ctx, claim, snapshot, auditstore.ExecutionAssessment,
+			)
+			if changed || err != nil {
+				return changed, err
+			}
+			if reason != nil {
+				return c.closeForRoleFailure(ctx, claim, audit, reason)
+			}
+			if complete {
+				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+					Claim: claim, RoundID: snapshot.Round.RoundID,
+					ExpectedRevision: snapshot.Round.Revision,
+					ExpectedState:    auditstore.RoundAssessing, TargetState: auditstore.RoundClosed,
+				})
+				return err == nil, err
+			}
+		case auditstore.RoundClosed:
+			if audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 {
+				reason := auditstore.StopReason{
+					Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
+				}
+				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+					Claim: claim, ExpectedRevision: audit.Revision,
+					ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
+					Reason: &reason,
+				})
+				return err == nil, err
+			}
+		}
 	}
 	closed := audit.Dispatch == auditstore.DispatchClosed ||
 		audit.State == auditstore.AuditCancelling || audit.State == auditstore.AuditFinalizing ||
@@ -243,9 +281,6 @@ func (c *Controller) reconcile(
 		return false, nil
 	}
 
-	if changed, err := c.resumeOneIntent(ctx, claim, snapshot); changed || err != nil {
-		return changed, err
-	}
 	for _, item := range snapshot.Items {
 		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
 			continue
@@ -272,6 +307,220 @@ func (c *Controller) reconcile(
 		return c.dispatch(ctx, claim, snapshot, item, attempt)
 	}
 	return false, nil
+}
+
+func (c *Controller) reconcileRolePhase(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+	kind auditstore.ExecutionRole,
+) (changed bool, complete bool, reason *auditstore.StopReason, err error) {
+	profile, decodeErr := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	if decodeErr != nil || snapshot.Round == nil {
+		return false, false, &auditstore.StopReason{
+			Code: "role_contract_invalid", Message: "The pinned Audit role configuration is invalid.",
+		}, nil
+	}
+	roles := roleNames(profile, kind)
+	if len(roles) == 0 {
+		return false, true, nil, nil
+	}
+	pendingDependency := false
+	for _, workflowRole := range roles {
+		latest, found := latestRoleExecution(snapshot.RoleExecutions, kind, workflowRole)
+		if found {
+			if latest.State != auditstore.ExecutionCollected {
+				return false, false, nil, nil
+			}
+			disposition, receiptFound := roleExecutionDisposition(snapshot, latest.ExecutionID)
+			if !receiptFound {
+				return false, false, nil, nil
+			}
+			if disposition == auditstore.CollectionAccepted {
+				continue
+			}
+			if !roleDispositionRetryable(disposition, receiptErrorCode(snapshot, latest.ExecutionID)) {
+				return false, false, &auditstore.StopReason{
+					Code: "role_execution_not_retryable",
+					Message: fmt.Sprintf(
+						"Audit Workflow role %q ended with a non-retryable disposition.", workflowRole,
+					),
+				}, nil
+			}
+			if latest.RoleAttempt == nil || *latest.RoleAttempt >= snapshot.Audit.Limits.MaxItemRunAttempts {
+				return false, false, &auditstore.StopReason{
+					Code: "role_attempt_budget_exhausted",
+					Message: fmt.Sprintf(
+						"Audit Workflow role %q exhausted its bounded execution attempts.", workflowRole,
+					),
+				}, nil
+			}
+		}
+		if !roleDependenciesSatisfied(profile, snapshot, workflowRole) {
+			pendingDependency = true
+			continue
+		}
+		attempt := 1
+		if found && latest.RoleAttempt != nil {
+			attempt = *latest.RoleAttempt + 1
+		}
+		if snapshot.Audit.ReservedRunCount >= snapshot.Audit.Limits.MaxSubmittedRuns {
+			return false, false, &auditstore.StopReason{
+				Code:    "submission_budget_exhausted",
+				Message: "The Audit child Run submission budget was exhausted before a required role completed.",
+			}, nil
+		}
+		return c.dispatchRole(ctx, claim, snapshot, workflowRole, attempt)
+	}
+	if pendingDependency {
+		return false, false, &auditstore.StopReason{
+			Code:    "role_dependency_unresolved",
+			Message: "A pinned Audit Workflow role dependency could not be satisfied.",
+		}, nil
+	}
+	return false, true, nil, nil
+}
+
+func (c *Controller) closeForRoleFailure(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	audit auditstore.Audit,
+	reason *auditstore.StopReason,
+) (bool, error) {
+	_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+		Claim: claim, ExpectedRevision: audit.Revision,
+		ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
+		Reason: reason,
+	})
+	return err == nil, err
+}
+
+func (c *Controller) dispatchRole(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+	workflowRole string,
+	attempt int,
+) (bool, bool, *auditstore.StopReason, error) {
+	prepared, err := c.builder.PrepareRole(ctx, snapshot, workflowRole, attempt)
+	if err != nil {
+		if errors.Is(err, ErrInvalidSubmission) {
+			return false, false, &auditstore.StopReason{
+				Code:    "role_dispatch_contract_invalid",
+				Message: "Pinned Audit role dispatch data failed deterministic validation.",
+			}, nil
+		}
+		return false, false, nil, err
+	}
+	prepared.Intent.Claim = claim
+	execution, _, err := c.store.CreateExecutionIntent(ctx, prepared.Intent)
+	if errors.Is(err, auditstore.ErrPrecondition) {
+		return false, false, nil, nil
+	}
+	if err != nil {
+		return false, false, nil, err
+	}
+	if execution.State != auditstore.ExecutionIntent {
+		return false, false, nil, fmt.Errorf(
+			"new Audit role execution %q has unexpected state %q", execution.ExecutionID, execution.State,
+		)
+	}
+	changed, err := c.createRun(ctx, claim, prepared)
+	return changed, false, nil, err
+}
+
+func roleNames(profile config.ResolvedAuditProfile, kind auditstore.ExecutionRole) []string {
+	result := make([]string, 0)
+	for name, binding := range profile.Workflows {
+		if auditstore.ExecutionRole(binding.Kind) == kind {
+			result = append(result, name)
+		}
+	}
+	sort.Strings(result)
+	return result
+}
+
+func latestRoleExecution(
+	executions []auditstore.Execution, kind auditstore.ExecutionRole, workflowRole string,
+) (auditstore.Execution, bool) {
+	var result auditstore.Execution
+	found := false
+	for _, execution := range executions {
+		if execution.Role != kind || execution.WorkflowRole != workflowRole || execution.RoleAttempt == nil {
+			continue
+		}
+		if !found || result.RoleAttempt == nil || *execution.RoleAttempt > *result.RoleAttempt {
+			result, found = execution, true
+		}
+	}
+	return result, found
+}
+
+func executionDisposition(
+	receipts []auditstore.CollectionReceiptSummary, executionID string,
+) (auditstore.CollectionDisposition, bool) {
+	for _, receipt := range receipts {
+		if receipt.ExecutionID == executionID {
+			return receipt.Disposition, true
+		}
+	}
+	return "", false
+}
+
+func roleExecutionDisposition(
+	snapshot auditstore.ReconcileSnapshot, executionID string,
+) (auditstore.CollectionDisposition, bool) {
+	if disposition, found := executionDisposition(snapshot.RoleReceipts, executionID); found {
+		return disposition, true
+	}
+	return executionDisposition(snapshot.Receipts, executionID)
+}
+
+func receiptErrorCode(snapshot auditstore.ReconcileSnapshot, executionID string) *string {
+	for _, receipts := range [][]auditstore.CollectionReceiptSummary{snapshot.RoleReceipts, snapshot.Receipts} {
+		for _, receipt := range receipts {
+			if receipt.ExecutionID == executionID {
+				return receipt.ErrorCode
+			}
+		}
+	}
+	return nil
+}
+
+func roleDispositionRetryable(disposition auditstore.CollectionDisposition, errorCode *string) bool {
+	if disposition == auditstore.CollectionExecutionFailed || disposition == auditstore.CollectionMissingOutput {
+		return true
+	}
+	return disposition == auditstore.CollectionInvalidResult &&
+		(errorCode == nil || *errorCode != "evidence-budget-exhausted")
+}
+
+func roleDependenciesSatisfied(
+	profile config.ResolvedAuditProfile,
+	snapshot auditstore.ReconcileSnapshot,
+	workflowRole string,
+) bool {
+	binding := profile.Workflows[workflowRole]
+	for _, mapping := range binding.Inputs {
+		if mapping.Source != config.AuditInputFromRetainedOutput {
+			continue
+		}
+		source, exists := profile.Workflows[mapping.Role]
+		if !exists {
+			return false
+		}
+		execution, found := latestRoleExecution(
+			snapshot.RoleExecutions, auditstore.ExecutionRole(source.Kind), mapping.Role,
+		)
+		if !found || execution.State != auditstore.ExecutionCollected {
+			return false
+		}
+		disposition, found := roleExecutionDisposition(snapshot, execution.ExecutionID)
+		if !found || disposition != auditstore.CollectionAccepted {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Controller) failAuditImport(
@@ -385,26 +634,50 @@ func (c *Controller) resumeOneIntent(
 		if err != nil {
 			return false, err
 		}
-		if len(members) != 1 {
-			return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
+		var prepared PreparedSubmission
+		if execution.Role == auditstore.ExecutionCheck {
+			if len(members) != 1 {
+				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
+			}
+			item, exists := snapshotItem(snapshot.Items, members[0].ItemID)
+			if !exists {
+				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
+			}
+			prepared, err = c.builder.Prepare(ctx, snapshot, item, members[0].ItemAttempt)
+			if err == nil && !matchingIntent(execution, members[0], prepared.Intent) {
+				err = ErrInvalidSubmission
+			}
+		} else {
+			if len(members) != 0 || execution.RoleAttempt == nil {
+				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
+			}
+			prepared, err = c.builder.PrepareRole(
+				ctx, snapshot, execution.WorkflowRole, *execution.RoleAttempt,
+			)
+			if err == nil && !matchingRoleIntent(execution, prepared.Intent) {
+				err = ErrInvalidSubmission
+			}
 		}
-		item, exists := snapshotItem(snapshot.Items, members[0].ItemID)
-		if !exists {
-			return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-		}
-		prepared, err := c.builder.Prepare(ctx, snapshot, item, members[0].ItemAttempt)
 		if err != nil {
 			if errors.Is(err, ErrInvalidSubmission) {
 				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
 			}
 			return false, err
 		}
-		if !matchingIntent(execution, members[0], prepared.Intent) {
-			return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
-		}
 		return c.createRun(ctx, claim, prepared)
 	}
 	return false, nil
+}
+
+func matchingRoleIntent(
+	execution auditstore.Execution, prepared auditstore.CreateExecutionIntentParams,
+) bool {
+	return execution.ExecutionID == prepared.ExecutionID && execution.Role == prepared.Role &&
+		execution.WorkflowRole == prepared.WorkflowRole && execution.RoundID != nil && prepared.RoundID != nil &&
+		*execution.RoundID == *prepared.RoundID && execution.RoleAttempt != nil && prepared.RoleAttempt != nil &&
+		*execution.RoleAttempt == *prepared.RoleAttempt && execution.SubmissionKey == prepared.SubmissionKey &&
+		execution.RequestDigest == prepared.RequestDigest && execution.Manifest.Digest == prepared.Manifest.Digest &&
+		sameExactRef(execution.Manifest.Ref, prepared.Manifest.Ref) && len(prepared.Members) == 0
 }
 
 func (c *Controller) dispatch(

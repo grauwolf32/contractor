@@ -86,6 +86,84 @@ func TestImporterRecordsFailedAndCancelledWithoutInventedOutput(t *testing.T) {
 	}
 }
 
+func TestImporterRetainsNamedRoleOutputsWithExactProvenance(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithDiscovery(t)
+	discovery := profile.Workflows["inventory"]
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	harness.execution.Role = auditstore.ExecutionDiscovery
+	harness.execution.WorkflowRole = "inventory"
+	attempt := 1
+	harness.execution.RoleAttempt = &attempt
+	harness.store.members = nil
+	harness.importer.runs.(*fakeImportRuns).run.WorkflowName = discovery.Workflow.Ref.Name
+	harness.importer.runs.(*fakeImportRuns).run.WorkflowVersion = discovery.Workflow.Ref.Version
+	workflowSnapshot, err := json.Marshal(discovery.Workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.importer.runs.(*fakeImportRuns).run.WorkflowSnapshot = workflowSnapshot
+	round := auditstore.Round{RoundID: *harness.execution.RoundID, Ordinal: 1}
+	harness.snapshot.Round = &round
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		_, directErr := harness.importer.collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
+		t.Fatalf("collect discovery role = (%t, %v), direct error = %v", worked, err, directErr)
+	}
+	collected := harness.store.collected
+	if collected.Disposition != auditstore.CollectionAccepted || len(collected.Items) != 0 ||
+		len(collected.Retained) != 1 || collected.SourceOutput == nil {
+		t.Fatalf("discovery role collection = %+v", collected)
+	}
+	link := collected.Retained[0]
+	if link.LogicalKey != auditstore.RoleOutputLogicalKey(1, "inventory", "result") ||
+		link.Artifact.Ref.Namespace != auditdomain.ArtifactNamespace(harness.execution.AuditID) ||
+		!strings.Contains(string(link.SourceProvenance), `"workflowRole":"inventory"`) {
+		t.Fatalf("retained discovery output = %+v", link)
+	}
+}
+
+func TestImporterRecordsMissingNamedRoleOutputWithoutItems(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithDiscovery(t)
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	harness.execution.Role = auditstore.ExecutionDiscovery
+	harness.execution.WorkflowRole = "inventory"
+	attempt := 1
+	harness.execution.RoleAttempt = &attempt
+	harness.store.members = nil
+	harness.artifacts.missingBinding = true
+	round := auditstore.Round{RoundID: *harness.execution.RoundID, Ordinal: 1}
+	harness.snapshot.Round = &round
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || harness.store.collected.Disposition != auditstore.CollectionMissingOutput ||
+		len(harness.store.collected.Items) != 0 || harness.store.collected.ErrorCode == nil ||
+		*harness.store.collected.ErrorCode != "missing-role-output" {
+		_, directErr := harness.importer.collect(context.Background(), harness.claim, harness.snapshot, harness.execution)
+		t.Fatalf("missing discovery role output = (%t, %v, %+v), direct error = %v", worked, err, harness.store.collected, directErr)
+	}
+}
+
 func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T) {
 	harness := newImportHarness(t)
 	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
@@ -702,6 +780,18 @@ func loadResultProfileWithFindingConfirmation(
 	t *testing.T,
 	policy string,
 ) config.ResolvedAuditProfile {
+	return loadResultProfileFixture(t, policy, false)
+}
+
+func loadResultProfileWithDiscovery(t *testing.T) config.ResolvedAuditProfile {
+	return loadResultProfileFixture(t, "disabled", true)
+}
+
+func loadResultProfileFixture(
+	t *testing.T,
+	policy string,
+	withDiscovery bool,
+) config.ResolvedAuditProfile {
 	t.Helper()
 	root := t.TempDir()
 	for _, directory := range []string{
@@ -782,6 +872,21 @@ spec:
 		files["audit-profiles/checklist.yaml"],
 		"findingConfirmation: disabled", "findingConfirmation: "+policy, 1,
 	)
+	if withDiscovery {
+		files["audit-profiles/checklist.yaml"] = strings.Replace(
+			files["audit-profiles/checklist.yaml"],
+			"  workflows:\n    check:",
+			`  workflows:
+    inventory:
+      kind: discovery
+      ref: audit-check@1
+      inputs: {task: {source: item-package}}
+      parameters: {}
+      outputs: {result: result}
+    check:`,
+			1,
+		)
+	}
 	for name, body := range files {
 		path := filepath.Join(root, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

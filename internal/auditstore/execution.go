@@ -117,7 +117,7 @@ WITH member_input AS MATERIALIZED (
        AND audit.outstanding_run_count < claim_gate.max_concurrent_runs
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND audit.deadline_at > clock_timestamp()
-       AND (
+	       AND (
            ($5 = 'check' AND $6::text IS NOT NULL
              AND jsonb_array_length($12::jsonb) > 0
              AND jsonb_array_length($12::jsonb) <= audit.batch_size
@@ -131,8 +131,22 @@ WITH member_input AS MATERIALIZED (
                  SELECT 1 FROM round_gate
                   WHERE round_gate.round_id = $6 AND round_gate.state = 'executing'
              ))
-           OR ($5 IN ('discovery', 'assessment')
-             AND jsonb_array_length($12::jsonb) = 0)
+	       OR ($5 = 'discovery' AND $6::text IS NOT NULL
+	             AND jsonb_array_length($12::jsonb) = 0
+	             AND $7::integer BETWEEN 1 AND audit.max_item_run_attempts
+	             AND audit.current_round_id = $6
+	             AND EXISTS (
+	                 SELECT 1 FROM round_gate
+	                  WHERE round_gate.round_id = $6 AND round_gate.state = 'accepted'
+	             ))
+	       OR ($5 = 'assessment' AND $6::text IS NOT NULL
+	             AND jsonb_array_length($12::jsonb) = 0
+	             AND $7::integer BETWEEN 1 AND audit.max_item_run_attempts
+	             AND audit.current_round_id = $6
+	             AND EXISTS (
+	                 SELECT 1 FROM round_gate
+	                  WHERE round_gate.round_id = $6 AND round_gate.state = 'assessing'
+	             ))
        )
     RETURNING audit.*
 ), inserted_execution AS (

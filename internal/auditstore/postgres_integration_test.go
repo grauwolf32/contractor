@@ -39,7 +39,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	create := CreateDraftParams{
 		AuditID: "audit-one", OwnerID: "owner-audit", ProjectID: project.ProjectID,
 		Profile:         ProfileIdentity{Name: "checklist", Version: "1", Digest: testDigest("2")},
-		ProfileSnapshot: json.RawMessage(`{"name":"checklist","workflows":{"check":{"kind":"check"},"discovery":{"kind":"discovery"}}}`),
+		ProfileSnapshot: json.RawMessage(`{"name":"checklist","workflows":{"check":{"kind":"check"},"discovery":{"kind":"discovery"},"assessment":{"kind":"assessment"}}}`),
 		InputSelection:  json.RawMessage(`{"checklist":{"namespace":"docs","name":"checks","revision":"r1"}}`),
 		Limits:          Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1024},
 		IdempotencyKey:  "audit-create", RequestDigest: testDigest("3"),
@@ -494,9 +494,37 @@ SELECT finding.state, finding.revision,
 	if err != nil || active.State != AuditActive {
 		t.Fatalf("claimed transition to active = (%+v, %v)", active, err)
 	}
+	currentRound, err := store.GetRound(ctx, create.AuditID, roundID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.TransitionRound(ctx, RoundTransitionParams{
+		Claim: newClaim, RoundID: roundID, ExpectedRevision: currentRound.Revision,
+		ExpectedState: RoundExecuting, TargetState: RoundAssessing,
+	}); err != nil {
+		t.Fatalf("begin assessment phase: %v", err)
+	}
+	for _, invalid := range []CreateExecutionIntentParams{
+		{
+			Claim: newClaim, ExecutionID: "late-discovery", RoundID: &roundID,
+			Role: ExecutionDiscovery, WorkflowRole: "discovery", RoleAttempt: intPointer(1),
+			Manifest:      testExact("audits", "late-discovery", "manifest-r1"),
+			SubmissionKey: "late-discovery-submission", RequestDigest: testDigest("a"),
+		},
+		{
+			Claim: newClaim, ExecutionID: "over-budget-assessment", RoundID: &roundID,
+			Role: ExecutionAssessment, WorkflowRole: "assessment", RoleAttempt: intPointer(3),
+			Manifest:      testExact("audits", "over-budget-assessment", "manifest-r1"),
+			SubmissionKey: "over-budget-assessment-submission", RequestDigest: testDigest("b"),
+		},
+	} {
+		if _, inserted, createErr := store.CreateExecutionIntent(ctx, invalid); !errors.Is(createErr, ErrPrecondition) || inserted {
+			t.Fatalf("invalid role phase/budget intent = (%t, %v)", inserted, createErr)
+		}
+	}
 	fencedIntent, _, err := store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
-		Claim: newClaim, ExecutionID: "execution-project-fence", Role: ExecutionDiscovery,
-		WorkflowRole: "discovery",
+		Claim: newClaim, ExecutionID: "execution-project-fence", RoundID: &roundID, Role: ExecutionAssessment,
+		WorkflowRole: "assessment",
 		RoleAttempt:  intPointer(1), Manifest: testExact("audits", "fenced-intent", "manifest-r1"),
 		SubmissionKey: "fenced-intent-submission", RequestDigest: testDigest("1"),
 		Members: []ExecutionMemberIntent{},
@@ -536,8 +564,8 @@ SELECT finding.state, finding.revision,
 		t.Fatalf("start replay after Project fence = (%+v, %t, %v)", replay, inserted, replayErr)
 	}
 	_, _, err = store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
-		Claim: newClaim, ExecutionID: "fenced-execution", Role: ExecutionDiscovery, RoleAttempt: intPointer(1),
-		WorkflowRole: "discovery",
+		Claim: newClaim, ExecutionID: "fenced-execution", RoundID: &roundID, Role: ExecutionAssessment, RoleAttempt: intPointer(1),
+		WorkflowRole: "assessment",
 		Manifest:     testExact("audits", "fenced", "manifest-r1"), SubmissionKey: "fenced-submission", RequestDigest: testDigest("b"),
 		Members: []ExecutionMemberIntent{},
 	})
@@ -548,6 +576,12 @@ SELECT finding.state, finding.revision,
 	snapshot, err := recoveredStore.GetReconcileSnapshot(ctx, newClaim)
 	if err != nil || len(snapshot.Executions) != 0 || len(snapshot.Items) != 0 || len(snapshot.Receipts) != 4 {
 		t.Fatalf("reconcile snapshot = (%+v, %v)", snapshot, err)
+	}
+	if len(snapshot.RoleExecutions) != 1 || len(snapshot.RoleReceipts) != 1 ||
+		snapshot.RoleExecutions[0].WorkflowRole != "assessment" ||
+		snapshot.RoleReceipts[0].Disposition != CollectionExecutionFailed {
+		t.Fatalf("reconcile role history = (executions=%+v, receipts=%+v)",
+			snapshot.RoleExecutions, snapshot.RoleReceipts)
 	}
 	if snapshot.Audit.Revision != snapshot.Audit.EventSequence {
 		t.Fatalf("Audit projection revision = %d, event sequence = %d", snapshot.Audit.Revision, snapshot.Audit.EventSequence)

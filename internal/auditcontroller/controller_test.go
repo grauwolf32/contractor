@@ -2,6 +2,7 @@ package auditcontroller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -144,7 +146,9 @@ func TestControllerCollectsClosesBarrierAndFinalizesReport(t *testing.T) {
 		t.Fatalf("dispatch = (%t, %v)", worked, err)
 	}
 	harness.finishOldest(t, runstore.RunSucceeded)
-	for step, name := range []string{"observe", "collect", "close round", "begin finalizing", "commit report"} {
+	for step, name := range []string{
+		"observe", "collect", "begin assessment", "close round", "begin finalizing", "commit report",
+	} {
 		if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
 			t.Fatalf("%s at step %d = (%t, %v)", name, step, worked, err)
 		}
@@ -152,6 +156,30 @@ func TestControllerCollectsClosesBarrierAndFinalizesReport(t *testing.T) {
 	audit := harness.store.auditSnapshot()
 	if audit.State != auditstore.AuditCompleted || collector.collects.Load() != 1 || collector.finalizes.Load() != 1 {
 		t.Fatalf("terminal Audit = %+v, collects=%d finalizes=%d", audit, collector.collects.Load(), collector.finalizes.Load())
+	}
+}
+
+func TestRoleDispositionRetryabilityIsExplicit(t *testing.T) {
+	evidenceBudget := "evidence-budget-exhausted"
+	for _, test := range []struct {
+		name        string
+		disposition auditstore.CollectionDisposition
+		code        *string
+		want        bool
+	}{
+		{"failed execution", auditstore.CollectionExecutionFailed, nil, true},
+		{"missing output", auditstore.CollectionMissingOutput, nil, true},
+		{"invalid output", auditstore.CollectionInvalidResult, nil, true},
+		{"evidence budget", auditstore.CollectionInvalidResult, &evidenceBudget, false},
+		{"cancelled", auditstore.CollectionExecutionCancelled, nil, false},
+		{"contract invalid", auditstore.CollectionContractInvalid, nil, false},
+		{"accepted", auditstore.CollectionAccepted, nil, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := roleDispositionRetryable(test.disposition, test.code); got != test.want {
+				t.Fatalf("role disposition retryable = %t, want %t", got, test.want)
+			}
+		})
 	}
 }
 
@@ -167,7 +195,7 @@ type controllerHarness struct {
 func newControllerHarness(t *testing.T, itemCount, window int) *controllerHarness {
 	t.Helper()
 	ctx := context.Background()
-	store := newFakeControllerStore(itemCount, window)
+	store := newFakeControllerStore(t, itemCount, window)
 	runs := &fakeControllerRuns{runs: make(map[string]runstore.WorkflowRun), cursors: make(map[string]runstore.WorkflowRunEventCursor)}
 	creator := &fakeControllerCreator{store: store, runs: runs}
 	notifier := &fakeControllerNotifier{}
@@ -195,6 +223,12 @@ func (h *controllerHarness) finishOldest(t *testing.T, state runstore.WorkflowRu
 }
 
 type fakeSubmissionBuilder struct{}
+
+func (fakeSubmissionBuilder) PrepareRole(
+	_ context.Context, _ auditstore.ReconcileSnapshot, _ string, _ int,
+) (PreparedSubmission, error) {
+	return PreparedSubmission{}, ErrInvalidSubmission
+}
 
 func (fakeSubmissionBuilder) Prepare(
 	_ context.Context, snapshot auditstore.ReconcileSnapshot, item auditstore.Item, attempt int,
@@ -238,13 +272,30 @@ type fakeControllerStore struct {
 	maxOutstanding int
 }
 
-func newFakeControllerStore(itemCount, window int) *fakeControllerStore {
+func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
+	t.Helper()
+	snapshot, err := config.Load("../../configs", config.MVPDescriptors())
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := snapshot.AuditProfile("source-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileJSON, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
 	deadline := time.Now().Add(time.Hour)
 	roundID := "round-test"
 	store := &fakeControllerStore{
 		audit: auditstore.Audit{
 			AuditID: "audit-test", OwnerID: "owner-test", ProjectID: "project-test",
-			State: auditstore.AuditActive, Revision: 2, CurrentRoundID: &roundID,
+			Profile: auditstore.ProfileIdentity{
+				Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+			},
+			ProfileSnapshot: profileJSON,
+			State:           auditstore.AuditActive, Revision: 2, CurrentRoundID: &roundID,
 			Dispatch: auditstore.DispatchOpen, DeadlineAt: &deadline,
 			Limits: auditstore.Limits{
 				MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: itemCount,

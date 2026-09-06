@@ -218,8 +218,11 @@ Workflow:
 - `execution-manifest` maps the Controller-generated exact one-execution
   manifest into an `application/json` Workflow input without making it part of
   its own digest-bearing member list;
-- `retained-output` identifies a declared logical output of another bound role
-  and cycles are rejected;
+- `retained-output` identifies a declared logical output of another bound role;
+  cycles, dependencies on per-item `check` outputs, and dependencies on a
+  later execution phase are rejected. Discovery outputs may feed later
+  discovery/check/assessment roles, while assessment outputs may only feed a
+  later assessment role in the same phase;
 - literal parameter values are bounded strings; item/scope fields come from a
   closed trusted enum rather than model-selected object paths;
 - every output consumed by the Audit importer is required by the child

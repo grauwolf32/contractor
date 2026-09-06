@@ -522,7 +522,10 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Audit Controller artifacts: %w", err)
 	}
-	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(auditArtifactAccess)
+	auditSubmissionStore := auditstore.NewPostgresStore(pool)
+	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(
+		auditArtifactAccess, auditSubmissionStore,
+	)
 	if err != nil {
 		return fmt.Errorf("configure Audit Controller submissions: %w", err)
 	}

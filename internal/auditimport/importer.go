@@ -70,8 +70,16 @@ func (i *Importer) collect(
 	if err != nil {
 		return false, err
 	}
-	if len(members) == 0 || len(members) > auditstore.MaxCollectionItems {
+	if len(members) > auditstore.MaxCollectionItems ||
+		(execution.Role == auditstore.ExecutionCheck && len(members) == 0) ||
+		(execution.Role != auditstore.ExecutionCheck && len(members) != 0) {
 		return false, fmt.Errorf("%w: collection membership is invalid", ErrPermanent)
+	}
+	if execution.Role != auditstore.ExecutionCheck {
+		if err := i.retainFindingProposals(ctx, snapshot, execution); err != nil {
+			return false, err
+		}
+		return i.collectRole(ctx, claim, snapshot, execution)
 	}
 	prepared, err := i.prepareMembers(ctx, snapshot, members)
 	if err != nil {
@@ -93,6 +101,162 @@ func (i *Importer) collect(
 	default:
 		return false, fmt.Errorf("%w: terminal outcome is unsupported", ErrPermanent)
 	}
+}
+
+func (i *Importer) collectRole(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+	execution auditstore.Execution,
+) (bool, error) {
+	if execution.RoleAttempt == nil || *execution.RoleAttempt < 1 || execution.RoundID == nil ||
+		snapshot.Round == nil || snapshot.Round.RoundID != *execution.RoundID {
+		return false, fmt.Errorf("%w: role execution identity is invalid", ErrPermanent)
+	}
+	switch *execution.TerminalOutcome {
+	case auditstore.TerminalFailed, auditstore.TerminalSubmissionFailed:
+		code := "execution-failed"
+		return i.commitCollection(ctx, claim, execution,
+			auditstore.CollectionExecutionFailed, nil, nil, &code, nil)
+	case auditstore.TerminalCancelled:
+		code := "execution-cancelled"
+		return i.commitCollection(ctx, claim, execution,
+			auditstore.CollectionExecutionCancelled, nil, nil, &code, nil)
+	case auditstore.TerminalSucceeded:
+		return i.collectSucceededRole(ctx, claim, snapshot, execution)
+	default:
+		return false, fmt.Errorf("%w: terminal role outcome is unsupported", ErrPermanent)
+	}
+}
+
+func (i *Importer) collectSucceededRole(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+	execution auditstore.Execution,
+) (bool, error) {
+	if execution.RunID == nil {
+		return false, fmt.Errorf("%w: succeeded role execution has no Run", ErrPermanent)
+	}
+	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
+		profile.Ref.Version != snapshot.Audit.Profile.Version ||
+		profile.Ref.Digest != snapshot.Audit.Profile.Digest {
+		return false, fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
+	}
+	binding, exists := profile.Workflows[execution.WorkflowRole]
+	if !exists || auditstore.ExecutionRole(binding.Kind) != execution.Role ||
+		binding.Kind == config.AuditWorkflowCheck {
+		return false, fmt.Errorf("%w: role binding is inconsistent", ErrPermanent)
+	}
+	run, err := i.runs.GetRun(ctx, *execution.RunID)
+	if err != nil {
+		return false, err
+	}
+	if run.State != runstore.RunSucceeded || run.PublicationMode != runstore.PublicationAuditManaged ||
+		run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID ||
+		run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID {
+		return false, fmt.Errorf("%w: source Run identity is invalid", ErrPermanent)
+	}
+
+	logicalNames := sortedStringKeys(binding.Outputs)
+	links := make([]auditstore.ArtifactLink, 0, len(logicalNames))
+	var source *auditstore.ExactArtifact
+	var totalBytes int64
+	for _, logicalName := range logicalNames {
+		slotName := binding.Outputs[logicalName]
+		contract, exists := binding.Workflow.Outputs[slotName]
+		if !exists || !contract.Required {
+			return false, fmt.Errorf("%w: role output contract is invalid", ErrPermanent)
+		}
+		descriptor, _, frozen, readErr := i.artifacts.ReadRunBinding(
+			ctx, run.RunID, contracts.ArtifactRef{Namespace: "outputs", Name: slotName},
+		)
+		if errors.Is(readErr, artifacts.ErrArtifactNotFound) {
+			code := "missing-role-output"
+			return i.commitCollection(ctx, claim, execution,
+				auditstore.CollectionMissingOutput, nil, nil, &code, nil)
+		}
+		if readErr != nil {
+			return false, readErr
+		}
+		if !frozen || !contains(contract.MediaTypes, descriptor.MediaType) {
+			code := "invalid-role-output"
+			return i.commitCollection(ctx, claim, execution,
+				auditstore.CollectionInvalidResult, &descriptor, nil, &code, nil)
+		}
+		totalBytes += descriptor.SizeBytes
+		if totalBytes < 0 || totalBytes > snapshot.Audit.Limits.MaxEvidenceBytes-snapshot.Audit.RetainedEvidenceBytes {
+			code := "evidence-budget-exhausted"
+			return i.commitCollection(ctx, claim, execution,
+				auditstore.CollectionInvalidResult, &descriptor, nil, &code, nil)
+		}
+		retained, retainErr := i.artifacts.RetainRunExact(
+			ctx, run.RunID, descriptor, snapshot.Audit.ProjectID,
+			contracts.ArtifactRef{
+				Namespace: auditdomain.ArtifactNamespace(snapshot.Audit.AuditID),
+				Name: deterministicID(
+					"role-output", snapshot.Round.RoundID, execution.WorkflowRole, logicalName,
+				),
+			},
+		)
+		if retainErr != nil {
+			return false, retainErr
+		}
+		provenance, encodeErr := json.Marshal(struct {
+			Schema          string                   `json:"schema"`
+			AuditID         string                   `json:"auditId"`
+			RoundID         string                   `json:"roundId"`
+			ExecutionID     string                   `json:"executionId"`
+			ExecutionRole   auditstore.ExecutionRole `json:"executionRole"`
+			WorkflowRole    string                   `json:"workflowRole"`
+			RoleAttempt     int                      `json:"roleAttempt"`
+			RunID           string                   `json:"runId"`
+			WorkflowName    string                   `json:"workflowName"`
+			WorkflowVersion string                   `json:"workflowVersion"`
+			WorkflowDigest  string                   `json:"workflowClosureDigest"`
+			LogicalOutput   string                   `json:"logicalOutput"`
+			WorkflowOutput  string                   `json:"workflowOutput"`
+			SourceOutput    auditstore.ExactArtifact `json:"sourceOutput"`
+		}{
+			Schema:  "contractor.audit.role-output-provenance.v1",
+			AuditID: snapshot.Audit.AuditID, RoundID: snapshot.Round.RoundID,
+			ExecutionID: execution.ExecutionID, ExecutionRole: execution.Role,
+			WorkflowRole: execution.WorkflowRole, RoleAttempt: *execution.RoleAttempt,
+			RunID: run.RunID, WorkflowName: run.WorkflowName,
+			WorkflowVersion: run.WorkflowVersion,
+			WorkflowDigest:  digestBytes(run.WorkflowSnapshot),
+			LogicalOutput:   logicalName, WorkflowOutput: slotName, SourceOutput: descriptor,
+		})
+		if encodeErr != nil {
+			return false, encodeErr
+		}
+		links = append(links, auditstore.ArtifactLink{
+			LogicalKey: auditstore.RoleOutputLogicalKey(
+				snapshot.Round.Ordinal, execution.WorkflowRole, logicalName,
+			),
+			Artifact: retained, SourceProvenance: provenance,
+		})
+		if source == nil {
+			value := descriptor
+			source = &value
+		}
+	}
+	if source == nil {
+		return false, fmt.Errorf("%w: role has no output contract", ErrPermanent)
+	}
+	return i.commitCollection(
+		ctx, claim, execution, auditstore.CollectionAccepted, source, links, nil, nil,
+	)
+}
+
+func sortedStringKeys[T any](values map[string]T) []string {
+	result := make([]string, 0, len(values))
+	for key := range values {
+		result = append(result, key)
+	}
+	sort.Strings(result)
+	return result
 }
 
 // retainFindingProposals runs before the collection receipt commits. The

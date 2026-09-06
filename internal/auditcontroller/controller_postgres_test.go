@@ -641,7 +641,7 @@ func (h *postgresControllerHarness) builder(t *testing.T) *PinnedSubmissionBuild
 	if err != nil {
 		t.Fatal(err)
 	}
-	builder, err := NewPinnedSubmissionBuilder(access)
+	builder, err := NewPinnedSubmissionBuilder(access, h.audits)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -749,6 +749,28 @@ func validateRetainedOutputDependencies(
 			return err
 		}
 	}
+	phase := map[AuditWorkflowRoleKind]int{
+		AuditWorkflowDiscovery:  0,
+		AuditWorkflowCheck:      1,
+		AuditWorkflowAssessment: 2,
+	}
+	for _, role := range sortedMapKeys(workflows) {
+		for _, dependency := range dependencies[role] {
+			source, destination := workflows[dependency], workflows[role]
+			if source.Kind == AuditWorkflowCheck {
+				return fmt.Errorf(
+					"spec.workflows.%s cannot consume retained output from check role %q",
+					role, dependency,
+				)
+			}
+			if phase[source.Kind] > phase[destination.Kind] {
+				return fmt.Errorf(
+					"spec.workflows.%s retained-output dependency %q belongs to a later execution phase",
+					role, dependency,
+				)
+			}
+		}
+	}
 	return nil
 }
 

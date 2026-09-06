@@ -73,6 +73,7 @@ type PreparedSubmission struct {
 
 type SubmissionBuilder interface {
 	Prepare(context.Context, auditstore.ReconcileSnapshot, auditstore.Item, int) (PreparedSubmission, error)
+	PrepareRole(context.Context, auditstore.ReconcileSnapshot, string, int) (PreparedSubmission, error)
 }
 
 type Collector interface {

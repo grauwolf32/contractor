@@ -561,6 +561,18 @@ SELECT `+prefixedAuditColumns("audit")+`
 	if len(result.Executions) > MaxReconcileRows {
 		result.Executions, result.MoreExecutions = result.Executions[:MaxReconcileRows], true
 	}
+	var currentRoundID *string
+	if result.Round != nil {
+		currentRoundID = &result.Round.RoundID
+	}
+	result.RoleExecutions, err = s.listRoleExecutions(ctx, audit.AuditID, currentRoundID)
+	if err != nil {
+		return ReconcileSnapshot{}, err
+	}
+	result.RoleReceipts, err = s.listRoleReceipts(ctx, audit.AuditID, currentRoundID)
+	if err != nil {
+		return ReconcileSnapshot{}, err
+	}
 	rows, err := s.db.Query(ctx, `
 SELECT receipt_id, audit_id, execution_id, run_id,
        terminal_outcome, terminal_run_generation, terminal_run_sequence,
@@ -584,6 +596,71 @@ SELECT receipt_id, audit_id, execution_id, run_id,
 	}
 	if len(result.Receipts) > MaxReconcileRows {
 		result.Receipts, result.MoreReceipts = result.Receipts[:MaxReconcileRows], true
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) listRoleReceipts(
+	ctx context.Context, auditID string, roundID *string,
+) ([]CollectionReceiptSummary, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT receipt.receipt_id, receipt.audit_id, receipt.execution_id, receipt.run_id,
+       receipt.terminal_outcome, receipt.terminal_run_generation,
+       receipt.terminal_run_sequence, receipt.disposition, receipt.error_code,
+       receipt.request_digest, receipt.created_at
+  FROM audit_collection_receipts AS receipt
+  JOIN audit_executions AS execution USING (execution_id)
+ WHERE execution.audit_id = $1 AND execution.role IN ('discovery', 'assessment')
+   AND execution.round_id IS NOT DISTINCT FROM $2
+ ORDER BY execution.role, execution.workflow_role, execution.role_attempt, execution.execution_id
+ LIMIT $3`, auditID, roundID, MaxAuditRoleExecutionsPerRound+1)
+	if err != nil {
+		return nil, fmt.Errorf("list Audit role collection receipts: %w", err)
+	}
+	defer rows.Close()
+	result := make([]CollectionReceiptSummary, 0)
+	for rows.Next() {
+		receipt, scanErr := scanReceiptSummary(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan Audit role collection receipt: %w", scanErr)
+		}
+		result = append(result, receipt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(result) > MaxAuditRoleExecutionsPerRound {
+		return nil, errors.New("stored Audit role receipts exceed their per-Round bound")
+	}
+	return result, nil
+}
+
+func (s *PostgresStore) listRoleExecutions(
+	ctx context.Context, auditID string, roundID *string,
+) ([]Execution, error) {
+	rows, err := s.db.Query(ctx, `
+SELECT `+executionColumns+` FROM audit_executions
+ WHERE audit_id = $1 AND role IN ('discovery', 'assessment')
+   AND round_id IS NOT DISTINCT FROM $2
+ ORDER BY role, workflow_role, role_attempt, execution_id
+ LIMIT $3`, auditID, roundID, MaxAuditRoleExecutionsPerRound+1)
+	if err != nil {
+		return nil, fmt.Errorf("list Audit role executions: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Execution, 0)
+	for rows.Next() {
+		execution, scanErr := scanExecution(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan Audit role execution: %w", scanErr)
+		}
+		result = append(result, execution)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(result) > MaxAuditRoleExecutionsPerRound {
+		return nil, errors.New("stored Audit role executions exceed their per-Round bound")
 	}
 	return result, nil
 }
