@@ -93,6 +93,7 @@ if TYPE_CHECKING:
 
     from contractor_runtime.factories import WorkerBuildContext
 
+INVOCATION_CLEANUP_TIMEOUT_SECONDS = 5.0
 MAX_STAGE_REQUEST_JSON_BYTES = 256 * 1024
 MAX_STAGE_RESULT_JSON_BYTES = MAX_EXPORTED_RESULT_JSON_BYTES
 MAX_RESULT_ARTIFACTS = MAX_EXPORTED_RESULT_ARTIFACTS
@@ -452,73 +453,123 @@ class AdkWorkerRuntime:
             return await self._untracked_failure_completion(
                 "worker_busy", "Worker already has an active A2A invocation", True
             )
-        await self._invoke_lock.acquire()
-        self._active_task = asyncio.current_task()
-        if not self._accepting:
-            try:
-                return await self._untracked_failure_completion(
-                    "worker_draining", "Worker is no longer accepting A2A work", True
-                )
-            finally:
-                self._active_task = None
-                self._invoke_lock.release()
         encoded_request = request.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8")
         if len(encoded_request) > MAX_STAGE_REQUEST_JSON_BYTES:
-            try:
-                return await self._untracked_failure_completion(
-                    "stage_content_too_large",
-                    "StageContentRequest exceeds the Worker limit",
-                    False,
-                )
-            finally:
-                self._active_task = None
-                self._invoke_lock.release()
-        try:
-            session_id = await self._session_lifecycle.begin_invocation(
-                await self._worker_state.snapshot()
+            return await self._untracked_failure_completion(
+                "stage_content_too_large",
+                "StageContentRequest exceeds the Worker limit",
+                False,
             )
-        except asyncio.CancelledError:
-            if self._session_lifecycle.failed:
-                self._accepting = False
-            self._active_task = None
-            self._invoke_lock.release()
-            raise
+        completion: WorkerCompletion | None = None
+        try:
+            async with self._invocation_ownership() as (session_id, budget):
+                completion = await self._execute_invocation(request, session_id, budget)
+            return completion
         except WorkerSessionLifecycleError as error:
             self._accepting = False
-            try:
-                return await self._untracked_failure_completion(
-                    "worker_session_lifecycle_failed",
-                    f"Worker session lifecycle failed ({error.code})",
-                    True,
+            if completion is not None:
+                # Cleanup failure replaces success, but retains the invocation
+                # identity and terminal State revision already published.
+                return completion.model_copy(
+                    update={
+                        "result": None,
+                        "failure": completion.failure
+                        or _failure(
+                            "worker_session_lifecycle_failed",
+                            f"Worker session lifecycle failed ({error.code})",
+                            True,
+                        ),
+                    }
                 )
+            return await self._untracked_failure_completion(
+                "worker_session_lifecycle_failed",
+                f"Worker session lifecycle failed ({error.code})",
+                True,
+            )
+
+    @contextlib.asynccontextmanager
+    async def _invocation_ownership(
+        self,
+    ) -> AsyncGenerator[tuple[str, _InvocationBudget]]:
+        """Own the lock, task, session and budget across every acquisition/exit."""
+
+        await self._invoke_lock.acquire()
+        session_acquired = False
+        invocation_failed = False
+        try:
+            self._active_task = asyncio.current_task()
+            try:
+                session_id = await self._session_lifecycle.begin_invocation(
+                    await self._worker_state.snapshot()
+                )
+            except asyncio.CancelledError:
+                if self._session_lifecycle.failed:
+                    self._accepting = False
+                raise
+            except WorkerSessionLifecycleError:
+                self._accepting = False
+                raise
+            except Exception as error:
+                self._accepting = False
+                raise WorkerSessionLifecycleError("state_snapshot_failed") from error
+            session_acquired = True
+            policy = self._context.model_policy
+            budget = _InvocationBudget(
+                max_model_calls=policy.max_model_calls,
+                max_tool_calls=policy.max_tool_calls,
+                max_total_tokens=policy.max_total_tokens,
+                metrics=self._metrics,
+                cumulative_budget=(
+                    self._context.summarizer.cumulative_budget
+                    if self._context.summarizer is not None
+                    else None
+                ),
+                summary_prompt_boundary=_summary_prompt_boundary(policy, self._context.summarizer),
+            )
+            self._active_budget = budget
+            yield session_id, budget
+        except BaseException:
+            invocation_failed = True
+            raise
+        finally:
+            try:
+                if session_acquired:
+                    try:
+                        await self._release_invocation_session()
+                    except Exception:
+                        self._accepting = False
+                        if not invocation_failed:
+                            raise
             finally:
+                self._active_budget = None
                 self._active_task = None
                 self._invoke_lock.release()
-        except Exception:
-            self._accepting = False
+
+    async def _release_invocation_session(self) -> None:
+        async def release() -> None:
             try:
-                return await self._untracked_failure_completion(
-                    "worker_session_lifecycle_failed",
-                    "Worker session lifecycle failed (state_snapshot_failed)",
-                    True,
+                await asyncio.wait_for(
+                    self._session_lifecycle.finish_invocation(),
+                    timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS,
                 )
-            finally:
-                self._active_task = None
-                self._invoke_lock.release()
-        policy = self._context.model_policy
-        budget = _InvocationBudget(
-            max_model_calls=policy.max_model_calls,
-            max_tool_calls=policy.max_tool_calls,
-            max_total_tokens=policy.max_total_tokens,
-            metrics=self._metrics,
-            cumulative_budget=(
-                self._context.summarizer.cumulative_budget
-                if self._context.summarizer is not None
-                else None
-            ),
-            summary_prompt_boundary=_summary_prompt_boundary(policy, self._context.summarizer),
-        )
-        self._active_budget = budget
+            except TimeoutError as error:
+                raise WorkerSessionLifecycleError("cleanup_timeout") from error
+
+        task = asyncio.create_task(release(), name="worker-invocation-session-release")
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Retain ownership until the bounded release settles, including
+            # cancellation arriving during normal-completion cleanup.
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                await task
+            if self._session_lifecycle.failed:
+                self._accepting = False
+            raise
+
+    async def _execute_invocation(
+        self, request: StageContentRequest, session_id: str, budget: _InvocationBudget
+    ) -> WorkerCompletion:
         model_errors_before = self._metrics.counters.get("llm_errors", 0)
         invocation_id = f"worker-{uuid.uuid4().hex}"
         invocation_phase: InvocationPhase = "failed"
@@ -575,25 +626,27 @@ class AdkWorkerRuntime:
             invocation_phase = "failed"
         finally:
             try:
-                try:
-                    state_snapshot = await self._finish_invocation_state(
-                        invocation_id,
-                        request.subtask_id,
-                        invocation_phase,
-                        session_id,
-                    )
-                except WorkerSessionLifecycleError as error:
-                    self._accepting = False
+                state_snapshot = await self._finish_invocation_state(
+                    invocation_id,
+                    request.subtask_id,
+                    invocation_phase,
+                    session_id,
+                )
+            except WorkerSessionLifecycleError as error:
+                self._accepting = False
+                if invocation_phase != "cancelled":
                     state_snapshot = await self._worker_state.snapshot()
                     outcome = _failure(
                         "worker_session_lifecycle_failed",
                         f"Worker session lifecycle failed ({error.code})",
                         True,
                     )
-            finally:
-                self._active_budget = None
-                self._active_task = None
-                self._invoke_lock.release()
+            except Exception:
+                # State teardown must never replace cancellation with an error
+                # or a successful completion.
+                self._accepting = False
+                if invocation_phase != "cancelled":
+                    raise
         if state_snapshot is None:
             raise RuntimeError("Worker State did not produce a terminal revision")
         if isinstance(outcome, WorkerResult):
@@ -1047,30 +1100,30 @@ class AdkWorkerRuntime:
         session_id: str,
     ) -> dict[str, Any]:
         async def finish() -> dict[str, Any]:
-            try:
-                snapshot = await self._plugin.complete_invocation(
+            snapshot = await self._plugin.complete_invocation(
+                invocation_id=invocation_id,
+                phase=phase,
+            )
+            if snapshot is None:
+                metrics = _empty_invocation_metrics()
+                await self._worker_state.begin_invocation(
+                    invocation_id=invocation_id,
+                    subtask_id=subtask_id,
+                    metrics=metrics,
+                    summarizer_enabled=self._context.summarizer is not None,
+                )
+                snapshot = await self._worker_state.complete_invocation(
                     invocation_id=invocation_id,
                     phase=phase,
+                    metrics=metrics,
                 )
-                if snapshot is None:
-                    metrics = _empty_invocation_metrics()
-                    await self._worker_state.begin_invocation(
-                        invocation_id=invocation_id,
-                        subtask_id=subtask_id,
-                        metrics=metrics,
-                        summarizer_enabled=self._context.summarizer is not None,
-                    )
-                    snapshot = await self._worker_state.complete_invocation(
-                        invocation_id=invocation_id,
-                        phase=phase,
-                        metrics=metrics,
-                    )
-                await self._sync_worker_state(snapshot, session_id)
-                return snapshot
-            finally:
-                await self._session_lifecycle.finish_invocation()
+            await self._sync_worker_state(snapshot, session_id)
+            return snapshot
 
-        task = asyncio.create_task(finish(), name="worker-invocation-state-finalize")
+        task = asyncio.create_task(
+            asyncio.wait_for(finish(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS),
+            name="worker-invocation-state-finalize",
+        )
         try:
             return await asyncio.shield(task)
         except asyncio.CancelledError:

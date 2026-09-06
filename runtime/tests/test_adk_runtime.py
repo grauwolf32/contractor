@@ -47,6 +47,7 @@ from contractor_runtime.contracts import (
     WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.session_lifecycle import WorkerSessionLifecycleError
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
@@ -1575,6 +1576,180 @@ def test_abort_cancels_long_running_adk_invocation(tmp_path: Path) -> None:
         assert state.metrics.final_outcome == "cancelled"
         assert state.metrics.counters["llm_calls"] == 1
         assert SECRET not in repr(state.metrics)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+def test_partial_invocation_acquisition_releases_session_and_preserves_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: WorkerSessionMode
+) -> None:
+    async def scenario() -> None:
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            scripted_model([terminal_text("next")]),
+            session_mode=mode,
+        )
+        released: list[str | None] = []
+        finish = runtime._session_lifecycle.finish_invocation
+
+        async def record_finish() -> None:
+            released.append(runtime._session_lifecycle.active_session_id)
+            await finish()
+
+        def fail_budget(*_args: Any) -> Any:
+            raise RuntimeError("original budget acquisition failure")
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", record_finish)
+        with monkeypatch.context() as patch:
+            patch.setattr("contractor_runtime.adk_runtime._summary_prompt_boundary", fail_budget)
+            with pytest.raises(RuntimeError, match="original budget acquisition failure"):
+                await runtime.invoke(stage_request())
+        assert len(released) == 1 and released[0] is not None
+        assert runtime._session_lifecycle.active_session_id is None
+        assert runtime._active_task is None
+        assert runtime._active_budget is None
+        assert not runtime._invoke_lock.locked()
+        assert (await runtime.invoke(stage_request())).result is not None
+        assert len(released) == 2
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+@pytest.mark.parametrize("outcome", ["success", "budget", "finalizer"])
+def test_invocation_ownership_cleans_up_all_execution_outcomes(
+    tmp_path: Path, mode: WorkerSessionMode, outcome: str
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model(
+            [terminal_text("result")],
+            result_finalizer_error=RuntimeError("private finalizer failure")
+            if outcome == "finalizer"
+            else None,
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            model,
+            session_mode=mode,
+            max_model_calls=1 if outcome == "budget" else 8,
+        )
+        completion = await runtime.invoke(stage_request())
+        assert (completion.result is not None) is (outcome == "success")
+        assert runtime._active_task is None
+        assert runtime._active_budget is None
+        assert not runtime._invoke_lock.locked()
+        assert runtime._session_lifecycle.active_session_id is None
+        # A failed invocation does not orphan ownership or fence a healthy session.
+        async with runtime._invocation_ownership():
+            assert runtime._active_task is asyncio.current_task()
+            assert runtime._active_budget is not None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cancellation_during_session_cleanup_cannot_publish_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        runtime = await create_runtime(
+            tmp_path,
+            WorkerState(),
+            {},
+            scripted_model([terminal_text("result")]),
+            session_mode=WorkerSessionMode.ISOLATED,
+        )
+        entered, proceed = asyncio.Event(), asyncio.Event()
+        finish = runtime._session_lifecycle.finish_invocation
+        releases = 0
+
+        async def delayed_finish() -> None:
+            nonlocal releases
+            releases += 1
+            entered.set()
+            await proceed.wait()
+            await finish()
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", delayed_finish)
+        task = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        task.cancel()
+        assert runtime._invoke_lock.locked()
+        proceed.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert releases == 1
+        assert runtime._active_task is None
+        assert runtime._active_budget is None
+        assert not runtime._invoke_lock.locked()
+        assert runtime._session_lifecycle.active_session_id is None
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_cleanup_failure_does_not_mask_cancelled_invocation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        model = scripted_model([terminal_text("late")], block=True)
+        runtime = await create_runtime(tmp_path, WorkerState(), {}, model)
+
+        async def fail_finish() -> None:
+            raise WorkerSessionLifecycleError("delete_failed")
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", fail_finish)
+        task = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(model.started.wait(), timeout=1)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert runtime._active_task is None
+        assert runtime._active_budget is None
+        assert not runtime._invoke_lock.locked()
+        assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        state = WorkerState()
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {},
+            scripted_model([terminal_text("result")]),
+        )
+
+        async def stuck_finish() -> None:
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", stuck_finish)
+        monkeypatch.setattr(
+            "contractor_runtime.adk_runtime.INVOCATION_CLEANUP_TIMEOUT_SECONDS", 0.05
+        )
+        completion = await asyncio.wait_for(runtime.invoke(stage_request()), timeout=1)
+        assert completion.result is None
+        assert completion.failure is not None
+        assert "cleanup_timeout" in completion.failure.message
+        snapshot = await state.snapshot()
+        assert completion.invocation_id == snapshot["lastCompletedInvocation"]["invocationId"]
+        assert completion.state_revision == snapshot["stateRevision"]
+        assert runtime._active_task is None
+        assert runtime._active_budget is None
+        assert not runtime._invoke_lock.locked()
+        assert not runtime._accepting
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 
