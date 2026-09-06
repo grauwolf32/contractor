@@ -3,8 +3,8 @@ id: V32-004
 title: Return allocation-scoped Runtime process resources in final reports
 milestone: operations-performance-and-profiling
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 198df586165ff9856e9c544dd3c5efc73e5bf8f4
 depends_on: [V32-001, V14-003]
 languages: [python]
 
@@ -75,3 +75,13 @@ acceptance_criteria:
 tests:
   - {name: resources, command: "cd runtime && uv run pytest -W error tests/test_resource_metrics.py tests/test_performance_contracts.py", covers: [A1, A2, A3]}
   - {name: lifecycle, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_capabilities.py tests/test_metrics.py", covers: [A1, A2, A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  review_notes: docs/reviews/2026-09-06-performance-v32-004.md
+  results:
+    - Both required commands passed on an isolated worktree at the implementation commit (72 resource/contract and 50 lifecycle/capability/metrics tests).
+    - Additional state, control-client, adapter-host, lease-watchdog and app tests passed on the same isolated commit (35 tests).
+    - Ruff lint and formatting checks passed for all seven changed Python files on the isolated commit.
+    - Shared worktree Podman, artifact and label changes were excluded from the implementation commits.
+    - No live LLM, demo deployment or whole-repository release gate was run for this task.
