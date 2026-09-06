@@ -35,6 +35,8 @@ import (
 )
 
 type RunReader interface {
+	ResumableStage(context.Context, string, string) (*string, error)
+	ResumeFailedRun(context.Context, string, string, string, string) (runstore.ResumeRunResult, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	LookupRunIdempotency(context.Context, string, string, string) (runstore.WorkflowRun, bool, error)
 	ListRuns(context.Context, runstore.ListRunsParams) ([]runstore.WorkflowRunSummary, error)
@@ -474,6 +476,7 @@ type runStatusResponse struct {
 	Workflow               string                            `json:"workflow"`
 	State                  runstore.WorkflowRunState         `json:"state"`
 	Deletable              bool                              `json:"deletable"`
+	ResumeStageExecutionID *string                           `json:"resumeStageExecutionId,omitempty"`
 	RuntimeLabels          []string                          `json:"runtimeLabels"`
 	Labels                 runstore.RunMetadataLabels        `json:"labels"`
 	RuntimeConfiguration   runRuntimeConfigResponse          `json:"runtimeConfiguration"`

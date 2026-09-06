@@ -654,6 +654,7 @@ func fakeLineageLess(left, right artifacts.LineageEdge) bool {
 }
 
 type fakeRunStore struct {
+	resumptions        map[string]runstore.ResumeRunResult
 	runs               map[string]runstore.WorkflowRun
 	executions         map[string][]runstore.StageExecution
 	allocations        map[string][]runstore.StageAllocation
@@ -665,6 +666,64 @@ type fakeRunStore struct {
 	queueControls      map[string]runstore.OwnerQueueControl
 	projects           *fakeProjectStore
 	pinRuntimeLabels   func(context.Context, []string) (runtimeconfig.RunSnapshot, error)
+}
+
+func (f *fakeRunStore) ResumableStage(ctx context.Context, ownerID, runID string) (*string, error) {
+	run, ok := f.runs[runID]
+	if !ok || run.OwnerID != ownerID {
+		return nil, runstore.ErrNotFound
+	}
+	if run.State != runstore.RunFailed || run.PublicationMode == runstore.PublicationAuditManaged {
+		return nil, nil
+	}
+	blocker, err := f.RunDeletionBlocker(ctx, ownerID, runID)
+	if err != nil || blocker != nil {
+		return nil, err
+	}
+	attempts := f.executions[runID]
+	if len(attempts) == 0 {
+		return nil, nil
+	}
+	last := attempts[len(attempts)-1]
+	if last.State != runstore.StageFailed && last.State != runstore.StageInterrupted {
+		return nil, nil
+	}
+	return &last.StageExecutionID, nil
+}
+
+func (f *fakeRunStore) ResumeFailedRun(ctx context.Context, ownerID, runID, sourceID, targetID string) (runstore.ResumeRunResult, error) {
+	run, ok := f.runs[runID]
+	if !ok || run.OwnerID != ownerID {
+		return runstore.ResumeRunResult{}, runstore.ErrNotFound
+	}
+	if value, ok := f.resumptions[runID+":"+sourceID]; ok {
+		return value, nil
+	}
+	source, err := f.ResumableStage(ctx, ownerID, runID)
+	if err != nil {
+		return runstore.ResumeRunResult{}, err
+	}
+	if source == nil || *source != sourceID {
+		return runstore.ResumeRunResult{}, runstore.ErrConflict
+	}
+	result := runstore.ResumeRunResult{RunID: runID, SourceStageExecutionID: sourceID, StageExecutionID: targetID}
+	if f.resumptions == nil {
+		f.resumptions = map[string]runstore.ResumeRunResult{}
+	}
+	f.resumptions[runID+":"+sourceID] = result
+	run.State = runstore.RunRunning
+	run.FinishedAt = nil
+	f.runs[runID] = run
+	next := f.executions[runID][len(f.executions[runID])-1]
+	next.StageExecutionID = targetID
+	next.PreviousExecutionID = &sourceID
+	next.Attempt++
+	next.State = runstore.StagePreparing
+	next.PlannerSessionID = nil
+	next.PlannerInvocationID = nil
+	next.TerminalAt = nil
+	f.executions[runID] = append(f.executions[runID], next)
+	return result, nil
 }
 
 func (f *fakeRunStore) PinRuntimeLabels(

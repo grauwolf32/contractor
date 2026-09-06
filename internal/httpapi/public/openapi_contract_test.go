@@ -153,6 +153,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"POST /v1/audits/{auditId}/findings/{findingId}/reviews",
 		"POST /v1/audits/{auditId}/pause",
 		"POST /v1/audits/{auditId}/resume",
+		"POST /v1/runs/{runId}/resume",
 		"POST /v1/audits/{auditId}/reviews/{requestId}/decisions",
 		"POST /v1/audits/{auditId}/start",
 		"POST /v1/auth/login",

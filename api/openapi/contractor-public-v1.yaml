@@ -1509,6 +1509,52 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/runs/{runId}/resume:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    post:
+      operationId: resumeRun
+      tags: [Runs]
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      summary: Continue a failed Run with a new attempt of its failed stage
+      description: >-
+        Preserves successful stages, exact failed-stage inputs and pinned configuration.
+        Requires completed allocation release. Audit-managed and evaluation Runs are excluded.
+        stageExecutionId is both the expected failed attempt and the idempotency identity;
+        repeating it returns the original continuation attempt, never another retry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [stageExecutionId]
+              properties:
+                stageExecutionId: {$ref: '#/components/schemas/ResourceId'}
+      responses:
+        '202':
+          description: Continuation accepted or its original acceptance replayed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [runId, sourceStageExecutionId, stageExecutionId]
+                properties:
+                  runId: {$ref: '#/components/schemas/ResourceId'}
+                  sourceStageExecutionId: {$ref: '#/components/schemas/ResourceId'}
+                  stageExecutionId: {$ref: '#/components/schemas/ResourceId'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /v1/runs/{runId}/cancel:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -4979,6 +5025,9 @@ components:
       additionalProperties: false
       required: [runId, workflow, state, deletable, runtimeLabels, labels, runtimeConfiguration, attempts, transitions, outputs, outputPublications]
       properties:
+        resumeStageExecutionId:
+          allOf: [{$ref: '#/components/schemas/ResourceId'}]
+          description: Present only when this failed attempt can be manually continued after cleanup.
         runId: {$ref: '#/components/schemas/ResourceId'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
         workflow: {$ref: '#/components/schemas/Selector'}

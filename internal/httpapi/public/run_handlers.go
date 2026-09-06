@@ -389,6 +389,43 @@ func (h *handler) cancelRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *handler) resumeRun(w http.ResponseWriter, r *http.Request) {
+	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	var request struct {
+		StageExecutionID string `json:"stageExecutionId"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if request.StageExecutionID == "" {
+		h.handleError(w, fmt.Errorf("%w: stageExecutionId is required", errInvalidRequest))
+		return
+	}
+	run, err := h.ownedRun(r)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	targetID, err := h.dependencies.NewID("stage_execution_")
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	result, err := h.dependencies.Runs.ResumeFailedRun(r.Context(), principalUserID(r.Context()), run.RunID, request.StageExecutionID, targetID)
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
+	if h.dependencies.RunNotifier != nil {
+		h.dependencies.RunNotifier.Wake()
+	}
+	writeJSON(w, http.StatusAccepted, result)
+}
+
 func (h *handler) deleteRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil ||
 		r.ContentLength > 0 || len(r.TransferEncoding) != 0 {
@@ -525,6 +562,14 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 	attempts := make([]stageAttemptResponse, 0, len(executions))
 	var activeExecutionID *string
 	deletable := deletionBlocker == nil
+	var resumeSource *string
+	if run.State == runstore.RunFailed {
+		resumeSource, err = h.dependencies.Runs.ResumableStage(r.Context(), run.OwnerID, run.RunID)
+		if err != nil {
+			h.handleError(w, err)
+			return
+		}
+	}
 	for _, execution := range executions {
 		stage, err := config.DecodeResolvedStageSnapshot(execution.StageSpecSnapshot)
 		if err != nil {
@@ -585,7 +630,8 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, runStatusResponse{
-		RunID: run.RunID, ProjectID: run.ProjectID,
+		ResumeStageExecutionID: resumeSource,
+		RunID:                  run.RunID, ProjectID: run.ProjectID,
 		Workflow: run.WorkflowName + "@" + run.WorkflowVersion,
 		State:    run.State, Deletable: deletable,
 		RuntimeLabels:        append([]string{}, run.RuntimeLabels...),

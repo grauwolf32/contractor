@@ -31,10 +31,24 @@ import (
 )
 
 func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) {
+	testPostgresSchedulerPublication(t, false)
+}
+
+func TestPostgresSchedulerContinuesManuallyResumedFailedStage(t *testing.T) {
+	testPostgresSchedulerPublication(t, true)
+}
+
+func testPostgresSchedulerPublication(t *testing.T, resume bool) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedSchedulerPool(t, ctx)
 	workflow := loadSchedulerWorkflow(t)
+	if resume {
+		stage := workflow.Stages[workflow.EntryStage]
+		stage.On.Failed = workflowconfig.TransitionAction{Kind: workflowconfig.TransitionFail}
+		workflow.Stages[workflow.EntryStage] = stage
+	}
 	store := runstore.NewPostgresStore(pool)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	projectID := "project-scheduler"
@@ -119,6 +133,27 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 		t.Fatal(err)
 	}
 
+	expectedAttempts := 1
+	if resume {
+		invoker.result.Artifacts = map[string]contracts.ArtifactRef{}
+		worked, err := scheduler.RunOnce(ctx)
+		if err != nil || !worked {
+			t.Fatalf("initial failure: %v %v", worked, err)
+		}
+		failed, err := store.GetRun(ctx, "run-1")
+		if err != nil || failed.State != runstore.RunFailed {
+			t.Fatalf("expected failed Run: %+v %v", failed, err)
+		}
+		source, err := store.ResumableStage(ctx, "user-1", "run-1")
+		if err != nil || source == nil {
+			t.Fatalf("continuation capability: %v %v", source, err)
+		}
+		if _, err := store.ResumeFailedRun(ctx, "user-1", "run-1", *source, "manual-continuation"); err != nil {
+			t.Fatal(err)
+		}
+		invoker.result = candidate
+		expectedAttempts = 2
+	}
 	worked, err := scheduler.RunOnce(ctx)
 	if err != nil || !worked {
 		t.Fatalf("RunOnce = (%v, %v)", worked, err)
@@ -150,8 +185,8 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 		t.Fatalf("published Project output = (%q, %v)", published.Payload.Data, err)
 	}
 	executions, err := store.ListStageExecutions(ctx, "run-1")
-	if err != nil || len(executions) != 1 || executions[0].State != runstore.StageSucceeded ||
-		executions[0].PlannerSessionID == nil || executions[0].AcceptedResult == nil {
+	if err != nil || len(executions) != expectedAttempts || executions[len(executions)-1].State != runstore.StageSucceeded ||
+		executions[len(executions)-1].PlannerSessionID == nil || executions[len(executions)-1].AcceptedResult == nil {
 		t.Fatalf("StageExecutions = (%+v, %v)", executions, err)
 	}
 	releasable, err := store.ListTerminalStageExecutionsWithAllocations(ctx)
@@ -172,7 +207,7 @@ func TestPostgresSchedulerRunsPassthroughAndPublishesFrozenOutput(t *testing.T) 
 	); !errors.Is(err, artifacts.ErrArtifactFrozen) {
 		t.Fatalf("frozen output update error = %v", err)
 	}
-	if invoker.calls != 1 || workers.prepareCalls != 1 || workers.finalizeCalls != 1 || workers.releaseCalls != 1 {
+	if invoker.calls != expectedAttempts || workers.prepareCalls != expectedAttempts || workers.finalizeCalls != 1 || workers.releaseCalls != expectedAttempts {
 		t.Fatalf("semantic/lifecycle calls = invoker:%d workers:(%d,%d,%d)",
 			invoker.calls, workers.prepareCalls, workers.finalizeCalls, workers.releaseCalls)
 	}
@@ -185,7 +220,7 @@ SELECT
 FROM artifact_pins`).Scan(&contextPins, &resultPins, &outputPins); err != nil {
 		t.Fatal(err)
 	}
-	if contextPins != 1 || resultPins != 1 || outputPins != 1 {
+	if contextPins != int64(expectedAttempts) || resultPins != 1 || outputPins != 1 {
 		t.Fatalf("artifact pins = context:%d result:%d output:%d", contextPins, resultPins, outputPins)
 	}
 }

@@ -180,6 +180,8 @@ The first useful user surface supports:
   them separately from Runtime configuration and filtering Runs by exact label
   conjunctions;
 - creating an idempotent WorkflowRun and cancelling a non-terminal Run;
+- explicitly continuing an eligible failed Run from its failed stage, preserving
+  successful stages and pinned inputs/configuration;
 - listing Runs and showing their durable lifecycle;
 - showing ordered Stages, attempts, retry/escalation decisions, effective
   executionConfig refs, termination reasons and the currently active
@@ -197,6 +199,16 @@ UI labels must preserve the execution vocabulary: a Runtime Agent is the
 long-running single-slot process, while Worker is its temporary
 allocation-scoped role. The UI must not present them as two independently
 deployed services.
+
+For an eligible failed Run, the Run detail page offers **Continue from failed
+stage**, with an explicit confirmation naming the stage and warning that model
+and tool calls (including external side effects) will repeat. Eligibility comes
+from `RunStatus.resumeStageExecutionId`, not from a client inference based only
+on `state`. `POST /v1/runs/{runId}/resume` takes that expected
+`stageExecutionId`; it doubles as the durable idempotency identity. The response
+identifies the original and new attempts. The UI refreshes Run, Queue and Project
+queries without optimistically changing lifecycle state. The execution and
+cleanup rules are defined in [04](04-execution-lifecycle-and-metrics.md).
 
 ### Artifact library interaction
 

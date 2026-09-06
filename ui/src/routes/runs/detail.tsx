@@ -20,6 +20,7 @@ import {
   StateBadge,
 } from "./components";
 import { RunArtifactLibrary, RunOutputGallery } from "./artifacts";
+import { RunResumeControl } from "./resume";
 import { useLiveRunProjection } from "./live";
 import { deriveRunTriage, formatRunDuration, type RunTriage } from "./triage";
 
@@ -225,7 +226,7 @@ function CancellationControl({ run }: { run: RunStatus }) {
         <p className="eyebrow">Cancellation</p>
         <h3>Run is terminal</h3>
         <p className="muted-copy">
-          No lifecycle command is available for a terminal Run.
+          Cancellation is not available for a terminal Run.
         </p>
       </div>
     );
@@ -597,6 +598,10 @@ function LoadedRunDetail({
       <RunTriageSummary run={run} triage={triage} />
       <RunTimestamps run={run} />
       <RunMetadataLabels run={run} />
+      <RunResumeControl
+        key={`${run.runId}:${run.resumeStageExecutionId ?? "none"}`}
+        run={run}
+      />
       {run.cancellation === undefined ? null : (
         <div className="notice notice-warning cancellation-record">
           <strong>Cancellation requested</strong>

@@ -67,6 +67,30 @@ export interface RunArtifactDetailRequest extends ArtifactDetailRequest {
   runId: string;
 }
 
+export async function resumeRun(
+  api: PublicAPI,
+  runId: string,
+  stageExecutionId: string,
+): Promise<void> {
+  requireRunID(runId);
+  requireRunID(stageExecutionId);
+  const result = await api.request((client) =>
+    client.POST("/v1/runs/{runId}/resume", {
+      params: { path: { runId } },
+      body: { stageExecutionId },
+    }),
+  );
+  const value = requireData(result);
+  if (
+    result.response.status !== 202 ||
+    value.runId !== runId ||
+    value.sourceStageExecutionId !== stageExecutionId ||
+    !RUN_ID_PATTERN.test(value.stageExecutionId)
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+}
+
 function requireData<T>(result: {
   data?: T;
   error?: unknown;
@@ -193,6 +217,10 @@ export async function getRun(
     workflow: run.workflow,
     state: run.state,
     deletable: run.deletable,
+    ...(typeof run.resumeStageExecutionId === "string" &&
+    RUN_ID_PATTERN.test(run.resumeStageExecutionId)
+      ? { resumeStageExecutionId: run.resumeStageExecutionId }
+      : {}),
     runtimeLabels: [...run.runtimeLabels],
     labels: safeRunMetadataLabels(run.labels),
     runtimeConfiguration: safeRunRuntimeConfiguration(run.runtimeConfiguration),

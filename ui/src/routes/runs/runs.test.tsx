@@ -240,6 +240,129 @@ beforeEach(() => {
 });
 
 describe("Run routes", () => {
+  it("continues a failed stage only after confirmation and refreshes the authoritative Run", async () => {
+    let posts = 0;
+    let requestBody: unknown;
+    const failed = { ...runFixture().attempts[0]!, state: "failed" as const };
+    let current = runFixture({
+      state: "failed",
+      resumeStageExecutionId: failed.stageExecutionId,
+      attempts: [failed],
+      activeStageExecutionId: undefined,
+    });
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/runs/run-router/resume" && request.method === "POST") {
+        posts++;
+        requestBody = await request.json();
+        current = runFixture({
+          attempts: [
+            failed,
+            {
+              ...failed,
+              stageExecutionId: "stage-router-2",
+              previousExecutionId: failed.stageExecutionId,
+              attempt: 2,
+              state: "preparing",
+            },
+          ],
+          activeStageExecutionId: "stage-router-2",
+        });
+        return apiResponse(
+          {
+            runId: "run-router",
+            sourceStageExecutionId: failed.stageExecutionId,
+            stageExecutionId: "stage-router-2",
+          },
+          { status: 202 },
+        );
+      }
+      if (path === "/v1/runs/run-router") return apiResponse(current);
+      throw new Error(`Unexpected request: ${request.method} ${path}`);
+    });
+    renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Continue from failed stage" }),
+    );
+    expect(posts).toBe(0);
+    expect(
+      screen.getByText(/may repeat external side effects/),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Confirm continuation" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Continue from failed stage" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(posts).toBe(1);
+    expect(requestBody).toEqual({ stageExecutionId: "stage-router-1" });
+    expect(await screen.findByText("stage-router-2")).toBeInTheDocument();
+  });
+
+  it("does not offer continuation without the Server capability", async () => {
+    const current = runFixture({
+      state: "failed",
+      activeStageExecutionId: undefined,
+    });
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      return sessionOrArtifacts(request) ?? apiResponse(current);
+    });
+    renderRunApplication(api, "/runs/run-router");
+    expect(
+      await screen.findByText(/Continuation is unavailable/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue from failed stage" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed Run unchanged after a continuation conflict", async () => {
+    let gets = 0;
+    const current = runFixture({
+      state: "failed",
+      resumeStageExecutionId: "stage-router-1",
+      activeStageExecutionId: undefined,
+    });
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      if (request.method === "POST")
+        return apiResponse(
+          {
+            code: "conflict",
+            message: "Run cannot be continued",
+            retryable: false,
+          },
+          { status: 409 },
+        );
+      gets++;
+      return apiResponse(current);
+    });
+    renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Continue from failed stage" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Confirm continuation" }),
+    );
+    expect(
+      await screen.findByText("Run cannot be continued"),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(gets).toBeGreaterThan(1));
+    expect(
+      screen.getByRole("heading", { name: /Run failed/ }),
+    ).toBeInTheDocument();
+  });
+
   it("offers confirmed deletion only for server-deletable completed Runs", async () => {
     const deleteRequests: Request[] = [];
     let deleted = false;

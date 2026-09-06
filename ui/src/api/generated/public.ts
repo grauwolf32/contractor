@@ -825,6 +825,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue a failed Run with a new attempt of its failed stage
+         * @description Preserves successful stages, exact failed-stage inputs and pinned configuration. Requires completed allocation release. Audit-managed and evaluation Runs are excluded. stageExecutionId is both the expected failed attempt and the idempotency identity; repeating it returns the original continuation attempt, never another retry.
+         */
+        post: operations["resumeRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{runId}/cancel": {
         parameters: {
             query?: never;
@@ -2828,6 +2850,8 @@ export interface components {
             createdAt: string;
         };
         RunStatus: {
+            /** @description Present only when this failed attempt can be manually continued after cleanup. */
+            resumeStageExecutionId?: components["schemas"]["ResourceId"];
             runId: components["schemas"]["ResourceId"];
             projectId?: components["schemas"]["ResourceId"];
             workflow: components["schemas"]["Selector"];
@@ -5844,6 +5868,49 @@ export interface operations {
         requestBody?: never;
         responses: {
             204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resumeRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    stageExecutionId: components["schemas"]["ResourceId"];
+                };
+            };
+        };
+        responses: {
+            /** @description Continuation accepted or its original acceptance replayed */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        runId: components["schemas"]["ResourceId"];
+                        sourceStageExecutionId: components["schemas"]["ResourceId"];
+                        stageExecutionId: components["schemas"]["ResourceId"];
+                    };
+                };
+            };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];

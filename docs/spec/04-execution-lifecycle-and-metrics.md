@@ -158,6 +158,33 @@ preparing / running -> aborting -> cancelled
 - terminal states are immutable. Workflow Scheduler may apply the declared
   policy by creating another StageExecution for retry or configured escalation.
 
+### Manual continuation of a failed Run
+
+The owner may explicitly continue an ordinary failed Run from its latest
+`failed` or `interrupted` StageExecution after every allocation is released.
+This is not a mutation of a terminal StageExecution or a replay of its Planner
+session. One transaction changes the Run from `failed` to `running`, clears its
+finish time, creates a new `preparing` attempt of the same Stage, and records a
+durable manual-continuation receipt. The new attempt increments `attempt`, links
+`previousExecutionId`, and copies the failed attempt's exact StageSpec,
+StageContext pins and effective execution configuration (including escalation).
+Run configuration, successful stages, accepted results and existing artifact
+revisions remain unchanged. Existing output bindings are unfrozen for subsequent
+Scheduler publication; their current revisions are preserved.
+
+The original automatic `fail` transition decision remains immutable. Manual
+continuation is a separate receipt, unique per source execution. Repeating the
+same request returns the same target even if that target has already failed;
+another manual attempt must name that newer failed execution. Automatic retry
+and escalation counters are not reset. A new attempt repeats model/tool work and
+can repeat external side effects; the UI asks for confirmation.
+
+Continuation is unavailable for initialization failures with no failed stage,
+cancelled/succeeded Runs, incomplete cleanup, deleting Projects, already-published
+outputs, Audit-managed Runs and evaluation Runs. The latter two retain their
+controller-owned lifecycle. Admission still follows the owner's Queue pause and
+normal Scheduler capacity limits. At most 1,024 attempts remain representable.
+
 Preparation failure before Planner start still produces a durable execution
 outcome. Temporary lack of capacity is not such a failure: it keeps the
 StageExecution in `preparing` without reserving any slot. A missing required
