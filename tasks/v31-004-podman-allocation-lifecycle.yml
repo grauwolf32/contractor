@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V31-004
+title: Bind Podman preparation, shutdown and recovery to allocation lifecycle
+milestone: podman-allocation-execution
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V31-003, V28-002, V14-003]
+languages: [python]
+
+goal: >-
+  Make the allocation own exactly one container from hydrated prepare through
+  confirmed shutdown/removal, including cancellation, lease loss and startup recovery.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  current_seams: >-
+    SandboxFactory.prepare currently returns local scratch before project
+    hydration, and release currently removes project files before sandbox cleanup.
+    Split scratch preparation from execution-sandbox start; never represent a
+    container ID as AllocationWorkspace.path.
+  ordering: >-
+    Validate then hydrate project, start container, construct selected tools and
+    Worker, report ready. Finalize stops work/container while retaining bind data;
+    release removes container before mounted files, scratch and adapters. Only
+    authoritative release confirmation makes the slot idle.
+
+scope:
+  in:
+    - Integrate private sandbox lifecycle hooks and allocation-owned context with V31-002 engine and V31-003 supervisor.
+    - Preserve one container across sequential A2A invocations and INPUT_REQUIRED; identical prepare is idempotent and mismatching prepare conflicts.
+    - Bound preparation, stop grace and supervisor renewal by existing allocation/lease/lifecycle deadlines.
+    - Wire finalize, abort, lease expiry, partial prepare and process drain to reject new work and confirm all workload execution stopped.
+    - Retain one shielded cleanup task; stop/remove the container before deleting project files and preserve fenced state on uncertainty.
+    - Run owner-scoped predecessor-container recovery before workspace-provider orphan deletion and before advertising idle capacity.
+    - Keep result artifacts before the existing write fence; add no late export window or new lifecycle status.
+    - Add tests/test_podman_allocation.py and tests/test_podman_recovery.py with fake engine/guardian fault injection.
+  out:
+    - Public capability advertisement before V31-006, the model-visible execution tool, global prune or changed local-workdir/memory/overlay behavior.
+
+requirements:
+  - {id: R1, text: An allocation has one lifecycle owner and no container is started before its project is hydrated.}
+  - {id: R2, text: Mounted files are never removed before workload/container teardown is confirmed.}
+  - {id: R3, text: Lost lease, cancellation and cleanup deadlines cannot leave reusable capacity with live workload resources.}
+
+acceptance_criteria:
+  - id: A1
+    given: Repeated or partially failed prepare and sequential A2A invocations including INPUT_REQUIRED.
+    when: Allocation transitions execute.
+    then: Exactly one verified container is reused and readiness follows hydration/start/Worker construction.
+  - id: A2
+    given: Active commands, lease expiry, concurrent finalize/abort/release and blocked cleanup.
+    when: Lifecycle deadlines fire or calls are retried.
+    then: New work stops, one cleanup task owns teardown, container removal precedes files and only confirmed release permits reuse.
+  - id: A3
+    given: A predecessor's uncertain-create/stopped/running containers alongside another live service's resources.
+    when: Runtime starts and recovers its owner identity.
+    then: Only owned predecessors are removed before their mounted files; unresolved cleanup prevents readiness.
+  - id: A4
+    given: Existing local-workdir allocations with memory/direct or overlay workspaces.
+    when: Regression lifecycle tests run.
+    then: Existing behavior and artifact write-fence ordering are preserved.
+
+tests:
+  - {name: sandbox-lifecycle, command: "cd runtime && uv run pytest -W error tests/test_podman_allocation.py tests/test_podman_recovery.py", covers: [A1, A2, A3, A4]}
+  - {name: existing-lifecycle, command: "cd runtime && uv run pytest -W error tests/test_allocation.py tests/test_abort.py tests/test_lease_watchdog.py tests/test_projectfs_storage.py", covers: [A2, A4]}

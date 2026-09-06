@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V31-003
+title: Build the approved execution image and prove supervisor termination guarantees
+milestone: podman-allocation-execution
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V31-002]
+languages: [python]
+
+goal: >-
+  Implement and test the trusted execution supervisor and approved image before
+  any allocation can rely on command completion or Runtime-crash termination.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  process_contract: >-
+    No background API, PTY or interactive stdin. Command completion requires no
+    live workload descendants, including forked/reparented/detached children.
+    A process-group kill or exited podman CLI is not proof. Unconfirmed cleanup,
+    timeout or communication uncertainty stops the whole container.
+  control_contract: >-
+    A finite Runtime-renewed liveness deadline is bounded by the confirmed control
+    lease. Runtime death without restart expires that deadline and terminates
+    workload/container execution. Workload code cannot renew it, forge completion
+    or control the supervisor. Use a host guardian or equivalently isolated
+    authority, not a secret readable by the workload user.
+
+scope:
+  in:
+    - Select and document the concrete supervisor/guardian trust boundary and command-status protocol, reusing V31-001 interfaces.
+    - Add approved image build sources under deploy/podman with fixed shell/runtime tools, supervisor requirements and a read-only root compatible with writable tmpfs HOME.
+    - Implement descendant accounting/reaping, trusted completion acknowledgements and finite lease/liveness expiry independent of the Python Runtime lifetime.
+    - Ensure actual workload UID cannot signal/control the guardian, renew deadlines or forge protocol messages.
+    - Implement conservative whole-container termination for unsupported surviving children or uncertain command cleanup.
+    - Add tests/test_podman_supervisor.py and a real-rootless tests/test_podman_supervisor_integration.py harness.
+    - Add a test-podman-supervisor Make target requiring CONTRACTOR_TEST_PODMAN_IMAGE as a preinstalled compatible digest-pinned image; fail if prerequisites are missing, never silently skip the real gate.
+  out:
+    - Production profile enablement, background services, Python interpreter-state persistence, networked execution or skill scripts.
+
+requirements:
+  - {id: R1, text: Completion is acknowledged only after no command-descendant writer can access the workspace.}
+  - {id: R2, text: Runtime crash without restart terminates execution within a finite independently enforced liveness bound.}
+  - {id: R3, text: Image provisioning is explicit and offline from allocation prepare; passing mocks alone cannot satisfy the supervisor gate.}
+
+acceptance_criteria:
+  - id: A1
+    given: Real rootless commands that exit normally, fork, double-fork, detach sessions or keep inherited output descriptors open.
+    when: Execution completes or the supervisor terminates unsupported descendants.
+    then: No writer survives completion; uncertainty stops the entire container within the bound.
+  - id: A2
+    given: A long-running workload and a Runtime process renewing its liveness deadline.
+    when: Runtime is killed without restart, or workload code attempts renewal/protocol forgery.
+    then: Execution expires within the confirmed bound and workload attempts cannot extend it or invent completion.
+  - id: A3
+    given: The approved image under configured rootless mapping, read-only root, network none and finite resources.
+    when: Host/container file exchange and supervisor operations run.
+    then: Files are mutually usable, secrets/control authority are inaccessible, and resource settings are effective.
+
+tests:
+  - {name: supervisor-unit, command: "cd runtime && uv run pytest -W error tests/test_podman_supervisor.py", covers: [A1, A2, A3]}
+  - {name: supervisor-real, command: "make test-podman-supervisor", covers: [A1, A2, A3]}

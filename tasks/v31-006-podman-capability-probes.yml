@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V31-006
+title: Enable Podman capabilities only after complete bounded startup probes
+milestone: podman-allocation-execution
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V31-005]
+languages: [python, go]
+
+goal: >-
+  Wire the completed sandbox and execution Toolset into positive Runtime
+  capability discovery without claiming unsupported isolation or cleanup behavior.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  capability_rule: >-
+    Enabled settings or installed code are not capabilities. Require local
+    rootless engine, finite cgroup/resources, pinned image, compatible supervisor,
+    mount/UID access, execution, descendant cleanup, liveness expiry and verified
+    removal before advertising podman@1 and dependent exec_command.
+  isolation: >-
+    Only local direct storage is compatible. No privileged Podman, host execution,
+    memory/overlay fallback or implied host subprocess/proxy authority is allowed.
+    First-version network policy is none; there is no per-allocation bind disk quota.
+
+scope:
+  in:
+    - Register opt-in production factories and their dependency-aware probes after V31-004/V31-005 are complete.
+    - Order stable-owner recovery before workspace orphan cleanup and probes; use separately identified probe containers.
+    - Fit creation/command/liveness/cleanup checks into finite documented startup and per-factory budgets; keep event loop responsive.
+    - Advertise profile and selected tool capabilities consistently only on success; omit failures without losing unrelated safely usable capabilities.
+    - Fence/unready the process when probe teardown is unconfirmed, retaining ownership for recovery.
+    - Expose safe effective image/resource diagnostics without host paths, secrets or unenforced disk-quota claims.
+    - Add tests/test_podman_capabilities.py and extend Go placement coverage for heterogeneous registered fleets.
+  out:
+    - Dynamic re-probing during an allocation, optimistic capability advertisement, networked variants, label-based image selection or UI policy editors.
+
+requirements:
+  - {id: R1, text: Profile and tool advertisement require all prerequisites and no leaked probe container.}
+  - {id: R2, text: Failed or timed-out probes never silently weaken policy or let an unconfirmed slot become idle.}
+  - {id: R3, text: Placement checks exact binding requirements and preserves unrelated local-workdir and memory/overlay capacity.}
+
+acceptance_criteria:
+  - id: A1
+    given: Each prerequisite independently unavailable or failing, including cgroup enforcement and liveness cleanup.
+    when: Bounded discovery runs.
+    then: Dependent capabilities are omitted; no privilege/backend fallback occurs and diagnostics identify only safe failure categories.
+  - id: A2
+    given: Fully usable prerequisites or a stuck probe cleanup.
+    when: Runtime constructs its frozen registration.
+    then: Success advertises matching profile/tool refs after cleanup; uncertainty leaves readiness false and the slot fenced.
+  - id: A3
+    given: Heterogeneous local/memory agents, selected profiles/tools and unrelated existing validators.
+    when: Registration and placement regression tests run.
+    then: Only compatible local direct bindings use Podman, and unrelated capabilities retain their behavior.
+
+tests:
+  - {name: discovery, command: "cd runtime && uv run pytest -W error tests/test_podman_capabilities.py tests/test_capabilities.py tests/test_podman_recovery.py", covers: [A1, A2, A3]}
+  - {name: placement, command: "go test -count=1 ./internal/config ./internal/scheduler", covers: [A3]}
+  - {name: real-prerequisites, command: "make test-podman-supervisor", covers: [A1, A2]}

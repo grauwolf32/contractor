@@ -1,0 +1,60 @@
+schema_version: "1.0"
+id: V31-002
+title: Implement bounded local Podman operations and exact container ownership
+milestone: podman-allocation-execution
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V31-001]
+languages: [python]
+
+goal: >-
+  Provide an allocation-owned rootless engine adapter that creates, inspects,
+  stops and removes only exact Contractor resources with bounded uncertainty handling.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  ownership: >-
+    Each resource has a generated creation identity, stable service owner,
+    process incarnation and allocation ID labels applied at creation. An
+    exclusive service ownership lock excludes another live Runtime for that owner.
+    Store full engine IDs and verify ownership before destructive operations.
+  isolation: >-
+    Rootless local engine, no privileged/host namespaces, dropped capabilities,
+    no-new-privileges, supported host confinement, read-only image, network none,
+    bounded tmpfs and resource limits. Bind only project content at /workspace.
+    No engine socket, provider marker, Runtime scratch, home or secret is mounted.
+
+scope:
+  in:
+    - Add a private engine adapter under runtime/src/contractor_runtime using structured argv and no host shell.
+    - Implement bounded create/start/inspect/stop/remove and nonblocking stream/process ownership primitives.
+    - Build exact mounts, explicit environment and UID/GID mapping from immutable operator policy; never inherit host env wholesale.
+    - Implement stable service locks and owner-scoped discovery with full ID/label verification.
+    - Reconcile create timeout/response loss by unique creation identity before retry or cleanup; make retries idempotent.
+    - Verify stopped/removed engine state and retain uncertain cleanup authority rather than reporting a reusable resource.
+    - Add tests/test_podman_engine.py using a scripted fake engine executable/transport with deterministic failure points.
+  out:
+    - AllocationService wiring, capability advertisement, skill mounts, automatic image pulls, global prune or a remote engine API.
+
+requirements:
+  - {id: R1, text: Commands contain no host-shell interpolation and no latest/all/global-prune cleanup; only verified full resource IDs are targets.}
+  - {id: R2, text: Response loss cannot create a duplicate allocation container or lose ownership of a partially created one.}
+  - {id: R3, text: Engine errors are bounded and content-free; unconfirmed stop/removal never becomes success.}
+
+acceptance_criteria:
+  - id: A1
+    given: A fake engine with unrelated resources, another live service owner and adversarial identifiers/arguments.
+    when: Create, reconciliation and cleanup run.
+    then: Only the exact owned container is changed; no broad operation, host interpolation or environment leak occurs.
+  - id: A2
+    given: Create succeeds in the engine but its response times out or the Runtime operation is cancelled.
+    when: Preparation or cleanup is retried.
+    then: The unique resource is rediscovered and reused or removed, with no duplicate or forgotten container.
+  - id: A3
+    given: Engine calls block or return ambiguous/not-found/failure responses.
+    when: Deadlines and stop/removal verification execute alongside heartbeat ticks.
+    then: Calls remain bounded, heartbeats run and uncertain cleanup remains fenced/owned.
+
+tests:
+  - {name: engine, command: "cd runtime && uv run pytest -W error tests/test_podman_engine.py tests/test_podman_contracts.py", covers: [A1, A2, A3]}

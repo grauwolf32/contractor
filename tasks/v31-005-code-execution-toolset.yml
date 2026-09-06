@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V31-005
+title: Add bounded exec_command tools over the allocation sandbox handle
+milestone: podman-allocation-execution
+priority: P0
+status: pending
+implementation_commit: null
+depends_on: [V31-004]
+languages: [python]
+
+goal: >-
+  Expose explicitly selected code-execution@1 commands with bounded observations,
+  verified process completion and the same operation ownership as filesystem tools.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  input: >-
+    exec_command(command, cwd="", timeout_seconds=60) accepts at most 64 KiB
+    UTF-8 shell text and a normalized workspace-relative cwd. Use fixed /bin/sh -c
+    inside the owned container, structured host argv, no PTY or interactive stdin.
+    Timeout includes waiting for the workspace guard and is bounded by operator,
+    invocation and lease limits. Model input cannot supply environment, users or flags.
+  output: >-
+    status is completed|timed_out|output_limit_exceeded|failed, with nullable
+    integer exitCode, stdout/stderr, per-stream truncation flags, nonnegative
+    durationMs and nullable stable errorCode. Normal nonzero program exit is
+    completed, not an infrastructure retry. Defaults are 32 KiB preview per
+    stream and 1 MiB combined hard output, counted before preview truncation.
+  failure_policy: >-
+    Timeout, cancellation, hard output limit or uncertain post-launch state
+    stops the whole container and makes the allocation unusable. Never replay
+    uncertain commands, restart the sandbox or roll back partial command effects.
+
+scope:
+  in:
+    - Implement Toolset factory and selected exec_command instance using only the private sandbox handle.
+    - Validate command/cwd/time bounds, keep host and workload environments separated and preserve exact operation allowlists.
+    - Hold the V30 workspace guard through execution and confirmed descendant cleanup, including all failure paths.
+    - Drain stdout/stderr concurrently with bounded memory, explicit UTF-8 replacement and no hidden unbounded log files.
+    - Distinguish trusted supervisor status from command output and ambiguous Podman CLI exit codes.
+    - Map fatal sandbox failures to existing Worker failure/termination and block all further work in that allocation.
+    - Record safe duration/count/byte/truncation/failure metrics; keep command/output only in authorized tool observations.
+    - Add tests/test_code_execution_toolset.py and tests/test_podman_command_coordination.py.
+  out:
+    - Background commands, Python globals, auto output upload, artifact APIs in the container, host fallback or skill scripts.
+
+requirements:
+  - {id: R1, text: Only selected exec_command tools receive execution authority and no command executes on the host.}
+  - {id: R2, text: Workspace reads/edits cannot overlap a command that may still write files, including surviving descendants.}
+  - {id: R3, text: Output capture and deadlines are bounded; partial effects or uncertain outcomes are never reported as completed or replayed.}
+
+acceptance_criteria:
+  - id: A1
+    given: Valid commands, shell metacharacters, invalid cwd links and unselected tools.
+    when: Tool factories and calls execute.
+    then: Only intended container programs run with fixed authority and invalid input launches nothing.
+  - id: A2
+    given: Successful/nonzero programs, spoofed output statuses, invalid UTF-8 and simultaneous stdout/stderr floods.
+    when: Observations are produced.
+    then: Program and engine outcomes are distinct, output remains bounded, truncation is explicit and status cannot be forged by stdout.
+  - id: A3
+    given: Commands racing filesystem tools or timing out while waiting/running, plus detach/cancellation/communication failures.
+    when: Ownership and terminal paths settle.
+    then: No surviving writer overlaps filesystem access; fatal failure stops the container and prevents further allocation work without replay.
+  - id: A4
+    given: A command changes files and the Worker explicitly publishes a result artifact before finalization.
+    when: Later filesystem/analysis calls and normal completion execute.
+    then: Current files are visible without refresh and persistence uses existing grants/write fences only.
+
+tests:
+  - {name: toolset, command: "cd runtime && uv run pytest -W error tests/test_code_execution_toolset.py tests/test_podman_command_coordination.py", covers: [A1, A2, A3, A4]}
+  - {name: runtime-integration, command: "cd runtime && uv run pytest -W error tests/test_podman_allocation.py tests/test_local_direct_tool_consumers.py", covers: [A3, A4]}

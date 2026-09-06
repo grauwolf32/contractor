@@ -1,0 +1,62 @@
+schema_version: "1.0"
+id: V31-007
+title: Add a local Podman workflow and reproducible deployment instructions
+milestone: podman-allocation-execution
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V31-006]
+languages: [go, python]
+
+goal: >-
+  Make the first Podman allocation workflow runnable with explicit sources,
+  finite operator settings and ordinary output artifacts using a documented local setup.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  workflow_contract: >-
+    The template explicitly selects podman@1, code-execution@1 exec_command and
+    only required filesystem/edit/artifact operations. Stage workspace is direct
+    and hydrated from exact source artifacts on a local Runtime. Outputs persist
+    only through explicit ordinary Artifact writes before the existing write fence.
+  deployment_contract: >-
+    Provision the approved image before startup, pin its digest, configure a
+    stable unique owner and supported rootless UID/cgroup/confinement settings.
+    Network is none, image root is read-only and Runtime credentials are absent.
+    Bind disk quotas are not implemented; filesystem capacity/quotas belong to operators.
+
+scope:
+  in:
+    - Add an explicitly selected sample AgentTemplate, instruction and direct-workspace Workflow under configs using current selector conventions.
+    - Use a deterministic small source/test fixture demonstrating edit, command execution and an explicitly published output artifact.
+    - Document image provisioning from deploy/podman, exact startup CLI/env settings and positive capability checks in runtime/README.md and deploy/podman/README.md.
+    - Document owner-scoped crash recovery and teardown, supported UID/mount configuration and CPU/memory/pids/tmpfs policy.
+    - Explain unsupported overlay/memory, network/package downloads, PTY/background jobs, skill scripts and unenforced bind disk quota.
+    - Add catalog validation and tests/test_podman_workflow.py for sample configuration/artifact behavior without real LLM calls.
+    - Add tests/test_podman_deployment_integration.py and a test-podman-workflow Make target that exercises actual startup/probes and the sample on rootless Podman with a deterministic model stand-in; require the preinstalled CONTRACTOR_TEST_PODMAN_IMAGE and fail missing prerequisites.
+  out:
+    - Enabling Podman automatically on existing deployments, live credentials, networked audits, additional UI controls or future skill execution.
+
+requirements:
+  - {id: R1, text: Examples grant only explicit tools and never introduce a model-selectable host path/image/mount or implicit export.}
+  - {id: R2, text: A documented fresh setup uses the approved pinned image and existing Runtime registration/placement surfaces.}
+  - {id: R3, text: Documentation accurately states first-version networking, process and storage limitations without claiming unavailable isolation.}
+
+acceptance_criteria:
+  - id: A1
+    given: The sample configs, artifact fixture and deterministic model/tool stand-in.
+    when: Catalog validation and workflow tests execute.
+    then: Exact selectors resolve, workspace mode is direct and successful output is an ordinary granted ArtifactRef.
+  - id: A2
+    given: A documented rootless environment and prebuilt digest-pinned image.
+    when: The setup is followed with Podman explicitly enabled.
+    then: Matching capabilities appear and the sample can be exercised without modifying existing deployment policy.
+  - id: A3
+    given: Existing configs and script-free skill packages.
+    when: Catalog and skill contract regressions run.
+    then: Existing flows retain authority and no sample activates scripts, network access or automatic host mounts.
+
+tests:
+  - {name: catalogs, command: "go test -count=1 ./internal/config", covers: [A1, A3]}
+  - {name: workflow-contract, command: "cd runtime && uv run pytest -W error tests/test_podman_workflow.py tests/test_agent_skill_package.py", covers: [A1, A3]}
+  - {name: deployment-workflow, command: "make test-podman-workflow", covers: [A1, A2]}

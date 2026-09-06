@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V31-008
+title: Verify Podman execution across real processes, crashes and resource faults
+milestone: podman-allocation-execution
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V31-007]
+languages: [go, python]
+
+goal: >-
+  Close every Podman specification acceptance case using real rootless containers
+  and Contractor lifecycle evidence before declaring the feature implemented.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  acceptance_mapping: Podman acceptance cases 1 through 11 plus the prerequisite local direct gate.
+  release_policy: >-
+    Mocks cover deterministic faults, but cannot substitute for real namespace,
+    resource, process-descendant and crash tests. Explicit real gates fail when
+    Podman, the preinstalled digest-pinned test image or required test database
+    is missing; they never pass through blanket skips or contact a live LLM.
+  lifecycle_invariants: >-
+    One container per allocation; hydrate before start; no surviving writers
+    before workspace handoff; fatal command faults stop the whole sandbox;
+    stop/remove precedes mounted-file disposal; no blind command replay; owner-
+    scoped recovery and independent liveness stop workloads after Runtime death.
+
+scope:
+  in:
+    - Add a traceable tests/e2e/podman_sandbox_matrix.yml and Go validator mapping every specification case to a concrete test.
+    - Add real engine/process tests for bidirectional workspace visibility, guard ordering, output bounds, UID/mount containment and resources/network.
+    - Exercise trusted descendant cleanup with detached/reparented processes, Runtime kill without restart, liveness expiry and attempted supervisor-control forgery.
+    - Exercise response-lost create, repeated prepare, INPUT_REQUIRED, finalize/abort/lease loss, concurrent release and restart recovery beside unrelated containers.
+    - Add test-podman-e2e requiring CONTRACTOR_TEST_PODMAN_IMAGE and CONTRACTOR_TEST_DATABASE_URL, and a test-podman-release aggregate target with unit, matrix, real and local-direct gates.
+    - Keep real Podman checks opt-in from ordinary unit tests while making them mandatory for this task's completion; record supported engine/OS and effective policy with test evidence.
+    - Update implementation-pending notes in specs 01/02/07/09/10/12/21 and navigation only after relevant acceptance actually passes; skill-script deferral remains.
+  out:
+    - Live paid model tests, unrelated deployment changes, broad engine cleanup, sidecars, remote providers or postponed skill/network features.
+
+requirements:
+  - {id: R1, text: Every spec acceptance case has executable evidence and real prerequisites are verified rather than skipped.}
+  - {id: R2, text: No owned workload survives permitted handoff/crash bounds and no unrelated container/file is removed.}
+  - {id: R3, text: Existing host validators, local-workdir allocations, memory/overlay workspaces and script-free skills retain their contracts.}
+
+acceptance_criteria:
+  - id: A1
+    given: The complete fixture matrix and a supported real rootless environment.
+    when: The release target runs without live model services.
+    then: All eleven Podman cases and local direct prerequisites pass with traceable evidence.
+  - id: A2
+    given: Fork/detach, process kill, lease loss, response loss and unconfirmed stop/cleanup faults.
+    when: Lifecycle and crash/restart tests settle.
+    then: Execution stops within its bounds, uncertainty fences capacity and only owned containers are collected before files.
+  - id: A3
+    given: Resource exhaustion, output floods, malicious paths and command attempts to control the supervisor or access infrastructure secrets.
+    when: Real commands run under the advertised profile.
+    then: Enforced policies match diagnostics and failures remain bounded without falsely claiming bind disk quotas.
+  - id: A4
+    given: Existing non-Podman workflows and the final combined implementation.
+    when: Relevant regressions and repository verification execute.
+    then: Unaffected behavior remains intact and only verified capability/status notes are marked implemented.
+
+tests:
+  - {name: release, command: "make test-podman-release", covers: [A1, A2, A3, A4]}
+  - {name: aggregate, command: "make verify", covers: [A4]}

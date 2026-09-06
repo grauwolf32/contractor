@@ -489,6 +489,20 @@ milestones:
       terminal Runs can be safely hard-deleted, Projects can be durably
       cancelled and purged, and the general Artifact library excludes Skills
       while reusing the Project file-drop interaction.
+  - id: local-direct-disk-authority
+    exit_task: V30-004
+    outcome: >-
+      Local direct workspaces use disk as the source of truth, expose completed
+      external changes through filesystem and analysis tools, and preserve
+      bounded rooted access and operation ownership through cancellation.
+      Memory and overlay behavior remains unchanged.
+  - id: podman-allocation-execution
+    exit_task: V31-008
+    outcome: >-
+      An opt-in local Runtime owns one verified rootless Podman container per
+      allocation with a shared local direct workspace, explicit bounded command
+      tools, independent liveness enforcement and container-before-files cleanup.
+      Real process/resource/crash gates precede feature completion.
   - id: postgres-reliability-and-query-efficiency
     exit_task: V29-007
     outcome: >-
@@ -1950,6 +1964,54 @@ audits_v25_003_implementation_review:
     - CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -race -count=1 ./internal/auditstore ./internal/persistence/postgres
     - go vet ./internal/auditstore ./internal/persistence/postgres
 
+local_direct_podman_planning_review:
+  reviewed_on: "2026-09-06"
+  verdict: decomposed_for_implementation
+  specifications:
+    - docs/spec/10-runtime-filesystems-and-edit-tools.md
+    - docs/spec/12-code-analysis-tools.md
+    - docs/spec/21-podman-sandbox.md
+  phases:
+    - >-
+      V30-001 adds rooted bounded I/O and operation ownership. V30-002 makes
+      local direct sessions disk-authoritative. V30-003 carries fresh state
+      into Toolsets/observations/analysis. V30-004 closes the filesystem gate.
+    - >-
+      V31-001 defines settings/descriptors/placement and private interfaces;
+      V31-002 owns engine identity and bounded operations; V31-003 owns the
+      approved image, trusted supervisor and real descendant/liveness proof.
+    - >-
+      V31-004 integrates allocation lifecycle/recovery; V31-005 exposes bounded
+      commands; V31-006 advertises capabilities only after full probes;
+      V31-007 supplies sample workflow/deployment docs; V31-008 closes the
+      real-container release gate.
+  checks:
+    - All twelve task files carry individual statuses and implementation commits, with self-contained scope, requirements, acceptance and test commands.
+    - Podman implementation depends on V30-004; no execution capability is enabled by the filesystem amendment alone.
+    - Rootless policy, fixed image, network none, local direct only and explicit Toolset selection remain the first-version contract.
+    - Supervisor authority, descendant cleanup and liveness expiry are a required task, not assumptions inherited from Podman CLI exit.
+    - Engine primitives and allocation lifecycle remain unadvertised until V31-006 closes prerequisite discovery.
+    - Missing prerequisites fail explicit real-container gates; mocks or skipped tests do not complete those tasks.
+    - Existing in-progress/completed tasks and their commit metadata are not reclassified by this decomposition.
+  acceptance_ownership:
+    local_direct:
+      - {cases: [1, 2, 3, 5, 9], implementation: [V30-001, V30-002], gate: V30-004}
+      - {cases: [4], implementation: [V30-003], gate: V30-004}
+      - {cases: [6, 7, 8], implementation: [V30-001, V30-002], gate: V30-004}
+      - {cases: [10], implementation: [V30-002, V30-003], gate: V30-004}
+    podman:
+      - {cases: [1], implementation: [V31-001, V31-006], gate: V31-008}
+      - {cases: [2], implementation: [V31-002, V31-004], gate: V31-008}
+      - {cases: [3], implementation: [V30-003, V31-005, V31-007], gate: V31-008}
+      - {cases: [4, 10], implementation: [V31-002, V31-003, V31-006], gate: V31-008}
+      - {cases: [5, 6, 7], implementation: [V31-003, V31-005], gate: V31-008}
+      - {cases: [8, 9], implementation: [V31-003, V31-004], gate: V31-008}
+      - {cases: [11], implementation: [V31-001, V31-004, V31-007], gate: V31-008}
+  deferred:
+    - Skill-script package/disclosure/execution amendment and read-only selected skill mounts.
+    - Networked profiles, package downloads, interactive/background sessions and multi-container pods.
+    - Remote engines/providers, automatic output export and bind-mount disk quota implementation.
+
 tasks:
   - {id: MVP-001, file: mvp-001-bootstrap-monorepo.yml}
   - {id: MVP-002, file: mvp-002-wire-contracts.yml}
@@ -2161,4 +2223,16 @@ tasks:
   - {id: V29-005, file: v29-005-batched-run-detail.yml}
   - {id: V29-006, file: v29-006-sqlstate-and-transaction-recovery.yml}
   - {id: V29-007, file: v29-007-database-budgets-and-verification.yml}
+  - {id: V30-001, file: v30-001-rooted-local-filesystem.yml}
+  - {id: V30-002, file: v30-002-disk-authoritative-direct-session.yml}
+  - {id: V30-003, file: v30-003-current-disk-tool-consumers.yml}
+  - {id: V30-004, file: v30-004-local-direct-release-gate.yml}
+  - {id: V31-001, file: v31-001-podman-contracts-settings-placement.yml}
+  - {id: V31-002, file: v31-002-podman-engine-ownership.yml}
+  - {id: V31-003, file: v31-003-podman-supervisor-image.yml}
+  - {id: V31-004, file: v31-004-podman-allocation-lifecycle.yml}
+  - {id: V31-005, file: v31-005-code-execution-toolset.yml}
+  - {id: V31-006, file: v31-006-podman-capability-probes.yml}
+  - {id: V31-007, file: v31-007-podman-workflow-deployment.yml}
+  - {id: V31-008, file: v31-008-podman-release-gate.yml}
   - {id: V33-001, file: v33-001-catalog-and-agent-prompts.yml}
