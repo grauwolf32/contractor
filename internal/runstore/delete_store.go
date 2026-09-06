@@ -28,7 +28,7 @@ func (s *PostgresStore) DeleteReleasedTerminalRun(
 	}
 	switch db := s.db.(type) {
 	case *pgxpool.Pool:
-		return persistencepostgres.InTx(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return persistencepostgres.InTxWithRetry(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return deleteReleasedTerminalRun(ctx, tx, ownerID, runID)
 		})
 	case pgx.Tx:

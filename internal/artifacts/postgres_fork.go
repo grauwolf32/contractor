@@ -41,6 +41,8 @@ func (r *PostgresRepository) ForkInput(
 WITH source_selection AS (
     SELECT revision.revision, revision.version_id, version.media_type, blob.size_bytes
     FROM artifact_binding_revisions AS revision
+    JOIN artifact_scopes AS source_scope
+      ON source_scope.scope_kind = revision.scope_kind AND source_scope.scope_id = revision.scope_id
     JOIN artifact_bindings AS binding
       ON binding.scope_kind = revision.scope_kind
      AND binding.scope_id = revision.scope_id
@@ -61,6 +63,7 @@ WITH source_selection AS (
           ($5::text IS NULL AND revision.revision = binding.current_revision)
           OR ($5::text IS NOT NULL AND revision.revision = $5)
       )
+    FOR KEY SHARE OF source_scope
 ), inserted_scope AS (
     INSERT INTO artifact_scopes (scope_kind, scope_id)
     SELECT $6, $7 FROM source_selection LIMIT 1

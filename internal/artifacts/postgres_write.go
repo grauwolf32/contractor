@@ -70,12 +70,13 @@ ON CONFLICT DO NOTHING`, scope.kind, scope.id); err != nil {
 	var revisionCreatedAt time.Time
 	err = r.db.QueryRow(ctx, `
 WITH scope_ready AS (
-    SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2
+    SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2 FOR KEY SHARE
 ), updated_binding AS (
     UPDATE artifact_bindings
     SET current_revision = $5, updated_at = clock_timestamp()
     WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4
       AND $6::text IS NOT NULL AND current_revision = $6 AND NOT frozen
+      AND EXISTS (SELECT 1 FROM scope_ready)
     RETURNING created_at
 ), created_binding AS (
     INSERT INTO artifact_bindings (

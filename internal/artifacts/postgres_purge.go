@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -27,6 +28,11 @@ func (p *PostgresPurger) PurgeAuditNamespace(
 	}
 	if !strings.HasPrefix(namespace, "audit-") || validateComponent(namespace) != nil {
 		return ErrInvalidName
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := p.lockScope(ctx, scope); err != nil {
+		return err
 	}
 	if _, err := p.tx.Exec(
 		ctx, `SELECT set_config('contractor.lifecycle_purge', 'audit', true)`,
@@ -99,6 +105,11 @@ func (p *PostgresPurger) PurgeRun(ctx context.Context, runID string) error {
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := p.lockScope(ctx, scope); err != nil {
+		return err
+	}
 	if _, err := p.tx.Exec(
 		ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`,
 	); err != nil {
@@ -154,6 +165,11 @@ func (p *PostgresPurger) PurgeProject(ctx context.Context, projectID string) err
 	if err != nil {
 		return err
 	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := p.lockScope(ctx, scope); err != nil {
+		return err
+	}
 	if _, err := p.tx.Exec(
 		ctx, `SELECT set_config('contractor.lifecycle_purge', 'project', true)`,
 	); err != nil {
@@ -201,6 +217,26 @@ WHERE scope_kind = $1 AND scope_id = $2`, scope.kind, scope.id); err != nil {
 	return nil
 }
 
+// Lifecycle callers hold resource authority before entering here. Lock order:
+// owning scope, candidate versions (lexical ID), candidate blobs (binary hash).
+// Reference checks MUST be separate statements after the locks: READ COMMITTED
+// then sees references removed/inserted by transactions we waited for. Foreign
+// key locks coordinate retaining forks and blob upserts coordinate new writes.
+// Cross-resource transactions can still deadlock; the owning database-only
+// transaction may replay a definite 40P01/40001, never just this cleanup suffix.
+func (p *PostgresPurger) lockScope(ctx context.Context, scope Scope) error {
+	var isolation string
+	if err := p.tx.QueryRow(ctx, `SHOW transaction_isolation`).Scan(&isolation); err != nil {
+		return fmt.Errorf("inspect Artifact purge isolation: %w", err)
+	}
+	if isolation != "read committed" && isolation != "read uncommitted" {
+		return fmt.Errorf("Artifact purge requires READ COMMITTED isolation")
+	}
+	_, err := p.tx.Exec(ctx, `SELECT 1 FROM artifact_scopes
+WHERE scope_kind = $1 AND scope_id = $2 FOR UPDATE`, scope.kind, scope.id)
+	return err
+}
+
 func (p *PostgresPurger) scopeVersionIDs(ctx context.Context, scope Scope) ([]string, error) {
 	rows, err := p.tx.Query(ctx, `
 SELECT DISTINCT version_id
@@ -231,6 +267,17 @@ func (p *PostgresPurger) collectUnreferencedVersions(
 ) error {
 	if len(versionIDs) == 0 {
 		return nil
+	}
+	// Lock even still-referenced candidates: two purgers may delete different
+	// versions of the same blob, or different references to the same version.
+	if _, err := p.tx.Exec(ctx, `SELECT version_id FROM artifact_versions
+WHERE version_id = ANY($1::text[]) ORDER BY version_id FOR UPDATE`, versionIDs); err != nil {
+		return fmt.Errorf("lock Artifact purge versions: %w", err)
+	}
+	if _, err := p.tx.Exec(ctx, `SELECT sha256 FROM artifact_blobs
+WHERE sha256 IN (SELECT blob_sha256 FROM artifact_versions WHERE version_id = ANY($1::text[]))
+ORDER BY sha256 FOR UPDATE`, versionIDs); err != nil {
+		return fmt.Errorf("lock Artifact purge blobs: %w", err)
 	}
 	rows, err := p.tx.Query(ctx, `
 DELETE FROM artifact_versions AS version

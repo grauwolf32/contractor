@@ -427,7 +427,7 @@ WHERE project_id = $1 AND owner_id = $2 AND deletion_claim_id = $3`,
 }
 
 func (c *Controller) purgeProject(ctx context.Context, claim deletionClaim) error {
-	return persistencepostgres.InTx(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	return persistencepostgres.InTxWithRetry(ctx, c.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var locked bool
 		err := tx.QueryRow(ctx, `
 SELECT true

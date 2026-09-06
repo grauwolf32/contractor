@@ -61,6 +61,8 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 WITH source_selection AS (
     SELECT revision.version_id, version.media_type, blob.size_bytes
     FROM artifact_bindings AS binding
+    JOIN artifact_scopes AS source_scope
+      ON source_scope.scope_kind = binding.scope_kind AND source_scope.scope_id = binding.scope_id
     JOIN artifact_binding_revisions AS revision
       ON revision.scope_kind = binding.scope_kind
      AND revision.scope_id = binding.scope_id
@@ -73,6 +75,7 @@ WITH source_selection AS (
     WHERE binding.scope_kind = $1 AND binding.scope_id = $2
       AND binding.namespace = $3 AND binding.name = $4
       AND binding.current_revision = $5 AND binding.frozen
+    FOR KEY SHARE OF source_scope
 ), created_binding AS (
     INSERT INTO artifact_bindings (
         scope_kind, scope_id, namespace, name, current_revision
