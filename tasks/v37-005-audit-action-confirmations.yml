@@ -3,8 +3,8 @@ id: "V37-005"
 title: "Confirm Audit cancellation and deletion before sending a mutation"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "468d83d3e14b938a63263d5ccd2c628925f504c0"
 depends_on: ["V37-001", "V25-011"]
 languages: ["typescript"]
 goal: "Give users an explicit chance to cancel destructive Audit actions and understand their consequences."
