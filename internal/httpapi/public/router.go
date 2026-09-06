@@ -244,7 +244,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/audits/{auditId}", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
 
-	return withAPIVersion(current.withRequestID(current.cors(current.authenticate(mux), mux))), nil
+	return withAPIVersion(current.withRequestID(current.cors(current.authenticate(withErrorDiagnostics(mux)), mux))), nil
 }
 
 func (h *handler) withRequestID(next http.Handler) http.Handler {

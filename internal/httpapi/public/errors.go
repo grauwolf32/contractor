@@ -23,6 +23,7 @@ import (
 )
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
+	requestid.AnnotateFailure(w, "", diagnosticCause(err))
 	var credentialInUse *credentials.CredentialInUseError
 	var runtimeCredentialInUse *credentials.RuntimeCredentialInUseError
 	var auditUnsupported *auditservice.UnsupportedError

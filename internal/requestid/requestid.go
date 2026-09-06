@@ -65,12 +65,21 @@ func Middleware(next http.Handler, options Options) http.Handler {
 		tracked := &statusWriter{ResponseWriter: w}
 		next.ServeHTTP(tracked, r.WithContext(With(r.Context(), identifier)))
 		if tracked.status >= http.StatusInternalServerError {
-			options.Logger.Error(
-				"HTTP request failed",
+			attributes := []any{
 				"boundary", options.Boundary,
 				"request_id", identifier,
 				"method", r.Method,
 				"status", tracked.status,
+			}
+			if tracked.operation != "" {
+				attributes = append(attributes, "operation", tracked.operation)
+			}
+			if tracked.cause != "" {
+				attributes = append(attributes, "cause", tracked.cause)
+			}
+			options.Logger.Error(
+				"HTTP request failed",
+				attributes...,
 			)
 		}
 	})
@@ -116,7 +125,33 @@ func fallback() string {
 
 type statusWriter struct {
 	http.ResponseWriter
-	status int
+	status    int
+	operation string
+	cause     string
+}
+
+// AnnotateFailure enriches the existing 5xx request log without emitting a
+// second event. Callers must supply a static registered operation and a safe
+// cause category, never a URL, raw error, SQLSTATE payload or request data.
+// Empty values leave existing annotations intact; the first cause wins.
+// No annotation is emitted for successful or expected 4xx responses.
+func AnnotateFailure(w http.ResponseWriter, operation, cause string) {
+	for w != nil {
+		if tracked, ok := w.(*statusWriter); ok {
+			if tracked.operation == "" && len(operation) <= 256 {
+				tracked.operation = operation
+			}
+			if tracked.cause == "" && len(cause) <= 64 {
+				tracked.cause = cause
+			}
+			return
+		}
+		unwrapper, ok := w.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return
+		}
+		w = unwrapper.Unwrap()
+	}
 }
 
 func (w *statusWriter) WriteHeader(status int) {

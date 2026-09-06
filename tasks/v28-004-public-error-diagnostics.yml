@@ -3,7 +3,7 @@ id: V28-004
 title: Add safe internal diagnostics at the public API error boundary
 milestone: implementation-maintainability
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V4-007A, V28-001, V28-002, V28-003]
 languages: [go]
@@ -50,3 +50,22 @@ acceptance_criteria:
 tests:
   - {name: public, command: "go test -race ./internal/httpapi/public", covers: [A1, A2]}
   - {name: aggregate, command: "make verify", covers: [A3]}
+
+notes:
+  - >-
+    2026-09-06: Implemented safe cause classification and registered-route
+    annotations on the existing request-ID 5xx log, without duplicate events
+    or public envelope changes. Public API and request-ID race tests pass.
+  - >-
+    Aggregate verification is still pending. The combined working tree's
+    make verify stops on formatting outside V28. Continuing lint, test and
+    build checks also found the in-development ASVS AgentTemplate selecting
+    skills/trace in TestMigratedAnalysisSkillsAreCompleteDeterministicAndClosed,
+    plus existing Ruff formatting in runtime artifacts.py and
+    toolsets/security_findings.py and Prettier formatting in the Audit detail
+    and list routes. These unrelated files were not modified for V28.
+  - >-
+    The full Runtime suite passed (835 passed, 3 skipped), the full UI suite
+    passed (226 tests), UI server tests passed (6 tests), and all three Project
+    Playwright scenarios passed against a separate temporary UI build.
+    Keep in_progress until make verify passes on the integrated tree.

@@ -66,3 +66,25 @@ func TestEnsurePreservesContextAndCreatesBoundedOutgoingID(t *testing.T) {
 		t.Fatalf("generated outgoing request ID = %q", got)
 	}
 }
+
+func TestFailureAnnotationUnwrapsAndKeepsTheFirstCause(t *testing.T) {
+	var logs bytes.Buffer
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		wrapped := &annotationWriter{ResponseWriter: w}
+		AnnotateFailure(wrapped, "", "storage_failed")
+		AnnotateFailure(wrapped, "GET /v1/resources/{id}", "unknown")
+		wrapped.WriteHeader(http.StatusInternalServerError)
+	}), Options{Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/resources/private-value", nil))
+	if !strings.Contains(logs.String(), `"cause":"storage_failed"`) ||
+		!strings.Contains(logs.String(), `"operation":"GET /v1/resources/{id}"`) ||
+		strings.Contains(logs.String(), "private-value") || strings.Count(logs.String(), "\n") != 1 {
+		t.Fatalf("diagnostic = %s", &logs)
+	}
+	// A direct handler call outside the middleware remains supported.
+	AnnotateFailure(httptest.NewRecorder(), "operation", "unknown")
+}
+
+type annotationWriter struct{ http.ResponseWriter }
+
+func (w *annotationWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
