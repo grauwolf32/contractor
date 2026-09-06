@@ -3,8 +3,8 @@ id: V31-007
 title: Add a local Podman workflow and reproducible deployment instructions
 milestone: podman-allocation-execution
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3105f11fdd0b0e9b3bb1b6ac9553a97de9d7f539
 depends_on: [V31-006]
 languages: [go, python]
 
@@ -60,3 +60,22 @@ tests:
   - {name: catalogs, command: "go test -count=1 ./internal/config", covers: [A1, A3]}
   - {name: workflow-contract, command: "cd runtime && uv run pytest -W error tests/test_podman_workflow.py tests/test_agent_skill_package.py", covers: [A1, A3]}
   - {name: deployment-workflow, command: "make test-podman-workflow", covers: [A1, A2]}
+
+verification:
+  verified_on: "2026-09-06"
+  image: localhost/contractor-supervisor@sha256:faea9fa41ec757ad3c18bf3a947409692f2fcc374a87c1d209185175b0d215ca
+  environment: Linux, local rootless Podman 6.1.0, systemd cgroup v2; the mandatory gate uses a preinstalled digest-pinned image and never pulls or builds images.
+  results:
+    - Required catalog tests passed, including default selectors, exact sample template, direct source workspace, minimal selected tools, no Skills and ordinary report output.
+    - Required workflow and script-free Agent Skill package tests passed, 11 tests with warnings treated as errors.
+    - Mandatory test-podman-workflow passed catalog validation and all 12 Python tests, including actual Runtime CLI startup, real mTLS listener, complete Podman probes, paired registration, confirmed heartbeat lease, ADK tool calls, disk edits, checker execution, observed exact Artifact revision, finalization and release.
+    - The sample verifies that the checker is unchanged, publication bytes equal the actual disk report, absent publication yields no result Artifact, the remote write fence rejects late writes, and container removal precedes bind cleanup.
+    - Missing CONTRACTOR_TEST_PODMAN_IMAGE fails the Make target before testing; no real-host blanket skip can satisfy the explicit gate.
+    - Isolated staged snapshot passed all 1290 Runtime tests with warnings treated as errors and 25 explicit skips, source/test lint, formatting of all three new test files and Go catalog tests without parallel uncommitted changes.
+    - Shared-worktree make verify passed lint, Go tests, 1303 Runtime tests, Go builds and Runtime compilation, then stopped at UI generate-check because parallel API changes differ from the committed generated public.ts; those changes were excluded from this implementation commit.
+    - No managed sandbox containers or Runtime owner/guardian processes remained after the real gate.
+  limitations:
+    - The deterministic gate replaces model responses and remote Control Plane/Artifact peers; it is not a full Server/PostgreSQL or live-model workflow run.
+    - The user-service template documents independent cleanup lifetime and has a contract regression test; service-manager crash/restart release evidence remains part of V31-008 rather than being inferred from active/stopped unit state.
+    - Operator image, UID/cgroup delegation, certificates, stable owner and dedicated local roots remain explicit prerequisites; existing deployments are not automatically enabled.
+    - Only the explicitly published report persists; there is no overlay export, memory fallback, network/package installation, PTY/background job support, skill-script mount or per-allocation bind disk quota.
