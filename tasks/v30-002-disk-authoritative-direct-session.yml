@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V30-002
+title: Make local direct workspace sessions read and mutate current disk state
+milestone: local-direct-disk-authority
+priority: P0
+status: in_progress
+implementation_commit: null
+depends_on: [V30-001]
+languages: [python]
+
+goal: >-
+  Replace the authoritative memory tree for local direct sessions with current
+  on-disk state while preserving narrow Reader/Writer interfaces and other modes.
+
+context:
+  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  ownership: >-
+    For mode=direct and storage=local, hydration and optional imported state
+    initialize disk only. Initial archives, imported state and memory cannot
+    substitute for later files. Direct has no automatic diff, rollback or export.
+  compatibility: >-
+    Direct memory and both overlay variants retain their managed-tree semantics.
+    There are no new YAML fields, Toolset refs or model-visible refresh operations.
+
+scope:
+  in:
+    - Implement a local direct session using V30-001 primitives and the shared operation guard; keep provider details private.
+    - Read current requested text without loading unrelated texts; implement current-state preflight for all Writer operations.
+    - Acquire immutable complete snapshots and observation metadata from disk with deterministic existing managed-text digests.
+    - Reflect external create/write/rename/delete, empty-directory and text/binary changes without executor callbacks or watchers.
+    - Apply entry count, file bytes, aggregate regular-file bytes and managed-text limits to current acquisition and mutation preflight.
+    - Integrate hydrate_workspace and optional direct state import so the initialized result is physically present before readiness.
+    - Preserve operation-owned failure recovery without replaying stale tree deltas; fence on unconfirmed mutation or cleanup.
+    - Add tests/test_projectfs_local_direct.py and adapt local test fixtures to create actual files rather than imaginary local memory trees.
+  out:
+    - Overlay checkpoints/exports, binary editing, transactional snapshots against arbitrary concurrent host writers, disk quotas or Podman.
+
+requirements:
+  - {id: R1, text: Any external change completed before a call is reflected by that call without refresh or cached-content fallback.}
+  - {id: R2, text: Same-size writes with restored mtime are visible; size/mtime or hydration identity cannot establish freshness.}
+  - {id: R3, text: Exact edits and copies use current bytes and never overwrite unrelated external changes or resurrect deleted files.}
+  - {id: R4, text: Limits fail safely without partial complete snapshots or automatic deletion of external outputs.}
+
+acceptance_criteria:
+  - id: A1
+    given: An allocation with text/binary files and directories changed through ordinary OS calls after hydration.
+    when: Reader snapshots, metadata and reads are requested repeatedly, including same-size restored-mtime writes.
+    then: Current paths, text, classification and managed-text digests are returned while old snapshots remain immutable.
+  - id: A2
+    given: External edits, removals and new destination conflicts between sequential Writer calls.
+    when: Write, transform, mkdir, copy, move and remove execute.
+    then: They operate on current state and preserve unrelated external bytes; validation failures mutate nothing.
+  - id: A3
+    given: An unrelated large file and a current tree exceeding an aggregate bound.
+    when: A bounded single-file read and a complete snapshot are requested.
+    then: The single-file read does not load unrelated text; the complete snapshot reports a limit error without stale fallback.
+  - id: A4
+    given: Direct state import and equivalent memory/direct and local/memory overlay fixtures.
+    when: Hydration, edit and release run.
+    then: Direct imported state is on disk before readiness and all unaffected modes retain existing results and cleanup semantics.
+
+tests:
+  - {name: disk-authority, command: "cd runtime && uv run pytest -W error tests/test_projectfs_local_direct.py", covers: [A1, A2, A3, A4]}
+  - {name: session-parity, command: "cd runtime && uv run pytest -W error tests/test_projectfs_storage.py tests/test_projectfs_zip.py tests/test_workspace_state.py tests/test_projectfs_overlay.py tests/test_projectfs_edit_parity.py", covers: [A2, A4]}

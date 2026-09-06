@@ -112,8 +112,11 @@ async def hydrate_workspace(
         max_file_bytes=limits.max_file_bytes,
     )
     deadline = time.monotonic() + timeout_seconds
+    session: DirectWorkspaceSession | None = None
     try:
-        storage.filesystem.makedirs(content_root, exist_ok=False)
+        await _blocking_cancellation_safe(
+            lambda: storage.filesystem.makedirs(content_root, exist_ok=False)
+        )
         for source in spec.sources:
             if time.monotonic() >= deadline:
                 raise _capacity()
@@ -157,7 +160,12 @@ async def hydrate_workspace(
                 or value.media_type != WORKSPACE_OVERLAY_MEDIA_TYPE
             ):
                 raise _invalid_state()
-            source_tree = session._source_tree()
+            source_tree = ManagedWorkspaceTree(
+                directories=set(accumulator.directories),
+                text_files=dict(accumulator.text_files),
+                binary_paths=set(accumulator.binary_paths),
+                stored_binary_paths=set(accumulator.stored_binary_paths),
+            )
             try:
                 result_tree = decode_workspace_state(value.data, source_tree, limits)
                 try:
@@ -168,10 +176,21 @@ async def hydrate_workspace(
                     raise _capacity() from None
             except (WorkspaceStateError, WorkspaceStorageError):
                 raise _invalid_state() from None
-            session._tree = result_tree
+            if storage.storage != "local":
+                session._tree = result_tree
+        if storage.storage == "local":
+            # Validate/pin the physical initialized tree before exposing the
+            # session; neither hydration texts nor imported state survive here.
+            try:
+                assert session._local is not None
+                await session._local.initialize(deadline=deadline)
+            except WorkspaceStorageError:
+                raise _capacity() from None
         return session
     except BaseException:
         try:
+            if session is not None:
+                await session.close()
             await provider.cleanup(storage)
         except Exception:
             raise WorkspacePreparationError(

@@ -36,6 +36,12 @@ def test_snapshots_are_sorted_deterministic_and_hide_backend_details(tmp_path: P
     async def scenario() -> None:
         provider = LocalWorkspaceProvider(local_settings(tmp_path / "work"))
         storage = await provider.create("allocation")
+        root = Path(storage.root) / "run_workdir"
+        (root / "a").mkdir(parents=True)
+        (root / "z").mkdir()
+        (root / "a/a.txt").write_bytes(b"one")
+        (root / "z/b.txt").write_bytes(b"two")
+        (root / "z/image.bin").write_bytes(b"\x00image")
         session = DirectWorkspaceSession(
             mode="direct",
             storage=storage,

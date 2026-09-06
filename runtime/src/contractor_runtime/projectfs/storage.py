@@ -203,7 +203,7 @@ class ManagedWorkspaceTree:
 
 
 class DirectWorkspaceSession:
-    """One allocation-private effective tree backed by local or memory fsspec."""
+    """Disk-authoritative local direct or managed memory/overlay session."""
 
     def __init__(
         self,
@@ -221,11 +221,24 @@ class DirectWorkspaceSession:
         self._storage = storage
         self._content_root = content_root
         self._limits = limits
-        self._tree = ManagedWorkspaceTree(
-            directories=set(directories),
-            text_files=dict(text_files),
-            binary_paths=set(binary_paths),
-            stored_binary_paths=set(stored_binary_paths),
+        # Local imports keep the private disk implementation behind the narrow
+        # interfaces declared in this module, without a module import cycle.
+        from contractor_runtime.projectfs.local_direct import LocalDirectWorkspace
+
+        self._local = (
+            LocalDirectWorkspace(content_root, limits)
+            if mode == "direct" and storage.storage == "local"
+            else None
+        )
+        self._tree = (
+            ManagedWorkspaceTree()
+            if self._local is not None
+            else ManagedWorkspaceTree(
+                directories=set(directories),
+                text_files=dict(text_files),
+                binary_paths=set(binary_paths),
+                stored_binary_paths=set(stored_binary_paths),
+            )
         )
         self._lock = asyncio.Lock()
         self._closed = False
@@ -254,11 +267,17 @@ class DirectWorkspaceSession:
         raise WorkspaceStorageError("workspace_mode_unsupported")
 
     async def snapshot(self) -> WorkspaceSnapshot:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.snapshot()
         async with self._lock:
             self._require_open()
             return self._tree.snapshot()
 
     async def observation_metadata(self) -> WorkspaceObservationMetadata:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.observation_metadata()
         async with self._lock:
             self._require_open()
             return WorkspaceObservationMetadata(
@@ -267,6 +286,9 @@ class DirectWorkspaceSession:
             )
 
     async def read_text(self, path: str) -> str:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.read_text(path)
         normalized = _normalized_path(path)
         async with self._lock:
             self._require_open()
@@ -278,6 +300,9 @@ class DirectWorkspaceSession:
                 raise WorkspaceStorageError("workspace_not_found") from None
 
     async def write_text(self, path: str, text: str) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.write_text(path, text)
         normalized = _normalized_path(path)
         _validate_managed_text(text, self._limits)
         async with self._lock:
@@ -293,6 +318,9 @@ class DirectWorkspaceSession:
             self._commit_candidate(candidate)
 
     async def update_text(self, path: str, transform: Callable[[str], str]) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.update_text(path, transform)
         normalized = _normalized_path(path)
         async with self._lock:
             self._require_open()
@@ -309,6 +337,9 @@ class DirectWorkspaceSession:
             self._commit_candidate(candidate)
 
     async def make_directory(self, path: str, *, parents: bool = False) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.make_directory(path, parents=parents)
         normalized = _normalized_path(path)
         async with self._lock:
             self._require_open()
@@ -332,6 +363,9 @@ class DirectWorkspaceSession:
             self._commit_candidate(candidate)
 
     async def delete_path(self, path: str, *, recursive: bool = False) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.delete_path(path, recursive=recursive)
         normalized = _normalized_path(path)
         async with self._lock:
             self._require_open()
@@ -348,6 +382,9 @@ class DirectWorkspaceSession:
             self._commit_candidate(candidate)
 
     async def copy_path(self, source: str, destination: str, *, recursive: bool = False) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.copy_path(source, destination, recursive=recursive)
         normalized_source = _normalized_path(source)
         normalized_destination = _normalized_path(destination)
         async with self._lock:
@@ -362,6 +399,9 @@ class DirectWorkspaceSession:
             self._commit_candidate(candidate)
 
     async def move_path(self, source: str, destination: str) -> None:
+        if self._local is not None:
+            self._require_open()
+            return await self._local.move_path(source, destination)
         normalized_source = _normalized_path(source)
         normalized_destination = _normalized_path(destination)
         async with self._lock:
@@ -377,6 +417,10 @@ class DirectWorkspaceSession:
             self._commit_candidate(candidate)
 
     async def close(self) -> None:
+        if self._local is not None:
+            await self._local.close()
+            self._closed = True
+            return
         async with self._lock:
             self._closed = True
             self._tree.directories.clear()
@@ -386,6 +430,8 @@ class DirectWorkspaceSession:
 
     def _source_tree(self) -> ManagedWorkspaceTree:
         self._require_open()
+        if self._local is not None:
+            raise WorkspaceStorageError("workspace_mode_unsupported")
         return self._tree.clone()
 
     def _commit_candidate(self, candidate: ManagedWorkspaceTree) -> None:

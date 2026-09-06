@@ -116,7 +116,7 @@ def test_archive_rejects_all_special_entries_and_implicit_parent_limit(tmp_path:
     asyncio.run(scenario())
 
 
-def test_direct_local_write_replaces_final_symlink_without_touching_outside(
+def test_direct_local_write_rejects_final_symlink_without_touching_outside(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -127,11 +127,11 @@ def test_direct_local_write_replaces_final_symlink_without_touching_outside(
         physical.unlink()
         physical.symlink_to(outside)
 
-        await session.write_text("lf.txt", "private replacement\n")
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+            await session.write_text("lf.txt", "private replacement\n")
 
         assert outside.read_text(encoding="utf-8") == "outside sentinel\n"
-        assert not physical.is_symlink()
-        assert physical.read_text(encoding="utf-8") == "private replacement\n"
+        assert physical.is_symlink()
         await provider.cleanup(session.storage)
 
     asyncio.run(scenario())
@@ -147,11 +147,12 @@ def test_direct_local_parent_symlink_fails_closed_without_outside_mutation(tmp_p
         physical_tree.rename(original_tree)
         physical_tree.symlink_to(outside, target_is_directory=True)
 
-        with pytest.raises(WorkspaceStorageError, match="unavailable"):
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
             await session.write_text("tree/child/file.txt", "must not escape\n")
 
         assert list(outside.iterdir()) == []
-        assert await session.read_text("tree/child/file.txt") == "tree\n"
+        with pytest.raises(WorkspaceStorageError, match="workspace_type_conflict"):
+            await session.read_text("tree/child/file.txt")
         physical_tree.unlink()
         original_tree.rename(physical_tree)
         await provider.cleanup(session.storage)

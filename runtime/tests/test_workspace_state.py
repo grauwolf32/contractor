@@ -189,6 +189,10 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
             == b"imported\n"
         )
         assert not direct.storage.filesystem.exists(f"{direct.storage.root}/run_workdir/remove.txt")
+        # Imported state initializes local disk, not a retained direct overlay.
+        direct.storage.filesystem.pipe(f"{direct.storage.root}/run_workdir/src/a.py", b"external\n")
+        assert await direct.read_text("src/a.py") == "external\n"
+        assert not direct._tree.paths()
 
         await overlay_provider.cleanup(imported.storage)
         await direct_provider.cleanup(direct.storage)
