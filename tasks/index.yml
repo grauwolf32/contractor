@@ -548,7 +548,7 @@ milestones:
       programs provide reproducible mappings, evidence contracts, denominators
       and non-certifying reports through production Audit paths.
   - id: audit-batch-efficiency
-    exit_task: V26-004
+    exit_task: V26-006
     outcome: >-
       Small compatible Audit item sets may share one ordinary Run while each
       logical item retains independent identity, attempts, evidence, authority,
@@ -2214,6 +2214,7 @@ tasks:
   - {id: V26-003, file: v26-003-asvs-audit-program.yml}
   - {id: V26-004, file: v26-004-batched-audit-executions.yml}
   - {id: V26-005, file: v26-005-audit-program-library-release-gate.yml}
+  - {id: V26-006, file: v26-006-audit-batch-byte-budget.yml}
   - {id: V27-001, file: v27-001-scheduler-settings-store.yml}
   - {id: V27-002, file: v27-002-bounded-scheduler-lanes.yml}
   - {id: V27-003, file: v27-003-scheduler-settings-api.yml}
