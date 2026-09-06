@@ -3,8 +3,8 @@ id: V32-001
 title: Define performance switches, bounded records and allocation resource contracts
 milestone: operations-performance-and-profiling
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 18fd412df87d8b14e9f8ce55c8860f064615cd79
 depends_on: [V1-004, V8-003, V4-005]
 languages: [go, python, typescript]
 
@@ -105,6 +105,12 @@ verification:
     - Go race tests passed for app, contracts, controlplane, telemetry and performance.
     - Additional Runtime capability, allocation, metrics, control-client and app regressions passed, 54 tests.
     - Focused Python Ruff lint and format checks passed.
+    - All required commands passed again in a clean detached worktree at the implementation commit; generated TypeScript matched OpenAPI exactly.
+  environment: >-
+    Isolated UI checks reused the existing node_modules with pnpm automatic
+    dependency installation disabled; no dependency or lockfile changes were
+    needed. Node 26.7.0 produced the existing Node 24.20.x engine warning, but
+    TypeScript validation and generation checks passed.
   boundary: >-
     This task establishes contracts only: no collectors, history storage,
     listeners or implemented performance HTTP routes. Runtime does not advertise
