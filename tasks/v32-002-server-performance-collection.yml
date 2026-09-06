@@ -3,8 +3,8 @@ id: V32-002
 title: Collect bounded Server HTTP, process and pool performance every 15 seconds
 milestone: operations-performance-and-profiling
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 52b366174bcd1e42188d3ed9ac8b415672cadec4
 depends_on: [V32-001]
 languages: [go]
 
@@ -89,6 +89,12 @@ verification:
     - Required race tests passed for performance, app, public handlers and WebSocket events.
     - Required collection, minute aggregation and HTTP microbenchmarks passed with five repetitions.
     - Public OpenAPI validation and generated TypeScript typecheck passed, including a real process sample.
+    - Required race tests and five-repeat benchmarks passed again in a clean detached worktree at the implementation commit.
+    - Isolated OpenAPI verification, TypeScript typecheck, exact generation check and Go vet passed.
+  environment: >-
+    Isolated UI checks reused the existing node_modules with pnpm automatic
+    dependency installation disabled. Node 26.7.0 emitted the existing 24.20.x
+    engine warning; checks passed without lockfile or dependency changes.
   boundary: >-
     In-memory Server collection only. No diagnostic database queries, durable
     history, allocation sampling, performance HTTP routes or profiling listener
