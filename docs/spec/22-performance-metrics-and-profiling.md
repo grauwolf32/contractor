@@ -1,11 +1,25 @@
 # 22 — Operations performance metrics and Go profiling
 
-Status: **Draft specification — implementation pending**
+Status: **Partially implemented — collection, history storage, Runtime sampling and Go profiling completed; API integration, UI and release verification remain**
 
 Depends on: [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
 [06](06-server-ui-and-operations.md),
 [18](18-run-and-workspace-lifecycle-controls.md).
+
+## Implementation status
+
+As of 2026-09-06, the [task catalog](../../tasks/index.yml) records:
+
+- V32-001 through V32-004 completed: contracts/settings, Server collection,
+  PostgreSQL history storage and Runtime allocation-resource sampling.
+- V32-007 completed: independent opt-in Go profiling.
+- V32-005 in progress: allocation policy/report integration and Operations APIs.
+- V32-006 and V32-008 pending: Operations UI and the combined release gate.
+
+The sections below define the complete target contract, not a claim that every
+API or UI surface is already available. Implemented collectors and storage do
+not by themselves prove end-to-end allocation history or complete this feature.
 
 ## Purpose and ownership
 

@@ -13,6 +13,11 @@ Agent capacity and returns ready `WorkerHandle` values to Workflow Scheduler.
 It manages allocation lifecycle, not Planner algorithms, Worker objectives or
 A2A Task semantics.
 
+The partially implemented operational extension in
+[22](22-performance-metrics-and-profiling.md) owns optional allocation resource
+collection requests and their diagnostic capability advertisement. That
+capability does not constrain placement or change the lifecycle defined here.
+
 ## Control-plane trust and mTLS
 
 Server and Runtime Agents form one deployment-owned trust domain rooted in a

@@ -402,6 +402,15 @@ or tool calls.
 
 ## Execution reports
 
+[22](22-performance-metrics-and-profiling.md) defines the optional
+`RuntimeReport.resources` extension for process consumption during an allocation.
+Runtime sampling is implemented; end-to-end policy/report API integration and
+release verification remain tracked separately by V32-005 and V32-008.
+It also owns Server/DB performance history and its startup switch. Disabling
+that collection does not disable the execution accounting, safety budgets or
+report lifecycle in this document. Invalid resource measurements are isolated
+from otherwise valid execution reports.
+
 Planner and the in-process Worker runtime use the same framework-neutral report
 shape. Allocation lifecycle facts observed by the surrounding Runtime Agent
 remain a separate report because their source and completeness differ.

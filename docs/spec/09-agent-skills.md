@@ -355,7 +355,13 @@ ADK functions.
 The authenticated Run owner may inspect ordinary exact metadata, lineage and
 bytes through existing public Artifact routes, just as it may inspect the owner
 source package. That user-facing authority is not exposed to Worker model tools;
-package bodies never enter lifecycle events or telemetry.
+package bodies never enter lifecycle events or ordinary execution reports.
+External telemetry is content-free by default. With explicit
+`captureContent=true` under [07](07-runtime-labels-and-infrastructure-config.md),
+disclosed instructions/resources present in model conversations or tool results
+may be exported to the trusted sink, unredacted and within its content limits.
+Capture does not grant access to undisclosed package members or automatically
+upload complete package ZIPs.
 
 Retention pins both exact owner source and Run fork while a retained Run
 snapshot refers to them. Ordinary current updates therefore never invalidate a
@@ -522,6 +528,8 @@ projection contains only validated skill name, bounded normalized
 stable ADK error code. It never retains instructions, resource/archive bytes,
 owner refs, revisions, extracted paths or generated context. Aggregate counts
 flow through ordinary `ExecutionReport`; no Skill telemetry service exists.
+This content-free retained projection is distinct from opt-in external
+model/tool content capture under [07], which may include disclosed skill text.
 
 ## Initial increment acceptance
 

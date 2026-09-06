@@ -364,12 +364,20 @@ Adapters normalize every internal failure to the exact code/retryability table
 above; an arbitrary exception attribute cannot add another Memory code.
 
 Memory adapters never automatically copy content, description or tags into
-ExecutionReport detail, Planner durable facts, logs, WebSocket events or
-external telemetry. Safe tool diagnostics may retain only operation name,
-logical `worker_name` when applicable, note name, request/result byte sizes,
-success/error code and duration. Tool counters remain ordinary aggregate
+ExecutionReport detail, Planner durable facts, logs or WebSocket events.
+External telemetry is content-free by default. Safe tool diagnostics may retain
+only operation name, logical `worker_name` when applicable, note name,
+request/result byte sizes, success/error code and duration. Tool counters remain ordinary aggregate
 metrics. An exact hidden Artifact revision may be retained as trusted Server
 provenance, but it is never placed in model context or a public Planner event.
+
+With explicit `captureContent=true` under
+[07](07-runtime-labels-and-infrastructure-config.md), the trusted external sink
+may receive note content, descriptions and tags present in captured tool
+arguments/results or model conversations. This opt-in does not enable Memory
+enumeration or background note export, and does not relax the content-free
+ExecutionReport, durable-fact, log or WebSocket contracts above. Content capture
+is bounded but unredacted; callers must not assume note secrets are filtered.
 
 The selected LLM Gateway is an intentional content channel: a full note returned
 by `read_memory` or a mutation is part of that invocation's model conversation.
@@ -407,8 +415,9 @@ do not create an additional diagnostic copy of the note payload.
    terminal barrier. A Planner memory call also completes before Planner can
    return a candidate and enter finalizing.
 10. Memory adapters never automatically retain note bodies or descriptive
-    metadata in durable diagnostics or external telemetry. The LLM invocation
-    and an explicit model-authored semantic copy remain intentional content
-    destinations, not telemetry.
+    metadata in durable diagnostics. External telemetry is content-free unless
+    explicitly opted into trusted-sink capture under [07]. The LLM invocation
+    and an explicit model-authored semantic copy remain separate intentional
+    content destinations.
 11. Memory is Run-scoped and observed only through explicit tools; there is no
     implicit prompt or cross-Run injection.

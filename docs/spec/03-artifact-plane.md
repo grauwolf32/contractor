@@ -348,6 +348,16 @@ Run instead becomes `failed` or `cancelled`, any output bindings accepted from
 earlier Stages are also frozen for audit but do not constitute successful Run
 completion and are not implicitly published.
 
+Manual continuation of an eligible failed Run under
+[04](04-execution-lifecycle-and-metrics.md#manual-continuation-of-a-failed-run)
+is the explicit exception to output-binding freezing. The same transaction
+records the continuation receipt, creates the new attempt and unfreezes that
+Run's `outputs` bindings without changing their current revisions. Later
+Scheduler publication may advance them normally. Immutable artifact revisions,
+terminal Stage facts and other frozen bindings remain protected; Workers gain
+no output-write authority. Cancelled/succeeded Runs and already-published Runs
+cannot use this exception.
+
 A Run with no Artifact bindings has an empty output set. Freezing that set is a
 successful no-op; absence of an Artifact scope row cannot prevent a terminal
 WorkflowRun transition. Concurrent first writes to the same scope, and

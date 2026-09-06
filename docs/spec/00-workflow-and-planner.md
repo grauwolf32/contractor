@@ -958,7 +958,14 @@ same immutable WorkflowRunCancellation recorded by the winning cancel request.
 - `cancelling`: cancellation intent is durable, no new StageExecution or
   Workflow-output mapping is allowed, and active executions are stopped through
   their bounded `aborting` path unless they already entered `finalizing`;
-- `succeeded`, `failed` and `cancelled` are immutable terminal states.
+- `succeeded` and `cancelled` are immutable terminal states;
+- `failed` is terminal unless the owner explicitly continues an eligible Run
+  through `POST /v1/runs/{runId}/resume` under
+  [04](04-execution-lifecycle-and-metrics.md#manual-continuation-of-a-failed-run).
+  That transaction changes the Run to `running` and creates a new StageExecution
+  after confirmed allocation release. It preserves completed StageExecutions,
+  successful results and exact input/configuration pins; it does not revive a
+  terminal StageExecution or replay its Planner session.
 
 An initialization error moves the Run to `failed` with a stable error and no
 StageExecution. Cancellation is accepted from `initializing` or `running` by

@@ -583,7 +583,12 @@ milestones:
 
 performance_metrics_planning:
   specification: docs/spec/22-performance-metrics-and-profiling.md
-  status: implementation_pending
+  status: partially_implemented
+  implementation_status:
+    reviewed_on: "2026-09-06"
+    completed: [V32-001, V32-002, V32-003, V32-004, V32-007]
+    in_progress: [V32-005]
+    pending: [V32-006, V32-008]
   defaults:
     performance_metrics: true
     pprof: false

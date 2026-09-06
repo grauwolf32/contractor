@@ -269,6 +269,15 @@ stale, causing the UI to fetch a new snapshot. This is a current-state view,
 not durable allocation history: an allocation disappears after authoritative
 release.
 
+The partially implemented [performance extension](22-performance-metrics-and-profiling.md)
+specifies a separate Performance page and durable completed-allocation history.
+Collection, history storage and Go profiling are implemented; the Operations
+API integration is in progress and the UI/release gate remain pending. It owns
+their collection switches, bounded read APIs and freshness/retention semantics;
+it does not extend the live registry's retention or advance its revisions on
+periodic samples. Go profiling is separately enabled at Server startup and is
+not exposed through the Operations browser API.
+
 The durable Runtime Agent principal/label configuration in [07] is a separate
 Operations resource. It remains listable while no process for that certificate
 principal is connected and does not claim liveness. When an instance is live,
