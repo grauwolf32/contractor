@@ -294,9 +294,9 @@ an ordinary Run artifact explicitly.
 
 #### Local direct: disk is authoritative
 
-Design amendment, 2026-09-06. Core implementation is present in V30-001 through
-V30-003; release verification remains pending in V30-004. The complete gate must
-pass before enabling the execution sandbox specified in [21](21-podman-sandbox.md).
+Design amendment, implemented and release-verified on 2026-09-06 in V30-001
+through V30-004. The filesystem prerequisite for the execution sandbox in
+[21](21-podman-sandbox.md) is satisfied; Podman itself is not enabled by this gate.
 
 Implementation is decomposed into V30-001 through V30-004 in the
 [task catalog](../../tasks/index.yml); V30-004 is the prerequisite release gate.
@@ -665,7 +665,7 @@ paths, credentials or arbitrary exceptions.
    cancellation, lease loss and cleanup fault suites fail closed with no path
    escape or retained content leak.
 
-### Local direct amendment acceptance (release verification pending)
+### Local direct amendment acceptance (release verified)
 
 These cases use actual files modified outside WorkspaceWriter while the same
 allocation remains alive, and cover both narrow handles and Toolset consumers.

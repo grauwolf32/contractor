@@ -65,23 +65,19 @@ verification:
   verified_on: "2026-09-06"
   implementation_checkpoint: c312f54fc65b1f32173bed57435b23997698cd66
   results:
-    - Focused gate passed, 276 Python tests with warnings treated as errors plus the ProjectWorkspace matrix validator.
+    - Focused gate passed, 278 Python tests with warnings treated as errors plus the ProjectWorkspace matrix validator.
     - ProjectWorkspace matrix command passed; all ten local direct acceptance cases have executable symbol ownership.
     - Process E2E passed against an isolated schema in the existing local test PostgreSQL, followed by all four Python allocation/process cases.
-    - Full Runtime suite passed, 908 tests; three live LLM Gateway tests skipped because their environment is not configured.
+    - Full Runtime suite passed, 952 tests; three live LLM Gateway tests skipped because their environment is not configured.
     - Separate make test-go and make build passed.
     - Changed Python files pass Ruff lint/format; the matrix validator passes gofmt.
-  remaining:
     - >-
-      make verify is not green: unrelated in-progress performance/contracts Go
-      files fail gofmt, and runtime/src/contractor_runtime/contracts.py has Ruff
-      E501 failures at lines 902 and 2119 at the time of verification.
-    - >-
-      Separate ui-verify also stops at generate:check because the in-progress
-      performance API changes regenerate ui/src/api/generated/public.ts with a
-      diff against HEAD. That generated result is left unstaged, outside this task.
+      make verify passed after generated client synchronization in 0fa7079c:
+      formatting, lint, Go tests, Runtime tests and builds, UI generation,
+      lint, typecheck, 233 UI tests, six UI server tests and production build.
+      Non-failing Node engine and UI chunk-size warnings remain.
+  remaining: []
   completion_boundary: >-
-    The focused filesystem and process gates are implemented and passing, but
-    A4 and the mandatory aggregate command remain unverified. Keep this task
-    in_progress and the amendment release verification pending; do not start
-    dependent Podman implementation until make verify passes.
+    All four required commands and A1 through A4 have passed. Local direct
+    disk authority is release-verified. This gate permits dependent Podman
+    implementation but does not advertise or enable execution capabilities.
