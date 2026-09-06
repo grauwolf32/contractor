@@ -3,8 +3,8 @@ id: "V37-007"
 title: "Help users discover Workflows and inspect exact Agent versions and usage"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "97e5663afd26e8397c2e668eabbd50c626d6596c"
 depends_on: ["V37-006", "V37-003"]
 languages: ["typescript"]
 goal: >-
