@@ -20,20 +20,23 @@ context:
     filters only the loaded page.
   presentation: >-
     Add optional bounded Workflow spec.presentation with displayName (1..160 Unicode characters)
-    and description (1..2000). Omission preserves legacy loading and digests; provided values
-    participate in the immutable published definition/digest. Read projections expose those
-    optional values; required inputs and primary outputs come from existing slot contracts.
+    and description (1..2000). Omission preserves legacy loading and serialized snapshots;
+    provided values become part of the complete immutable resolved Workflow definition and Run
+    snapshot. This task does not introduce a separate Workflow digest. Read projections expose
+    those optional values; required inputs and primary outputs come from existing slot contracts.
   queries: >-
     Specify and implement bounded case-insensitive literal search over name, version and
     available authored description/displayName, exact-name filtering for version selection, and
     a paginated reverse lookup of Workflow bindings referencing an exact AgentTemplate
-    name/version. Filter before pagination; include normalized filters and exact source identity
-    in cursor validation.
+    name/version at GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings.
+    Normalize q with Unicode whitespace trimming, NFC and Unicode case folding, then use literal
+    substring matching. Filter before pagination; bind cursors to normalized filters and a stable
+    SHA-256 fingerprint of the exact immutable catalog snapshot used as the source.
 scope:
   in:
     - >-
-      Update owning Workflow/UI specifications, strict loader, digest/read models, OpenAPI and
-      generated public client.
+      Update owning Workflow/UI specifications, strict loader, resolved snapshots/read models,
+      OpenAPI and generated public client.
     - >-
       Support server-side Workflow and AgentTemplate search, exact-name version lookup and exact
       AgentTemplate usage from one loaded configuration snapshot.
@@ -62,16 +65,17 @@ requirements:
       AgentTemplate, omit instruction bodies and return explicit page information.
   - id: "R4"
     text: >-
-      Legacy definitions lacking presentation retain their digest; new presentation fields
-      cannot silently alter an already published identity. Update compatibility fixtures
-      accordingly.
+      Legacy definitions lacking presentation retain their decoded and serialized shape. A
+      Workflow exact version remains immutable; publishing presentation for an existing version
+      is a conflicting redefinition rather than an in-place update. Update compatibility fixtures
+      accordingly and do not add a Workflow digest.
 acceptance_criteria:
   - id: "A1"
     given: "Legacy and newly authored Workflow definitions."
     when: "The loader resolves them and authenticated list/detail APIs read them."
     then: >-
-      Legacy digests remain stable, new bounded metadata is validated/pinned and no execution
-      behavior changes.
+      Legacy snapshots remain compatible, new bounded metadata is validated and pinned in the
+      resolved snapshot, and no execution behavior changes.
   - id: "A2"
     given: "A catalog larger than a page with matches outside its first page."
     when: "Clients search, filter exact names, page results or reuse an incompatible cursor."
