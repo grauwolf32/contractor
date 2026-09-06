@@ -93,7 +93,7 @@ beyond all the short test budgets, receives NOTIFY and releases on shutdown.
 See [the V29 access-path and query-count evidence](2026-09-06-postgres-v29.md)
 and [the original baseline](2026-09-05-postgres-review.md).
 
-## Aggregate gate
+## Initial aggregate gate
 
 The required PostgreSQL race suite passed, plus credentials, Project lifecycle
 and public event tests. `make verify` passed Go formatting, vet and Ruff after
@@ -108,3 +108,31 @@ The remaining aggregate targets were also run independently:
 UI: 227 tests plus 6 server tests; Go and UI builds passed). UI tooling warns
 that installed Node 26 differs from the declared Node 24.20.x engine, but its
 checks pass. No ASVS whitelist or verification assertion was weakened.
+
+## ASVS assignment follow-up
+
+With explicit user approval, commit
+`57a4b9037cd3f1eecbcd4f11afc4f7dcc8e11c78` adds only
+`audit_asvs_source_verifier.yaml → trace` to the expected assignment inventory.
+The guard still rejects every unlisted assignment and requires each expected
+assignment to exist. The original failing test now passes.
+
+The main worktree's subsequent `make verify` stops on Ruff errors in the
+separate in-progress `projectfs` implementation; those files were untouched.
+To isolate submitted code from ongoing work, verification was repeated in a
+clean detached worktree at the exact commit above:
+
+- Required PostgreSQL race suite plus credentials, Project lifecycle and
+  public events: passed on a separate PostgreSQL 17.11 container after readiness
+  was confirmed. An initial attempt started before container readiness and was
+  rerun; no database behavior was changed to accommodate it.
+- Full Go tests, vet, Ruff, Runtime tests (835 passed / 3 skipped), Go build,
+  UI generation check, lint and typecheck: passed.
+- UI tests: 225 passed, one failed. The committed Workflow route test expects
+  `eval.id=eval-ui-01`; the existing UI renders `eval.id:eval-ui-01`.
+  The matching expectation correction already exists among the main worktree's
+  uncommitted UI changes and was not staged as part of this ASVS fix.
+
+The ASVS blocker is resolved, but the complete aggregate command has not yet
+passed. V29-007 remains `in_progress`; no claim is made that either the clean
+commit or the combined development tree currently passes `make verify`.

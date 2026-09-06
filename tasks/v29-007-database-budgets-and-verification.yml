@@ -82,3 +82,15 @@ notes:
   passed independently: Runtime 835 passed/3 skipped, UI 227 tests plus 6
   server tests, Go/UI builds. Keep in_progress until make verify passes.
 - 'Evidence: docs/reviews/2026-09-06-postgres-v29-budgets.md'
+- >-
+  2026-09-06 follow-up: With explicit user approval, commit
+  57a4b9037cd3f1eecbcd4f11afc4f7dcc8e11c78 registers only the ASVS verifier's
+  expected trace assignment; the closed assignment guard remains intact and
+  the previously failing migration test passes. On that clean detached commit,
+  the PostgreSQL race suite, Go suite, Runtime suite (835 passed/3 skipped),
+  UI lint and typecheck pass. make verify now stops on one unrelated committed
+  Workflow UI test expecting eval.id=eval-ui-01 while the UI renders
+  eval.id:eval-ui-01 (225 UI tests passed). The main worktree already contains
+  the corresponding uncommitted UI assertion correction, which was not staged;
+  its own make verify currently stops on in-development projectfs Ruff errors.
+  Keep in_progress until the integrated aggregate gate passes.
