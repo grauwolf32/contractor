@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V31-001
+title: Define Podman settings, exact tool/profile contracts and local placement
+milestone: podman-allocation-execution
+priority: P0
+status: in_progress
+implementation_commit: null
+depends_on: [V30-004, V7-002]
+languages: [go, python]
+
+goal: >-
+  Establish explicit opt-in podman@1 and code-execution@1 contracts and private
+  interfaces without advertising an execution implementation before it is ready.
+
+context:
+  specification: docs/spec/21-podman-sandbox.md
+  compatibility: >-
+    podman@1 requires context.workspace, mode direct and Runtime storage local.
+    code-execution@1 exports only exec_command and requires podman@1. The profile
+    alone adds no tools; overlay, memory and host-execution fallback are forbidden.
+  startup_policy: >-
+    Disabled by default. Require a preinstalled digest-pinned image and stable
+    unique service owner. Defaults are 2 vCPU, 2 GiB RAM, 256 PIDs, 256 MiB tmpfs,
+    network none, 60s command default, 300s command maximum, 30s prepare maximum,
+    5s stop grace, 32 KiB per output preview and 1 MiB combined output hard limit.
+    All limits are finite, validated and bounded by documented implementation ceilings.
+
+scope:
+  in:
+    - Add registered profile/tool compatibility metadata and Go authoring validation with no fleet lookup at authoring time.
+    - Extend binding-specific placement to require local storage for podman@1 and repeat compatibility at Runtime prepare.
+    - Add immutable opt-in Podman settings, choose/document exact CLI and environment spellings, validate policy and implementation ceilings.
+    - Define private allocation sandbox/execution protocols and safe identity/result/error DTOs for engine, supervisor and lifecycle implementations.
+    - Keep the sandbox execution channel distinct from host runtime-subprocess-launcher and restrict handle construction to selected tools.
+    - Define exec_command(command, cwd="", timeout_seconds=60), bounded 64 KiB UTF-8 command input and the specified structured observation contract.
+    - Add tests/test_podman_settings.py and tests/test_podman_contracts.py plus Go descriptor/workspace placement fixtures.
+  out:
+    - Engine invocation, image download/build, production capability advertisement, Runtime label policies, networked profiles or skill scripts.
+
+requirements:
+  - {id: R1, text: Missing workspace, overlay, memory and incompatible profile/tool selections fail at the correct authoring/placement/prepare boundary.}
+  - {id: R2, text: No model or Workflow field can select engine options, image, host path, mount, user, secret or resource/network override.}
+  - {id: R3, text: Existing workspace placement and host validators retain their semantics; unimplemented factories advertise nothing.}
+
+acceptance_criteria:
+  - id: A1
+    given: Templates with valid local direct bindings and invalid missing-workspace/overlay/profile combinations.
+    when: Catalog validation, placement and Runtime prepare validation run.
+    then: Exact compatibility is enforced, including local storage only for affected bindings and no fallback.
+  - id: A2
+    given: Disabled, valid and malformed startup settings, including unpinned images and unbounded limits.
+    when: Settings are parsed and frozen.
+    then: Invalid settings fail early, safe defaults are deterministic and no model-visible infrastructure data is added.
+  - id: A3
+    given: The new descriptors but no installed engine/supervisor/tool implementation.
+    when: Runtime discovery and factory tests run alongside existing validators.
+    then: No Podman capability is advertised and host subprocess authority is never supplied to execution tools.
+
+tests:
+  - {name: runtime-contracts, command: "cd runtime && uv run pytest -W error tests/test_podman_settings.py tests/test_podman_contracts.py tests/test_capabilities.py", covers: [A1, A2, A3]}
+  - {name: authoring-placement, command: "go test -count=1 ./internal/config ./internal/scheduler", covers: [A1, A3]}

@@ -3,8 +3,8 @@ id: V30-004
 title: Verify disk-authoritative workspaces before enabling execution sandboxes
 milestone: local-direct-disk-authority
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 9c98869837acd4c103e9f94008c51b13ddfdea3c
 depends_on: [V30-003]
 languages: [python, go]
 
