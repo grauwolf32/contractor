@@ -1,0 +1,82 @@
+schema_version: "1.0"
+id: V36-001
+title: Load non-secret Server process settings from strict YAML
+milestone: implementation-maintainability
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [MVP-003, V32-001]
+languages: [go, yaml, markdown]
+
+goal: >-
+  Replace the long local Server flag list with one explicit, versioned,
+  non-secret ServerConfig while preserving existing environment and CLI
+  compatibility.
+
+context:
+  problem: >-
+    Contractor Server process settings currently come from defaults,
+    environment variables and individual flags. Reproducing a local or VM
+    deployment therefore requires a long command whose non-secret listeners,
+    roots, TLS paths and timeouts are mixed with secret environment settings.
+  boundary: >-
+    ServerConfig is process bootstrap input. It is not a published Workflow
+    catalog resource, Run input, Scheduler setting, RuntimeConfig or hot-reload
+    mechanism. Database URLs, public bearer tokens, development LLM tokens and
+    key bytes remain outside this document.
+
+scope:
+  in:
+    - Add --config with --server-config and CONTRACTOR_SERVER_CONFIG aliases.
+    - Decode exactly one contractor/v1alpha1 ServerConfig with known and unique YAML fields.
+    - Cover listeners, configuration roots, timeouts, blob placement, safe credential file refs, local auth, browser policy, mTLS file refs and Operations profiling switches.
+    - Resolve relative file and directory paths against the ServerConfig file directory.
+    - Preserve effective precedence as defaults, then YAML, then environment, then CLI flags.
+    - Ship and document a non-secret loopback configuration usable with the existing local bootstrap files.
+  out:
+    - Secret values, database connection URLs, token interpolation, includes, remote configuration, hot reload or Runtime Agent settings.
+    - Moving durable Scheduler settings out of their existing PostgreSQL/UI contract.
+
+requirements:
+  - id: R1
+    text: >-
+      Omission of --config preserves all pre-feature defaults and environment or
+      flag behavior; explicit higher-precedence settings deterministically win.
+  - id: R2
+    text: >-
+      The file is bounded to 64 KiB, must be regular and non-empty, and rejects
+      wrong envelopes, multiple documents, duplicate keys, unknown fields and
+      invalid effective values before Server startup.
+  - id: R3
+    text: >-
+      No ServerConfig field can carry the database URL, public bearer token,
+      development Worker/Planner token or private key bytes. Errors never echo a
+      rejected secret-like scalar.
+  - id: R4
+    text: >-
+      Relative paths are stable regardless of process working directory and the
+      root-level local ServerConfig remains outside the executable Workflow
+      catalog.
+
+acceptance_criteria:
+  - id: A1
+    given: A complete local ServerConfig with relative paths and false boolean values.
+    when: The Server parses it from either CLI alias or the environment selector.
+    then: Every supported setting has the expected normalized value and no secret field is populated.
+  - id: A2
+    given: Conflicting file, environment and CLI values.
+    when: Effective process configuration is constructed.
+    then: Defaults are overridden by file, environment overrides file and CLI overrides environment.
+  - id: A3
+    given: Unknown, duplicate, multi-document, secret-bearing, oversized or malformed YAML.
+    when: Configuration is parsed.
+    then: Startup fails closed with a bounded error that does not reproduce supplied secret-like values.
+  - id: A4
+    given: The checked-in loopback ServerConfig.
+    when: App and catalog validation tests run.
+    then: It parses successfully and the normal Workflow catalog counts remain unchanged.
+
+tests:
+  - {name: app-race, command: "go test -race -count=1 ./internal/app", covers: [A1, A2, A3, A4]}
+  - {name: config-catalog, command: "go run ./cmd/contractor-server config validate --root ./configs && go test -count=1 ./internal/config", covers: [A4]}
+  - {name: repository-diff, command: "git diff --check", covers: [A1, A2, A3, A4]}

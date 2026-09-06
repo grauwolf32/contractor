@@ -955,25 +955,27 @@ go run ./cmd/contractor-server auth hash-password \
   --user-id=local-user --username=admin > .local/secrets/local-auth.yaml
 ```
 
-In the first terminal, export Server settings and start it. The explicit
-loopback mode uses the non-production `contractor_loopback_session` cookie and
-accepts only a loopback public listener and loopback HTTP browser origins.
-Production omits that mode, uses HTTPS origins, and issues only the Secure
+In the first terminal, export only the local secret values, migrate, and start
+the Server with the checked-in non-secret
+[`ServerConfig`](../configs/server.local.yaml). Relative paths in that file are
+resolved from the file's directory. The explicit loopback mode uses the
+non-production `contractor_loopback_session` cookie and accepts only a loopback
+public listener and loopback HTTP browser origins. Production omits that mode,
+uses HTTPS origins, and issues only the Secure
 `__Host-contractor_session` cookie.
 
 ```shell
 export CONTRACTOR_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor?sslmode=disable'
-export CONTRACTOR_PUBLIC_USER_ID='local-user'
 export CONTRACTOR_PUBLIC_BEARER_TOKEN='replace-with-a-local-api-token'
-export CONTRACTOR_LOCAL_AUTH_FILE="$(pwd)/.local/secrets/local-auth.yaml"
-export CONTRACTOR_BROWSER_ORIGINS='http://127.0.0.1:5173'
-export CONTRACTOR_INSECURE_LOOPBACK_COOKIE='true'
 export CONTRACTOR_LLM_GATEWAY_TOKEN='replace-with-the-gateway-token'
-export CONTRACTOR_CA_FILE='.local/pki/ca.crt'
-export CONTRACTOR_CONTROL_PLANE_CERT_FILE='.local/pki/control-plane.crt'
-export CONTRACTOR_CONTROL_PLANE_KEY_FILE='.local/pki/control-plane.key'
-make run-local
+go run ./cmd/contractor-server migrate
+go run ./cmd/contractor-server serve --config ./configs/server.local.yaml
 ```
+
+`CONTRACTOR_SERVER_CONFIG` and `--server-config` are aliases for `--config`.
+Effective process settings use `built-in defaults < ServerConfig < environment
+< command-line flags`. The YAML contract rejects unknown and duplicate fields,
+multiple documents, and secret-bearing fields such as database URLs or tokens.
 
 `CONTRACTOR_PUBLIC_BEARER_TOKEN` remains the non-browser authentication path;
 CLI and automation clients send it only in `Authorization: Bearer ...` and do
@@ -1008,7 +1010,7 @@ bindings:
     adminKeyFile: $(pwd)/.local/secrets/litellm-master-key
 EOF
 go run ./cmd/contractor-server serve \
-  --config-root ./configs/e2e \
+  --config ./configs/server.local.yaml \
   --credential-master-key-file="$(pwd)/.local/secrets/credential-master-key" \
   --llm-gateway-admin-bindings-file="$(pwd)/.local/secrets/llm-gateway-admin-bindings.yaml"
 ```

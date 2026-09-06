@@ -17,12 +17,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-type repeatedStringFlag struct{ values []string }
+type repeatedStringFlag struct {
+	values          []string
+	clearOnFirstSet bool
+}
 
 func (f *repeatedStringFlag) String() string { return strings.Join(f.values, ",") }
 func (f *repeatedStringFlag) Set(value string) error {
 	if value == "" {
 		return errors.New("value must not be empty")
+	}
+	if f.clearOnFirstSet {
+		f.values = nil
+		f.clearOnFirstSet = false
 	}
 	f.values = append(f.values, value)
 	return nil
@@ -49,41 +56,67 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("unknown command %q", args[0])
 	}
 
-	listenAddress := getenv("CONTRACTOR_PUBLIC_LISTEN")
-	if listenAddress == "" {
-		listenAddress = defaultListenAddress
+	serverConfigPath, err := discoverServerConfigPath(args, getenv)
+	if err != nil {
+		return Config{}, err
 	}
-	privateListenAddress := getenv("CONTRACTOR_PRIVATE_LISTEN")
-	if privateListenAddress == "" {
-		privateListenAddress = defaultPrivateListenAddress
+	settings := defaultServerConfigValues()
+	if serverConfigPath != "" {
+		settings, err = loadServerConfig(serverConfigPath, settings)
+		if err != nil {
+			return Config{}, err
+		}
 	}
-	privateURL := getenv("CONTRACTOR_PRIVATE_URL")
-	if privateURL == "" {
-		privateURL = defaultPrivateURL
+
+	listenAddress := settings.listenAddress
+	if value := getenv("CONTRACTOR_PUBLIC_LISTEN"); value != "" {
+		listenAddress = value
 	}
-	shutdownTimeout := defaultShutdownTimeout
-	runtimeRequestTimeout := defaultRuntimeRequestTimeout
-	workerRequestTimeout := defaultWorkerRequestTimeout
-	plannerTimeout := defaultPlannerTimeout
+	privateListenAddress := settings.privateListenAddress
+	if value := getenv("CONTRACTOR_PRIVATE_LISTEN"); value != "" {
+		privateListenAddress = value
+	}
+	privateURL := settings.privateURL
+	if value := getenv("CONTRACTOR_PRIVATE_URL"); value != "" {
+		privateURL = value
+	}
+	shutdownTimeout := settings.shutdownTimeout
+	runtimeRequestTimeout := settings.runtimeRequestTimeout
+	workerRequestTimeout := settings.workerRequestTimeout
+	plannerTimeout := settings.plannerTimeout
 	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
-	blobBackend := getenv("CONTRACTOR_ARTIFACT_BLOB_BACKEND")
-	blobPath := getenv("CONTRACTOR_ARTIFACT_BLOB_PATH")
-	operatorConfigRoot := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT")
-	if operatorConfigRoot == "" {
-		operatorConfigRoot = getenv("CONTRACTOR_CONFIG_ROOT")
+	blobBackend := settings.artifactBlobBackend
+	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_BACKEND"); value != "" {
+		blobBackend = value
 	}
-	if operatorConfigRoot == "" {
-		operatorConfigRoot = defaultConfigRoot
+	blobPath := settings.artifactBlobPath
+	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_PATH"); value != "" {
+		blobPath = value
 	}
-	managedConfigRoot := getenv("CONTRACTOR_MANAGED_CONFIG_ROOT")
+	operatorConfigRoot := settings.operatorConfigRoot
+	if value := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT"); value != "" {
+		operatorConfigRoot = value
+	} else if value := getenv("CONTRACTOR_CONFIG_ROOT"); value != "" {
+		operatorConfigRoot = value
+	}
+	managedConfigRoot := settings.managedConfigRoot
+	if value := getenv("CONTRACTOR_MANAGED_CONFIG_ROOT"); value != "" {
+		managedConfigRoot = value
+	}
 	publicUserID := getenv("CONTRACTOR_PUBLIC_USER_ID")
 	publicBearerToken := contracts.NewSecretString(getenv("CONTRACTOR_PUBLIC_BEARER_TOKEN"))
-	localAuthFile := getenv("CONTRACTOR_LOCAL_AUTH_FILE")
-	browserOrigins := repeatedStringFlag{}
+	localAuthFile := settings.localAuthFile
+	if value := getenv("CONTRACTOR_LOCAL_AUTH_FILE"); value != "" {
+		localAuthFile = value
+	}
+	browserOrigins := repeatedStringFlag{
+		values:          append([]string(nil), settings.browserOrigins...),
+		clearOnFirstSet: true,
+	}
 	if encoded := getenv("CONTRACTOR_BROWSER_ORIGINS"); encoded != "" {
 		browserOrigins.values = strings.Split(encoded, ",")
 	}
-	insecureLoopbackCookie := false
+	insecureLoopbackCookie := settings.insecureLoopbackCookie
 	if encoded := getenv("CONTRACTOR_INSECURE_LOOPBACK_COOKIE"); encoded != "" {
 		if encoded != "true" && encoded != "false" {
 			return Config{}, errors.New("CONTRACTOR_INSECURE_LOOPBACK_COOKIE must be true or false")
@@ -94,20 +127,41 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		}
 		insecureLoopbackCookie = parsed
 	}
-	caFile := getenv("CONTRACTOR_CA_FILE")
-	certificateFile := getenv("CONTRACTOR_CONTROL_PLANE_CERT_FILE")
-	privateKeyFile := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE")
+	caFile := settings.caFile
+	if value := getenv("CONTRACTOR_CA_FILE"); value != "" {
+		caFile = value
+	}
+	certificateFile := settings.certificateFile
+	if value := getenv("CONTRACTOR_CONTROL_PLANE_CERT_FILE"); value != "" {
+		certificateFile = value
+	}
+	privateKeyFile := settings.privateKeyFile
+	if value := getenv("CONTRACTOR_CONTROL_PLANE_KEY_FILE"); value != "" {
+		privateKeyFile = value
+	}
 	developmentWorkerToken := contracts.NewSecretString(getenv("CONTRACTOR_LLM_GATEWAY_TOKEN"))
 	developmentPlannerToken := contracts.NewSecretString(getenv("CONTRACTOR_PLANNER_LLM_GATEWAY_TOKEN"))
-	performanceMetrics := deferredBooleanFlag{value: getenv("CONTRACTOR_PERFORMANCE_METRICS"), fallback: true}
-	pprof := deferredBooleanFlag{value: getenv("CONTRACTOR_PPROF")}
-	pprofListen := getenv("CONTRACTOR_PPROF_LISTEN")
-	if pprofListen == "" {
-		pprofListen = "127.0.0.1:6060"
+	performanceMetrics := deferredBooleanFlag{
+		value: getenv("CONTRACTOR_PERFORMANCE_METRICS"), fallback: settings.performanceMetrics,
+	}
+	pprof := deferredBooleanFlag{value: getenv("CONTRACTOR_PPROF"), fallback: settings.pprof}
+	pprofListen := settings.pprofListen
+	if value := getenv("CONTRACTOR_PPROF_LISTEN"); value != "" {
+		pprofListen = value
+	}
+	credentialMasterKeyFile := settings.credentialMasterKeyFile
+	if value := getenv("CONTRACTOR_CREDENTIAL_MASTER_KEY_FILE"); value != "" {
+		credentialMasterKeyFile = value
+	}
+	llmGatewayAdminBindingsFile := settings.llmGatewayAdminBindingsFile
+	if value := getenv("CONTRACTOR_LLM_GATEWAY_ADMIN_BINDINGS_FILE"); value != "" {
+		llmGatewayAdminBindingsFile = value
 	}
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.StringVar(&serverConfigPath, "config", serverConfigPath, "strict YAML ServerConfig file")
+	flags.StringVar(&serverConfigPath, "server-config", serverConfigPath, "alias for --config")
 	flags.StringVar(&blobBackend, "artifact-blob-backend", blobBackend, "Artifact payload backend: postgresql or filesystem")
 	flags.StringVar(&blobPath, "artifact-blob-path", blobPath, "absolute filesystem blob directory")
 	flags.Var(&performanceMetrics, "performance-metrics", "enable Operations performance collection (requires restart)")
@@ -138,14 +192,12 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	flags.StringVar(&operatorConfigRoot, "operator-config-root", operatorConfigRoot, "operator/bootstrap configuration root")
 	flags.StringVar(&operatorConfigRoot, "config-root", operatorConfigRoot, "deprecated alias for --operator-config-root")
 	flags.StringVar(&managedConfigRoot, "managed-config-root", managedConfigRoot, "Server-managed configuration publication root")
-	credentialMasterKeyFile := ""
 	flags.StringVar(
 		&credentialMasterKeyFile,
 		"credential-master-key-file",
 		credentialMasterKeyFile,
 		"absolute owner-only file containing the credential encryption key",
 	)
-	llmGatewayAdminBindingsFile := ""
 	flags.StringVar(
 		&llmGatewayAdminBindingsFile,
 		"llm-gateway-admin-bindings-file",

@@ -1,0 +1,32 @@
+apiVersion: contractor/v1alpha1
+kind: ServerConfig
+
+# Non-secret process defaults for the loopback demo stack. Relative paths are
+# resolved from this file, so the command works from any working directory.
+spec:
+  listen: 127.0.0.1:8080
+  privateListen: 127.0.0.1:8443
+  privateUrl: https://127.0.0.1:8443
+
+  operatorConfigRoot: .
+  managedConfigRoot: ../.local/managed-configs
+
+  shutdownTimeout: 5s
+  runtimeRequestTimeout: 30s
+  workerRequestTimeout: 180s
+  plannerTimeout: 30m
+
+  artifactBlobBackend: postgresql
+
+  localAuthFile: ../.local/secrets/local-auth.yaml
+  browserOrigins:
+    - http://127.0.0.1:4173
+  insecureLoopbackCookie: true
+
+  caFile: ../.local/pki/ca.crt
+  certificateFile: ../.local/pki/control-plane.crt
+  privateKeyFile: ../.local/pki/control-plane.key
+
+  performanceMetrics: true
+  pprof: false
+  pprofListen: 127.0.0.1:6060
