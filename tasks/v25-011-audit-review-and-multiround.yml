@@ -3,8 +3,8 @@ id: V25-011
 title: Add analyst finding ratings, backtrace and bounded multiple rounds
 milestone: audits-iterative
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "9311fa60cc9e3e4184c6e867112fae2122cb867b"
 depends_on: [V25-008, V25-010]
 languages: [go, sql, openapi, typescript]
 
