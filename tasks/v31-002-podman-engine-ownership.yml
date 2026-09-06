@@ -3,8 +3,8 @@ id: V31-002
 title: Implement bounded local Podman operations and exact container ownership
 milestone: podman-allocation-execution
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 5531ee53580d3c25226817a400fc158c796ea1b7
 depends_on: [V31-001]
 languages: [python]
 
