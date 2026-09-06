@@ -532,12 +532,12 @@ INSERT INTO audit_items (
 			})
 			if _, err := tx.Exec(ctx, `
 INSERT INTO audit_executions (
-    execution_id, audit_id, round_id, role, manifest_ref, manifest_digest,
+    execution_id, audit_id, round_id, role, workflow_role, manifest_ref, manifest_digest,
     submission_key, request_digest, run_id, state, terminal_outcome,
     terminal_run_generation, terminal_run_sequence, terminal_observed_at,
     run_provenance, run_deleted_at
 ) VALUES (
-    $1, $2, 'round-finding-attempts', 'check',
+    $1, $2, 'round-finding-attempts', 'check', 'check-role',
     '{"namespace":"audit-executions","name":"check-one","revision":"execution-r1"}'::jsonb,
     $3, $4, $5, $6, 'collected', $7, 'generation-one', $8,
     clock_timestamp(), $9::jsonb, clock_timestamp()

@@ -137,7 +137,8 @@ func (b *PinnedSubmissionBuilder) Prepare(
 
 	intent := auditstore.CreateExecutionIntentParams{
 		ExecutionID: executionID, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		Manifest: manifestArtifact, SubmissionKey: submissionKey, RequestDigest: requestDigest,
+		WorkflowRole: item.WorkflowRole,
+		Manifest:     manifestArtifact, SubmissionKey: submissionKey, RequestDigest: requestDigest,
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: executionItemID, ItemID: item.ItemID,
 			BatchOrdinal: 0, ItemAttempt: attempt, Task: task, Inputs: memberInputs,

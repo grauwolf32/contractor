@@ -521,6 +521,9 @@ func validateExecutionIntent(params CreateExecutionIntentParams) error {
 	if !params.Role.Valid() {
 		return invalidf("execution role is invalid")
 	}
+	if err := validateText("execution Workflow role", params.WorkflowRole, 128, true); err != nil {
+		return err
+	}
 	if params.Role == ExecutionCheck {
 		if params.RoundID == nil || params.RoleAttempt != nil || len(params.Members) < 1 {
 			return invalidf("check execution shape is invalid")

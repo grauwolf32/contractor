@@ -21,7 +21,7 @@ accepted_result_ref, accepted_result_digest, last_execution_item_id,
 created_at, updated_at`
 
 const executionColumns = `
-execution_id, audit_id, round_id, role, role_attempt,
+execution_id, audit_id, round_id, role, workflow_role, role_attempt,
 manifest_ref, manifest_digest, submission_key, request_digest, run_id,
 state, terminal_outcome, terminal_run_generation, terminal_run_sequence,
 terminal_observed_at, run_provenance, run_deleted_at, created_at, updated_at`
@@ -673,7 +673,7 @@ func scanExecution(row scanner) (Execution, error) {
 	var terminalSequence *int64
 	var encodedProvenance []byte
 	if err := row.Scan(
-		&result.ExecutionID, &result.AuditID, &result.RoundID, &role, &roleAttempt,
+		&result.ExecutionID, &result.AuditID, &result.RoundID, &role, &result.WorkflowRole, &roleAttempt,
 		&encodedRef, &result.Manifest.Digest, &result.SubmissionKey, &result.RequestDigest,
 		&result.RunID, &state, &outcome, &result.TerminalRunGeneration,
 		&terminalSequence, &result.TerminalObservedAt, &encodedProvenance, &result.RunDeletedAt,
@@ -689,7 +689,8 @@ func scanExecution(row scanner) (Execution, error) {
 		return Execution{}, errors.New("stored Audit execution digest is invalid")
 	}
 	result.Role, result.State, result.RoleAttempt = ExecutionRole(role), ExecutionState(state), roleAttempt
-	if !result.Role.Valid() || !result.State.Valid() {
+	if !result.Role.Valid() || !result.State.Valid() ||
+		validateText("stored execution Workflow role", result.WorkflowRole, 128, true) != nil {
 		return Execution{}, errors.New("stored Audit execution state is invalid")
 	}
 	if outcome != nil {

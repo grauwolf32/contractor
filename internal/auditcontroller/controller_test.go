@@ -211,7 +211,8 @@ func (fakeSubmissionBuilder) Prepare(
 	return PreparedSubmission{
 		Intent: auditstore.CreateExecutionIntentParams{
 			ExecutionID: executionID, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			Manifest: manifest, SubmissionKey: "submission-" + executionID,
+			WorkflowRole: item.WorkflowRole,
+			Manifest:     manifest, SubmissionKey: "submission-" + executionID,
 			RequestDigest: requestDigest,
 			Members: []auditstore.ExecutionMemberIntent{{
 				ExecutionItemID: memberID, ItemID: item.ItemID, BatchOrdinal: 0,
@@ -359,7 +360,7 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 	}
 	execution := auditstore.Execution{
 		ExecutionID: params.ExecutionID, AuditID: s.audit.AuditID, RoundID: params.RoundID,
-		Role: params.Role, Manifest: params.Manifest, SubmissionKey: params.SubmissionKey,
+		Role: params.Role, WorkflowRole: params.WorkflowRole, Manifest: params.Manifest, SubmissionKey: params.SubmissionKey,
 		RequestDigest: params.RequestDigest, State: auditstore.ExecutionIntent,
 	}
 	s.executions = append(s.executions, execution)

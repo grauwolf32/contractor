@@ -59,6 +59,7 @@ func TestMaterializationAndExecutionRejectDuplicateMembership(t *testing.T) {
 	intent := CreateExecutionIntentParams{
 		Claim:       ControllerClaim{AuditID: "audit", HolderID: "controller", Epoch: 1},
 		ExecutionID: "execution-1", RoundID: &roundID, Role: ExecutionCheck,
+		WorkflowRole:  "check",
 		Manifest:      testExact("audit", "execution", "r1"),
 		SubmissionKey: "submission-1", RequestDigest: testDigest("3"),
 		Members: []ExecutionMemberIntent{

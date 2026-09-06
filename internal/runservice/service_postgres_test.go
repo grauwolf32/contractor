@@ -71,7 +71,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	draft, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-run-service", OwnerID: "owner-run-service", ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: testDigest("2")},
-		ProfileSnapshot: []byte(`{"profile":"test"}`), InputSelection: []byte(`{"source":"pinned"}`),
+		ProfileSnapshot: []byte(`{"profile":"test","workflows":{"check":{"kind":"check"}}}`), InputSelection: []byte(`{"source":"pinned"}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 10, MaxItemsTotal: 10,
 			MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1 << 20,
@@ -112,7 +112,7 @@ func TestPostgresTrustedAuditRunIsAtomicReplayableAndPinsExactSkill(t *testing.T
 	}
 	execution, _, err := audits.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-run-service", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, Manifest: manifest,
+		Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest,
 		SubmissionKey: "audit-run-service-check-1-attempt-1", RequestDigest: testDigest("5"),
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: "execution-item-run-service", ItemID: "item-run-service",

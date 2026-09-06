@@ -336,7 +336,7 @@ erDiagram
 | `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, deadline, limits/counters, stop reason, optional deletion_requested_at, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
 | `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, final disposition, optional accepted result ref, optional last_execution_item_id |
-| `AuditExecution` | id, audit_id, optional round_id, role, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
+| `AuditExecution` | id, audit_id, optional round_id, role kind, exact named workflow_role from the pinned profile, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
 | `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
 | `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
 | `AuditFinding` | id, audit_id, exact first and contributing proposal refs, current assessment ref with exact supporting check-result/attempt or direct Workflow result refs, triage state, current analyst decision ref, optional duplicate target, revision |
@@ -346,7 +346,8 @@ erDiagram
 | `AuditReviewDecision` | id, request_id, actor_id, decision, exact subject revision/digest, bounded rationale, timestamp |
 | `AuditEvent` | audit_id, monotonic sequence, kind, entity id/revision, bounded safe summary |
 
-Execution roles are `discovery | check | assessment`. A check execution has an
+Execution role kinds are `discovery | check | assessment`; `workflow_role`
+stores the operator-chosen binding name whose pinned kind must match. A check execution has an
 ordered set of `AuditExecutionItem` rows; discovery and assessment belong to
 the Audit or Round and do not create fake items. Each execution has at most one
 Run and one immutable execution-input manifest. One Run can belong to at most
@@ -367,8 +368,8 @@ Required uniqueness includes `(audit_id, round.ordinal)`,
 `run_id`, `(execution_id, batch_ordinal)`, `(execution_id, item_id)`,
 `(item_id, item_attempt)`, `(allocation_id, invocation_id, submission_id)`, and
 `(audit_id, event.sequence)`. Discovery/assessment attempts use explicit
-PostgreSQL null-safe uniqueness over Audit, optional Round, role, and
-`role_attempt`.
+PostgreSQL null-safe uniqueness over Audit, optional Round, role kind, named
+workflow role, and `role_attempt`.
 
 ### 6.1 Result layers
 

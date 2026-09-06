@@ -509,6 +509,7 @@ func matchingIntent(
 	prepared auditstore.CreateExecutionIntentParams,
 ) bool {
 	return execution.ExecutionID == prepared.ExecutionID && execution.Role == prepared.Role &&
+		execution.WorkflowRole == prepared.WorkflowRole &&
 		execution.RoundID != nil && prepared.RoundID != nil && *execution.RoundID == *prepared.RoundID &&
 		execution.SubmissionKey == prepared.SubmissionKey && execution.RequestDigest == prepared.RequestDigest &&
 		execution.Manifest.Digest == prepared.Manifest.Digest && sameExactRef(execution.Manifest.Ref, prepared.Manifest.Ref) &&

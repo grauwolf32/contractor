@@ -453,6 +453,7 @@ type CreateExecutionIntentParams struct {
 	ExecutionID   string
 	RoundID       *string
 	Role          ExecutionRole
+	WorkflowRole  string
 	RoleAttempt   *int
 	Manifest      ExactArtifact
 	SubmissionKey string
@@ -465,6 +466,7 @@ type Execution struct {
 	AuditID               string
 	RoundID               *string
 	Role                  ExecutionRole
+	WorkflowRole          string
 	RoleAttempt           *int
 	Manifest              ExactArtifact
 	SubmissionKey         string

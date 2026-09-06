@@ -70,6 +70,7 @@ WITH member_input AS MATERIALIZED (
     SELECT audit.audit_id, audit.current_round_id, audit.batch_size,
            audit.reserved_run_count, audit.outstanding_run_count,
            audit.max_submitted_runs, settings.max_concurrent_runs,
+	       audit.profile_snapshot,
            contractor_require_active_audit_project(audit.project_id, audit.owner_id)
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
@@ -78,6 +79,7 @@ WITH member_input AS MATERIALIZED (
        AND settings.singleton = true
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
        AND audit.deadline_at > clock_timestamp()
+	   AND audit.profile_snapshot #>> ARRAY['workflows', $13::text, 'kind'] = $5
      FOR UPDATE OF audit, settings
 ), round_gate AS MATERIALIZED (
     SELECT round.round_id, round.state
@@ -94,6 +96,7 @@ WITH member_input AS MATERIALIZED (
        AND member.task_digest = item.task_digest
      WHERE item.audit_id = $1 AND item.round_id = $6
        AND item.state = 'ready'
+	   AND item.workflow_role = $13
        AND member.item_attempt = COALESCE((
              SELECT max(previous.item_attempt) + 1
                FROM audit_execution_items AS previous
@@ -134,10 +137,10 @@ WITH member_input AS MATERIALIZED (
     RETURNING audit.*
 ), inserted_execution AS (
     INSERT INTO audit_executions (
-        execution_id, audit_id, round_id, role, role_attempt,
+        execution_id, audit_id, round_id, role, workflow_role, role_attempt,
         manifest_ref, manifest_digest, submission_key, request_digest
     )
-    SELECT $4, audit_id, $6, $5, $7, $8::jsonb, $9, $10, $11
+    SELECT $4, audit_id, $6, $5, $13, $7, $8::jsonb, $9, $10, $11
       FROM reserved
     RETURNING *
 ), inserted_members AS (
@@ -164,7 +167,11 @@ WITH member_input AS MATERIALIZED (
     )
     SELECT execution.audit_id, reserved.next_event_sequence - 1,
            'execution.intent_created', execution.execution_id,
-           jsonb_build_object('role', execution.role, 'members', jsonb_array_length($12::jsonb))
+           jsonb_build_object(
+	           'role', execution.role,
+	           'workflowRole', execution.workflow_role,
+	           'members', jsonb_array_length($12::jsonb)
+	       )
       FROM inserted_execution AS execution JOIN reserved USING (audit_id)
 )
 SELECT `+prefixedExecutionColumns("inserted_execution")+`
@@ -173,6 +180,7 @@ SELECT `+prefixedExecutionColumns("inserted_execution")+`
 		params.ExecutionID, string(params.Role), roundID, roleAttempt,
 		manifestRef, params.Manifest.Digest, params.SubmissionKey,
 		params.RequestDigest, encodedMembers,
+		params.WorkflowRole,
 	))
 	if err == nil {
 		return execution, true, nil
@@ -202,7 +210,7 @@ SELECT `+prefixedExecutionColumns("inserted_execution")+`
 
 func prefixedExecutionColumns(prefix string) string {
 	return prefix + ".execution_id, " + prefix + ".audit_id, " + prefix + ".round_id, " +
-		prefix + ".role, " + prefix + ".role_attempt, " + prefix + ".manifest_ref, " +
+		prefix + ".role, " + prefix + ".workflow_role, " + prefix + ".role_attempt, " + prefix + ".manifest_ref, " +
 		prefix + ".manifest_digest, " + prefix + ".submission_key, " + prefix + ".request_digest, " +
 		prefix + ".run_id, " + prefix + ".state, " + prefix + ".terminal_outcome, " +
 		prefix + ".terminal_run_generation, " + prefix + ".terminal_run_sequence, " +
@@ -399,7 +407,7 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution,
 	if err := row.Scan(
 		ownerID, projectID,
 		&execution.ExecutionID, &execution.AuditID, &execution.RoundID,
-		&role, &roleAttempt, &encodedRef,
+		&role, &execution.WorkflowRole, &roleAttempt, &encodedRef,
 		&execution.Manifest.Digest, &execution.SubmissionKey, &execution.RequestDigest,
 		&execution.RunID, &state, &outcome,
 		&execution.TerminalRunGeneration, &terminalSequence,
@@ -416,7 +424,8 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution,
 	}
 	if validateDigest("stored execution manifest digest", execution.Manifest.Digest) != nil ||
 		validateDigest("stored execution request digest", execution.RequestDigest) != nil ||
-		!execution.Role.Valid() || !execution.State.Valid() {
+		!execution.Role.Valid() || !execution.State.Valid() ||
+		validateText("stored execution Workflow role", execution.WorkflowRole, 128, true) != nil {
 		return Execution{}, errors.New("stored Audit execution is invalid")
 	}
 	if outcome != nil {

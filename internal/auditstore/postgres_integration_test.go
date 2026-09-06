@@ -39,7 +39,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	create := CreateDraftParams{
 		AuditID: "audit-one", OwnerID: "owner-audit", ProjectID: project.ProjectID,
 		Profile:         ProfileIdentity{Name: "checklist", Version: "1", Digest: testDigest("2")},
-		ProfileSnapshot: json.RawMessage(`{"name":"checklist"}`),
+		ProfileSnapshot: json.RawMessage(`{"name":"checklist","workflows":{"check":{"kind":"check"},"discovery":{"kind":"discovery"}}}`),
 		InputSelection:  json.RawMessage(`{"checklist":{"namespace":"docs","name":"checks","revision":"r1"}}`),
 		Limits:          Limits{MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 10, MaxItemsTotal: 10, MaxSubmittedRuns: 10, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1024},
 		IdempotencyKey:  "audit-create", RequestDigest: testDigest("3"),
@@ -186,6 +186,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	}
 	execution, inserted, err := store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-one", RoundID: &roundID, Role: ExecutionCheck,
+		WorkflowRole:  "check",
 		Manifest:      testExact("audits", "execution-one", "manifest-r1"),
 		SubmissionKey: "audit-one-round-one-item-one-attempt-one", RequestDigest: testDigest("5"),
 		Members: []ExecutionMemberIntent{{ExecutionItemID: "execution-item-one", ItemID: "item-one", BatchOrdinal: 0, ItemAttempt: 1, Task: itemOneTask, Inputs: []ExactArtifact{}}},
@@ -232,6 +233,7 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 
 	executionTwo, _, err := store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-two", RoundID: &roundID, Role: ExecutionCheck,
+		WorkflowRole:  "check",
 		Manifest:      testExact("audits", "execution-two", "manifest-r1"),
 		SubmissionKey: "audit-one-round-one-item-one-attempt-two", RequestDigest: testDigest("7"),
 		Members: []ExecutionMemberIntent{{ExecutionItemID: "execution-item-two", ItemID: "item-one", BatchOrdinal: 0, ItemAttempt: 2, Task: itemOneTask, Inputs: []ExactArtifact{}}},
@@ -277,7 +279,8 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	newClaim := supersedeBlockedClaim(t, ctx, pool, claim, func(blockedStore *PostgresStore) error {
 		_, _, mutationErr := blockedStore.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
 			Claim: claim, ExecutionID: "stale-execution", RoundID: &roundID, Role: ExecutionCheck,
-			Manifest: testExact("audits", "stale", "manifest-r1"), SubmissionKey: "stale-submission", RequestDigest: testDigest("9"),
+			WorkflowRole: "check",
+			Manifest:     testExact("audits", "stale", "manifest-r1"), SubmissionKey: "stale-submission", RequestDigest: testDigest("9"),
 			Members: []ExecutionMemberIntent{{ExecutionItemID: "stale-member", ItemID: "item-two", BatchOrdinal: 0, ItemAttempt: 1, Task: itemTwoTask, Inputs: []ExactArtifact{}}},
 		})
 		return mutationErr
@@ -288,12 +291,14 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	intentCandidates := []CreateExecutionIntentParams{
 		{
 			Claim: newClaim, ExecutionID: "execution-three-a", RoundID: &roundID, Role: ExecutionCheck,
+			WorkflowRole:  "check",
 			Manifest:      testExact("audits", "execution-three-a", "manifest-r1"),
 			SubmissionKey: "audit-one-round-one-item-two-attempt-one-a", RequestDigest: testDigest("e"),
 			Members: []ExecutionMemberIntent{{ExecutionItemID: "execution-item-three-a", ItemID: "item-two", BatchOrdinal: 0, ItemAttempt: 1, Task: itemTwoTask, Inputs: []ExactArtifact{}}},
 		},
 		{
 			Claim: newClaim, ExecutionID: "execution-three-b", RoundID: &roundID, Role: ExecutionCheck,
+			WorkflowRole:  "check",
 			Manifest:      testExact("audits", "execution-three-b", "manifest-r1"),
 			SubmissionKey: "audit-one-round-one-item-two-attempt-one-b", RequestDigest: testDigest("f"),
 			Members: []ExecutionMemberIntent{{ExecutionItemID: "execution-item-three-b", ItemID: "item-two", BatchOrdinal: 0, ItemAttempt: 1, Task: itemTwoTask, Inputs: []ExactArtifact{}}},
@@ -491,7 +496,8 @@ SELECT finding.state, finding.revision,
 	}
 	fencedIntent, _, err := store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
 		Claim: newClaim, ExecutionID: "execution-project-fence", Role: ExecutionDiscovery,
-		RoleAttempt: intPointer(1), Manifest: testExact("audits", "fenced-intent", "manifest-r1"),
+		WorkflowRole: "discovery",
+		RoleAttempt:  intPointer(1), Manifest: testExact("audits", "fenced-intent", "manifest-r1"),
 		SubmissionKey: "fenced-intent-submission", RequestDigest: testDigest("1"),
 		Members: []ExecutionMemberIntent{},
 	})
@@ -531,7 +537,8 @@ SELECT finding.state, finding.revision,
 	}
 	_, _, err = store.CreateExecutionIntent(ctx, CreateExecutionIntentParams{
 		Claim: newClaim, ExecutionID: "fenced-execution", Role: ExecutionDiscovery, RoleAttempt: intPointer(1),
-		Manifest: testExact("audits", "fenced", "manifest-r1"), SubmissionKey: "fenced-submission", RequestDigest: testDigest("b"),
+		WorkflowRole: "discovery",
+		Manifest:     testExact("audits", "fenced", "manifest-r1"), SubmissionKey: "fenced-submission", RequestDigest: testDigest("b"),
 		Members: []ExecutionMemberIntent{},
 	})
 	if !errors.Is(err, ErrProjectDeleting) {

@@ -38,7 +38,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-publication", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
 		Profile:         auditstore.ProfileIdentity{Name: "test", Version: "1", Digest: schedulerAuditDigest("2")},
-		ProfileSnapshot: json.RawMessage(`{"profile":"test"}`),
+		ProfileSnapshot: json.RawMessage(`{"profile":"test","workflows":{"check":{"kind":"check"}}}`),
 		InputSelection:  json.RawMessage(`{"input":"test"}`),
 		Limits: auditstore.Limits{
 			MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
@@ -87,7 +87,7 @@ func TestAuditManagedRunSkipsGenericProjectOutputPublication(t *testing.T) {
 	}
 	execution, _, err := store.CreateExecutionIntent(ctx, auditstore.CreateExecutionIntentParams{
 		Claim: claim, ExecutionID: "execution-audit-publication", RoundID: &roundID,
-		Role: auditstore.ExecutionCheck, Manifest: manifest,
+		Role: auditstore.ExecutionCheck, WorkflowRole: "check", Manifest: manifest,
 		SubmissionKey: "audit-publication-submission", RequestDigest: schedulerAuditDigest("7"),
 		Members: []auditstore.ExecutionMemberIntent{{
 			ExecutionItemID: "execution-item-audit-publication", ItemID: "item-audit-publication",
