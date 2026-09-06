@@ -1,0 +1,78 @@
+schema_version: "1.0"
+id: V32-007
+title: Add independent opt-in loopback Go profiling with bounded recording
+milestone: operations-performance-and-profiling
+priority: P2
+status: completed
+implementation_commit: 28b5bed4debf8a3903bd8c69cbdc0b5523501e32
+depends_on: [V32-001]
+languages: [go]
+
+goal: >-
+  Allow an operator to enable Go profiling at Server startup and capture
+  bounded on-demand profiles without turning on performance metrics.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  configuration: >-
+    --pprof / CONTRACTOR_PPROF defaults false and independently controls one
+    diagnostic listener. --pprof-listen / CONTRACTOR_PPROF_LISTEN defaults
+    127.0.0.1:6060, accepts numeric loopback addresses only and rejects wildcard,
+    non-loopback or invalid ports. Effective CLI values override environment;
+    changes require restart. Explicitly enabled bind failure fails startup cleanly.
+  isolation: >-
+    No public/private application mux serves /debug/pprof. Do not serve the
+    DefaultServeMux populated by net/http/pprof import side effects. Use explicit
+    allowed routes and ensure a generic Index prefix cannot bypass the allowlist.
+    cmdline is never exposed because startup arguments can contain credentials.
+
+scope:
+  in:
+    - Implement internal/profiling with a dedicated mux/listener and bounded application shutdown integration.
+    - Expose only index, symbol lookup, CPU profile, heap, allocs, goroutine, threadcreate and execution trace.
+    - Validate duration/query parameters and enforce active-session slots without waiting queues.
+    - Add enabled/disabled/listener isolation, profile readability, concurrent capture and cancellation/shutdown tests.
+    - Document startup examples, local go tool pprof use, SSH tunnelling and the distinction between an idle listener and active recording.
+  out:
+    - Continuous CPU capture, profile persistence/upload, public or Operations download APIs, Python profiling, runtime-editable switches or new block/mutex sampling-rate options.
+
+requirements:
+  - id: R1
+    text: >-
+      Disabled profiling creates no listener and starts no CPU/trace/block/mutex
+      recording. Metrics on/off does not change profiling behavior. Preserve
+      Go's ordinary runtime bookkeeping/default heap sampling; do not claim the
+      flag removes all existing runtime overhead or change MemProfileRate.
+  - id: R2
+    text: >-
+      CPU capture starts on request only, defaults to 30 seconds and accepts
+      1..60 seconds; trace defaults to 1 second and accepts 1..10. Timed/delta
+      profile endpoints must also validate and cap seconds at 60. Invalid,
+      duplicate or out-of-range durations return a bounded client error. One
+      CPU/trace recording may run at a time; conflicts return 409 without queuing.
+      At most one additional snapshot/delta profile request may run concurrently.
+  - id: R3
+    text: >-
+      Streaming capture respects client cancellation and bounded Server shutdown,
+      releases active slots on every path and produces profiles readable by Go
+      tooling. Snapshot requests may explicitly force heap GC, but performance
+      samplers never do. Profile bytes and command arguments are not logged or
+      copied to execution telemetry/Operations history.
+
+acceptance_criteria:
+  - id: A1
+    given: All metrics/profiling switch combinations, invalid addresses and an occupied requested port.
+    when: Server starts and public/private/diagnostic routes are probed.
+    then: Only explicitly enabled loopback diagnostics exist; application listeners and cmdline remain inaccessible and startup failure cleans up opened resources.
+  - id: A2
+    given: CPU/trace/snapshot requests with valid, excessive, duplicate and malformed durations plus concurrent captures.
+    when: The diagnostic mux serves them.
+    then: Durations/concurrency are bounded, no queue grows and successful binary output is readable by the appropriate Go tool.
+  - id: A3
+    given: Active profiling, client disconnect, request failure and Server shutdown.
+    when: Cancellation/deadlines occur.
+    then: Recording and diagnostic goroutines stop within shutdown bounds, active slots are released and no profile content reaches public APIs or logs.
+
+tests:
+  - {name: profiling, command: "go test -race -count=1 ./internal/profiling ./internal/app", covers: [A1, A2, A3]}
+  - {name: process, command: "go test -count=1 ./tests/e2e -run Profiling", covers: [A1, A2, A3]}
