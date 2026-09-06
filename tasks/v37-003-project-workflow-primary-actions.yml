@@ -27,6 +27,10 @@ context:
     Keep the exact selector and the complete Run form visible before implementation detail. Put
     slots, Stage graph, Worker bindings, credentials and transitions in one clearly named closed
     technical disclosure; validation and missing-input guidance remain outside that disclosure.
+  dialog_followup: >-
+    Because this task promotes Project Artifact upload and relocates Project deletion, migrate
+    those two inventoried surfaces to the V37-001 Dialog primitive while preserving caller-owned
+    close behavior and typed deletion confirmation.
   browser_verification: >-
     Build the UI with make ui-build and serve it using the documented UI development or Node
     server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
@@ -43,6 +47,9 @@ scope:
     - >-
       Move Project deletion into additional actions while retaining its current confirmation,
       lifecycle guards and keyboard access.
+    - >-
+      Remove the private Escape listeners from the touched Project upload/deletion dialogs and
+      use the shared focus, stacking and restoration contract.
     - >-
       Preserve routes, Project recommendations, All workflows, Git import and current responsive
       navigation.
