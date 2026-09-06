@@ -3,8 +3,8 @@ id: V29-004
 title: Index Artifact reference checks and history and compare binary digests directly
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 6d4e5212e691980344e07627ef5464db433a9ad6
 depends_on:
 - V24-004
 languages:

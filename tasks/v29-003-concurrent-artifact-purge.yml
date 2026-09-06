@@ -3,8 +3,8 @@ id: V29-003
 title: Collect shared Artifact blobs correctly during concurrent scope purge
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 08e8dca7d654e6d1f9482a7a12bb0bdd7ff1b12b
 depends_on:
 - V24-004
 - V24-005

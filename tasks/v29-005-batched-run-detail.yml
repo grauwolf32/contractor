@@ -3,8 +3,8 @@ id: V29-005
 title: Batch PostgreSQL reads used to build Run detail
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 2a16ef25d04dd34070fad8fa1a53d4f0596c4291
 depends_on:
 - V5-003
 - V24-004
