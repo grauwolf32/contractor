@@ -3,8 +3,8 @@ id: "V37-002"
 title: "Preserve Run drafts across navigation and upload files in the selected input slot"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "ae63bec393bea7eca307e5a55f9bc66e2c0ab30e"
 depends_on: ["V37-001"]
 languages: ["typescript"]
 goal: >-
