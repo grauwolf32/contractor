@@ -3,7 +3,7 @@ id: V29-007
 title: Bound database waits and verify the PostgreSQL hardening milestone
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: in_progress
+status: completed
 implementation_commit: 4cfd75c87e1c20825fbadba427a7129da26cc95a
 depends_on:
 - V29-001
@@ -94,3 +94,13 @@ notes:
   the corresponding uncommitted UI assertion correction, which was not staged;
   its own make verify currently stops on in-development projectfs Ruff errors.
   Keep in_progress until the integrated aggregate gate passes.
+- >-
+  2026-09-06 closure, superseding the historical blockers above: status updated
+  with explicit user approval after checking the implementation and verification
+  history. The required PostgreSQL race suite passed as recorded above; the ASVS
+  guard was fixed by 57a4b9037cd3f1eecbcd4f11afc4f7dcc8e11c78 and the colon-label
+  UI assertion by 9a61e366. Subsequent successful make verify runs are recorded
+  in V31-001 and V31-002. Focused database-budget and ASVS migration tests were
+  rerun successfully during the status audit. The full PostgreSQL race suite
+  and make verify were not rerun for this metadata-only update. Preserve
+  4cfd75c87e1c20825fbadba427a7129da26cc95a as the implementation commit.
