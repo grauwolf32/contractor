@@ -3,8 +3,8 @@ id: V32-003
 title: Collect PostgreSQL health and persist bounded minute performance history
 milestone: operations-performance-and-profiling
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3b6ffc6dc37bab72b4fd84248d1a623eed25f007
 depends_on: [V32-002, V29-007]
 languages: [go, sql]
 
@@ -89,3 +89,20 @@ acceptance_criteria:
 tests:
   - {name: deterministic-scheduling, command: "go test -race -count=1 ./internal/performance ./internal/app", covers: [A1, A2, A3, A4]}
   - {name: postgres, command: "test -n \"$CONTRACTOR_TEST_DATABASE_URL\" && go test -race -count=1 ./internal/performance ./internal/persistence/postgres", covers: [A1, A2, A3, A4]}
+
+verification:
+  verified_on: "2026-09-06"
+  review_notes: docs/performance-postgres-history.md
+  results:
+    - Both required commands passed in a clean detached worktree at the implementation commit.
+    - PostgreSQL tests ran against a disposable PostgreSQL 17.11 container with the database URL explicitly set; real integration checks were not skipped.
+    - Normal-role hidden sessions, optional pg_read_all_stats visibility, idle transactions and disabled statistics passed.
+    - Connect and DNS bounds, acquire exhaustion, statement and lock timeouts, earlier cancellation, reconnect and restored transaction settings passed.
+    - Independent size failure/recovery, queue overflow, exact concurrent acknowledgement and nonblocking HTTP/process collection passed.
+    - Three-generation seven-day fixture passed indexed range/expiry plans, bounded aggregation, idempotency, constraints, TTL filtering and 1000-row cleanup.
+  boundary: >-
+    Optional diagnostic collection and retained-history repository only. Public
+    performance routes and UI remain V32-005/V32-006. Cross-minute HTTP/CPU
+    windows conservatively retain explicit partial coverage rather than invent
+    event splits. No demo deployment was performed. Unrelated workspace changes
+    were excluded, including concurrent edits in shared app and migration tests.
