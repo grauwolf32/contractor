@@ -25,6 +25,30 @@ for an allocation-isolated fsspec tree, add `--workspace-storage memory`.
 `CONTRACTOR_WORKSPACE_MAX_*` variables provide the equivalent immutable startup
 configuration. Physical roots are never registered with Control Plane.
 
+For `direct` on a local provider, the allocation's `run_workdir` is authoritative
+on disk. Completed external writes, creates, renames and deletes are visible to
+the next tool call without refresh, including same-size changes with restored
+timestamps. `read_file` acquires only the requested text; complete snapshots and
+derived analysis acquire the current bounded managed-text projection. Existing
+symlinks, hard links and special files are rejected. An oversized external tree
+can fail a complete acquisition without preventing an otherwise bounded read.
+
+Filesystem calls share an operation-ownership guard and run blocking I/O off the
+event loop. Cancellation fences uncertain work but does not release its ownership:
+allocation release must join it before removing the content tree. There are no
+transactions against arbitrary concurrent host writers and no stale-memory
+rollback after an uncertain disk mutation. Workspace API limits are not disk
+quotas on external processes. Memory/direct and both overlay variants keep their
+managed-view semantics; direct never automatically exports state or a diff.
+
+From the repository root, `make test-local-direct-workspace` runs the focused
+filesystem release checks, including an independent writer process and real
+allocation cleanup retries. `make test-project-workspaces-e2e` additionally
+requires `CONTRACTOR_TEST_DATABASE_URL` for isolated PostgreSQL process tests.
+V30-004 also requires `make verify`; the release status is recorded in
+[`tasks/v30-004-local-direct-release-gate.yml`](../tasks/v30-004-local-direct-release-gate.yml).
+These changes expose no command-execution Toolset or Podman capability.
+
 The listener requires both a deployment-CA client certificate and the reserved
 Control Plane URI SAN before HTTP dispatch. Readiness remains false until the
 listener is accepting and registration has succeeded.

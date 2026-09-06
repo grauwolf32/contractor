@@ -9,6 +9,7 @@ boundary for both immutable Runtime workspace backends.
 from __future__ import annotations
 
 import asyncio
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,106 @@ from contractor_runtime.digests import _agent_template_digest
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs import ManagedWorkspaceTree, decode_workspace_state
 from contractor_runtime.state import ProcessState, RuntimeState
+
+
+def test_external_process_changes_reach_direct_worker_and_observations(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        artifacts = MemoryArtifactClient()
+        original = archive({"source.txt": b"before\n", "nested/readme.txt": b"evidence\n"})
+        artifacts.bindings["source"] = StoredArtifact(REVISION, "application/zip", original)
+        model = scripted_model(
+            [
+                tool_call("read_file", {"path": "source.txt"}, call_id="disk-read"),
+                tool_call("grep", {"pattern": "external"}, call_id="disk-search"),
+                tool_call(
+                    "edit",
+                    {"path": "source.txt", "old": "extern", "new": "after"},
+                    call_id="disk-edit",
+                ),
+                text_result("External changes inspected"),
+            ]
+        )
+        state, service = await make_service(tmp_path, "local", artifacts, model, "external-writer")
+        spec = direct_workspace_spec("external-writer")
+        await service.prepare(spec)
+        context = service._context
+        assert (
+            context is not None
+            and context.project_workspace is not None
+            and context.worker is not None
+        )
+        project = context.project_workspace
+        root = Path(project.storage.root) / "run_workdir"
+        # This trusted test helper is a separate OS process, not an execution
+        # Toolset or an executor callback that can invalidate a source cache.
+        writer = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            """
+import os, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+path = root / 'source.txt'
+before = path.stat()
+path.write_bytes(b'extern\\n')
+os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+(root / 'nested/readme.txt').unlink()
+(root / 'nested').rmdir()
+(root / 'empty').mkdir()
+(root / 'new.py').write_bytes(b'# external source\\n')
+(root / 'binary').write_bytes(b'\\x00binary')
+""",
+            str(root),
+        )
+        try:
+            assert await asyncio.wait_for(writer.wait(), timeout=10) == 0
+        finally:
+            if writer.returncode is None:
+                writer.kill()
+                await writer.wait()
+        metadata = await project.observation_metadata()
+        completed = await context.worker.invoke(stage_request())
+        assert completed.result is not None
+        assert (root / "source.txt").read_bytes() == b"after\n"
+        observed = completed.result.observations.workspace
+        assert observed is not None
+        assert (
+            observed.scoped_files,
+            observed.read_files,
+            observed.matched_files,
+            observed.modified_files,
+        ) == (2, 1, 1, 1)
+        assert observed.files_read == ["source.txt"]
+        assert context.worker_state is not None
+        retained = await context.worker_state.snapshot()
+        assert (
+            retained["lastCompletedInvocation"]["workspace"]["workspaceDigest"] == metadata.digest
+        )
+        assert completed.result.artifacts == {}
+        assert "podman@1" not in service._factories.sandbox_profiles
+        assert "code-execution@1" not in service._factories.toolsets
+        await terminate_and_release(service, spec.allocation_id)
+        assert not root.exists()
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert artifacts.binding("source").data == original
+        fresh = direct_workspace_spec("fresh-after-external")
+        await service.prepare(fresh)
+        assert service._context is not None and service._context.project_workspace is not None
+        snapshot = await service._context.project_workspace.snapshot()
+        assert {file.path for file in snapshot.files} == {"source.txt", "nested/readme.txt"}
+        await terminate_and_release(service, fresh.allocation_id)
+
+    asyncio.run(scenario())
+
+
+def direct_workspace_spec(allocation_id: str) -> Any:
+    spec = workspace_spec(allocation_id, "stage-direct")
+    spec.workspace.mode = "direct"
+    spec.workspace.export = None
+    spec.agent_template.toolsets = spec.agent_template.toolsets[:2]
+    spec.agent_template.toolsets[0].tools = ["grep", "read_file"]
+    spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
+    return spec
 
 
 @pytest.mark.parametrize("storage", ["local", "memory"])

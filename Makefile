@@ -257,6 +257,12 @@ test-http-caido-e2e:
 
 test-project-workspaces-matrix: test-hardening-matrices
 
+.PHONY: test-local-direct-workspace
+
+test-local-direct-workspace:
+	go test -count=1 ./tests/e2e -run ProjectWorkspace
+	cd runtime && uv run pytest -W error tests/test_projectfs_local_io.py tests/test_projectfs_operation_guard.py tests/test_projectfs_local_direct.py tests/test_local_direct_tool_consumers.py tests/test_local_direct_faults.py tests/test_projectfs_security.py tests/test_projectfs_concurrency.py tests/test_projectfs_storage.py tests/test_projectfs_zip.py tests/test_workspace_provider.py tests/test_workspace_state.py tests/test_projectfs_overlay.py tests/test_projectfs_edit_parity.py tests/test_projectfs_legacy_parity.py tests/test_workspace_auto_export.py tests/test_workspace_process_e2e.py tests/test_allocation.py tests/test_lease_watchdog.py tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py tests/test_filesystem_observations.py tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_openapi_toolset.py
+
 test-project-workspaces-hardening: test-project-workspaces-matrix
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	go test -race -count=1 ./internal/projectstore/... ./internal/artifacts/... ./internal/runstore/... ./internal/scheduler/... ./internal/httpapi/public
@@ -267,6 +273,7 @@ test-project-workspaces-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
 	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestProjectWorkspaceLifecycleAcrossProductionProcesses$$'
+	cd runtime && uv run pytest -W error tests/test_workspace_process_e2e.py
 
 test-project-workspaces-release: test-project-workspaces-hardening test-project-workspaces-e2e test-ui-stack
 

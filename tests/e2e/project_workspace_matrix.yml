@@ -16,6 +16,10 @@ policy:
     Project target credentials are write-only encrypted material. Public
     resources, model requests, artifacts, logs and durable safe snapshots may
     retain only the credential reference.
+  disk_authority: >-
+    Local direct reads current disk without refresh. Owned I/O prevents release
+    races; failed acquisition never falls back to memory. Overlay and memory
+    keep their managed views; this gate enables no execution capability.
 
 cases:
   - id: project_create_replay_and_cas
@@ -84,7 +88,90 @@ cases:
     expected: Queue membership filters are owner-scoped and terminal Runs disappear from the read model.
     test: {source: internal/httpapi/public/query_handlers_test.go, symbol: TestRunQueueIsOwnedStableFilteredAndDropsTerminalRuns}
 
+local_direct:
+  - id: external_current_projection
+    category: external_change
+    requirements: [LD1, LD3, LD4]
+    expected: Completed external changes including restored-mtime rewrites produce fresh immutable snapshots and metadata.
+    test: {source: runtime/tests/test_projectfs_local_direct.py, symbol: test_external_changes_refresh_snapshots_metadata_and_classification}
+  - id: current_mutation_bytes
+    category: current_mutation
+    requirements: [LD2]
+    expected: Edits and tree operations use current bytes without resurrecting deleted or overwriting unrelated files.
+    test: {source: runtime/tests/test_projectfs_local_direct.py, symbol: test_mutations_use_current_bytes_and_do_not_resurrect_or_overwrite_others}
+  - id: stale_shallow_analysis
+    category: consumers
+    requirements: [LD4]
+    expected: Shallow cache and cursor invalidation follows a fresh disk digest.
+    test: {source: runtime/tests/test_local_direct_tool_consumers.py, symbol: test_shallow_analysis_checks_disk_digest_before_using_derived_cache}
+  - id: stale_graph_analysis
+    category: consumers
+    requirements: [LD4]
+    expected: External edits retire the old graph, mirror, cursor and symbol IDs.
+    test: {source: runtime/tests/test_local_direct_tool_consumers.py, symbol: test_external_edit_retires_trailmark_graph_cursor_symbol_and_mirror}
+  - id: bounded_scoped_reads
+    category: bounds
+    requirements: [LD5]
+    expected: An unrelated oversized external file rejects complete acquisition but not a bounded read_file.
+    test: {source: runtime/tests/test_local_direct_tool_consumers.py, symbol: test_read_file_stays_scoped_when_an_external_file_exceeds_workspace_limits}
+  - id: adversarial_disk_types
+    category: containment
+    requirements: [LD6]
+    expected: Current links and special files fail safely, without outside bytes or cached fallback.
+    test: {source: runtime/tests/test_local_direct_faults.py, symbol: test_unsupported_external_types_cannot_use_stale_memory_or_escape}
+  - id: rooted_parent_replacement
+    category: containment
+    requirements: [LD6]
+    expected: Replacing a root or parent cannot redirect disk access to outside bytes.
+    test: {source: runtime/tests/test_projectfs_local_io.py, symbol: test_root_and_parent_replacement_cannot_redirect_access}
+  - id: invalid_disk_names_and_limits
+    category: containment
+    requirements: [LD5, LD6]
+    expected: Noncanonical names, deadlines and entry/text/file bounds reject complete acquisition.
+    test: {source: runtime/tests/test_projectfs_local_io.py, symbol: test_limits_deadline_names_and_binary_classification}
+  - id: growing_read_bound
+    category: bounds
+    requirements: [LD5, LD6]
+    expected: Reads remain bounded when a target grows during acquisition.
+    test: {source: runtime/tests/test_projectfs_local_io.py, symbol: test_growing_or_replaced_file_fails_without_stale_fallback}
+  - id: recursive_preflight_validation
+    category: failure
+    requirements: [LD6, LD8]
+    expected: Invalid subtree types are rejected before copy, move or removal makes any changes.
+    test: {source: runtime/tests/test_projectfs_local_io.py, symbol: test_recursive_type_validation_precedes_changes}
+  - id: disappearing_scan
+    category: bounds
+    requirements: [LD5, LD6, LD7]
+    expected: A disappearing entry during scan yields a safe error and never a partial complete snapshot.
+    test: {source: runtime/tests/test_local_direct_faults.py, symbol: test_disappearing_scan_is_not_returned_as_complete}
+  - id: owned_io_release_retry
+    category: ownership
+    requirements: [LD7, LD8]
+    expected: Blocked mutation keeps release fenced and heartbeat schedulable; retry joins one cleanup and only confirmed release permits reuse.
+    test: {source: runtime/tests/test_local_direct_faults.py, symbol: test_owned_mutation_blocks_allocation_release_and_slot_reuse}
+  - id: physical_failure_no_reverse_delta
+    category: failure
+    requirements: [LD8]
+    expected: An injected partial mutation is fenced without replaying old contents over an external file.
+    test: {source: runtime/tests/test_local_direct_faults.py, symbol: test_partial_copy_failure_fences_without_restoring_unrelated_files}
+  - id: imported_direct_state
+    category: import
+    requirements: [LD9]
+    expected: Imported state is physically present before readiness and external writes take precedence.
+    test: {source: runtime/tests/test_workspace_state.py, symbol: test_hydration_applies_exact_state_to_overlay_view_and_direct_copy}
+  - id: managed_mode_parity
+    category: parity
+    requirements: [LD10]
+    expected: All four mode/backend combinations retain read/edit newline and overlay isolation behavior.
+    test: {source: runtime/tests/test_projectfs_legacy_parity.py, symbol: test_retained_read_edit_tree_and_newline_behavior}
+  - id: independent_writer_process
+    category: external_process
+    requirements: [LD1, LD2, LD3, LD9, LD10]
+    expected: An independent process changes a live direct allocation and ADK tools and observations use its output; release erases it without automatic export.
+    test: {source: runtime/tests/test_workspace_process_e2e.py, symbol: test_external_process_changes_reach_direct_worker_and_observations}
+
 gates:
+  - {id: local_direct, command: make test-local-direct-workspace}
   - {id: matrix, command: make test-project-workspaces-matrix}
   - {id: hardening, command: make test-project-workspaces-hardening}
   - {id: process, command: make test-project-workspaces-e2e}

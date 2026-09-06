@@ -1,0 +1,86 @@
+schema_version: "1.0"
+id: V30-004
+title: Verify disk-authoritative workspaces before enabling execution sandboxes
+milestone: local-direct-disk-authority
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: [V30-003]
+languages: [python, go]
+
+goal: >-
+  Close the local direct amendment with process, containment, cancellation and
+  parity evidence so Podman implementation can depend on a verified filesystem contract.
+
+context:
+  specification: docs/spec/10-runtime-filesystems-and-edit-tools.md
+  acceptance_mapping: Local direct amendment acceptance cases 1 through 10.
+  invariants: >-
+    Disk is authoritative only for local direct. API coordination cannot claim
+    transactions against arbitrary uncoordinated host writers. I/O cancellation
+    retains ownership; no stale-memory recovery, partial complete snapshot,
+    automatic export, binary editing or new execution capability is introduced.
+
+scope:
+  in:
+    - Add tests/test_local_direct_faults.py covering path/type races, limits, blocked I/O, cancellation and operation-scoped recovery failure.
+    - Extend project workspace process tests so a separate process changes the allocation content and subsequent tools/observations see it.
+    - Extend tests/e2e/project_workspace_matrix.yml and its validator with traceable disk-authority acceptance coverage.
+    - Add a focused test-local-direct-workspace Make target collecting V30 tests and relevant existing memory/overlay/lifecycle regressions.
+    - Prove that release cannot remove a tree under a still-owned mutation and that heartbeat/watchdog work remains schedulable.
+    - Update runtime documentation and mark the local direct amendment implemented only after the complete gate passes.
+  out:
+    - Podman or skill execution, new configuration fields, global filesystem transactions, broad unrelated runtime refactors.
+
+requirements:
+  - {id: R1, text: Every local direct amendment acceptance case has executable coverage with actual external disk changes.}
+  - {id: R2, text: Invalid paths/types and races neither access outside files nor return stale contents as successful recovery.}
+  - {id: R3, text: Memory/direct and both overlay variants retain their existing contracts and lifecycle guarantees.}
+
+acceptance_criteria:
+  - id: A1
+    given: The complete local direct matrix, including same-size restored-mtime changes and imported state.
+    when: Focused unit and existing workspace process suites run.
+    then: All ten amendment cases are covered and current data reaches model-visible consumers without refresh.
+  - id: A2
+    given: Blocked I/O, concurrent API calls, injected cancellation and release retries.
+    when: Failures settle or exceed finite lifecycle deadlines.
+    then: No double cleanup or event-loop stall occurs, and unconfirmed work prevents slot reuse.
+  - id: A3
+    given: Adversarial path replacement, special files, over-limit trees and injected recovery failure.
+    when: Acquisition and mutation are attempted.
+    then: Bounds and containment hold, and stale snapshots or unrelated-file restoration never mask failure.
+  - id: A4
+    given: Existing memory/direct, overlay, workspace tools and source-analysis flows.
+    when: Full relevant regression and repository verification run.
+    then: Their declared behavior remains intact and no execution capability has been enabled.
+
+tests:
+  - {name: focused-gate, command: "make test-local-direct-workspace", covers: [A1, A2, A3, A4]}
+  - {name: matrix, command: "go test -count=1 ./tests/e2e -run ProjectWorkspace", covers: [A1, A2, A3, A4]}
+  - {name: process-e2e, command: "make test-project-workspaces-e2e", covers: [A1, A2, A4]}
+  - {name: aggregate, command: "make verify", covers: [A4]}
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - Focused gate passed, 276 Python tests with warnings treated as errors plus the ProjectWorkspace matrix validator.
+    - ProjectWorkspace matrix command passed; all ten local direct acceptance cases have executable symbol ownership.
+    - Process E2E passed against an isolated schema in the existing local test PostgreSQL, followed by all four Python allocation/process cases.
+    - Full Runtime suite passed, 908 tests; three live LLM Gateway tests skipped because their environment is not configured.
+    - Separate make test-go and make build passed.
+    - Changed Python files pass Ruff lint/format; the matrix validator passes gofmt.
+  remaining:
+    - >-
+      make verify is not green: unrelated in-progress performance/contracts Go
+      files fail gofmt, and runtime/src/contractor_runtime/contracts.py has Ruff
+      E501 failures at lines 902 and 2119 at the time of verification.
+    - >-
+      Separate ui-verify also stops at generate:check because the in-progress
+      performance API changes regenerate ui/src/api/generated/public.ts with a
+      diff against HEAD. That generated result is left unstaged, outside this task.
+  completion_boundary: >-
+    The focused filesystem and process gates are implemented and passing, but
+    A4 and the mandatory aggregate command remain unverified. Keep this task
+    in_progress and the amendment release verification pending; do not start
+    dependent Podman implementation until make verify passes.

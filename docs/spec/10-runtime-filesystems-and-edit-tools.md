@@ -33,9 +33,10 @@ model-visible input.
 
 `AllocationWorkspace` in `contractor_runtime.workspace` remains the sandbox
 scratch directory used by skills and existing tools. A project workspace is a
-separate session. With local storage its private files live below that scratch
-directory, normally at `run_workdir`; memory storage uses an allocation-isolated
-fsspec instance.
+separate session. Local storage owns a private `run_workdir` below its
+configured provider root; memory storage uses an allocation-isolated fsspec
+instance. A future executor receives only the project content directory, not
+the provider's ownership markers or the allocation's general scratch.
 
 ## Workflow contract
 
@@ -253,7 +254,7 @@ Prepare performs, in order:
 3. read exact source artifacts through the existing allocation Artifact API;
 4. require `application/zip`, scan and extract each archive under its target;
 5. if supplied, read, validate and apply the cumulative overlay state;
-6. establish the effective checkpoint;
+6. establish the effective initial tree and, for overlay, its checkpoint;
 7. construct selected Toolsets and Worker;
 8. return ready only after every step succeeds.
 
@@ -291,12 +292,133 @@ inside the same allocation but disappear on release. Direct mode has no
 automatic diff, rollback or export. A Worker that needs persistence must write
 an ordinary Run artifact explicitly.
 
+#### Local direct: disk is authoritative
+
+Design amendment, 2026-09-06. Core implementation is present in V30-001 through
+V30-003; release verification remains pending in V30-004. The complete gate must
+pass before enabling the execution sandbox specified in [21](21-podman-sandbox.md).
+
+Implementation is decomposed into V30-001 through V30-004 in the
+[task catalog](../../tasks/index.yml); V30-004 is the prerequisite release gate.
+Executable acceptance coverage is recorded as LD1 through LD10 in
+[`project_workspace_matrix.yml`](../../tests/e2e/project_workspace_matrix.yml).
+`make test-local-direct-workspace` runs the focused gate; V30-004 additionally
+requires workspace process E2E and repository-wide `make verify`.
+
+| Mode | Storage | Authoritative effective state |
+|---|---|---|
+| `direct` | `local` | Current files and directories on disk in the allocation's `run_workdir` |
+| `direct` | `memory` | Allocation-private managed tree with its memory backend |
+| `overlay` | `local` | Managed overlay view over the hydrated local base |
+| `overlay` | `memory` | Managed overlay view over the hydrated memory base |
+
+For `direct + local`, hydration and optional state import initialize disk.
+After prepare, the original archive, imported state and retained memory cannot
+substitute for current files. Creates, writes, renames, deletes, empty-directory
+changes and text/binary transitions completed by another process before an
+operation begins must be visible to that operation. No model-visible refresh,
+new allocation, executor callback or filesystem watcher is required.
+
+YAML/wire shapes, Toolset refs and model-visible signatures remain unchanged.
+Direct still has no automatic diff, rollback or export. Memory storage and
+both overlay variants retain their existing semantics.
+
+#### Reads, edits and snapshots
+
+Tools retain narrow `WorkspaceReader` and `WorkspaceWriter` handles. The local
+direct implementation obtains the current state from disk:
+
+- `read_text` reads the requested regular file with bounded I/O, without
+  requiring unrelated source texts to be loaded;
+- listing and globbing use current entries and types;
+- line edits, appends and exact replacements read the current target under
+  the workspace operation lock before applying the transformation;
+- copy, move, removal and directory creation preflight current source and
+  destination state; they never replay a delta from the hydration tree or
+  resurrect an externally deleted file from retained memory;
+- snapshots, observation metadata, search and analysis obtain the current
+  managed-text projection and its existing canonical digest.
+
+A `WorkspaceSnapshot` is an immutable value for one operation, not a second
+writable filesystem or an overlay checkpoint. Search and analysis can finish
+against that value while later edits occur. The next call acquires a fresh
+view. Digest-bound cursors reject a changed projection rather than combining
+pages. The digest continues to describe the existing managed-text projection,
+not all binary contents, permissions or timestamps.
+
+Source contents may be retained while acquiring or consuming a bounded
+snapshot. A persistent source-content cache cannot determine freshness:
+remembered size/mtime, successful hydration and invalidation only after known
+exec calls are insufficient. The first implementation acquires snapshots from
+disk on demand. Derived analysis caches may be reused only after acquiring
+the current snapshot digest; [12](12-code-analysis-tools.md) owns those caches.
+
+Complete snapshots respect entry/file/byte limits and operation deadlines;
+they never report a partial tree as complete. Potentially blocking scans,
+reads and mutations run outside the asyncio event loop. Cancellation does not
+release ownership of an in-flight mutation or let cleanup race that mutation.
+
+#### Concurrency and failures
+
+An allocation-owned coordination boundary serializes Workspace API reads,
+mutations and snapshot acquisition. It covers the entire read/transform/write
+sequence. Analysis releases it after acquiring its immutable snapshot.
+
+Completed external changes are supported. Arbitrary concurrent host writers
+do not participate in this boundary: there is no transactional whole-tree
+snapshot or lost-update guarantee against them. Observed disappearance,
+replacement or type changes that prevent completing an operation produce a
+bounded safe failure, never a fallback to cached contents or an infinite
+rescan. Coherent multi-file acquisition requires writers to be quiescent or
+explicitly coordinated. The executor in [21](21-podman-sandbox.md) must use
+this same coordination boundary.
+
+Argument/path/type/match/quota validation precedes mutation. Single-file text
+replacement is atomic. This amendment does not introduce crash-atomic
+multi-file transactions. Recovery after physical I/O failure is limited to
+the operation's own effects and cannot overwrite unrelated external changes.
+An unconfirmed mutation or cleanup leaves the workspace unavailable/fenced;
+an old memory tree is not evidence that disk state has been restored.
+
+#### On-disk validation and limits
+
+Archive validation does not validate later external changes. Operations
+recheck paths and file types on access, including both sides of copy/move and
+recursive removal. All access stays rooted in the allocation content
+directory. Descriptor-relative access or an equivalent mechanism must prevent
+path replacement from redirecting an operation outside that root;
+`resolve`-then-open or string-prefix checks alone are insufficient.
+
+Existing symlinks and multiply linked regular files fail preflight. They are
+not followed or interpreted as another host path. FIFOs, sockets and devices
+are rejected without blocking reads. Invalid or colliding normalized on-disk
+names produce a safe error, not silent renaming or omission from a complete
+snapshot. Ordinary binary files remain on disk and are classified as binary;
+text tools retain `binary_file_unsupported` for unsupported access.
+
+Existing workspace limits apply to current-state acquisition and mutation
+preflight, not just archive input. Complete acquisition checks entry count,
+regular-file bytes and managed-text bytes; reads stay bounded if a file grows
+during acquisition. A violation yields `workspace_limit_exceeded`, not stale
+data, hidden partial success or automatic deletion of external outputs.
+Build/dependency files are not silently excluded from the complete workspace
+contract. Scope-limited reads can remain available within their own bounds
+without constructing a complete snapshot.
+
+Workspace API limits do not impose disk quotas on external processes. Capacity
+controls for command writes belong to the executor deployment under [21].
+
 For local direct mode, text replacement is an atomic rename relative to opened
 directory descriptors. Parent traversal does not follow symlinks, a replaced
 final symlink is itself replaced rather than followed, and a failed commit
 removes its private temporary file. This is defense in depth for filesystem
-races; another same-UID process with write access to Runtime `workRoot` is
-inside the Runtime host trust boundary and must be excluded operationally.
+races; another same-UID process with unrestricted access to Runtime `workRoot`
+is inside the Runtime host trust boundary. Executors must be confined to
+explicitly exposed content directories and their approved mounts.
+
+The Podman executor in [21](21-podman-sandbox.md) requires `local + direct` and
+cannot be combined with Contractor `overlay`. This restriction is about the
+workspace mode, not the container engine's internal image-layer storage.
 
 ### Overlay
 
@@ -329,8 +451,9 @@ During one A2A invocation the Worker produces effective tree `F`:
   next checkpoint for another sequential A2A task on the same allocation.
 
 There is no model-visible or automatic host `materialize`. Persistence is an
-artifact export. A future subprocess adapter may internally build a temporary
-checkout without changing the canonical overlay contract.
+artifact export. Trusted analysis tools may build private analysis inputs
+from an immutable snapshot. An execution sandbox sharing the writable project
+workspace requires local direct mode under [21](21-podman-sandbox.md).
 
 ## Cumulative overlay artifact
 
@@ -505,6 +628,7 @@ Initial stable errors include:
 - `binary_file_unsupported`;
 - `workspace_limit_exceeded`;
 - `workspace_operation_unsupported`;
+- `workspace_unavailable` (bounded filesystem acquisition, I/O or mutation failure);
 - `workspace_export_failed`.
 
 Transient Artifact transport and disk availability errors are retryable;
@@ -536,6 +660,38 @@ paths, credentials or arbitrary exceptions.
    cancellation, lease loss and cleanup fault suites fail closed with no path
    escape or retained content leak.
 
+### Local direct amendment acceptance (release verification pending)
+
+These cases use actual files modified outside WorkspaceWriter while the same
+allocation remains alive, and cover both narrow handles and Toolset consumers.
+
+1. External writes, creates, renames, deletes and empty-directory changes are
+   visible on the next applicable call, without a refresh or executor signal.
+   A same-size rewrite with restored mtime still returns the new contents.
+2. Exact edit, append, copy and move use current contents. Unrelated external
+   changes remain untouched; deleted files are never resurrected from memory.
+3. Text/binary transitions update classification. Snapshots and observation
+   digests reflect the current managed-text projection.
+4. Search and analysis see external edits on their next call. Changed digests
+   invalidate caches/cursors; previously returned snapshots remain immutable.
+5. Single-file reads do not load unrelated source texts. Complete acquisitions
+   fail safely on limits without fallback to the last valid snapshot.
+6. Root/parent/leaf symlinks, hard links, special files, invalid names and
+   adversarial path replacement cannot escape the root, leak outside contents
+   or block the event loop indefinitely.
+7. Workspace API calls preserve operation ordering. Cancellation cannot race
+   release against an owned filesystem mutation. Detected external races fail
+   safely without claiming protection from arbitrary concurrent writers.
+8. Validation failure leaves files unchanged. Injected I/O/recovery failures
+   report failure and fence on unconfirmed teardown; retained memory cannot
+   be used as proof that disk state was restored.
+9. Direct state import reaches disk before readiness; later external changes
+   take precedence. Release removes the private copy. Persistence remains
+   explicit ordinary Artifact writes.
+10. Memory/direct and both overlay variants retain existing parity,
+    checkpoint, export and isolation behavior. This amendment alone adds no
+    execution capability or model-visible tool.
+
 ## Deliberately deferred
 
 - automatic synchronization between Workers inside one StageExecution;
@@ -543,7 +699,7 @@ paths, credentials or arbitrary exceptions.
 - archive types other than ZIP and source filters/stripComponents;
 - binary overlay patches, metadata and symlink preservation;
 - model-visible materialization into an operator checkout;
-- shell/subprocess tools and their temporary-checkout adapter;
+- execution implementation, owned separately by [21](21-podman-sandbox.md);
 - cross-Run workspace cache, fork/merge and conflict resolution;
 - UI browsing/editing of workspace contents.
 
@@ -559,3 +715,5 @@ paths, credentials or arbitrary exceptions.
 7. Cumulative state is self-contained relative to exact sources and contains
    text only.
 8. Release/abort/lease loss cannot leave a reusable slot with a live workspace.
+9. Local direct disk state is authoritative; snapshots are derived values,
+   never a fallback for failed current-state acquisition.
