@@ -4,7 +4,7 @@ title: Bound database waits and verify the PostgreSQL hardening milestone
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
 status: in_progress
-implementation_commit: null
+implementation_commit: 4cfd75c87e1c20825fbadba427a7129da26cc95a
 depends_on:
 - V29-001
 - V29-002
