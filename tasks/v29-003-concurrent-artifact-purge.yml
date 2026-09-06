@@ -8,6 +8,7 @@ implementation_commit: null
 depends_on:
 - V24-004
 - V24-005
+- V29-006
 languages:
 - go
 goal: Ensure successful synchronous lifecycle deletion collects unreferenced content under concurrent scope

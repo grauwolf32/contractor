@@ -219,7 +219,7 @@ func (s *PostgresStore) PurgeClaimed(
 	}
 	switch db := s.db.(type) {
 	case *pgxpool.Pool:
-		return persistencepostgres.InTx(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		return persistencepostgres.InTxWithRetry(ctx, db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return purgeClaimedAudit(ctx, tx, claim, namespace)
 		})
 	case pgx.Tx:
