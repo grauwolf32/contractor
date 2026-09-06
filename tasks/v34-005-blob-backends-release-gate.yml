@@ -3,8 +3,8 @@ id: V34-005
 title: Verify blob backends in Kubernetes-compatible deployments without PVC
 milestone: artifact-blob-backends
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4edd8d52fd55aaf50e70f40750d9fab127acf813
 verification:
   status: passed
   date: '2026-09-06'
