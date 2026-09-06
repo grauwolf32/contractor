@@ -23,6 +23,9 @@ const runtimeConfig: RuntimeConfig = {
 
 const digest = `sha256:${"1".repeat(64)}`;
 const secondDigest = `sha256:${"2".repeat(64)}`;
+const workflowDisplayName = "OpenAPI from source workspace";
+const workflowDescription =
+  "Build an exact OpenAPI contract from a source artifact.";
 const session = {
   principal: {
     userId: "user_local",
@@ -41,6 +44,10 @@ const workerConfig = {
 
 const workflow: WorkflowResource = {
   ref: { name: "openapi-from-workspace", version: "fixture-1" },
+  presentation: {
+    displayName: workflowDisplayName,
+    description: workflowDescription,
+  },
   entryStage: "build",
   parameters: {
     objective: { required: true },
@@ -99,14 +106,16 @@ const workflow: WorkflowResource = {
 };
 
 const workflowSelector = `${workflow.ref.name}@${workflow.ref.version}`;
-const workflowRoute = `/workflows/${workflow.ref.name}/${workflow.ref.version}`;
+const workflowRoute = `/catalog/workflows/${workflow.ref.name}/${workflow.ref.version}`;
 const workflowEndpoint = `/v1/workflows/${workflow.ref.name}/versions/${workflow.ref.version}`;
 const nextWorkflow: WorkflowResource = {
-  ...workflow,
   ref: { name: "likec4-from-workspace", version: "fixture-1" },
+  entryStage: workflow.entryStage,
+  parameters: workflow.parameters,
+  inputs: workflow.inputs,
+  outputs: workflow.outputs,
+  stages: workflow.stages,
 };
-const nextWorkflowSelector = `${nextWorkflow.ref.name}@${nextWorkflow.ref.version}`;
-
 const sourceArtifact = {
   artifact: {
     namespace: "projects",
@@ -476,6 +485,12 @@ describe("Workflow routes", () => {
           return apiResponse(session);
         }
         if (url.pathname === "/v1/workflows") {
+          if (url.searchParams.get("q") === "likec4") {
+            return apiResponse({
+              items: [nextWorkflow],
+              page: { hasMore: false },
+            });
+          }
           if (url.searchParams.get("cursor") === "next-workflow") {
             return apiResponse({
               items: [nextWorkflow],
@@ -490,15 +505,32 @@ describe("Workflow routes", () => {
         throw new Error(`unexpected ${request.method} ${url}`);
       }),
     );
-    renderWorkflowApplication(api, "/workflows");
+    const { router } = renderWorkflowApplication(api, "/workflows");
     expect(
-      await screen.findByRole("link", { name: workflowSelector }),
+      await screen.findByRole("link", {
+        name: workflowDisplayName,
+      }),
     ).toHaveAttribute("href", workflowRoute);
+    expect(screen.getByText(workflowDescription)).toBeVisible();
+    expect(screen.getByText(workflowSelector)).toBeVisible();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(
-      await screen.findByRole("link", { name: nextWorkflowSelector }),
+      await screen.findByRole("link", { name: nextWorkflow.ref.name }),
     ).toBeInTheDocument();
+    expect(screen.getByText("No authored description.")).toBeVisible();
+    expect(router.state.location.search).toContain("cursor=next-workflow");
+    expect(router.state.location.search).toContain("page=2");
+
+    await user.type(screen.getByLabelText("Search workflows"), "likec4");
+    await waitFor(() =>
+      expect(router.state.location.search).toContain("q=likec4"),
+    );
+    expect(router.state.location.search).not.toContain("cursor=");
+    expect(router.state.location.search).not.toContain("page=");
+    expect(
+      await screen.findByRole("link", { name: nextWorkflow.ref.name }),
+    ).toBeVisible();
   });
 
   it("submits declared strings, an exact Artifact, and published overrides", async () => {
@@ -562,7 +594,9 @@ describe("Workflow routes", () => {
     );
     const { router } = renderWorkflowApplication(api, workflowRoute);
     expect(
-      await screen.findByRole("heading", { name: workflowSelector }),
+      await screen.findByRole("heading", {
+        name: workflowDisplayName,
+      }),
     ).toBeInTheDocument();
     await screen.findByText("Scheduler transitions");
     expect(

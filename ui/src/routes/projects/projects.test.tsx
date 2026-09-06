@@ -642,6 +642,10 @@ describe("Project routes", () => {
     const workflowSummaries = [
       {
         ref: { name: "openapi-from-source", version: "1" },
+        presentation: {
+          displayName: "OpenAPI contract",
+          description: "Build an API contract from the project sources.",
+        },
         entryStage: "analyze",
         parameters: {},
         inputs: {
@@ -762,13 +766,20 @@ describe("Project routes", () => {
       }),
     ).toBeEnabled();
     expect(
+      screen.getAllByRole("heading", { name: "OpenAPI contract" }),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByText("Build an API contract from the project sources."),
+    ).toHaveLength(2);
+    expect(screen.getAllByText("No authored description.")).toHaveLength(2);
+    expect(
       screen.getByRole("button", { name: "Run likec4-from-source@1" }),
     ).toBeEnabled();
     await user.click(
       screen.getByRole("button", { name: "Run openapi-from-source@1" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "openapi-from-source@1",
+      name: "OpenAPI contract",
     });
     expect(
       within(dialog).getByRole("combobox", { name: /source required/ }),

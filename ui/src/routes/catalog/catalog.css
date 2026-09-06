@@ -25,20 +25,126 @@
 }
 
 .catalog-search,
-.catalog-version-form label {
+.catalog-version-picker label {
   display: grid;
   gap: 0.4rem;
   color: var(--muted-strong);
 }
 
 .catalog-search input,
-.catalog-version-form input {
+.catalog-version-picker select {
   min-height: 2.65rem;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--line);
   border-radius: 0.5rem;
   color: var(--text);
   background: var(--surface-subtle);
+}
+
+.catalog-search input {
+  width: min(28rem, 72vw);
+}
+
+.catalog-discovery-actions {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.catalog-result-summary {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.catalog-result-summary strong {
+  color: var(--text);
+}
+
+.catalog-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+  gap: 1rem;
+}
+
+.catalog-workflow-card {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.catalog-workflow-card > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.catalog-workflow-card h3,
+.catalog-workflow-card p,
+.catalog-workflow-card .eyebrow,
+.catalog-workflow-card h4 {
+  margin: 0;
+}
+
+.catalog-workflow-card h3 a {
+  color: var(--text);
+}
+
+.catalog-workflow-card > header > div > code,
+.catalog-exact-selector {
+  display: inline-block;
+  margin-top: 0.35rem;
+  color: var(--muted-strong);
+  overflow-wrap: anywhere;
+}
+
+.catalog-workflow-contracts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.catalog-workflow-contracts > section {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.catalog-slot-list,
+.catalog-usage-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-slot-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.5rem;
+  min-width: 0;
+}
+
+.catalog-slot-list code,
+.catalog-slot-list small {
+  overflow-wrap: anywhere;
+}
+
+.catalog-slot-list li > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.catalog-slot-list small {
+  grid-column: 1 / -1;
+  color: var(--muted);
 }
 
 .catalog-agent-grid {
@@ -82,15 +188,27 @@
   white-space: nowrap;
 }
 
-.catalog-version-form {
+.catalog-version-picker {
   display: flex;
   align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+
+.catalog-version-picker label {
+  min-width: min(20rem, 100%);
+}
+
+.catalog-version-picker > div {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
 }
 
-.catalog-version-form input {
-  max-width: 12rem;
+.catalog-version-picker > .notice,
+.catalog-version-picker > [role="status"] {
+  flex-basis: 100%;
 }
 
 .catalog-agent-detail-grid {
@@ -140,8 +258,55 @@
   margin-left: 0.5rem;
 }
 
+.catalog-agent-usage {
+  display: grid;
+  gap: 1rem;
+}
+
+.catalog-usage-list li {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(9rem, auto) minmax(
+      9rem,
+      auto
+    );
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.catalog-usage-list li:last-child {
+  border-bottom: 0;
+}
+
+.catalog-usage-list a,
+.catalog-usage-list code {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1050px) {
   .catalog-agent-detail-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .catalog-discovery-header,
+  .catalog-workflow-card > header,
+  .catalog-workflow-contracts,
+  .catalog-usage-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalog-discovery-header,
+  .catalog-workflow-card > header {
+    display: grid;
+    align-items: stretch;
+  }
+
+  .catalog-discovery-actions,
+  .catalog-search,
+  .catalog-search input {
+    width: 100%;
   }
 }

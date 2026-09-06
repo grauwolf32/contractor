@@ -31,6 +31,7 @@ function response(value: unknown, status = 200): Response {
 describe("Workflow API", () => {
   it("uses generated exact and cursor query operations", async () => {
     const requests: Request[] = [];
+    const abort = new AbortController();
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {
@@ -60,25 +61,58 @@ describe("Workflow API", () => {
       }),
     );
 
-    await listWorkflows(api, { cursor: "workflow-next" });
+    await listWorkflows(api, {
+      cursor: "workflow-next",
+      q: "API purpose",
+      signal: abort.signal,
+    });
     await getWorkflow(api, "openapi-from-workspace", "3");
     await listConfigurations(api, "model-policies", {
       cursor: "policy-next",
+      q: "strong",
+      name: "worker",
+      signal: abort.signal,
     });
     await listCredentials(api, { cursor: "credential-next" });
 
     expect(new URL(requests[0]?.url ?? "http://invalid").searchParams).toEqual(
-      new URLSearchParams({ limit: "50", cursor: "workflow-next" }),
+      new URLSearchParams({
+        limit: "50",
+        cursor: "workflow-next",
+        q: "API purpose",
+      }),
     );
     expect(requests[1]?.url).toBe(
       "http://127.0.0.1:8080/v1/workflows/openapi-from-workspace/versions/3",
     );
     expect(new URL(requests[2]?.url ?? "http://invalid").searchParams).toEqual(
-      new URLSearchParams({ limit: "50", cursor: "policy-next" }),
+      new URLSearchParams({
+        limit: "50",
+        cursor: "policy-next",
+        q: "strong",
+        name: "worker",
+      }),
     );
     expect(new URL(requests[3]?.url ?? "http://invalid").searchParams).toEqual(
       new URLSearchParams({ limit: "50", cursor: "credential-next" }),
     );
+    abort.abort();
+    expect(requests[0]?.signal.aborted).toBe(true);
+    expect(requests[2]?.signal.aborted).toBe(true);
+  });
+
+  it("rejects overlong discovery queries and invalid exact names locally", async () => {
+    const fetcher = vi.fn(async () =>
+      response({ items: [], page: { hasMore: false } }),
+    );
+    const api = new PublicAPI(runtimeConfig, fetcher);
+    await expect(listWorkflows(api, { q: "x".repeat(201) })).rejects.toThrow(
+      "exceeds 200 Unicode characters",
+    );
+    await expect(
+      listConfigurations(api, "agent-templates", { name: "not/a/name" }),
+    ).rejects.toThrow("exact name is invalid");
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("creates one Run with generated JSON, CSRF, and exact idempotency headers", async () => {

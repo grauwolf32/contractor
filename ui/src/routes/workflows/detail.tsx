@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import type { components } from "../../api/generated/public";
 import { usePublicAPI } from "../../api/context";
@@ -13,7 +13,13 @@ import {
   type WorkflowResource,
 } from "../../api/workflows";
 import { ErrorNotice } from "../artifacts/common";
+import { catalogReturnState, locationDestination } from "../catalog/navigation";
 import { WorkflowRunForm } from "./run-form";
+import {
+  workflowDescription,
+  workflowDisplayName,
+  workflowSelector,
+} from "./presentation";
 
 import "../primary-actions.css";
 
@@ -157,6 +163,7 @@ function StageContract({
   name: string;
   workflow: WorkflowResource;
 }) {
+  const location = useLocation();
   const stage = workflow.stages[name];
   if (stage === undefined) {
     return null;
@@ -211,6 +218,11 @@ function StageContract({
                       binding.template.templateId,
                       binding.template.version,
                     )}
+                    state={{
+                      returnTo: locationDestination(location),
+                      returnLabel: workflowSelector(workflow),
+                      returnState: location.state,
+                    }}
                   >
                     {binding.template.templateId}@{binding.template.version}
                   </Link>
@@ -268,13 +280,18 @@ function StageContract({
 
 export function WorkflowDetailRoute() {
   const api = usePublicAPI();
+  const location = useLocation();
   const { name = "", version = "" } = useParams();
   const valid =
     CONFIG_ID_PATTERN.test(name) && CONFIG_VERSION_PATTERN.test(version);
   const query = useQuery({
     queryKey: queryKeys.workflows.detail(name, version),
-    queryFn: () => getWorkflow(api, name, version),
+    queryFn: ({ signal }) => getWorkflow(api, name, version, signal),
     enabled: valid,
+  });
+  const back = catalogReturnState(location.state, {
+    returnTo: "/catalog/workflows",
+    returnLabel: "All Workflows",
   });
 
   function focusRunSetup(): void {
@@ -287,7 +304,7 @@ export function WorkflowDetailRoute() {
     return (
       <section className="route-page">
         <ErrorNotice error={new Error("Workflow route is invalid")} />
-        <Link to="/workflows">Return to Workflows</Link>
+        <Link to="/catalog/workflows">Return to Workflows</Link>
       </section>
     );
   }
@@ -296,17 +313,28 @@ export function WorkflowDetailRoute() {
     <section className="route-page workflow-page">
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to="/workflows">
-            ← All Workflows
+          <Link
+            className="back-link"
+            to={back.returnTo}
+            state={back.returnState}
+          >
+            ← {back.returnLabel}
           </Link>
           <p className="eyebrow">Exact published contract</p>
           <h2>
-            {name}@{version}
+            {query.data
+              ? workflowDisplayName(query.data)
+              : `${name}@${version}`}
           </h2>
+          {query.data ? (
+            <code className="catalog-exact-selector">
+              {workflowSelector(query.data)}
+            </code>
+          ) : null}
           <p className="lede">
-            Configure a Run from declared strings, exact Artifact revisions and
-            optional published refs. Open the technical contract when you need
-            the Stage graph or resolved Worker details.
+            {query.data
+              ? workflowDescription(query.data)
+              : "Loading the authored purpose and exact input contract…"}
           </p>
         </div>
         <div className="workflow-header-actions primary-action-cluster">

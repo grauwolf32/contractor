@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { agentPath } from "../../api/agents";
 import { usePublicAPI } from "../../api/context";
@@ -8,100 +7,123 @@ import {
   listConfigurations,
   type AgentTemplateBody,
 } from "../../api/operations";
-import { queryKeys } from "../../api/query-keys";
 import { CursorControls, ErrorNotice } from "../artifacts/common";
+import { locationDestination } from "./navigation";
+import { useCatalogQueryState } from "./query-state";
 
 export function AgentListRoute() {
   const api = usePublicAPI();
-  const [cursors, setCursors] = useState<Array<string | undefined>>([
-    undefined,
-  ]);
-  const cursor = cursors.at(-1);
-  const [search, setSearch] = useState("");
+  const location = useLocation();
+  const state = useCatalogQueryState();
   const query = useQuery({
-    queryKey: queryKeys.configurations.list("agent-templates", cursor),
-    queryFn: () =>
-      listConfigurations(
-        api,
-        "agent-templates",
-        cursor === undefined ? {} : { cursor },
-      ),
+    queryKey: [
+      "catalog",
+      "agent-templates",
+      state.committedSearch,
+      state.cursor ?? null,
+    ],
+    queryFn: ({ signal }) =>
+      listConfigurations(api, "agent-templates", {
+        ...(state.committedSearch === "" ? {} : { q: state.committedSearch }),
+        ...(state.cursor === undefined ? {} : { cursor: state.cursor }),
+        signal,
+      }),
   });
-  const items = (query.data?.items ?? []).filter((item) =>
-    `${item.ref.name} ${item.ref.version} ${(item.body as AgentTemplateBody).description ?? ""}`
-      .toLowerCase()
-      .includes(search.trim().toLowerCase()),
-  );
+  const returnTo = locationDestination(location);
+
   return (
     <section className="catalog-agents">
-      <header className="route-header-row">
+      <header className="route-header-row catalog-discovery-header">
         <div>
           <h3>Agents</h3>
           <p className="lede">
-            Explore agent instructions, skills and tools by version.
+            Explore exact Agent versions, instructions, Skills, tools and
+            Workflow usage.
           </p>
         </div>
         <label className="catalog-search">
-          Search this page
+          Search agents
           <input
             type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={state.draftSearch}
+            placeholder="Name, version or description"
+            onChange={(event) => state.changeDraftSearch(event.target.value)}
           />
         </label>
       </header>
+
+      <div className="catalog-result-summary" aria-live="polite">
+        <span>Page {state.page}</span>
+        {state.committedSearch === "" ? null : (
+          <span>
+            Results for <strong>{state.committedSearch}</strong>
+          </span>
+        )}
+      </div>
+
       {query.isPending ? (
-        <p role="status">Loading agents…</p>
+        <p role="status">Searching published Agents…</p>
       ) : query.error ? (
         <ErrorNotice error={query.error} />
-      ) : items.length === 0 ? (
-        <p className="panel compact-empty">
-          {search ? "No matching agents on this page." : "No agents published."}
-        </p>
+      ) : query.data.items.length === 0 ? (
+        <div className="panel compact-empty">
+          <strong>
+            {state.committedSearch === ""
+              ? "No Agents published."
+              : "No Agents match this search."}
+          </strong>
+          {state.committedSearch === "" ? null : (
+            <p>Try a different literal name, version or description.</p>
+          )}
+        </div>
       ) : (
         <div className="catalog-agent-grid">
-          {items.map((item) => {
+          {query.data.items.map((item) => {
             const body = item.body as AgentTemplateBody;
             return (
               <Link
                 className="panel catalog-agent-card"
-                key={`${item.ref.name}@${item.ref.version}`}
+                key={`${item.ref.name}@${item.ref.version}:${item.ref.digest}`}
                 to={agentPath(item.ref.name, item.ref.version)}
+                state={{ returnTo, returnLabel: "Agent search" }}
               >
                 <div className="catalog-agent-identity">
                   <strong>{item.ref.name}</strong>
                   <span className="state-badge">{item.ref.version}</span>
                 </div>
-                <p>{body.description}</p>
+                <p>{body.description || "No authored description."}</p>
                 <span className="muted-copy">
                   {body.runtime} · {body.skills?.length ?? 0} skills ·{" "}
                   {body.toolsets?.reduce(
-                    (total, item) => total + item.tools.length,
+                    (total, toolset) => total + toolset.tools.length,
                     0,
                   ) ?? 0}{" "}
                   tools
                 </span>
-                <span className="catalog-agent-open">View prompt →</span>
+                <code className="catalog-exact-selector">
+                  {item.ref.name}@{item.ref.version}
+                </code>
+                <span className="catalog-agent-open">
+                  Inspect exact version →
+                </span>
               </Link>
             );
           })}
         </div>
       )}
-      <CursorControls
-        label="Agent pages"
-        canGoBack={cursors.length > 1}
-        {...(query.data?.page.nextCursor === undefined
-          ? {}
-          : { nextCursor: query.data.page.nextCursor })}
-        onBack={() => {
-          setSearch("");
-          setCursors((value) => value.slice(0, -1));
-        }}
-        onNext={(next) => {
-          setSearch("");
-          setCursors((value) => [...value, next]);
-        }}
-      />
+
+      {query.data === undefined ? null : (
+        <CursorControls
+          label="Agent pages"
+          canGoBack={state.canGoBack}
+          {...(query.data.page.hasMore &&
+          query.data.page.nextCursor !== undefined
+            ? { nextCursor: query.data.page.nextCursor }
+            : {})}
+          onBack={state.previousPage}
+          onNext={state.nextPage}
+        />
+      )}
     </section>
   );
 }

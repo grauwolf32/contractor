@@ -369,8 +369,11 @@ test("Project recommendation launches an exact Project Run", async ({
   await openProjectFromShell(page);
   await page.getByRole("button", { name: "Run openapi-from-source@1" }).click();
   const dialog = page.getByRole("dialog", {
-    name: "openapi-from-source@1",
+    name: "openapi-from-source",
   });
+  await expect(dialog.locator(".project-dialog-heading code")).toHaveText(
+    "openapi-from-source@1",
+  );
   await expect(
     dialog.getByRole("combobox", { name: /source required/ }),
   ).toHaveValue("sources/browser-source@revision-browser-1");

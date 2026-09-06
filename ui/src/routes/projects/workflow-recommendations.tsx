@@ -10,6 +10,11 @@ import { artifactOptionKey } from "../../run-drafts/validation";
 import { ErrorNotice } from "../artifacts/common";
 import { WorkflowRunForm } from "../workflows/run-form";
 import {
+  workflowDescription,
+  workflowDisplayName,
+  workflowSelector,
+} from "../workflows/presentation";
+import {
   buildWorkflowCompatibility,
   type WorkflowCompatibility,
 } from "./recommendations";
@@ -21,7 +26,7 @@ function nextCursor(page: { page: { hasMore: boolean; nextCursor?: string } }) {
 }
 
 function selector(item: WorkflowCompatibility): string {
-  return `${item.workflow.ref.name}@${item.workflow.ref.version}`;
+  return workflowSelector(item.workflow);
 }
 
 function WorkflowCompatibilityCard({
@@ -48,8 +53,10 @@ function WorkflowCompatibilityCard({
               ? "Format-compatible"
               : "Missing inputs"}
         </p>
-        <h4>{selector(item)}</h4>
+        <h4>{workflowDisplayName(item.workflow)}</h4>
+        <code>{selector(item)}</code>
       </div>
+      <p className="muted-copy">{workflowDescription(item.workflow)}</p>
       {inputEntries.length === 0 ? (
         <p className="project-workflow-fact">No Artifact inputs required.</p>
       ) : (
@@ -152,7 +159,10 @@ function ProjectWorkflowLauncher({
       <div className="project-dialog-heading">
         <div>
           <p className="eyebrow">Project Workflow</p>
-          <h2 id="project-workflow-dialog-title">{selector(selection)}</h2>
+          <h2 id="project-workflow-dialog-title">
+            {workflowDisplayName(selection.workflow)}
+          </h2>
+          <code>{selector(selection)}</code>
         </div>
         <button
           className="project-dialog-close"

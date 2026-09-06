@@ -27,6 +27,12 @@ export interface PageRequest {
   cursor?: string;
 }
 
+export interface CatalogPageRequest extends PageRequest {
+  q?: string;
+  name?: string;
+  signal?: AbortSignal;
+}
+
 function requireData<T>(result: {
   data?: T;
   error?: unknown;
@@ -46,16 +52,20 @@ function requireWorkflowIdentity(name: string, version: string): void {
 
 export async function listWorkflows(
   api: PublicAPI,
-  request: PageRequest = {},
+  request: CatalogPageRequest = {},
 ): Promise<WorkflowPage> {
+  requireCatalogRequest(request);
   const result = await api.request((client) =>
     client.GET("/v1/workflows", {
       params: {
         query: {
           limit: WORKFLOW_PAGE_SIZE,
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          ...(request.q === undefined ? {} : { q: request.q }),
+          ...(request.name === undefined ? {} : { name: request.name }),
         },
       },
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
     }),
   );
   return requireData(result);
@@ -65,11 +75,13 @@ export async function getWorkflow(
   api: PublicAPI,
   name: string,
   version: string,
+  signal?: AbortSignal,
 ): Promise<WorkflowResource> {
   requireWorkflowIdentity(name, version);
   const result = await api.request((client) =>
     client.GET("/v1/workflows/{name}/versions/{version}", {
       params: { path: { name, version } },
+      ...(signal === undefined ? {} : { signal }),
     }),
   );
   return requireData(result);
@@ -78,8 +90,9 @@ export async function getWorkflow(
 export async function listConfigurations(
   api: PublicAPI,
   kind: ConfigurationKind,
-  request: PageRequest = {},
+  request: CatalogPageRequest = {},
 ): Promise<ConfigurationPage> {
+  requireCatalogRequest(request);
   const result = await api.request((client) =>
     client.GET("/v1/configurations/{kind}", {
       params: {
@@ -87,11 +100,23 @@ export async function listConfigurations(
         query: {
           limit: REFERENCE_PAGE_SIZE,
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
+          ...(request.q === undefined ? {} : { q: request.q }),
+          ...(request.name === undefined ? {} : { name: request.name }),
         },
       },
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
     }),
   );
   return safeConfigurationPage(requireData(result));
+}
+
+function requireCatalogRequest(request: CatalogPageRequest): void {
+  if (request.q !== undefined && Array.from(request.q).length > 200) {
+    throw new TypeError("Catalog search exceeds 200 Unicode characters");
+  }
+  if (request.name !== undefined && !CONFIG_ID_PATTERN.test(request.name)) {
+    throw new TypeError("Catalog exact name is invalid");
+  }
 }
 
 export async function listCredentials(

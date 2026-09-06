@@ -1055,11 +1055,13 @@ export async function getConfiguration(
   kind: ConfigurationKind,
   name: string,
   version: string,
+  signal?: AbortSignal,
 ): Promise<ConfigurationResource> {
   requireConfigIdentity(name, version);
   const result = await api.request((client) =>
     client.GET("/v1/configurations/{kind}/{name}/versions/{version}", {
       params: { path: { kind, name, version } },
+      ...(signal === undefined ? {} : { signal }),
     }),
   );
   const resource = safeConfigurationResource(requireData(result));
