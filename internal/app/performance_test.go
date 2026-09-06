@@ -15,6 +15,14 @@ import (
 )
 
 func TestDisabledPerformanceDoesNotConstructAnything(t *testing.T) {
+	if newPerformanceDiagnostics(false, "not a database URL") != nil {
+		t.Fatal("disabled mode constructed diagnostics")
+	}
+	// Enabled construction is lazy too: even malformed optional diagnostics
+	// cannot prevent the application from starting.
+	if newPerformanceDiagnostics(true, "not a database URL") == nil {
+		t.Fatal("enabled diagnostics missing")
+	}
 	public, private := http.NewServeMux(), http.NewServeMux()
 	p, q, c := instrumentPerformance(false, public, private, func() *performance.Collector { t.Fatal("disabled factory called"); return nil })
 	if p != public || q != private || c != nil {

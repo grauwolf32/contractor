@@ -25,11 +25,13 @@ type PoolOptions struct {
 	ConnectTimeout time.Duration
 	Budgets        Budgets
 	Logger         *slog.Logger
+	// DisableWarmConnections overrides DSN pool_min_conns/pool_min_idle_conns.
+	DisableWarmConnections bool
 }
 
-// OpenPool parses databaseURL without logging it, applies bounded pool
-// settings, and verifies a connection before returning.
-func OpenPool(ctx context.Context, databaseURL string, options PoolOptions) (*pgxpool.Pool, error) {
+// PoolConfig applies OpenPool's connection/operation budgets without connecting.
+// Optional diagnostic pools can use it to connect lazily.
+func PoolConfig(databaseURL string, options PoolOptions) (*pgxpool.Config, error) {
 	if strings.TrimSpace(databaseURL) == "" {
 		return nil, fmt.Errorf("database URL is required")
 	}
@@ -46,6 +48,9 @@ func OpenPool(ctx context.Context, databaseURL string, options PoolOptions) (*pg
 	}
 	if options.MinConnections > 0 {
 		config.MinConns = options.MinConnections
+	}
+	if options.DisableWarmConnections {
+		config.MinConns, config.MinIdleConns = 0, 0
 	}
 	if config.MinConns > config.MaxConns {
 		return nil, fmt.Errorf("invalid PostgreSQL pool connection limits")
@@ -66,12 +71,20 @@ func OpenPool(ctx context.Context, databaseURL string, options PoolOptions) (*pg
 	config.ConnConfig.RuntimeParams["lock_timeout"] = timeoutSetting(budgets.LockTimeout)
 	config.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = timeoutSetting(budgets.IdleTransactionTimeout)
 	config.ConnConfig.Tracer = &budgetTracer{budgets: budgets, logger: options.Logger}
+	return config, nil
+}
 
+// OpenPool configures the working pool and verifies a connection before returning.
+func OpenPool(ctx context.Context, databaseURL string, options PoolOptions) (*pgxpool.Pool, error) {
+	config, err := PoolConfig(databaseURL, options)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, WrapError("create PostgreSQL pool", err)
 	}
-	pingCtx, cancel := context.WithTimeout(ctx, budgets.QueryTimeout)
+	pingCtx, cancel := context.WithTimeout(ctx, config.ConnConfig.Tracer.(*budgetTracer).budgets.QueryTimeout)
 	defer cancel()
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()

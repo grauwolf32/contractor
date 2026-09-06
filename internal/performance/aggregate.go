@@ -63,6 +63,9 @@ type Minute struct {
 	Pool            PoolGauges        `json:"pool"`
 	PoolLast        *Pool             `json:"poolLast,omitempty"`
 	GCPausesLast    *GCPauseHistogram `json:"gcPausesLast,omitempty"`
+	Database        *Database         `json:"database,omitempty"`
+	DatabaseSize    *DatabaseSize     `json:"databaseSize,omitempty"`
+	DroppedMinutes  uint64            `json:"droppedMinutes"`
 }
 
 // AggregateMinute is conservative about ambiguous windows. It never prorates
@@ -100,6 +103,20 @@ func AggregateMinute(start time.Time, samples []Sample) (Minute, error) {
 		}
 		if sample.Generation != result.Generation || (previous != nil && previous.Generation != result.Generation) {
 			return Minute{}, errors.New("cannot aggregate performance generations")
+		}
+		// Cached DB observations keep their original freshness. They are not
+		// converted into a new gauge sample or a new interval rate here.
+		if sample.Database != nil {
+			result.Database = sample.Database
+			if sample.Database.Freshness.Status != OK {
+				result.Status = Partial
+			}
+		}
+		if sample.DatabaseSize != nil {
+			result.DatabaseSize = sample.DatabaseSize
+			if sample.DatabaseSize.Freshness.Status != OK {
+				result.Status = Partial
+			}
 		}
 		if sample.HTTP != nil {
 			coverage := sample.HTTP.Freshness.Coverage

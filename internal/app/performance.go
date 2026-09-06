@@ -9,6 +9,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/performance"
 )
 
+func newPerformanceDiagnostics(enabled bool, databaseURL string) *performance.Diagnostics {
+	if !enabled {
+		return nil
+	}
+	return performance.NewDiagnostics(performance.DiagnosticOptions{Open: func(ctx context.Context) (performance.DiagnosticBackend, error) {
+		pool, err := performance.NewDiagnosticPool(ctx, databaseURL)
+		if err != nil {
+			return nil, err
+		}
+		return performance.NewDatabaseStore(pool), nil
+	}})
+}
+
 // The disabled branch preserves original handler identity and never invokes
 // the factory: no recorder, reader, buffer, clock or timer is created.
 func instrumentPerformance(enabled bool, public, private http.Handler, factory func() *performance.Collector) (http.Handler, http.Handler, *performance.Collector) {

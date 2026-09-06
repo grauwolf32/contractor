@@ -49,6 +49,16 @@ func (b Budgets) normalized() (Budgets, error) {
 
 type maintenanceBudgetKey struct{}
 
+// WithOperationBudgets selects one validated operation policy. Callers own an
+// outer deadline and apply overrides transaction-locally, never with session SET.
+func WithOperationBudgets(ctx context.Context, budgets Budgets) (context.Context, error) {
+	budgets, err := budgets.normalized()
+	if err != nil {
+		return nil, err
+	}
+	return context.WithValue(ctx, maintenanceBudgetKey{}, budgets), nil
+}
+
 // WithMigrationBudget bounds the entire migrator (including advisory-lock
 // acquisition) to 15 minutes. InTx installs these server settings with SET
 // LOCAL, so commit/rollback cannot leak maintenance settings into the pool.

@@ -31,6 +31,7 @@ type Options struct {
 	Clock       Clock
 	ReadProcess ProcessReader
 	ReadPool    PoolReader
+	Diagnostics *Diagnostics
 }
 
 type storedFrame struct {
@@ -44,6 +45,7 @@ type Collector struct {
 	pool               PoolReader
 	generation         string
 	http               *HTTPRecorder
+	diagnostics        *Diagnostics
 	running            atomic.Bool
 	sampleMu           sync.Mutex
 	last               time.Time // retains Go monotonic time; UTC conversion is only for wire fields
@@ -66,7 +68,7 @@ func New(options Options) *Collector {
 	if options.ReadPool == nil {
 		options.ReadPool = WorkingPoolReader(nil)
 	}
-	return &Collector{clock: options.Clock, process: options.ReadProcess, pool: options.ReadPool, generation: rand.Text(), http: newHTTPRecorder(options.Clock.Now), last: options.Clock.Now()}
+	return &Collector{clock: options.Clock, process: options.ReadProcess, pool: options.ReadPool, diagnostics: options.Diagnostics, generation: rand.Text(), http: newHTTPRecorder(options.Clock.Now), last: options.Clock.Now()}
 }
 
 func (c *Collector) Wrap(surface Surface, next http.Handler) http.Handler {
@@ -128,6 +130,10 @@ func (c *Collector) Collect() {
 	defer c.sampleMu.Unlock()
 	p, processReason := c.process()
 	pool, poolReason := c.pool()
+	var diagnostic DiagnosticView
+	if c.diagnostics != nil {
+		diagnostic = c.diagnostics.Snapshot()
+	}
 	at := c.clock.Now()
 	start, expected := c.last, uint64(1)
 	if start.IsZero() {
@@ -185,6 +191,7 @@ func (c *Collector) Collect() {
 	}
 	h := HTTP{Freshness: freshness(start, at, expected, httpReason, true), Surfaces: c.http.drain()}
 	sample := Sample{Version: 1, Generation: c.generation, ObservedAt: at.UTC(), HTTP: &h, Process: &p, Pool: &pool}
+	sample.Database, sample.DatabaseSize = diagnostic.Database, diagnostic.DatabaseSize
 	c.last, c.previousProcess, c.previousPool = at, p, pool
 	c.sampled = true
 	c.mu.Lock()
@@ -206,6 +213,9 @@ func (c *Collector) Collect() {
 	c.frames[index] = storedFrame{at: at.UTC(), data: raw}
 	c.count++
 	c.bytes += len(raw)
+	if c.diagnostics != nil {
+		c.diagnostics.Observe(sample)
+	}
 }
 
 func decreased(current, previous *uint64) bool {

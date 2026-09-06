@@ -132,23 +132,45 @@ type Pool struct {
 }
 
 type Database struct {
-	Freshness                     Freshness  `json:"freshness"`
-	StatsReset                    *time.Time `json:"statsReset,omitempty"`
-	Commits                       *uint64    `json:"commits,omitempty"`
-	Rollbacks                     *uint64    `json:"rollbacks,omitempty"`
-	Deadlocks                     *uint64    `json:"deadlocks,omitempty"`
-	TempFiles                     *uint64    `json:"tempFiles,omitempty"`
-	TempBytes                     *uint64    `json:"tempBytes,omitempty"`
-	BlocksRead                    *uint64    `json:"blocksRead,omitempty"`
-	BlocksHit                     *uint64    `json:"blocksHit,omitempty"`
-	ActiveConnections             *uint64    `json:"activeConnections,omitempty"`
-	IdleConnections               *uint64    `json:"idleConnections,omitempty"`
-	IdleInTransactionConnections  *uint64    `json:"idleInTransactionConnections,omitempty"`
-	LockWaitingConnections        *uint64    `json:"lockWaitingConnections,omitempty"`
-	LongestTransactionSeconds     *float64   `json:"longestTransactionSeconds,omitempty"`
-	LongestIdleTransactionSeconds *float64   `json:"longestIdleTransactionSeconds,omitempty"`
-	EstimatedLiveTuples           *uint64    `json:"estimatedLiveTuples,omitempty"`
-	EstimatedDeadTuples           *uint64    `json:"estimatedDeadTuples,omitempty"`
+	Freshness                     Freshness      `json:"freshness"`
+	StatsReset                    *time.Time     `json:"statsReset,omitempty"`
+	Commits                       *uint64        `json:"commits,omitempty"`
+	Rollbacks                     *uint64        `json:"rollbacks,omitempty"`
+	Deadlocks                     *uint64        `json:"deadlocks,omitempty"`
+	TempFiles                     *uint64        `json:"tempFiles,omitempty"`
+	TempBytes                     *uint64        `json:"tempBytes,omitempty"`
+	BlocksRead                    *uint64        `json:"blocksRead,omitempty"`
+	BlocksHit                     *uint64        `json:"blocksHit,omitempty"`
+	ActiveConnections             *uint64        `json:"activeConnections,omitempty"`
+	IdleConnections               *uint64        `json:"idleConnections,omitempty"`
+	IdleInTransactionConnections  *uint64        `json:"idleInTransactionConnections,omitempty"`
+	LockWaitingConnections        *uint64        `json:"lockWaitingConnections,omitempty"`
+	LongestTransactionSeconds     *float64       `json:"longestTransactionSeconds,omitempty"`
+	LongestIdleTransactionSeconds *float64       `json:"longestIdleTransactionSeconds,omitempty"`
+	EstimatedLiveTuples           *uint64        `json:"estimatedLiveTuples,omitempty"`
+	EstimatedDeadTuples           *uint64        `json:"estimatedDeadTuples,omitempty"`
+	ClientConnections             *uint64        `json:"clientConnections,omitempty"`
+	HiddenConnections             *uint64        `json:"hiddenConnections,omitempty"`
+	AutovacuumWorkers             *uint64        `json:"autovacuumWorkers,omitempty"`
+	VacuumCount                   *uint64        `json:"vacuumCount,omitempty"`
+	AutovacuumCount               *uint64        `json:"autovacuumCount,omitempty"`
+	LastVacuumAt                  *time.Time     `json:"lastVacuumAt,omitempty"`
+	LastAutovacuumAt              *time.Time     `json:"lastAutovacuumAt,omitempty"`
+	Rates                         *DatabaseRates `json:"rates,omitempty"`
+}
+
+// Rates cover real observation intervals; BufferHitRatio is PostgreSQL buffers,
+// not operating-system cache, physical I/O or an application-only measurement.
+type DatabaseRates struct {
+	IntervalSeconds float64  `json:"intervalSeconds"`
+	Commits         float64  `json:"commitsPerSecond"`
+	Rollbacks       float64  `json:"rollbacksPerSecond"`
+	Deadlocks       float64  `json:"deadlocksPerSecond"`
+	TempFiles       float64  `json:"tempFilesPerSecond"`
+	TempBytes       float64  `json:"tempBytesPerSecond"`
+	BlocksRead      float64  `json:"blocksReadPerSecond"`
+	BlocksHit       float64  `json:"blocksHitPerSecond"`
+	BufferHitRatio  *float64 `json:"bufferHitRatio,omitempty"`
 }
 
 type DatabaseSize struct {

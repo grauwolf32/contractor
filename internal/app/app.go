@@ -683,15 +683,19 @@ func RunCLI(
 		return fmt.Errorf("configure private Artifact API: %w", err)
 	}
 	privateHandler := newPrivateHandler(controlHandler, artifactHandler)
+	performanceDiagnostics := newPerformanceDiagnostics(cfg.PerformanceMetrics, cfg.DatabaseURL)
 	processHandler, instrumentedPrivate, performanceCollector := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector {
-			return performance.New(performance.Options{ReadPool: performance.WorkingPoolReader(pool)})
+			return performance.New(performance.Options{ReadPool: performance.WorkingPoolReader(pool), Diagnostics: performanceDiagnostics})
 		},
 	)
 	runners := backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController}
 	if performanceCollector != nil {
 		runners = append(runners, performanceCollector)
+	}
+	if performanceDiagnostics != nil {
+		runners = append(runners, performanceDiagnostics)
 	}
 	if profilingServer != nil {
 		runners = append(runners, profilingServer)
