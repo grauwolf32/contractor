@@ -188,6 +188,52 @@ def test_invalid_paths_binary_reads_regex_and_visible_output_bounds(tmp_path: Pa
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("mode", ["direct", "overlay"])
+def test_scoped_read_preserves_errors_and_does_not_snapshot_memory_views(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    async def scenario() -> None:
+        session = await workspace(mode, f"scoped-{mode}")
+        tools = await create_tools(
+            FilesystemToolsetFactory(),
+            session.reader_view(),
+            WorkerState(),
+            tmp_path,
+            ["read_file"],
+        )
+
+        async def no_snapshot() -> None:
+            pytest.fail("read_file should acquire one text, not a workspace snapshot")
+
+        monkeypatch.setattr(session, "snapshot", no_snapshot)
+        try:
+            result = await tools["read_file"]("docs/readme.txt")
+            assert [line["text"] for line in result["lines"]] == ["first", "second", "last"]
+            for path, code in (
+                ("src", "workspace_type_conflict"),
+                ("missing", "workspace_not_found"),
+                ("image.bin", "binary_file_unsupported"),
+            ):
+                with pytest.raises(FilesystemToolError) as failure:
+                    await tools["read_file"](path)
+                assert failure.value.code == code
+
+            async def failing_read(_: str) -> str:
+                raise OSError(f"private host path {tmp_path} and {SECRET_PATTERN}")
+
+            monkeypatch.setattr(session, "read_text", failing_read)
+            with pytest.raises(FilesystemToolError) as failure:
+                await tools["read_file"]("docs/readme.txt")
+            assert failure.value.code == "workspace_unavailable"
+            assert str(tmp_path) not in str(failure.value)
+            assert SECRET_PATTERN not in str(failure.value)
+        finally:
+            await tools["read_file"].close()
+            await session.close()
+
+    asyncio.run(scenario())
+
+
 async def workspace(mode: str, name: str) -> DirectWorkspaceSession:
     provider = MemoryWorkspaceProvider(
         WorkspaceSettings(storage="memory", limits=workspace_limits())

@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V30-003
+title: Make filesystem tools and analysis observe fresh local direct snapshots
+milestone: local-direct-disk-authority
+priority: P0
+status: in_progress
+implementation_commit: null
+depends_on: [V30-002, V15-006, V17-004]
+languages: [python]
+
+goal: >-
+  Carry disk-authoritative reads through model-visible filesystem/edit tools,
+  observations and snapshot-based analysis without introducing host-path access.
+
+context:
+  specifications: [docs/spec/10-runtime-filesystems-and-edit-tools.md, docs/spec/12-code-analysis-tools.md]
+  consumers: >-
+    filesystem@1 currently obtains full WorkspaceSnapshots even for read_file.
+    Code analysis and observations key derived state by the managed-text digest.
+    They must acquire current disk data, not trust initial hydration or size/mtime.
+  compatibility: >-
+    Tool signatures, exact refs, newline behavior, stable errors and artifact
+    provenance remain unchanged. Analysis may finish against an acquired immutable
+    snapshot, but the next call acquires a fresh view. No refresh tool is added.
+
+scope:
+  in:
+    - Connect filesystem/edit consumers to V30-002 current-state handles, including scoped text reads that do not require unrelated text acquisition.
+    - Preserve bounded listing/glob/grep pagination and reject old digest-bound cursors when the current projection changes.
+    - Verify observation metadata and coverage use the current projection after external mutations.
+    - Invalidate shallow analysis caches and old Trailmark graphs when freshly acquired digests change, using existing analysis lifecycle rules.
+    - Exercise annotation and OpenAPI provenance consumers of narrow readers/writers against externally changed local files.
+    - Add tests/test_local_direct_tool_consumers.py with real filesystem fixtures and extend existing consumer regressions.
+  out:
+    - New public tools or result schemas, analysis-algorithm changes, a watcher/cache invalidation service, raw provider handles or Podman.
+
+requirements:
+  - {id: R1, text: Model-visible tools observe completed external changes on their next call without model intervention.}
+  - {id: R2, text: A tool response and its evidence derive from a coherent acquired view; stale cursor pages cannot be combined.}
+  - {id: R3, text: Derived caches are checked against a newly acquired digest and retain no authority over source contents.}
+
+acceptance_criteria:
+  - id: A1
+    given: Actual disk files created, edited, renamed and deleted outside WorkspaceWriter.
+    when: ls, glob, grep, read_file and edit tools are called in the same allocation.
+    then: They report or change current content, retain newline rules and expose no host paths.
+  - id: A2
+    given: An earlier filesystem/analysis cursor and an externally changed source projection.
+    when: The cursor is reused or analysis runs again.
+    then: The old cursor is rejected and analysis invalidates stale caches/graphs before answering from the new snapshot.
+  - id: A3
+    given: External source edits followed by observations, annotations and OpenAPI evidence validation.
+    when: Those consumers use the shared reader/writer boundary.
+    then: Metadata and evidence agree with current files; missing paths cannot resolve through stale scratch or hydration state.
+  - id: A4
+    given: Equivalent memory/direct and overlay inputs plus an unrelated oversized local file.
+    when: Existing consumer suites and a bounded local read_file run.
+    then: Unaffected modes retain parity and a single-file read does not load unrelated source texts.
+
+tests:
+  - {name: external-consumers, command: "cd runtime && uv run pytest -W error tests/test_local_direct_tool_consumers.py", covers: [A1, A2, A3, A4]}
+  - {name: filesystem, command: "cd runtime && uv run pytest -W error tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py tests/test_filesystem_observations.py", covers: [A1, A2, A3, A4]}
+  - {name: analysis-and-evidence, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_openapi_toolset.py", covers: [A2, A3, A4]}

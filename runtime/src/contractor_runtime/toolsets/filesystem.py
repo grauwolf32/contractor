@@ -183,13 +183,10 @@ class _FilesystemSession:
             or max_lines > MAX_READ_LINES
         ):
             raise FilesystemToolError("workspace_limit_exceeded")
-        snapshot = await self._snapshot()
-        file = _text_file(snapshot, normalized)
-        if file.size > MAX_READ_SCAN_BYTES:
+        text = await self._read_text(normalized)
+        if len(text.encode("utf-8")) > MAX_READ_SCAN_BYTES:
             raise FilesystemToolError("workspace_limit_exceeded")
-        selected, total_lines, used, line_truncated = _read_line_window(
-            file.text, start_line, max_lines
-        )
+        selected, total_lines, used, line_truncated = _read_line_window(text, start_line, max_lines)
         if start_line > total_lines + 1:
             raise FilesystemToolError("workspace_not_found")
         next_line = start_line + len(selected)
@@ -322,6 +319,20 @@ class _FilesystemSession:
             "scannedPaths": scanned_paths,
             "scannedBytes": min(scanned_bytes, MAX_GREP_BYTES),
         }
+
+    async def _read_text(self, path: str) -> str:
+        if self._closed:
+            raise FilesystemToolError("workspace_not_found")
+        try:
+            # Acquire exactly one immutable text value. Unrelated files may
+            # exceed whole-workspace bounds without preventing this read.
+            return await self._reader.read_text(path)
+        except WorkspaceStorageError as error:
+            raise FilesystemToolError(
+                error.args[0] if error.args else "workspace_not_found"
+            ) from None
+        except Exception:
+            raise FilesystemToolError("workspace_unavailable") from None
 
     async def _snapshot(self) -> WorkspaceSnapshot:
         if self._closed:
@@ -603,17 +614,6 @@ def _require_grep_root(snapshot: WorkspaceSnapshot, path: str) -> None:
         raise FilesystemToolError("binary_file_unsupported")
     if any(file.path == path for file in snapshot.files):
         return
-    raise FilesystemToolError("workspace_not_found")
-
-
-def _text_file(snapshot: WorkspaceSnapshot, path: str) -> WorkspaceTextFile:
-    for file in snapshot.files:
-        if file.path == path:
-            return file
-    if path in snapshot.binary_paths:
-        raise FilesystemToolError("binary_file_unsupported")
-    if path in snapshot.directories:
-        raise FilesystemToolError("workspace_type_conflict")
     raise FilesystemToolError("workspace_not_found")
 
 

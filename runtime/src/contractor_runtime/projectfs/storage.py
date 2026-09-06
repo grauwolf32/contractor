@@ -294,6 +294,8 @@ class DirectWorkspaceSession:
             self._require_open()
             if normalized in self._tree.binary_paths:
                 raise WorkspaceStorageError("binary_file_unsupported")
+            if normalized in self._tree.directories:
+                raise WorkspaceStorageError("workspace_type_conflict")
             try:
                 return self._tree.text_files[normalized]
             except KeyError:
