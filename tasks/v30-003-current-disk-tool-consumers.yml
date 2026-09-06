@@ -3,8 +3,8 @@ id: V30-003
 title: Make filesystem tools and analysis observe fresh local direct snapshots
 milestone: local-direct-disk-authority
 priority: P0
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: cb73e4293505842d7371f76b924a10abd4c5f7f7
 depends_on: [V30-002, V15-006, V17-004]
 languages: [python]
 
@@ -61,3 +61,18 @@ tests:
   - {name: external-consumers, command: "cd runtime && uv run pytest -W error tests/test_local_direct_tool_consumers.py", covers: [A1, A2, A3, A4]}
   - {name: filesystem, command: "cd runtime && uv run pytest -W error tests/test_filesystem_toolset.py tests/test_edit_files_toolset.py tests/test_filesystem_observations.py", covers: [A1, A2, A3, A4]}
   - {name: analysis-and-evidence, command: "cd runtime && uv run pytest -W error tests/test_code_analysis_shallow.py tests/test_code_analysis_graph.py tests/test_taint_annotations.py tests/test_openapi_toolset.py", covers: [A2, A3, A4]}
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - External consumer tests passed, 11 tests with warnings treated as errors; includes real Trailmark child and mirror invalidation.
+    - Required filesystem, edits and observation selection passed, 13 tests with warnings treated as errors.
+    - Required analysis and evidence selection passed, 101 tests with warnings treated as errors.
+    - Full Runtime suite passed, 898 tests; three live LLM Gateway tests skipped because their environment is not configured.
+    - Ruff lint and format checks passed for all four changed Python files.
+  boundary: >-
+    read_file now uses scoped read_text while preserving tool result and error
+    shapes, including directory type conflicts in managed modes. Fresh snapshots
+    already drive analysis invalidation and OpenAPI evidence; real-disk tests
+    verify these paths, annotations and per-invocation observation scope without
+    changing their lifecycle rules. V30-004 and Podman remain pending.
