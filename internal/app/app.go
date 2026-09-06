@@ -144,6 +144,13 @@ func RunCLI(
 	if err != nil {
 		return err
 	}
+	profilingServer, err := configureProfiling(cfg)
+	if err != nil {
+		return err
+	}
+	if profilingServer != nil {
+		defer func() { _ = profilingServer.Close() }()
+	}
 	if strings.TrimSpace(cfg.DatabaseURL) == "" {
 		return errors.New("database URL is required")
 	}
@@ -672,9 +679,7 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure private Artifact API: %w", err)
 	}
-	privateHandler := http.NewServeMux()
-	privateHandler.Handle("/private/v1/agents/", controlHandler)
-	privateHandler.Handle("/private/v1/allocations/", artifactHandler)
+	privateHandler := newPrivateHandler(controlHandler, artifactHandler)
 	processHandler, instrumentedPrivate, performanceCollector := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
 		func() *performance.Collector {
@@ -684,6 +689,9 @@ func RunCLI(
 	runners := backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController}
 	if performanceCollector != nil {
 		runners = append(runners, performanceCollector)
+	}
+	if profilingServer != nil {
+		runners = append(runners, profilingServer)
 	}
 
 	publicListener, err := net.Listen("tcp", cfg.ListenAddress)
@@ -776,6 +784,13 @@ func newProcessHandler(readiness http.Handler, publicAPI ...http.Handler) http.H
 	if len(publicAPI) == 1 && publicAPI[0] != nil {
 		mux.Handle("/v1/", publicAPI[0])
 	}
+	return mux
+}
+
+func newPrivateHandler(controlHandler http.Handler, artifactHandler http.Handler) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/private/v1/agents/", controlHandler)
+	mux.Handle("/private/v1/allocations/", artifactHandler)
 	return mux
 }
 
