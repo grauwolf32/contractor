@@ -5,8 +5,9 @@ validation and deterministic destination mapping. V43-002 implements Server
 publication through `POST /v1/finding-collections`. V43-003 implements Runtime
 preparation and `list_findings` in `security-findings@2`. V43-004 adds explicit
 producer and reader configurations with a production-process integration test.
-The broader process gate (V43-005) remains pending; existing agent configuration
-versions keep their selected tools and instructions.
+V43-005 adds `make test-findings-e2e` with required execution checks and
+[validation evidence and future eval cases](../reviews/2026-09-06-findings-tools-validation.md).
+Existing agent configuration versions keep their selected tools and instructions.
 
 ## Responsibilities and compatibility
 

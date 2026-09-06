@@ -495,3 +495,7 @@ test-artifact-blob-backends:
 	CONTRACTOR_TEST_ARTIFACT_BACKEND=filesystem go test -race -tags=integration -count=1 ./internal/findingintake
 	cd runtime && uv run pytest -q tests/test_artifacts.py tests/test_workspace_auto_export.py tests/test_projectfs_overlay.py
 	go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestArtifactBlobBackendsContainers$$' -v
+
+.PHONY: test-findings-e2e
+test-findings-e2e:
+	python3 scripts/test-findings-e2e.py

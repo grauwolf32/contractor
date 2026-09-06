@@ -31,7 +31,7 @@ type findingsHarness struct {
 	baseURL, databaseURL, configRoot string
 }
 
-func startFindingsHarness(t *testing.T, stages []domainGatewayStage) *findingsHarness {
+func startFindingsHarness(t *testing.T, stages []domainGatewayStage, beforeRuntime ...func(*findingsHarness)) *findingsHarness {
 	t.Helper()
 	if testing.Short() {
 		t.Fatal("findings process checks cannot run in short mode")
@@ -107,6 +107,10 @@ func startFindingsHarness(t *testing.T, stages []domainGatewayStage) *findingsHa
 	python := filepath.Join(repositoryRoot, "runtime", ".venv", "bin", "python")
 	if info, statErr := os.Stat(python); statErr != nil || info.IsDir() {
 		t.Fatalf("Python Runtime environment is missing at %s; run 'cd runtime && uv sync --locked'", python)
+	}
+	for _, prepare := range beforeRuntime {
+		prepare(&findingsHarness{ctx: ctx, server: server, gateway: gateway, client: client,
+			baseURL: publicBaseURL, databaseURL: isolateURL, configRoot: configRoot})
 	}
 	workRoot := filepath.Join(temporaryRoot, "runtime-work")
 	runtimeProcess := startProcess(
@@ -254,8 +258,13 @@ func findingsProducerStage(name string) domainGatewayStage {
 		}),
 		toolGatewayStep("submit_check_result", func(request map[string]any) (map[string]any, error) {
 			responses := findingsToolResponses(request, "finding")
-			if len(responses) != 1 || responses[0]["receipt_id"] == nil || responses[0]["proposal_id"] == nil {
+			if len(responses) == 0 || responses[0]["receipt_id"] == nil || responses[0]["proposal_id"] == nil {
 				return nil, fmt.Errorf("canonical result has no successful finding receipt: %+v", responses)
+			}
+			for _, response := range responses[1:] {
+				if !reflect.DeepEqual(response, responses[0]) {
+					return nil, fmt.Errorf("identical finding retry changed receipt")
+				}
 			}
 			return map[string]any{"assessment": "supported", "summary": "Operation mapped to lookup; query concatenation proposal recorded.",
 				"completed": []string{"operation-resolution"}, "gaps": []string{},
@@ -268,19 +277,36 @@ func findingsProducerStage(name string) domainGatewayStage {
 	}}
 }
 
-func findingsReaderStage(count int) domainGatewayStage {
-	steps := []domainGatewayStep{toolGatewayStep("list_findings", fixedArguments(map[string]any{"limit": 100}))}
+func findingsReaderStage(count int, pageSizes ...int) domainGatewayStage {
+	pageSize := 100
+	if len(pageSizes) > 0 {
+		pageSize = pageSizes[0]
+	}
+	steps := []domainGatewayStep{}
+	for page := 0; page < max(1, (count+pageSize-1)/pageSize); page++ {
+		steps = append(steps, toolGatewayStep("list_findings", func(request map[string]any) (map[string]any, error) {
+			arguments := map[string]any{"limit": pageSize}
+			if page > 0 {
+				pages := findingsToolResponses(request, "list_findings")
+				if len(pages) != page || pages[page-1]["next_cursor"] == nil {
+					return nil, fmt.Errorf("pagination ended before complete inventory")
+				}
+				arguments["cursor"] = pages[page-1]["next_cursor"]
+			}
+			return arguments, nil
+		}))
+	}
 	for i := 0; i < count; i++ {
 		steps = append(steps, toolGatewayStep("read_artifact", findingsDocumentArguments(i, false)),
 			toolGatewayStep("read_artifact", findingsDocumentArguments(i, true)))
 	}
 	steps = append(steps, toolGatewayStep("write_text_artifact", func(request map[string]any) (map[string]any, error) {
 		pages := findingsToolResponses(request, "list_findings")
-		if len(pages) != 1 || pages[0]["next_cursor"] != nil {
+		if len(pages) == 0 || pages[len(pages)-1]["next_cursor"] != nil {
 			return nil, fmt.Errorf("reader has not enumerated its collection")
 		}
-		items, ok := pages[0]["items"].([]any)
-		if !ok || len(items) != count {
+		items := findingsPageItems(pages)
+		if len(items) != count {
 			return nil, fmt.Errorf("reader count = %+v, want %d", pages, count)
 		}
 		reads := findingsToolResponses(request, "read_artifact")
@@ -290,15 +316,12 @@ func findingsReaderStage(count int) domainGatewayStage {
 		report := fmt.Sprintf("# Findings analysis\n\nCollection: %d proposals.\n", count)
 		for i, raw := range items {
 			item := raw.(map[string]any)
-			if item["has_hypothesis"] != false {
-				return nil, fmt.Errorf("direct proposal unexpectedly requires hypothesis")
-			}
 			proposalData, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i]["dataBase64"]))
 			if err != nil {
 				return nil, err
 			}
 			proposal, err := auditdomain.DecodeFindingProposal(proposalData)
-			if err != nil || proposal.Subject.Kind != "function" {
+			if err != nil || proposal.Subject.Kind != "function" || item["has_hypothesis"] != (proposal.Hypothesis != "") {
 				return nil, fmt.Errorf("reader did not read generic proposal: %v", err)
 			}
 			evidence, err := base64.StdEncoding.DecodeString(fmt.Sprint(reads[2*i+1]["dataBase64"]))
@@ -323,8 +346,8 @@ func findingsDocumentArguments(index int, evidence bool) func(map[string]any) (m
 		if len(pages) == 0 {
 			return nil, fmt.Errorf("reader has no list response")
 		}
-		items, ok := pages[len(pages)-1]["items"].([]any)
-		if !ok || index >= len(items) {
+		items := findingsPageItems(pages)
+		if index >= len(items) {
 			return nil, fmt.Errorf("reader item is missing")
 		}
 		item := items[index].(map[string]any)
@@ -428,6 +451,13 @@ func publishFindingsCollection(t *testing.T, h *findingsHarness, key string, sou
 
 func runFindingsReader(t *testing.T, h *findingsHarness, key string, input any) string {
 	t.Helper()
+	runID := createFindingsReader(t, h, key, input)
+	waitForFindingsRun(t, h, runID, "succeeded")
+	return runID
+}
+
+func createFindingsReader(t *testing.T, h *findingsHarness, key string, input any) string {
+	t.Helper()
 	body, err := json.Marshal(map[string]any{"workflow": "findings-review@1", "artifacts": map[string]any{"findings": input}})
 	if err != nil {
 		t.Fatal(err)
@@ -443,7 +473,6 @@ func runFindingsReader(t *testing.T, h *findingsHarness, key string, input any) 
 	var value runCreateResponse
 	decodeResponse(t, response, &value)
 	response.Body.Close()
-	waitForFindingsRun(t, h, value.RunID, "succeeded")
 	return value.RunID
 }
 
@@ -476,4 +505,13 @@ func waitForFindingsRun(t *testing.T, h *findingsHarness, runID, wanted string) 
 		case <-ticker.C:
 		}
 	}
+}
+
+func findingsPageItems(pages []map[string]any) []any {
+	var items []any
+	for _, page := range pages {
+		values, _ := page["items"].([]any)
+		items = append(items, values...)
+	}
+	return items
 }
