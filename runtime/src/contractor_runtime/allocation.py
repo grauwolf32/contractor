@@ -58,8 +58,8 @@ from contractor_runtime.projectfs import (
     WorkspaceStorageError,
     hydrate_workspace,
 )
-from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.resource_metrics import ProcessReading, ResourceCollector
+from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.worker_state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -115,8 +115,8 @@ class _AllocationContext:
     worker_state: WorkerStateStore | None
     runtime_settings: RuntimeSettings | None = field(repr=False)
     worker: WorkerRuntime | None = field(repr=False)
-    prepare_response: PrepareAllocationResponse | None = None
     resource_metrics: ResourceCollector | None = field(default=None, repr=False)
+    prepare_response: PrepareAllocationResponse | None = None
     termination_kind: str | None = None
     termination_id: str | None = None
     terminal_response: AllocationFinalResponse | None = None
@@ -137,8 +137,8 @@ class AllocationService:
         private_bypass_urls: Sequence[str] = (),
         now: Callable[[], datetime] | None = None,
         force_exit: Callable[[int], Any] = os._exit,
-    ) -> None:
         resource_collector_factory: Callable[[], ResourceCollector] = ResourceCollector,
+    ) -> None:
         self._state = state
         self._factories = factories
         # Tests and embedded callers may inject an already frozen snapshot.
@@ -155,7 +155,6 @@ class AllocationService:
         self._released_allocation_id: str | None = None
         self._fingerprint_key = os.urandom(32)
 
-    async def snapshot(self) -> AllocationSnapshot | None:
     def _force_exit(self, code: int) -> Any:
         # Embedders/tests may replace process exit. Even then an unconfirmed
         # shutdown must not retain a sampler or manufacture a final boundary.
@@ -173,6 +172,7 @@ class AllocationService:
         collector.start()
         return collector
 
+    async def snapshot(self) -> AllocationSnapshot | None:
         async with self._lock:
             context = self._context
             if context is None:
@@ -262,10 +262,10 @@ class AllocationService:
             tools: dict[str, ToolInstance] = {}
             worker_state: WorkerStateStore | None = None
             worker: WorkerRuntime | None = None
-            try:
             # The slot lock and validation have accepted this owner. Include
             # adapter/workspace/Worker preparation in the requested interval.
             resource_metrics = self._start_resources(spec)
+            try:
                 adapter_deadline = min(
                     spec.lease_expires_at,
                     self._now() + timedelta(seconds=spec.runtime_settings.request_timeout_seconds),
@@ -362,8 +362,8 @@ class AllocationService:
                     worker_state=worker_state,
                     runtime_settings=spec.runtime_settings,
                     worker=worker,
-                    prepare_response=response,
                     resource_metrics=resource_metrics,
+                    prepare_response=response,
                 )
                 await self._state.commit_allocation(spec.allocation_id)
                 self._context = context
@@ -461,7 +461,6 @@ class AllocationService:
                     retryable=True,
                     status_code=503,
                 ) from None
-
             finally:
                 if resource_metrics is not None and (
                     self._context is None or self._context.resource_metrics is not resource_metrics
@@ -469,6 +468,7 @@ class AllocationService:
                     # Failed prepare has no final-report delivery route. Keep
                     # its existing rollback semantics, discard observations.
                     resource_metrics.close()
+
     async def finalize(self, request: FinalizeAllocationRequest) -> AllocationFinalResponse:
         return await self._terminate(
             allocation_id=request.allocation_id,
@@ -533,9 +533,9 @@ class AllocationService:
             self._context = None
 
     async def _prepare_release_cleanup(self, context: _AllocationContext) -> None:
-        timeout_seconds = (
         if context.resource_metrics is not None:
             context.resource_metrics.close()
+        timeout_seconds = (
             context.runtime_settings.request_timeout_seconds
             if context.runtime_settings is not None
             else 5
@@ -1245,6 +1245,11 @@ def _build_report(
             durationMs=duration_ms,
             stopReason=stop_reason,
             adapters=context.adapter_host.report_metrics(),
+            **(
+                {"resources": context.resource_metrics.finish()}
+                if context.resource_metrics is not None
+                else {}
+            ),
         ),
     )
 
@@ -1254,11 +1259,6 @@ async def _close_tools(tools: Mapping[str, ToolInstance]) -> None:
         await tools[name].close()
         if isinstance(tools, MutableMapping):
             del tools[name]
-            **(
-                {"resources": context.resource_metrics.finish()}
-                if context.resource_metrics is not None
-                else {}
-            ),
 
 
 async def _await_before_deadline(

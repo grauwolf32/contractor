@@ -139,6 +139,11 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         state = RuntimeState(instance_id="stable-runtime", capabilities=snapshot)
         first = await state.registration(make_settings(tmp_path))
         second = await state.registration(make_settings(tmp_path))
+        assert snapshot.performance_metrics_versions == (1,)
+        assert first.supported_performance_metrics_versions == [1]
+        assert first.model_dump(mode="json", by_alias=True)[
+            "supportedPerformanceMetricsVersions"
+        ] == [1]
         assert first.model_dump_json(by_alias=True) == second.model_dump_json(by_alias=True)
 
         await state.mark_registered()
@@ -146,11 +151,6 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
             await state.install_capabilities(snapshot)
 
     asyncio.run(scenario())
-        assert snapshot.performance_metrics_versions == (1,)
-        assert first.supported_performance_metrics_versions == [1]
-        assert first.model_dump(mode="json", by_alias=True)[
-            "supportedPerformanceMetricsVersions"
-        ] == [1]
 
 
 @pytest.mark.parametrize("storage", ["local", "memory"])
