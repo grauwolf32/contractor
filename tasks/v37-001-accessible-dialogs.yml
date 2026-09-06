@@ -3,7 +3,7 @@ id: "V37-001"
 title: "Unify dialog focus, keyboard behavior and nested form ownership"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V28-003", "V35-004", "V25-009"]
 languages: ["typescript"]
@@ -18,6 +18,25 @@ context:
     Project Workflow setup declares aria-modal but leaves focus on background controls. The
     existing Git dialog already manages some focus behavior; consolidate working behavior
     instead of introducing a competing dialog stack.
+  dialog_contract: >-
+    Render every shared Dialog in its own document.body portal layer. While at least one Dialog
+    is mounted, lock body scrolling and make the application plus every lower Dialog layer inert
+    and aria-hidden; only the newest layer is interactive. Initial focus uses the caller's live
+    target, otherwise the first enabled focusable control, otherwise the Dialog panel. Tab and
+    Shift+Tab wrap inside that top panel. Escape only invokes the top layer's onRequestClose;
+    the primitive never unmounts itself, aborts work or overrides a caller that refuses to close
+    while pending. Backdrop interaction does not implicitly close a Dialog.
+  nested_form_boundary: >-
+    The portal keeps child forms out of the parent form's DOM subtree. Because React portal
+    events still follow the component tree, the Dialog layer stops handled submit events from
+    bubbling into a parent Run form. Closing a child restores its live trigger in the parent;
+    if that trigger disappeared, focus falls back inside the newest remaining Dialog or to a
+    visible document control.
+  migration_inventory: >-
+    This task migrates ProjectWorkflowLauncher and GitImportDialog, the nested pair required by
+    A1/A2. SkillUploadDialog, ProjectArtifactDialog, HttpTargetEditor, DeleteProjectDialog,
+    DeleteRunDialog and any Audit confirmation remain inventoried follow-ups; they must not grow
+    another focus-trap implementation, and V37-005 owns destructive Audit adoption.
   browser_verification: >-
     Build the UI with make ui-build and serve it using the documented UI development or Node
     server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
