@@ -10,6 +10,7 @@ import (
 func TestRunMetadataLabelsNormalizeCloneAndSort(t *testing.T) {
 	t.Parallel()
 	source := map[string]string{
+		"debug":       "",
 		"purpose":     "eval",
 		"eval.name":   "openapi regression",
 		"eval-case_1": "fixture/path?a=1",
@@ -18,7 +19,7 @@ func TestRunMetadataLabelsNormalizeCloneAndSort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := labels.SortedKeys(), []string{"eval-case_1", "eval.name", "purpose"}; !reflect.DeepEqual(got, want) {
+	if got, want := labels.SortedKeys(), []string{"debug", "eval-case_1", "eval.name", "purpose"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("sorted keys = %v, want %v", got, want)
 	}
 	delete(source, "purpose")
@@ -43,7 +44,6 @@ func TestRunMetadataLabelsRejectInvalidBoundsAndShapes(t *testing.T) {
 		{"two..parts": "value"},
 		{"trailing.": "value"},
 		{"contractor.internal": "value"},
-		{"purpose": ""},
 		{strings.Repeat("a", MaxRunMetadataLabelKey+1): "value"},
 		{"purpose": strings.Repeat("Ж", MaxRunMetadataLabelValue/2+1)},
 		{"purpose": string([]byte{0xff})},
@@ -64,6 +64,7 @@ func TestRunMetadataLabelsRejectInvalidBoundsAndShapes(t *testing.T) {
 func TestRunMetadataLabelSelectorsNormalizeWithoutHidingContradictions(t *testing.T) {
 	t.Parallel()
 	selectors, err := NormalizeRunMetadataLabelSelectors([]RunMetadataLabelSelector{
+		{Key: "debug", Value: ""},
 		{Key: "purpose", Value: "eval"},
 		{Key: "eval.leg", Value: "b"},
 		{Key: "purpose", Value: "eval"},
@@ -73,6 +74,7 @@ func TestRunMetadataLabelSelectorsNormalizeWithoutHidingContradictions(t *testin
 		t.Fatal(err)
 	}
 	want := []RunMetadataLabelSelector{
+		{Key: "debug", Value: ""},
 		{Key: "eval.leg", Value: "a"},
 		{Key: "eval.leg", Value: "b"},
 		{Key: "purpose", Value: "eval"},

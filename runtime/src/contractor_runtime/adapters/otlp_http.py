@@ -491,7 +491,6 @@ def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) 
             or len(attribute_key.encode("utf-8")) > MAX_ATTRIBUTE_KEY_BYTES
             or RUN_METADATA_LABEL_KEY_PATTERN.fullmatch(key) is None
             or key.startswith("contractor.")
-            or not value
             or "\0" in value
             or len(value.encode("utf-8")) > MAX_RUN_METADATA_LABEL_VALUE_BYTES
         ):

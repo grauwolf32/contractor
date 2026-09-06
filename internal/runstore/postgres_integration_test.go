@@ -351,7 +351,7 @@ func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *test
 
 	params := testRunParams("run-metadata-labels")
 	params.MetadataLabels = RunMetadataLabels{
-		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "debug": "",
 	}
 	created, err := store.CreateRun(ctx, params)
 	if err != nil {
@@ -364,6 +364,9 @@ func TestPostgresWorkflowRunMetadataLabelsAreAtomicImmutableAndProjected(t *test
 	loaded, err := store.GetRun(ctx, created.RunID)
 	if err != nil || loaded.MetadataLabels["purpose"] != "eval" {
 		t.Fatalf("stored metadata labels = (%v, %v)", loaded.MetadataLabels, err)
+	}
+	if value, present := loaded.MetadataLabels["debug"]; !present || value != "" {
+		t.Fatalf("key-only label was not stored: %v", loaded.MetadataLabels)
 	}
 	page, err := store.ListRuns(ctx, ListRunsParams{OwnerID: params.OwnerID, Limit: 10})
 	if err != nil || len(page) != 1 || page[0].MetadataLabels["eval.id"] != "eval_01" {
@@ -586,7 +589,7 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 		params := testRunParams(runID)
 		params.OwnerID = ownerID
 		params.MetadataLabels = RunMetadataLabels{
-			"purpose": "eval", "eval.id": "eval_filter", "eval.leg": leg,
+			"purpose": "eval", "eval.id": "eval_filter", "eval.leg": leg, "debug": "",
 		}
 		run, err := store.CreateRun(ctx, params)
 		if err != nil {
@@ -610,6 +613,12 @@ func TestPostgresWorkflowRunMetadataLabelFilteringIsConjunctiveOwnedAndStable(t 
 
 	selectors := []RunMetadataLabelSelector{
 		{Key: "purpose", Value: "eval"}, {Key: "eval.id", Value: "eval_filter"},
+	}
+	keyOnly, err := store.ListRuns(ctx, ListRunsParams{
+		OwnerID: "user-1", MetadataLabelSelectors: []RunMetadataLabelSelector{{Key: "debug", Value: ""}}, Limit: 10,
+	})
+	if err != nil || len(keyOnly) != 2 {
+		t.Fatalf("key-only filter must exclude absent keys and foreign Runs: (%+v, %v)", keyOnly, err)
 	}
 	first, err := store.ListRuns(ctx, ListRunsParams{
 		OwnerID: "user-1", MetadataLabelSelectors: selectors, Limit: 1,

@@ -9,9 +9,13 @@ import {
 
 describe("Run metadata labels", () => {
   it("returns one detached deterministic string map", () => {
-    const source = { purpose: "eval", "eval.id": "eval_01" };
+    const source = { purpose: "eval", "eval.id": "eval_01", debug: "" };
     const result = safeRunMetadataLabels(source);
-    expect(result).toEqual({ "eval.id": "eval_01", purpose: "eval" });
+    expect(result).toEqual({
+      debug: "",
+      "eval.id": "eval_01",
+      purpose: "eval",
+    });
     source.purpose = "changed";
     expect(result.purpose).toBe("eval");
   });
@@ -21,7 +25,7 @@ describe("Run metadata labels", () => {
     [],
     { Upper: "value" },
     { "contractor.internal": "value" },
-    { purpose: "" },
+    { purpose: null },
     { purpose: "Ж".repeat(129) },
   ])("rejects an invalid response map %#", (labels) => {
     expect(() => safeRunMetadataLabels(labels)).toThrow(TypeError);
@@ -30,12 +34,14 @@ describe("Run metadata labels", () => {
   it("normalizes exact selectors and preserves contradictory values", () => {
     expect(
       normalizeRunMetadataLabelSelectors([
+        { key: "debug", value: "" },
         { key: "purpose", value: "eval" },
         { key: "eval.leg", value: "b" },
         { key: "purpose", value: "eval" },
         { key: "eval.leg", value: "a" },
       ]),
     ).toEqual([
+      { key: "debug", value: "" },
       { key: "eval.leg", value: "a" },
       { key: "eval.leg", value: "b" },
       { key: "purpose", value: "eval" },
@@ -47,7 +53,7 @@ describe("Run metadata labels", () => {
       "The contractor. prefix is reserved.",
     );
     expect(runMetadataLabelKeyError("Eval.ID")).toContain("lowercase ASCII");
-    expect(runMetadataLabelValueError("")).toBe("Label value is required.");
+    expect(runMetadataLabelValueError("")).toBeUndefined();
     expect(runMetadataLabelValueError("\0hidden")).toContain("U+0000");
     expect(runMetadataLabelValueError(" value ")).toBeUndefined();
   });

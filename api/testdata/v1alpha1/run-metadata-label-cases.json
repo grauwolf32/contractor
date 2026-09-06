@@ -1,6 +1,7 @@
 {
   "valid": [
     {"name": "empty", "value": {}},
+    {"name": "empty-value", "value": {"debug": ""}},
     {
       "name": "eval",
       "value": {
@@ -18,7 +19,6 @@
     {"name": "non-string", "value": {"purpose": 7}},
     {"name": "malformed-key", "value": {"Eval.ID": "eval_01"}},
     {"name": "reserved-key", "value": {"contractor.internal": "value"}},
-    {"name": "empty-value", "value": {"purpose": ""}},
     {"name": "nul-value", "value": {"purpose": "before\u0000after"}},
     {"name": "oversized-value", "value": {"purpose": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
     {

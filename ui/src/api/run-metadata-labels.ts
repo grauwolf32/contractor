@@ -37,9 +37,6 @@ export function runMetadataLabelValueError(value: unknown): string | undefined {
     return "Label value must be a string.";
   }
   const length = encoder.encode(value).length;
-  if (length === 0) {
-    return "Label value is required.";
-  }
   if (value.includes("\0")) {
     return "Label value cannot contain U+0000.";
   }

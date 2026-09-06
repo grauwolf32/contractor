@@ -143,7 +143,7 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	fixture.runs.runs["run-foreign"] = queryRun("run-foreign", "user-2", runstore.RunFailed, base.Add(2*time.Minute))
 	old := fixture.runs.runs["run-old"]
 	old.MetadataLabels = runstore.RunMetadataLabels{
-		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "eval.note": "left=right",
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "eval.note": "left=right", "debug": "",
 	}
 	fixture.runs.runs["run-old"] = old
 	newest := fixture.runs.runs["run-new"]
@@ -228,6 +228,12 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 	if equals.Code != http.StatusOK || len(equalsPage.Items) != 1 || equalsPage.Items[0].RunID != "run-old" {
 		t.Fatalf("selector value containing equals = status %d, %+v", equals.Code, equalsPage)
 	}
+	keyOnly := serveQuery(t, fixture.handler, "/v1/runs?label=debug%3D")
+	var keyOnlyPage runPageResponse
+	decodeQueryResponse(t, keyOnly, &keyOnlyPage)
+	if keyOnly.Code != http.StatusOK || len(keyOnlyPage.Items) != 1 || keyOnlyPage.Items[0].RunID != "run-old" {
+		t.Fatalf("key-only selector must not match absent keys: status %d, %+v", keyOnly.Code, keyOnlyPage)
+	}
 	contradictionQuery := url.Values{"label": {"eval.leg=a", "eval.leg=b"}}
 	contradiction := serveQuery(t, fixture.handler, "/v1/runs?"+contradictionQuery.Encode())
 	var empty runPageResponse
@@ -253,7 +259,6 @@ func TestRunListCursorFilterAndOwnership(t *testing.T) {
 		"/v1/runs?ownerId=user-2",
 		"/v1/runs?label=missing-equals",
 		"/v1/runs?label=%3Dvalue",
-		"/v1/runs?label=purpose%3D",
 		"/v1/runs?label=Upper%3Dvalue",
 		"/v1/runs?label=contractor.internal%3Dvalue",
 		"/v1/runs?label=purpose%3Dbefore%00after",

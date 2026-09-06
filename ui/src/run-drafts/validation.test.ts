@@ -66,6 +66,7 @@ describe("Run draft validation", () => {
       {
         runtimeLabels: ["debug"],
         metadataLabels: [
+          { id: "flag", key: "debug", value: "" },
           { id: "label-2", key: "eval.id", value: "eval-01" },
           { id: "label-1", key: "purpose", value: "eval" },
         ],
@@ -79,7 +80,7 @@ describe("Run draft validation", () => {
     expect(result.request).toEqual({
       workflow: `${workflow.ref.name}@${workflow.ref.version}`,
       runtimeLabels: ["debug"],
-      labels: { "eval.id": "eval-01", purpose: "eval" },
+      labels: { debug: "", "eval.id": "eval-01", purpose: "eval" },
       parameters: { objective: "Build OpenAPI" },
       artifacts: { source: source.artifact },
     });
@@ -117,7 +118,7 @@ describe("Run draft validation", () => {
     const labels = [
       { id: "upper", key: "Eval.ID", value: "one" },
       { id: "reserved", key: "contractor.owner", value: "one" },
-      { id: "empty", key: "eval.case", value: "" },
+      { id: "nul", key: "eval.case", value: "\0" },
       { id: "first", key: "eval.id", value: "one" },
       { id: "second", key: "eval.id", value: "two" },
       ...Array.from({ length: 28 }, (_, index) => ({
@@ -143,7 +144,7 @@ describe("Run draft validation", () => {
       "metadataLabel:upper:key":
         "Use lowercase ASCII segments separated by ., _ or -.",
       "metadataLabel:reserved:key": "The contractor. prefix is reserved.",
-      "metadataLabel:empty:value": "Label value is required.",
+      "metadataLabel:nul:value": "Label value cannot contain U+0000.",
       "metadataLabel:first:key": "Label key eval.id is duplicated.",
       "metadataLabel:second:key": "Label key eval.id is duplicated.",
     });

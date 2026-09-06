@@ -3183,9 +3183,9 @@ components:
           - not: {pattern: '^contractor\.'}
       additionalProperties:
         type: string
-        minLength: 1
+        minLength: 0
         maxLength: 256
-        description: Opaque non-NUL UTF-8 value bounded by the Server to 256 encoded bytes.
+        description: Opaque non-NUL UTF-8 value bounded by the Server to 256 encoded bytes. An empty string represents a key-only label.
     CreateProjectRequest:
       type: object
       additionalProperties: false

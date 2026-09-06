@@ -87,7 +87,7 @@ def test_prepare_rejects_legacy_request_before_lifecycle_dispatch() -> None:
 
 @pytest.mark.parametrize(
     "labels",
-    [None, {"Eval.ID": "eval_01"}, {"purpose": ""}],
+    [None, {"Eval.ID": "eval_01"}, {"purpose": "before\0after"}],
 )
 def test_prepare_rejects_invalid_run_metadata_labels_before_dispatch(
     labels: object,

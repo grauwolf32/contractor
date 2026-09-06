@@ -46,10 +46,10 @@ func ValidateRunMetadataLabel(key, value string) error {
 	if strings.HasPrefix(key, "contractor.") {
 		return invalidf("Run metadata label key %q uses the reserved contractor. namespace", key)
 	}
-	if !utf8.ValidString(value) || len(value) == 0 || len(value) > MaxRunMetadataLabelValue ||
+	if !utf8.ValidString(value) || len(value) > MaxRunMetadataLabelValue ||
 		strings.ContainsRune(value, '\x00') {
 		return invalidf(
-			"Run metadata label %q value must contain 1 to %d database-safe UTF-8 bytes",
+			"Run metadata label %q value must contain 0 to %d database-safe UTF-8 bytes",
 			key, MaxRunMetadataLabelValue,
 		)
 	}

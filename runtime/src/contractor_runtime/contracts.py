@@ -161,7 +161,7 @@ def normalize_run_metadata_labels(value: dict[str, str]) -> dict[str, str]:
         if not isinstance(label_value, str):
             raise ValueError("runMetadataLabels contain an invalid value")
         encoded = label_value.encode("utf-8")
-        if not encoded or len(encoded) > MAX_RUN_METADATA_LABEL_VALUE_BYTES or "\0" in label_value:
+        if len(encoded) > MAX_RUN_METADATA_LABEL_VALUE_BYTES or "\0" in label_value:
             raise ValueError("runMetadataLabels contain an invalid value")
         result[key] = label_value
     return result

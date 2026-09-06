@@ -829,7 +829,7 @@ func (f *fakeRunStore) ListRuns(
 		}
 		matched := true
 		for _, selector := range selectors {
-			if run.MetadataLabels[selector.Key] != selector.Value {
+			if value, present := run.MetadataLabels[selector.Key]; !present || value != selector.Value {
 				matched = false
 				break
 			}

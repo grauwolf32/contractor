@@ -156,6 +156,7 @@ def test_otlp_protobuf_is_bounded_content_free_and_header_scoped() -> None:
     assert task_attributes["contractor.run.label.eval.leg"] == "a"
     assert task_attributes["contractor.run.label.eval.case"] == "case_1"
     assert task_attributes["contractor.run.label.eval.note"] == "left = right/β"
+    assert task_attributes["contractor.run.label.debug"] == ""
     for span in spans[:2]:
         assert not any(
             key.startswith("contractor.run.label.") for key in _attributes(span.attributes)
@@ -354,6 +355,7 @@ def adapter_context() -> RuntimeAdapterBuildContext:
                 "eval.leg": "a",
                 "eval.case": "case_1",
                 "eval.note": "left = right/β",
+                "debug": "",
             }
         ),
         runtime_adapter_refs=("otlp-http@1",),

@@ -205,7 +205,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		t.Fatal("public API has no RunMetadataLabels schema")
 	}
 	if err := labels.Value.VisitJSON(map[string]any{
-		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
+		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a", "debug": "",
 	}, openapi3.EnableJSONSchema2020()); err != nil {
 		t.Fatalf("RunMetadataLabels schema rejected a valid map: %v", err)
 	}
@@ -218,7 +218,6 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		[]any{},
 		map[string]any{"Upper": "value"},
 		map[string]any{"contractor.internal": "value"},
-		map[string]any{"purpose": ""},
 		map[string]any{"purpose": 1},
 		tooManyLabels,
 	} {

@@ -203,9 +203,9 @@
       },
       "additionalProperties": {
         "type": "string",
-        "minLength": 1,
+        "minLength": 0,
         "maxLength": 256,
-        "pattern": "^[^\\u0000]+$"
+        "pattern": "^[^\\u0000]*$"
       }
     },
     "allocationSpec": {

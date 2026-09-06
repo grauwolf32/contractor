@@ -994,7 +994,6 @@ func TestCreateRunMetadataLabelsAreStrictBeforeTransaction(t *testing.T) {
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","purpose":"debug"},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"contractor.internal":"value"},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"Upper":"value"},"parameters":{},"artifacts":{}}`),
-		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":""},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"before\u0000after"},"parameters":{},"artifacts":{}}`),
 		[]byte(`{"workflow":"artifact-copy@1","labels":{` + strings.Join(tooMany, ",") + `},"parameters":{},"artifacts":{}}`),
 		invalidUTF8,
@@ -1023,7 +1022,7 @@ func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.sample":"2","eval.id":"eval_01"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.sample":"2","eval.id":"eval_01","debug":""},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	create := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	create.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
 	created := httptest.NewRecorder()
@@ -1033,7 +1032,7 @@ func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
 	}
 	var createModel createRunResponse
 	if err := json.Unmarshal(created.Body.Bytes(), &createModel); err != nil ||
-		createModel.Labels["eval.id"] != "eval_01" || len(createModel.Labels) != 3 {
+		createModel.Labels["eval.id"] != "eval_01" || len(createModel.Labels) != 4 {
 		t.Fatalf("create metadata labels = (%+v, %v)", createModel.Labels, err)
 	}
 
@@ -1060,7 +1059,11 @@ func TestCreateRunMetadataLabelsRoundTripAndIdempotency(t *testing.T) {
 		t.Fatalf("detail metadata labels = (%+v, %v)", detail.Labels, err)
 	}
 
-	retryBody := []byte(`{"workflow":"artifact-copy@1","labels":{"eval.id":"eval_01","eval.sample":"2","purpose":"eval"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
+	if value, present := detail.Labels["debug"]; !present || value != "" {
+		t.Fatalf("key-only label was not preserved: %v", detail.Labels)
+	}
+
+	retryBody := []byte(`{"workflow":"artifact-copy@1","labels":{"debug":"","eval.id":"eval_01","eval.sample":"2","purpose":"eval"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`)
 	retry := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(retryBody))
 	retry.Header.Set(idempotencyKeyHeader, "metadata-label-replay")
 	replayed := httptest.NewRecorder()
