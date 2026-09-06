@@ -319,10 +319,14 @@ function RunLabelFilters({
                 className="run-active-label-filter"
                 key={selectorToken(selector)}
               >
-                <code>{selectorToken(selector)}</code>
+                <code>
+                  {selector.value === ""
+                    ? selector.key
+                    : `${selector.key}:${selector.value}`}
+                </code>
                 <button
                   type="button"
-                  aria-label={`Remove filter ${selectorToken(selector)}`}
+                  aria-label={`Remove filter ${selector.value === "" ? selector.key : `${selector.key}:${selector.value}`}`}
                   onClick={() => remove(selector)}
                 >
                   ×

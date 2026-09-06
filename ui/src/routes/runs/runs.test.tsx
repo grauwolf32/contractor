@@ -500,8 +500,8 @@ describe("Run routes", () => {
     const firstRow = screen
       .getByRole("link", { name: "run-leg-a" })
       .closest("tr");
-    expect(firstRow).toHaveTextContent("eval.id=eval-group=01");
-    expect(firstRow).toHaveTextContent("eval.leg=a");
+    expect(firstRow).toHaveTextContent("eval.id:eval-group=01");
+    expect(firstRow).toHaveTextContent("eval.leg:a");
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next" }));
@@ -616,8 +616,8 @@ describe("Run routes", () => {
     const metadataPanel = screen
       .getByRole("heading", { name: "Run metadata labels" })
       .closest("section");
-    expect(metadataPanel).toHaveTextContent("eval.id=eval-router-01");
-    expect(metadataPanel).toHaveTextContent("eval.leg=a");
+    expect(metadataPanel).toHaveTextContent("eval.id:eval-router-01");
+    expect(metadataPanel).toHaveTextContent("eval.leg:a");
     expect(metadataPanel).toHaveTextContent(
       "They do not select Runtime infrastructure",
     );

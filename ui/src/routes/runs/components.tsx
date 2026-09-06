@@ -44,7 +44,12 @@ export function RunMetadataLabelChips({
     <span className="run-metadata-label-chips">
       {entries.map(([key, value]) => (
         <code className="run-metadata-label-chip" key={key} title={value}>
-          <strong>{key}</strong>=<span>{value}</span>
+          <strong>{key}</strong>
+          {value === "" ? null : (
+            <>
+              :<span>{value}</span>
+            </>
+          )}
         </code>
       ))}
     </span>

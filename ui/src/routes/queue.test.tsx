@@ -196,7 +196,7 @@ describe("Runs Queue view", () => {
     ).toHaveAttribute("href", "/projects/project-payment");
     expect(screen.getByText("OpenAPI regression")).toBeInTheDocument();
     expect(screen.getByText("eval.leg").closest("code")).toHaveTextContent(
-      "eval.leg=a",
+      "eval.leg:a",
     );
     expect(
       screen.queryByRole("columnheader", { name: /^(position|rank|eta)$/i }),

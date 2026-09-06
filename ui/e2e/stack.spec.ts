@@ -563,8 +563,8 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     timeout: 45_000,
   });
   const streamlineMetadata = page.locator(".run-metadata-label-panel");
-  await expect(streamlineMetadata).toContainText("eval.id=ui-stack-eval-01");
-  await expect(streamlineMetadata).toContainText("eval.leg=a");
+  await expect(streamlineMetadata).toContainText("eval.id:ui-stack-eval-01");
+  await expect(streamlineMetadata).toContainText("eval.leg:a");
   await expect(streamlineMetadata).toContainText(
     "They do not select Runtime infrastructure",
   );
