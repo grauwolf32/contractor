@@ -1,0 +1,125 @@
+schema_version: "1.0"
+id: "V37-008"
+title: "Open a reviewed repeat Run draft and explain actionable failure or waiting states"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V37-002", "V37-004", "V28-004"]
+languages: ["go", "typescript"]
+goal: >-
+  Let users recover their previous Run settings and understand the next valid action without
+  mutating execution history.
+context:
+  user_stories: ["US-04", "US-06"]
+  review_findings: ["UX-07"]
+  planning_document: "docs/ui-user-stories.md"
+  postgres_verification: >-
+    Set CONTRACTOR_TEST_DATABASE_URL to a disposable PostgreSQL database and
+    exercise any added persisted-request/provenance projection with owner and
+    source-scope cases. A skipped database test is not evidence of correct pins.
+  baseline: >-
+    Run triage already shows first failure, Stage and retryability; it lacks an integrated
+    new-draft action. Server remains the source of attempts, scheduled retry, placement and
+    lifecycle truth.
+  source_data: >-
+    Reconstruct only from authorized stored request/provenance and exact Workflow/Artifact refs.
+    If current public Run data lacks original caller overrides or source scope/revisions, add a
+    bounded owner-only repeat-draft read projection and document it in OpenAPI/specification.
+    Never reconstruct the original request by guessing from effective runtime configuration.
+  scope: >-
+    Existing standalone creation consumes UserScope refs and Project creation consumes that
+    Project's refs. Frozen RunScope input refs cannot simply be sent as library refs. Resolve
+    available original exact source refs from provenance; otherwise mark the slot unavailable
+    and require explicit user replacement. Do not silently select a current head.
+  configuration: >-
+    Prefill original requested runtimeLabels and supported execution overrides, then show
+    current resolution and unavailable credentials/configurations. A new Run may use changed
+    active Runtime bindings; historical allocation pins are not a promise of identical future
+    placement.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Add Configure another Run to eligible terminal ordinary Runs, initializing a separate
+      retained draft without overwriting an already edited draft.
+    - >-
+      Prefill exact Workflow, string parameters, available exact source refs, Project and
+      user-controlled metadata/overrides; show unavailable values and changed configuration
+      before submission.
+    - >-
+      For known safe error/wait reason codes, add a short next step and valid authorized
+      destination; distinguish an already scheduled retry from manual creation of another Run.
+    - >-
+      Handle Audit-managed Runs via the owning Audit action/context and do not forge reserved
+      controller labels or bypass its execution accounting.
+  out:
+    - >-
+      Restarting attempts in place, automatic rerun/retry, implicit Artifact copies, guessing
+      missing provenance, new Scheduler behavior, promising bit-for-bit reproducibility.
+requirements:
+  - id: "R1"
+    text: >-
+      Creating the repeat draft is read-only and uses a fresh submission identity; sending it
+      remains an explicit normal Run-create operation with existing validation and idempotency.
+  - id: "R2"
+    text: >-
+      Unavailable or cross-scope exact refs remain visible as problems; versionless/current
+      replacements require explicit selection. Lost-response retry within the new draft follows
+      V37-002.
+  - id: "R3"
+    text: >-
+      Do not copy forbidden labels or secret material. Evaluation labels that could create
+      duplicate case/sample records need visible review, not a hidden rewrite.
+  - id: "R4"
+    text: >-
+      Known recovery links respect actual capabilities; unknown causes show bounded safe
+      diagnostics rather than guessed operator actions. Preserve source Run metrics/history.
+acceptance_criteria:
+  - id: "A1"
+    given: "An ordinary terminal Run with available original source refs and caller settings."
+    when: "The user chooses Configure another Run."
+    then: >-
+      A new editable draft contains the correct exact refs/context/settings and no Run is
+      created until explicit submit.
+  - id: "A2"
+    given: >-
+      A deleted source, unavailable Workflow/credential, changed binding, existing dirty draft
+      or Audit-managed Run.
+    when: "Repeat is requested."
+    then: >-
+      Unavailable values and conflicts require review, no current-head substitution occurs and
+      Audit execution remains controlled by Audit.
+  - id: "A3"
+    given: "Known gateway failure, scheduled retry, placement wait and an unknown reason."
+    when: "Run or Queue diagnostics are displayed."
+    then: >-
+      Actual state and valid next actions are distinguished, diagnostics do not infer capacity
+      or promise an unscheduled retry.
+  - id: "A4"
+    given: "A submitted repeat loses its response."
+    when: "The user retries the unchanged draft."
+    then: "One new Run identity is reconciled through idempotency; the original Run is unchanged."
+tests:
+  - name: "postgres"
+    command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/runstore ./internal/httpapi/public'
+    covers: ["A1", "A2", "A4"]
+  - name: "backend"
+    command: "go test ./internal/httpapi/public ./internal/runstore"
+    covers: ["A1", "A2", "A3", "A4"]
+  - name: "api"
+    command: "make verify-public-api"
+    covers: ["A1", "A2"]
+  - name: "ui"
+    command: "cd ui && corepack pnpm exec vitest run src/routes/runs src/run-drafts src/routes/workflows"
+    covers: ["A1", "A2", "A3", "A4"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3", "A4"]
+  - name: "browser"
+    command: "cd ui && corepack pnpm exec playwright test e2e/run-repeat.spec.ts e2e/runs-navigation.spec.ts"
+    covers: ["A1", "A2", "A3", "A4"]

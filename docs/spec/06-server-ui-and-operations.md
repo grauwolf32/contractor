@@ -70,6 +70,28 @@ Workflow recommendation, global Queue, Evals and global Skills behavior is
 owned by [17](17-projects-and-queue.md). Runs consolidation and lifecycle
 controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).
 
+## Planned usability work
+
+[UI user stories and roadmap](../ui-user-stories.md) records the target journeys
+and their acceptance criteria, based on the
+[2026-09-06 usability review](../reviews/2026-09-06-ui-use-cases-and-usability.md).
+V37-001 through V37-012 plan draft continuity, accessible dialogs, primary
+actions, reviewed input suggestions, Catalog discovery, repeat Run drafts,
+result preview, Audit review and Operations layout. These are planned changes,
+not a claim that the current UI already satisfies every story.
+
+Implementation tasks own the necessary amendments to focused contracts. In
+particular, current media-type recommendation in [17](17-projects-and-queue.md)
+does not establish semantic input suitability; V37-004 adds explicit user review
+of suggestions without changing Server media-type validation. New Catalog and
+Audit read projections must filter before pagination, and a repeat Run must use
+authorized exact source refs rather than treating RunScope refs as UserScope or
+ProjectScope inputs.
+
+Performance UI remains V32-006 and Git Settings/import remains V35-004. V38-001
+defines experiment setup and comparison before further Evals implementation;
+the existing evaluation Project and generic Run-label behavior remains valid.
+
 ## Deployment boundary
 
 Web UI is its own Node.js build artifact and runtime service. Go Server embeds

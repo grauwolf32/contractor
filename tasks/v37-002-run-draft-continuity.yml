@@ -1,0 +1,104 @@
+schema_version: "1.0"
+id: "V37-002"
+title: "Preserve Run drafts across navigation and upload files in the selected input slot"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V37-001"]
+languages: ["typescript"]
+goal: >-
+  Let users leave and resume Run setup in the same tab and add a missing local file without
+  reconstructing their draft.
+context:
+  user_stories: ["US-01", "US-03", "US-06", "US-09"]
+  review_findings: ["UX-02"]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    The form uses component state; leaving for Artifacts and returning after navigation settles
+    clears parameters. V35-004 already supplies contextual Git import and exact ref selection.
+  draft_lifetime: >-
+    Keep drafts in application memory, scoped by authenticated owner, exact Workflow
+    name/version and standalone versus Project ID. Closing a form retains its draft; explicit
+    discard and confirmed successful creation clear it. Logout/owner switch clears that owner's
+    state; browser reload survival and cross-tab sync are outside this task.
+  idempotency: >-
+    Retain RunDraftKeyring and an ambiguous submission outcome with the draft. Only an unchanged
+    canonical request at the same endpoint reuses its submitted key. A changed request or
+    intentional new Run uses a new key; never auto-submit after restoration.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Move only necessary serializable form fields and submission identity above route/modal
+      lifetime, with explicit resume/discard behavior and a bounded draft count that never
+      silently evicts unsaved input.
+    - >-
+      Add local-file upload alongside library selection and the existing Git import action for
+      each eligible input slot, using shared artifact upload behavior.
+    - >-
+      Use UserScope for standalone inputs and owned ProjectScope for Project inputs; display and
+      bind the exact returned revision to the originating slot.
+    - >-
+      Handle pending upload, cancellation, CAS conflict and ambiguous response without
+      overwriting unrelated fields or claiming a committed artifact was deleted.
+  out:
+    - >-
+      Persisting tasks, file bytes, tokens or private keys in URL, localStorage, sessionStorage
+      or IndexedDB; server-side drafts; automatic workflow execution.
+requirements:
+  - id: "R1"
+    text: >-
+      Unsaved text, selected exact refs, user-entered labels, runtime selections and execution
+      overrides survive normal in-app navigation and dialog close/reopen for the same draft
+      identity.
+  - id: "R2"
+    text: >-
+      Drafts from different owners/projects/Workflow versions cannot leak into each other. New
+      draft creation at the memory limit offers an explicit choice instead of evicting another
+      unsaved draft.
+  - id: "R3"
+    text: >-
+      File objects/private-key fields remain transient to their operation. Reset asks for
+      confirmation only when it will discard entered data; ordinary retained-draft navigation
+      does not need repeated confirmation.
+  - id: "R4"
+    text: >-
+      Late asynchronous upload results cannot bind into a different context or replacement
+      draft; success updates only the requested slot. Preserve explicit CAS and existing
+      lost-response recovery.
+acceptance_criteria:
+  - id: "A1"
+    given: "A partially filled standalone or Project Run form."
+    when: "The user navigates to Artifacts, waits for the route, returns, or closes and reopens setup."
+    then: "The same draft and submission key state return; a different owner/context never receives that data."
+  - id: "A2"
+    given: "A required slot without a file and other populated fields."
+    when: >-
+      Local upload or existing Git import succeeds, conflicts, is cancelled or returns after the
+      dialog closes.
+    then: >-
+      The appropriate exact ref is selected only after confirmed success in its own scope and
+      draft; other fields survive and errors are recoverable.
+  - id: "A3"
+    given: "A lost Run creation response, edited draft or explicit discard."
+    when: "The user restores, retries, changes, resets or successfully starts the draft."
+    then: >-
+      Unchanged retries reuse one key, changed submissions use a new key, no automatic retry
+      occurs and only explicit discard/confirmed success clears the draft.
+tests:
+  - name: "ui"
+    command: "cd ui && corepack pnpm exec vitest run src/run-drafts src/routes/workflows src/routes/projects"
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/run-drafts.spec.ts
+      e2e/project-workspace.spec.ts e2e/git-artifacts.spec.ts
+    covers: ["A1", "A2", "A3"]

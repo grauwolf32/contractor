@@ -19,6 +19,8 @@ blob backend remain replaceable deployment adapters.
 - [Artifact blob storage and no-PVC deployment](artifact-blob-storage.md)
 - [Git repository artifacts](git-artifacts.md) — SSH-key Settings, Workflow/Project import, deployment and release verification; [specification](spec/24-git-artifacts.md).
 - [Specification index](spec/README.md)
+- [UI user stories and improvement roadmap](ui-user-stories.md) — planned scenarios, acceptance and V37/V38 tasks.
+- [UI use-case and usability review, 2026-09-06](reviews/2026-09-06-ui-use-cases-and-usability.md) — observed obstacles and supporting evidence.
 - [LikeC4 architecture](spec/architecture.c4)
 - [Workflow Scheduler and Planner](spec/00-workflow-and-planner.md)
 - [AgentTemplate](spec/01-agent-template.md)

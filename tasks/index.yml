@@ -581,6 +581,39 @@ milestones:
       snapshot into an ordinary User/Project Artifact. Workflow inputs pin exact
       revisions with immutable commit provenance; Server import needs no PVC.
 
+  - id: ui-journey-usability
+    exit_task: V37-012
+    outcome: >-
+      Users can retain Run drafts, review input suggestions, find exact Catalog
+      definitions, open primary outputs, prepare repeats and act on Audit or
+      Operations context through accessible desktop and mobile flows.
+
+  - id: evals-experience-design
+    exit_task: V38-001
+    outcome: >-
+      Experiment setup and bounded, truthful comparison have an explicit product
+      and API contract with implementation tasks; this milestone delivers the
+      design and decomposition, not the Evals implementation.
+
+ui_usability_planning:
+  planned_on: "2026-09-06"
+  status: planned
+  user_stories: docs/ui-user-stories.md
+  evidence: docs/reviews/2026-09-06-ui-use-cases-and-usability.md
+  delivery_order:
+    - {wave: 1, tasks: [V37-001, V37-002, V37-003, V37-004, V37-005]}
+    - {wave: 2, tasks: [V37-006, V37-007, V37-008, V37-009]}
+    - {wave: 3, tasks: [V37-010, V37-011]}
+    - {wave: verification, tasks: [V37-012]}
+    - {wave: separate_design, tasks: [V38-001]}
+  boundaries:
+    - All new tasks are pending; priority P2 follows repository milestone policy.
+    - Follow each task dependency list; waves express sequencing preference, not additional prerequisites.
+    - V35-004 already owns Git Settings/import; V37 reuses its dialogs and exact refs.
+    - V32-006 owns Performance UI and is not duplicated or required by the Operations layout task.
+    - V38-001 defines Evals comparison before its implementation is decomposed.
+    - New Catalog, repeat-draft or Audit projections remain bounded and Server-authoritative.
+
 performance_metrics_planning:
   specification: docs/spec/22-performance-metrics-and-profiling.md
   status: partially_implemented
@@ -2321,3 +2354,16 @@ tasks:
   - {id: V35-003, file: v35-003-git-artifact-publication-and-provenance.yml}
   - {id: V35-004, file: v35-004-git-settings-and-import-ui.yml}
   - {id: V35-005, file: v35-005-git-artifacts-release-gate.yml}
+  - {id: V37-001, file: v37-001-accessible-dialogs.yml}
+  - {id: V37-002, file: v37-002-run-draft-continuity.yml}
+  - {id: V37-003, file: v37-003-project-workflow-primary-actions.yml}
+  - {id: V37-004, file: v37-004-input-suggestion-review.yml}
+  - {id: V37-005, file: v37-005-audit-action-confirmations.yml}
+  - {id: V37-006, file: v37-006-catalog-discovery-contracts.yml}
+  - {id: V37-007, file: v37-007-catalog-discovery-ui.yml}
+  - {id: V37-008, file: v37-008-run-repeat-and-next-actions.yml}
+  - {id: V37-009, file: v37-009-primary-result-preview.yml}
+  - {id: V37-010, file: v37-010-audit-review-workspace.yml}
+  - {id: V37-011, file: v37-011-operations-progressive-forms.yml}
+  - {id: V37-012, file: v37-012-ui-journey-verification.yml}
+  - {id: V38-001, file: v38-001-evals-experience-contract.yml}

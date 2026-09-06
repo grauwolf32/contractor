@@ -1,0 +1,105 @@
+schema_version: "1.0"
+id: "V38-001"
+title: "Define the Evals experiment and comparison experience before implementation"
+milestone: "evals-experience-design"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V23-009", "V20-006"]
+languages: ["markdown", "yaml"]
+goal: >-
+  Specify a complete, bounded evaluation setup and comparison journey and decompose its
+  implementation without introducing an eval-only execution engine.
+context:
+  user_stories: ["US-10"]
+  review_findings: ["UX-11"]
+  planning_document: "docs/ui-user-stories.md"
+  design_document: "docs/evals-experience-design.md"
+  baseline: >-
+    Evals currently renders evaluation Projects and ordinary Runs grouped by purpose=eval and
+    eval.* labels. There is no complete experiment setup or comparison flow, and a page of Run
+    rows is not a complete experiment.
+  existing_contract: >-
+    Project kind remains evaluation; Run labels remain immutable generic metadata. The ordinary
+    Run creation and Scheduler paths remain authoritative. Technical succeeded state and model
+    quality must be separate.
+scope:
+  in:
+    - >-
+      Define experiment identity/scope, exact variant Workflow/Agent/config selection, cases
+      with exact input refs, repeat/sample identity and the user journey from setup through
+      comparison.
+    - >-
+      Specify how normal Run submissions are bounded, idempotent and recoverable after partial
+      submission, lost responses, reload or duplicate case/sample labels; decide explicitly
+      whether a durable manifest is needed and define its ownership/versioning if selected.
+    - >-
+      Define paired comparisons by case/sample, missing/failed/duplicate handling, duration and
+      token accounting provenance, units and completeness. Separate optional explicit
+      evaluator/human quality judgments from technical execution outcome.
+    - >-
+      Define bounded server queries and whole-experiment aggregates/pagination with owner
+      isolation, retention/deletion and missing-data behavior; specify API examples before
+      creating implementation tasks.
+    - >-
+      Write a focused design document, update owning Evals/label/UI specifications as needed,
+      and add self-contained pending implementation/API/UI/verification tasks with acceptance,
+      commands and an acyclic dependency graph.
+  out:
+    - >-
+      Implementing the Evals UI or API in this task, new evaluation Scheduler, automatic quality
+      inference from succeeded, automatic LLM judging, treating first-page statistics as
+      complete.
+requirements:
+  - id: "R1"
+    text: >-
+      Describe a worked example of two variants, at least two cases and repeated samples,
+      including partial submission, one failed Run, duplicate labels and missing usage; show the
+      exact comparison and recovery behavior.
+  - id: "R2"
+    text: >-
+      Choose and document identity, source-of-truth and mutation semantics rather than leaving
+      incompatible alternatives for implementers. If a required product choice remains
+      unresolved, record the decision needed, keep this task in_progress and do not mark the
+      dependent implementation ready. Completion requires resolved contract decisions.
+  - id: "R3"
+    text: >-
+      New task files must carry enough contract detail to implement without prior dialogue,
+      using existing owner authorization, exact refs, generic Run lifecycle and explicit
+      idempotency. Do not change completed task statuses.
+acceptance_criteria:
+  - id: "A1"
+    given: "The current evaluation Project and Run-label contracts."
+    when: "The experiment setup, partial submission and comparison example is walked through."
+    then: >-
+      Every state has an identified owner, bounded read/write behavior and a user recovery path;
+      no hidden eval scheduler or guessed quality score is required.
+  - id: "A2"
+    given: "The chosen product/API contract and its example data."
+    when: "Implementation is decomposed into indexed tasks."
+    then: >-
+      Tasks have explicit dependencies, acceptance and test commands covering pairing, failures,
+      completeness, ownership, idempotency and user navigation; required contract decisions are
+      resolved before this design task is marked complete.
+verification:
+  design_walkthrough: >-
+    Walk the worked example and fault cases against every requirement and record
+    the results in docs/evals-experience-design.md. This is the substantive check
+    for A1; file existence and YAML parsing alone do not validate product design.
+  documentation_links: >-
+    Resolve every new local Markdown link and ensure the specification index,
+    user stories and implementation task references agree with the chosen design.
+tests:
+  - name: "design-artifact"
+    command: "test -s docs/evals-experience-design.md && git diff --check -- docs tasks"
+    covers: ["A1"]
+  - name: "planning-validation"
+    command: >-
+      cd ui && node --input-type=module -e 'import fs from "node:fs"; import {parse}
+      from "yaml"; const index=parse(fs.readFileSync("../tasks/index.yml","utf8"));
+      const tasks=new Map(); for(const row of index.tasks) { const task=parse(fs.readFileSync("../tasks/"+row.file,"utf8"));
+      if(tasks.has(row.id)||task.id!==row.id) throw Error(row.id); tasks.set(row.id,task); }
+      const active=new Set(),done=new Set(); function visit(id) { if(active.has(id)||!tasks.has(id)) throw Error(id);
+      if(done.has(id)) return; active.add(id); for(const dep of tasks.get(id).depends_on??[]) visit(dep);
+      active.delete(id); done.add(id); } for(const id of tasks.keys()) visit(id);'
+    covers: ["A2"]

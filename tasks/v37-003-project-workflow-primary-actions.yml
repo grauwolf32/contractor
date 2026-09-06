@@ -1,0 +1,77 @@
+schema_version: "1.0"
+id: "V37-003"
+title: "Put Project source actions and Workflow Run setup at the start of the page"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V28-003", "V33-001", "V35-004"]
+languages: ["typescript"]
+goal: "Expose the next useful Project and Workflow actions before long execution details."
+context:
+  user_stories: ["US-01", "US-02"]
+  review_findings: ["UX-01"]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    The reviewed Workflow form starts around 1922 px down a 1000 px viewport; the first Project
+    Configure Run is around 2210 px while Delete Project is prominent. These are observed
+    examples, not universal pixel targets.
+  metadata: >-
+    Use existing contract fields and an honest fallback now. V37-007 later integrates authored
+    presentation metadata; this task must not wait for the Catalog API.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Place Project Add sources and Run analysis actions in the primary heading/action area; Run
+      analysis opens or focuses the existing chooser.
+    - >-
+      Put Workflow Configure Run and its setup region before Stage, Worker, credentials and
+      transitions; keep technical details available via a clear disclosure.
+    - >-
+      Move Project deletion into additional actions while retaining its current confirmation,
+      lifecycle guards and keyboard access.
+    - >-
+      Preserve routes, Project recommendations, All workflows, Git import and current responsive
+      navigation.
+  out:
+    - >-
+      Changing recommendation semantics, adding hard-coded Workflow domain categories, new
+      endpoints or tests that assert a fixed pixel offset.
+requirements:
+  - id: "R1"
+    text: >-
+      On a loaded representative desktop page, the primary action is visible without scrolling;
+      on 390 px it precedes technical details and remains keyboard reachable.
+  - id: "R2"
+    text: >-
+      Do not hide error, missing-input or disabled-action explanations with advanced details.
+      Keep names and exact versions visible.
+  - id: "R3"
+    text: >-
+      Use existing browser journey assertions and manual viewport inspection; avoid unit tests
+      mirroring component order or CSS.
+acceptance_criteria:
+  - id: "A1"
+    given: "A long Workflow and a Project with multiple artifacts/recommendations."
+    when: "The pages load at desktop and mobile sizes."
+    then: >-
+      Source/start actions occur before technical detail, and the user reaches setup without
+      traversing the full contract.
+  - id: "A2"
+    given: "A Project with deletion restrictions, old links and existing inputs."
+    when: "The user opens launch, upload, additional actions or a bookmarked route."
+    then: "Existing exact selection, Git import, deletion confirmation and routing still work."
+tests:
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/project-workspace.spec.ts
+      e2e/catalog.spec.ts e2e/responsive-layout.spec.ts
+    covers: ["A1", "A2"]

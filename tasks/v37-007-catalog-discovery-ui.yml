@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: "V37-007"
+title: "Help users discover Workflows and inspect exact Agent versions and usage"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V37-006", "V37-003"]
+languages: ["typescript"]
+goal: >-
+  Make Catalog selection explain purpose and required materials, with complete search and
+  exact-version Agent navigation.
+context:
+  user_stories: ["US-02", "US-08"]
+  review_findings: ["UX-06"]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    V33-001 owns Catalog routes, prompt Preview/Source/Copy, linked Skills/tools and legacy
+    redirects. V37-006 supplies authored summaries and bounded query contracts.
+  selection: >-
+    Group by name only where the UI can represent incomplete pages honestly. Do not label a
+    first lexicographic version latest; keep the existing exact selection visible and fetch
+    available versions through the exact-name paged query.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Render authored Workflow display name/description, expected outputs and required inputs
+      with exact identity still available; reuse the summary on Workflow/Project launch
+      surfaces.
+    - >-
+      Use debounced server-backed search for Workflows and Agents with query/pagination state in
+      navigation, cancellation of superseded reads and distinct empty/error/loading states.
+    - >-
+      Replace Agent version free text with a selectable published version list and add paged
+      Where used links to exact Workflow/Stage/Worker context.
+    - >-
+      Keep complete technical contracts, prompt preview/source/copy, Skills links and legacy
+      route behavior.
+  out:
+    - >-
+      Prompt diff/editor, invented descriptions based on names, unbounded prefetch of all
+      configuration pages, generic saved searches.
+requirements:
+  - id: "R1"
+    text: >-
+      Results outside the first page are discoverable; grouped version counts are not presented
+      as complete unless backed by complete authoritative data.
+  - id: "R2"
+    text: >-
+      Changing query resets cursor; changing version updates ref, digest, prompt and usage
+      together and stale responses cannot relabel old content as the new version.
+  - id: "R3"
+    text: >-
+      Missing authored presentation falls back to exact name/slot contracts with an honest
+      missing-description state; no hard-coded domain catalog is introduced.
+acceptance_criteria:
+  - id: "A1"
+    given: "A mixed catalog with described/legacy Workflows and a match beyond page one."
+    when: "The user searches by purpose, pages results and chooses a version."
+    then: >-
+      The correct Workflow is discoverable and purpose, inputs, output and exact version are
+      clear before launch.
+  - id: "A2"
+    given: "An Agent with multiple opaque version strings and differing bindings/prompts."
+    when: "The user changes version, follows Where used and navigates back."
+    then: "Prompt/digest and exact usage remain consistent; query and navigation context survive."
+  - id: "A3"
+    given: "Empty results, failed reads, rapid query changes and legacy links."
+    when: "The user navigates Catalog."
+    then: >-
+      Errors/loading are explicit, stale results do not replace current selection and
+      established redirects/Skills flows still work.
+tests:
+  - name: "ui"
+    command: >-
+      cd ui && corepack pnpm exec vitest run src/routes/catalog src/routes/workflows
+      src/routes/projects src/routes/evals-skills.test.tsx
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/catalog.spec.ts
+      e2e/project-workspace.spec.ts e2e/evals-skills.spec.ts
+    covers: ["A1", "A2", "A3"]

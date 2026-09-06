@@ -1,0 +1,105 @@
+schema_version: "1.0"
+id: "V37-010"
+title: "Turn Audit reviews into a contextual queue of decisions with complete filtered summaries"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V37-005", "V25-011"]
+languages: ["go", "typescript"]
+goal: >-
+  Let an analyst move from an Audit waiting state directly to the exact evidence needed for a
+  decision.
+context:
+  user_stories: ["US-07"]
+  review_findings: ["UX-09"]
+  planning_document: "docs/ui-user-stories.md"
+  postgres_verification: >-
+    Set CONTRACTOR_TEST_DATABASE_URL to a disposable PostgreSQL database. New
+    filter/count/revision queries must run against PostgreSQL; skipped database
+    tests or fixture-only counts do not satisfy the acceptance criteria.
+  baseline: >-
+    Audit exposes coverage, findings, provenance and seven tabs; pending Reviews lists subject
+    IDs without a direct contextual decision path.
+  authority: >-
+    Audit aggregate state, coverage and revision remain Server-owned. Findings disposition,
+    review decision and technical execution are distinct. Use existing bounded queries where
+    adequate; extend auditstore/public read projections for whole-Audit counts and filters if
+    missing, with an explicit matching revision/as-of basis.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Add a compact summary of completed/total work, gaps, unreviewed findings and pending
+      decisions with links to the corresponding filtered lists.
+    - "Use profile, Project and date for the readable heading, retaining exact Audit ID and copy."
+    - >-
+      Link each pending review directly to its exact finding/report and evidence, preserving
+      tab/filter/cursor context on return.
+    - >-
+      Support bounded server filtering by applicable severity, disposition and review state,
+      with consistent whole-scope counts; keep unavailable evidence and stale revisions
+      explicit.
+    - >-
+      Update Audit specification, API/generated client when needed and use existing
+      revision-checked decision mutations.
+  out:
+    - >-
+      Bulk acceptance without evidence review, new review authority model, deriving global
+      counts from the current page, a separate Audit queue or execution scheduler.
+requirements:
+  - id: "R1"
+    text: >-
+      Each summary states its scope/as-of state. Paginated lists and totals agree with
+      normalized filters; navigation changes reset incompatible cursors.
+  - id: "R2"
+    text: >-
+      Pending review opens its actual subject in one action, including report reviews;
+      deleted/inaccessible subjects have a clear unavailable state rather than a broken empty
+      pane.
+  - id: "R3"
+    text: >-
+      Decisions use exact evidence/review revisions and existing idempotency. Conflicts refresh
+      context without silently replaying a decision over changed evidence.
+  - id: "R4"
+    text: "Technical success and complete coverage do not imply accepted findings or an approved report."
+acceptance_criteria:
+  - id: "A1"
+    given: "A waiting_review Audit with multiple pages of findings and both finding/report reviews."
+    when: "An analyst follows a summary count or Review action."
+    then: >-
+      The complete applicable filtered list or exact subject opens, with context preserved on
+      return and no page-local fake totals.
+  - id: "A2"
+    given: "Mixed severity/disposition/review states and concurrent new decisions."
+    when: "Filters change or a decision is submitted with a stale revision."
+    then: >-
+      Server-scoped results remain honest, cursor/revision handling is explicit and the decision
+      is not silently replayed.
+  - id: "A3"
+    given: "Partial coverage, technical success with unaccepted findings or missing evidence."
+    when: "The summary and decision view render."
+    then: "The distinct states and missing evidence remain visible; success is not presented as approval."
+tests:
+  - name: "backend"
+    command: "go test ./internal/auditstore ./internal/httpapi/public"
+    covers: ["A1", "A2", "A3"]
+  - name: "postgres"
+    command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/auditstore'
+    covers: ["A1", "A2"]
+  - name: "api"
+    command: "make verify-public-api"
+    covers: ["A1", "A2"]
+  - name: "ui"
+    command: "cd ui && corepack pnpm exec vitest run src/routes/projects/audits"
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]
+  - name: "browser"
+    command: "cd ui && corepack pnpm exec playwright test e2e/audits.spec.ts"
+    covers: ["A1", "A2", "A3"]

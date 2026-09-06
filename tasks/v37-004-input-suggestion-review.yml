@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: "V37-004"
+title: "Distinguish format-compatible input suggestions from reviewed Run inputs"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V37-002", "V23-007"]
+languages: ["typescript"]
+goal: "Prevent MIME-only suggestions from being presented as verified semantic input suitability."
+context:
+  user_stories: ["US-03", "US-09"]
+  review_findings: ["UX-03"]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    Project recommendations intentionally match media type and preselect a unique candidate. One
+    Markdown validation report was consequently suggested for both dependency_report and
+    project_report. This follows the current specification and does not prove the Run would
+    fail.
+  decision: >-
+    Keep unique-candidate suggestions, but mark automatically chosen inputs as needing review.
+    Require explicit selection or confirmation per populated suggested slot before submission;
+    do not claim that confirmation validates content. Optional empty slots remain optional.
+  specification: >-
+    Amend docs/spec/17-projects-and-queue.md and docs/spec/06-server-ui-and-operations.md with
+    the distinction between candidate compatibility, reviewed form readiness and Server
+    validation.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Expose slot identity/purpose when available, artifact name, scope, revision, provenance
+      and a preview/details action before confirmation.
+    - >-
+      Track review state in the retained draft keyed to the slot and exact ref; reset it when
+      the suggested ref or Workflow context changes.
+    - >-
+      Replace ambiguous readiness text with fields-complete/review-needed/ready-to-submit states
+      and preserve normal schema/media validation.
+  out:
+    - >-
+      Semantic classification service, new required Artifact role taxonomy, blanket prohibition
+      on using one artifact in several slots, changes to Scheduler input acceptance.
+requirements:
+  - id: "R1"
+    text: >-
+      MIME alone never silently marks a suggestion reviewed. Explicitly selected or uploaded
+      input counts as user selection for its one target slot.
+  - id: "R2"
+    text: >-
+      Users may intentionally confirm the same exact artifact for multiple slots. A data refetch
+      must not reset a deliberate unchanged selection or confirmation.
+  - id: "R3"
+    text: >-
+      Recommended remains an advisory format-based view; All workflows and explicit
+      configuration remain available.
+acceptance_criteria:
+  - id: "A1"
+    given: "One Markdown artifact matches two differently named required slots."
+    when: "The recommendation preselects it and the user opens setup."
+    then: >-
+      Both suggestions explain their matching basis and require review; the form does not
+      present content as verified.
+  - id: "A2"
+    given: "A user intentionally selects the same exact ref for two slots, leaves and returns."
+    when: "The draft resumes or metadata refetches without changing the ref."
+    then: "Selections and review state survive and valid deliberate reuse is allowed."
+  - id: "A3"
+    given: "A suggested exact ref or Workflow changes, or an optional slot is empty."
+    when: "Readiness is recalculated."
+    then: >-
+      Only affected review state is invalidated, empty optional inputs do not block and required
+      validation still applies.
+tests:
+  - name: "ui"
+    command: "cd ui && corepack pnpm exec vitest run src/run-drafts src/routes/projects src/routes/workflows"
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]
+  - name: "browser"
+    command: "cd ui && corepack pnpm exec playwright test e2e/run-drafts.spec.ts e2e/project-workspace.spec.ts"
+    covers: ["A1", "A2", "A3"]

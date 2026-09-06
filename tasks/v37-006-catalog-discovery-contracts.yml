@@ -1,0 +1,96 @@
+schema_version: "1.0"
+id: "V37-006"
+title: "Expose authored Workflow summaries and bounded Catalog discovery queries"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V33-001", "V23-004"]
+languages: ["go", "typescript", "yaml"]
+goal: >-
+  Provide authoritative published metadata and paginated discovery so the UI can explain
+  Workflow purpose and find exact versions across the catalog.
+context:
+  user_stories: ["US-02", "US-08"]
+  review_findings: ["UX-06"]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    Workflow summaries currently expose exact ref, entry stage and slot contracts; Agent
+    descriptions exist. Lists paginate exact name@version values, and Agent search currently
+    filters only the loaded page.
+  presentation: >-
+    Add optional bounded Workflow spec.presentation with displayName (1..160 Unicode characters)
+    and description (1..2000). Omission preserves legacy loading and digests; provided values
+    participate in the immutable published definition/digest. Read projections expose those
+    optional values; required inputs and primary outputs come from existing slot contracts.
+  queries: >-
+    Specify and implement bounded case-insensitive literal search over name, version and
+    available authored description/displayName, exact-name filtering for version selection, and
+    a paginated reverse lookup of Workflow bindings referencing an exact AgentTemplate
+    name/version. Filter before pagination; include normalized filters and exact source identity
+    in cursor validation.
+scope:
+  in:
+    - >-
+      Update owning Workflow/UI specifications, strict loader, digest/read models, OpenAPI and
+      generated public client.
+    - >-
+      Support server-side Workflow and AgentTemplate search, exact-name version lookup and exact
+      AgentTemplate usage from one loaded configuration snapshot.
+    - >-
+      Return bounded pages with stable deterministic ordering and normal authorization,
+      malformed-query, invalid-cursor, missing-reference and snapshot-change behavior.
+    - >-
+      Add illustrative definitions in test fixtures; any updated published examples need a new
+      exact version and intentional reference updates instead of mutating old definitions.
+  out:
+    - >-
+      Full-text search infrastructure, embeddings, reading every prompt for search, editing
+      Agent instructions, implicit latest-version selection or changes to execution semantics.
+requirements:
+  - id: "R1"
+    text: >-
+      Use a bounded q parameter (maximum 200 Unicode characters), existing page-size limits and
+      literal matching with documented normalization. No wildcard/regular-expression execution.
+  - id: "R2"
+    text: >-
+      Treat versions as opaque strings. Preserve old unfiltered API callers and reject cursors
+      for different queries or source refs.
+  - id: "R3"
+    text: >-
+      Reverse references identify Workflow, Stage and logical Worker for the exact selected
+      AgentTemplate, omit instruction bodies and return explicit page information.
+  - id: "R4"
+    text: >-
+      Legacy definitions lacking presentation retain their digest; new presentation fields
+      cannot silently alter an already published identity. Update compatibility fixtures
+      accordingly.
+acceptance_criteria:
+  - id: "A1"
+    given: "Legacy and newly authored Workflow definitions."
+    when: "The loader resolves them and authenticated list/detail APIs read them."
+    then: >-
+      Legacy digests remain stable, new bounded metadata is validated/pinned and no execution
+      behavior changes.
+  - id: "A2"
+    given: "A catalog larger than a page with matches outside its first page."
+    when: "Clients search, filter exact names, page results or reuse an incompatible cursor."
+    then: >-
+      Complete filtered results are reachable without unbounded responses; wrong cursors and
+      oversized queries fail explicitly.
+  - id: "A3"
+    given: "Two versions of an Agent used by different Workflow versions and logical Workers."
+    when: "The exact-version usage projection is requested."
+    then: >-
+      Only matching exact bindings appear with stable pagination and no prompt content or
+      unauthorized data.
+tests:
+  - name: "backend"
+    command: "go test ./internal/config ./internal/httpapi/public"
+    covers: ["A1", "A2", "A3"]
+  - name: "api"
+    command: "make verify-public-api"
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]

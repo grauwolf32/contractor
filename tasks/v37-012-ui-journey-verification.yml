@@ -1,0 +1,140 @@
+schema_version: "1.0"
+id: "V37-012"
+title: "Verify connected UI journeys across desktop, mobile and keyboard interaction"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on:
+  - "V37-001"
+  - "V37-002"
+  - "V37-003"
+  - "V37-004"
+  - "V37-005"
+  - "V37-006"
+  - "V37-007"
+  - "V37-008"
+  - "V37-009"
+  - "V37-010"
+  - "V37-011"
+languages: ["go", "typescript", "markdown"]
+goal: >-
+  Close the usability milestone with evidence that improvements work together and preserve the
+  existing API and execution boundaries.
+context:
+  user_stories:
+    [
+      "US-01",
+      "US-02",
+      "US-03",
+      "US-04",
+      "US-05",
+      "US-06",
+      "US-07",
+      "US-08",
+      "US-09",
+      "US-11",
+    ]
+  review_findings:
+    [
+      "UX-01",
+      "UX-02",
+      "UX-03",
+      "UX-04",
+      "UX-05",
+      "UX-06",
+      "UX-07",
+      "UX-08",
+      "UX-09",
+      "UX-10",
+    ]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    The 2026-09-06 report is an expert review with read-only demo routes and separate mutation
+    fixtures, not a measured study with real users. Verify the final implementation snapshot and
+    document remaining gaps honestly.
+  scope: >-
+    This gate covers V37 improvements only. Performance charts remain V32-006 and full
+    experiment comparison remains V38; neither is silently declared complete by this milestone.
+  integration: >-
+    Use the repository test-ui-stack harness with CONTRACTOR_TEST_DATABASE_URL configured for a
+    disposable PostgreSQL database. Add a connected local-fixture journey to that harness for
+    local-file upload, Run creation, output read and repeat where feasible; reuse existing
+    fixture workflows and no live LLM dependency.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Verify choose Workflow, missing-input upload, leave/return draft, exact launch, primary
+      preview, failed Run repeat, pending Audit review and cancelled confirmation as connected
+      journeys.
+    - >-
+      Exercise desktop 1440x1000, mobile 390x844, keyboard-only nested dialogs, empty/error
+      states and ambiguous responses.
+    - >-
+      Keep fixture UI and real Server evidence separate; cover new read contracts/owner
+      boundaries in integration tests and reuse existing workflow fixtures.
+    - >-
+      Update docs/ui-user-stories.md and add a dated before/after verification note with
+      commands, environment, observed outcomes and remaining limitations.
+  out:
+    - >-
+      Repeating every repository test without a relevant risk, a synthetic overall UX score,
+      automatically marking V32/V38 complete, running mutations against the shared demo.
+requirements:
+  - id: "R1"
+    text: >-
+      Demonstrate zero lost input in the supported same-tab navigation cases and zero mutation
+      on dismissed destructive confirmation, including the integrated Git/local-file form.
+  - id: "R2"
+    text: >-
+      Report real measured actions/navigation observations and screenshots where helpful. Do not
+      claim user success rate or time improvements without actual user measurements.
+  - id: "R3"
+    text: >-
+      Retain exact refs, ownership, CAS/idempotency, Server-owned lifecycle truth and safe
+      previews across the combined flows.
+  - id: "R4"
+    text: >-
+      An optional before/after study with new and experienced users is documented separately; if
+      it has not happened, say so rather than using fixture timing as user evidence.
+acceptance_criteria:
+  - id: "A1"
+    given: "The completed V37 implementation and deterministic fixture journeys."
+    when: "Connected UI scenarios run at both viewports with keyboard cases."
+    then: >-
+      Every included story improvement passes without lost drafts, duplicate submission,
+      inaccessible dialog or unsafe preview.
+  - id: "A2"
+    given: "A disposable integrated Server/UI/database environment and a fixture workflow."
+    when: "An artifact is uploaded, a Run is created/read and another draft is prepared."
+    then: >-
+      Owner scope, exact versions and normal lifecycle/idempotency are preserved through actual
+      API calls; fixture-only findings are not represented as this proof.
+  - id: "A3"
+    given: "Verification evidence and the original research note."
+    when: "The stories and milestone report are updated."
+    then: >-
+      Actual commands/results and remaining gaps are traceable; untested real-user impact and
+      deferred Evals/Performance remain explicit.
+tests:
+  - name: "ui"
+    command: "make ui-typecheck ui-lint ui-test ui-build"
+    covers: ["A1", "A3"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/run-drafts.spec.ts e2e/dialogs.spec.ts
+      e2e/run-repeat.spec.ts e2e/operations-forms.spec.ts e2e/catalog.spec.ts
+      e2e/project-workspace.spec.ts e2e/artifact-preview.spec.ts e2e/audits.spec.ts
+      e2e/responsive-layout.spec.ts e2e/git-artifacts.spec.ts
+    covers: ["A1", "A3"]
+  - name: "integration"
+    command: "make test-ui-stack"
+    covers: ["A2"]
+  - name: "api"
+    command: "make verify-public-api"
+    covers: ["A2"]

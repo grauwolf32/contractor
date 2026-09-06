@@ -1,0 +1,81 @@
+schema_version: "1.0"
+id: "V37-001"
+title: "Unify dialog focus, keyboard behavior and nested form ownership"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+implementation_commit: null
+depends_on: ["V28-003", "V35-004", "V25-009"]
+languages: ["typescript"]
+goal: >-
+  Make Project Run setup and its nested file/Git dialogs fully usable with the keyboard, and
+  provide one reusable primitive for subsequent confirmations.
+context:
+  user_stories: ["US-03", "US-07", "US-11"]
+  review_findings: ["UX-05"]
+  planning_document: "docs/ui-user-stories.md"
+  baseline: >-
+    Project Workflow setup declares aria-modal but leaves focus on background controls. The
+    existing Git dialog already manages some focus behavior; consolidate working behavior
+    instead of introducing a competing dialog stack.
+  browser_verification: >-
+    Build the UI with make ui-build and serve it using the documented UI development or Node
+    server; set CONTRACTOR_UI_E2E_BASE_URL to that instance. Browser cases must explicitly
+    install their API fixtures; a fixture pass is not proof of a live backend. Add new test
+    files named below as part of this task.
+scope:
+  in:
+    - >-
+      Introduce a small shared Dialog primitive with accessible name, initial focus, focus
+      containment, background inactivity and trigger focus restoration.
+    - >-
+      Adopt it for Project Workflow setup and the existing Git import dialog; inventory other
+      modal implementations and document which are migrated or still need follow-up.
+    - >-
+      Support nested dialogs and a caller-controlled close request so draft retention/discard
+      and destructive confirmation can use the same primitive.
+  out:
+    - >-
+      A generic form framework, visual redesign, new UI dependency unless justified, changes to
+      Git import/server lifecycle semantics.
+requirements:
+  - id: "R1"
+    text: >-
+      Tab and Shift+Tab stay in the active dialog, only the top dialog handles Escape, and
+      backdrop interaction cannot operate background controls.
+  - id: "R2"
+    text: >-
+      Closing a child restores focus to its live parent trigger; closing the parent restores its
+      trigger or an appropriate visible fallback if that trigger was removed.
+  - id: "R3"
+    text: >-
+      Pending-operation close behavior belongs to the caller; closing a dialog must not claim to
+      undo an already committed import. No loss of Git key redaction or existing cancellation
+      feedback.
+acceptance_criteria:
+  - id: "A1"
+    given: "A Project Run dialog with focusable controls before and behind it."
+    when: "The user opens it, tabs in both directions and presses Escape."
+    then: >-
+      Focus enters and stays in the dialog, background is inactive, and closing restores the
+      originating control.
+  - id: "A2"
+    given: "A Git import dialog opened inside Run setup."
+    when: "The child closes by Escape, action or request failure."
+    then: "Only the child closes; focus and entered values in the parent survive."
+  - id: "A3"
+    given: "A dialog with a pending action or removed trigger."
+    when: "Its close policy or focus restoration runs."
+    then: "The explicit caller policy is respected with no background mutation or stranded keyboard focus."
+tests:
+  - name: "ui"
+    command: "cd ui && corepack pnpm exec vitest run src/app/dialog.test.tsx"
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]
+  - name: "browser"
+    command: >-
+      cd ui && corepack pnpm exec playwright test e2e/project-workspace.spec.ts
+      e2e/git-artifacts.spec.ts e2e/dialogs.spec.ts
+    covers: ["A1", "A2", "A3"]
