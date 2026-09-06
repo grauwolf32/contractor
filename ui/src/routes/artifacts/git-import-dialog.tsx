@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { createPortal } from "react-dom";
 import { Link } from "react-router";
 import {
   ARTIFACT_NAME_PATTERN,
@@ -16,6 +15,7 @@ import {
 } from "../../api/git-artifacts";
 import { getProjectArtifactMetadata } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
+import { Dialog } from "../../app/dialog";
 import { ErrorNotice } from "./common";
 import "./git-artifacts.css";
 
@@ -57,48 +57,7 @@ export function GitImportDialog({
   const [error, setError] = useState<unknown>();
   const operation = useRef<AbortController | null>(null);
   const initialFocus = useRef<HTMLInputElement>(null);
-  const panel = useRef<HTMLElement>(null);
-  const closeCallback = useRef(onClose);
-  useEffect(() => {
-    closeCallback.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    const previous = document.activeElement;
-    initialFocus.current?.focus();
-    function keydown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        operation.current?.abort();
-        closeCallback.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const elements = Array.from(
-        panel.current?.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), input:not([disabled]), a[href]",
-        ) ?? [],
-      );
-      const first = elements[0],
-        last = elements.at(-1);
-      if (!panel.current?.contains(document.activeElement)) {
-        event.preventDefault();
-        first?.focus();
-      } else if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    }
-    window.addEventListener("keydown", keydown, true);
-    return () => {
-      window.removeEventListener("keydown", keydown, true);
-      operation.current?.abort();
-      if (previous instanceof HTMLElement) previous.focus();
-    };
-  }, []);
+  useEffect(() => () => operation.current?.abort(), []);
   function close() {
     operation.current?.abort();
     onClose();
@@ -110,7 +69,6 @@ export function GitImportDialog({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    event.stopPropagation();
     if (pending) return;
     if (
       !ARTIFACT_NAME_PATTERN.test(namespace) ||
@@ -188,121 +146,116 @@ export function GitImportDialog({
       if (!controller.signal.aborted) setPending(false);
     }
   }
-  return createPortal(
-    <div className="project-dialog-backdrop" role="presentation">
-      <section
-        className="project-dialog panel git-import-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={heading}
-        ref={panel}
-      >
-        <div className="project-dialog-heading">
-          <h2 id={heading}>Import Git repository</h2>
+  return (
+    <Dialog
+      className="project-dialog panel git-import-dialog"
+      labelledBy={heading}
+      initialFocusRef={initialFocus}
+      onRequestClose={close}
+    >
+      <div className="project-dialog-heading">
+        <h2 id={heading}>Import Git repository</h2>
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close Git import"
+          onClick={close}
+        >
+          ×
+        </button>
+      </div>
+      <p>
+        Import a tracked source snapshot as a ZIP. Private SSH uses your{" "}
+        <Link to="/operations/settings#repository-access" onClick={close}>
+          Git key in Operations Settings
+        </Link>
+        .
+      </p>
+      <form onSubmit={(event) => void submit(event)}>
+        <label>
+          Repository URL
+          <input
+            ref={initialFocus}
+            value={repositoryUrl}
+            onChange={(event) => setURL(event.target.value)}
+            placeholder="https://host/team/repository.git"
+            disabled={pending}
+            required
+          />
+        </label>
+        <label>
+          Branch or tag (optional)
+          <input
+            value={ref}
+            onChange={(event) => setRef(event.target.value)}
+            placeholder="Default branch"
+            disabled={pending}
+            maxLength={1024}
+          />
+        </label>
+        <label>
+          Artifact namespace
+          <input
+            value={namespace}
+            onChange={(event) =>
+              changeTarget(() => setNamespace(event.target.value))
+            }
+            disabled={pending}
+            required
+          />
+        </label>
+        <label>
+          Artifact name
+          <input
+            value={name}
+            onChange={(event) =>
+              changeTarget(() => setName(event.target.value))
+            }
+            disabled={pending}
+            required
+          />
+        </label>
+        {baseline === undefined ? null : (
+          <div className="notice notice-warning">
+            <p>
+              This binding exists at <code>{baseline.artifact.revision}</code>.
+            </p>
+            {baseline.frozen ? (
+              <p>This binding is frozen. Choose another name.</p>
+            ) : (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={replace}
+                  onChange={(event) => setReplace(event.target.checked)}
+                  disabled={pending}
+                />
+                Replace this exact revision
+              </label>
+            )}
+          </div>
+        )}
+        {error === undefined ? null : <ErrorNotice error={error} />}
+        <p className="muted-copy">
+          Import can take up to two minutes. If you cancel or lose the response,
+          inspect the Artifact library before retrying: a complete import may
+          already be stored.
+        </p>
+        <div className="inline-actions">
           <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close Git import"
-            onClick={close}
+            type="submit"
+            disabled={
+              pending ||
+              (baseline !== undefined && (!replace || baseline.frozen))
+            }
           >
-            ×
+            {pending ? "Importing…" : "Import snapshot"}
+          </button>
+          <button type="button" className="secondary-button" onClick={close}>
+            {pending ? "Cancel import" : "Cancel"}
           </button>
         </div>
-        <p>
-          Import a tracked source snapshot as a ZIP. Private SSH uses your{" "}
-          <Link to="/operations/settings#repository-access" onClick={close}>
-            Git key in Operations Settings
-          </Link>
-          .
-        </p>
-        <form onSubmit={(event) => void submit(event)}>
-          <label>
-            Repository URL
-            <input
-              ref={initialFocus}
-              value={repositoryUrl}
-              onChange={(event) => setURL(event.target.value)}
-              placeholder="https://host/team/repository.git"
-              disabled={pending}
-              required
-            />
-          </label>
-          <label>
-            Branch or tag (optional)
-            <input
-              value={ref}
-              onChange={(event) => setRef(event.target.value)}
-              placeholder="Default branch"
-              disabled={pending}
-              maxLength={1024}
-            />
-          </label>
-          <label>
-            Artifact namespace
-            <input
-              value={namespace}
-              onChange={(event) =>
-                changeTarget(() => setNamespace(event.target.value))
-              }
-              disabled={pending}
-              required
-            />
-          </label>
-          <label>
-            Artifact name
-            <input
-              value={name}
-              onChange={(event) =>
-                changeTarget(() => setName(event.target.value))
-              }
-              disabled={pending}
-              required
-            />
-          </label>
-          {baseline === undefined ? null : (
-            <div className="notice notice-warning">
-              <p>
-                This binding exists at <code>{baseline.artifact.revision}</code>
-                .
-              </p>
-              {baseline.frozen ? (
-                <p>This binding is frozen. Choose another name.</p>
-              ) : (
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={replace}
-                    onChange={(event) => setReplace(event.target.checked)}
-                    disabled={pending}
-                  />
-                  Replace this exact revision
-                </label>
-              )}
-            </div>
-          )}
-          {error === undefined ? null : <ErrorNotice error={error} />}
-          <p className="muted-copy">
-            Import can take up to two minutes. If you cancel or lose the
-            response, inspect the Artifact library before retrying: a complete
-            import may already be stored.
-          </p>
-          <div className="inline-actions">
-            <button
-              type="submit"
-              disabled={
-                pending ||
-                (baseline !== undefined && (!replace || baseline.frozen))
-              }
-            >
-              {pending ? "Importing…" : "Import snapshot"}
-            </button>
-            <button type="button" className="secondary-button" onClick={close}>
-              {pending ? "Cancel import" : "Cancel"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>,
-    document.body,
+      </form>
+    </Dialog>
   );
 }

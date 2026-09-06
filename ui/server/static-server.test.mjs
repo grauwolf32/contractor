@@ -93,6 +93,19 @@ test("private-network config preserves an IP-literal loopback entrypoint", async
     localIndex.headers["content-security-policy"],
     /connect-src 'self' http:\/\/127\.0\.0\.1:8080 ws:\/\/127\.0\.0\.1:8080/,
   );
+
+  const loopbackConfig = {
+    ...runtimeConfig,
+    apiBaseUrl: "http://127.0.0.3:8080",
+  };
+  const loopback = await fixture(t, loopbackConfig);
+  const separateLoopbackAPI = await rawRequest(
+    loopback.origin,
+    "/runtime-config.json",
+    "GET",
+    { Host: "127.0.0.2:4173" },
+  );
+  assert.deepEqual(JSON.parse(separateLoopbackAPI.body), loopbackConfig);
 });
 
 test("known client routes get no-store index and a derived CSP", async (t) => {

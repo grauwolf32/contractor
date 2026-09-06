@@ -97,7 +97,7 @@ function apiBaseUrlForRequest(request, configured) {
     return configured;
   }
   const api = new URL(configured);
-  if (api.protocol !== "http:") {
+  if (api.protocol !== "http:" || isLoopbackIPLiteral(api.hostname)) {
     return configured;
   }
   api.hostname = requestOrigin.hostname;

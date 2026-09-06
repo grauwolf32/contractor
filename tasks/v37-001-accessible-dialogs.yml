@@ -14,6 +14,7 @@ context:
   user_stories: ["US-03", "US-07", "US-11"]
   review_findings: ["UX-05"]
   planning_document: "docs/ui-user-stories.md"
+  inventory_document: "docs/reviews/2026-09-06-dialog-migration-inventory.md"
   baseline: >-
     Project Workflow setup declares aria-modal but leaves focus on background controls. The
     existing Git dialog already manages some focus behavior; consolidate working behavior
@@ -80,7 +81,9 @@ acceptance_criteria:
       originating control.
   - id: "A2"
     given: "A Git import dialog opened inside Run setup."
-    when: "The child closes by Escape, action or request failure."
+    when: >-
+      The child closes by Escape or an explicit action, including after its caller handles a
+      completed or failed request.
     then: "Only the child closes; focus and entered values in the parent survive."
   - id: "A3"
     given: "A dialog with a pending action or removed trigger."

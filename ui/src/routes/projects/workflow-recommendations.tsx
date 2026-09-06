@@ -1,10 +1,11 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { usePublicAPI } from "../../api/context";
 import { listProjectArtifacts } from "../../api/project-artifacts";
 import { queryKeys } from "../../api/query-keys";
 import { getWorkflow, listWorkflows } from "../../api/workflows";
+import { Dialog } from "../../app/dialog";
 import { ErrorNotice } from "../artifacts/common";
 import { WorkflowRunForm } from "../workflows/run-form";
 import {
@@ -128,54 +129,41 @@ function ProjectWorkflowLauncher({
         selection.workflow.ref.version,
       ),
   });
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
-
   return (
-    <div className="project-dialog-backdrop" role="presentation">
-      <section
-        className="project-dialog project-workflow-dialog panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="project-workflow-dialog-title"
-      >
-        <div className="project-dialog-heading">
-          <div>
-            <p className="eyebrow">Project Workflow</p>
-            <h2 id="project-workflow-dialog-title">{selector(selection)}</h2>
-          </div>
-          <button
-            className="project-dialog-close"
-            type="button"
-            aria-label="Close Workflow Run dialog"
-            onClick={onClose}
-          >
-            ×
-          </button>
+    <Dialog
+      className="project-dialog project-workflow-dialog panel"
+      labelledBy="project-workflow-dialog-title"
+      onRequestClose={onClose}
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Project Workflow</p>
+          <h2 id="project-workflow-dialog-title">{selector(selection)}</h2>
         </div>
-        {workflow.isPending ? (
-          <p className="loading-copy" aria-live="polite">
-            Loading exact Workflow contract…
-          </p>
-        ) : workflow.error !== null ? (
-          <ErrorNotice error={workflow.error} />
-        ) : (
-          <WorkflowRunForm
-            key={`${projectId}:${selector(selection)}`}
-            workflow={workflow.data}
-            projectId={projectId}
-            initialArtifactSelections={selection.preselected}
-          />
-        )}
-      </section>
-    </div>
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close Workflow Run dialog"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      {workflow.isPending ? (
+        <p className="loading-copy" aria-live="polite">
+          Loading exact Workflow contract…
+        </p>
+      ) : workflow.error !== null ? (
+        <ErrorNotice error={workflow.error} />
+      ) : (
+        <WorkflowRunForm
+          key={`${projectId}:${selector(selection)}`}
+          workflow={workflow.data}
+          projectId={projectId}
+          initialArtifactSelections={selection.preselected}
+        />
+      )}
+    </Dialog>
   );
 }
 
