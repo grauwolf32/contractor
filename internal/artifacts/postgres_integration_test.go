@@ -25,6 +25,36 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func TestPostgresIntegration64MiBPayloadBoundary(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	pool := isolatedArtifactPool(t, ctx)
+	service := NewService(NewPostgresRepository(pool))
+	user, _ := service.User("user-large-artifact")
+	data := make([]byte, 64<<20, (64<<20)+1)
+	data[0], data[len(data)-1] = 1, 255
+	ref := ArtifactRef{Namespace: "projects", Name: "large-source"}
+	written, err := user.Write(ctx, ref, Payload{MediaType: "application/zip", Data: data}, nil)
+	if err != nil {
+		t.Fatalf("write exact 64 MiB payload: %v", err)
+	}
+	read, err := user.Read(ctx, written.Ref)
+	if err != nil {
+		t.Fatalf("read exact 64 MiB payload: %v", err)
+	}
+	if written.Size != int64(len(data)) || !bytes.Equal(read.Payload.Data, data) {
+		t.Fatal("64 MiB payload or metadata changed on round trip")
+	}
+	_, err = user.Write(ctx, ref, Payload{MediaType: "application/zip", Data: append(data, 0)}, written.Ref.Revision)
+	if !errors.Is(err, ErrPayloadTooLarge) {
+		t.Fatalf("64 MiB + 1 write error = %v", err)
+	}
+	metadata, err := user.Metadata(ctx, ref)
+	if err != nil || metadata.Ref.Revision == nil || *metadata.Ref.Revision != *written.Ref.Revision {
+		t.Fatal("oversized write changed the current binding")
+	}
+}
+
 func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

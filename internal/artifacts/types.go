@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-const MaxPayloadSize = 16 * 1024 * 1024
+const MaxPayloadSize = 64 * 1024 * 1024
 
 type ScopeKind string
 

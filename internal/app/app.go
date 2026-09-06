@@ -64,6 +64,8 @@ type Config struct {
 	RuntimeRequestTimeout time.Duration
 	WorkerRequestTimeout  time.Duration
 	DatabaseURL           string
+	ArtifactBlobBackend   artifacts.BlobBackend
+	ArtifactBlobPath      string
 	// ConfigRoot is the deprecated alias retained for callers that inspect
 	// parsed settings. Runtime composition uses the two explicit roots below.
 	ConfigRoot                  string
@@ -175,6 +177,12 @@ func RunCLI(
 		return err
 	}
 	defer pool.Close()
+	if cfg.ArtifactBlobBackend != artifacts.BlobPostgres {
+		return fmt.Errorf("%w: filesystem activation is not yet available", artifacts.ErrBlobBackend)
+	}
+	if err := artifacts.ClaimBlobBackend(ctx, pool, cfg.ArtifactBlobBackend); err != nil {
+		return err
+	}
 	configurationManager, err := workflowconfig.NewManager(workflowconfig.ManagerOptions{
 		OperatorRoot: cfg.OperatorConfigRoot,
 		ManagedRoot:  cfg.ManagedConfigRoot,

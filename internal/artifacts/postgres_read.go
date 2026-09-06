@@ -1,9 +1,7 @@
 package artifacts
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -67,8 +65,11 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
 	if err != nil {
 		return ReadResult{}, fmt.Errorf("read artifact %s/%s: %w", ref.Namespace, ref.Name, err)
 	}
-	digest := sha256.Sum256(data)
-	if size != int64(len(data)) || !bytes.Equal(storedDigest, digest[:]) || validateMediaType(mediaType) != nil {
+	data, err = (PostgresBlobStore{}).Read(ctx, BlobObject{Backend: BlobPostgres, Inline: data, Digest: storedDigest, Size: size})
+	if err != nil {
+		return ReadResult{}, err
+	}
+	if validateMediaType(mediaType) != nil {
 		return ReadResult{}, ErrArtifactIntegrity
 	}
 	exact := revision

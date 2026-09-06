@@ -62,7 +62,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 	tables := schemaTables(t, ctx, first)
 	wantTables := []string{
 		"allocation_execution_reports",
-		"artifact_binding_revisions", "artifact_bindings", "artifact_blobs",
+		"artifact_binding_revisions", "artifact_bindings", "artifact_blob_settings", "artifact_blobs",
 		"artifact_lineage", "artifact_pins", "artifact_scopes", "artifact_versions",
 		"audit_artifact_links", "audit_collection_receipts", "audit_controller_claims",
 		"audit_coverage_rows", "audit_events", "audit_execution_items", "audit_executions",

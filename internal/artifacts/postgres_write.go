@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -46,7 +45,11 @@ func (r *PostgresRepository) Write(
 	if err != nil {
 		return WriteResult{}, err
 	}
-	digest := sha256.Sum256(payload.Data)
+	blob, err := (PostgresBlobStore{}).Store(ctx, payload.Data)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	digest := blob.Digest
 	// Scope creation is intentionally a separate statement. Under READ COMMITTED, a
 	// concurrent INSERT ... DO NOTHING that waited for the winning transaction
 	// is visible to the binding statement below; a same-statement CTE would keep
@@ -115,7 +118,7 @@ SELECT inserted_revision.revision, $11::text, $10::bigint,
        claimed_binding.created_at, inserted_revision.created_at
 FROM inserted_revision, claimed_binding`,
 		scope.kind, scope.id, target.Namespace, target.Name, revision, expectedRevision,
-		versionID, digest[:], payload.Data, len(payload.Data), payload.MediaType,
+		versionID, digest, blob.Inline, blob.Size, payload.MediaType,
 	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)

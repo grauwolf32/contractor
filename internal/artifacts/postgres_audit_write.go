@@ -2,7 +2,6 @@ package artifacts
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,7 +39,11 @@ func (r *PostgresRepository) WriteAuditArtifact(
 	if err != nil {
 		return WriteResult{}, err
 	}
-	digest := sha256.Sum256(payload.Data)
+	blob, err := (PostgresBlobStore{}).Store(ctx, payload.Data)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	digest := blob.Digest
 
 	if _, err := r.db.Exec(ctx, `
 INSERT INTO artifact_scopes (scope_kind, scope_id)
@@ -92,7 +95,7 @@ SELECT inserted_revision.revision, $10::text, $9::bigint,
        created_binding.created_at, inserted_revision.created_at
 FROM inserted_revision, created_binding`,
 		projectScope.kind, projectScope.id, target.Namespace, target.Name,
-		revision, versionID, digest[:], payload.Data, len(payload.Data), payload.MediaType,
+		revision, versionID, digest, blob.Inline, blob.Size, payload.MediaType,
 	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WriteResult{}, &ConflictError{Ref: target}

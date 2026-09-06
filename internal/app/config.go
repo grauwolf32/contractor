@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -65,6 +66,8 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	workerRequestTimeout := defaultWorkerRequestTimeout
 	plannerTimeout := defaultPlannerTimeout
 	databaseURL := getenv("CONTRACTOR_DATABASE_URL")
+	blobBackend := getenv("CONTRACTOR_ARTIFACT_BLOB_BACKEND")
+	blobPath := getenv("CONTRACTOR_ARTIFACT_BLOB_PATH")
 	operatorConfigRoot := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT")
 	if operatorConfigRoot == "" {
 		operatorConfigRoot = getenv("CONTRACTOR_CONFIG_ROOT")
@@ -105,6 +108,8 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	flags.StringVar(&blobBackend, "artifact-blob-backend", blobBackend, "Artifact payload backend: postgresql or filesystem")
+	flags.StringVar(&blobPath, "artifact-blob-path", blobPath, "absolute filesystem blob directory")
 	flags.Var(&performanceMetrics, "performance-metrics", "enable Operations performance collection (requires restart)")
 	flags.Var(&pprof, "pprof", "enable independent loopback Go profiling (requires restart)")
 	flags.StringVar(&pprofListen, "pprof-listen", pprofListen, "numeric loopback Go profiling listen address")
@@ -219,7 +224,12 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		developmentPlannerToken = developmentWorkerToken
 	}
 
+	selectedBlobBackend, err := artifacts.ValidateBlobConfig(blobBackend, blobPath)
+	if err != nil {
+		return Config{}, err
+	}
 	return Config{
+		ArtifactBlobBackend: selectedBlobBackend, ArtifactBlobPath: blobPath,
 		ListenAddress: listenAddress, PrivateListenAddress: privateListenAddress, PrivateURL: privateURL,
 		ShutdownTimeout: shutdownTimeout, RuntimeRequestTimeout: runtimeRequestTimeout,
 		WorkerRequestTimeout: workerRequestTimeout,

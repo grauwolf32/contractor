@@ -1,0 +1,79 @@
+schema_version: '1.0'
+id: V34-001
+title: Define startup blob selection and extract the PostgreSQL payload boundary
+milestone: artifact-blob-backends
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on:
+- V29-003
+- V25-012
+languages:
+- go
+- sql
+goal: Separate immutable payload operations from transactional Artifact metadata while preserving
+  the existing PostgreSQL default and exact Artifact API behavior.
+context:
+  specification: docs/spec/23-artifact-blob-backends.md
+  deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
+    PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
+    and physical orphans after failure are accepted, but successful responses must never invent content.
+    S3 is a reserved future backend and must fail startup as unsupported in this increment.
+  configuration: Add --artifact-blob-backend / CONTRACTOR_ARTIFACT_BLOB_BACKEND (postgresql default)
+    and --artifact-blob-path / CONTRACTOR_ARTIFACT_BLOB_PATH (unset). CLI wins. Filesystem requires
+    an absolute dedicated path; PostgreSQL rejects a path. Persist and validate one installation
+    backend before catalog seeding; existing payloads mean PostgreSQL. Filesystem activation remains
+    unavailable until V34-003.
+  boundary: Registry ownership, CAS, grants, lineage, revisions and pins stay in PostgreSQL. Payloads
+    remain capped at 64 MiB; Skill/Audit/tool budgets remain independent. Abstract complete store/open/delete
+    of exact physical objects without changing public ArtifactRef. Keep PostgreSQL payload writes/deletes
+    in registry transactions.
+scope:
+  in:
+  - Introduce the minimal blob interface and PostgreSQL adapter with conformance fixtures.
+  - Add strict startup parsing and a forward migration for backend identity plus blob backend/object-key
+    metadata; preserve inline PostgreSQL size/digest checks and existing rows.
+  - Reject populated-store backend switching and unsupported S3 without fallback or partial seeding.
+  - Inventory every ordinary/trusted read, write, fork and purge path for filesystem integration;
+    metadata-only operations must not materialize payloads.
+  out:
+  - Filesystem serving, S3 implementation, populated-store migration, per-size tiering and UI backend
+    settings.
+requirements:
+- id: R1
+  text: PostgreSQL default requires no Artifact filesystem initialization or temporary files.
+- id: R2
+  text: Backend choice is installation-wide startup configuration; it never comes from UI, a Workflow
+    or a request.
+- id: R3
+  text: Existing 64 MiB payloads, CAS, current/history references and transaction semantics remain
+    compatible.
+acceptance_criteria:
+- id: A1
+  given: An existing PostgreSQL registry with shared blobs and a fresh registry.
+  when: Migrations and default startup run repeatedly.
+  then: Existing bytes and refs remain valid; a fresh registry can record its selected backend without
+    rewriting payloads.
+- id: A2
+  given: CLI/env conflicts, a PostgreSQL blob path, a populated-store mismatch and s3 selection.
+  when: Configuration is parsed and startup validates the registry.
+  then: Precedence is deterministic and invalid/unsupported choices fail before serving or catalog
+    mutation.
+- id: A3
+  given: An exact 64 MiB payload and an oversized request.
+  when: The PostgreSQL adapter executes Artifact operations.
+  then: 64 MiB round-trips and 64 MiB + 1 is rejected; scopes, CAS and retained forks preserve behavior.
+tests:
+- name: unit
+  command: go test ./internal/artifacts ./internal/app ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- name: postgres
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test ./internal/artifacts ./internal/app
+    ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
