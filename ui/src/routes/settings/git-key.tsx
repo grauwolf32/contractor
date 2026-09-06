@@ -14,7 +14,7 @@ export function GitKeySettings() {
   const cache = useQueryClient();
   const query = useQuery({
     queryKey: gitKeyQueryKey,
-    queryFn: () => getGitKey(api),
+    queryFn: ({ signal }) => getGitKey(api, signal),
   });
   const [privateKey, setPrivateKey] = useState("");
   const [pending, setPending] = useState(false);
@@ -39,6 +39,9 @@ export function GitKeySettings() {
     setError(undefined);
     setSaved("");
     try {
+      // An older metadata response must not overwrite the mutation result.
+      await cache.cancelQueries({ queryKey: gitKeyQueryKey, exact: true });
+      if (controller.signal.aborted) return;
       // Keep the secret out of mutation variables and the shared query cache.
       const state = remove
         ? (await removeGitKey(api, controller.signal), { configured: false })
@@ -48,7 +51,12 @@ export function GitKeySettings() {
       cache.setQueryData(gitKeyQueryKey, state);
       setSaved(remove ? "Git SSH key removed." : "Git SSH key saved.");
     } catch (error) {
-      if (!controller.signal.aborted) setError(error);
+      if (!controller.signal.aborted) {
+        setError(error);
+        // Recover metadata if the initial read was cancelled before a failed
+        // write; the write itself is never retried automatically.
+        void cache.invalidateQueries({ queryKey: gitKeyQueryKey, exact: true });
+      }
     } finally {
       if (!controller.signal.aborted) setPending(false);
     }

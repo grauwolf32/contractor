@@ -1,10 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { PublicAPI } from "../../api/client";
 import { PublicAPIProvider } from "../../api/context";
+import { gitKeyQueryKey } from "../../api/git-artifacts";
 import { GitKeySettings } from "../settings/git-key";
 import { GitImportDialog } from "./git-import-dialog";
 import type { ReactNode } from "react";
@@ -60,6 +67,122 @@ const imported = {
 };
 
 describe("Git artifacts", () => {
+  it.each(["save", "replace", "remove"] as const)(
+    "keeps the successful %s result when an older key GET arrives late",
+    async (change) => {
+      const previous = {
+        configured: true,
+        fingerprint: "SHA256:previous",
+        keyType: "ssh-ed25519",
+      };
+      const saved = { ...previous, fingerprint: "SHA256:saved" };
+      let resolveRead!: (response: Response) => void;
+      const delayedRead = new Promise<Response>((resolve) => {
+        resolveRead = resolve;
+      });
+      let reads = 0;
+      let delayedRequest: Request | undefined;
+      const { cache } = setup(<GitKeySettings />, async (request) => {
+        if (request.method === "GET") {
+          reads++;
+          if (change !== "save" && reads === 1) return json(previous);
+          delayedRequest = request;
+          // Deliver the stale response even if transport cancellation races
+          // with completion; query cancellation must also protect the cache.
+          return delayedRead;
+        }
+        return request.method === "DELETE" ? json(undefined, 204) : json(saved);
+      });
+      if (change !== "save") {
+        await screen.findByText(previous.fingerprint);
+        void cache.invalidateQueries({ queryKey: gitKeyQueryKey });
+      }
+      await waitFor(() => expect(delayedRequest).toBeDefined());
+      if (change !== "remove") {
+        fireEvent.change(screen.getByLabelText("SSH private key"), {
+          target: { value: "fixture-private-key-canary" },
+        });
+      }
+      await userEvent.click(
+        screen.getByRole("button", {
+          name:
+            change === "save"
+              ? "Save Git key"
+              : change === "replace"
+                ? "Replace Git key"
+                : "Remove Git key",
+        }),
+      );
+      await screen.findByText(
+        change === "remove" ? "Git SSH key removed." : "Git SSH key saved.",
+      );
+      await act(async () => {
+        resolveRead(json(change === "save" ? { configured: false } : previous));
+        await delayedRead;
+      });
+      await waitFor(() => expect(cache.isFetching()).toBe(0));
+      expect(cache.getQueryData(gitKeyQueryKey)).toEqual(
+        change === "remove" ? { configured: false } : saved,
+      );
+      expect(delayedRequest?.signal.aborted).toBe(true);
+      const remove = screen.getByRole("button", { name: "Remove Git key" });
+      if (change === "remove") {
+        expect(remove).toBeDisabled();
+        expect(
+          screen.getByText("No Git SSH key configured."),
+        ).toBeInTheDocument();
+      } else {
+        expect(remove).toBeEnabled();
+        expect(screen.getByText(saved.fingerprint)).toBeInTheDocument();
+      }
+    },
+  );
+  it("reloads key metadata after cancelling the initial GET and failing to save", async () => {
+    let reads = 0;
+    let writes = 0;
+    let initialRequest: Request | undefined;
+    let resolveInitial!: (response: Response) => void;
+    const initialRead = new Promise<Response>((resolve) => {
+      resolveInitial = resolve;
+    });
+    const { cache } = setup(<GitKeySettings />, async (request) => {
+      if (request.method === "GET") {
+        reads++;
+        if (reads === 1) {
+          initialRequest = request;
+          return initialRead;
+        }
+        return json({ configured: false });
+      }
+      writes++;
+      return json(
+        {
+          code: "git_key_invalid",
+          message: "Unsupported key",
+          retryable: false,
+        },
+        400,
+      );
+    });
+    await waitFor(() => expect(initialRequest).toBeDefined());
+    fireEvent.change(screen.getByLabelText("SSH private key"), {
+      target: { value: "invalid" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Save Git key" }));
+    await screen.findByRole("alert");
+    await screen.findByText("No Git SSH key configured.");
+    expect(initialRequest?.signal.aborted).toBe(true);
+    expect(reads).toBe(2);
+    expect(writes).toBe(1);
+    expect(
+      screen.queryByText("Loading Git key settings…"),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      resolveInitial(json({ configured: true, fingerprint: "SHA256:stale" }));
+      await initialRead;
+    });
+    expect(cache.getQueryData(gitKeyQueryKey)).toEqual({ configured: false });
+  });
   it("saves and removes only key metadata, clears the secret and never caches it", async () => {
     const secret = "fixture-private-key-canary";
     const writes: string[] = [];

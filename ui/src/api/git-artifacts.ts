@@ -21,9 +21,14 @@ async function data<T>(result: {
     throw publicAPIError(result.response.status, result.error);
   return result.data;
 }
-export async function getGitKey(api: PublicAPI): Promise<GitKeyState> {
+export async function getGitKey(
+  api: PublicAPI,
+  signal?: AbortSignal,
+): Promise<GitKeyState> {
   return data(
-    await api.request((client) => client.GET("/v1/settings/git-key")),
+    await api.request((client) =>
+      client.GET("/v1/settings/git-key", { signal: signal ?? null }),
+    ),
   );
 }
 export async function replaceGitKey(
