@@ -385,11 +385,12 @@ class PodmanEngine:
             "--cap-drop=all",
             "--security-opt=no-new-privileges",
             "--userns=keep-id",
-            f"--user={self._uid}:{self._gid}",
+            # Only the inert image PID 1 uses namespace root (a subordinate
+            # host UID). Workload exec always selects the nonzero keep-id UID.
+            "--user=0:0",
             "--image-volume=ignore",
             "--no-healthcheck",
             "--no-hosts",
-            "--dns=none",
             "--log-driver=none",
             "--restart=no",
             "--systemd=false",

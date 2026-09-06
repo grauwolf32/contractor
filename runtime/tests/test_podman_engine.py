@@ -157,7 +157,7 @@ def test_exact_isolation_policy_idempotency_and_cleanup(tmp_path: Path) -> None:
         mounts = [arg for arg in create if arg.startswith("--mount=")]
         assert len(mounts) == 1 and f"src={root},target=/workspace,rw," in mounts[0]
         assert "relabel=private" in mounts[0] and "bind-nonrecursive" in mounts[0]
-        assert f"--user={os.getuid()}:{os.getgid()}" in create
+        assert "--user=0:0" in create
         assert not any(
             "label=disable" in arg or "seccomp=unconfined" in arg or "chown" in arg
             for arg in create

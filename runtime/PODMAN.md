@@ -4,7 +4,8 @@ V31-001 registers authoring/placement contracts and parses immutable startup
 policy. It does **not** install an execution factory, invoke Podman, pull images
 or advertise `podman@1` / `code-execution@1`. V31-002 adds a private engine
 adapter, still without startup/allocation wiring or capability advertisement.
-The supervisor, allocation lifecycle and full startup probes are subsequent tasks.
+V31-003 adds the approved image and independent guardian/completion proof;
+allocation lifecycle, command tooling and full startup probes remain subsequent tasks.
 
 The profile requires an explicit Stage project workspace in `direct` mode and
 local Runtime workspace storage. Ordinary `local-workdir@1` Workers keep their
@@ -106,7 +107,10 @@ The fixed container environment is PATH, HOME=/tmp and LANG. The only project
 bind is the trusted hydrated `run_workdir` at `/workspace`; `/tmp` is bounded
 tmpfs. Bind propagation is private and nonrecursive, with private SELinux
 relabeling rather than disabled host confinement or recursive ownership changes.
-The approved image entrypoint remains the responsibility of V31-003.
+The approved image entrypoint is the isolated inert PID 1 described below.
+Only PID 1 runs as namespace root (a subordinate host UID), with no capabilities;
+workload exec must explicitly select the nonzero keep-id UID/GID.
+`--dns=none` is not supplied: Podman 6.1 rejects it with `--network=none`.
 
 The service owner holds a nonblocking exclusive flock in the private directory
 `/run/user/<uid>/contractor-podman-owners`. All services sharing a local engine
@@ -163,3 +167,88 @@ It does not create or delete real Podman containers.
 Flag and exit-code references: [Podman create](https://docs.podman.io/en/latest/markdown/podman-create.1.html),
 [local/remote engine selection](https://docs.podman.io/en/latest/markdown/podman.1.html),
 [container exists](https://docs.podman.io/en/latest/markdown/podman-container-exists.1.html).
+
+## Host guardian and image (V31-003)
+
+The selected trust boundary is a separate, isolated host Python process holding
+an inherited `SOCK_SEQPACKET` socket, a pinned exact container cgroup directory
+and a PID 1 pidfd. No filesystem socket or secret token exists. These descriptors
+are close-on-exec and explicitly passed **only** to the guardian; neither the
+image nor Podman/workload children receive them. Container PID 1 has a different
+UID from workload code, no capabilities, an immutable isolated-mode interpreter,
+no command API and no project imports. It only waits and reaps orphans. Workload
+code cannot signal/ptrace that PID 1, see host guardian PIDs, or write cgroup
+controls through its read-only cgroup mount.
+
+`open_fence` accepts an already ownership-verified running inspect record. It
+pins only the exact `libpod-<full container ID>.scope` below this user's systemd
+delegation, validates PID membership and subordinate UID, opens a real pidfd
+and verifies freeze/kill write authority. Broader cgroup parents are never
+destructive targets. Unsupported cgroup layouts fail; this MVP requires rootless
+Podman with a systemd-managed cgroup v2 delegation. Python builds without
+`os.pidfd_open` use the named libc API, not hard-coded syscall numbers or PID-only
+liveness checks. These filesystem checks must run off the Runtime event loop
+when allocation wiring is added.
+
+Private protocol messages are bounded to 256 bytes and serialized:
+
+| Request | Trusted acknowledgement | Meaning |
+|---|---|---|
+| Start with confirmed monotonic lease deadline | `ready` | Independent expiry is armed |
+| `renew` with confirmed monotonic lease deadline | `renewed` | Deadline is min(confirmed lease, now + 10 s) |
+| `check` after every launch has settled | `clean` | Frozen recursive cgroup inventory contained only the live, pinned PID 1 |
+| `stop` | `stopped` | Entire cgroup is unpopulated and PID 1 has exited |
+
+Freeze waits at most one second and never beyond liveness expiry. Inventory
+includes descendant cgroups, irrespective of fork/reparent/double-fork/setsid
+or inherited output descriptors. Only a clean, still-live scope is unfrozen.
+A survivor, invalid packet, expired/missing renewal, Runtime socket EOF or
+failed proof triggers `cgroup.kill` for the whole scope, independently of Podman
+CLI responsiveness. Kernel-confirmed empty state, not CLI exit or process-group
+signals, authorizes a stopped receipt. Unconfirmed termination produces no
+success receipt. There is no restart or reconnect/revival protocol.
+
+The guardian polls at 25 ms; the real gate exercises both finite expiry with a
+living controller and SIGKILL of the Runtime-side controller without a successor.
+This assumes the trusted guardian and kernel remain scheduled/functional; host
+failure or uninterruptible kernel operations are not magically bounded. No
+unconfirmed cleanup is advertised as successful. Deployment must preserve the
+guardian long enough to enforce shutdown when stopping the Runtime service.
+
+`CompletionGate.confirm` reuses `ExecutionResult`: it promotes a private
+transport's completed result only after a guardian receipt **and** a fresh
+ownership-verified running engine state. Workload output is never parsed as
+control messages. Any exception permanently invalidates that gate and disconnects
+the guardian to terminate execution. The caller retains the common workspace
+guard until termination is confirmed; an exception is not permission to release
+files or reuse the allocation. Guardian spawn owns duplicated descriptors and
+reaps late children even after caller cancellation.
+
+Integration obligations for V31-004/V31-005 remain explicit:
+
+- Hold the service owner, pin/hydrate content, start only the inert image and
+  arm/verify the guardian before permitting any workload launch.
+- Fence in-flight create/start/exec operations during recovery and teardown;
+  do not treat this attachment primitive as a replacement for lifecycle ownership.
+- Serialize commands and filesystem operations under the common workspace guard.
+  A `check` is valid only after all launch attempts have settled: an unrelated
+  host actor starting a new exec after the frozen inventory invalidates that proof.
+- Run every workload with the nonzero keep-id UID/GID, no interactive stdin/PTY,
+  fixed environment and bounded concurrent output capture. Feed completion only
+  trusted command status, never output text. Podman's ambiguous 125/126/127 exit
+  classes must remain infrastructure uncertainty unless separately proven.
+- Convert confirmed lease deadlines once to monotonic time, renew more frequently
+  than ten seconds and fail the allocation on renewal/protocol uncertainty.
+- On timeout, cancellation, output overflow or uncertain launch, terminate the
+  container and confirm kernel/engine cleanup before releasing workspace ownership.
+  Remove the exact owned container before deleting mounted content.
+
+Build/provision instructions are in [deploy/podman](../deploy/podman/README.md).
+The mandatory task gates are `uv run pytest -W error tests/test_podman_supervisor.py`
+from `runtime`, and `make test-podman-supervisor` from the repository root with
+an explicit preinstalled digest-pinned `CONTRACTOR_TEST_PODMAN_IMAGE`. Passing
+the ordinary suite's opt-in skips does not satisfy the real gate. The gate also
+checks actual CPU throttling, memory OOM enforcement, PID exhaustion, tmpfs size,
+network isolation, seccomp/no-new-privileges and mutual host/container file edits.
+
+Kernel semantics: [cgroup v2 freezer, kill and populated state](https://docs.kernel.org/admin-guide/cgroup-v2.html).

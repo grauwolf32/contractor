@@ -19,6 +19,11 @@ test-runtime:
 test-runtime-hardening:
 	cd runtime && uv run pytest -W error tests
 
+.PHONY: test-podman-supervisor
+test-podman-supervisor:
+	@test -n "$$CONTRACTOR_TEST_PODMAN_IMAGE" || (echo "CONTRACTOR_TEST_PODMAN_IMAGE must name a preinstalled digest-pinned image" >&2; exit 1)
+	cd runtime && CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_supervisor_integration.py
+
 test-hardening-matrices:
 	go test -count=1 ./tests/e2e
 

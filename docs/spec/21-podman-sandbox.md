@@ -1,6 +1,6 @@
 # 21 — Allocation-scoped Podman execution sandbox
 
-Status: **Contracts/settings and private engine implemented in V31-001/V31-002; execution profile not enabled**
+Status: **Contracts/settings, private engine and guardian/image primitives implemented in V31-001–V31-003; execution profile not enabled**
 
 Depends on: [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -330,6 +330,16 @@ A host guardian tied to the Runtime service or an equivalently isolated
 supervisor can implement this boundary; the implementation must prove it before
 advertising the profile. This is a required implementation/probe item, not a
 guarantee supplied automatically by `podman exec`.
+
+V31-003 selects a host guardian with an inherited private socket, an exact pinned
+systemd cgroup v2 scope and a PID 1 pidfd. A separate subordinate-UID inert image
+PID 1 reaps orphans; workloads use the nonzero keep-id UID. Completion checks
+freeze and recursively inventory the scope before unfreezing only PID 1.
+Liveness is capped at ten seconds and the confirmed lease; expiry/EOF/uncertainty
+kills the entire scope through `cgroup.kill`. No engine socket or control token
+is exposed to workloads. The concrete protocol, real-host gate and remaining
+lifecycle integration obligations are documented in
+[Runtime Podman policy](../../runtime/PODMAN.md#host-guardian-and-image-v31-003).
 
 ## Probes, errors and metrics
 
