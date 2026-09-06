@@ -466,15 +466,142 @@ func TestAuditFindingReviewHistoryAndDeletedRunProvenance(t *testing.T) {
 	if err != nil || len(history) != 5 || history[0].Decision == nil || history[4].Decision == nil {
 		t.Fatalf("finding decision history = (%+v, %v)", history, err)
 	}
+	seedAuditFindingAttemptHistory(t, ctx, pool, auditID, firstID, "receipt-first")
 	provenance, err := service.ListFindingProvenance(ctx, ProvenanceListParams{
 		OwnerID: ownerID, AuditID: auditID, FindingID: firstID, Limit: 10,
 	})
-	if err != nil || len(provenance) != 1 || provenance[0].Kind != ProvenanceSourceProposal ||
-		!provenance[0].Origin.RunDeleted {
+	if err != nil || len(provenance) != 3 || provenance[0].Kind != ProvenanceSourceProposal ||
+		!provenance[0].Origin.RunDeleted || provenance[1].Attempt == nil ||
+		provenance[1].Attempt.ItemAttempt != 1 ||
+		provenance[1].Attempt.CollectionDisposition == nil ||
+		*provenance[1].Attempt.CollectionDisposition != auditstore.CollectionExecutionFailed ||
+		provenance[1].Attempt.Result != nil || provenance[2].Attempt == nil ||
+		provenance[2].Attempt.ItemAttempt != 2 || provenance[2].Assessment == nil ||
+		provenance[2].Assessment.SemanticAssessment != "supported" ||
+		provenance[2].Attempt.Result == nil || !provenance[2].Attempt.RunDeleted ||
+		provenance[2].Attempt.RunProvenance == nil ||
+		provenance[2].Attempt.RunProvenance.RunID != "deleted-run-attempt-two" {
 		t.Fatalf("deleted-Run provenance = (%+v, %v)", provenance, err)
 	}
 	if _, err := service.GetFinding(ctx, "another-owner", auditID, firstID); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("foreign finding read error = %v", err)
+	}
+}
+
+func seedAuditFindingAttemptHistory(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
+	auditID, findingID, proposalReceiptID string,
+) {
+	t.Helper()
+	digest := func(value string) string { return serviceTestDigest("attempt-" + value) }
+	taskRef := `{"namespace":"audit-task-packages","name":"check-one","revision":"task-r1"}`
+	resultRef := `{"namespace":"audit-results","name":"check-one","revision":"result-r2"}`
+	origin := `{"schema":"contractor.audit.item-origin.v1","entryKey":"check-one","provenanceIncomplete":true}`
+	err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
+INSERT INTO audit_rounds (
+    round_id, audit_id, ordinal, manifest_ref, manifest_digest, state, expected_item_count
+) VALUES (
+    'round-finding-attempts', $1, 1,
+    '{"namespace":"audit-rounds","name":"round-one","revision":"round-r1"}'::jsonb,
+    $2, 'closed', 1
+)`, auditID, digest("round")); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+INSERT INTO audit_items (
+    item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
+    task_ref, task_digest, origin, workflow_role, state
+) VALUES (
+    'item-finding-attempts', $1, 'round-finding-attempts', 'check-one', 0,
+    'check', 'component-one', $2::jsonb, $3, $4::jsonb, 'check-role', 'ready'
+)`, auditID, taskRef, digest("task"), origin); err != nil {
+			return err
+		}
+		for _, attempt := range []struct {
+			executionID, memberID, runID, outcome, disposition string
+			ordinal                                            int
+			hasResult                                          bool
+		}{
+			{"execution-attempt-one", "execution-item-attempt-one", "deleted-run-attempt-one", "failed", "execution-failed", 1, false},
+			{"execution-attempt-two", "execution-item-attempt-two", "deleted-run-attempt-two", "succeeded", "accepted-result", 2, true},
+		} {
+			runProvenance, _ := json.Marshal(auditstore.RunProvenance{
+				Schema: "contractor.audit.run-provenance.v1", RunID: attempt.runID,
+				ProvenanceIncomplete: true,
+			})
+			if _, err := tx.Exec(ctx, `
+INSERT INTO audit_executions (
+    execution_id, audit_id, round_id, role, manifest_ref, manifest_digest,
+    submission_key, request_digest, run_id, state, terminal_outcome,
+    terminal_run_generation, terminal_run_sequence, terminal_observed_at,
+    run_provenance, run_deleted_at
+) VALUES (
+    $1, $2, 'round-finding-attempts', 'check',
+    '{"namespace":"audit-executions","name":"check-one","revision":"execution-r1"}'::jsonb,
+    $3, $4, $5, $6, 'collected', $7, 'generation-one', $8,
+    clock_timestamp(), $9::jsonb, clock_timestamp()
+)`, attempt.executionID, auditID, digest(attempt.executionID),
+				"submission-"+attempt.executionID, digest("request-"+attempt.executionID),
+				attempt.runID, attempt.outcome, attempt.ordinal, runProvenance); err != nil {
+				return err
+			}
+			var storedResultRef any
+			var storedResultDigest any
+			if attempt.hasResult {
+				storedResultRef = resultRef
+				storedResultDigest = digest("result")
+			}
+			if _, err := tx.Exec(ctx, `
+INSERT INTO audit_execution_items (
+    execution_item_id, execution_id, audit_id, round_id, item_id,
+    batch_ordinal, item_attempt, task_ref, task_digest, input_refs,
+    state, collection_disposition, result_ref, result_digest, collected_at
+) VALUES (
+    $1, $2, $3, 'round-finding-attempts', 'item-finding-attempts',
+    0, $4, $5::jsonb, $6, '[]'::jsonb, 'settled', $7,
+    $8::jsonb, $9, clock_timestamp()
+)`, attempt.memberID, attempt.executionID, auditID, attempt.ordinal,
+				taskRef, digest("task"), attempt.disposition, storedResultRef,
+				storedResultDigest); err != nil {
+				return err
+			}
+		}
+		if _, err := tx.Exec(ctx, `
+INSERT INTO audit_collection_receipts (
+    receipt_id, audit_id, execution_id, run_id, terminal_outcome,
+    terminal_run_generation, terminal_run_sequence, disposition,
+    source_output_ref, source_output_digest, retained_refs, request_digest
+) VALUES (
+    'collection-attempt-two', $1, 'execution-attempt-two',
+    'deleted-run-attempt-two', 'succeeded', 'generation-one', 2,
+    'accepted-result', $2::jsonb, $3, '[]'::jsonb, $4
+)`, auditID, resultRef, digest("result"), digest("collection")); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+INSERT INTO audit_finding_assessments (
+    assessment_id, finding_id, audit_id, receipt_id, item_id,
+    execution_item_id, collection_receipt_id, semantic_assessment,
+    result_ref, result_digest
+) VALUES (
+    'assessment-attempt-two', $4, $1, $5, 'item-finding-attempts',
+    'execution-item-attempt-two', 'collection-attempt-two', 'supported',
+    $2::jsonb, $3
+)`, auditID, resultRef, digest("result"), findingID, proposalReceiptID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `
+UPDATE audit_items
+   SET state = 'settled', final_disposition = 'accepted-result',
+       accepted_result_ref = $2::jsonb, accepted_result_digest = $3,
+       last_execution_item_id = 'execution-item-attempt-two'
+ WHERE audit_id = $1 AND item_id = 'item-finding-attempts'`,
+			auditID, resultRef, digest("result"))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

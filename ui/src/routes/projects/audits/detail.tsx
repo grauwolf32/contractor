@@ -904,6 +904,46 @@ function FindingProvenanceView({
                   {record.supportsCurrentAssessment ? "current" : "historical"}
                 </span>
               )}
+              {record.attempt === undefined ? null : (
+                <div className="audit-provenance-attempt">
+                  <span>
+                    attempt {record.attempt.itemAttempt} · {record.attempt.role}
+                    /{record.attempt.workflowRole} · {record.attempt.state}
+                  </span>
+                  <span>
+                    {record.attempt.terminalOutcome ?? "execution pending"} ·{" "}
+                    {record.attempt.collectionDisposition ?? "not collected"}
+                    {record.attempt.runDeleted ? " · Run deleted" : ""}
+                  </span>
+                  {record.attempt.runProvenance?.workflow ===
+                  undefined ? null : (
+                    <span>
+                      verification Workflow{" "}
+                      <strong>
+                        {record.attempt.runProvenance.workflow.name}@
+                        {record.attempt.runProvenance.workflow.version}
+                      </strong>
+                    </span>
+                  )}
+                  <span>
+                    inventory entry {record.attempt.itemOrigin.entryKey}
+                  </span>
+                  <ExactArtifactLink
+                    projectId={audit.projectId}
+                    artifact={record.attempt.task}
+                    label="Task"
+                    projectReadable
+                  />
+                  {record.attempt.result === undefined ? null : (
+                    <ExactArtifactLink
+                      projectId={audit.projectId}
+                      artifact={record.attempt.result}
+                      label="Result"
+                      projectReadable
+                    />
+                  )}
+                </div>
+              )}
             </li>
           ))}
           {provenance.data.items.length === 0 ? (

@@ -176,6 +176,14 @@
   padding-top: 0.8rem;
 }
 
+.audit-provenance-attempt {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--line);
+}
+
 .audit-finding-review-form > label,
 .audit-review-fields label {
   display: grid;

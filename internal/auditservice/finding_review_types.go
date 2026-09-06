@@ -211,6 +211,11 @@ const (
 	ProvenanceDirect         FindingProvenanceKind = "direct-verification"
 )
 
+func (kind FindingProvenanceKind) Valid() bool {
+	return kind == ProvenanceSourceProposal || kind == ProvenanceCheckAttempt ||
+		kind == ProvenanceDirect
+}
+
 type FindingProvenance struct {
 	RecordID        string                   `json:"recordId"`
 	Kind            FindingProvenanceKind    `json:"kind"`
@@ -219,8 +224,33 @@ type FindingProvenance struct {
 	Proposal        auditstore.ExactArtifact `json:"proposal"`
 	Origin          findingintake.Origin     `json:"origin"`
 	Assessment      *FindingAssessment       `json:"assessment,omitempty"`
+	Attempt         *FindingAttempt          `json:"attempt,omitempty"`
 	SupportsCurrent bool                     `json:"supportsCurrentAssessment"`
 	CreatedAt       time.Time                `json:"createdAt"`
+}
+
+// FindingAttempt preserves the trusted verification execution independently
+// of whether that attempt produced the assessment currently selected for the
+// finding. It therefore keeps failed, invalid, inconclusive and superseded
+// attempts visible after their ordinary child Run is deleted.
+type FindingAttempt struct {
+	ExecutionID           string                            `json:"executionId"`
+	ExecutionItemID       string                            `json:"executionItemId"`
+	ItemID                string                            `json:"itemId"`
+	ItemAttempt           int                               `json:"itemAttempt"`
+	Role                  auditstore.ExecutionRole          `json:"role"`
+	WorkflowRole          string                            `json:"workflowRole"`
+	State                 auditstore.ItemState              `json:"state"`
+	CollectionDisposition *auditstore.CollectionDisposition `json:"collectionDisposition,omitempty"`
+	TerminalOutcome       *auditstore.TerminalOutcome       `json:"terminalOutcome,omitempty"`
+	RunID                 *string                           `json:"runId,omitempty"`
+	RunDeleted            bool                              `json:"runDeleted"`
+	RunProvenance         *auditstore.RunProvenance         `json:"runProvenance,omitempty"`
+	Task                  auditstore.ExactArtifact          `json:"task"`
+	ItemOrigin            auditstore.ItemOrigin             `json:"itemOrigin"`
+	Result                *auditstore.ExactArtifact         `json:"result,omitempty"`
+	CreatedAt             time.Time                         `json:"createdAt"`
+	CollectedAt           *time.Time                        `json:"collectedAt,omitempty"`
 }
 
 type ProvenanceListParams struct {

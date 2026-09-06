@@ -421,6 +421,93 @@ describe("Project Audit routes", () => {
         }
         if (
           path ===
+          "/v1/audits/audit_example/findings/finding_example/provenance"
+        ) {
+          return jsonResponse({
+            auditRevision: currentAudit.revision,
+            findingRevision: currentFinding.revision,
+            items: [
+              {
+                recordId: "attempt:receipt_example:execution_item_example",
+                kind: "check-attempt",
+                receiptId: "receipt_example",
+                relation: "verification",
+                proposal: currentFinding.firstProposal.proposal,
+                origin: currentFinding.firstProposal.origin,
+                supportsCurrentAssessment: true,
+                createdAt: currentAudit.createdAt,
+                assessment: {
+                  assessmentId: "assessment_example",
+                  semanticAssessment: "supported",
+                  result: {
+                    ref: {
+                      namespace: "audit-results",
+                      name: "check-one",
+                      revision: "result-r2",
+                    },
+                    digest: `sha256:${"8".repeat(64)}`,
+                  },
+                  receiptId: "receipt_example",
+                  directVerification: false,
+                  acceptedAt: currentAudit.createdAt,
+                },
+                attempt: {
+                  executionItemId: "execution_item_example",
+                  executionId: "execution_example",
+                  itemId: "item_example",
+                  itemAttempt: 2,
+                  role: "check",
+                  workflowRole: "authorization-check",
+                  state: "settled",
+                  collectionDisposition: "accepted-result",
+                  terminalOutcome: "succeeded",
+                  runId: "run_verification",
+                  runDeleted: true,
+                  runProvenance: {
+                    schema: "contractor.audit.run-provenance.v1",
+                    runId: "run_verification",
+                    workflow: {
+                      name: "verify-authorization",
+                      version: "1",
+                      schemaVersion: "contractor/v1alpha1",
+                      configurationRef: {
+                        name: "verify-authorization",
+                        version: "1",
+                      },
+                      closureDigest: `sha256:${"9".repeat(64)}`,
+                    },
+                  },
+                  task: {
+                    ref: {
+                      namespace: "audit-task-packages",
+                      name: "check-one",
+                      revision: "task-r1",
+                    },
+                    digest: `sha256:${"a".repeat(64)}`,
+                  },
+                  itemOrigin: {
+                    schema: "contractor.audit.item-origin.v1",
+                    entryKey: "check-one",
+                    provenanceIncomplete: true,
+                  },
+                  result: {
+                    ref: {
+                      namespace: "audit-results",
+                      name: "check-one",
+                      revision: "result-r2",
+                    },
+                    digest: `sha256:${"8".repeat(64)}`,
+                  },
+                  createdAt: currentAudit.createdAt,
+                  collectedAt: currentAudit.updatedAt,
+                },
+              },
+            ],
+            page: { hasMore: false },
+          });
+        }
+        if (
+          path ===
             "/v1/audits/audit_example/findings/finding_example/reviews" &&
           request.method === "POST"
         ) {
@@ -491,6 +578,14 @@ describe("Project Audit routes", () => {
       }),
     ).toBeVisible();
     expect(screen.getByText("Unreviewed")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show provenance" }));
+    expect(
+      await screen.findByText(
+        "attempt 2 · check/authorization-check · settled",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("verify-authorization@1")).toBeVisible();
+    expect(screen.getByText("inventory entry check-one")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Review finding" }));
     await user.selectOptions(await screen.findByLabelText("Severity"), "high");
     await user.type(

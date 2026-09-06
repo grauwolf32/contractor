@@ -1679,6 +1679,27 @@ export interface components {
             /** Format: date-time */
             collectedAt?: string;
         };
+        AuditFindingAttempt: {
+            executionItemId: components["schemas"]["ResourceId"];
+            executionId: components["schemas"]["ResourceId"];
+            itemId: components["schemas"]["ResourceId"];
+            itemAttempt: number;
+            role: components["schemas"]["AuditExecutionRole"];
+            workflowRole: string;
+            state: components["schemas"]["AuditExecutionItemState"];
+            collectionDisposition?: components["schemas"]["AuditCollectionDisposition"];
+            terminalOutcome?: components["schemas"]["AuditTerminalOutcome"];
+            runId?: components["schemas"]["ResourceId"];
+            runDeleted: boolean;
+            runProvenance?: components["schemas"]["AuditRunProvenance"];
+            task: components["schemas"]["AuditExactArtifact"];
+            itemOrigin: components["schemas"]["AuditItemOrigin"];
+            result?: components["schemas"]["AuditExactArtifact"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            collectedAt?: string;
+        };
         AuditItemOrigin: {
             /** @constant */
             schema: "contractor.audit.item-origin.v1";
@@ -1940,6 +1961,7 @@ export interface components {
             proposal: components["schemas"]["AuditExactArtifact"];
             origin: components["schemas"]["FindingOrigin"];
             assessment?: components["schemas"]["AuditFindingAssessment"];
+            attempt?: components["schemas"]["AuditFindingAttempt"];
             supportsCurrentAssessment: boolean;
             /** Format: date-time */
             createdAt: string;

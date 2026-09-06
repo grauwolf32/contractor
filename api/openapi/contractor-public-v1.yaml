@@ -3241,6 +3241,28 @@ components:
         runProvenance: {$ref: '#/components/schemas/AuditRunProvenance'}
         createdAt: {type: string, format: date-time}
         collectedAt: {type: string, format: date-time}
+    AuditFindingAttempt:
+      type: object
+      additionalProperties: false
+      required: [executionItemId, executionId, itemId, itemAttempt, role, workflowRole, state, runDeleted, task, itemOrigin, createdAt]
+      properties:
+        executionItemId: {$ref: '#/components/schemas/ResourceId'}
+        executionId: {$ref: '#/components/schemas/ResourceId'}
+        itemId: {$ref: '#/components/schemas/ResourceId'}
+        itemAttempt: {type: integer, minimum: 1, maximum: 10}
+        role: {$ref: '#/components/schemas/AuditExecutionRole'}
+        workflowRole: {type: string, minLength: 1, maxLength: 128}
+        state: {$ref: '#/components/schemas/AuditExecutionItemState'}
+        collectionDisposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
+        terminalOutcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        runDeleted: {type: boolean}
+        runProvenance: {$ref: '#/components/schemas/AuditRunProvenance'}
+        task: {$ref: '#/components/schemas/AuditExactArtifact'}
+        itemOrigin: {$ref: '#/components/schemas/AuditItemOrigin'}
+        result: {$ref: '#/components/schemas/AuditExactArtifact'}
+        createdAt: {type: string, format: date-time}
+        collectedAt: {type: string, format: date-time}
     AuditItemOrigin:
       type: object
       additionalProperties: false
@@ -3561,6 +3583,7 @@ components:
         proposal: {$ref: '#/components/schemas/AuditExactArtifact'}
         origin: {$ref: '#/components/schemas/FindingOrigin'}
         assessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
+        attempt: {$ref: '#/components/schemas/AuditFindingAttempt'}
         supportsCurrentAssessment: {type: boolean}
         createdAt: {type: string, format: date-time}
     AuditFindingProvenancePage:
