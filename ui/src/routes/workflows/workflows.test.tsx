@@ -521,8 +521,8 @@ describe("Workflow routes", () => {
       .getByRole("heading", { name: "Run metadata labels" })
       .closest("section");
     expect(metadata).not.toBeNull();
-    expect(metadata).toHaveTextContent("eval.id=eval-ui-01");
-    expect(metadata).toHaveTextContent("eval.leg=a");
+    expect(metadata).toHaveTextContent("eval.id:eval-ui-01");
+    expect(metadata).toHaveTextContent("eval.leg:a");
     expect(metadata).toHaveTextContent("Immutable");
   });
 
