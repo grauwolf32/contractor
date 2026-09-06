@@ -194,9 +194,7 @@ def _build_request(
         refs.append(ref.model_dump(by_alias=True, exclude_none=True))
     refs.sort(key=lambda value: (value["namespace"], value["name"], value["revision"]))
 
-    checks = _object_list(
-        "proposed_checks", proposed_checks, {"objective", "method"}, MAX_VALUES
-    )
+    checks = _object_list("proposed_checks", proposed_checks, {"objective", "method"}, MAX_VALUES)
     for check in checks:
         _text("proposed_checks.objective", check["objective"], required=True)
         _identifier("proposed_checks.method", check["method"])

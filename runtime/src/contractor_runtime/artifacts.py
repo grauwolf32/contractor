@@ -105,9 +105,7 @@ class ArtifactClient:
         self._allocation_id = allocation_id
         self._transport = transport
         self._root = f"/allocations/{quote(allocation_id, safe='')}/artifacts"
-        self._finding_root = (
-            f"/allocations/{quote(allocation_id, safe='')}/finding-proposals"
-        )
+        self._finding_root = f"/allocations/{quote(allocation_id, safe='')}/finding-proposals"
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
         self._observed_exact_refs: list[ArtifactRef] = []
 
@@ -146,9 +144,7 @@ class ArtifactClient:
         try:
             value = json.loads(response.body)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise ArtifactTransportError(
-                "finding proposal API returned invalid JSON"
-            ) from error
+            raise ArtifactTransportError("finding proposal API returned invalid JSON") from error
         expected = {"apiVersion", "proposalId", "receiptId", "proposal", "replayed"}
         if not isinstance(value, dict) or set(value) != expected:
             raise ArtifactTransportError("finding proposal API returned an invalid receipt")
