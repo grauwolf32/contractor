@@ -3,10 +3,10 @@ id: V26-004
 title: Execute small compatible Audit item batches in one ordinary Run
 milestone: audit-batch-efficiency
 priority: P2
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 9509666c6c24c9819962f7d1f60641501289d953
 depends_on: [V25-012]
-languages: [go, sql, yaml]
+languages: [go, python, sql, yaml]
 
 goal: >-
   Reduce repeated workspace preparation and shared analysis cost by processing
@@ -61,4 +61,6 @@ acceptance_criteria:
 
 tests:
   - {name: controller, command: "go test -race ./internal/auditcontroller ./internal/auditimport -run Batch", covers: [A1, A2, A3, A4]}
-  - {name: postgres, command: "go test -tags=integration ./internal/auditstore ./internal/auditcontroller -run Batch", covers: [A1, A2, A3, A4]}
+  - {name: runtime, command: "uv run --project runtime pytest -q runtime/tests/test_audit_results_toolset.py", covers: [A1, A2]}
+  - {name: postgres, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -tags=integration -race ./internal/auditstore ./internal/auditcontroller ./internal/auditimport -run Batch", covers: [A1, A2, A3]}
+  - {name: process, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... go test -tags=e2e -timeout=15m ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$'", covers: [A1, A2, A4]}
