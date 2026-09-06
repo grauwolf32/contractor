@@ -74,6 +74,10 @@ func (s *Service) Submit(
 	if err != nil {
 		return Receipt{}, false, err
 	}
+	preparedPayload, err := artifacts.PreparePayload(ctx, artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes})
+	if err != nil {
+		return Receipt{}, false, err
+	}
 	var result Receipt
 	var replayed bool
 	err = persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -151,7 +155,7 @@ SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, grant.RunID).
 		)
 		written, writeErr := artifactService.WriteFindingProposal(
 			ctx, grant.RunID, proposalID,
-			artifacts.Payload{MediaType: proposalMediaType, Data: canonical.proposalBytes},
+			preparedPayload,
 		)
 		if writeErr != nil {
 			if errors.Is(writeErr, artifacts.ErrArtifactConflict) {

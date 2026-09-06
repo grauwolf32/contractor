@@ -55,9 +55,10 @@ func ServeSystem(
 	if shutdownTimeout <= 0 {
 		return fmt.Errorf("shutdown timeout must be positive")
 	}
-	publicServer := &http.Server{Handler: publicHandler, ReadHeaderTimeout: 5 * time.Second}
-	privateServer := &http.Server{Handler: privateHandler, ReadHeaderTimeout: 5 * time.Second}
-	schedulerContext, cancelScheduler := context.WithCancel(context.Background())
+	baseContext := func(net.Listener) context.Context { return context.WithoutCancel(ctx) }
+	publicServer := &http.Server{Handler: publicHandler, ReadHeaderTimeout: 5 * time.Second, BaseContext: baseContext}
+	privateServer := &http.Server{Handler: privateHandler, ReadHeaderTimeout: 5 * time.Second, BaseContext: baseContext}
+	schedulerContext, cancelScheduler := context.WithCancel(context.WithoutCancel(ctx))
 	defer cancelScheduler()
 
 	publicDone := make(chan error, 1)

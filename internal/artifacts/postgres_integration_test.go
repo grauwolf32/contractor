@@ -29,6 +29,7 @@ func TestPostgresIntegration64MiBPayloadBoundary(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	service := NewService(NewPostgresRepository(pool))
 	user, _ := service.User("user-large-artifact")
 	data := make([]byte, 64<<20, (64<<20)+1)
@@ -59,6 +60,7 @@ func TestPostgresIntegrationInputForkAndHistoricalReads(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-fork", false)
 	service := NewService(NewPostgresRepository(pool))
 	user, _ := service.User("user-1")
@@ -207,6 +209,7 @@ func TestPostgresIntegrationProjectInputForkPinsExactAndCurrentRevisions(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	projectID := "project-fork"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -285,6 +288,7 @@ func TestPostgresIntegrationProjectScopeRevisions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: "project-artifacts", OwnerID: "user-1", Kind: projectstore.KindProject,
 		Name: "Artifacts", IdempotencyKey: "create-project-artifacts",
@@ -331,6 +335,7 @@ func TestPostgresIntegrationListMetadataExcludesNamespaceBeforeLimit(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	service := NewService(NewPostgresRepository(pool))
 	user, err := service.User("user-1")
 	if err != nil {
@@ -364,6 +369,7 @@ func TestPostgresIntegrationPublishesExactFrozenRunOutputToOwningProject(t *test
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	projectID := "project-output"
 	_, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -434,6 +440,7 @@ func TestPostgresIntegrationDeletesReleasedTerminalRunWithoutSharedArtifacts(t *
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	projectID := "project-run-delete"
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindProject,
@@ -668,6 +675,7 @@ func TestPostgresIntegrationRunDeletionParticipatesInCallerTransaction(t *testin
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	const runID = "run-delete-rollback"
 	createArtifactRun(t, ctx, pool, runID, true)
 
@@ -726,6 +734,7 @@ func TestPostgresIntegrationArtifactCASRace(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	service := NewService(NewPostgresRepository(pool))
 	user, _ := service.User("user-race")
 	initial, err := user.Write(
@@ -779,6 +788,7 @@ func TestPostgresIntegrationConcurrentFirstScopeAndBlobWrites(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 
 	t.Run("scope created by concurrent transaction", func(t *testing.T) {
 		createArtifactRun(t, ctx, pool, "run-scope-race", true)
@@ -850,6 +860,7 @@ func TestPostgresIntegrationFreezeEmptyRunOutputs(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-empty-freeze", true)
 	service := NewService(NewPostgresRepository(pool))
 	if err := service.FreezeRunOutputs(ctx, "run-empty-freeze"); err != nil {
@@ -870,6 +881,7 @@ func TestPostgresIntegrationSkillForkUsesExactSourceAndReservedTarget(t *testing
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-skill-fork", false)
 	service := NewService(NewPostgresRepository(pool))
 	user, _ := service.User("user-1")
@@ -982,6 +994,7 @@ func TestPostgresIntegrationOutputBindingSharesCallerTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	pool := isolatedArtifactPool(t, ctx)
+	ctx = testBlobContext(t, ctx, pool)
 	createArtifactRun(t, ctx, pool, "run-output", true)
 	service := NewService(NewPostgresRepository(pool))
 	run, _ := service.Run("run-output")

@@ -25,6 +25,13 @@ func (h *handler) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return
@@ -51,6 +58,13 @@ func (h *handler) getProjectArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) putProjectArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	store, _, err := h.ownedActiveProjectArtifactStore(r)
 	if err != nil {
 		h.handleError(w, err)

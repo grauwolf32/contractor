@@ -86,6 +86,11 @@ func (s *PostgresStore) Write(
 	if _, err := NameFromArtifact(target.Name); err != nil {
 		return artifacts.WriteResult{}, ErrAccessForbidden
 	}
+	var prepareErr error
+	payload, prepareErr = artifacts.PreparePayload(ctx, payload)
+	if prepareErr != nil {
+		return artifacts.WriteResult{}, prepareErr
+	}
 	return withActiveStage(ctx, s.pool, true, binding, s.writeBoundary, func(tx pgx.Tx) (artifacts.WriteResult, error) {
 		store, err := runArtifactStore(tx, binding.RunID)
 		if err != nil {

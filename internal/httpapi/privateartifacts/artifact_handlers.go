@@ -48,6 +48,13 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	query, err := exactQuery(r.URL.RawQuery, "revision")
 	if err != nil {
 		h.handleError(w, err)
@@ -81,6 +88,13 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -113,6 +127,11 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, errArtifactAccessDenied)
 		return
 	}
+	preparedPayload, err := artifacts.PreparePayload(r.Context(), artifacts.Payload{MediaType: mediaType, Data: payload})
+	if err != nil {
+		h.handleError(w, err)
+		return
+	}
 	var result artifacts.WriteResult
 	err = h.dependencies.Registry.WithWriteGrant(
 		allocationID,
@@ -124,7 +143,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 			result, storeErr = store.Write(
 				r.Context(),
 				contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")},
-				artifacts.Payload{MediaType: mediaType, Data: payload},
+				preparedPayload,
 				expectedRevision,
 			)
 			return storeErr

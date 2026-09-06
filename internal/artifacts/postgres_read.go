@@ -16,8 +16,13 @@ func (r *PostgresRepository) Read(ctx context.Context, scope Scope, ref Artifact
 	if err := validateRef(ref); err != nil {
 		return ReadResult{}, err
 	}
+	ctx, releaseTransfer, err := AcquireTransfer(ctx)
+	if err != nil {
+		return ReadResult{}, err
+	}
+	defer releaseTransfer()
 	query := `
-SELECT revision.revision, version.media_type, blob.payload, blob.sha256, blob.size_bytes,
+SELECT revision.revision, version.media_type, blob.backend, blob.object_key, blob.payload, blob.sha256, blob.size_bytes,
        binding.created_at, revision.created_at
 FROM artifact_bindings AS binding
 JOIN artifact_binding_revisions AS revision
@@ -33,7 +38,7 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
 	arguments := []any{scope.kind, scope.id, ref.Namespace, ref.Name}
 	if ref.Revision != nil {
 		query = `
-SELECT revision.revision, version.media_type, blob.payload, blob.sha256, blob.size_bytes,
+SELECT revision.revision, version.media_type, blob.backend, blob.object_key, blob.payload, blob.sha256, blob.size_bytes,
        binding.created_at, revision.created_at
 FROM artifact_binding_revisions AS revision
 JOIN artifact_bindings AS binding
@@ -50,13 +55,15 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
 
 	var revision string
 	var mediaType string
+	var backend BlobBackend
+	var objectKey *string
 	var data []byte
 	var storedDigest []byte
 	var size int64
 	var bindingCreatedAt time.Time
 	var revisionCreatedAt time.Time
-	err := r.db.QueryRow(ctx, query, arguments...).Scan(
-		&revision, &mediaType, &data, &storedDigest, &size,
+	err = r.db.QueryRow(ctx, query, arguments...).Scan(
+		&revision, &mediaType, &backend, &objectKey, &data, &storedDigest, &size,
 		&bindingCreatedAt, &revisionCreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -65,7 +72,11 @@ WHERE revision.scope_kind = $1 AND revision.scope_id = $2
 	if err != nil {
 		return ReadResult{}, fmt.Errorf("read artifact %s/%s: %w", ref.Namespace, ref.Name, err)
 	}
-	data, err = (PostgresBlobStore{}).Read(ctx, BlobObject{Backend: BlobPostgres, Inline: data, Digest: storedDigest, Size: size})
+	object := BlobObject{Backend: backend, Inline: data, Digest: storedDigest, Size: size}
+	if objectKey != nil {
+		object.Key = *objectKey
+	}
+	data, err = activeBlobStore(ctx).Read(ctx, object)
 	if err != nil {
 		return ReadResult{}, err
 	}

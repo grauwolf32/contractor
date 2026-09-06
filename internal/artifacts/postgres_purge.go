@@ -311,15 +311,28 @@ RETURNING version.blob_sha256`, versionIDs)
 	if len(blobDigests) == 0 {
 		return nil
 	}
-	if _, err := p.tx.Exec(ctx, `
+	deleted, err := p.tx.Query(ctx, `
 DELETE FROM artifact_blobs AS blob
 WHERE blob.sha256 = ANY($1::bytea[])
-  AND NOT EXISTS (
-      SELECT 1
-      FROM artifact_versions AS version
-      WHERE version.blob_sha256 = blob.sha256
-  )`, blobDigests); err != nil {
+  AND NOT EXISTS (SELECT 1 FROM artifact_versions AS version WHERE version.blob_sha256 = blob.sha256)
+RETURNING backend, object_key`, blobDigests)
+	if err != nil {
 		return fmt.Errorf("collect unreferenced Artifact blobs: %w", err)
 	}
+	defer deleted.Close()
+	for deleted.Next() {
+		var kind BlobBackend
+		var key *string
+		if err := deleted.Scan(&kind, &key); err != nil {
+			return err
+		}
+		if kind == BlobFilesystem && key != nil {
+			deletePhysicalAfterCommit(ctx, p.tx, BlobObject{Backend: kind, Key: *key})
+		}
+	}
+	if err := deleted.Err(); err != nil {
+		return err
+	}
+
 	return nil
 }

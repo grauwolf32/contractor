@@ -316,7 +316,7 @@ paths:
         `If-None-Match: *` creates a new binding. One strong quoted `If-Match`
         revision updates an existing binding. Supplying both is invalid.
       x-contractor-implementation: implemented
-      x-max-request-body-bytes: 16777216
+      x-max-request-body-bytes: 67108864
       parameters:
         - $ref: '#/components/parameters/IfMatch'
         - $ref: '#/components/parameters/IfNoneMatch'
@@ -326,7 +326,7 @@ paths:
         required: true
         content:
           '*/*':
-            schema: {type: string, format: binary, maxLength: 16777216}
+            schema: {type: string, format: binary, maxLength: 67108864}
       responses:
         '200': {$ref: '#/components/responses/ArtifactWritten'}
         '201': {$ref: '#/components/responses/ArtifactCreated'}
@@ -337,6 +337,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
     get:
       operationId: downloadProjectArtifact
       tags: [Projects, Artifacts]
@@ -353,6 +354,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata:
     parameters:
@@ -1497,6 +1499,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
 
   /v1/runs/{runId}/artifacts/{namespace}/{name}/metadata:
     parameters:
@@ -1622,7 +1625,7 @@ paths:
         `If-None-Match: *` creates a new binding. One strong quoted `If-Match`
         revision updates an existing binding. Supplying both is invalid.
       x-contractor-implementation: implemented
-      x-max-request-body-bytes: 16777216
+      x-max-request-body-bytes: 67108864
       parameters:
         - $ref: '#/components/parameters/IfMatch'
         - $ref: '#/components/parameters/IfNoneMatch'
@@ -1632,7 +1635,7 @@ paths:
         required: true
         content:
           '*/*':
-            schema: {type: string, format: binary, maxLength: 16777216}
+            schema: {type: string, format: binary, maxLength: 67108864}
       responses:
         '200': {$ref: '#/components/responses/ArtifactWritten'}
         '201': {$ref: '#/components/responses/ArtifactCreated'}
@@ -1642,6 +1645,7 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
     get:
       operationId: downloadArtifact
       tags: [Artifacts]
@@ -1658,6 +1662,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
 
   /v1/artifacts/{namespace}/{name}/metadata:
     parameters:
@@ -2782,11 +2787,11 @@ components:
         ETag: {$ref: '#/components/headers/ETag'}
         Content-Length:
           required: true
-          schema: {type: integer, minimum: 0, maximum: 16777216}
+          schema: {type: integer, minimum: 0, maximum: 67108864}
         Content-Disposition: {$ref: '#/components/headers/ContentDisposition'}
       content:
         '*/*':
-          schema: {type: string, format: binary, maxLength: 16777216}
+          schema: {type: string, format: binary, maxLength: 67108864}
     BadRequest: {$ref: '#/components/responses/Error400'}
     Unauthorized: {$ref: '#/components/responses/Error401'}
     Forbidden: {$ref: '#/components/responses/Error403'}
@@ -2795,6 +2800,10 @@ components:
     PreconditionFailed: {$ref: '#/components/responses/Error412'}
     UnsupportedMediaType: {$ref: '#/components/responses/Error415'}
     UnprocessableEntity: {$ref: '#/components/responses/Error422'}
+    ArtifactUnavailable:
+      description: Transfer capacity exhausted (retryable) or stored content missing/corrupt (not automatically retryable).
+      headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     PayloadTooLarge: {$ref: '#/components/responses/Error413'}
     RateLimited:
       description: Bounded process-local rate or socket limit
@@ -2861,7 +2870,7 @@ components:
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error413:
-      description: Artifact exceeds the 16 MiB limit
+      description: Artifact exceeds the 64 MiB limit
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Error415:
@@ -4185,7 +4194,7 @@ components:
       properties:
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
         mediaType: {$ref: '#/components/schemas/MediaType'}
-        size: {type: integer, minimum: 0, maximum: 16777216}
+        size: {type: integer, minimum: 0, maximum: 67108864}
       example:
         artifact: {namespace: projects, name: source, revision: revision-1}
         mediaType: text/plain
@@ -4197,7 +4206,7 @@ components:
       properties:
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
         mediaType: {$ref: '#/components/schemas/MediaType'}
-        size: {type: integer, minimum: 0, maximum: 16777216}
+        size: {type: integer, minimum: 0, maximum: 67108864}
         current: {type: boolean}
         frozen: {type: boolean}
         createdAt: {type: string, format: date-time}

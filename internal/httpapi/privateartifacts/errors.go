@@ -35,7 +35,13 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, errArtifactAccessDenied), errors.Is(err, artifacts.ErrReservedNamespace):
 		h.writeError(w, http.StatusForbidden, "artifact_access_denied", "allocation does not permit this artifact operation", false)
 	case errors.Is(err, artifacts.ErrPayloadTooLarge):
-		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 16 MiB limit", false)
+		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 64 MiB limit", false)
+	case errors.Is(err, artifacts.ErrTransferCapacity):
+		h.writeError(w, http.StatusServiceUnavailable, "artifact_transfer_capacity", "artifact transfer capacity is exhausted", true)
+	case errors.Is(err, artifacts.ErrArtifactIntegrity):
+		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_corrupt", "artifact content failed integrity verification", false)
+	case errors.Is(err, artifacts.ErrBlobMissing):
+		h.writeError(w, http.StatusServiceUnavailable, "artifact_content_missing", "artifact content is unavailable", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen):
 		h.writeError(w, http.StatusConflict, "artifact_conflict", "artifact revision precondition did not match", true)
 	case errors.Is(err, findingintake.ErrConflict):

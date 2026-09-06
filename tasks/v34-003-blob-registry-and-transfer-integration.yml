@@ -1,0 +1,99 @@
+schema_version: '1.0'
+id: V34-003
+title: Integrate filesystem blobs with Artifact transactions and memory budgets
+milestone: artifact-blob-backends
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on:
+- V34-002
+- V29-003
+languages:
+- go
+- sql
+- openapi
+- typescript
+goal: Activate filesystem storage across every Artifact producer/consumer while preserving metadata
+  authority and bounded memory for deployments without PVC.
+context:
+  dependency_note: Existing transaction budgets are already implemented and passed V34-001 PostgreSQL checks. V29-007 is an independent aggregate hardening gate, not a prerequisite for wiring blob storage; V34 verifies its own wait and transfer scenarios.
+  specification: docs/spec/23-artifact-blob-backends.md
+  deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
+    PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
+    and physical orphans after failure are accepted, but successful responses must never invent content.
+    S3 is a reserved future backend and must fail startup as unsupported in this increment.
+  writes: Write and publish a complete unique filesystem object first; then recheck CAS and grants/fences
+    in the registry transaction. Resolve digest deduplication there. On failure remove only provably
+    unreferenced candidates; after ambiguous commit acknowledgements consult registry state before
+    eager deletion. No DB connection is held across bulk filesystem transfer.
+  deletion: Select unreferenced objects under existing transactional reference locks, remove registry
+    rows, commit, then best-effort unlink exact physical keys. Unlink failure may leave an orphan
+    and must not block logical lifecycle completion. PostgreSQL deletion stays transactional.
+  memory: Allow four active full-payload operations per Server process, acquire capacity before buffering/reading,
+    share capacity across nested trusted calls, and fail saturation promptly with a retryable error.
+    Enforce actual 64 MiB byte count, cancellation and early Content-Length checks. PostgreSQL transfers
+    never spill to local disk; driver/copy overhead means this is not a 256 MiB process cap.
+scope:
+  in:
+  - Wire startup-selected adapters into ordinary public/private writes, reads, trusted Audit/proposal/evidence
+    writes, Skills, scope forks and output publication.
+  - Commit external object refs and metadata atomically after complete publication; retain size/digest
+    metadata without a duplicate filesystem payload in bytea.
+  - Implement best-effort post-commit filesystem deletion and safe open-versus-delete behavior, preserving
+    shared references and exact generation identity.
+  - Add the shared transfer budget and safe retryable capacity/missing/corrupt errors to OpenAPI
+    and generated clients as needed.
+  - Reject backend mismatch before serving; keep physical backend details out of ArtifactRef and
+    client-controlled fields.
+  out:
+  - S3, automatic content repair, Git importer, per-size backend routing and online backend migration.
+requirements:
+- id: R1
+  text: All committed lineage, pins, grants and write fences remain authoritative across both backends.
+- id: R2
+  text: A crash may leave an orphan or lost file but never authorizes forged content, successful
+    empty reads or deletion of still-referenced content.
+- id: R3
+  text: No automatic Git refetch, prior Run/finding outcome rewrite or online backend conversion
+    occurs.
+- id: R4
+  text: Metadata lists and forks neither read payload bytes nor consume full-transfer slots; nested
+    operations cannot deadlock on their own budget.
+acceptance_criteria:
+- id: A1
+  given: Ordinary, Audit, finding, Skill and Project artifacts with retained forks.
+  when: The full contract suite runs against both backends.
+  then: Payloads use the selected store, metadata semantics agree and no direct SQL payload bypass
+    remains.
+- id: A2
+  given: CAS/write-fence races and failures before/after object publication or registry commit.
+  when: Writes and retries finish.
+  then: Only authorized complete revisions become visible; ambiguous commits preserve referenced
+    files and losing files are removable orphans.
+- id: A3
+  given: Concurrent last-reference purge, same-digest recreation and unlink failure.
+  when: Lifecycle deletion commits.
+  then: Shared objects survive, old cleanup cannot delete new generations and logical deletion may
+    complete with logged physical orphans.
+- id: A4
+  given: Four active transfers, a fifth request, nested trusted operations and cancellation.
+  when: Uploads/downloads run with and without Content-Length.
+  then: Capacity refusal is prompt and retryable, slots are released, oversize bodies never publish
+    and PostgreSQL needs no temporary directory.
+tests:
+- name: server
+  command: go test -race ./internal/artifacts ./internal/httpapi/public ./internal/httpapi/privateartifacts
+    ./internal/app
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- name: postgres
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -tags=integration ./internal/artifacts ./internal/auditstore
+    ./internal/findingintake ./internal/projectlifecycle
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4

@@ -3,8 +3,8 @@ id: V34-002
 title: Implement rooted immutable filesystem blob storage
 milestone: artifact-blob-backends
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: d65b27f178aa325732677de2ee6ca1872087ed13
 depends_on:
 - V34-001
 languages:

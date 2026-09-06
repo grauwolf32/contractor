@@ -126,3 +126,10 @@ func verifyBlob(object BlobObject, data []byte) error {
 	}
 	return nil
 }
+
+func nullableBlobKey(key string) any {
+	if key == "" {
+		return nil
+	}
+	return key
+}

@@ -3747,6 +3747,16 @@ export interface components {
             };
             content?: never;
         };
+        /** @description Transfer capacity exhausted (retryable) or stored content missing/corrupt (not automatically retryable). */
+        ArtifactUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -4297,6 +4307,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     putProjectArtifact: {
@@ -4332,6 +4343,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     getProjectArtifactMetadata: {
@@ -5717,6 +5729,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     getRunArtifactMetadata: {
@@ -5864,6 +5877,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     putArtifact: {
@@ -5897,6 +5911,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     getArtifactMetadata: {

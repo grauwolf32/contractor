@@ -27,10 +27,11 @@ func InTx(
 	options pgx.TxOptions,
 	fn func(pgx.Tx) error,
 ) (err error) {
-	tx, err := pool.BeginTx(ctx, options)
+	rawTx, err := pool.BeginTx(ctx, options)
 	if err != nil {
 		return WrapError("begin PostgreSQL transaction", err)
 	}
+	tx := &commitTx{Tx: rawTx}
 	defer func() {
 		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()

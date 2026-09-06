@@ -86,6 +86,13 @@ func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return
@@ -410,6 +417,13 @@ func writeArtifactBytes(w http.ResponseWriter, result artifacts.ReadResult) {
 }
 
 func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		h.handleError(w, err)
 		return
@@ -464,6 +478,13 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
+	ctx, releaseTransfer, transferErr := artifacts.AcquireTransfer(r.Context())
+	if transferErr != nil {
+		h.handleError(w, transferErr)
+		return
+	}
+	defer releaseTransfer()
+	r = r.WithContext(ctx)
 	if r.Method == http.MethodHead {
 		h.methodNotAllowed(w, r)
 		return

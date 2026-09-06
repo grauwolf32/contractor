@@ -177,12 +177,19 @@ func RunCLI(
 		return err
 	}
 	defer pool.Close()
-	if cfg.ArtifactBlobBackend != artifacts.BlobPostgres {
-		return fmt.Errorf("%w: filesystem activation is not yet available", artifacts.ErrBlobBackend)
+	var blobStore artifacts.BlobStore = artifacts.PostgresBlobStore{}
+	if cfg.ArtifactBlobBackend == artifacts.BlobFilesystem {
+		files, err := artifacts.OpenFilesystemBlobStore(ctx, cfg.ArtifactBlobPath)
+		if err != nil {
+			return err
+		}
+		defer files.Close()
+		blobStore = files
 	}
 	if err := artifacts.ClaimBlobBackend(ctx, pool, cfg.ArtifactBlobBackend); err != nil {
 		return err
 	}
+	ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(blobStore, logger))
 	configurationManager, err := workflowconfig.NewManager(workflowconfig.ManagerOptions{
 		OperatorRoot: cfg.OperatorConfigRoot,
 		ManagedRoot:  cfg.ManagedConfigRoot,

@@ -39,7 +39,12 @@ func (r *PostgresRepository) WriteAuditArtifact(
 	if err != nil {
 		return WriteResult{}, err
 	}
-	blob, err := (PostgresBlobStore{}).Store(ctx, payload.Data)
+	ctx, releaseTransfer, err := AcquireTransfer(ctx)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	defer releaseTransfer()
+	blob, err := prepareBlob(ctx, payload)
 	if err != nil {
 		return WriteResult{}, err
 	}
@@ -62,6 +67,7 @@ ON CONFLICT DO NOTHING`, projectScope.kind, projectScope.id); err != nil {
 	var storedRevision, mediaType string
 	var size int64
 	var bindingCreatedAt, revisionCreatedAt time.Time
+	var storedObjectKey *string
 	err = r.db.QueryRow(ctx, `
 WITH scope_ready AS (
     SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2
@@ -73,13 +79,14 @@ WITH scope_ready AS (
     ON CONFLICT DO NOTHING
     RETURNING created_at
 ), inserted_blob AS (
-    INSERT INTO artifact_blobs (sha256, payload, size_bytes)
-    SELECT $7, $8, $9 FROM created_binding
+    INSERT INTO artifact_blobs (sha256, payload, size_bytes, backend, object_key)
+    SELECT $7, $8, $9, $11, $12 FROM created_binding
     ON CONFLICT (sha256) DO UPDATE
     SET sha256 = EXCLUDED.sha256
-    WHERE artifact_blobs.payload = EXCLUDED.payload
+    WHERE artifact_blobs.backend = EXCLUDED.backend
+      AND (artifact_blobs.backend = 'filesystem' OR artifact_blobs.payload = EXCLUDED.payload)
       AND artifact_blobs.size_bytes = EXCLUDED.size_bytes
-    RETURNING 1
+    RETURNING object_key
 ), inserted_version AS (
     INSERT INTO artifact_versions (version_id, blob_sha256, media_type)
     SELECT $6, $7, $10 FROM created_binding, inserted_blob
@@ -92,11 +99,11 @@ WITH scope_ready AS (
     RETURNING revision, created_at
 )
 SELECT inserted_revision.revision, $10::text, $9::bigint,
-       created_binding.created_at, inserted_revision.created_at
+       created_binding.created_at, inserted_revision.created_at, (SELECT object_key FROM inserted_blob)
 FROM inserted_revision, created_binding`,
 		projectScope.kind, projectScope.id, target.Namespace, target.Name,
-		revision, versionID, digest, blob.Inline, blob.Size, payload.MediaType,
-	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt)
+		revision, versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key),
+	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt, &storedObjectKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WriteResult{}, &ConflictError{Ref: target}
 	}
@@ -111,6 +118,9 @@ FROM inserted_revision, created_binding`,
 		default:
 			return WriteResult{}, fmt.Errorf("write Audit artifact %s/%s: %w", target.Namespace, target.Name, err)
 		}
+	}
+	if blob.Backend == BlobFilesystem && storedObjectKey != nil && *storedObjectKey != blob.Key {
+		discardUnusedBlob(ctx, r.db, blob)
 	}
 	exact := storedRevision
 	return WriteResult{

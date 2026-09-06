@@ -49,6 +49,7 @@ type ArtifactRef = contracts.ArtifactRef
 type Payload struct {
 	MediaType string
 	Data      []byte
+	prepared  *BlobObject
 }
 
 type ReadResult struct {

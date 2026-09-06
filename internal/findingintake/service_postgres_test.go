@@ -40,6 +40,17 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	pool := isolatedFindingPool(t, ctx)
+	if os.Getenv("CONTRACTOR_TEST_ARTIFACT_BACKEND") == "filesystem" {
+		if err := artifacts.ClaimBlobBackend(ctx, pool, artifacts.BlobFilesystem); err != nil {
+			t.Fatal(err)
+		}
+		files, err := artifacts.OpenFilesystemBlobStore(ctx, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer files.Close()
+		ctx = artifacts.WithBlobRuntime(ctx, artifacts.NewBlobRuntime(files, nil))
+	}
 
 	const (
 		ownerID      = "finding-owner"
