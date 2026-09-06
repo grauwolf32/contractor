@@ -3,8 +3,8 @@ id: V25-010
 title: Add allocation-bound security finding proposals and receipts
 milestone: audits-iterative
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 610cab5f434f68f9c126a9361380c982f7313ec8
 depends_on: [V25-005, V25-008]
 languages: [go, sql, python]
 
