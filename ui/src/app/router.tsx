@@ -30,6 +30,7 @@ import { ConfigurationListRoute } from "../routes/operations/llm-configurations"
 import { RuntimeAgentListRoute } from "../routes/operations/runtime-agents";
 import { RuntimeConfigDetailRoute } from "../routes/operations/runtime-configs/detail";
 import { RuntimeConfigurationRoute } from "../routes/operations/runtime-configs";
+import { OperationsSettingsRoute } from "../routes/operations/settings";
 import { WorkflowDetailRoute } from "../routes/workflows/detail";
 import { WorkflowListRoute } from "../routes/workflows/list";
 import { NotFoundRoute } from "../routes/placeholders";
@@ -138,6 +139,10 @@ export function applicationRoutes(): RouteObject[] {
                 {
                   path: "credentials/:credentialId",
                   element: <CredentialDetailRoute />,
+                },
+                {
+                  path: "settings",
+                  element: <OperationsSettingsRoute />,
                 },
               ],
             },

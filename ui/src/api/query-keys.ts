@@ -263,6 +263,7 @@ export const queryKeys = {
   operations: {
     all: ["operations"] as const,
     snapshot: ["operations", "snapshot"] as const,
+    schedulerSettings: ["operations", "scheduler-settings"] as const,
     runtimeConfigs: {
       all: ["operations", "runtime-configs"] as const,
       list: (cursor?: string) =>

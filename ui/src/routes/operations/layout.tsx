@@ -25,6 +25,7 @@ const navigation = [
   { to: "/operations/allocations", label: "Allocations" },
   { to: "/operations/configurations", label: "LLM configurations" },
   { to: "/operations/credentials", label: "Credentials" },
+  { to: "/operations/settings", label: "Settings" },
 ] as const;
 
 function OperationsLiveSubscription({
@@ -45,6 +46,10 @@ function OperationsLiveSubscription({
     const invalidateSnapshot = () =>
       queryClient.invalidateQueries({
         queryKey: queryKeys.operations.snapshot,
+      });
+    const invalidateSchedulerSettings = () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.operations.schedulerSettings,
       });
     const changed = (resource: OperationsEventData["resource"]) => {
       if (resource === "configuration") {
@@ -71,6 +76,9 @@ function OperationsLiveSubscription({
           queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
         });
       }
+      if (resource === "schedulerSettings") {
+        void invalidateSchedulerSettings();
+      }
       void invalidateSnapshot();
     };
     const subscription = events.subscribeOperations(snapshot.cursor, {
@@ -78,8 +86,14 @@ function OperationsLiveSubscription({
       onResync: (reason) => {
         onResync(reason);
         void invalidateSnapshot();
+        void invalidateSchedulerSettings();
       },
-      onStateChange: onConnection,
+      onStateChange: (state) => {
+        onConnection(state);
+        if (state === "live") {
+          void invalidateSchedulerSettings();
+        }
+      },
       onError: (message) => onError(message),
     });
     return () => subscription.unsubscribe();

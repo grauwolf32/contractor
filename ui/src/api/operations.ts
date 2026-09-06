@@ -34,6 +34,8 @@ const RUNTIME_CAPABILITY_REF_PATTERN =
 const MAX_RUNTIME_CAPABILITY_REFS = 128;
 const MAX_RUNTIME_TOOLSETS = 128;
 const MAX_RUNTIME_TOOLS_PER_TOOLSET = 256;
+const SCHEDULER_SETTINGS_REVISION = /^[1-9][0-9]{0,19}$/;
+const SCHEDULER_SETTINGS_ETAG = /^"[1-9][0-9]{0,19}"$/;
 
 export type OperationsSnapshot = components["schemas"]["OperationsSnapshot"];
 export type OperationsCursor = components["schemas"]["SnapshotCursor"];
@@ -78,6 +80,12 @@ export type RuntimeAgentPrincipal =
   components["schemas"]["RuntimeAgentPrincipal"];
 export type RuntimeAgentPrincipalPage =
   components["schemas"]["RuntimeAgentPrincipalPage"];
+export type SchedulerSettings = components["schemas"]["SchedulerSettings"];
+
+export interface SchedulerSettingsSnapshot {
+  resource: SchedulerSettings;
+  etag: string;
+}
 
 export type WritableConfigurationKind = "model-policies" | "llm-gateways";
 
@@ -745,7 +753,91 @@ function safePageInfo(page: { hasMore: boolean; nextCursor?: string }) {
   };
 }
 
+function safeSchedulerSettings(
+  value: SchedulerSettings,
+  response: Response,
+): SchedulerSettingsSnapshot {
+  const keys = Object.keys(value);
+  if (
+    keys.length !== 3 ||
+    !keys.includes("maxConcurrentRuns") ||
+    !keys.includes("revision") ||
+    !keys.includes("updatedAt") ||
+    !Number.isInteger(value.maxConcurrentRuns) ||
+    value.maxConcurrentRuns < 1 ||
+    value.maxConcurrentRuns > 32 ||
+    !SCHEDULER_SETTINGS_REVISION.test(value.revision) ||
+    typeof value.updatedAt !== "string" ||
+    !Number.isFinite(Date.parse(value.updatedAt))
+  ) {
+    throw invalidResponse(
+      response.status,
+      "Server returned invalid Scheduler settings",
+    );
+  }
+  const etag = response.headers.get("ETag");
+  if (
+    etag !== `"${value.revision}"` ||
+    response.headers.get("Cache-Control") !== "no-store"
+  ) {
+    throw invalidResponse(
+      response.status,
+      "Server returned inconsistent Scheduler settings headers",
+    );
+  }
+  return {
+    resource: {
+      maxConcurrentRuns: value.maxConcurrentRuns,
+      revision: value.revision,
+      updatedAt: value.updatedAt,
+    },
+    etag,
+  };
+}
+
 export { listConfigurations, listCredentials };
+
+export async function getSchedulerSettings(
+  api: PublicAPI,
+): Promise<SchedulerSettingsSnapshot> {
+  const result = await api.request((client) =>
+    client.GET("/v1/operations/settings/scheduler"),
+  );
+  return safeSchedulerSettings(requireData(result), result.response);
+}
+
+export async function replaceSchedulerSettings(
+  api: PublicAPI,
+  maxConcurrentRuns: number,
+  etag: string,
+): Promise<SchedulerSettingsSnapshot> {
+  if (
+    !Number.isInteger(maxConcurrentRuns) ||
+    maxConcurrentRuns < 1 ||
+    maxConcurrentRuns > 32
+  ) {
+    throw new TypeError(
+      "Maximum concurrent Workflow Runs must be an integer from 1 through 32",
+    );
+  }
+  if (!SCHEDULER_SETTINGS_ETAG.test(etag)) {
+    throw new TypeError("Scheduler settings ETag is invalid");
+  }
+  const result = await api.request((client) =>
+    client.PUT("/v1/operations/settings/scheduler", {
+      params: { header: { "If-Match": etag } },
+      body: { maxConcurrentRuns },
+    }),
+  );
+  const settings = safeSchedulerSettings(requireData(result), result.response);
+  if (settings.resource.maxConcurrentRuns !== maxConcurrentRuns) {
+    throw invalidResponse(
+      result.response.status,
+      "Server returned a different Scheduler setting after replacement",
+    );
+  }
+  return settings;
+}
 
 export async function getOperationsSnapshot(
   api: PublicAPI,

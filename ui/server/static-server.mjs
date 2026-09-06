@@ -27,7 +27,7 @@ const CLIENT_ROUTE_PATTERNS = [
   /^\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/runs\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
-  /^\/operations\/(?:runtime-agents|runtime-configs|allocations|configurations|credentials)$/,
+  /^\/operations\/(?:runtime-agents|runtime-configs|allocations|configurations|credentials|settings)$/,
   /^\/operations\/runtime-configs\/[a-z][a-z0-9_-]{0,62}\/[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/,
   /^\/operations\/configurations\/(?:agent-templates|execution-configs|model-policies|llm-gateways)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,
   /^\/operations\/credentials\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,

@@ -99,6 +99,7 @@ test("known client routes get no-store index and a derived CSP", async (t) => {
     "/operations/configurations/model-policies/worker/1",
     "/operations/credentials",
     "/operations/credentials/worker-budget",
+    "/operations/settings",
   ]) {
     const response = await fetch(`${origin}${route}`);
     assert.equal(response.status, 200);
