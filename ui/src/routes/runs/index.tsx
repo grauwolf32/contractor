@@ -37,22 +37,20 @@ export function RunsRoute() {
         </div>
       </header>
 
-      <nav className="run-view-tabs" aria-label="Run views">
+      <nav className="operations-navigation" aria-label="Run views">
         <Link
           to="/runs"
           className={completed || configuration ? undefined : "active"}
           aria-current={completed || configuration ? undefined : "page"}
         >
-          <strong>Queue</strong>
-          <small>Active work</small>
+          Queue
         </Link>
         <Link
           to="/runs?view=completed"
           className={completed && !configuration ? "active" : undefined}
           aria-current={completed && !configuration ? "page" : undefined}
         >
-          <strong>Completed</strong>
-          <small>Results and history</small>
+          Completed
         </Link>
         {session?.principal.capabilities.includes("operations") ? (
           <Link
@@ -60,8 +58,7 @@ export function RunsRoute() {
             className={configuration ? "active" : undefined}
             aria-current={configuration ? "page" : undefined}
           >
-            <strong>Configuration</strong>
-            <small>Runtime configurations and labels</small>
+            Configuration
           </Link>
         ) : null}
       </nav>

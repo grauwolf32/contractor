@@ -76,6 +76,12 @@ describe("Run configuration navigation", () => {
       await screen.findByRole("heading", { name: "RuntimeConfig versions" });
       expect(router.state.location.pathname).toBe("/runs/configuration");
       const tabs = screen.getByRole("navigation", { name: "Run views" });
+      expect(tabs).toHaveClass("operations-navigation");
+      expect(
+        within(tabs)
+          .getAllByRole("link")
+          .map((link) => link.textContent?.trim()),
+      ).toEqual(["Queue", "Completed", "Configuration"]);
       expect(
         within(tabs).getByRole("link", { name: /Configuration/ }),
       ).toHaveAttribute("aria-current", "page");
