@@ -13,11 +13,16 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from contractor_runtime.podman_command import PodmanCommand
 from contractor_runtime.podman_engine import PodmanEngine
 from contractor_runtime.podman_guardian import CgroupFence
+from contractor_runtime.podman_ownership import open_directory
 from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.podman_supervisor import GuardianClient, open_fence
+from contractor_runtime.podman_supervisor import CompletionGate, GuardianClient, open_fence
 from contractor_runtime.sandbox_contracts import (
+    ExecutionRequest,
+    ExecutionResult,
+    ExecutionStatus,
     SandboxContractError,
     SandboxErrorCode,
     SandboxIdentity,
@@ -37,22 +42,27 @@ class Entry:
 
 
 class LifecycleBackend:
-    def __init__(self, settings: PodmanSettings, *, engine=None, attach=None) -> None:
+    def __init__(
+        self, settings: PodmanSettings, *, engine=None, attach=None, commands=None
+    ) -> None:
         self.settings = settings
         self.engine = engine if engine is not None else PodmanEngine(settings)
         self.attach = attach or self._attach
+        self.commands = commands if commands is not None else PodmanCommand(settings)
         self.entry: Entry | None = None
         self.opened = False
         self.recovered = False
         self.closed = False
         self.lost = False
         self.lease = 0.0
+        self.confirmed_lease = 0.0
         self._rejected: dict[str, None] = {}
 
     def pulse(self, lease: float | None) -> None:
         # This deadline belongs to the Runtime, not this surviving process.
         # The owner may not manufacture liveness by renewing itself forever.
         self.lease = min(lease, time.monotonic() + 3) if lease is not None else 0.0
+        self.confirmed_lease = lease or 0.0
         if self.entry is not None and self.lease <= time.monotonic():
             self.reject(self.entry.allocation_id)
 
@@ -141,6 +151,80 @@ class LifecycleBackend:
             os.close(fence.pidfd)
             raise
         return fence, guardian
+
+    async def execute(
+        self, allocation_id: str, request: ExecutionRequest, *, deadline: float
+    ) -> ExecutionResult:
+        entry = self.entry
+        if entry is None or entry.allocation_id != allocation_id or not entry.prepared:
+            raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+        self._live(entry)
+        started = time.monotonic()
+        deadline = min(deadline, self.confirmed_lease, started + self.settings.command_max_seconds)
+
+        # No previous command can still write: its completion check and the
+        # Runtime workspace guard precede this RPC. Reject all cwd symlinks.
+        def validate_cwd():
+            try:
+                descriptor = open_directory(entry.root / request.cwd)
+                os.close(descriptor)
+            except (OSError, ValueError):
+                raise SandboxContractError(SandboxErrorCode.INVALID_CWD) from None
+
+        await asyncio.to_thread(validate_cwd)
+        try:
+            assert entry.identity is not None and entry.guardian is not None
+            await entry.guardian.request("check", deadline=min(deadline, self.lease))
+            self._live(entry)
+            reserve = min(
+                self.settings.stop_grace_seconds + 1, max(0, deadline - time.monotonic()) / 2
+            )
+            capture = await self.engine.execute(
+                entry.identity,
+                request,
+                deadline=deadline,
+                launch_deadline=deadline - reserve,
+                transport=self.commands,
+            )
+            if capture.error is None:
+                result = ExecutionResult(
+                    ExecutionStatus.COMPLETED,
+                    capture.exit_code,
+                    capture.stdout.decode("utf-8", errors="replace"),
+                    capture.stderr.decode("utf-8", errors="replace"),
+                    capture.stdout_bytes > len(capture.stdout),
+                    capture.stderr_bytes > len(capture.stderr),
+                    max(0, int((time.monotonic() - started) * 1000)),
+                    stdout_bytes=capture.stdout_bytes,
+                    stderr_bytes=capture.stderr_bytes,
+                )
+                await CompletionGate(self.engine, entry.identity, entry.guardian).confirm(
+                    result, deadline=deadline
+                )
+                self._live(entry)
+                return result
+            self.reject(allocation_id)
+            await self.stop(allocation_id, deadline=deadline)
+            status = {
+                SandboxErrorCode.TIMEOUT: ExecutionStatus.TIMED_OUT,
+                SandboxErrorCode.OUTPUT_LIMIT: ExecutionStatus.OUTPUT_LIMIT_EXCEEDED,
+            }.get(capture.error, ExecutionStatus.FAILED)
+            return ExecutionResult(
+                status,
+                None,
+                capture.stdout.decode("utf-8", errors="replace"),
+                capture.stderr.decode("utf-8", errors="replace"),
+                capture.stdout_bytes > len(capture.stdout),
+                capture.stderr_bytes > len(capture.stderr),
+                max(0, int((time.monotonic() - started) * 1000)),
+                capture.error,
+                capture.stdout_bytes,
+                capture.stderr_bytes,
+            )
+        except BaseException:
+            self.reject(allocation_id)
+            await self.stop(allocation_id, deadline=deadline)
+            raise
 
     async def stop(self, allocation_id: str, *, deadline: float) -> None:
         self.reject(allocation_id)

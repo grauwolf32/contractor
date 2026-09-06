@@ -14,6 +14,7 @@ from contractor_runtime.contracts import (
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
     AgentStateSnapshot,
 )
+from contractor_runtime.execution_state import WorkerExecutionState
 from contractor_runtime.metrics import MetricsState
 from contractor_runtime.observations import validate_workspace_observation
 
@@ -73,6 +74,7 @@ class WorkerStateStore:
 
     def __init__(self, metrics: MetricsState | None = None) -> None:
         self.metrics = metrics or MetricsState()
+        self.execution = WorkerExecutionState()
         self._lock = asyncio.Lock()
         self._state: dict[str, Any] = {
             "schemaVersion": WORKER_STATE_SCHEMA_VERSION,

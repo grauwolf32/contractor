@@ -252,6 +252,14 @@ class DirectWorkspaceSession:
         return self._storage
 
     @property
+    def execution_guard(self):
+        """Private lifecycle seam; reader/writer tool views do not expose this."""
+        self._require_open()
+        if self._local is None:
+            raise WorkspaceStorageError("workspace_unavailable")
+        return self._local.guard
+
+    @property
     def limits(self) -> WorkspaceLimits:
         return self._limits
 

@@ -13,11 +13,13 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from contractor_runtime.podman_executor import PodmanExecutor
 from contractor_runtime.podman_io import OwnedOperations, local_engine_environment, remaining
-from contractor_runtime.podman_owner import encode, receive
+from contractor_runtime.podman_owner import encode, receive_rpc, send_rpc
 from contractor_runtime.podman_settings import PodmanSettings
 from contractor_runtime.podman_workroots import check_root_policy
 from contractor_runtime.projectfs import DirectWorkspaceSession
+from contractor_runtime.projectfs.operation_guard import WorkspaceOperationGuard
 from contractor_runtime.sandbox_contracts import (
     SandboxContractError,
     SandboxErrorCode,
@@ -40,7 +42,7 @@ class OwnerClient:
 
     @classmethod
     async def start(cls, settings: PodmanSettings) -> OwnerClient:
-        control, child_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        control, child_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         health, child_health = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         control.setblocking(False)
         health.setblocking(False)
@@ -74,9 +76,7 @@ class OwnerClient:
 
         try:
             process = await asyncio.to_thread(spawn)
-            await asyncio.get_running_loop().sock_sendall(
-                control, encode({"settings": asdict(settings)})
-            )
+            await send_rpc(control, {"settings": asdict(settings)})
             return cls(control, health, process)
         except BaseException:
             control.close()
@@ -99,10 +99,8 @@ class OwnerClient:
 
     async def request(self, op: str, *, deadline: float, **fields):
         async def exchange():
-            await asyncio.get_running_loop().sock_sendall(
-                self.control, encode({"op": op, "deadline": deadline, **fields})
-            )
-            return await receive(self.control)
+            await send_rpc(self.control, {"op": op, "deadline": deadline, **fields})
+            return await receive_rpc(self.control)
 
         async def operation():
             if self.disconnected.is_set():
@@ -196,7 +194,7 @@ class PodmanLifecycle:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         root = Path(workspace.storage.root) / "run_workdir"
         if self._entry is None:
-            self._entry = PodmanAllocation(self, allocation_id, root)
+            self._entry = PodmanAllocation(self, allocation_id, root, workspace.execution_guard)
         elif self._entry.allocation_id != allocation_id or self._entry.root != root:
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
         return self._entry
@@ -222,6 +220,12 @@ class PodmanLifecycle:
 
             await self._operations.run(operation, deadline)
             self._close_confirmed = True
+            if self._entry is not None:
+                # Owner close proves exact removal too, including a command
+                # whose caller already lost its individual stop receipt.
+                self._entry.removed = True
+                self._entry.stopped.set()
+                self._entry = None
         finally:
             if self._heartbeat is not None:
                 self._heartbeat.cancel()
@@ -231,13 +235,21 @@ class PodmanLifecycle:
 
 
 class PodmanAllocation:
-    def __init__(self, owner: PodmanLifecycle, allocation_id: str, root: Path):
+    def __init__(
+        self, owner: PodmanLifecycle, allocation_id: str, root: Path, guard: WorkspaceOperationGuard
+    ):
         self.owner = owner
         self.allocation_id = allocation_id
         self.root = root
         self.identity: SandboxIdentity | None = None
         self.rejected = False
         self.removed = False
+        self.stopped = asyncio.Event()
+        self.failure: Callable[[SandboxErrorCode], None] = lambda code: None
+        self.executor = PodmanExecutor(self, guard)
+
+    def bind_failure(self, callback: Callable[[SandboxErrorCode], None]) -> None:
+        self.failure = callback
 
     def reject(self) -> None:
         self.rejected = True
@@ -280,6 +292,7 @@ class PodmanAllocation:
             await self.owner._client.request(
                 "stop", allocation=self.allocation_id, deadline=_monotonic(deadline)
             )
+            self.stopped.set()
 
     async def remove(self, *, deadline: datetime) -> None:
         self.reject()
@@ -289,6 +302,7 @@ class PodmanAllocation:
                 "remove", allocation=self.allocation_id, deadline=_monotonic(deadline)
             )
             self.removed = True
+            self.stopped.set()
             if self.owner._entry is self:
                 self.owner._entry = None
 

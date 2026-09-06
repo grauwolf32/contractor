@@ -120,6 +120,8 @@ class ExecutionResult:
     stderr_truncated: bool
     duration_ms: int
     error_code: SandboxErrorCode | None = None
+    stdout_bytes: int = 0
+    stderr_bytes: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.status, ExecutionStatus) or (
@@ -137,6 +139,11 @@ class ExecutionResult:
             raise ValueError("failed sandbox result requires a stable error code and no exit code")
         if type(self.stdout_truncated) is not bool or type(self.stderr_truncated) is not bool:
             raise ValueError("invalid sandbox truncation flags")
+        if any(
+            type(value) is not int or not 0 <= value <= 32 << 20
+            for value in (self.stdout_bytes, self.stderr_bytes)
+        ):
+            raise ValueError("invalid sandbox byte count")
         for value in (self.stdout, self.stderr):
             if not isinstance(value, str) or len(value.encode("utf-8")) > 3 << 20:
                 raise ValueError("invalid sandbox output preview")

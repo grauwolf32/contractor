@@ -33,6 +33,7 @@ from contractor_runtime.settings import WorkspaceSettings
 from contractor_runtime.toolsets.audit_results import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.caido import CaidoToolsetFactory
 from contractor_runtime.toolsets.code_analysis import CodeAnalysisToolsetFactory
+from contractor_runtime.toolsets.code_execution import CodeExecutionToolsetFactory
 from contractor_runtime.toolsets.edit_files import EditFilesToolsetFactory
 from contractor_runtime.toolsets.filesystem import FilesystemToolsetFactory
 from contractor_runtime.toolsets.http_tools import HTTPToolsetFactory
@@ -232,6 +233,7 @@ def built_in_factories(
     return FactoryRegistry(
         worker_runtimes={runtime.ref: runtime},
         toolsets={
+            **({"code-execution@1": CodeExecutionToolsetFactory()} if execution_lifecycle else {}),
             artifact_toolset.ref: artifact_toolset,
             audit_results_toolset.ref: audit_results_toolset,
             security_findings_toolset.ref: security_findings_toolset,

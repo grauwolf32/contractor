@@ -58,7 +58,7 @@ class Owner:
         return None, guardian
 
     async def start(self, settings):
-        control, child_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        control, child_control = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
         health, child_health = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         for channel in (control, child_control, health, child_health):
             channel.setblocking(False)

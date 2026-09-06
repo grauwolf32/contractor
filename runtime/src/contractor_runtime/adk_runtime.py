@@ -303,6 +303,10 @@ class AdkWorkerRuntime:
         self._model_factory = model_factory
         self._metrics = context.state.metrics
         self._instrumentation = context.adapter_handles.instrumentation
+        if "exec_command" in context.tools and self._instrumentation is not None:
+            from contractor_runtime.execution_telemetry import ContentFreeInstrumentation
+
+            self._instrumentation = ContentFreeInstrumentation(self._instrumentation)
         self._app_name = "contractor_runtime_worker"
         self._user_id = "contractor_control_plane"
         self._session_lifecycle = WorkerSessionLifecycle(
@@ -445,6 +449,11 @@ class AdkWorkerRuntime:
         return await self._untracked_failure_completion(code, message, retryable)
 
     async def _invoke(self, request: StageContentRequest) -> WorkerCompletion:
+        if self._worker_state.execution.failure is not None:
+            self._accepting = False
+            return await self._untracked_failure_completion(
+                self._worker_state.execution.failure.value, "Sandbox execution failed", False
+            )
         if not self._accepting:
             return await self._untracked_failure_completion(
                 "worker_draining", "Worker is no longer accepting A2A work", True
@@ -588,6 +597,7 @@ class AdkWorkerRuntime:
                 exportable = False
             else:
                 outcome, exportable = await self._run_adk(request, invocation_id, session_id)
+            self._worker_state.execution.check()
             exporter = self._workspace_exporter
             if exportable and exporter is not None:
                 try:
@@ -613,10 +623,17 @@ class AdkWorkerRuntime:
             invocation_phase = "cancelled"
             raise
         except Exception as error:
-            if self._metrics.counters.get("llm_errors", 0) == model_errors_before:
+            sandbox_failure = self._worker_state.execution.failure
+            if (
+                sandbox_failure is None
+                and self._metrics.counters.get("llm_errors", 0) == model_errors_before
+            ):
                 await self._plugin.record_unhandled_model_error(error)
             gateway_error = _gateway_model_error(error)
-            if gateway_error is not None:
+            if sandbox_failure is not None:
+                self._accepting = False
+                outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)
+            elif gateway_error is not None:
                 outcome = _failure(
                     "worker_gateway_unavailable", "Worker LLM Gateway request failed", True
                 )
@@ -649,6 +666,11 @@ class AdkWorkerRuntime:
                     raise
         if state_snapshot is None:
             raise RuntimeError("Worker State did not produce a terminal revision")
+        if self._worker_state.execution.failure is not None:
+            self._accepting = False
+            outcome = _failure(
+                self._worker_state.execution.failure.value, "Sandbox execution failed", False
+            )
         if isinstance(outcome, WorkerResult):
             outcome = outcome.model_copy(
                 update={
@@ -711,6 +733,7 @@ class AdkWorkerRuntime:
                     if text is not None:
                         candidate = text
             except Exception as error:
+                self._worker_state.execution.check()
                 if _worker_summarization_request(error) is not None:
                     return await self._run_terminal_summarizer(
                         request=request,
@@ -731,6 +754,7 @@ class AdkWorkerRuntime:
                     ),
                     False,
                 )
+            self._worker_state.execution.check()
             if candidate is None:
                 return self._build_runtime_result(
                     request, candidate, tuple(self._invocation_observed_refs)

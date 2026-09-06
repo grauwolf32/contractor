@@ -42,6 +42,10 @@ SENSITIVE_METRIC_KEYS = frozenset(
         "body",
         "bytes",
         "content",
+        "command",
+        "cwd",
+        "stdout",
+        "stderr",
         "cookie",
         "data",
         "data_base64",
@@ -280,6 +284,25 @@ class MetricsState:
 
     def release_tool_correlation(self, correlation_id: str) -> None:
         self._tool_correlation_outcomes.pop(correlation_id, None)
+
+    def record_sandbox_execution(
+        self,
+        *,
+        stdout_bytes: int,
+        stderr_bytes: int,
+        stdout_truncated: bool,
+        stderr_truncated: bool,
+        exit_code: int | None = None,
+    ) -> None:
+        for key, value in (
+            ("stdout_bytes", stdout_bytes),
+            ("stderr_bytes", stderr_bytes),
+            ("stdout_truncated", int(stdout_truncated)),
+            ("stderr_truncated", int(stderr_truncated)),
+        ):
+            self._increment(f"sandbox.{key}", value)
+        if exit_code is not None:
+            self._increment("sandbox.completed_nonzero" if exit_code else "sandbox.completed_zero")
 
     def record_model_call(self) -> None:
         self._increment("llm_calls")

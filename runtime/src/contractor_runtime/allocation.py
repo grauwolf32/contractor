@@ -202,6 +202,11 @@ class AllocationService:
             context = self._context
             if context is None or context.allocation_id != allocation_id or context.worker is None:
                 return None
+            if (
+                context.worker_state is not None
+                and context.worker_state.execution.failure is not None
+            ):
+                return None
             state = await self._state.snapshot()
             if (
                 state.process_state is not ProcessState.ALLOCATED
@@ -317,12 +322,15 @@ class AllocationService:
                     execution = lifecycle.allocate(spec.allocation_id, project_workspace)
                     await execution.prepare(deadline=adapter_deadline)
                 worker_state = WorkerStateStore()
+                if execution is not None:
+                    execution.bind_failure(worker_state.execution.fail)
                 tools = await self._create_tools(
                     spec,
                     workspace,
                     project_workspace,
                     worker_state,
                     adapter_host.handles,
+                    execution,
                 )
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
@@ -875,6 +883,7 @@ class AllocationService:
         project_workspace: DirectWorkspaceSession | None,
         worker_state: WorkerStateStore,
         adapter_handles: AdapterHandles,
+        execution: PreparedExecution | None = None,
     ) -> dict[str, ToolInstance]:
         result: dict[str, ToolInstance] = {}
         for selection in spec.agent_template.toolsets:
@@ -900,6 +909,11 @@ class AllocationService:
                 for channel in factory.infrastructure_channels.get(name, frozenset())
             )
             created = await factory.create_selected(
+                **(
+                    {"sandbox_executor": execution.executor if execution else None}
+                    if ref == "code-execution@1"
+                    else {}
+                ),
                 selected=selection.tools,
                 allocation_id=spec.allocation_id,
                 run_id=spec.run_id,

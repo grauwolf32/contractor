@@ -16,6 +16,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from contractor_runtime.podman_command import CommandCapture, PodmanCommand
 from contractor_runtime.podman_io import (
     MAX_CLI_BYTES,
     CLIResult,
@@ -27,6 +28,7 @@ from contractor_runtime.podman_io import (
 from contractor_runtime.podman_ownership import ContentPin, ServiceOwnerLock
 from contractor_runtime.podman_settings import PodmanSettings
 from contractor_runtime.sandbox_contracts import (
+    ExecutionRequest,
     SandboxContractError,
     SandboxErrorCode,
     SandboxIdentity,
@@ -219,6 +221,37 @@ class PodmanEngine:
                 raise SandboxContractError(SandboxErrorCode.OUTCOME_UNKNOWN)
 
         await self._operations.run(operation, deadline)
+
+    async def execute(
+        self,
+        identity: SandboxIdentity,
+        request: ExecutionRequest,
+        *,
+        deadline: float,
+        transport: PodmanCommand,
+        launch_deadline: float,
+    ) -> CommandCapture:
+        """Join every foreground launch before releasing engine ownership."""
+
+        async def operation():
+            await self._ready()
+            record = self._records.get(identity.allocation_id)
+            state = await self._inspect(identity, deadline)
+            if (
+                record is None
+                or record.identity != identity
+                or state is None
+                or not state.running
+                or state.status != "running"
+            ):
+                raise SandboxContractError(SandboxErrorCode.UNAVAILABLE)
+            await asyncio.to_thread(record.content.verify)
+            remaining(launch_deadline)
+            return await transport.run(
+                identity, request.command, request.cwd, deadline=launch_deadline
+            )
+
+        return await self._operations.run(operation, deadline)
 
     async def stop(self, identity: SandboxIdentity, *, deadline: float) -> None:
         deadline = self._deadline(deadline)

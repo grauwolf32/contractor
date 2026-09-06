@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
@@ -36,6 +36,14 @@ class WorkspaceOperationGuard:
 
     async def run(self, operation: Callable[[], T], *, deadline: float) -> T:
         """Run blocking work without releasing ownership on caller timeout."""
+
+        async def threaded() -> T:
+            return await asyncio.to_thread(operation)
+
+        return await self.run_async(threaded, deadline=deadline)
+
+    async def run_async(self, operation: Callable[[], Awaitable[T]], *, deadline: float) -> T:
+        """Same owner for async sandbox execution and synchronous filesystem I/O."""
         remaining = _remaining(deadline)
         if self._fenced or self._closing:
             raise WorkspaceStorageError("workspace_unavailable")
@@ -50,7 +58,7 @@ class WorkspaceOperationGuard:
 
         async def owned() -> T:
             try:
-                return await asyncio.to_thread(operation)
+                return await operation()
             finally:
                 self._lock.release()
 

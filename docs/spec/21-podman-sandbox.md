@@ -243,6 +243,22 @@ checked against engine state. Raw Podman errors are mapped to content-free
 stable codes. Commands are never automatically replayed after an uncertain
 outcome because filesystem or other effects may already have happened.
 
+The initial Podman transport conservatively treats CLI exit codes `125–127`
+as `sandbox_outcome_unknown`: these codes overlap Podman's own exec errors
+and cannot prove the program's status. It discards their diagnostic streams
+and terminates the allocation without retry. Other exit codes become
+`completed` only after the independent guardian check and fresh engine-state
+verification. A failed descendant proof currently reports
+`sandbox_cleanup_failed`; a closed guardian channel is not evidence of a
+more specific cause. Neither classification is derived from workload output.
+
+The command budget includes workspace-lock wait and a reserved cleanup window;
+the process can therefore be stopped before `timeout_seconds` elapses. The
+effective deadline is the minimum of the request, operator policy, supplied
+execution deadline and confirmed control lease. Invocation cancellation revokes
+execution immediately; the current StageContentRequest has no additional
+wall-clock deadline field.
+
 Files intended to outlive allocation release are explicitly written as ordinary
 Run artifacts through existing Artifact tools and grants while writes remain
 permitted. A sandbox path is not an ArtifactRef, and this version adds no
@@ -365,6 +381,9 @@ Metrics record command count, elapsed time, exit/failure category, captured-byte
 counts, truncation and sandbox prepare/stop/cleanup outcomes. Aggregate logs
 exclude command text, output, host paths and secrets. Bounded command/output
 content belongs only to the existing authorized tool observation surfaces.
+Execution-enabled Workers use metadata-only instrumentation even when an
+operator has opted into content capture: later model requests, result finalizers
+and summaries may contain earlier command/output content too.
 
 ## Future skill mounts
 

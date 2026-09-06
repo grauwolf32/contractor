@@ -219,6 +219,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
     async def before_model_callback(self, *, callback_context: Any, llm_request: Any) -> None:
         del llm_request
         async with self._lock:
+            self._state.execution.check()
             if not self._is_active(callback_context.invocation_id):
                 return
             budget = self._budget()
@@ -371,6 +372,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         tool_context: Any,
     ) -> dict[str, Any] | None:
         async with self._lock:
+            self._state.execution.check()
             invocation_id = tool_context.invocation_id
             if not self._is_active(invocation_id):
                 return None

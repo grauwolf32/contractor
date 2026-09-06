@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+
+from contractor_runtime.sandbox_contracts import SandboxErrorCode, SandboxExecutor
 
 if TYPE_CHECKING:
     from contractor_runtime.projectfs import DirectWorkspaceSession
 
 
 class PreparedExecution(Protocol):
+    @property
+    def executor(self) -> SandboxExecutor: ...
+
+    def bind_failure(self, callback: Callable[[SandboxErrorCode], None]) -> None: ...
+
     def reject(self) -> None: ...
 
     async def prepare(self, *, deadline: datetime) -> None: ...
