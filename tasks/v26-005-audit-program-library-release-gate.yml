@@ -3,8 +3,8 @@ id: V26-005
 title: Prove curated Audit program provenance and truthful coverage
 milestone: audit-program-library
 priority: P2
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: aec5b0c0c83128569beef35248a8ea68cc52304c
 depends_on: [V26-002, V26-003]
 languages: [go, sql, typescript, yaml]
 
