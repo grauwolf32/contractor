@@ -29,6 +29,7 @@ scope:
     - Group only items with identical pinned Workflow/configuration, baseline/workspace and permission/approval envelopes.
     - Build one immutable ordered execution manifest and require exactly one unique result per member on successful collection.
     - Preserve independent per-item attempt, disposition, evidence, proposal and coverage records across retry/exhaustion.
+    - Preserve finding backtrace through validated item-to-proposal membership when batches regroup retries; a shared Run cannot attribute a proposal or checklist origin to unrelated batch members.
     - Enforce the current Scheduler-derived dispatch window plus maxSubmittedRuns, item and package budgets under concurrent Controllers using Run and item counts separately.
     - Add metrics comparing preparation/model cost and whole-batch retry amplification without claiming guaranteed savings.
   out:
@@ -38,6 +39,7 @@ requirements:
   - {id: R1, text: Batch grouping cannot give any member data, tools, credentials or active-check authority unavailable to every member.}
   - {id: R2, text: Run success cannot hide a missing/duplicate/foreign item result; invalid completeness is collected explicitly.}
   - {id: R3, text: Retrying a batch never creates a new logical AuditItem and every item attempt remains uniquely attributable.}
+  - {id: R4, text: Finding attribution remains item-specific across batching and retry; neither a shared Run nor multiple attempts creates extra discoveries or checklist origins.}
 
 acceptance_criteria:
   - id: A1
@@ -52,7 +54,11 @@ acceptance_criteria:
     given: A batch Run fails after doing partial model work.
     when: Retry policy permits another attempt.
     then: The complete bounded batch may rerun and no intermediate artifact is treated as a completed item.
+  - id: A4
+    given: Two checklist items share a Run, only one emits a finding proposal, and their retry batch membership changes.
+    when: Collection completes and an external script follows finding provenance.
+    then: Only the validated source item and checklist entry are attributed, all relevant attempts remain visible and unique-finding counts stay unchanged.
 
 tests:
-  - {name: controller, command: "go test -race ./internal/auditcontroller ./internal/auditimport -run Batch", covers: [A1, A2, A3]}
-  - {name: postgres, command: "go test -tags=integration ./internal/auditstore ./internal/auditcontroller -run Batch", covers: [A1, A2, A3]}
+  - {name: controller, command: "go test -race ./internal/auditcontroller ./internal/auditimport -run Batch", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "go test -tags=integration ./internal/auditstore ./internal/auditcontroller -run Batch", covers: [A1, A2, A3, A4]}

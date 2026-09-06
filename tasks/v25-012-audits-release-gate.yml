@@ -29,6 +29,9 @@ scope:
     - Add real-PostgreSQL crash injection around start, submission, terminal observation, collection receipt, retry-or-settle, review, finalization and deletion.
     - Add two-Controller and two-Runtime process scenarios with the global Scheduler limit, derived Audit dispatch look-ahead, capacity waiting and no silent capability downgrade.
     - Add browser flows for create/start/progress/coverage/findings/review/report/cancel/delete.
+    - Exercise UI analyst TP/FP and severity corrections followed by the documented API-only backtrace script on custom-checklist and imported ordinary-Run findings; include retries, duplicates, multiple mappings, stale edits and pagination races.
+    - Replace Workflow/checklist catalog entries and delete collected source/verifier Runs before repeating backtrace; prove exact origins, decision history and historical report ratings survive until Audit purge.
+    - Cover direct findings without prior hypotheses where the same Workflow discovers and verifies; require exact accepted result/contract provenance without synthetic items and reject verification inferred only from successful Run state.
     - Prove foreign-owner, stale-revision, package, write-fence, exact Skill pinning, secret-redaction and retained-content boundaries.
     - Reuse and verify the runnable demo configs/fixtures from V25-008A; update the runbook and aggregate verification target.
   out:
@@ -38,6 +41,7 @@ requirements:
   - {id: R1, text: Process tests use production persistence, API, mTLS, Scheduler and Runtime paths with no test-only execution shortcut.}
   - {id: R2, text: Every destructive case proves both intended deletion and required shared/exact evidence retention.}
   - {id: R3, text: Existing standalone, Project, Eval, Queue, Skill and ordinary Workflow behavior remains unchanged.}
+  - {id: R4, text: Public-API post-analysis distinguishes discovery from verification and causal checklist sources from mappings without counting retries or duplicates as new unique findings.}
 
 acceptance_criteria:
   - id: A1
@@ -56,8 +60,12 @@ acceptance_criteria:
     given: Existing aggregate suites.
     when: The release gate runs.
     then: All non-Audit behavior remains compatible.
+  - id: A5
+    given: A custom-checklist finding, an imported ordinary-Run finding and a direct same-Workflow verified finding without a prior hypothesis, with retry history, analyst ratings, a duplicate and multiple requirement mappings.
+    when: The analyst corrects TP/FP and severity in UI and the documented script traverses the public API before and after catalog replacement and permitted Run deletion.
+    then: The script reproduces exact source/verifier Workflow and checklist identities, current and historical ratings, supporting attempts and one canonical finding per duplicate group; concurrent edits force a traversal restart and foreign-owner reads reveal nothing.
 
 tests:
-  - {name: process, command: "make test-audits-e2e", covers: [A1, A2, A3]}
-  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A2, A3]}
-  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}
+  - {name: process, command: "make test-audits-e2e", covers: [A1, A2, A3, A5]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A2, A3, A5]}
+  - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4, A5]}

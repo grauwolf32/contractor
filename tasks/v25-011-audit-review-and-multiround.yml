@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: V25-011
-title: Add finding triage, exact human review and bounded multiple rounds
+title: Add analyst finding ratings, backtrace and bounded multiple rounds
 milestone: audits-iterative
 priority: P1
 status: pending
@@ -11,6 +11,8 @@ languages: [go, sql, openapi, typescript]
 goal: >-
   Extend the fixed-round Audit into a bounded iterative assessment whose new
   work and sensitive actions remain policy-controlled and reviewable.
+  Preserve analyst TP/FP and severity history and expose exact discovery,
+  verification and checklist provenance for external-script post-analysis.
 
 context:
   review_authority: >-
@@ -25,14 +27,23 @@ scope:
   in:
     - Persist review requests/decisions with CAS, idempotency, expiry, actor/rationale and exact subject correlation.
     - Add finding triage states, non-destructive duplicate links and owner import of exact ordinary-Run proposals.
+    - Implement spec 19 section 14.1 through existing finding-triage decisions; project nullable analyst verdict and severity, require rationale and TP severity, preserve model suggestions separately and append corrections with CAS/idempotency.
+    - Add exact-finding review-request creation/reuse for initial ratings and corrections; preserve completed requests and submit decisions through the existing owner-authenticated review endpoint.
+    - Support post-completion review until Audit deletion starts; duplicate/reopen/new assessment clears the effective rating while historical decisions and accepted report revisions remain immutable.
+    - Persist exact first/contributing proposal refs, validated proposal-to-item relations and assessment-to-result/attempt refs atomically with acceptance; preserve all attempts and causal checklist origins separately from standards mappings.
+    - Support spec 19 section 15.2 direct Workflow findings with no prior hypothesis or synthetic AuditItem; accept same-Run verification only against an exact pinned result/evidence contract and retain direct result/contract/acceptance refs through ordinary-Run import or Audit collection.
+    - Resolve invocation-local result proposal keys to exact trusted receipts with item membership validation; never infer contribution from a shared Run, batch, subject or fingerprint.
+    - Extend public OpenAPI and generated clients with filtered finding lists, finding detail and paginated provenance reads plus decision-history filtering as defined in spec 19 section 17; bind provenance cursors to finding/Audit revisions and reject stale traversals.
     - Add bounded discovery and assessment AuditExecutions using pinned role Workflows.
     - Validate and accept at most maxRounds immutable worklists with item/Run/proposal/evidence budgets.
     - Add waiting_review transitions that hold no allocation or Controller claim.
     - Advertise newly executable review/discovery/multi-round capability codes through AuditProfile projections without changing catalog identity.
     - Immediately before creating an execution authorized by review, re-read and verify the decision is accepted, unexpired and bound to the exact current plan/action/profile revision; stale earlier checks have no authority.
     - Add Findings/Reviews UI and proposed-versus-confirmed report sections.
+    - Add UI TP/FP, severity, rationale, duplicate/reopen and history controls with stale-edit handling; show source Workflow/checklist separately from verification attempts, including deleted Run provenance.
+    - Document a small public-API script example that retrieves analyst ratings and every provenance page for one finding without SQL access or narrative parsing.
   out:
-    - Automatic semantic deduplication, unapproved active exploitation, cross-Project imports or universal compliance claims.
+    - Automatic semantic deduplication, unapproved active exploitation, cross-Project imports, analytics dashboards/services, a generic provenance graph engine or universal compliance claims.
 
 requirements:
   - {id: R1, text: A decision for an old subject digest cannot authorize a newer plan/action/report.}
@@ -40,6 +51,10 @@ requirements:
   - {id: R3, text: Duplicate links are acyclic within one Audit and preserve every original proposal/finding.}
   - {id: R4, text: Limit/deadline exhaustion closes generation with explicit gaps and bounded finalization.}
   - {id: R5, text: Approval validity is checked transactionally at execution-intent creation, not only when the decision is first recorded or when UI reads it.}
+  - {id: R6, text: Analyst TP maps to confirmed and FP to rejected with the FP reason; other rejection reasons and duplicates are not FP, and unreviewed/reopened findings have no effective analyst rating.}
+  - {id: R7, text: Backtrace identifies source and verifier Workflow digests, exact checklist origins and every attempt after permitted Run deletion without granting cross-owner access.}
+  - {id: R8, text: Analyst edits preserve actor/time/exact-subject history and accepted report ratings; stale edits and mixed-revision provenance pagination conflict instead of silently overwriting or mixing state.}
+  - {id: R9, text: A Workflow may be both discoverer and verifier without prior hypotheses; direct verification requires accepted exact result/evidence-contract refs and never automatically assigns analyst TP.}
 
 acceptance_criteria:
   - id: A1
@@ -54,7 +69,24 @@ acceptance_criteria:
     given: A source Run proposal is imported by its owner.
     when: Project/scope/evidence are compatible.
     then: Provenance is retained and triage never trusts source labels or claims.
+  - id: A4
+    given: An unreviewed finding with a Worker severity suggestion and a completed Audit.
+    when: An analyst records TP with severity and rationale, corrects severity, then records FP or reopens the finding through UI.
+    then: Effective rating follows section 14.1, every decision retains actor/time and exact subject, the suggestion and historical report stay unchanged, and a stale concurrent edit conflicts.
+  - id: A5
+    given: An imported proposal with two verification attempts, a checklist source, an additional standards mapping and a duplicate finding.
+    when: An authenticated script reads finding detail, all provenance pages and decision history after source/verifier Run deletion and catalog replacement.
+    then: Exact source and verifier Workflow digests, causal checklist entry, mappings, all attempts, selected assessment results and duplicate target remain distinguishable; foreign-owner reads return safe 404.
+  - id: A6
+    given: A finding or its Audit changes between provenance pages or a worklist references a foreign proposal.
+    when: The script follows the old cursor or the Controller accepts the worklist.
+    then: The traversal conflicts and requires restart, or acceptance is rejected atomically without a forged lineage relation.
+  - id: A7
+    given: Direct ordinary and Audit Workflow findings without prior hypotheses, one satisfying a pinned verification contract and one with only a successful Run or model claim.
+    when: Results are imported or collected and the analyst reviews them before permitted source Run deletion.
+    then: Backtrace attributes accepted direct verification to the source Run with exact result/contract refs and no synthetic item, leaves the other candidate without accepted verification, and preserves independent analyst ratings and later supplemental checks.
 
 tests:
-  - {name: server, command: "go test -race ./internal/auditcontroller ./internal/auditstore ./internal/httpapi/public -run 'Audit|Review|Finding'", covers: [A1, A2, A3]}
-  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2]}
+  - {name: server, command: "go test -race ./internal/auditcontroller ./internal/auditstore ./internal/httpapi/public -run 'Audit|Review|Finding'", covers: [A1, A2, A3, A4, A5, A6, A7]}
+  - {name: postgres, command: "go test -tags=integration ./internal/auditstore ./internal/auditcontroller", covers: [A3, A4, A5, A6, A7]}
+  - {name: ui, command: "cd ui && pnpm test -- --run", covers: [A1, A2, A4, A5, A7]}

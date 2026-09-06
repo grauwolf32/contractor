@@ -26,6 +26,7 @@ scope:
     - Package exact ASVS 5.0 identifiers, levels, statements and source/license provenance.
     - Define explicit requirement-to-Workflow/evidence mappings and manual/documentary classifications without model-authored authority.
     - Add level/scope selection, applicability review, exact AuditProfile versions and truthful requirement coverage/reporting.
+    - Populate existing finding backtrace with exact causal ASVS package/entry origins separately from additional standards mappings; retain the selected requirement-to-Workflow mapping version through catalog replacement and Run deletion.
     - Add fixtures containing satisfied, violated, inconclusive, not-tested and policy-approved not-applicable cases.
     - Add production-path API/UI demo and mapping completeness/conformance tests.
   out:
@@ -35,6 +36,7 @@ requirements:
   - {id: R1, text: Every selected requirement appears exactly once in the denominator even when no automated Workflow applies.}
   - {id: R2, text: No requirement becomes satisfied or not-applicable without its versioned evidence contract and required authority.}
   - {id: R3, text: Reports state exact ASVS version, selected level/scope, automation limits and unresolved manual work.}
+  - {id: R4, text: A rated finding is traceable through actual check attempts to its exact source requirement and Workflow; multiple ASVS mappings do not imply multiple discoveries or prove causal origin.}
 
 acceptance_criteria:
   - id: A1
@@ -45,7 +47,11 @@ acceptance_criteria:
     given: A missing/dangling mapping or wrong-version requirement identifier.
     when: The package/profile is loaded.
     then: Publication fails before any Audit can start.
+  - id: A3
+    given: A TP-rated finding generated from an ASVS requirement and mapped to a second requirement, plus an ordinary-Run finding only mapped to ASVS.
+    when: An external script reads provenance after Run deletion and standard/profile catalog replacement.
+    then: It recovers the first finding's exact causal requirement, mapping version and verification Workflow, distinguishes the second finding's absent ASVS origin, and does not multiply unique findings by mappings.
 
 tests:
-  - {name: program, command: "go test ./tests/eval/audit_programs -run ASVS", covers: [A1, A2]}
-  - {name: process, command: "make test-asvs-audit-e2e", covers: [A1]}
+  - {name: program, command: "go test ./tests/eval/audit_programs -run ASVS", covers: [A1, A2, A3]}
+  - {name: process, command: "make test-asvs-audit-e2e", covers: [A1, A3]}

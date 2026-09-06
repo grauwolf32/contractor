@@ -25,9 +25,12 @@ context:
 scope:
   in:
     - Add Toolset descriptors/capability discovery and strict Python finding arguments/results.
+    - Allow optional hypothesis in FindingProposal and finding tool contracts for direct Workflow discoveries; update Go/Python validators and fixtures while preserving existing hypothesis-bearing proposals and without implying verification at intake.
     - Add POST /private/v1/allocations/{allocation_id}/finding-proposals plus receipt replay/read behavior.
     - Validate selected tool, principal/allocation/invocation, exact current-Run evidence, payload bytes/counts and Server quotas.
     - Persist canonical proposal, evidence holds and idempotent receipt in one transaction.
+    - Capture immutable trusted origin on the receipt including original Run/stage execution/allocation/invocation IDs, exact Workflow name/configuration version when present/closure digest and retained safe configuration ref, plus Audit execution identity and role when applicable.
+    - Transfer exact origin/configuration retention along with imported proposal/evidence holds so an ordinary source Run can later be deleted without losing Workflow attribution.
     - Show proposals on ordinary Run and Audit inbox read projections without confirming them.
     - Reject new submissions after write fence while allowing exact accepted receipt replay.
     - During Audit child collection, transfer allowed proposal/evidence retention to exact Audit-owned inbox holds before releasing source-Run pins; profiles with findings disabled cannot select this Toolset or admit an unexpected proposal.
@@ -41,6 +44,7 @@ requirements:
   - {id: R3, text: Same submission and digest replay exactly; same identity with changed content conflicts.}
   - {id: R4, text: Failed source Run does not erase a committed proposal or elevate it to confirmed.}
   - {id: R5, text: No proposal/evidence pin survives source Run deletion without either an exact destination-Audit hold or a durable discarded tombstone.}
+  - {id: R6, text: Proposal origin is derived from trusted execution state and survives imported source Run deletion or catalog replacement; model fields and labels cannot redefine it.}
 
 acceptance_criteria:
   - id: A1
@@ -58,9 +62,13 @@ acceptance_criteria:
   - id: A4
     given: One imported and one unimported proposal belong to an ordinary terminal Run.
     when: The owner hard-deletes that Run.
-    then: The imported revision remains under its Audit hold, the unimported proposal is discarded, and all source-owned pins are released without leakage.
+    then: The imported revision and exact originating Workflow provenance remain under Audit holds with the original Run ID and runDeleted, the unimported proposal is discarded, and all source-owned pins are released without leakage.
+  - id: A5
+    given: Two workflow versions emit proposals and one submission is replayed with forged origin fields.
+    when: Intake validates the requests and the workflow catalog is subsequently replaced.
+    then: Forged fields are rejected, accepted receipts retain their distinct trusted Workflow digests, and replay cannot create another source contribution.
 
 tests:
-  - {name: server, command: "go test -race ./internal/findingintake ./internal/httpapi/privateartifacts ./internal/runstore", covers: [A1, A2, A3, A4]}
+  - {name: server, command: "go test -race ./internal/findingintake ./internal/httpapi/privateartifacts ./internal/runstore", covers: [A1, A2, A3, A4, A5]}
   - {name: runtime, command: "cd runtime && uv run pytest tests -k finding", covers: [A1, A3]}
-  - {name: postgres, command: "go test -tags=integration ./internal/findingintake", covers: [A1, A2, A4]}
+  - {name: postgres, command: "go test -tags=integration ./internal/findingintake", covers: [A1, A2, A4, A5]}

@@ -329,12 +329,12 @@ erDiagram
 | --- | --- |
 | `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, deadline, limits/counters, stop reason, optional deletion_requested_at, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
-| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), state, final disposition, optional accepted result ref, optional last_execution_item_id |
+| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, final disposition, optional accepted result ref, optional last_execution_item_id |
 | `AuditExecution` | id, audit_id, optional round_id, role, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
 | `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
 | `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
-| `AuditFinding` | id, audit_id, first proposal, current assessment, triage state, optional duplicate target, revision |
-| `AuditProposalReceipt` | id, run_id, allocation_id, invocation_id, submission_id, payload digest, exact proposal ref, optional admitted audit_id, source status |
+| `AuditFinding` | id, audit_id, exact first and contributing proposal refs, current assessment ref with exact supporting check-result/attempt or direct Workflow result refs, triage state, current analyst decision ref, optional duplicate target, revision |
+| `AuditProposalReceipt` | id, run_id, allocation_id, invocation_id, submission_id, payload digest, exact proposal ref, immutable trusted origin including Workflow identity/digest, optional admitted audit_id, source status |
 | `AuditArtifactLink` | audit_id, logical key, exact retained version, source provenance, display ref, timestamp |
 | `AuditReviewRequest` | id, audit_id, kind, exact subject revision/digest, requested actions, state, optional expiry |
 | `AuditReviewDecision` | id, request_id, actor_id, decision, exact subject revision/digest, bounded rationale, timestamp |
@@ -460,6 +460,11 @@ are rejected when a standards package is configured. Missing mapping is shown
 as unmapped, not interpreted as compliance. `client_key` is scoped to the
 trusted invocation and never becomes a global finding ID.
 
+`hypothesis` is optional for a finding discovered directly by a Workflow. The
+FindingProposal remains the candidate/evidence envelope; it does not imply a
+separate prior hypothesis or a mandatory later verification Run. Omission of
+the hypothesis alone never means verification was performed (section 15.2).
+
 ### 7.2 CheckResultSet
 
 ```yaml
@@ -533,6 +538,16 @@ Run. Duplicate keys, missing/duplicate ordinals, unknown roles, absent package
 members, dependency gaps, and limit violations reject it atomically. The
 normalized manifest and Round/Items commit together. A model may request more
 approval, but cannot weaken the trusted profile requirement.
+
+For proposal-driven work, acceptance also persists exact source proposal refs
+(receipt ID, artifact revision and digest) on each AuditItem. Checklist-driven
+items pin the checklist package revision/digest and entry key/version, plus
+standard identifiers when applicable. These are validated durable relations,
+not references reconstructed from hypothesis text or task filenames. One
+proposal may require several items; an item may verify several explicitly
+linked proposals. Initial inventory items may have no source proposal. The
+Server resolves model-proposed references only within the exact authorized
+inbox/input set; a proposal cannot choose another Audit or execution.
 
 ## 8. Deterministic inventories
 
@@ -618,8 +633,8 @@ an Audit by trusting Run labels.
 This optional AgentTemplate Toolset exposes:
 
 ```text
-finding(client_key, title, description, subject, hypothesis,
-        evidence_refs, proposed_checks?, standard_refs?, severity_suggestion?)
+finding(client_key, title, description, subject, evidence_refs,
+        hypothesis?, proposed_checks?, standard_refs?, severity_suggestion?)
   -> {proposal_id, receipt_id}
 ```
 
@@ -851,6 +866,39 @@ Waiting for a person holds no allocation, Controller claim, or DB transaction.
 Human evidence is stored with actor/time provenance and passes the same exact
 package validation. A decision never rewrites original observations.
 
+### 14.1 Analyst verdict and severity
+
+The Findings UI lets an authenticated owner acting as analyst record
+`true_positive` or `false_positive`, severity, and a bounded rationale through
+the existing `finding-triage` review flow. No separate analyst role or second
+approval system is introduced. The immutable decision contains actor/time,
+exact finding revision/digest, verdict, severity and rationale. A verdict
+requires a rationale; `true_positive` also requires severity from
+`informational | low | medium | high | critical`. `false_positive` has no
+effective severity. An unreviewed finding has a null analyst verdict/severity;
+the Worker's `severity_suggestion` remains separate and is never a fallback
+analyst rating.
+
+`true_positive` sets triage to `confirmed`, subject to the profile evidence
+contract; `false_positive` sets it to `rejected` with the false-positive reason.
+Other rejection reasons, `duplicate`, and `needs-evidence` do not imply a false
+positive. Current analyst fields are projected from the applicable decision,
+not independently mutable copies of triage state. Reopening a finding or
+marking it duplicate clears the effective verdict/severity while preserving
+all previous decisions. Severity changes and corrected verdicts append a new
+exact-subject decision using CAS and idempotency. The owner may create or reuse
+a pending finding-triage request for the current finding revision through the
+finding review endpoint; a completed request is never reopened or overwritten.
+Corrections never rewrite the proposal, check result, earlier assessment or
+decision. A new assessment cannot
+silently carry forward an earlier confirmation: it requires renewed triage.
+
+Review remains possible after Audit execution completes until deletion begins;
+it does not restart execution. Finding and Audit revisions advance on visible
+review/assessment/duplicate changes. An already accepted report retains the
+finding and decision revisions it used; API/UI distinguish its historical
+ratings from current analyst ratings rather than rewriting that report.
+
 ## 15. Evidence, findings, and coverage
 
 Every accepted observation records exact inputs, instrument/version, actor
@@ -887,6 +935,93 @@ confirmed and proposed findings separately, unresolved questions, exclusions,
 incomplete evidence, human decisions, limits, and reproducible provenance. Any
 ASVS statement is limited to the selected version, level, scope, and evidence
 policy; partial automation is not described as complete compliance.
+
+### 15.1 Finding backtrace and offline attribution
+
+An external script must be able to start with an Audit finding ID and obtain
+its analyst rating and provenance through the owner-authenticated public API,
+without database access, parsing narrative reports or inferring Run labels.
+Hypothesis content, when present, remains in an exact FindingProposal; a separate global
+Hypothesis entity or generic graph engine is not required.
+
+The retained relations distinguish discovery from verification:
+
+- Finding to its exact first proposal and every explicitly contributing
+  proposal; each proposal to its trusted receipt and originating Run.
+- Proposal to its verifying AuditItems, including items in later rounds; each
+  item to all AuditExecutionItem attempts, exact results/evidence, execution,
+  and verification Run. Failed, inconclusive and superseded attempts remain
+  visible. Current assessment explicitly identifies which result/attempt refs
+  support it, or exact direct Workflow results under section 15.2. Missing
+  verification is represented by an empty set and reason,
+  never an invented successful check.
+- Each originating or verification Run to its immutable Workflow name,
+  configuration version when available, and complete ResolvedWorkflow closure
+  digest. Preserve the exact retained configuration reference used to compute
+  that digest, independently of the mutable catalog. Origin also records
+  Run ID, stage execution ID, allocation ID and invocation ID from trusted
+  state. For Audit Runs include Audit/round/execution identity and role.
+- Items and proposals to exact checklist package revision/digest and entry
+  key/version, with `scheme`, `version`, `requirement_id` for standards. A
+  validated standards mapping and a causal source checklist are distinct:
+  attaching an ASVS reference does not prove that ASVS generated the hypothesis.
+  Preserve missing mappings as unmapped and direct discoveries as having no
+  checklist source.
+
+Receipt origins are captured at intake; checklist origins and proposal-to-item
+relations are bound at trusted inventory/import/worklist acceptance. Result
+import resolves invocation-local proposal keys to exact receipts and validates
+item membership. A finding discovered while checking an item inherits that
+item's checklist origin only through this validated association. Sharing a
+Run, batch, subject or fingerprint never links a proposal to every item.
+References outside the authorized Audit/imported inputs are rejected. The
+lineage write and its corresponding acceptance commit atomically; replay
+cannot create another contribution.
+
+Backtrace preserves both the first source and additional contributors without
+claiming each was an independent discovery. A duplicate link keeps each
+original finding/proposal and identifies the canonical target inside the Audit;
+ratings are not silently copied to duplicate records. A script can count
+distinct confirmed canonical findings per source Workflow or checklist, and
+separately count participation in verification. Retries, multiple evidence
+refs, multiple checklist mappings and duplicate proposals must not inflate
+unique-finding counts. Cross-Audit deduplication is not implied. Comparisons
+should state baseline/scope/profile and Workflow digest, separate unreviewed
+and inconclusive work, and use attempted items/runs as denominators when
+measuring yield. The Server supplies provenance and ratings; aggregation and
+choice of attribution policy belong to the external script.
+
+### 15.2 Direct findings with verification inside the source Workflow
+
+A Workflow may discover and verify a finding in the same Run without consuming
+an earlier hypothesis. This is a supported path for both ordinary and Audit
+Runs. Its finding candidate still uses trusted intake and a receipt, but no
+synthetic hypothesis, AuditItem or additional verification Run is created just
+to complete a lineage chain. The same Run may be recorded as both the source
+and verifier; an actual check execution retains its existing item/attempt link.
+
+Treating the source Workflow as verifier requires its exact pinned output /
+evidence contract to define verification and the accepted result to satisfy
+that contract. Retain a direct verification reference containing the source
+Run and exact Workflow closure, result artifact revision/digest, evidence refs,
+contract revision/digest, semantic assessment and acceptance record. For an
+ordinary Run, validation and retention occur on import into a compatible Audit;
+for an Audit Run they occur during trusted collection/assessment. This uses
+the existing acceptance/receipt mechanism and grants no new model authority.
+Intake alone records a candidate, and a successful Run or model assertion of
+verification does not create an accepted verification reference. Without a
+valid result contract the finding remains a candidate with no accepted
+verification, eligible for further checks or human evidence review.
+
+Finding assessment accepts both item-attempt result refs and these direct
+Workflow result refs. Further checks may supplement either path without
+changing the original source. The API exposes a direct verification record
+with nullable item/attempt IDs and an explicit shared source/verifier Run ID;
+it must not look like a missing relation. Preserve its exact result, contract
+and provenance after permitted source Run deletion. Analyst TP/FP and severity
+remain separate decisions under section 14.1; verified evidence does not bypass
+the human-confirmation policy. Offline attribution can credit discovery and
+verification to the same Workflow while counting one unique finding.
 
 ## 16. Retention, publication, and deletion
 
@@ -998,7 +1133,10 @@ Owner comes from authentication and Project membership, never a request body.
 | `POST /v1/audits/{auditId}/resume` | Resume reconcile/dispatch |
 | `POST /v1/audits/{auditId}/cancel` | Close dispatch and bounded-cancel children |
 | `GET /v1/audits/{auditId}/items` | Paginated items filtered by round/state/subject |
-| `GET /v1/audits/{auditId}/findings` | Proposals/triage with exact evidence links |
+| `GET /v1/audits/{auditId}/findings` | Keyset list with triage, analyst verdict/severity and duplicate target; filters apply before pagination |
+| `GET /v1/audits/{auditId}/findings/{findingId}` | Exact finding revision, current assessment, analyst decision/rating and evidence links |
+| `GET /v1/audits/{auditId}/findings/{findingId}/provenance` | Paginated structured source proposals and verification attempts with Workflow/checklist provenance |
+| `POST /v1/audits/{auditId}/findings/{findingId}/reviews` | CAS/idempotent create or reuse of a pending finding-triage request for the exact current finding revision |
 | `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
 | `GET /v1/audits/{auditId}/reviews` | Pending/completed review requests |
 | `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject owner decision |
@@ -1010,6 +1148,26 @@ Unknown and other-owner IDs return the same safe 404. Invalid transitions
 return conflict with bounded stable codes. Nested route IDs must belong to the
 same Audit. Filters apply before keyset pagination. Safe errors/events contain
 no credential, raw provider response, package content, or model transcript.
+
+Finding lists support triage, analyst verdict (including unreviewed), and
+severity filters. Finding detail identifies exact first/contributing proposals,
+current assessment and decision, and duplicate target. Provenance pages return
+typed source-proposal, check-attempt and direct-verification records with the
+complete respective chain from sections 15.1-15.2, stable IDs, exact refs/digests,
+role, technical outcome,
+semantic assessment, whether a result supports the current assessment, and
+`runDeleted`. Checklist sources and standards mappings are separate fields.
+Reviews can be filtered by finding ID to retrieve paginated decision history.
+These reads use the same ownership checks and generated OpenAPI client as UI.
+
+The provenance response carries finding and Audit revisions. Bounded keyset
+cursors bind to those revisions; a change during traversal returns a conflict
+and requires restarting rather than silently mixing histories. A script may
+pass the revisions obtained from finding detail to the first provenance page
+to detect an intervening edit. Cross-Audit snapshot export is not required.
+The public contract includes a small documented script example that reads
+ratings and follows pagination to emit one finding's complete backtrace; no
+analytics service, dashboard or direct SQL access is required.
 
 Profile endpoints are a dedicated read-only projection, not generic managed
 configuration publication. Every item identifies exact name/version/digest and
@@ -1026,6 +1184,13 @@ semantic assessment, and proposed findings separately from confirmed findings.
 Generic Runs/Queue UI remains authoritative for execution and links back to the
 Audit; Audit does not create a second Runtime queue.
 
+Finding detail offers True positive / False positive, severity and rationale
+controls, plus duplicate/reopen actions and decision history. It shows the
+source Workflow and checklist separately from verification Workflows and
+attempts; deleted Runs retain readable provenance instead of broken-only links.
+Unreviewed findings display no analyst rating. Stale edits refetch current
+state after conflict and never overwrite another decision silently.
+
 The MVP UI uses bounded polling of authoritative Audit/profile reads while an
 Audit is nonterminal or deleting, keyed by Audit revision/ETag, and stops when
 the route is inactive or terminal. It refetches immediately after a mutation
@@ -1035,8 +1200,8 @@ feature; the existing Run event socket is not treated as an Audit invalidation
 contract.
 
 The Audit revision advances for every projection-visible lifecycle, Round,
-item, execution, receipt, coverage, retained-artifact, or budget-counter
-mutation. Controller claim acquire/renew/release is internal lease traffic and
+item, execution, receipt, finding, review, provenance, coverage,
+retained-artifact, or budget-counter mutation. Controller claim acquire/renew/release is internal lease traffic and
 does not advance the public revision. Consequently an unchanged strong ETag
 means the complete bounded Audit projection is unchanged, not merely that the
 top-level lifecycle state is unchanged.
@@ -1151,6 +1316,17 @@ separate idempotent receipt contract and are not implied by artifact writes.
     stable compatibility reasons and start rechecks them atomically.
 20. Exact Skill package revisions selected at Audit start are used by later
     child Runs even after the current Skill binding changes.
+21. Analyst TP/FP and severity edits retain exact-subject history and reject
+    stale writes; duplicate/reopen and new assessment do not inherit a verdict.
+22. An API-only script traces a rated finding to its source Workflow, all
+    verification attempts and exact checklist entries after catalog replacement
+    and permitted Run deletion. Pagination detects intervening revisions.
+23. Retry, duplicate and multi-requirement fixtures preserve attribution without
+    multiplying distinct confirmed findings; a standards mapping alone never
+    becomes a causal checklist source.
+24. A direct Workflow finding needs no prior hypothesis or synthetic check item;
+    accepted verification traces to that same Run's exact result/contract, while
+    absent or invalid verification evidence never implies TP.
 
 ## 21. Delivery increments and deferred work
 
@@ -1163,7 +1339,9 @@ Run-deletion gates.
 
 **Increment 2:** `security-findings@1` for Audit and ordinary Runs; finding
 triage; exact human review; bounded discovery/assessment and multiple rounds;
-trace proposal to verification.
+analyst TP/FP and severity history; API backtrace from finding through proposals
+and verification attempts to exact Workflow/checklist origins, including after
+source Run deletion; a documented external-script example.
 
 **Increment 3:** curated licensed versioned standards packages and mappings,
 richer evidence contracts, comparison of Audits for the same system, retest of
