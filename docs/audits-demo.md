@@ -1,6 +1,6 @@
 # Runnable Audit demo
 
-The operator catalog ships two bounded, non-certifying Audit programs:
+The operator catalog ships two bounded source-input demo programs:
 
 - `source-checklist@1` turns a checklist plus a source ZIP into one check per
   checklist entry and executes up to two compatible checks in one ordinary Run.
@@ -88,6 +88,25 @@ bounded execution and collection lifecycle settled; it is not a security or
 compliance certification. The same flow starts `openapi-operation-trace@1` by
 uploading an `openapi` input and changing the exact profile selector.
 
+## Curated Top 10 and ASVS programs
+
+Two additional operator profiles exercise the same ordinary Run path with an
+exact licensed standard package:
+
+- `owasp-top10-2025-source-risk@1` assesses ten bounded, independently authored
+  source-risk scenarios mapped to the OWASP Top 10:2025 categories. It is a
+  risk-awareness report, not exhaustive vulnerability discovery.
+- `owasp-asvs-5-0-l1-source-review@1` verifies a selected five-requirement ASVS
+  5.0.0 Level 1 pilot. Its selection, version-qualified requirement IDs,
+  automated evidence, manual work, and not-applicable decisions remain separate
+  in coverage and in the machine report.
+
+Both profiles require the exact `source` ZIP input. The Audit baseline exposes
+the pinned standard source revision, license, retained package digest, selected
+denominator, and exact `trace` Skill source. Removing the current profile,
+Workflow, AgentTemplate, or standard catalog entry does not rewrite a completed
+Audit; its retained report and provenance remain readable until Audit deletion.
+
 ## Trace one finding after source deletion
 
 The public API retains exact source and verifier provenance owned by the Audit,
@@ -111,20 +130,24 @@ Runs remain identifiable through their retained exact Workflow closure and
 
 ## Audit release verification
 
-The strict conformance and fault map is
-[`tests/e2e/audits_matrix.yml`](../tests/e2e/audits_matrix.yml). Every case names
-its executable owner and the durable boundary or fault it proves. Run the full
-gate against a disposable PostgreSQL database:
+The general strict conformance and fault map is
+[`tests/e2e/audits_matrix.yml`](../tests/e2e/audits_matrix.yml). The curated
+program release contract is separately declared in
+[`tests/e2e/audit_program_library_matrix.yml`](../tests/e2e/audit_program_library_matrix.yml).
+Every case names its executable owner and the durable boundary it proves. Run
+the complete curated-program gate against a disposable PostgreSQL database:
 
 ```sh
 export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:contractor@127.0.0.1:5432/contractor_test?sslmode=disable'
-make test-audits-e2e
+make test-audit-program-library-e2e
 ```
 
-For diagnosis, the gate is split into `test-audits-matrix`,
-`test-audits-hardening`, `test-audits-process`, and `test-audits-browser`.
-Process tests launch real Server and Runtime processes with mTLS; the browser
-gate serves the independently built frontend against the public API. The
-aggregate `release-verify` target includes the complete Audit gate. A failed
-component is a release failure—coverage rows and a terminal Audit alone are not
-evidence that recovery, retention, isolation, or UI contracts passed.
+For diagnosis, the curated gate is split into
+`test-audit-program-library-matrix`, `test-audit-program-library-hardening`,
+`test-audit-program-library-process`, and
+`test-audit-program-library-browser`. Process tests launch real Server and
+Runtime processes with mTLS; the browser gate serves the independently built
+frontend against the public API. The aggregate `release-verify` target includes
+this complete gate. A failed component is a release failure—coverage rows and a
+terminal Audit alone are not evidence that recovery, retention, isolation, or
+UI contracts passed.

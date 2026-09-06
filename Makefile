@@ -329,6 +329,22 @@ test-audits-browser: test-ui-stack
 
 test-audits-e2e: test-audits-hardening test-audits-process test-audits-browser
 
+.PHONY: test-audit-program-library-matrix test-audit-program-library-hardening test-audit-program-library-process test-audit-program-library-browser test-audit-program-library-e2e
+
+test-audit-program-library-matrix:
+	go test -count=1 ./tests/e2e -run '^TestAuditProgramLibraryMatrixIsComplete$$'
+
+test-audit-program-library-hardening: test-audits-hardening test-audit-program-library-matrix
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	go test -count=1 ./tests/eval/audit_programs
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/auditstandards ./internal/auditcontroller ./internal/auditservice -run '^(TestCatalogPostgresConcurrentSeedAndExactRetention|TestPostgresControllerCollectsAndPublishesExactAuditReport|TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused|TestAuditReportAcceptanceUsesFrozenCandidate)$$'
+
+test-audit-program-library-process: test-audits-process
+
+test-audit-program-library-browser: test-audits-browser
+
+test-audit-program-library-e2e: test-audit-program-library-hardening test-audit-program-library-process test-audit-program-library-browser
+
 .PHONY: test-scheduler-concurrency-matrix test-scheduler-concurrency-hardening test-scheduler-concurrency-process test-scheduler-concurrency-browser test-scheduler-concurrency-e2e
 
 test-scheduler-concurrency-matrix: test-hardening-matrices
@@ -416,4 +432,4 @@ build:
 
 verify: lint test build ui-verify
 
-release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audits-e2e
+release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audit-program-library-e2e

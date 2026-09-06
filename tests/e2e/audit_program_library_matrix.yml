@@ -1,0 +1,100 @@
+schema_version: "1.0"
+
+policy:
+  identity: >-
+    Every program pins one exact profile, standard package, Workflow closure,
+    Skill package and selected denominator. Replacing a current catalog entry
+    cannot rewrite an existing Audit or its report.
+  coverage: >-
+    Every selected category or requirement remains visible. Manual,
+    unavailable, inconclusive and not-applicable work stays distinct from an
+    accepted assessment and never silently narrows the denominator.
+  reporting: >-
+    Reports describe bounded evidence and gaps. Top 10 is risk awareness and
+    the curated ASVS subset is requirements verification; neither is a
+    certification or a claim that the application is secure or compliant.
+  lifecycle: >-
+    Production-process restart, child Run deletion, Audit deletion and Project
+    deletion preserve required provenance for its declared lifetime and release
+    exact pins only at their owning lifecycle boundary.
+
+programs:
+  - id: top10-2025
+    profile: owasp-top10-2025-source-risk@1
+    mode: risk-assessment
+    standard:
+      scheme: owasp-web-top10
+      version: "2025"
+      source_revision: 66ebc4798d2ca72973967a20264bdeb70dcf0a13
+      license: CC-BY-SA-4.0
+    selected_items: 10
+    expected_assessments: [inconclusive, not-tested, satisfied, violated]
+    prohibited_claims: [application is compliant, application is secure, OWASP certified]
+  - id: asvs-5.0-l1-pilot
+    profile: owasp-asvs-5-0-l1-source-review@1
+    mode: requirements-verification
+    standard:
+      scheme: owasp-asvs
+      version: 5.0.0
+      source_revision: 5cf9b032440be53ce345ab3c130fda46ba1ce7a2
+      license: CC-BY-SA-4.0
+    selected_items: 5
+    expected_assessments: [inconclusive, not-applicable, not-tested, satisfied, violated]
+    prohibited_claims: [application is compliant, application is secure, ASVS certified]
+
+cases:
+  - id: top10_exact_definition
+    phase: definition
+    programs: [top10-2025]
+    acceptance: [A1]
+    expected: The exact licensed ten-category denominator and independently authored mappings are deterministic and non-certifying.
+    test: {source: tests/eval/audit_programs/top10_test.go, kind: go_test, name: TestTop10PackageHasExactLicensedCategoryDenominator}
+  - id: asvs_exact_definition
+    phase: definition
+    programs: [asvs-5.0-l1-pilot]
+    acceptance: [A1]
+    expected: The exact licensed five-requirement pilot denominator and version-qualified selection are deterministic and explicit.
+    test: {source: tests/eval/audit_programs/asvs_test.go, kind: go_test, name: TestASVSPackageAndProfilePinExactSelectedDenominator}
+  - id: exact_catalog_persistence
+    phase: persistence
+    programs: [top10-2025, asvs-5.0-l1-pilot]
+    acceptance: [A2]
+    expected: Concurrent seeding creates one current catalog revision and Audit pinning retains an immutable Project revision.
+    test: {source: internal/auditstandards/catalog_postgres_test.go, kind: go_test, name: TestCatalogPostgresConcurrentSeedAndExactRetention}
+  - id: production_program_recovery
+    phase: process
+    programs: [top10-2025, asvs-5.0-l1-pilot]
+    acceptance: [A1, A2]
+    expected: Both programs traverse the ordinary API, Scheduler, mTLS Runtime and Artifact paths; exact reports and backtrace reopen after catalog removal, child Run deletion and Server restart.
+    test: {source: tests/e2e/audit_programs_process_test.go, kind: go_test, name: TestAuditProgramsAcrossProductionProcesses}
+  - id: incompatible_runtime_is_not_selected
+    phase: capability
+    programs: [top10-2025, asvs-5.0-l1-pilot]
+    acceptance: [A1]
+    expected: Missing Runtime Toolset capability is waiting/placement evidence and cannot be converted into a successful security assessment.
+    test: {source: tests/e2e/capability_placement_test.go, kind: go_test, name: TestHeterogeneousRuntimeCapabilityPlacement}
+  - id: destructive_lifecycle_releases_program_holds
+    phase: lifecycle
+    programs: [top10-2025, asvs-5.0-l1-pilot]
+    acceptance: [A2]
+    expected: Audit and Project deletion use durable drain and purge paths even while ordinary Run admission is paused.
+    test: {source: internal/auditcontroller/controller_postgres_test.go, kind: go_test, name: TestPostgresControllerDeletesActiveAuditWhileOwnerQueuePaused}
+  - id: browser_distinguishes_program_semantics
+    phase: browser
+    programs: [top10-2025, asvs-5.0-l1-pilot]
+    acceptance: [A1]
+    expected: The independent frontend renders exact standard and license provenance, complete mixed coverage, ASVS selection and explicit non-certifying reports for both programs.
+    test: {source: ui/e2e/audits.spec.ts, kind: test_title, name: audit program library renders exact Top 10 and ASVS evidence boundaries}
+  - id: matrix_self_validation
+    phase: matrix
+    programs: [top10-2025, asvs-5.0-l1-pilot]
+    acceptance: [A1, A2]
+    expected: Strict decoding rejects changed program identities, missing lifecycle phases, unknown test owners and incomplete release gates.
+    test: {source: tests/e2e/audit_program_library_matrix_test.go, kind: go_test, name: TestAuditProgramLibraryMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-audit-program-library-matrix}
+  - {id: hardening, command: make test-audit-program-library-hardening}
+  - {id: process, command: make test-audit-program-library-process}
+  - {id: browser, command: make test-audit-program-library-browser}
+  - {id: release, command: make test-audit-program-library-e2e}

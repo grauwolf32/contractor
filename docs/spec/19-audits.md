@@ -1597,6 +1597,11 @@ implied by artifact writes.
 26. Human report review displays immutable proposed bytes. Accept publishes
     those exact revisions, reject/expiry terminates with a stable reason, and
     finding/import mutations cannot cross the pending candidate boundary.
+27. The curated Top 10 and ASVS pilot release gate names every executable
+    definition, PostgreSQL, capability, lifecycle, production-process and
+    independent-browser owner; both historical reports reopen with their exact
+    denominator and non-certifying language after current program catalog
+    entries disappear and the Server restarts.
 
 ## 21. Delivery increments and deferred work
 
@@ -1615,10 +1620,13 @@ source Run deletion; exact item-action/report decisions; a documented
 external-script example.
 
 **Increment 3:** the curated licensed versioned standard package catalog,
-canonical seeding, exact Audit pins, license-aware read API, and bounded OWASP
-Top 10:2025 source-risk program are implemented. Curated ASVS program data,
-comparison of Audits for the same system, retest of accepted findings against a
-new baseline, and broader program coverage remain follow-up work.
+canonical seeding, exact Audit pins, license-aware read API, bounded OWASP Top
+10:2025 source-risk program, and selected five-requirement ASVS 5.0.0 Level 1
+pilot are implemented. Their release matrix binds exact identity, denominator,
+mixed coverage, restart, catalog replacement, lifecycle, production-process and
+independent-browser checks to executable owners. Comparison of Audits for the
+same system, retest of accepted findings against a new baseline, the complete
+ASVS corpus, and broader program coverage remain follow-up work.
 
 **Increment 4:** bounded compatible check-item batches in one ordinary Run;
 deterministic task-set packages; complete atomic result import; per-item

@@ -318,6 +318,365 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   expect(storage.search).toBe("");
 });
 
+test("audit program library renders exact Top 10 and ASVS evidence boundaries", async ({
+  page,
+}, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== "string") {
+    throw new Error("Playwright baseURL is required");
+  }
+  const apiOrigin =
+    process.env.CONTRACTOR_UI_E2E_API_URL ?? "http://127.0.0.3:8080";
+  const now = "2026-09-06T10:30:00Z";
+  const digest = (value: string) => `sha256:${value.repeat(64)}`;
+  const exact = (namespace: string, name: string, revision: string) => ({
+    ref: { namespace, name, revision },
+    digest: digest("a"),
+    mediaType: "application/zip",
+    sizeBytes: 1024,
+  });
+  const standard = (
+    scheme: string,
+    version: string,
+    title: string,
+    sourceUrl: string,
+    sourceRevision: string,
+  ) => ({
+    reference: { scheme, version },
+    title,
+    source: { name: title, url: sourceUrl, revision: sourceRevision },
+    license: {
+      id: "CC-BY-SA-4.0",
+      url: "https://creativecommons.org/licenses/by-sa/4.0/",
+      attribution: `OWASP Foundation, ${title}.`,
+      disclosure: "full",
+    },
+    catalog: {
+      artifact: {
+        namespace: "audit-standards",
+        name: `std-${scheme}-${version}`,
+        revision: `catalog-${scheme}-r1`,
+      },
+      digest: digest("b"),
+      mediaType: "application/vnd.contractor.audit-standard+zip",
+      sizeBytes: 4096,
+    },
+    retained: {
+      artifact: {
+        namespace: "audit-program-browser",
+        name: `standard-${scheme}-${version}`,
+        revision: `retained-${scheme}-r1`,
+      },
+      digest: digest("b"),
+      mediaType: "application/vnd.contractor.audit-standard+zip",
+      sizeBytes: 4096,
+    },
+  });
+  const project = {
+    projectId: PROJECT_ID,
+    kind: "project",
+    name: "Audit program library fixture",
+    description: "Exact Top 10 and ASVS reports",
+    lifecycle: "active",
+    revision: "1",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const runtimeConfig = {
+    default: {
+      label: "default",
+      explicit: false,
+      bindingRevision: 1,
+      config: { name: "default-runtime", version: "1", digest: digest("c") },
+    },
+    labels: [],
+  };
+  const makeAudit = (
+    auditId: string,
+    profileName: string,
+    pinnedStandard: ReturnType<typeof standard>,
+    selected?: { scope: string; levels: string[]; entryIds: string[] },
+  ) => ({
+    auditId,
+    projectId: PROJECT_ID,
+    profile: { name: profileName, version: "1", digest: digest("d") },
+    inputs: {},
+    scope: { objective: "Render exact program evidence." },
+    runtimeLabels: [],
+    state: "completed",
+    revision: 7,
+    dispatchState: "closed",
+    holdState: "held",
+    limits: {
+      maxRounds: 1,
+      batchSize: 1,
+      maxItemsPerRound: 16,
+      maxItemsTotal: 16,
+      maxSubmittedRuns: 32,
+      maxItemRunAttempts: 2,
+      maxEvidenceBytes: 1_048_576,
+    },
+    reservedRunCount: 10,
+    submittedRunCount: 10,
+    outstandingRunCount: 0,
+    retainedEvidenceBytes: 2048,
+    eventSequence: 24,
+    createdAt: now,
+    updatedAt: now,
+    startedAt: now,
+    finishedAt: now,
+    baseline: {
+      inputs: {},
+      scope: { objective: "Render exact program evidence." },
+      runtimeLabels: [],
+      runtimeConfig,
+      skills: [
+        {
+          name: "trace",
+          source: { namespace: "skills", name: "trace", revision: "trace-r1" },
+          sourceDigest: digest("e"),
+          sourceSize: 2048,
+        },
+      ],
+      standards: [pinnedStandard],
+      inventory: {
+        sourceContentDigest: digest("f"),
+        canonicalInventoryDigest: digest("1"),
+        gaps: [],
+        worklist: exact(
+          "audit-program-browser",
+          `${auditId}-worklist`,
+          "worklist-r1",
+        ),
+        ...(selected === undefined ? {} : { standardSelection: selected }),
+      },
+    },
+  });
+  const top10 = makeAudit(
+    "audit_top10_browser",
+    "owasp-top10-2025-source-risk",
+    standard(
+      "owasp-web-top10",
+      "2025",
+      "OWASP Top 10:2025",
+      "https://owasp.org/Top10/2025/",
+      "66ebc4798d2ca72973967a20264bdeb70dcf0a13",
+    ),
+  );
+  const asvsEntryIds = [
+    "v5.0.0-1.2.4",
+    "v5.0.0-1.2.5",
+    "v5.0.0-1.3.2",
+    "v5.0.0-1.5.1",
+    "v5.0.0-2.1.1",
+  ];
+  const asvs = makeAudit(
+    "audit_asvs_browser",
+    "owasp-asvs-5-0-l1-source-review",
+    standard(
+      "owasp-asvs",
+      "5.0.0",
+      "OWASP ASVS 5.0.0",
+      "https://github.com/OWASP/ASVS/tree/v5.0.0_release/5.0",
+      "5cf9b032440be53ce345ab3c130fda46ba1ce7a2",
+    ),
+    {
+      scope: "ASVS 5.0 Level 1 source and documentation pilot (5 requirements)",
+      levels: ["1"],
+      entryIds: asvsEntryIds,
+    },
+  );
+  const coverageRow = (
+    auditId: string,
+    itemKey: string,
+    ordinal: number,
+    status: string,
+  ) => ({
+    roundId: `${auditId}-round-1`,
+    itemId: `${auditId}-item-${ordinal}`,
+    ordinal,
+    itemKey,
+    subjectKey: itemKey,
+    coverage: {
+      status,
+      requested: ["observation"],
+      completed:
+        status === "satisfied" || status === "violated" ? ["observation"] : [],
+      gaps:
+        status === "inconclusive" || status === "not-tested"
+          ? ["bounded-evidence-gap"]
+          : [],
+    },
+    updatedAt: now,
+  });
+  const top10Statuses = [
+    "violated",
+    "satisfied",
+    "inconclusive",
+    "not-tested",
+    "violated",
+    "satisfied",
+    "satisfied",
+    "inconclusive",
+    "violated",
+    "not-tested",
+  ];
+  const asvsStatuses = [
+    "violated",
+    "satisfied",
+    "inconclusive",
+    "not-tested",
+    "not-applicable",
+  ];
+  const programs = {
+    [top10.auditId]: {
+      audit: top10,
+      coverage: top10Statuses.map((status, index) =>
+        coverageRow(
+          top10.auditId,
+          `A${String(index + 1).padStart(2, "0")}:2025`,
+          index,
+          status,
+        ),
+      ),
+      summary:
+        "Bounded OWASP Top 10 risk-awareness results. This is not a security or compliance certification.",
+    },
+    [asvs.auditId]: {
+      audit: asvs,
+      coverage: asvsStatuses.map((status, index) =>
+        coverageRow(asvs.auditId, asvsEntryIds[index]!, index, status),
+      ),
+      summary:
+        "Exact selected requirements: 5. This is not a security or compliance certification.",
+    },
+  };
+
+  await page.route("**/runtime-config.json", (route) =>
+    route.fulfill({
+      json: {
+        uiVersion: "0.1.0",
+        supportedApiVersions: [API_VERSION],
+        apiBaseUrl: apiOrigin,
+      },
+    }),
+  );
+  await page.route(`${apiOrigin}/v1/**`, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": new URL(configuredBaseURL).origin,
+          "access-control-allow-credentials": "true",
+          "access-control-allow-methods": "GET, OPTIONS",
+          "access-control-allow-headers": "content-type, x-csrf-token",
+        },
+      });
+      return;
+    }
+    if (path === "/v1/auth/session") {
+      await fulfillJSON(route, {
+        principal: {
+          userId: "user_browser",
+          username: "browser",
+          capabilities: ["user", "operations"],
+        },
+        csrfToken: "p".repeat(43),
+        idleExpiresAt: "2099-01-01T00:00:00Z",
+        absoluteExpiresAt: "2099-01-02T00:00:00Z",
+      });
+      return;
+    }
+    if (path === `/v1/projects/${PROJECT_ID}`) {
+      await fulfillJSON(route, project, 200, { etag: '"1"' });
+      return;
+    }
+    const match = /^\/v1\/audits\/([^/]+)(?:\/(coverage|report))?$/u.exec(path);
+    const program =
+      match === null ? undefined : programs[match[1] as keyof typeof programs];
+    if (match !== null && program !== undefined) {
+      if (match[2] === "coverage") {
+        await fulfillJSON(route, {
+          items: program.coverage,
+          page: { hasMore: false },
+        });
+      } else if (match[2] === "report") {
+        await fulfillJSON(route, {
+          status: "ready",
+          machineArtifact: {
+            ...exact(
+              "audit-program-browser",
+              `${match[1]}-report.json`,
+              "report-json-r1",
+            ),
+            mediaType: "application/json",
+          },
+          summaryArtifact: {
+            ...exact(
+              "audit-program-browser",
+              `${match[1]}-report.md`,
+              "report-md-r1",
+            ),
+            mediaType: "text/markdown",
+          },
+          machine: { conclusion: "completed-with-gaps", certification: false },
+          summary: program.summary,
+        });
+      } else {
+        await fulfillJSON(route, program.audit, 200, { etag: '"7"' });
+      }
+      return;
+    }
+    await fulfillJSON(
+      route,
+      {
+        code: "not_found",
+        message: "not found",
+        retryable: false,
+        requestId: "request-program-library",
+      },
+      404,
+    );
+  });
+
+  await page.goto(`/projects/${PROJECT_ID}/audits/${top10.auditId}`);
+  const top10Standards = await page.getByTestId("audit-baseline-standards");
+  await expect(top10Standards).toContainText("OWASP Top 10:2025");
+  await expect(top10Standards).toContainText("owasp-web-top10@2025");
+  await expect(top10Standards).toContainText("CC-BY-SA-4.0");
+  await page.getByRole("link", { name: "Coverage" }).click();
+  await expect(page.locator("tbody tr")).toHaveCount(10);
+  await expect(
+    page.getByText("inconclusive", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("not-tested", { exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Report" }).click();
+  await expect(
+    page.getByText(/not a security or compliance certification/u),
+  ).toBeVisible();
+
+  await page.goto(`/projects/${PROJECT_ID}/audits/${asvs.auditId}`);
+  const asvsStandards = await page.getByTestId("audit-baseline-standards");
+  await expect(asvsStandards).toContainText("OWASP ASVS 5.0.0");
+  await expect(asvsStandards).toContainText("owasp-asvs@5.0.0");
+  await expect(asvsStandards).toContainText("CC-BY-SA-4.0");
+  const selected = page.getByTestId("audit-baseline-standard-selection");
+  await expect(selected).toContainText("5 exact requirements");
+  await expect(selected).toContainText("v5.0.0-2.1.1");
+  await page.getByRole("link", { name: "Coverage" }).click();
+  await expect(page.locator("tbody tr")).toHaveCount(5);
+  await expect(page.getByText("not-applicable", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Report" }).click();
+  await expect(page.getByText("Exact selected requirements: 5.")).toBeVisible();
+  await expect(
+    page.getByText(/not a security or compliance certification/u),
+  ).toBeVisible();
+});
+
 test("Audit UI reviews exact evidence and completes destructive lifecycle controls", async ({
   page,
 }, testInfo) => {

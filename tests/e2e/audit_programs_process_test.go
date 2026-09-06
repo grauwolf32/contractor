@@ -36,6 +36,12 @@ type auditProgramAudit struct {
 	SubmittedRunCount int    `json:"submittedRunCount"`
 	OutstandingRuns   int    `json:"outstandingRunCount"`
 	Baseline          *struct {
+		Skills []struct {
+			Name         string      `json:"name"`
+			Source       artifactRef `json:"source"`
+			SourceDigest string      `json:"sourceDigest"`
+			SourceSize   int64       `json:"sourceSize"`
+		} `json:"skills"`
 		Standards []struct {
 			Reference struct {
 				Scheme  string `json:"scheme"`
@@ -151,9 +157,9 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	// One Runtime intentionally executes all fourteen Worker allocations in
+	// One Runtime intentionally executes all eighteen Worker allocations in
 	// order. Keep the deadline bounded but leave room for slower CI hosts.
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -321,11 +327,20 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	backtrace := prepareASVSFindingBacktraceAfterRunDeletion(
 		t, ctx, client, publicBaseURL, asvsAudit, ordinaryASVS.RunID,
 	)
-	replaceASVSCatalog(t, ctx, isolateURL, userID, configRoot)
+	replaceAuditProgramCatalog(t, ctx, isolateURL, userID, configRoot)
 	server.stop(t)
 	server = startServer()
 	waitForHTTP(t, ctx, server, client, publicBaseURL+"/readyz", http.StatusOK)
-	assertASVSCatalogUnavailable(t, client, publicBaseURL)
+	assertAuditProgramCatalogUnavailable(t, client, publicBaseURL)
+	var reopenedTop10, reopenedASVS auditProgramAudit
+	auditProgramGET(t, client, publicBaseURL+"/v1/audits/"+url.PathEscape(top10Audit.AuditID), &reopenedTop10)
+	auditProgramGET(t, client, publicBaseURL+"/v1/audits/"+url.PathEscape(asvsAudit.AuditID), &reopenedASVS)
+	assertPinnedTop10Baseline(t, reopenedTop10)
+	assertASVSAuditBaseline(t, reopenedASVS)
+	assertTop10Coverage(t, getAuditProgramCoverage(t, client, publicBaseURL, top10Audit.AuditID))
+	assertASVSCoverage(t, getAuditProgramCoverage(t, client, publicBaseURL, asvsAudit.AuditID))
+	assertAuditProgramReport(t, client, publicBaseURL, top10Audit.AuditID, "completed-with-gaps")
+	assertAuditProgramReportSelection(t, client, publicBaseURL, asvsAudit.AuditID)
 	assertASVSFindingBacktrace(t, client, publicBaseURL, asvsAudit.AuditID, backtrace)
 
 	if gateway.CompletedStages() != 18 || len(gateway.Failures()) != 0 {
@@ -918,17 +933,8 @@ func assertTop10AuditBaseline(
 	t *testing.T, client *http.Client, baseURL string, audit auditProgramAudit,
 ) {
 	t.Helper()
-	if audit.Baseline == nil || len(audit.Baseline.Standards) != 1 {
-		t.Fatalf("Top 10 Audit exact standard baseline = %+v", audit.Baseline)
-	}
+	assertPinnedTop10Baseline(t, audit)
 	standard := audit.Baseline.Standards[0]
-	if standard.Reference.Scheme != "owasp-web-top10" || standard.Reference.Version != "2025" ||
-		standard.Source.Revision != "66ebc4798d2ca72973967a20264bdeb70dcf0a13" ||
-		standard.License.ID != "CC-BY-SA-4.0" || standard.Catalog.Digest == "" ||
-		standard.Catalog.Digest != standard.Retained.Digest || standard.Catalog.Artifact.Revision == nil ||
-		standard.Retained.Artifact.Revision == nil {
-		t.Fatalf("Top 10 Audit did not retain exact licensed provenance: %+v", standard)
-	}
 	var detail struct {
 		Standard struct {
 			Digest       string `json:"digest"`
@@ -943,6 +949,22 @@ func assertTop10AuditBaseline(
 	if detail.Standard.Digest != standard.Catalog.Digest || detail.Standard.EntryCount != 10 ||
 		detail.Standard.MappingCount != 10 || len(detail.Standard.Entries) != 10 {
 		t.Fatalf("Top 10 exact catalog projection = %+v", detail.Standard)
+	}
+}
+
+func assertPinnedTop10Baseline(t *testing.T, audit auditProgramAudit) {
+	t.Helper()
+	if audit.Baseline == nil || len(audit.Baseline.Standards) != 1 {
+		t.Fatalf("Top 10 Audit exact standard baseline = %+v", audit.Baseline)
+	}
+	assertPinnedAuditSkill(t, audit)
+	standard := audit.Baseline.Standards[0]
+	if standard.Reference.Scheme != "owasp-web-top10" || standard.Reference.Version != "2025" ||
+		standard.Source.Revision != "66ebc4798d2ca72973967a20264bdeb70dcf0a13" ||
+		standard.License.ID != "CC-BY-SA-4.0" || standard.Catalog.Digest == "" ||
+		standard.Catalog.Digest != standard.Retained.Digest || standard.Catalog.Artifact.Revision == nil ||
+		standard.Retained.Artifact.Revision == nil {
+		t.Fatalf("Top 10 Audit did not retain exact licensed provenance: %+v", standard)
 	}
 }
 
@@ -984,6 +1006,7 @@ func assertASVSAuditBaseline(t *testing.T, audit auditProgramAudit) {
 		audit.Baseline.Inventory.StandardSelection == nil {
 		t.Fatalf("ASVS Audit exact baseline = %+v", audit.Baseline)
 	}
+	assertPinnedAuditSkill(t, audit)
 	standard := audit.Baseline.Standards[0]
 	selection := audit.Baseline.Inventory.StandardSelection
 	if standard.Reference.Scheme != "owasp-asvs" || standard.Reference.Version != "5.0.0" ||
@@ -995,6 +1018,18 @@ func assertASVSAuditBaseline(t *testing.T, audit auditProgramAudit) {
 		!equalStrings(selection.Levels, []string{"1"}) ||
 		!equalStrings(selection.EntryIDs, asvsSelectedRequirementIDs) {
 		t.Fatalf("ASVS Audit did not retain its exact selected authority: baseline=%+v", audit.Baseline)
+	}
+}
+
+func assertPinnedAuditSkill(t *testing.T, audit auditProgramAudit) {
+	t.Helper()
+	if audit.Baseline == nil || len(audit.Baseline.Skills) != 1 {
+		t.Fatalf("Audit exact Skill baseline = %+v", audit.Baseline)
+	}
+	skill := audit.Baseline.Skills[0]
+	if skill.Name != "trace" || skill.Source.Namespace != "skills" || skill.Source.Name != "trace" ||
+		skill.Source.Revision == nil || *skill.Source.Revision == "" || skill.SourceDigest == "" || skill.SourceSize <= 0 {
+		t.Fatalf("Audit did not retain exact trace Skill identity: %+v", skill)
 	}
 }
 
@@ -1223,39 +1258,52 @@ func deleteASVSBacktraceRun(
 	deleteResponse.Body.Close()
 }
 
-func replaceASVSCatalog(
+func replaceAuditProgramCatalog(
 	t *testing.T, ctx context.Context, databaseURL, ownerID, configRoot string,
 ) {
 	t.Helper()
-	profilePath := filepath.Join(configRoot, "audit-profiles", "owasp-asvs-5.0-l1-source-review.yaml")
-	packagePath := filepath.Join(configRoot, "audit-standards", "owasp-asvs-5.0.0")
-	if err := os.Remove(profilePath); err != nil {
-		t.Fatalf("remove staged ASVS profile: %v", err)
-	}
-	if err := os.RemoveAll(packagePath); err != nil {
-		t.Fatalf("remove staged ASVS package: %v", err)
+	for _, relative := range []string{
+		"audit-profiles/owasp-asvs-5.0-l1-source-review.yaml",
+		"audit-profiles/owasp-top10-2025-source-risk.yaml",
+		"audit-standards/owasp-asvs-5.0.0",
+		"audit-standards/owasp-web-top10-2025",
+		"agent-templates/audit_asvs_source_verifier.yaml",
+		"agent-templates/audit_risk_source_checker.yaml",
+		"instructions/audit-asvs-source-verifier-worker.md",
+		"instructions/audit-risk-source-checker-worker.md",
+		"workflows/audit_asvs_source_verification.yaml",
+		"workflows/audit_top10_source_risk.yaml",
+	} {
+		if err := os.RemoveAll(filepath.Join(configRoot, filepath.FromSlash(relative))); err != nil {
+			t.Fatalf("remove staged Audit program catalog entry %s: %v", relative, err)
+		}
 	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	result, err := pool.Exec(ctx, `
+	for _, reference := range []auditstandards.Reference{
+		{Scheme: "owasp-asvs", Version: "5.0.0"},
+		{Scheme: "owasp-web-top10", Version: "2025"},
+	} {
+		result, deleteErr := pool.Exec(ctx, `
 DELETE FROM artifact_bindings
  WHERE scope_kind = 'user' AND scope_id = $1
    AND namespace = $2 AND name = $3`,
-		ownerID, auditstandards.CatalogNamespace,
-		auditstandards.ArtifactName(auditstandards.Reference{Scheme: "owasp-asvs", Version: "5.0.0"}),
-	)
-	if err != nil {
-		t.Fatalf("replace current ASVS catalog binding: %v", err)
-	}
-	if result.RowsAffected() != 1 {
-		t.Fatalf("replaced ASVS catalog bindings = %d, want 1", result.RowsAffected())
+			ownerID, auditstandards.CatalogNamespace, auditstandards.ArtifactName(reference),
+		)
+		if deleteErr != nil {
+			t.Fatalf("replace current %s@%s catalog binding: %v", reference.Scheme, reference.Version, deleteErr)
+		}
+		if result.RowsAffected() != 1 {
+			t.Fatalf("replaced %s@%s catalog bindings = %d, want 1",
+				reference.Scheme, reference.Version, result.RowsAffected())
+		}
 	}
 }
 
-func assertASVSCatalogUnavailable(t *testing.T, client *http.Client, baseURL string) {
+func assertAuditProgramCatalogUnavailable(t *testing.T, client *http.Client, baseURL string) {
 	t.Helper()
 	var page struct {
 		Items []struct {
@@ -1266,20 +1314,28 @@ func assertASVSCatalogUnavailable(t *testing.T, client *http.Client, baseURL str
 		} `json:"items"`
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
+	removedProfiles := map[string]bool{
+		"owasp-asvs-5-0-l1-source-review@1": true,
+		"owasp-top10-2025-source-risk@1":    true,
+	}
 	for _, profile := range page.Items {
-		if profile.Ref.Name == "owasp-asvs-5-0-l1-source-review" && profile.Ref.Version == "1" {
-			t.Fatalf("replaced ASVS profile remains current: %+v", profile)
+		identity := profile.Ref.Name + "@" + profile.Ref.Version
+		if removedProfiles[identity] {
+			t.Fatalf("replaced Audit program profile remains current: %+v", profile)
 		}
 	}
-	request, err := http.NewRequest(
-		http.MethodGet, baseURL+"/v1/audit-standards/owasp-asvs/versions/5.0.0", nil,
-	)
-	if err != nil {
-		t.Fatal(err)
+	for _, path := range []string{
+		"/v1/audit-standards/owasp-asvs/versions/5.0.0",
+		"/v1/audit-standards/owasp-web-top10/versions/2025",
+	} {
+		request, err := http.NewRequest(http.MethodGet, baseURL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Authorization", "Bearer "+publicToken)
+		response := do(t, client, request, http.StatusNotFound)
+		response.Body.Close()
 	}
-	request.Header.Set("Authorization", "Bearer "+publicToken)
-	response := do(t, client, request, http.StatusNotFound)
-	response.Body.Close()
 }
 
 func assertASVSFindingBacktrace(
