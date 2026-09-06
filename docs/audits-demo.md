@@ -3,17 +3,17 @@
 The operator catalog ships two bounded, non-certifying Audit programs:
 
 - `source-checklist@1` turns a checklist plus a source ZIP into one check per
-  checklist entry.
+  checklist entry and executes up to two compatible checks in one ordinary Run.
 - `openapi-operation-trace@1` turns an OpenAPI document plus a source ZIP into
   one trace item per supported path operation. Callbacks and webhooks are
   reported as inventory or coverage gaps; the Server never follows remote
   references.
 
 Both profiles use ordinary `audit-source-check@1` Runs. The Runtime's
-`submit_check_result` tool derives the immutable item identity and execution
-manifest digest from trusted Run inputs, writes a canonical result package,
-and leaves validation, evidence retention, coverage and settlement to the
-Server.
+`submit_check_result` tool derives immutable item identities and the execution
+manifest digest from trusted Run inputs, writes one complete canonical result
+package, and leaves validation, evidence retention, coverage and settlement to
+the Server. Each item remains independently visible even when it shares a Run.
 
 ## Start a checklist Audit
 

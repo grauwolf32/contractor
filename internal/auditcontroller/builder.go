@@ -240,51 +240,79 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	item auditstore.Item,
 	attempt int,
 ) (PreparedSubmission, error) {
+	return b.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: item, Attempt: attempt}})
+}
+
+func (b *PinnedSubmissionBuilder) PrepareBatch(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	selected []CheckExecutionMember,
+) (PreparedSubmission, error) {
 	audit := snapshot.Audit
 	if snapshot.Round == nil || audit.CurrentRoundID == nil ||
-		item.AuditID != audit.AuditID || item.RoundID != snapshot.Round.RoundID ||
-		item.RoundID != *audit.CurrentRoundID || attempt < 1 ||
-		audit.Limits.BatchSize != 1 || attempt > audit.Limits.MaxItemRunAttempts {
-		return PreparedSubmission{}, invalidSubmission("Audit item or attempt is outside the pinned round")
+		snapshot.Round.RoundID != *audit.CurrentRoundID || len(selected) == 0 ||
+		len(selected) > audit.Limits.BatchSize || len(selected) > auditstore.MaxCollectionItems {
+		return PreparedSubmission{}, invalidSubmission("Audit batch is outside the pinned round")
 	}
 	profile, err := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	if err != nil || profile.Ref.Name != audit.Profile.Name || profile.Ref.Version != audit.Profile.Version ||
-		profile.Ref.Digest != audit.Profile.Digest || profile.Execution.BatchSize != 1 {
+		profile.Ref.Digest != audit.Profile.Digest || profile.Execution.BatchSize != audit.Limits.BatchSize {
 		return PreparedSubmission{}, invalidSubmission("pinned AuditProfile cannot be decoded")
 	}
 	baseline, err := auditservice.DecodeBaseline(audit.BaselineSnapshot)
 	if err != nil {
 		return PreparedSubmission{}, invalidSubmission("pinned Audit baseline cannot be decoded")
 	}
-	binding, exists := profile.Workflows[item.WorkflowRole]
-	if !exists {
-		return PreparedSubmission{}, invalidSubmission("Audit item names an unknown Workflow role")
+	first := selected[0]
+	binding, exists := profile.Workflows[first.Item.WorkflowRole]
+	if !exists || binding.Kind != config.AuditWorkflowCheck {
+		return PreparedSubmission{}, invalidSubmission("Audit item does not name a check Workflow role")
 	}
 	roundManifest, err := b.readRoundExecutionManifest(ctx, audit.ProjectID, snapshot.Round.Manifest)
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
-	manifestItem, err := findManifestItem(roundManifest, item)
-	if err != nil {
-		return PreparedSubmission{}, err
+	manifestItems := make([]auditdomain.ExecutionItem, len(selected))
+	tasks := make([]auditstore.ExactArtifact, len(selected))
+	attemptIdentity := make([]string, 0, len(selected)*2)
+	seenItems := make(map[string]struct{}, len(selected))
+	previousOrdinal := -1
+	for index, member := range selected {
+		item, attempt := member.Item, member.Attempt
+		if item.AuditID != audit.AuditID || item.RoundID != snapshot.Round.RoundID ||
+			item.RoundID != *audit.CurrentRoundID || item.WorkflowRole != first.Item.WorkflowRole ||
+			item.ApprovalKind != first.Item.ApprovalKind || item.ApprovalDigest != first.Item.ApprovalDigest ||
+			attempt < 1 || attempt > audit.Limits.MaxItemRunAttempts || item.Ordinal <= previousOrdinal {
+			return PreparedSubmission{}, invalidSubmission("Audit batch member is outside its shared dispatch envelope")
+		}
+		if _, duplicate := seenItems[item.ItemID]; duplicate {
+			return PreparedSubmission{}, invalidSubmission("Audit batch repeats an item")
+		}
+		seenItems[item.ItemID] = struct{}{}
+		previousOrdinal = item.Ordinal
+		manifestItem, findErr := findManifestItem(roundManifest, item)
+		if findErr != nil {
+			return PreparedSubmission{}, findErr
+		}
+		task, resolveErr := b.artifacts.ResolveProjectExact(ctx, audit.ProjectID, item.Task)
+		if resolveErr != nil {
+			return PreparedSubmission{}, resolveErr
+		}
+		if manifestItem.TaskRef == nil || !sameExactRef(*manifestItem.TaskRef, task.Ref) ||
+			manifestItem.TaskPackageDigest != task.Digest {
+			return PreparedSubmission{}, invalidSubmission("item task does not match its execution manifest")
+		}
+		manifestItem.Ordinal = index
+		manifestItems[index], tasks[index] = manifestItem, task
+		attemptIdentity = append(attemptIdentity, item.ItemID, strconv.Itoa(attempt))
 	}
-	task, err := b.artifacts.ResolveProjectExact(ctx, audit.ProjectID, item.Task)
-	if err != nil {
-		return PreparedSubmission{}, err
-	}
-	if manifestItem.TaskRef == nil || !sameExactRef(*manifestItem.TaskRef, task.Ref) ||
-		manifestItem.TaskPackageDigest != task.Digest {
-		return PreparedSubmission{}, invalidSubmission("item task does not match its execution manifest")
-	}
-
-	manifestItem.Ordinal = 0
 	manifest := auditdomain.ExecutionManifest{
 		Schema: auditdomain.ExecutionManifestSchema,
-		Items:  []auditdomain.ExecutionItem{manifestItem},
+		Items:  manifestItems,
 	}
 	encodedManifest, err := auditdomain.EncodeExecutionManifest(manifest)
 	if err != nil || auditdomain.ValidateDispatchExecutionManifest(manifest) != nil {
-		return PreparedSubmission{}, invalidSubmission("one-item execution manifest is invalid")
+		return PreparedSubmission{}, invalidSubmission("batch execution manifest is invalid")
 	}
 	manifestDigest := digestBytes(encodedManifest)
 	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
@@ -299,34 +327,55 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	if manifestArtifact.Digest != manifestDigest {
 		return PreparedSubmission{}, invalidSubmission("stored execution manifest digest differs")
 	}
-	runInputs, memberInputs, err := b.resolveInputs(
-		ctx, snapshot, binding, baseline, manifestItem, task, manifestArtifact,
-	)
+	taskInput, err := b.buildTaskInput(ctx, audit.ProjectID, namespace, manifestDigest, manifestItems, tasks)
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
-	parameters, err := resolveParameters(binding, baseline.Scope, item)
-	if err != nil {
-		return PreparedSubmission{}, err
+	var runInputs map[string]auditstore.ExactArtifact
+	var parameters map[string]string
+	members := make([]auditstore.ExecutionMemberIntent, len(selected))
+	for index, member := range selected {
+		candidateInputs, memberInputs, resolveErr := b.resolveInputs(
+			ctx, snapshot, binding, baseline, manifestItems[index], taskInput, manifestArtifact,
+		)
+		if resolveErr != nil {
+			return PreparedSubmission{}, resolveErr
+		}
+		candidateParameters, parameterErr := resolveParameters(binding, baseline.Scope, member.Item)
+		if parameterErr != nil {
+			return PreparedSubmission{}, parameterErr
+		}
+		if index == 0 {
+			runInputs, parameters = candidateInputs, candidateParameters
+		} else if !sameExactInputMap(runInputs, candidateInputs) || !sameParameters(parameters, candidateParameters) {
+			return PreparedSubmission{}, invalidSubmission("Audit batch members require different Workflow inputs or parameters")
+		}
+		if len(selected) > 1 {
+			memberInputs = append(memberInputs, cloneExact(taskInput))
+		}
+		members[index] = auditstore.ExecutionMemberIntent{
+			ItemID: member.Item.ItemID, BatchOrdinal: index, ItemAttempt: member.Attempt,
+			Task: tasks[index], Inputs: memberInputs,
+		}
 	}
 	skills, err := selectSkills(binding.Workflow, baseline.Skills)
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
 
-	attemptText := strconv.Itoa(attempt)
-	executionID := deterministicID(
-		"audit-execution", audit.AuditID, item.RoundID, item.ItemID, attemptText, manifestDigest,
-	)
-	executionItemID := deterministicID("audit-execution-item", executionID, item.ItemID)
+	executionIdentity := append([]string{audit.AuditID, snapshot.Round.RoundID}, attemptIdentity...)
+	executionIdentity = append(executionIdentity, manifestDigest)
+	executionID := deterministicID("audit-execution", executionIdentity...)
+	for index := range members {
+		members[index].ExecutionItemID = deterministicID("audit-execution-item", executionID, members[index].ItemID)
+	}
 	submissionKey := deterministicID("audit-submission", executionID, manifestDigest)
-	roundID := item.RoundID
+	roundID := snapshot.Round.RoundID
 	requestDigest, err := submissionDigest(struct {
 		Schema        string                              `json:"schema"`
 		AuditID       string                              `json:"auditId"`
 		ExecutionID   string                              `json:"executionId"`
-		ItemID        string                              `json:"itemId"`
-		Attempt       int                                 `json:"attempt"`
+		Members       []auditstore.ExecutionMemberIntent  `json:"members"`
 		ProfileDigest string                              `json:"profileDigest"`
 		Manifest      auditstore.ExactArtifact            `json:"manifest"`
 		Workflow      config.ResolvedWorkflow             `json:"workflow"`
@@ -337,7 +386,7 @@ func (b *PinnedSubmissionBuilder) Prepare(
 		ProjectTarget *contracts.HTTPOriginTargetRef      `json:"projectTarget,omitempty"`
 	}{
 		Schema: "contractor.audit.submission.v1", AuditID: audit.AuditID,
-		ExecutionID: executionID, ItemID: item.ItemID, Attempt: attempt,
+		ExecutionID: executionID, Members: members,
 		ProfileDigest: audit.Profile.Digest, Manifest: manifestArtifact,
 		Workflow: binding.Workflow, Parameters: parameters, Inputs: runInputs,
 		RuntimeConfig: baseline.RuntimeConfig, Skills: skills, ProjectTarget: baseline.ProjectHTTPTarget,
@@ -348,12 +397,9 @@ func (b *PinnedSubmissionBuilder) Prepare(
 
 	intent := auditstore.CreateExecutionIntentParams{
 		ExecutionID: executionID, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-		WorkflowRole: item.WorkflowRole,
+		WorkflowRole: first.Item.WorkflowRole,
 		Manifest:     manifestArtifact, SubmissionKey: submissionKey, RequestDigest: requestDigest,
-		Members: []auditstore.ExecutionMemberIntent{{
-			ExecutionItemID: executionItemID, ItemID: item.ItemID,
-			BatchOrdinal: 0, ItemAttempt: attempt, Task: task, Inputs: memberInputs,
-		}},
+		Members: members,
 	}
 	run := runservice.AuditCreateParams{
 		ExecutionID: executionID, Workflow: binding.Workflow,
@@ -363,6 +409,88 @@ func (b *PinnedSubmissionBuilder) Prepare(
 		ExecutionManifest: manifestArtifact, RequestDigest: requestDigest,
 	}
 	return PreparedSubmission{Intent: intent, Run: run}, nil
+}
+
+func (b *PinnedSubmissionBuilder) buildTaskInput(
+	ctx context.Context,
+	projectID string,
+	namespace string,
+	manifestDigest string,
+	manifestItems []auditdomain.ExecutionItem,
+	tasks []auditstore.ExactArtifact,
+) (auditstore.ExactArtifact, error) {
+	if len(tasks) == 1 {
+		return cloneExact(tasks[0]), nil
+	}
+	if len(tasks) < 2 || len(tasks) != len(manifestItems) || len(tasks) > auditstore.MaxCollectionItems {
+		return auditstore.ExactArtifact{}, invalidSubmission("Audit task set membership is invalid")
+	}
+	inputs := make([]auditdomain.PackageInput, len(tasks))
+	for index, descriptor := range tasks {
+		payload, err := b.artifacts.ReadProjectExact(ctx, projectID, descriptor)
+		if err != nil {
+			return auditstore.ExactArtifact{}, err
+		}
+		pkg, err := auditdomain.ValidatePackage(payload.Data)
+		if err != nil || payload.MediaType != auditdomain.PackageMediaType ||
+			pkg.Manifest.Kind != auditdomain.PackageKindTask || pkg.Manifest.PackageID != manifestItems[index].TaskPackageID ||
+			pkg.Digest != descriptor.Digest || pkg.Digest != manifestItems[index].TaskPackageDigest {
+			return auditstore.ExactArtifact{}, invalidSubmission("Audit batch contains an invalid exact task package")
+		}
+		inputs[index] = auditdomain.PackageInput{
+			ID: fmt.Sprintf("task-%03d", index), Path: fmt.Sprintf("tasks/%03d.zip", index),
+			MediaType: auditdomain.PackageMediaType, Data: payload.Data,
+		}
+	}
+	packageID := "task-set-" + stringsDigest(manifestDigest)
+	payload, pkg, err := auditdomain.BuildPackage(
+		packageID, auditdomain.PackageKindTaskSet, "", inputs,
+	)
+	if err != nil {
+		return auditstore.ExactArtifact{}, invalidSubmission("Audit task set exceeds package bounds")
+	}
+	descriptor, err := b.artifacts.PutImmutableProject(
+		ctx, projectID,
+		contracts.ArtifactRef{Namespace: namespace, Name: "execution-tasks-" + stringsDigest(pkg.Digest)},
+		artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: payload},
+	)
+	if err != nil {
+		return auditstore.ExactArtifact{}, err
+	}
+	if descriptor.Digest != pkg.Digest {
+		return auditstore.ExactArtifact{}, invalidSubmission("stored Audit task set digest differs")
+	}
+	return descriptor, nil
+}
+
+func sameExactInputMap(
+	left map[string]auditstore.ExactArtifact,
+	right map[string]auditstore.ExactArtifact,
+) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for name, first := range left {
+		second, exists := right[name]
+		if !exists || first.Digest != second.Digest || first.MediaType != second.MediaType ||
+			first.SizeBytes != second.SizeBytes || !sameExactRef(first.Ref, second.Ref) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameParameters(left, right map[string]string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for name, value := range left {
+		candidate, exists := right[name]
+		if !exists || candidate != value {
+			return false
+		}
+	}
+	return true
 }
 
 func (b *PinnedSubmissionBuilder) readRoundExecutionManifest(

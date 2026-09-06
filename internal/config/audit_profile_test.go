@@ -163,9 +163,10 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 		implementation string
 		role           string
 		sourceInput    string
+		batchSize      int
 	}{
-		{"source-checklist@1", AuditModeCustomChecklist, "checklist@1", "check", "checklist"},
-		{"openapi-operation-trace@1", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi"},
+		{"source-checklist@1", AuditModeCustomChecklist, "checklist@1", "check", "checklist", 2},
+		{"openapi-operation-trace@1", AuditModeOperationTracing, "openapi-operations@1", "trace", "openapi", 1},
 	} {
 		test := test
 		t.Run(test.ref, func(t *testing.T) {
@@ -177,7 +178,7 @@ func TestRepositoryAuditProfilesPinRunnableOneRoundPrograms(t *testing.T) {
 			binding := profile.Workflows[test.role]
 			if profile.Mode != test.mode || profile.Inventory.Implementation != test.implementation ||
 				profile.Inventory.SourceInput != test.sourceInput || profile.Inventory.ItemWorkflowRole != test.role ||
-				profile.Execution.MaxRounds != 1 || profile.Execution.BatchSize != 1 ||
+				profile.Execution.MaxRounds != 1 || profile.Execution.BatchSize != test.batchSize ||
 				profile.Interaction.ActiveChecks != AuditActiveChecksProhibited ||
 				profile.Interaction.FindingConfirmation != AuditFindingDisabled ||
 				profile.Interaction.NotApplicable != AuditNotApplicableProfileRule ||

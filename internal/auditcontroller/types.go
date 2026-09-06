@@ -73,8 +73,16 @@ type PreparedSubmission struct {
 	Run    runservice.AuditCreateParams
 }
 
+// CheckExecutionMember is one independently attempted AuditItem selected for
+// an ordered check execution. Batch position is derived from slice order; it
+// is never supplied by a model or by mutable Workflow state.
+type CheckExecutionMember struct {
+	Item    auditstore.Item
+	Attempt int
+}
+
 type SubmissionBuilder interface {
-	Prepare(context.Context, auditstore.ReconcileSnapshot, auditstore.Item, int) (PreparedSubmission, error)
+	PrepareBatch(context.Context, auditstore.ReconcileSnapshot, []CheckExecutionMember) (PreparedSubmission, error)
 	PrepareRole(context.Context, auditstore.ReconcileSnapshot, string, int) (PreparedSubmission, error)
 }
 

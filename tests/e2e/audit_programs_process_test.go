@@ -258,7 +258,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	checklistAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
 		"source-checklist", map[string]artifactRef{"source": source, "checklist": checklist},
-		2, 2, 0, "",
+		2, 1, 0, "",
 	)
 	checklistCoverage := getAuditProgramCoverage(t, client, publicBaseURL, checklistAudit.AuditID)
 	if len(checklistCoverage) != 2 || checklistCoverage[0].Coverage.Status != "satisfied" ||
@@ -328,8 +328,8 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 	assertASVSCatalogUnavailable(t, client, publicBaseURL)
 	assertASVSFindingBacktrace(t, client, publicBaseURL, asvsAudit.AuditID, backtrace)
 
-	if gateway.CompletedStages() != 19 || len(gateway.Failures()) != 0 {
-		t.Fatalf("Audit gateway stages/failures = %d/%v, want 19/none", gateway.CompletedStages(), gateway.Failures())
+	if gateway.CompletedStages() != 18 || len(gateway.Failures()) != 0 {
+		t.Fatalf("Audit gateway stages/failures = %d/%v, want 18/none", gateway.CompletedStages(), gateway.Failures())
 	}
 	for _, secret := range []string{publicToken, llmGatewayToken} {
 		if strings.Contains(server.logs.redacted(), secret) || strings.Contains(runtimeProcess.logs.redacted(), secret) {
@@ -364,10 +364,35 @@ func auditProgramGatewayStages() []domainGatewayStage {
 		}}
 	}
 	stages := []domainGatewayStage{
-		result("checklist/check-authz", "satisfied", []string{"source-trace"}, []string{}, []map[string]string{{
-			"kind": "source-trace", "summary": "Authorization call precedes the fixture object response.",
-		}}),
-		result("checklist/check-error-path", "inconclusive", []string{}, []string{"missing-error-path"}, nil),
+		{name: "checklist/batch", tools: tools, steps: []domainGatewayStep{
+			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
+			toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
+			toolGatewayStep("read_source", fixedArguments(map[string]any{
+				"path": "app.py", "start_line": 1, "max_lines": 100,
+			})),
+			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
+				"results": []any{
+					map[string]any{
+						"assessment": "satisfied",
+						"summary":    "Authorization call precedes the fixture object response.",
+						"completed":  []string{"source-trace"},
+						"gaps":       []string{},
+						"evidence": []map[string]string{{
+							"kind": "source-trace", "summary": "Authorization call precedes the fixture object response.",
+						}},
+					},
+					map[string]any{
+						"assessment": "inconclusive",
+						"summary":    "The error path could not be established.",
+						"completed":  []string{},
+						"gaps":       []string{"missing-error-path"},
+					},
+				},
+			})),
+			finalGatewayStep("Canonical Audit batch result package published", map[string]domainArtifactBinding{
+				"result": {namespace: "audit-check", name: "result"},
+			}),
+		}},
 		result("openapi/deleteWidget", "satisfied", []string{"operation-resolution"}, []string{}, []map[string]string{{
 			"kind": "source-trace", "summary": "DELETE operation maps to source/app.py.",
 		}}),
@@ -1438,15 +1463,19 @@ func deleteCollectedAuditRuns(
 	if len(page.Items) != 2 {
 		t.Fatalf("Audit item count = %d, want 2", len(page.Items))
 	}
+	runIDs := make(map[string]struct{}, len(page.Items))
 	for _, item := range page.Items {
 		if item.State != "settled" || item.FinalDisposition != "accepted-result" ||
 			item.AcceptedResult == nil || len(item.Attempts) != 1 ||
 			item.Attempts[0].CollectionDisposition != "accepted-result" || item.Attempts[0].RunID == "" {
 			t.Fatalf("Audit item was not durably collected: %+v", item)
 		}
-		waitForAuditRunDeletable(t, ctx, client, baseURL, item.Attempts[0].RunID)
+		runIDs[item.Attempts[0].RunID] = struct{}{}
+	}
+	for runID := range runIDs {
+		waitForAuditRunDeletable(t, ctx, client, baseURL, runID)
 		request, err := http.NewRequest(
-			http.MethodDelete, baseURL+"/v1/runs/"+url.PathEscape(item.Attempts[0].RunID), nil,
+			http.MethodDelete, baseURL+"/v1/runs/"+url.PathEscape(runID), nil,
 		)
 		if err != nil {
 			t.Fatal(err)

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import jcs
 import pytest
+from google.adk.tools.function_tool import FunctionTool
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
@@ -20,8 +21,33 @@ from contractor_runtime.contracts import (
     ArtifactWriteResult,
     RuntimeSettings,
 )
-from contractor_runtime.toolsets.audit_results import AuditResultsToolsetFactory
+from contractor_runtime.toolsets.audit_results import (
+    AuditResultsToolsetFactory,
+    SubmitCheckResultTool,
+)
 from contractor_runtime.workspace import AllocationWorkspace
+
+
+def test_submit_check_result_advertises_bounded_batch_member_schema() -> None:
+    tool = SubmitCheckResultTool(
+        FakeAuditArtifactClient(b"", b""),
+        WorkerState().metrics,
+        (),
+        "audit-check",
+    )
+    declaration = FunctionTool(tool)._get_declaration().model_dump(
+        mode="json", by_alias=True
+    )
+    schema = declaration["parametersJsonSchema"]
+    batch = schema["$defs"]["BatchResultArgument"]
+
+    assert batch["required"] == ["assessment", "summary", "completed", "gaps"]
+    assert batch["properties"]["evidence"]["items"]["$ref"].endswith(
+        "/EvidenceArgument"
+    )
+    assert schema["properties"]["results"]["anyOf"][0]["items"]["$ref"].endswith(
+        "/BatchResultArgument"
+    )
 
 
 def test_read_audit_task_returns_validated_json_without_raw_package_bytes() -> None:
@@ -168,15 +194,115 @@ def test_submit_check_result_rejects_forged_manifest_before_write() -> None:
 
         with pytest.raises(ValueError, match="identities differ"):
             await tools["submit_check_result"](
-                "inconclusive",
-                "A bounded gap remains.",
-                [],
-                ["missing-source"],
-                FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
-                [],
+                assessment="inconclusive",
+                summary="A bounded gap remains.",
+                completed=[],
+                gaps=["missing-source"],
+                tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+                evidence=[],
             )
         assert client.written_payload == b""
         assert state.metrics.counters["tool_errors"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_submit_check_result_publishes_one_complete_ordered_batch() -> None:
+    async def scenario() -> None:
+        task_set, execution_manifest = fixture_batch_inputs()
+        client = FakeAuditArtifactClient(task_set, execution_manifest)
+        state = WorkerState()
+        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await factory.create_selected(
+            selected=["read_audit_task", "submit_check_result"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="audit-check",
+            runtime_settings=runtime_settings(),
+            workspace=workspace(),
+            state=state,
+        )
+
+        assigned = await tools["read_audit_task"]()
+        assert assigned["batchSize"] == 2
+        assert [task["item_key"] for task in assigned["tasks"]] == [
+            "check-authz",
+            "check-input",
+        ]
+        assert "task" not in assigned
+
+        await tools["submit_check_result"](
+            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+            results=[
+                {
+                    "assessment": "satisfied",
+                    "summary": "Authorization is checked.",
+                    "completed": ["source-trace"],
+                    "gaps": [],
+                    "evidence": [
+                        {"kind": "source-trace", "summary": "Guard at app.py:12."}
+                    ],
+                },
+                {
+                    "assessment": "inconclusive",
+                    "summary": "Validation helper is unresolved.",
+                    "completed": [],
+                    "gaps": ["unresolved-helper"],
+                    "proposal_keys": ["candidate-input"],
+                },
+            ],
+        )
+
+        result_document, evidence_document, _ = decode_result_package(
+            client.written_payload
+        )
+        assert [item["item_key"] for item in result_document["results"]] == [
+            "check-authz",
+            "check-input",
+        ]
+        assert result_document["results"][0]["evidence_ids"] == ["ev-1-1"]
+        assert result_document["results"][1]["evidence_ids"] == []
+        assert evidence_document["evidence"][0]["id"] == "ev-1-1"
+        assert result_document["results"][1]["proposals"] == [
+            {
+                "invocation_id": "worker-invocation-1",
+                "client_key": "candidate-input",
+            }
+        ]
+        metric = state.metrics.tool_calls[-1]
+        assert metric.arguments["mode"] == "batch"
+        assert metric.arguments["item_count"] == 2
+
+    asyncio.run(scenario())
+
+
+def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
+    async def scenario() -> None:
+        task_set, execution_manifest = fixture_batch_inputs()
+        client = FakeAuditArtifactClient(task_set, execution_manifest)
+        state = WorkerState()
+        factory = AuditResultsToolsetFactory(lambda _allocation, _settings: client)
+        tools = await factory.create_selected(
+            selected=["submit_check_result"],
+            allocation_id="allocation-1",
+            run_id="run-1",
+            namespace="audit-check",
+            runtime_settings=runtime_settings(),
+            workspace=workspace(),
+            state=state,
+        )
+
+        with pytest.raises(ValueError, match="exactly match"):
+            await tools["submit_check_result"](
+                tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+                results=[{
+                    "assessment": "inconclusive",
+                    "summary": "Only one item was returned.",
+                    "completed": [],
+                    "gaps": ["incomplete-batch"],
+                }],
+            )
+        assert client.written_payload == b""
 
     asyncio.run(scenario())
 
@@ -236,6 +362,47 @@ def fixture_inputs() -> tuple[bytes, bytes]:
         ],
     }
     return task_package, jcs.canonicalize(execution)
+
+
+def fixture_batch_inputs() -> tuple[bytes, bytes]:
+    first_package, first_manifest = fixture_inputs()
+    first_execution = json.loads(first_manifest)
+    with zipfile.ZipFile(io.BytesIO(first_package), "r") as archive:
+        second_task = json.loads(archive.read("task.json"))
+    second_task["item_key"] = "check-input"
+    second_task["subject_key"] = "check-input"
+    second_task["checklist"]["statement"] = "Input is validated before use."
+    second_task_bytes = jcs.canonicalize(second_task)
+    second_package = package(
+        "task-check-input",
+        "item-task",
+        [("task-document", "task.json", "application/json", second_task_bytes)],
+    )
+    task_set = package(
+        "task-set-fixture",
+        "item-task-set",
+        [
+            ("task-000", "tasks/000.zip", "application/zip", first_package),
+            ("task-001", "tasks/001.zip", "application/zip", second_package),
+        ],
+    )
+    second_item = dict(first_execution["items"][0])
+    second_item.update(
+        {
+            "item_key": "check-input",
+            "ordinal": 1,
+            "subject_key": "check-input",
+            "task_package_id": "task-check-input",
+            "task_package_digest": digest(second_package),
+            "task_ref": {
+                "namespace": "audit-fixture",
+                "name": "task-check-input",
+                "revision": "task-r2",
+            },
+        }
+    )
+    first_execution["items"].append(second_item)
+    return task_set, jcs.canonicalize(first_execution)
 
 
 def package(package_id: str, kind: str, members: list[tuple[str, str, str, bytes]]) -> bytes:

@@ -88,7 +88,8 @@ WITH member_input AS MATERIALIZED (
      WHERE $6::text IS NOT NULL AND round.round_id = $6
      FOR UPDATE OF round
 ), eligible_members AS MATERIALIZED (
-    SELECT count(*)::integer AS member_count
+    SELECT count(*)::integer AS member_count,
+           count(DISTINCT ROW(item.approval_kind, item.approval_subject_digest))::integer AS approval_envelope_count
       FROM audit_items AS item
       JOIN member_input AS member
         ON member.item_id = item.item_id
@@ -143,6 +144,7 @@ WITH member_input AS MATERIALIZED (
              AND jsonb_array_length($12::jsonb) > 0
              AND jsonb_array_length($12::jsonb) <= audit.batch_size
              AND eligible_members.member_count = jsonb_array_length($12::jsonb)
+             AND eligible_members.approval_envelope_count = 1
              AND NOT EXISTS (
                  SELECT 1 FROM member_input
                   WHERE item_attempt > audit.max_item_run_attempts

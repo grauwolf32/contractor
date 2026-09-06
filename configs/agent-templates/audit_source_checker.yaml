@@ -6,7 +6,7 @@ metadata:
   version: "1"
 
 spec:
-  description: Evaluates one pinned checklist or OpenAPI operation task against source code and publishes a canonical check result
+  description: Evaluates a bounded pinned checklist or OpenAPI task set against source code and publishes one complete canonical result set
   runtime: adk@1
   instructions:
     ref: instructions/audit-source-checker-worker.md

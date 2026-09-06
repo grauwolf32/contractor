@@ -65,6 +65,38 @@ func TestControllerDispatchesThroughWindowAndOnlyObservesTerminal(t *testing.T) 
 	}
 }
 
+func TestControllerBatchGroupsOnlyCompatibleItemEnvelopes(t *testing.T) {
+	harness := newControllerHarness(t, 4, 2)
+	harness.store.mu.Lock()
+	harness.store.audit.Limits.BatchSize = 2
+	harness.store.items[1].ApprovalKind = auditstore.ItemApprovalActiveCheck
+	harness.store.items[1].ApprovalDigest = fakeDigest("approval-item-1")
+	harness.store.mu.Unlock()
+
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("activate batch round = (%t, %v)", worked, err)
+	}
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("dispatch compatible batch = (%t, %v)", worked, err)
+	}
+	members := harness.store.executionMembers(0)
+	if len(members) != 2 || members[0].ItemID != "item-0" || members[1].ItemID != "item-2" ||
+		members[0].BatchOrdinal != 0 || members[1].BatchOrdinal != 1 {
+		t.Fatalf("first compatible batch = %+v", members)
+	}
+	if got := harness.creator.createdCount(); got != 1 {
+		t.Fatalf("two logical items created %d Runs, want 1", got)
+	}
+
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("dispatch separated envelope = (%t, %v)", worked, err)
+	}
+	members = harness.store.executionMembers(1)
+	if len(members) != 1 || members[0].ItemID != "item-1" {
+		t.Fatalf("incompatible approval envelope was merged: %+v", members)
+	}
+}
+
 func TestControllerReplaysIntentAfterSubmissionFailure(t *testing.T) {
 	harness := newControllerHarness(t, 1, 1)
 	harness.creator.failNext.Store(true)
@@ -301,25 +333,44 @@ func (fakeSubmissionBuilder) PrepareRole(
 func (fakeSubmissionBuilder) Prepare(
 	_ context.Context, snapshot auditstore.ReconcileSnapshot, item auditstore.Item, attempt int,
 ) (PreparedSubmission, error) {
-	revision := fmt.Sprintf("manifest-%s-%d", item.ItemID, attempt)
-	manifest := auditstore.ExactArtifact{
-		Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "manifest-" + item.ItemID, Revision: &revision},
-		Digest: fakeDigest(item.ItemID), MediaType: "application/json", SizeBytes: 1,
+	return fakeSubmissionBuilder{}.PrepareBatch(
+		context.Background(), snapshot, []CheckExecutionMember{{Item: item, Attempt: attempt}},
+	)
+}
+
+func (fakeSubmissionBuilder) PrepareBatch(
+	_ context.Context, snapshot auditstore.ReconcileSnapshot, selected []CheckExecutionMember,
+) (PreparedSubmission, error) {
+	if len(selected) == 0 {
+		return PreparedSubmission{}, ErrInvalidSubmission
 	}
-	roundID := item.RoundID
-	executionID := fmt.Sprintf("execution-%s-%d", item.ItemID, attempt)
-	memberID := fmt.Sprintf("member-%s-%d", item.ItemID, attempt)
+	identity := selected[0].Item.ItemID
+	for _, member := range selected {
+		identity += fmt.Sprintf("-%s-%d", member.Item.ItemID, member.Attempt)
+	}
+	revision := "manifest-" + identity
+	manifest := auditstore.ExactArtifact{
+		Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "manifest-" + identity, Revision: &revision},
+		Digest: fakeDigest(identity), MediaType: "application/json", SizeBytes: 1,
+	}
+	roundID := selected[0].Item.RoundID
+	executionID := "execution-" + identity
 	requestDigest := fakeDigest(executionID)
+	members := make([]auditstore.ExecutionMemberIntent, len(selected))
+	for index, member := range selected {
+		members[index] = auditstore.ExecutionMemberIntent{
+			ExecutionItemID: fmt.Sprintf("member-%s-%d", member.Item.ItemID, member.Attempt),
+			ItemID:          member.Item.ItemID, BatchOrdinal: index,
+			ItemAttempt: member.Attempt, Task: member.Item.Task, Inputs: []auditstore.ExactArtifact{},
+		}
+	}
 	return PreparedSubmission{
 		Intent: auditstore.CreateExecutionIntentParams{
 			ExecutionID: executionID, RoundID: &roundID, Role: auditstore.ExecutionCheck,
-			WorkflowRole: item.WorkflowRole,
+			WorkflowRole: selected[0].Item.WorkflowRole,
 			Manifest:     manifest, SubmissionKey: "submission-" + executionID,
 			RequestDigest: requestDigest,
-			Members: []auditstore.ExecutionMemberIntent{{
-				ExecutionItemID: memberID, ItemID: item.ItemID, BatchOrdinal: 0,
-				ItemAttempt: attempt, Task: item.Task, Inputs: []auditstore.ExactArtifact{},
-			}},
+			Members:       members,
 		},
 		Run: runservice.AuditCreateParams{
 			ExecutionID: executionID, ExecutionManifest: manifest, RequestDigest: requestDigest,
@@ -491,13 +542,15 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 	}
 	if params.Claim.Epoch != s.epoch || s.audit.State != auditstore.AuditActive ||
 		s.audit.Dispatch != auditstore.DispatchOpen || s.audit.OutstandingRunCount >= s.window ||
-		s.audit.ReservedRunCount >= s.audit.Limits.MaxSubmittedRuns || len(params.Members) != 1 {
+		s.audit.ReservedRunCount >= s.audit.Limits.MaxSubmittedRuns || len(params.Members) == 0 ||
+		len(params.Members) > s.audit.Limits.BatchSize {
 		return auditstore.Execution{}, false, auditstore.ErrPrecondition
 	}
-	member := params.Members[0]
-	itemIndex := s.findItem(member.ItemID)
-	if itemIndex < 0 || s.items[itemIndex].State != auditstore.ItemReady {
-		return auditstore.Execution{}, false, auditstore.ErrPrecondition
+	for _, member := range params.Members {
+		itemIndex := s.findItem(member.ItemID)
+		if itemIndex < 0 || s.items[itemIndex].State != auditstore.ItemReady {
+			return auditstore.Execution{}, false, auditstore.ErrPrecondition
+		}
 	}
 	execution := auditstore.Execution{
 		ExecutionID: params.ExecutionID, AuditID: s.audit.AuditID, RoundID: params.RoundID,
@@ -505,15 +558,21 @@ func (s *fakeControllerStore) CreateExecutionIntent(_ context.Context, params au
 		RequestDigest: params.RequestDigest, State: auditstore.ExecutionIntent,
 	}
 	s.executions = append(s.executions, execution)
-	s.members[execution.ExecutionID] = []auditstore.ExecutionItem{{
-		ExecutionItemID: member.ExecutionItemID, ExecutionID: execution.ExecutionID,
-		AuditID: s.audit.AuditID, RoundID: s.round.RoundID, ItemID: member.ItemID,
-		BatchOrdinal: member.BatchOrdinal, ItemAttempt: member.ItemAttempt,
-		Task: member.Task, Inputs: append([]auditstore.ExactArtifact(nil), member.Inputs...),
-		State: auditstore.ItemSubmitted,
-	}}
-	s.items[itemIndex].State = auditstore.ItemSubmitted
-	s.items[itemIndex].LastExecutionItemID = &member.ExecutionItemID
+	storedMembers := make([]auditstore.ExecutionItem, len(params.Members))
+	for index, member := range params.Members {
+		storedMembers[index] = auditstore.ExecutionItem{
+			ExecutionItemID: member.ExecutionItemID, ExecutionID: execution.ExecutionID,
+			AuditID: s.audit.AuditID, RoundID: s.round.RoundID, ItemID: member.ItemID,
+			BatchOrdinal: member.BatchOrdinal, ItemAttempt: member.ItemAttempt,
+			Task: member.Task, Inputs: append([]auditstore.ExactArtifact(nil), member.Inputs...),
+			State: auditstore.ItemSubmitted,
+		}
+		itemIndex := s.findItem(member.ItemID)
+		s.items[itemIndex].State = auditstore.ItemSubmitted
+		memberID := member.ExecutionItemID
+		s.items[itemIndex].LastExecutionItemID = &memberID
+	}
+	s.members[execution.ExecutionID] = storedMembers
 	s.audit.ReservedRunCount++
 	s.audit.OutstandingRunCount++
 	if s.audit.OutstandingRunCount > s.maxOutstanding {
@@ -757,6 +816,15 @@ func (s *fakeControllerStore) executionCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.executions)
+}
+
+func (s *fakeControllerStore) executionMembers(index int) []auditstore.ExecutionItem {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.executions) {
+		return nil
+	}
+	return append([]auditstore.ExecutionItem(nil), s.members[s.executions[index].ExecutionID]...)
 }
 
 func (s *fakeControllerStore) maximumOutstanding() int {

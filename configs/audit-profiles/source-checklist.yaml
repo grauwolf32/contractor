@@ -33,7 +33,7 @@ spec:
   execution:
     roundMode: fixed-barrier
     maxRounds: 1
-    batchSize: 1
+    batchSize: 2
     maxItemsPerRound: 128
     maxItemsTotal: 128
     maxSubmittedRuns: 384

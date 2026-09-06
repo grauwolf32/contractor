@@ -11,8 +11,8 @@ user-facing Workflow set is:
   has exact dependency and project reports;
 - `security-analysis@2` and `taint-trace-from-workspace@2` for their explicit
   focused analysis contracts;
-- `audit-source-check@1` as the Audit-owned single-item child Workflow used by
-  the `source-checklist@1` and `openapi-operation-trace@1` AuditProfiles;
+- `audit-source-check@1` as the Audit-owned bounded task-set child Workflow used
+  by the `source-checklist@1` and `openapi-operation-trace@1` AuditProfiles;
 - `artifact-copy@1` as the one intentionally published smoke fixture.
 
 Historical source-analysis and earlier workspace/Skill versions are deleted,
@@ -25,10 +25,11 @@ The two initial AuditProfiles are deliberately generic, one-round and
 non-certifying. They require an exact source ZIP plus either a custom checklist
 or OpenAPI document. Their child Worker reads the Controller-generated task and
 execution manifest, performs bounded source analysis and uses
-`audit-results@1/read_audit_task` to obtain its validated JSON task and
-`audit-results@1/submit_check_result` to package a strict result without asking
-the model to decode ZIP bytes, reproduce item identities, or construct ZIP
-bytes manually.
+`audit-results@1/read_audit_task` to obtain its validated ordered JSON task set
+and `audit-results@1/submit_check_result` to package one complete strict result
+set without asking the model to decode ZIP bytes, reproduce item identities, or
+construct ZIP bytes manually. The checklist profile currently batches up to two
+compatible items; the OpenAPI profile retains `batchSize: 1`.
 
 `audit-standards/` is the operator-owned source for immutable curated standard
 packages. Each immediate package directory contains only a strict

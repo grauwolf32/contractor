@@ -10,7 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-func TestProfileCompatibilityReasonsAreClosedOrderedAndDeduplicated(t *testing.T) {
+func TestProfileCompatibilityAcceptsImplementedAdvancedPoliciesAndBatching(t *testing.T) {
 	profile, err := loadAuditServiceProfiles(t).AuditProfile("test-checklist@1")
 	if err != nil {
 		t.Fatal(err)
@@ -28,9 +28,7 @@ func TestProfileCompatibilityReasonsAreClosedOrderedAndDeduplicated(t *testing.T
 	profile.Workflows["discovery"] = binding
 
 	got := ProfileCompatibility(profile).Reasons
-	want := []CompatibilityReason{
-		ReasonBatchingUnsupported,
-	}
+	want := []CompatibilityReason{}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("compatibility reasons = %v, want %v", got, want)
 	}

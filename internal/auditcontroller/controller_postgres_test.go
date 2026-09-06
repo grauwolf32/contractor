@@ -99,6 +99,58 @@ func TestPostgresControllerDispatchesOrdinaryRunsThroughDerivedWindow(t *testing
 	}
 }
 
+func TestPostgresControllerBatchBuildsOnePinnedRunForTwoItems(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	harness := newPostgresControllerHarness(t, ctx, 3, 2)
+	settings := settingsstore.NewPostgresStore(harness.pool)
+	if _, err := settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 2, ExpectedRevision: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	controller := harness.controller(t)
+
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("activate batch round = (%t, %v)", worked, err)
+	}
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch first batch = (%t, %v)", worked, err)
+	}
+	executions, err := harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 1 || executions[0].RunID == nil {
+		t.Fatalf("batch executions = (%+v, %v)", executions, err)
+	}
+	members, err := harness.audits.ListExecutionItems(ctx, executions[0].ExecutionID)
+	if err != nil || len(members) != 2 || members[0].BatchOrdinal != 0 || members[1].BatchOrdinal != 1 {
+		t.Fatalf("batch members = (%+v, %v)", members, err)
+	}
+	runArtifacts, err := harness.artifacts.Run(*executions[0].RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskInput, err := runArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "task"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := auditdomain.ValidatePackage(taskInput.Payload.Data)
+	if err != nil || pkg.Manifest.Kind != auditdomain.PackageKindTaskSet || len(pkg.Members()) != 2 {
+		t.Fatalf("forked task set = (%+v, %v)", pkg, err)
+	}
+
+	if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+		t.Fatalf("dispatch final partial batch = (%t, %v)", worked, err)
+	}
+	executions, err = harness.audits.ListExecutions(ctx, harness.started.Audit.AuditID)
+	if err != nil || len(executions) != 2 {
+		t.Fatalf("three items used %d Runs, want 2: %v", len(executions), err)
+	}
+	lastMembers, err := harness.audits.ListExecutionItems(ctx, executions[1].ExecutionID)
+	if err != nil || len(lastMembers) != 1 {
+		t.Fatalf("partial batch members = (%+v, %v)", lastMembers, err)
+	}
+}
+
 func TestPostgresDispatchReservationOrdersWithSettingsDecrease(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -647,7 +699,7 @@ type postgresControllerHarness struct {
 }
 
 func newPostgresControllerHarness(
-	t *testing.T, ctx context.Context, itemCount int,
+	t *testing.T, ctx context.Context, itemCount int, batchSizes ...int,
 ) *postgresControllerHarness {
 	t.Helper()
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
@@ -655,7 +707,7 @@ func newPostgresControllerHarness(
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
 	}
 	pool := isolatedControllerPool(t, ctx, databaseURL)
-	snapshot := loadControllerConfig(t)
+	snapshot := loadControllerConfig(t, batchSizes...)
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	projects := projectstore.NewPostgresStore(pool)
 	project, _, err := projects.Create(ctx, projectstore.CreateParams{
@@ -865,8 +917,15 @@ func (controllerRuntimeCredentials) ValidateRuntimeCredential(context.Context, s
 	return nil
 }
 
-func loadControllerConfig(t *testing.T) *config.Snapshot {
+func loadControllerConfig(t *testing.T, batchSizes ...int) *config.Snapshot {
 	t.Helper()
+	batchSize := 1
+	if len(batchSizes) > 0 {
+		batchSize = batchSizes[0]
+	}
+	if len(batchSizes) > 1 || batchSize < 1 || batchSize > config.MaxAuditBatchSize {
+		t.Fatalf("invalid test batch size %v", batchSizes)
+	}
 	root := t.TempDir()
 	files := map[string]string{
 		"instructions/planner.md": "Execute the selected checklist item.",
@@ -924,7 +983,7 @@ spec:
         failed: {fail: {}}
         interrupted: {fail: {}}
 `,
-		"audit-profiles/checklist.yaml": `apiVersion: contractor/v1alpha1
+		"audit-profiles/checklist.yaml": fmt.Sprintf(`apiVersion: contractor/v1alpha1
 kind: AuditProfile
 metadata: {name: test-checklist, version: "1"}
 spec:
@@ -947,7 +1006,7 @@ spec:
   execution:
     roundMode: fixed-barrier
     maxRounds: 1
-    batchSize: 1
+    batchSize: %d
     maxItemsPerRound: 10
     maxItemsTotal: 10
     maxSubmittedRuns: 20
@@ -960,7 +1019,7 @@ spec:
     findingConfirmation: disabled
     notApplicable: profile-rule
     reportAcceptance: automatic
-`,
+`, batchSize),
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

@@ -625,6 +625,8 @@ func (i *Importer) collectSucceeded(
 		resultByKey[value.ItemKey] = value
 	}
 	evidenceByID := make(map[string]validatedEvidence, len(resultPackage.Evidence.Evidence))
+	evidenceOwner := make(map[string]int, len(resultPackage.Evidence.Evidence))
+	proposalOwner := make(map[string]int)
 	for _, value := range resultPackage.Evidence.Evidence {
 		validated := validatedEvidence{value: value}
 		if value.Artifact != nil {
@@ -665,6 +667,12 @@ func (i *Importer) collectSucceeded(
 					}
 					return false, resolveErr
 				}
+				for _, proposal := range selected {
+					if owner, duplicate := proposalOwner[proposal.ReceiptID]; duplicate && owner != index {
+						return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-item-membership-invalid")
+					}
+					proposalOwner[proposal.ReceiptID] = index
+				}
 				resolved = append(resolved, selected...)
 			}
 			if members[index].task.Finding != nil {
@@ -701,6 +709,12 @@ func (i *Importer) collectSucceeded(
 			return i.collectInvalid(ctx, claim, execution, members, source, stableValidationCode(validationErr))
 		}
 		members[index].result, members[index].cover = value, coverage
+		for _, evidenceID := range value.EvidenceIDs {
+			if _, duplicate := evidenceOwner[evidenceID]; duplicate {
+				return i.collectInvalid(ctx, claim, execution, members, source, "evidence-item-membership-invalid")
+			}
+			evidenceOwner[evidenceID] = index
+		}
 	}
 
 	run, err := i.runs.GetRun(ctx, *execution.RunID)
@@ -773,7 +787,11 @@ func (i *Importer) collectSucceeded(
 			}
 			displayRef = ""
 		}
-		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[0], run, source, evidence.value)
+		owner, exists := evidenceOwner[id]
+		if !exists || owner < 0 || owner >= len(members) {
+			return i.collectInvalid(ctx, claim, execution, members, source, "evidence-item-membership-invalid")
+		}
+		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[owner], run, source, evidence.value)
 		if provenanceErr != nil {
 			return false, provenanceErr
 		}

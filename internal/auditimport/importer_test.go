@@ -40,6 +40,149 @@ func TestImporterAcceptsExactFrozenResultAndEvidence(t *testing.T) {
 	}
 }
 
+func TestImporterBatchAcceptsIndependentResultsAndEvidence(t *testing.T) {
+	harness := newImportHarness(t)
+	configureSecondBatchMember(t, &harness, true)
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect complete batch = (%t, %v)", worked, err)
+	}
+	collected := harness.store.collected
+	if collected.Disposition != auditstore.CollectionAccepted || len(collected.Items) != 2 ||
+		len(collected.Retained) != 4 {
+		t.Fatalf("accepted batch collection = %+v", collected)
+	}
+	for index, item := range collected.Items {
+		if item.ExecutionItemID != fmt.Sprintf("execution-item-%d", index+1) ||
+			item.Disposition != auditstore.CollectionAccepted || item.Result == nil ||
+			item.Coverage.Status != auditstore.CoverageSatisfied {
+			t.Fatalf("accepted batch member %d = %+v", index, item)
+		}
+	}
+	for _, link := range collected.Retained {
+		if link.LogicalKey != "evidence/execution-1/ev-2" {
+			continue
+		}
+		if !strings.Contains(string(link.SourceProvenance), `"executionItemId":"execution-item-2"`) ||
+			strings.Contains(string(link.SourceProvenance), `"executionItemId":"execution-item-1"`) {
+			t.Fatalf("second item evidence provenance = %s", link.SourceProvenance)
+		}
+		return
+	}
+	t.Fatal("second item evidence link is missing")
+}
+
+func TestImporterBatchRejectsIncompleteSetWithoutPartialAcceptance(t *testing.T) {
+	harness := newImportHarness(t)
+	configureSecondBatchMember(t, &harness, false)
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect incomplete batch = (%t, %v)", worked, err)
+	}
+	collected := harness.store.collected
+	if collected.Disposition != auditstore.CollectionInvalidResult || len(collected.Items) != 2 ||
+		len(collected.Retained) != 0 {
+		t.Fatalf("incomplete batch collection = %+v", collected)
+	}
+	for _, item := range collected.Items {
+		if item.Disposition != auditstore.CollectionInvalidResult || !item.Retryable || item.Result != nil {
+			t.Fatalf("partially accepted invalid batch member = %+v", item)
+		}
+	}
+}
+
+func TestImporterBatchKeepsFindingProposalOnItsExactMember(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	selection := auditdomain.ProposalSelection{
+		InvocationID: "worker-invocation-1", ClientKey: "candidate-1",
+	}
+	configureSecondBatchMember(t, &harness, true, []auditdomain.ProposalSelection{selection})
+	proposalRevision := "proposal-r1"
+	proposal := findingintake.ResolvedProposal{
+		ReceiptID: "finding-receipt", Proposal: findingintake.ExactArtifact{
+			Ref: contracts.ArtifactRef{
+				Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
+			},
+			Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+		},
+	}
+	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{proposal}}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect proposal batch = (%t, %v)", worked, err)
+	}
+	first := harness.store.collected.Items[0].FindingAssociations
+	second := harness.store.collected.Items[1].FindingAssociations
+	if len(first) != 1 || first[0].ReceiptID != proposal.ReceiptID || len(second) != 0 {
+		t.Fatalf("batch finding associations = first %+v, second %+v", first, second)
+	}
+}
+
+func TestImporterBatchRejectsProposalAliasedAcrossMembers(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	selection := []auditdomain.ProposalSelection{{
+		InvocationID: "worker-invocation-1", ClientKey: "candidate-1",
+	}}
+	configureSecondBatchMember(t, &harness, true, selection, selection)
+	proposalRevision := "proposal-r1"
+	findings := &fakeFindingRetention{resolved: []findingintake.ResolvedProposal{{
+		ReceiptID: "finding-receipt", Proposal: findingintake.ExactArtifact{
+			Ref: contracts.ArtifactRef{
+				Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
+			},
+			Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+		},
+	}}}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect aliased proposal batch = (%t, %v)", worked, err)
+	}
+	collected := harness.store.collected
+	if collected.Disposition != auditstore.CollectionInvalidResult ||
+		collected.ErrorCode == nil || *collected.ErrorCode != "finding-proposal-item-membership-invalid" ||
+		len(collected.Retained) != 0 {
+		t.Fatalf("aliased proposal collection = %+v", collected)
+	}
+}
+
 func TestImporterRecordsInvalidAndMissingSucceededOutputs(t *testing.T) {
 	t.Run("invalid", func(t *testing.T) {
 		harness := newImportHarness(t)
@@ -310,6 +453,66 @@ func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
 		)
 		t.Fatalf("later-Round finding association = %+v; collection = %+v; direct error = %v",
 			associations, harness.store.collected, directErr)
+	}
+}
+
+func TestImporterBatchAllowsDistinctTaskChecksFromOneProposalReceipt(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+
+	proposalRevision := "proposal-r1"
+	proposal := findingintake.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
+		},
+		Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+	}
+	proposalDocument := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-1",
+		Title: "Candidate", Description: "A bounded candidate finding.",
+		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "subject-1"},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{
+			{Objective: "Trace the candidate", Method: "static-trace"},
+			{Objective: "Review the candidate configuration", Method: "config-review"},
+		}, SeveritySuggestion: "medium", Limitations: []string{},
+	}
+	findings := &fakeFindingRetention{getReceipts: []findingintake.Receipt{{
+		ReceiptID: "finding-receipt", Proposal: proposal, Document: proposalDocument,
+		AuditHolds: []findingintake.AuditHold{{
+			AuditID: harness.snapshot.Audit.AuditID, ProjectID: harness.snapshot.Audit.ProjectID,
+			Proposal: proposal, Evidence: []findingintake.ExactArtifact{},
+		}},
+	}}}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureFindingTaskResult(t, &harness, proposal, proposalDocument)
+	appendSecondFindingTaskResult(t, &harness, proposalDocument)
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect two checks from one proposal = (%t, %v)", worked, err)
+	}
+	if len(harness.store.collected.Items) != 2 {
+		t.Fatalf("collected finding task members = %+v", harness.store.collected.Items)
+	}
+	for index, item := range harness.store.collected.Items {
+		if len(item.FindingAssociations) != 1 ||
+			item.FindingAssociations[0].ReceiptID != "finding-receipt" {
+			t.Fatalf("finding association %d = %+v", index, item.FindingAssociations)
+		}
 	}
 }
 
@@ -588,6 +791,160 @@ type importHarness struct {
 	claim     auditstore.ControllerClaim
 	snapshot  auditstore.ReconcileSnapshot
 	execution auditstore.Execution
+}
+
+func configureSecondBatchMember(
+	t *testing.T,
+	harness *importHarness,
+	complete bool,
+	proposalSets ...[]auditdomain.ProposalSelection,
+) {
+	t.Helper()
+	firstMember := harness.store.members[0]
+	firstPayload := harness.artifacts.project[refKey(firstMember.Task.Ref)]
+	firstPackage, err := auditdomain.ValidatePackage(firstPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstDocument, exists := firstPackage.MemberByID("task-document")
+	if !exists {
+		t.Fatal("first task document is missing")
+	}
+	firstTask, err := auditdomain.DecodeItemTask(firstDocument.Data())
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondTask := firstTask
+	secondTask.ItemKey = "check-2"
+	secondTask.SubjectKey = "check-2"
+	secondJSON, err := auditdomain.EncodeItemTask(secondTask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPayload, secondPackage, err := auditdomain.BuildPackage(
+		"task-2", auditdomain.PackageKindTask, "", []auditdomain.PackageInput{{
+			ID: "task-document", Path: "task.json", MediaType: auditdomain.JSONMediaType, Data: secondJSON,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondRevision := "task-r2"
+	secondDescriptor := auditstore.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: firstMember.Task.Ref.Namespace, Name: "task-2", Revision: &secondRevision,
+		},
+		Digest: secondPackage.Digest, MediaType: auditdomain.PackageMediaType,
+		SizeBytes: int64(len(secondPayload)),
+	}
+	harness.artifacts.project[refKey(secondDescriptor.Ref)] = secondPayload
+
+	manifestBytes := harness.artifacts.project[refKey(harness.execution.Manifest.Ref)]
+	manifest, err := auditdomain.DecodeExecutionManifest(manifestBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Items = append(manifest.Items, auditdomain.ExecutionItem{
+		ItemKey: "check-2", Ordinal: 1, SubjectKey: "check-2",
+		TaskPackageID: "task-2", TaskPackageDigest: secondDescriptor.Digest,
+		TaskRef: &secondDescriptor.Ref,
+		Inputs:  append([]auditdomain.ExactInput(nil), manifest.Items[0].Inputs...),
+	})
+	manifestBytes, err = auditdomain.EncodeExecutionManifest(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.execution.Manifest.Digest = digestBytes(manifestBytes)
+	harness.execution.Manifest.SizeBytes = int64(len(manifestBytes))
+	harness.artifacts.project[refKey(harness.execution.Manifest.Ref)] = manifestBytes
+
+	secondMember := auditstore.ExecutionItem{
+		ExecutionItemID: "execution-item-2", ExecutionID: harness.execution.ExecutionID,
+		AuditID: harness.execution.AuditID, RoundID: firstMember.RoundID, ItemID: "item-2",
+		BatchOrdinal: 1, ItemAttempt: 1, Task: secondDescriptor,
+		Inputs: append([]auditstore.ExactArtifact(nil), firstMember.Inputs...),
+		State:  auditstore.ItemCollecting,
+	}
+	harness.store.members = append(harness.store.members, secondMember)
+	harness.snapshot.Items = append(harness.snapshot.Items, auditstore.Item{
+		ItemID: secondMember.ItemID, AuditID: secondMember.AuditID, RoundID: secondMember.RoundID,
+		ItemKey: "check-2", Ordinal: 1, Kind: firstTask.Kind, SubjectKey: "check-2",
+		Task: secondDescriptor, WorkflowRole: firstTask.WorkflowRole, State: auditstore.ItemCollecting,
+	})
+
+	proposals := []auditdomain.ProposalSelection{}
+	if len(proposalSets) > 2 {
+		t.Fatal("at most two item proposal sets are permitted")
+	}
+	if len(proposalSets) >= 1 {
+		proposals = append(proposals, proposalSets[0]...)
+	}
+	results := []auditdomain.CheckResult{{
+		ItemKey: firstTask.ItemKey, SubjectKey: firstTask.SubjectKey, Assessment: "satisfied",
+		Summary: "The first required evidence is present.", EvidenceIDs: []string{"ev-1"},
+		Coverage: auditdomain.ResultCoverage{
+			Requested: []string{"source"}, Completed: []string{"source"}, Gaps: []string{},
+		},
+		Proposals: proposals,
+	}}
+	evidenceValues := []auditdomain.Evidence{{
+		ID: "ev-1", Kind: "source", Summary: "First static source evidence", ContentMemberID: "ev-body-1",
+	}}
+	packageInputs := []auditdomain.PackageInput{{
+		ID: "ev-body-1", Path: "evidence/source-1.txt", MediaType: "text/plain", Data: []byte("evidence one"),
+	}}
+	if complete {
+		secondProposals := []auditdomain.ProposalSelection{}
+		if len(proposalSets) == 2 {
+			secondProposals = append(secondProposals, proposalSets[1]...)
+		}
+		results = append(results, auditdomain.CheckResult{
+			ItemKey: secondTask.ItemKey, SubjectKey: secondTask.SubjectKey, Assessment: "satisfied",
+			Summary: "The second required evidence is present.", EvidenceIDs: []string{"ev-2"},
+			Coverage: auditdomain.ResultCoverage{
+				Requested: []string{"source"}, Completed: []string{"source"}, Gaps: []string{},
+			},
+			Proposals: secondProposals,
+		})
+		evidenceValues = append(evidenceValues, auditdomain.Evidence{
+			ID: "ev-2", Kind: "source", Summary: "Second static source evidence", ContentMemberID: "ev-body-2",
+		})
+		packageInputs = append(packageInputs, auditdomain.PackageInput{
+			ID: "ev-body-2", Path: "evidence/source-2.txt", MediaType: "text/plain", Data: []byte("evidence two"),
+		})
+	}
+	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+		Schema: auditdomain.CheckResultsSchema, ExecutionManifestDigest: harness.execution.Manifest.Digest,
+		Results: results,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := auditdomain.EncodeEvidence(auditdomain.EvidenceEnvelope{
+		Schema: auditdomain.EvidenceSchema, Evidence: evidenceValues,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packageInputs = append(packageInputs,
+		auditdomain.PackageInput{
+			ID: auditdomain.CheckResultsMemberID, Path: "check-results.json",
+			MediaType: auditdomain.JSONMediaType, Data: resultSet,
+		},
+		auditdomain.PackageInput{
+			ID: auditdomain.EvidenceMemberID, Path: "evidence.json",
+			MediaType: auditdomain.JSONMediaType, Data: evidence,
+		},
+	)
+	resultPayload, resultPackage, err := auditdomain.BuildPackage(
+		"result-batch", auditdomain.PackageKindCheckResults, "", packageInputs,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.artifacts.runPayload = resultPayload
+	harness.artifacts.runDescriptor.Digest = resultPackage.Digest
+	harness.artifacts.runDescriptor.SizeBytes = int64(len(resultPayload))
 }
 
 func newImportHarness(t *testing.T) importHarness {
@@ -952,6 +1309,132 @@ func configureFindingTaskResult(
 	}
 	resultPayload, resultPackage, err := auditdomain.BuildPackage(
 		"finding-result-1", auditdomain.PackageKindCheckResults, "",
+		[]auditdomain.PackageInput{
+			{ID: auditdomain.CheckResultsMemberID, Path: "check-results.json", MediaType: auditdomain.JSONMediaType, Data: resultSet},
+			{ID: auditdomain.EvidenceMemberID, Path: "evidence.json", MediaType: auditdomain.JSONMediaType, Data: evidence},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.artifacts.runPayload = resultPayload
+	harness.artifacts.runDescriptor.Digest = resultPackage.Digest
+	harness.artifacts.runDescriptor.SizeBytes = int64(len(resultPayload))
+}
+
+func appendSecondFindingTaskResult(
+	t *testing.T,
+	harness *importHarness,
+	document auditdomain.FindingProposal,
+) {
+	t.Helper()
+	if len(document.ProposedChecks) < 2 {
+		t.Fatal("two proposed checks are required")
+	}
+	firstMember := harness.store.members[0]
+	firstPackage, err := auditdomain.ValidatePackage(
+		harness.artifacts.project[refKey(firstMember.Task.Ref)],
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstDocument, exists := firstPackage.MemberByID("task-document")
+	if !exists {
+		t.Fatal("first finding task document is missing")
+	}
+	firstTask, err := auditdomain.DecodeItemTask(firstDocument.Data())
+	if err != nil || firstTask.Finding == nil {
+		t.Fatalf("decode first finding task = (%+v, %v)", firstTask, err)
+	}
+	secondTask := firstTask
+	secondTask.ItemKey = "finding-check-2"
+	secondFinding := *firstTask.Finding
+	secondFinding.ProposedCheckOrdinal = 1
+	secondFinding.Objective = document.ProposedChecks[1].Objective
+	secondFinding.Method = document.ProposedChecks[1].Method
+	secondTask.Finding = &secondFinding
+	secondJSON, err := auditdomain.EncodeItemTask(secondTask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPayload, secondPackage, err := auditdomain.BuildPackage(
+		"finding-task-2", auditdomain.PackageKindTask, "",
+		[]auditdomain.PackageInput{{
+			ID: "task-document", Path: "task.json", MediaType: auditdomain.JSONMediaType, Data: secondJSON,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondRevision := "finding-task-r2"
+	secondDescriptor := auditstore.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: firstMember.Task.Ref.Namespace, Name: "finding-task-2", Revision: &secondRevision,
+		},
+		Digest: secondPackage.Digest, MediaType: auditdomain.PackageMediaType,
+		SizeBytes: int64(len(secondPayload)),
+	}
+	harness.artifacts.project[refKey(secondDescriptor.Ref)] = secondPayload
+
+	manifestBytes := harness.artifacts.project[refKey(harness.execution.Manifest.Ref)]
+	manifest, err := auditdomain.DecodeExecutionManifest(manifestBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest.Items = append(manifest.Items, auditdomain.ExecutionItem{
+		ItemKey: secondTask.ItemKey, Ordinal: 1, SubjectKey: secondTask.SubjectKey,
+		TaskPackageID: "finding-task-2", TaskPackageDigest: secondDescriptor.Digest,
+		TaskRef: &secondDescriptor.Ref, Inputs: []auditdomain.ExactInput{},
+	})
+	manifestBytes, err = auditdomain.EncodeExecutionManifest(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.execution.Manifest.Digest = digestBytes(manifestBytes)
+	harness.execution.Manifest.SizeBytes = int64(len(manifestBytes))
+	harness.artifacts.project[refKey(harness.execution.Manifest.Ref)] = manifestBytes
+
+	secondMember := auditstore.ExecutionItem{
+		ExecutionItemID: "execution-item-2", ExecutionID: harness.execution.ExecutionID,
+		AuditID: harness.execution.AuditID, RoundID: firstMember.RoundID, ItemID: "item-2",
+		BatchOrdinal: 1, ItemAttempt: 1, Task: secondDescriptor,
+		Inputs: []auditstore.ExactArtifact{}, State: auditstore.ItemCollecting,
+	}
+	harness.store.members = append(harness.store.members, secondMember)
+	harness.snapshot.Items = append(harness.snapshot.Items, auditstore.Item{
+		ItemID: secondMember.ItemID, AuditID: secondMember.AuditID, RoundID: secondMember.RoundID,
+		ItemKey: secondTask.ItemKey, Ordinal: 1, Kind: secondTask.Kind,
+		SubjectKey: secondTask.SubjectKey, Task: secondDescriptor,
+		WorkflowRole: secondTask.WorkflowRole, State: auditstore.ItemCollecting,
+	})
+
+	results := make([]auditdomain.CheckResult, 0, 2)
+	for _, task := range []auditdomain.ItemTask{firstTask, secondTask} {
+		results = append(results, auditdomain.CheckResult{
+			ItemKey: task.ItemKey, SubjectKey: task.SubjectKey,
+			Assessment: "supported", Summary: "The candidate check is supported.",
+			EvidenceIDs: []string{}, Coverage: auditdomain.ResultCoverage{
+				Requested: []string{task.Finding.Method}, Completed: []string{task.Finding.Method},
+				Gaps: []string{},
+			}, Proposals: []auditdomain.ProposalSelection{},
+		})
+	}
+	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+		Schema:                  auditdomain.CheckResultsSchema,
+		ExecutionManifestDigest: harness.execution.Manifest.Digest,
+		Results:                 results,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := auditdomain.EncodeEvidence(auditdomain.EvidenceEnvelope{
+		Schema: auditdomain.EvidenceSchema, Evidence: []auditdomain.Evidence{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultPayload, resultPackage, err := auditdomain.BuildPackage(
+		"finding-result-batch", auditdomain.PackageKindCheckResults, "",
 		[]auditdomain.PackageInput{
 			{ID: auditdomain.CheckResultsMemberID, Path: "check-results.json", MediaType: auditdomain.JSONMediaType, Data: resultSet},
 			{ID: auditdomain.EvidenceMemberID, Path: "evidence.json", MediaType: auditdomain.JSONMediaType, Data: evidence},

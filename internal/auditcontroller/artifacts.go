@@ -85,14 +85,14 @@ func (a *ProjectArtifactAccess) PutImmutableProject(
 	if !errors.Is(err, artifacts.ErrArtifactConflict) {
 		return auditstore.ExactArtifact{}, err
 	}
-	// The manifest name is content-derived. A crash after this write but before
+	// The target name is content-derived. A crash after this write but before
 	// intent creation is recovered by accepting only byte-identical content.
 	current, readErr := store.Read(ctx, target)
 	if readErr != nil {
 		return auditstore.ExactArtifact{}, readErr
 	}
 	if current.Payload.MediaType != payload.MediaType || !bytes.Equal(current.Payload.Data, payload.Data) {
-		return auditstore.ExactArtifact{}, fmt.Errorf("%w: execution manifest binding collision", ErrInvalidSubmission)
+		return auditstore.ExactArtifact{}, fmt.Errorf("%w: immutable Audit artifact binding collision", ErrInvalidSubmission)
 	}
 	return auditstore.ExactArtifact{
 		Ref: current.Ref, Digest: digestBytes(current.Payload.Data),

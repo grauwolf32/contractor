@@ -25,12 +25,12 @@ findings, but cannot create Runs, select an Audit, approve work, or mutate Audit
 control state.
 
 The implemented baseline supports deterministic inventories, immutable rounds,
-one logical item per execution, bounded independent check Runs, PostgreSQL
-recovery, exact result collection, finding intake and triage, exact human
-decisions, pinned discovery/assessment roles, bounded multiple rounds, and
-automatic or owner-accepted coverage reports. The durable model separates
-items from executions so a later execution may carry a small ordered batch
-without changing item identity; batching remains deferred.
+bounded compatible item batches in ordinary check Runs, PostgreSQL recovery,
+exact result collection, finding intake and triage, exact human decisions,
+pinned discovery/assessment roles, bounded multiple rounds, and automatic or
+owner-accepted coverage reports. `AuditItem` remains the logical unit of a
+check, attempt, result, evidence, proposal attribution, coverage, and
+settlement even when several items share one `AuditExecution` and WorkflowRun.
 
 ## 2. Ownership boundaries
 
@@ -198,13 +198,13 @@ spec:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}
       parameters:
-        target: {source: item-field, name: subjectKey}
+        target: {source: scope-field, name: target}
       outputs:
         result: trace_report
   execution:
     roundMode: fixed-barrier
     maxRounds: 1
-    batchSize: 1
+    batchSize: 4
     maxItemsPerRound: 100
     maxItemsTotal: 250
     maxSubmittedRuns: 500
@@ -254,11 +254,12 @@ Workflow:
   Workflow and has a profile-supported package media type.
 
 All numeric limits, including `batchSize`, are finite positive values and are
-jointly validated. Profiles cannot weaken Server-wide maxima. Catalog loading
-may accept a bounded batch size greater than one, but the MVP start capability
-requires exactly `batchSize: 1`. Model policies, execution budgets, Runtime
-labels, and credentials are selected by the pinned child execution
-configuration, not by finding content.
+jointly validated. Profiles cannot weaken Server-wide maxima. `batchSize` is a
+maximum, not a required fill level: the Controller may submit a smaller final
+or compatibility-constrained batch. The first schema and Server implementation
+cap it at 64. Model policies, execution budgets, Runtime labels, and credentials
+are selected by the pinned child execution configuration, not by finding
+content.
 
 AuditProfile has no WorkflowRun concurrency limit. `maxSubmittedRuns` is a
 cumulative budget over every child Run attempt, including retries and later
@@ -328,10 +329,10 @@ of required Audit capabilities for presentation; start enforces that set
 against the same profile snapshot it pins. A stale UI projection cannot bypass
 the start check.
 
-The current Server supports deterministic inventory, bounded multiple rounds,
-pinned discovery and assessment Workflow roles, exact active-check/manual-item
-approval, human finding confirmation, human applicability decisions, and
-exact report acceptance. It still requires `batchSize: 1`. Automatic active
+The current Server supports deterministic inventory, bounded compatible check
+batches, bounded multiple rounds, pinned discovery and assessment Workflow
+roles, exact active-check/manual-item approval, human finding confirmation,
+human applicability decisions, and exact report acceptance. Automatic active
 checks are not enabled: a profile must prohibit them or require an exact human
 decision. `findingConfirmation: disabled` means finding proposals are not an
 accepted result surface for that profile; it never turns proposals into
@@ -354,13 +355,14 @@ cannot yet enforce rather than silently weakening them.
 
 The stable start error is `audit_profile_unsupported`; its bounded reason codes
 describe missing Server capabilities rather than transient Worker availability.
-The current implementation emits `batching_unsupported`,
-`automatic_active_checks_unsupported`, and `assessment_unsupported` for the
-not-yet-supported finding-candidate inventory entry point. Older closed reason
-values remain valid wire values for compatible clients but are not evidence
-that the current Server lacks discovery, human finding confirmation, human
-review, report acceptance, or multiple-round execution. A successfully started
-Audit may still wait in the ordinary queue for a compatible Runtime Agent.
+The current implementation emits `automatic_active_checks_unsupported` and
+`assessment_unsupported` for the not-yet-supported finding-candidate inventory
+entry point. `batching_unsupported` remains a closed legacy wire value for
+compatible clients, but current bounded profile batch sizes do not produce it.
+Other older closed reason values likewise are not evidence that the current
+Server lacks discovery, human finding confirmation, human review, report
+acceptance, or multiple-round execution. A successfully started Audit may still
+wait in the ordinary queue for a compatible Runtime Agent.
 
 ## 5. Baseline and scope
 
@@ -445,15 +447,15 @@ the Audit or Round and do not create fake items. Each execution has at most one
 Run and one immutable execution-input manifest. One Run can belong to at most
 one AuditExecution.
 
-In the MVP every check execution contains exactly one item because the start
-capability requires `batchSize: 1`. This is a policy constraint, not a schema
-shortcut. A later bounded execution may contain several compatible items while
-each item retains its own ordinal, attempt, result, evidence, coverage, and
-settlement. Retry creates a new AuditExecution and a new AuditExecutionItem for
-each retried item; later batching may regroup retries without changing item
-identity. Items with different Workflow/configuration, baseline, workspace, or
-permission envelope cannot share an execution. Workspace reuse never implies a
-shared Worker conversation.
+A check execution contains one to `batchSize` compatible items, subject to the
+Server maximum. Each item retains its own batch ordinal, attempt, result,
+evidence, proposal membership, coverage, and settlement. Retry creates a new
+`AuditExecution` and `AuditExecutionItem` for every retried item; the Controller
+may regroup ready retries without changing item identity or attempt history.
+Items with different pinned Workflow role/configuration, resolved Run inputs or
+parameters, baseline/workspace, credentials, active-check authority, or exact
+approval kind/subject digest cannot share an execution. Workspace reuse does
+not imply a conversation shared with another Run.
 
 Required uniqueness includes `(audit_id, round.ordinal)`,
 `(round_id, item_key)`, `(round_id, ordinal)`, `submission_key`, non-null
@@ -518,11 +520,14 @@ The first package schema is strict canonical JSON:
 `members` is ordered by path and every `id` and `path` is unique. The optional
 `entrypoint` is permitted only for an `openapi-source` package and names one
 declared member. Initial package kinds are `worklist`, `item-task`,
-`execution-manifest`, `check-results`, `finding-proposal`, `evidence`,
-`coverage`, and `openapi-source`. Unknown manifest fields, schema versions, or
-kinds are rejected. Canonical export uses stored members, fixed ZIP metadata,
-and the JCS manifest; import may accept stored or deflated members but always
-checks their declared size and SHA-256 digest before exposing bytes.
+`item-task-set`, `execution-manifest`, `check-results`, `finding-proposal`,
+`evidence`, `coverage`, and `openapi-source`. An `item-task-set` contains the
+ordered exact `item-task` package bytes at `tasks/000.zip`, `tasks/001.zip`, and
+so on; its membership and nested package digests must match the execution
+manifest. Unknown manifest fields, schema versions, or kinds are rejected.
+Canonical export uses stored members, fixed ZIP metadata, and the JCS manifest;
+import may accept stored or deflated members but always checks their declared
+size and SHA-256 digest before exposing bytes.
 
 Initial hard limits are 16 MiB compressed, 32 MiB expanded, 1,024 members,
 16 MiB per opaque member, 512 KiB for `manifest.json`, 8 MiB per parsed JSON or
@@ -591,10 +596,11 @@ result. Run success does not imply success for any individual item.
 
 Schema validity is not semantic evidence acceptance: the importer also checks
 evidence references, requested coverage, and the profile evidence contract. An
-invalid or incomplete result set creates a durable invalid collection receipt
-independently of the technically succeeded Run. The MVP result set has exactly
-one result entry because `batchSize` is one, but this envelope remains unchanged
-when bounded batches are later enabled.
+invalid or incomplete result set creates one durable invalid collection receipt
+independently of the technically succeeded Run and accepts no member partially.
+Every member records that attempt disposition and is independently requeued or
+settled under its remaining attempt policy. A later retry may contain a
+different compatible member set.
 
 The frozen `result` output is a `check-results` Audit package with no
 entrypoint. It contains the required `check-results` member at
@@ -603,7 +609,9 @@ optional opaque content members referenced by exactly one evidence record.
 Both JSON members use `application/json`. Every result evidence ID must resolve;
 unreferenced evidence, missing or aliased content members, duplicate content
 ownership, and any other unreferenced package member make the complete package
-an `invalid-result`. Evidence may instead reference an exact revision in the
+an `invalid-result`. One evidence record belongs to exactly one result item; an
+evidence ID cannot be used to attribute one observation to several batch
+members. Evidence may instead reference an exact revision in the
 same RunScope. The importer never follows a path or accepts an unversioned or
 foreign-scope reference. Finding intake retains every trusted child-Run
 proposal in the Audit inbox before committing the collection receipt,
@@ -616,14 +624,18 @@ they share a Run.
 
 The initial Runtime exposes the optional `audit-results@1` Toolset only when an
 AgentTemplate selects it. `read_audit_task` reads the exact `inputs/task` and
-`inputs/execution_manifest`, validates their identity, and returns the decoded
-task JSON instead of exposing an opaque base64 ZIP for the model to interpret.
-`submit_check_result` independently repeats those checks and derives the item
-key, subject key, requested coverage and manifest digest. The model supplies
-only the assessment, summary, completed coverage, explicit gaps and bounded
-evidence summaries. The tool creates the canonical package in the selected
-agent namespace; neither tool identifies an Audit, selects another item,
-accepts evidence, or bypasses the trusted importer.
+`inputs/execution_manifest`, validates their identity, and returns one ordered
+`tasks` array instead of exposing opaque base64 ZIPs for the model to interpret.
+For a one-item assignment it also returns the legacy singular `task` fields.
+`submit_check_result` independently repeats those checks and derives every item
+key, subject key, requested coverage and manifest digest. For one item it
+accepts the legacy scalar arguments; for several it requires one complete
+ordered `results` array and rejects scalar mixing, missing entries, and extra
+entries before writing. The model supplies only assessments, summaries,
+completed coverage, explicit gaps, bounded evidence summaries, and proposal
+receipt keys. The tool creates one canonical package in the selected agent
+namespace; neither tool identifies an Audit, selects or reorders items, accepts
+evidence, or bypasses the trusted importer.
 
 ### 7.3 WorklistManifest
 
@@ -871,6 +883,14 @@ AuditExecution/AuditExecutionItem and preserves every earlier receipt. Only
 settled items participate in the round barrier. Zero items yields an explicit
 empty-inventory reason; it never proves compliance.
 
+Collection is atomic at execution granularity in the first batch
+implementation. A technically failed Run, missing output, or invalid/incomplete
+result set gives every member an explicit attempt disposition. Members that are
+retryable and still within policy return to `ready`; none of the batch's
+intermediate artifact writes is a checkpoint. Members are then eligible for
+new grouping, so exhaustion is evaluated per logical item even though one
+failed Run may consume one attempt for several items.
+
 ## 11. Submission, queueing, and fairness
 
 Audit uses ordinary WorkflowRuns and the existing owner queue. The global
@@ -898,13 +918,23 @@ Controller dispatches items by immutable ordinal through a bounded window and
 uses fair age/round-robin selection across Audits. It does not promise optimal
 multi-host placement.
 
-When batching is later enabled, selection groups only items with identical
-pinned Workflow/configuration, baseline/workspace, and permission envelopes.
-The Run receives one immutable ordered manifest and returns one complete result
-set. If it terminates before accepted collection, the retry policy may repeat
-the whole small batch. A normal intermediate artifact write is not durable item
-completion; accepting partial in-flight progress requires the separately
-deferred per-item checkpoint protocol.
+For check work, selection starts at the lowest ready immutable item ordinal and
+fills up to the profile's `batchSize` with later compatible items. It may skip
+an incompatible item and form a partial batch. Compatibility requires the same
+pinned named Workflow role and closure, resolved Run inputs and scalar
+parameters, baseline/workspace, credential/tool authority, and exact approval
+kind/subject digest. The Store rechecks item state, next attempt, approval
+decision and expiry, common approval envelope, budget, deadline, current Round,
+dispatch fence, and derived outstanding-Run window atomically when it reserves
+the execution. Grouping never unions permissions.
+
+The Run receives one immutable ordered execution manifest and, when it has more
+than one member, one deterministic `item-task-set` in the ordinary `task` input
+slot. It returns one complete result set. If it terminates before accepted
+collection, retry policy may rerun all still-eligible members, possibly
+regrouped. A normal intermediate artifact write is not durable item completion;
+accepting partial in-flight progress requires the separately deferred per-item
+checkpoint protocol.
 
 Submission identity is derived from `audit_id`, round/role, the immutable
 ordered execution-item/attempt set, and the execution manifest digest. The
@@ -920,6 +950,13 @@ creation, so there is no orphan window based only on labels. Scheduler retry
 and escalation remain inside one Run; an Audit-level retry creates another Run
 only after the previous execution has a terminal observation and collection
 receipt.
+
+Batch efficiency is observational, not an acceptance claim. The existing child
+Run telemetry is aggregated with durable execution member count and item
+attempt history to compare preparation/model cost per settled item and to show
+whole-batch retry amplification. Missing provider usage remains unknown rather
+than zero. No separate Audit token authority is introduced, and a profile does
+not promise that increasing `batchSize` reduces cost or latency.
 
 ## 12. Recovery and events
 
@@ -1454,9 +1491,9 @@ top-level lifecycle state is unchanged.
 ### 18.3 OpenAPI operation tracing
 
 1. Deterministic inventory pins operations and stable keys.
-2. One task package and AuditItem is created per operation. The MVP dispatches
-   one item per execution; later bounded batching preserves independent results,
-   attempts, evidence, permissions, and coverage for every operation.
+2. One task package and AuditItem is created per operation. Compatible
+   operations may share a bounded execution, while results, attempts, evidence,
+   permissions, and coverage remain independent for every operation.
 3. Trace Run works against exact source and code-analysis capabilities.
 4. `finding(...)` may register candidates independently of the terminal report.
 5. Barrier closes the current Round before any candidate enters a later one.
@@ -1482,17 +1519,18 @@ top-level lifecycle state is unchanged.
 | PostgreSQL | Durable work, claims, uniqueness, events, receipts, and retention holds |
 | Run Service | Trusted pinned Workflow/Runtime/Skill creation, Audit provenance, managed publication, deletion guard |
 | Scheduler | Optional generic Audit eligibility gate and terminal wake hint; unchanged Stage semantics |
-| Runtime | Selected `security-findings@1` adapter and bounded receipt reconciliation |
+| Runtime | Selected `security-findings@1` adapter, ordered Audit task-set decoding/result publication, and bounded receipt reconciliation |
 | Artifact plane | Package import, proposal/fence transaction, protected Audit bindings and retention |
 | Project deletion | Cancel/drain Audits before existing Run/ProjectScope purge |
 | Frontend | Audit views, review actions, coverage and finding distinctions |
 
 Existing Planners need no Audit awareness. Discovery and assessment Workflows
-produce normal fixed outputs. The schema permits a future small fixed batch in
-one ordinary Run through AuditExecutionItem and CheckResultSet, but batching
-cannot create Runs from a Worker, merge permission envelopes, or replace Audit
-recovery. Durable per-item checkpoints inside a still-running Run require a
-separate idempotent receipt contract and are not implied by artifact writes.
+produce normal fixed outputs. Small compatible batches use
+`AuditExecutionItem`, an ordered task-set input, and one complete
+`CheckResultSet`; batching cannot create Runs from a Worker, merge permission
+envelopes, or replace Audit recovery. Durable per-item checkpoints inside a
+still-running Run require a separate idempotent receipt contract and are not
+implied by artifact writes.
 
 ## 20. Acceptance gates
 
@@ -1506,8 +1544,10 @@ separate idempotent receipt contract and are not implied by artifact writes.
 4. An invalid manifest creates zero child Runs; accepted manifests are immutable.
 5. N checks create N logical items and N execution-item records. With
    `batchSize: 1` and `maxItemRunAttempts: 1` they create exactly N Runs; bounded
-   retries create additional Runs without creating additional logical items.
-   Proposals cannot alter the current barrier.
+   compatible batches create fewer Runs, and bounded retries create additional
+   execution-item records without creating additional logical items. A complete
+   result is required for every batch member; proposals cannot alter the current
+   barrier.
 6. Crash injection around each submission/collection/assessment durable boundary
    neither loses work nor creates an extra Run.
 7. Periodic reconcile recovers with all wake hints lost; two Controllers
@@ -1562,7 +1602,7 @@ separate idempotent receipt contract and are not implied by artifact writes.
 
 **Increment 1:** strict AuditProfile catalog and compatibility gate;
 deterministic checklist/OpenAPI inventory; one fixed immutable Round;
-`batchSize: 1`; bounded check Runs; PostgreSQL reconciliation; exact collection
+one-item bounded check Runs; PostgreSQL reconciliation; exact collection
 receipts and package retention; coverage report; two executable demo profiles;
 polling UI; mandatory ownership, deletion, Skill/credential, idempotency, and
 Run-deletion gates.
@@ -1578,7 +1618,12 @@ external-script example.
 canonical seeding, exact Audit pins, license-aware read API, and bounded OWASP
 Top 10:2025 source-risk program are implemented. Curated ASVS program data,
 comparison of Audits for the same system, retest of accepted findings against a
-new baseline, and bounded multi-item executions remain follow-up work.
+new baseline, and broader program coverage remain follow-up work.
+
+**Increment 4:** bounded compatible check-item batches in one ordinary Run;
+deterministic task-set packages; complete atomic result import; per-item
+attempt, evidence, proposal, coverage and provenance retention; and a two-item
+checklist demo while preserving the one-item wire path.
 
 Deferred: a generic event-driven workflow language, arbitrary nested Audit
 graphs, mutable accepted worklists, semantic auto-merge, cross-Project analysis,

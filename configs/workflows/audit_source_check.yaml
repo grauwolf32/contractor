@@ -33,7 +33,7 @@ spec:
   entryStage: check
   stages:
     check:
-      objective: Evaluate the assigned immutable Audit item against the supplied source archive
+      objective: Evaluate the assigned immutable Audit task set against the supplied source archive
       instructions:
         ref: instructions/audit-source-checker-worker.md
       planner: passthrough@1

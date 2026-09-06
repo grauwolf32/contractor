@@ -259,8 +259,8 @@ model {
       }
     }
 
-    // Spec 19 / V25: catalog, package/inventory validation and core store exist;
-    // API, dispatch, import and lifecycle integration remain delivery work.
+    // Spec 19 / V25-V26: Audit coordination and bounded compatible check batches
+    // are implemented; broader curated programs remain delivery work.
     auditCoordination = component 'Audit Coordination — Project-bound multi-Run program; PostgreSQL reconciliation' {
       #contractor
 
@@ -296,7 +296,7 @@ model {
         #contractor #planned
       }
 
-      // V26: curated programs and batchSize > 1 are later delivery increments.
+      // V26: curated programs and bounded batchSize > 1 are separate increments.
       standardCatalog = component 'Audit Standard Catalog — exact licensed packages + evidence mappings; Top 10 / ASVS programs' {
         #contractor #planned
       }
@@ -449,7 +449,7 @@ model {
     auditCoordination.auditController -> orchestration.runService 'Replay stable intent with start-pinned Workflow/Runtime/Skill snapshots; internal audit-managed publication'
     auditCoordination.auditController -> workspaceLifecycle.runStore 'Read authoritative child terminal outcome/version; notifications are wake hints only'
     auditCoordination.auditController -> auditCoordination.resultImporter 'Collect every terminal execution before retry/settlement; one receipt even for missing, invalid, failed or cancelled output'
-    auditCoordination.auditController -> auditCoordination.packageInventory 'Freeze ordered execution manifest; MVP one item, V26 bounded compatible batches'
+    auditCoordination.auditController -> auditCoordination.packageInventory 'Freeze ordered execution manifest and deterministic bounded task-set package'
     auditCoordination.auditController -> auditCoordination.reviewService 'Apply exact authorized decisions; discovery/assessment/next rounds only after capability and barrier checks'
     auditCoordination.auditController -> orchestration.workflowScheduler 'Request ordinary child cancellation; wait for terminal release while paused or deleting'
     auditCoordination.auditController -> identityConfiguration.executionConfigService 'Release dispatch holds only after dispatch closes and submission intents resolve'
@@ -2277,7 +2277,7 @@ views {
 
   view audits {
     title 'Audits / Coordination and Ordinary Runs'
-    description 'Spec 19 / V25. One Project-bound coordinator uses ordinary Runs. MVP is one immutable round and one item per execution; dashed components are planned.'
+    description 'Spec 19 / V25-V26. One Project-bound coordinator uses ordinary Runs; bounded compatible check items may share a Run without sharing identity or authority.'
 
     include server.productSurface.auditApi with {
       title 'Audit API'
@@ -2468,7 +2468,7 @@ views {
 
     exclude * -> *
     include server.auditCoordination.auditController -> server.auditCoordination.packageInventory with {
-      title 'One item MVP; compatible batches in V26'
+      title 'Ordered bounded compatible item batches'
     }
     include server.auditCoordination.auditController -> server.auditCoordination.resultImporter with {
       title 'Observe / collect every terminal attempt'

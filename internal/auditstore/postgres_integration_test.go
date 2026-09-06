@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,148 @@ import (
 )
 
 const auditTestRuntimeSnapshot = `{"default":{"label":"default","explicit":false,"bindingRevision":1,"config":{"name":"contractor-empty","version":"1","digest":"sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f"}},"labels":[],"llmCredentialIds":[],"runtimeCredentialIds":[]}`
+
+func TestPostgresAuditBatchFailureRequeuesEveryMemberAndAllowsRegrouping(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditPool(t, ctx, databaseURL)
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-audit-batch", OwnerID: "owner-audit-batch", Kind: projectstore.KindProject,
+		Name: "Audit batch project", IdempotencyKey: "project-create", RequestDigest: testDigest("1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgresStore(pool)
+	audit, _, err := store.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-batch", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile: ProfileIdentity{Name: "checklist", Version: "1", Digest: testDigest("2")},
+		ProfileSnapshot: json.RawMessage(
+			`{"name":"checklist","workflows":{"check":{"kind":"check"}}}`,
+		),
+		InputSelection: json.RawMessage(`{}`),
+		Limits: Limits{
+			MaxRounds: 1, BatchSize: 2, MaxItemsPerRound: 3, MaxItemsTotal: 3,
+			MaxSubmittedRuns: 4, MaxItemRunAttempts: 2, MaxEvidenceBytes: 1024,
+		},
+		IdempotencyKey: "audit-create", RequestDigest: testDigest("3"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	roundID := "round-batch"
+	tasks := []ExactArtifact{
+		testExact("audits", "batch-task-one", "task-r1"),
+		testExact("audits", "batch-task-two", "task-r1"),
+		testExact("audits", "batch-task-three", "task-r1"),
+	}
+	items := make([]MaterializedItem, len(tasks))
+	for index := range tasks {
+		suffix := strconv.Itoa(index + 1)
+		items[index] = MaterializedItem{
+			ItemID: "batch-item-" + suffix, ItemKey: "batch-check-" + suffix,
+			Ordinal: index, Kind: "checklist", SubjectKey: "batch-subject-" + suffix,
+			Task: tasks[index], Origin: testOrigin("batch-check-" + suffix),
+			WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage(),
+		}
+	}
+	_, _, err = store.MaterializeRound(ctx, MaterializeRoundParams{
+		OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		RoundID: roundID, RoundOrdinal: 1, Manifest: testExact("audits", "batch-worklist", "worklist-r1"),
+		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
+		DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "audit-start",
+		RequestDigest: testDigest("4"), Items: items,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := store.Claim(ctx, ClaimParams{HolderID: "batch-controller", Lease: 30 * time.Second, Limit: 1})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim batch Audit = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	if _, err := store.TransitionRound(ctx, RoundTransitionParams{
+		Claim: claim, RoundID: roundID, ExpectedRevision: 1,
+		ExpectedState: RoundAccepted, TargetState: RoundExecuting,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	firstIntent := CreateExecutionIntentParams{
+		Claim: claim, ExecutionID: "batch-execution-one", RoundID: &roundID, Role: ExecutionCheck,
+		WorkflowRole: "check", Manifest: testExact("audits", "batch-execution-one", "manifest-r1"),
+		SubmissionKey: "batch-submission-one", RequestDigest: testDigest("5"),
+		Members: []ExecutionMemberIntent{
+			{ExecutionItemID: "batch-member-one", ItemID: items[0].ItemID, BatchOrdinal: 0, ItemAttempt: 1, Task: tasks[0], Inputs: []ExactArtifact{}},
+			{ExecutionItemID: "batch-member-two", ItemID: items[1].ItemID, BatchOrdinal: 1, ItemAttempt: 1, Task: tasks[1], Inputs: []ExactArtifact{}},
+		},
+	}
+	execution, inserted, err := store.CreateExecutionIntent(ctx, firstIntent)
+	if err != nil || !inserted {
+		t.Fatalf("create first batch intent = (%+v, %t, %v)", execution, inserted, err)
+	}
+	execution, err = insertAndBindTestRun(
+		t, ctx, pool, claim, execution, "batch-run-one", audit.OwnerID, project.ProjectID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation, sequence := terminateTestRun(t, ctx, pool, "batch-run-one", "failed")
+	if _, err := store.ObserveTerminal(ctx, ObserveTerminalParams{
+		Claim: claim, ExecutionID: execution.ExecutionID, RunID: "batch-run-one",
+		Generation: generation, Sequence: sequence,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	failedItems := make([]CollectionItem, len(firstIntent.Members))
+	for index, member := range firstIntent.Members {
+		failedItems[index] = CollectionItem{
+			ExecutionItemID: member.ExecutionItemID, Disposition: CollectionExecutionFailed,
+			Retryable: true, FinalDisposition: FinalExecutionFailed,
+			Coverage: Coverage{Status: CoverageBlocked, Requested: []string{}, Completed: []string{}, Gaps: []string{"run-failed"}},
+		}
+	}
+	if _, inserted, err := store.Collect(ctx, CollectParams{
+		Claim: claim, ReceiptID: "batch-receipt-one", ExecutionID: execution.ExecutionID,
+		Disposition: CollectionExecutionFailed, ErrorCode: stringPointer("run_failed"),
+		RequestDigest: testDigest("6"), Items: failedItems,
+	}); err != nil || !inserted {
+		t.Fatalf("collect failed batch = (%t, %v)", inserted, err)
+	}
+	storedItems, err := store.ListItems(ctx, audit.AuditID)
+	if err != nil || len(storedItems) != 3 || storedItems[0].State != ItemReady ||
+		storedItems[1].State != ItemReady || storedItems[2].State != ItemReady {
+		t.Fatalf("items after failed batch = (%+v, %v)", storedItems, err)
+	}
+	for index, want := range []int{2, 2, 1} {
+		attempt, attemptErr := store.NextItemAttempt(ctx, claim, storedItems[index].ItemID)
+		if attemptErr != nil || attempt != want {
+			t.Fatalf("next batch attempt %d = (%d, %v), want %d", index, attempt, attemptErr, want)
+		}
+	}
+
+	regrouped := CreateExecutionIntentParams{
+		Claim: claim, ExecutionID: "batch-execution-two", RoundID: &roundID, Role: ExecutionCheck,
+		WorkflowRole: "check", Manifest: testExact("audits", "batch-execution-two", "manifest-r1"),
+		SubmissionKey: "batch-submission-two", RequestDigest: testDigest("7"),
+		Members: []ExecutionMemberIntent{
+			{ExecutionItemID: "batch-member-one-retry", ItemID: items[0].ItemID, BatchOrdinal: 0, ItemAttempt: 2, Task: tasks[0], Inputs: []ExactArtifact{}},
+			{ExecutionItemID: "batch-member-three", ItemID: items[2].ItemID, BatchOrdinal: 1, ItemAttempt: 1, Task: tasks[2], Inputs: []ExactArtifact{}},
+		},
+	}
+	if _, inserted, err := store.CreateExecutionIntent(ctx, regrouped); err != nil || !inserted {
+		t.Fatalf("create regrouped retry batch = (%t, %v)", inserted, err)
+	}
+	firstAttempts, err := store.ListExecutionItems(ctx, firstIntent.ExecutionID)
+	if err != nil || len(firstAttempts) != 2 || firstAttempts[0].ItemAttempt != 1 ||
+		firstAttempts[1].ItemAttempt != 1 {
+		t.Fatalf("preserved failed batch attempts = (%+v, %v)", firstAttempts, err)
+	}
+}
 
 func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")

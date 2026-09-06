@@ -238,7 +238,7 @@ func validateEntryPoint(manifest PackageManifest, paths map[string]struct{}) err
 
 func validPackageKind(kind PackageKind) bool {
 	switch kind {
-	case PackageKindWorklist, PackageKindTask, PackageKindExecution, PackageKindCheckResults,
+	case PackageKindWorklist, PackageKindTask, PackageKindTaskSet, PackageKindExecution, PackageKindCheckResults,
 		PackageKindFindingProposal, PackageKindEvidence, PackageKindCoverage, PackageKindOpenAPISource:
 		return true
 	default:

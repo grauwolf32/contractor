@@ -17,9 +17,8 @@ import (
 )
 
 // CreateAudit creates and binds one ordinary WorkflowRun through the trusted
-// Audit authority. The interface is batch-shaped through the persisted
-// ExecutionItems, although current profile compatibility limits each check
-// execution to one member.
+// Audit authority. Check executions may contain a bounded ordered set of
+// independently attributable ExecutionItems.
 func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (CreateResult, error) {
 	if s.auditTransaction == nil {
 		return CreateResult{}, ErrNotConfigured

@@ -22,9 +22,6 @@ var reasonOrder = []CompatibilityReason{
 
 func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
-	if profile.Execution.BatchSize != 1 {
-		reasons[ReasonBatchingUnsupported] = struct{}{}
-	}
 	if profile.Inventory.Implementation == "finding-candidates@1" {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}

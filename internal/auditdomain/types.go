@@ -31,6 +31,7 @@ type PackageKind string
 const (
 	PackageKindWorklist        PackageKind = "worklist"
 	PackageKindTask            PackageKind = "item-task"
+	PackageKindTaskSet         PackageKind = "item-task-set"
 	PackageKindExecution       PackageKind = "execution-manifest"
 	PackageKindCheckResults    PackageKind = "check-results"
 	PackageKindFindingProposal PackageKind = "finding-proposal"

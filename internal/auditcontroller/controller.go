@@ -326,9 +326,19 @@ func (c *Controller) reconcile(
 		return false, nil
 	}
 
+	selected := make([]CheckExecutionMember, 0, min(audit.Limits.BatchSize, auditstore.MaxCollectionItems))
+	var binding config.ResolvedAuditWorkflowBinding
+	profile, profileErr := config.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
 	for _, item := range snapshot.Items {
 		if item.State != auditstore.ItemReady || item.RoundID != snapshot.Round.RoundID {
 			continue
+		}
+		if len(selected) != 0 && (!sameBatchEnvelope(selected[0].Item, item) ||
+			profileErr == nil && !sameItemParameterEnvelope(binding, selected[0].Item, item)) {
+			continue
+		}
+		if len(selected) == 0 && profileErr == nil {
+			binding = profile.Workflows[item.WorkflowRole]
 		}
 		attempt, err := c.store.NextItemAttempt(ctx, claim, item.ItemID)
 		if errors.Is(err, auditstore.ErrPrecondition) {
@@ -349,9 +359,49 @@ func (c *Controller) reconcile(
 			})
 			return err == nil, err
 		}
-		return c.dispatch(ctx, claim, snapshot, item, attempt)
+		selected = append(selected, CheckExecutionMember{Item: item, Attempt: attempt})
+		if len(selected) == audit.Limits.BatchSize || len(selected) == auditstore.MaxCollectionItems {
+			break
+		}
+	}
+	if len(selected) != 0 {
+		return c.dispatch(ctx, claim, snapshot, selected)
 	}
 	return false, nil
+}
+
+func sameBatchEnvelope(left, right auditstore.Item) bool {
+	return left.WorkflowRole == right.WorkflowRole && left.ApprovalKind == right.ApprovalKind &&
+		left.ApprovalDigest == right.ApprovalDigest
+}
+
+func sameItemParameterEnvelope(
+	binding config.ResolvedAuditWorkflowBinding,
+	left auditstore.Item,
+	right auditstore.Item,
+) bool {
+	for _, mapping := range binding.Parameters {
+		if mapping.Source != config.AuditParameterItemField {
+			continue
+		}
+		switch mapping.Name {
+		case "itemKey":
+			if left.ItemKey != right.ItemKey {
+				return false
+			}
+		case "subjectKey":
+			if left.SubjectKey != right.SubjectKey {
+				return false
+			}
+		case "kind":
+			if left.Kind != right.Kind {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Controller) reconcileRolePhase(
@@ -600,7 +650,8 @@ func (c *Controller) dispatchClosureReason(
 			Code: "deadline_exhausted", Message: "The Audit wall-time deadline was reached; no new Runs may be submitted.",
 		}
 	}
-	if audit.Limits.BatchSize != 1 || snapshot.Round == nil || audit.CurrentRoundID == nil ||
+	if audit.Limits.BatchSize < 1 || audit.Limits.BatchSize > auditstore.MaxCollectionItems ||
+		snapshot.Round == nil || audit.CurrentRoundID == nil ||
 		snapshot.Round.RoundID != *audit.CurrentRoundID {
 		return &auditstore.StopReason{
 			Code: "controller_contract_invalid", Message: "The active Audit is outside the one-round Controller contract.",
@@ -681,15 +732,19 @@ func (c *Controller) resumeOneIntent(
 		}
 		var prepared PreparedSubmission
 		if execution.Role == auditstore.ExecutionCheck {
-			if len(members) != 1 {
+			if len(members) == 0 || len(members) > snapshot.Audit.Limits.BatchSize {
 				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
 			}
-			item, exists := snapshotItem(snapshot.Items, members[0].ItemID)
-			if !exists {
-				return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
+			selected := make([]CheckExecutionMember, len(members))
+			for index, member := range members {
+				item, exists := snapshotItem(snapshot.Items, member.ItemID)
+				if !exists {
+					return c.failInvalidIntent(ctx, claim, execution.ExecutionID)
+				}
+				selected[index] = CheckExecutionMember{Item: item, Attempt: member.ItemAttempt}
 			}
-			prepared, err = c.builder.Prepare(ctx, snapshot, item, members[0].ItemAttempt)
-			if err == nil && !matchingIntent(execution, members[0], prepared.Intent) {
+			prepared, err = c.builder.PrepareBatch(ctx, snapshot, selected)
+			if err == nil && !matchingIntent(execution, members, prepared.Intent) {
 				err = ErrInvalidSubmission
 			}
 		} else {
@@ -729,10 +784,9 @@ func (c *Controller) dispatch(
 	ctx context.Context,
 	claim auditstore.ControllerClaim,
 	snapshot auditstore.ReconcileSnapshot,
-	item auditstore.Item,
-	attempt int,
+	selected []CheckExecutionMember,
 ) (bool, error) {
-	prepared, err := c.builder.Prepare(ctx, snapshot, item, attempt)
+	prepared, err := c.builder.PrepareBatch(ctx, snapshot, selected)
 	if err != nil {
 		if errors.Is(err, ErrInvalidSubmission) {
 			reason := auditstore.StopReason{
@@ -823,18 +877,40 @@ func (c *Controller) cancelOneSubmittedRun(
 
 func matchingIntent(
 	execution auditstore.Execution,
-	member auditstore.ExecutionItem,
+	members []auditstore.ExecutionItem,
 	prepared auditstore.CreateExecutionIntentParams,
 ) bool {
-	return execution.ExecutionID == prepared.ExecutionID && execution.Role == prepared.Role &&
-		execution.WorkflowRole == prepared.WorkflowRole &&
-		execution.RoundID != nil && prepared.RoundID != nil && *execution.RoundID == *prepared.RoundID &&
-		execution.SubmissionKey == prepared.SubmissionKey && execution.RequestDigest == prepared.RequestDigest &&
-		execution.Manifest.Digest == prepared.Manifest.Digest && sameExactRef(execution.Manifest.Ref, prepared.Manifest.Ref) &&
-		len(prepared.Members) == 1 && member.ExecutionItemID == prepared.Members[0].ExecutionItemID &&
-		member.ItemID == prepared.Members[0].ItemID && member.BatchOrdinal == 0 &&
-		member.ItemAttempt == prepared.Members[0].ItemAttempt && member.Task.Digest == prepared.Members[0].Task.Digest &&
-		sameExactRef(member.Task.Ref, prepared.Members[0].Task.Ref)
+	if execution.ExecutionID != prepared.ExecutionID || execution.Role != prepared.Role ||
+		execution.WorkflowRole != prepared.WorkflowRole ||
+		execution.RoundID == nil || prepared.RoundID == nil || *execution.RoundID != *prepared.RoundID ||
+		execution.SubmissionKey != prepared.SubmissionKey || execution.RequestDigest != prepared.RequestDigest ||
+		execution.Manifest.Digest != prepared.Manifest.Digest || !sameExactRef(execution.Manifest.Ref, prepared.Manifest.Ref) ||
+		len(members) != len(prepared.Members) {
+		return false
+	}
+	for index, member := range members {
+		candidate := prepared.Members[index]
+		if member.ExecutionItemID != candidate.ExecutionItemID || member.ItemID != candidate.ItemID ||
+			member.BatchOrdinal != candidate.BatchOrdinal || member.BatchOrdinal != index ||
+			member.ItemAttempt != candidate.ItemAttempt || member.Task.Digest != candidate.Task.Digest ||
+			!sameExactRef(member.Task.Ref, candidate.Task.Ref) || !sameExactArtifacts(member.Inputs, candidate.Inputs) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameExactArtifacts(left, right []auditstore.ExactArtifact) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index].Digest != right[index].Digest || left[index].MediaType != right[index].MediaType ||
+			left[index].SizeBytes != right[index].SizeBytes || !sameExactRef(left[index].Ref, right[index].Ref) {
+			return false
+		}
+	}
+	return true
 }
 
 func snapshotItem(items []auditstore.Item, itemID string) (auditstore.Item, bool) {
