@@ -36,6 +36,21 @@ def test_lease_is_capped_by_both_confirmed_lease_and_liveness_ceiling():
     assert liveness_deadline(1000, 100) == 110
 
 
+def test_closed_guardian_transport_is_typed_cleanup_failure():
+    async def scenario():
+        control, peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+        control.setblocking(False)
+        guardian = GuardianClient(control, None)
+        guardian.disconnect()
+        try:
+            with pytest.raises(SandboxContractError, match="sandbox_cleanup_failed"):
+                await guardian.request("check", deadline=time.monotonic() + 1)
+        finally:
+            peer.close()
+
+    asyncio.run(scenario())
+
+
 class FakeFence:
     def __init__(self, clean=True, empty=True):
         self.is_clean = clean

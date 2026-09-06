@@ -563,6 +563,11 @@ Enabling scripts later requires an explicit working agreement covering executor
 and sandbox authority, Runtime capability matching, limits, metrics and
 migration. Upgrading ADK or accepting one ZIP member never enables execution.
 
+The Podman specification [21](21-podman-sandbox.md#future-skill-mounts)
+reserves a future read-only mount of selected Run-pinned packages. Its first
+version does not enable script members, script disclosure or script execution;
+the package and authority rules in this document continue to apply.
+
 ## Invariants
 
 1. AgentTemplate selects versionless owner UserScope ArtifactRefs; Run pins

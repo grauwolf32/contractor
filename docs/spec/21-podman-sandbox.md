@@ -1,6 +1,6 @@
 # 21 — Allocation-scoped Podman execution sandbox
 
-Status: **Contracts/settings, private engine and guardian/image primitives implemented in V31-001–V31-003; execution profile not enabled**
+Status: **Opt-in execution implemented through V31-007; real Podman release gate passed; V31-008 remains in progress pending repository-wide verification**
 
 Depends on: [01](01-agent-template.md), [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -38,7 +38,8 @@ spec:
       tools: [exec_command]
 ```
 
-These are registered authoring refs, not currently installed capabilities. Selecting the
+These are registered authoring refs; Runtime advertises them only after an
+opt-in startup probe and confirmed probe cleanup. Selecting the
 profile does not implicitly add execution or filesystem tools. The profile
 may be selected without `exec_command`, but still owns its container lifecycle.
 Selecting `exec_command` requires `podman@1` in this first version; it cannot
@@ -66,8 +67,8 @@ engine may still use its ordinary image-layer storage internally.
 
 Profile/tool compatibility belongs in registered descriptors and their Runtime
 counterparts. It is not inferred from instructions or from a tool-name prefix.
-The current rule that storage is diagnostic-only for placement must be extended
-for this explicitly local profile; ordinary workspace placement remains as in
+Storage is a binding placement requirement for this explicitly local profile;
+ordinary workspace placement remains as in
 [10](10-runtime-filesystems-and-edit-tools.md).
 
 ## Operator-owned process configuration
@@ -408,6 +409,12 @@ capability probes, deployment examples and the real-container release gate.
 V31-006 enables advertisement only after the lifecycle and tool implementation
 are present; V31-008 is the feature completion gate. Task files contain their
 own requirements, dependencies and executable acceptance commands.
+
+The [executable matrix](../../tests/e2e/podman_sandbox_matrix.yml) maps all eleven
+cases below to concrete tests. `make test-podman-release` passed on the recorded
+rootless Linux host; see the [verification record](../../runtime/PODMAN.md#release-verification-v31-008)
+for environment, effective policy and the unrelated repository verification
+failure that still prevents V31-008 completion.
 
 Required acceptance cases:
 

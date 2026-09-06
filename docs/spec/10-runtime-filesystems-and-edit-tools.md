@@ -370,8 +370,10 @@ snapshot or lost-update guarantee against them. Observed disappearance,
 replacement or type changes that prevent completing an operation produce a
 bounded safe failure, never a fallback to cached contents or an infinite
 rescan. Coherent multi-file acquisition requires writers to be quiescent or
-explicitly coordinated. The executor in [21](21-podman-sandbox.md) must use
-this same coordination boundary.
+explicitly coordinated. The implemented executor in [21](21-podman-sandbox.md)
+uses this same coordination boundary through trusted descendant completion.
+Cancellation does not hand off the workspace before confirmed stop/removal.
+The real command/edit/snapshot evidence is part of `make test-podman-release`.
 
 Argument/path/type/match/quota validation precedes mutation. Single-file text
 replacement is atomic. This amendment does not introduce crash-atomic

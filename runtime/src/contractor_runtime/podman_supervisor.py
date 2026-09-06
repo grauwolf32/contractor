@@ -202,6 +202,12 @@ class GuardianClient:
                         {"renew": "renewed", "check": "clean", "stop": "stopped"}[operation],
                         deadline,
                     )
+        except (OSError, ValueError, TimeoutError):
+            # A concurrent reject closes this socket while exec is returning.
+            # Preserve the owner's control channel so confirmed stop/removal can
+            # still be acknowledged; a transport error is never a clean proof.
+            self._control.close()
+            raise SandboxContractError(SandboxErrorCode.CLEANUP_FAILED) from None
         except BaseException:
             self._control.close()  # cancellation also irrevocably fences execution
             raise

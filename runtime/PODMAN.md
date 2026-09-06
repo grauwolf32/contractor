@@ -1,5 +1,66 @@
 # Podman startup policy
 
+## Release verification (V31-008)
+
+The opt-in executor is implemented; V31-008 remains **in progress** until both
+`make test-podman-release` and repository-wide `make verify` succeed. The
+[executable acceptance matrix](../tests/e2e/podman_sandbox_matrix.yml) maps all
+eleven specification cases to source-owned tests and mandatory gates.
+
+From the repository root, with a dedicated test PostgreSQL database and an
+already installed approved image:
+
+```sh
+CONTRACTOR_TEST_PODMAN_IMAGE='localhost/contractor-supervisor@sha256:<digest>' \
+CONTRACTOR_TEST_DATABASE_URL='<test PostgreSQL DSN>' \
+make test-podman-release
+make verify
+```
+
+The release target fails if the image variable, database variable or local
+Podman is absent. Real gates validate the pinned image and rootless policy;
+they do not pull/build images or call a live model. Ordinary unit tests retain
+their opt-in skips; the aggregate explicitly enables the real tests. Database
+process tests create isolated schemas. Container recovery targets only the
+test's unique owner; no global prune or shared database reset is used.
+
+Verification on 2026-09-06:
+
+- Arch Linux, kernel `7.1.9-arch1-2`, local rootless Podman `6.1.0`, systemd
+  cgroup v2, seccomp enabled. This host has neither SELinux nor AppArmor enabled;
+  the result does not certify those deployments or remote engines.
+- Preinstalled image:
+  `localhost/contractor-supervisor@sha256:faea9fa41ec757ad3c18bf3a947409692f2fcc374a87c1d209185175b0d215ca`.
+- `make test-podman-release`: **passed**, including all eleven matrix cases,
+  Go configuration/placement/scheduler tests, 296 Python unit tests,
+  291 local-direct regressions, the 52-test supervisor gate, 12 workflow tests,
+  five new real release cases, both production-process Go scenarios and four
+  workspace process tests. Mandatory real invocations had no skips.
+- `make verify`: Go vet/tests/build, Python lint/format/build and 1,304 Python
+  tests passed (30 opt-in tests skipped). UI `generate:check` failed because
+  existing uncommitted public API generation changes for Run resume and
+  telemetry differ from the Git index. Later UI verification steps did not run.
+  Those unrelated changes were not staged or reverted by this task.
+
+The resource tests verify effective cgroup CPU/memory/PID limits, actual CPU
+throttling and exhaustion termination, a bounded `/tmp`, network `none`,
+read-only image files, nonzero workload UID, dropped capabilities and seccomp.
+Default policy remains 2 CPUs, 2 GiB RAM, 256 PIDs and 256 MiB `/tmp`; exhaustion
+tests also exercise smaller explicit limits. There is **no bind disk quota**.
+Command/output limits and cancellation/descendant cleanup are tested separately.
+The Go scenario verifies placement, edit → container command → explicit exact
+artifact publication, authoritative release, and container/file disposal.
+
+The new cancellation case exposed a guardian transport race: rejecting an
+allocation could close the socket while command completion sent its check.
+Transport failures are now typed cleanup failures, keeping the owner's control
+channel available to acknowledge confirmed teardown. They never count as proof
+that a workload stopped. A focused closed-socket regression covers this path.
+
+Skill scripts and future read-only skill mounts remain out of scope.
+
+## Implementation history
+
 V31-001 registers authoring/placement contracts and parses immutable startup
 policy. It does **not** install an execution factory, invoke Podman, pull images
 or advertise `podman@1` / `code-execution@1`. V31-002 adds a private engine
@@ -314,7 +375,8 @@ long enough to finish their work; killing the whole service cgroup defeats that
 assumption. Killing the owner/guardian themselves, arbitrary same-user host
 mutation, host failure and indefinitely blocked kernel operations are not
 bounded-success guarantees. No cleanup receipt is synthesized for uncertainty.
-Service-manager configuration remains V31-007.
+Service-manager configuration is provided in the
+[V31-007 deployment recipe](../deploy/podman/README.md#service-manager-lifetime-and-recovery).
 
 Verification from `runtime`:
 

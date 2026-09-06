@@ -80,8 +80,11 @@ tool call omits its timeout), 30 seconds prepare, 5 seconds stop grace, 32 KiB
 preview per stream and 1 MiB combined command output. Scope swap has a verified
 finite upper bound; these numbers do not impose a bind disk quota. Each selected
 allocation gets one container after hydration; it is stopped during finalization
-and removed before workspace cleanup/release. The overall release gate remains
-V31-008, not satisfied merely by this deployment example.
+and removed before workspace cleanup/release. Run `make test-podman-release`
+with both `CONTRACTOR_TEST_PODMAN_IMAGE` and `CONTRACTOR_TEST_DATABASE_URL` set
+for the mandatory real-container and PostgreSQL evidence. Neither prerequisites
+nor real checks are skipped by that gate. See the [verification record](../../runtime/PODMAN.md#release-verification-v31-008);
+repository-wide `make verify` is separately required to complete V31-008.
 
 ## Service-manager lifetime and recovery
 

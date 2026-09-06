@@ -400,6 +400,12 @@ its immutable local/memory workspace capability; Workflow selects direct or
 overlay semantics and Scheduler pins exact Run artifacts. The existing
 `local-workdir@1` SandboxProfile continues to own general allocation scratch.
 
+The implemented `podman@1` extension in [21](21-podman-sandbox.md) keeps its
+image and resource policy in immutable Runtime startup settings. It adds no
+label-selected image, mount or credential. Its execution handle is distinct
+from the existing host `runtime-subprocess-launcher` channel; proxy settings
+must not implicitly configure container commands.
+
 Caido is different: its GraphQL endpoint and credential are infrastructure and
 therefore belong to one atomic `spec.worker.caido` RuntimeConfig field under
 [11](11-http-and-caido-tools.md). A label can retarget that client, but cannot

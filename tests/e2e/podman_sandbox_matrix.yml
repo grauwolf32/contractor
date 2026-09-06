@@ -1,0 +1,107 @@
+schema_version: "1.0"
+cases:
+  - id: exact-placement
+    spec: 1
+    expected: Only verified local direct profile/tool selections execute; missing prerequisites never fall back.
+    tests:
+      - {source: internal/controlplane/podman_placement_test.go, symbol: TestPodmanPlacementRequiresExactLocalDirectCapability}
+      - {source: runtime/tests/test_podman_capabilities.py, symbol: test_owner_probe_checks_each_prerequisite_and_cleans_exact_resources}
+    real:
+      - {source: runtime/tests/test_podman_capabilities.py, symbol: test_real_complete_startup_probe_advertises_only_after_removal}
+      - {source: tests/e2e/podman_sandbox_test.go, symbol: TestPodmanSandboxAcrossProductionProcesses}
+  - id: prepare-ownership
+    spec: 2
+    expected: Exactly one allocation container, no create replay and exact cleanup after partial failure or response loss.
+    tests:
+      - {source: runtime/tests/test_podman_engine.py, symbol: test_lost_create_response_reuses_exact_resource}
+      - {source: runtime/tests/test_podman_allocation.py, symbol: test_hydration_one_container_idempotency_finalize_and_authoritative_release}
+    real:
+      - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_restart_recovers_lost_create_but_preserves_unrelated_container}
+      - {source: tests/e2e/podman_sandbox_test.go, symbol: TestPodmanSandboxAcrossProductionProcesses}
+  - id: current-disk
+    spec: 3
+    expected: Edits and command-created/renamed/deleted files are immediately visible without refresh or cross-allocation sharing.
+    tests:
+      - {source: runtime/tests/test_podman_command_coordination.py, symbol: test_selected_execution_changes_analysis_and_explicit_artifact_publication}
+    real:
+      - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_command_edit_snapshot_ordering_and_cancellation}
+      - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_exec_uid_shell_cwd_utf8_large_command_and_disk_authority}
+  - id: authority-and-containment
+    spec: 4
+    expected: Workload arguments cannot select engine/mount/UID/env policy; rooted paths and namespace mapping remain enforced.
+    tests:
+      - {source: runtime/tests/test_code_execution_toolset.py, symbol: test_adk_rejects_extra_authority_before_binding_without_metric_content}
+      - {source: runtime/tests/test_podman_engine.py, symbol: test_pinned_bind_root_cannot_be_replaced_before_start}
+    real:
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_effective_mapping_confinement_and_resource_limits}
+      - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_exec_uid_shell_cwd_utf8_large_command_and_disk_authority}
+  - id: bounded-output
+    spec: 5
+    expected: Output floods and invalid UTF-8 stay bounded; nonzero exits differ from unknown/timeout outcomes with no replay.
+    tests:
+      - {source: runtime/tests/test_podman_command_coordination.py, symbol: test_failed_transport_stops_entire_container_before_return}
+    real:
+      - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_fatal_commands_cannot_leave_writers}
+      - {source: runtime/tests/test_podman_execution_integration.py, symbol: test_real_exec_uid_shell_cwd_utf8_large_command_and_disk_authority}
+  - id: descendant-proof
+    spec: 6
+    expected: No writer survives completion, detach, cancel or failure handoff; uncertain stop fences capacity.
+    tests:
+      - {source: runtime/tests/test_podman_allocation.py, symbol: test_unconfirmed_stop_preserves_files_and_cannot_return_terminal_success}
+    real:
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_no_detached_writer_survives_failed_completion}
+      - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_command_edit_snapshot_ordering_and_cancellation}
+  - id: common-ordering
+    spec: 7
+    expected: Overlapping commands and edit/snapshot calls retain ownership without blocking the Runtime event loop.
+    tests:
+      - {source: runtime/tests/test_podman_command_coordination.py, symbol: test_commands_serialize_with_disk_reads_and_edits_until_completion_check}
+    real:
+      - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_command_edit_snapshot_ordering_and_cancellation}
+  - id: allocation-lifecycle
+    spec: 8
+    expected: INPUT_REQUIRED and sequential invocations retain one container; finalize/release are idempotent and remove before files.
+    tests:
+      - {source: runtime/tests/test_podman_allocation.py, symbol: test_a2a_input_required_and_sequential_calls_keep_same_container}
+      - {source: runtime/tests/test_podman_allocation.py, symbol: test_cancelled_release_retains_one_cleanup_task}
+      - {source: runtime/tests/test_podman_allocation.py, symbol: test_abort_and_lease_remove_container_before_files}
+    real:
+      - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_input_required_reuse_and_concurrent_release}
+      - {source: runtime/tests/test_podman_deployment_integration.py, symbol: test_real_cli_startup_registration_sample_artifact_and_release}
+      - {source: tests/e2e/podman_sandbox_test.go, symbol: TestPodmanSandboxAcrossProductionProcesses}
+  - id: crash-and-recovery
+    spec: 9
+    expected: Runtime death/stall stops writers without restart; restart removes only verified predecessor resources, including lost create.
+    tests:
+      - {source: runtime/tests/test_podman_recovery.py, symbol: test_live_owner_and_uncertain_create_block_successor_until_removal}
+    real:
+      - {source: runtime/tests/test_podman_owner_integration.py, symbol: test_real_runtime_death_or_stall_fences_work_and_owner_recovers}
+      - {source: runtime/tests/test_podman_release_integration.py, symbol: test_real_restart_recovers_lost_create_but_preserves_unrelated_container}
+  - id: effective-resources
+    spec: 10
+    expected: CPU, RAM, PID, tmpfs and network policy is kernel-tested; bind disk quotas are not claimed.
+    tests:
+      - {source: runtime/tests/test_podman_capabilities.py, symbol: test_discovery_pairs_capabilities_only_after_owner_receipt_and_bind_cleanup}
+    real:
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_cpu_quota_actually_throttles}
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_memory_limit_actually_kills_oversized_workload}
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_pid_limit_prevents_fork_growth_then_kills_survivors}
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_effective_mapping_confinement_and_resource_limits}
+      - {source: runtime/tests/test_podman_supervisor_integration.py, symbol: test_expiry_cannot_be_extended_or_forged_by_workload}
+  - id: non-podman-regression
+    spec: 11
+    expected: Existing local-workdir, memory/overlay, host validators and script-free Skills keep their authority and behavior.
+    tests:
+      - {source: internal/controlplane/podman_placement_test.go, symbol: TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots}
+      - {source: runtime/tests/test_podman_workflow.py, symbol: test_sample_uses_exact_source_and_no_skills_or_overlay_export}
+    real:
+      - {source: tests/e2e/project_workflows_test.go, symbol: TestProjectWorkspaceLifecycleAcrossProductionProcesses}
+gates:
+  - {id: matrix, command: make test-podman-matrix}
+  - {id: unit, command: make test-podman-unit}
+  - {id: local_direct, command: make test-local-direct-workspace}
+  - {id: supervisor, command: make test-podman-supervisor}
+  - {id: workflow, command: make test-podman-workflow}
+  - {id: e2e, command: make test-podman-e2e}
+  - {id: release, command: make test-podman-release}
+  - {id: aggregate, command: make verify}

@@ -550,6 +550,12 @@ subagent set.
 
 ### Capability-aware placement
 
+The implemented Podman extension [21](21-podman-sandbox.md) adds an explicit local
+storage requirement for bindings selecting `podman@1`, as well as registered
+profile/tool compatibility checks. Preparation creates the container after
+hydration; teardown removes it before mounted files. Only a verified, opt-in
+Runtime advertises this capacity. Existing profiles retain the behavior below.
+
 The currently connected fleet is deliberately not consulted while loading a
 Workflow, resolving an AgentTemplate or creating a WorkflowRun. Those steps
 validate exact refs and tool names against Server descriptors. Physical

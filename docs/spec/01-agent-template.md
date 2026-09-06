@@ -556,6 +556,12 @@ Toolsets remain responsible for safe input handling, while stronger future
 profiles require new exact refs rather than changing `local-workdir@1`
 semantics.
 
+The implemented extension [21](21-podman-sandbox.md) provides `podman@1` and the
+explicit `code-execution@1` Toolset. It requires a local direct project
+workspace and cross-validates profile/tool compatibility. Runtime advertises
+both capabilities only after an opt-in real startup probe and confirmed cleanup;
+registering authoring refs alone does not make a Runtime eligible.
+
 An AgentTemplate body is immutable. `template_id + version + digest` identifies
 that exact body, including its logical skill ArtifactRef set and optional
 summarizer policy. Workflow authoring

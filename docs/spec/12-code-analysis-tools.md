@@ -168,6 +168,16 @@ projection, binary path metadata and its canonical digest. The tool call
 answers only from that immutable value even if an Edit tool commits a later
 workspace version concurrently.
 
+For `local + direct`, the disk-authoritative amendment in
+[10](10-runtime-filesystems-and-edit-tools.md#local-direct-disk-is-authoritative)
+requires acquisition from current files, including completed external changes.
+Hydration state or remembered size/mtime cannot prove a cached analysis is
+current. This remains a workspace-provider responsibility; analysis receives
+the same narrow reader and adds neither host paths nor a refresh tool. This
+amendment is implemented and covered by `make test-local-direct-workspace`.
+The [Podman executor](21-podman-sandbox.md) shares the acquisition guard;
+completed command edits enter the next snapshot and invalidate stale analysis.
+
 One allocation owns one code-analysis session. The session remembers only its
 current snapshot digest and bounded derived state:
 
