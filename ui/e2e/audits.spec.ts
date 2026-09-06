@@ -332,7 +332,7 @@ test("Audit UI reviews exact evidence and completes destructive lifecycle contro
   const exact = (name: string, revision: string) => ({
     ref: { namespace: "audit-review-browser", name, revision },
     digest: `sha256:${"0".repeat(64)}`,
-    mediaType: name.endsWith(".json") ? "application/json" : "text/plain",
+    mediaType: name.endsWith(".json") ? "application/json" : "text/markdown",
     sizeBytes: 64,
   });
   // Keep the digest expression explicit because the browser contract requires
@@ -342,7 +342,7 @@ test("Audit UI reviews exact evidence and completes destructive lifecycle contro
     digest: `sha256:${"7".repeat(64)}`,
   };
   const summaryArtifact = {
-    ...exact("report.txt", "report-summary-r1"),
+    ...exact("report.md", "report-summary-r1"),
     digest: `sha256:${"8".repeat(64)}`,
   };
   const project = {

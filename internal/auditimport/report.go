@@ -271,8 +271,8 @@ func (i *Importer) Finalize(
 	}
 	summaryArtifact, err := i.artifacts.PutImmutableProject(
 		ctx, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: "report.txt"},
-		artifacts.Payload{MediaType: "text/plain", Data: summaryBytes},
+		contracts.ArtifactRef{Namespace: namespace, Name: "report.md"},
+		artifacts.Payload{MediaType: "text/markdown", Data: summaryBytes},
 	)
 	if err != nil {
 		return false, err
@@ -453,47 +453,60 @@ func hasIncompleteCoverage(counts reportCoverageCounts) bool {
 
 func humanSummary(report machineReport) string {
 	var builder strings.Builder
-	fmt.Fprintf(&builder, "Audit %s\n", report.AuditID)
-	fmt.Fprintf(&builder, "Profile: %s@%s (%s)\n", report.Profile.Name, report.Profile.Version, report.Profile.Mode)
-	fmt.Fprintf(&builder, "Conclusion: %s\n", report.Conclusion)
-	fmt.Fprintf(&builder, "Selected items: %d\n", report.Coverage.SelectedItems)
-	fmt.Fprintf(
-		&builder,
-		"Coverage: satisfied=%d violated=%d inconclusive=%d not-tested=%d blocked=%d not-applicable=%d excluded=%d traced-complete=%d traced-partial=%d unmapped=%d\n",
-		report.Coverage.Counts.Satisfied, report.Coverage.Counts.Violated,
-		report.Coverage.Counts.Inconclusive, report.Coverage.Counts.NotTested,
-		report.Coverage.Counts.Blocked, report.Coverage.Counts.NotApplicable,
-		report.Coverage.Counts.Excluded, report.Coverage.Counts.TracedComplete,
-		report.Coverage.Counts.TracedPartial, report.Coverage.Counts.Unmapped,
-	)
-	fmt.Fprintf(
-		&builder,
-		"Findings: confirmed=%d proposed=%d rejected=%d duplicate=%d needs-evidence=%d\n",
-		len(report.Findings.Confirmed), len(report.Findings.Proposed),
-		len(report.Findings.Rejected), len(report.Findings.Duplicates),
-		len(report.Findings.NeedsEvidence),
-	)
+	fmt.Fprintf(&builder, "# Audit %s\n\n", markdownText(report.AuditID))
+	fmt.Fprintf(&builder, "- Profile: %s@%s (%s)\n", markdownText(report.Profile.Name), markdownText(report.Profile.Version), markdownText(string(report.Profile.Mode)))
+	fmt.Fprintf(&builder, "- Conclusion: %s\n", markdownText(report.Conclusion))
+	fmt.Fprintf(&builder, "- Selected items: %d\n", report.Coverage.SelectedItems)
 	if report.Coverage.AssessedPercent == nil {
-		builder.WriteString("Applicable coverage: N/A (zero denominator)\n")
+		builder.WriteString("- Applicable coverage: N/A (zero denominator)\n")
 	} else {
-		fmt.Fprintf(&builder, "Applicable coverage: %.2f%%\n", *report.Coverage.AssessedPercent)
+		fmt.Fprintf(&builder, "- Applicable coverage: %.2f%%\n", *report.Coverage.AssessedPercent)
 	}
-	fmt.Fprintf(
-		&builder,
-		"Attempts: accepted=%d missing-output=%d invalid-result=%d failed=%d cancelled=%d collection-contract-invalid=%d\n",
-		report.AttemptDispositions.AcceptedResult, report.AttemptDispositions.MissingOutput,
-		report.AttemptDispositions.InvalidResult, report.AttemptDispositions.ExecutionFailed,
-		report.AttemptDispositions.ExecutionCancelled,
-		report.AttemptDispositions.ContractInvalid,
-	)
+	type countRow struct {
+		label string
+		count int
+	}
+	writeCounts := func(title string, rows []countRow) {
+		fmt.Fprintf(&builder, "\n## %s\n\n| Status | Count |\n| --- | ---: |\n", title)
+		for _, row := range rows {
+			fmt.Fprintf(&builder, "| %s | %d |\n", row.label, row.count)
+		}
+	}
+	writeCounts("Coverage", []countRow{
+		{"satisfied", report.Coverage.Counts.Satisfied}, {"violated", report.Coverage.Counts.Violated},
+		{"inconclusive", report.Coverage.Counts.Inconclusive}, {"not-tested", report.Coverage.Counts.NotTested},
+		{"blocked", report.Coverage.Counts.Blocked}, {"not-applicable", report.Coverage.Counts.NotApplicable},
+		{"excluded", report.Coverage.Counts.Excluded}, {"traced-complete", report.Coverage.Counts.TracedComplete},
+		{"traced-partial", report.Coverage.Counts.TracedPartial}, {"unmapped", report.Coverage.Counts.Unmapped},
+	})
+	writeCounts("Findings", []countRow{
+		{"confirmed", len(report.Findings.Confirmed)}, {"proposed", len(report.Findings.Proposed)},
+		{"rejected", len(report.Findings.Rejected)}, {"duplicate", len(report.Findings.Duplicates)},
+		{"needs-evidence", len(report.Findings.NeedsEvidence)},
+	})
+	writeCounts("Attempts", []countRow{
+		{"accepted", report.AttemptDispositions.AcceptedResult}, {"missing-output", report.AttemptDispositions.MissingOutput},
+		{"invalid-result", report.AttemptDispositions.InvalidResult}, {"failed", report.AttemptDispositions.ExecutionFailed},
+		{"cancelled", report.AttemptDispositions.ExecutionCancelled}, {"collection-contract-invalid", report.AttemptDispositions.ContractInvalid},
+	})
+	builder.WriteString("\n## Limitations\n\n")
 	if report.StopReason != nil {
-		fmt.Fprintf(&builder, "Stop reason: %s — %s\n", report.StopReason.Code, report.StopReason.Message)
+		fmt.Fprintf(&builder, "- Stop reason: %s — %s\n", markdownText(report.StopReason.Code), markdownText(report.StopReason.Message))
 	}
-	if len(report.Baseline.InventoryGaps) != 0 {
-		fmt.Fprintf(&builder, "Inventory gaps: %s\n", strings.Join(report.Baseline.InventoryGaps, ", "))
+	for _, gap := range report.Baseline.InventoryGaps {
+		fmt.Fprintf(&builder, "- Inventory gap: %s\n", markdownText(gap))
 	}
-	builder.WriteString("Completion describes the bounded Audit process; it is not a security or compliance certification.\n")
+	builder.WriteString("\nCompletion describes the bounded Audit process; it is not a security or compliance certification.\n")
 	return builder.String()
+}
+
+// Dynamic report fields are prose, never executable Markdown or raw HTML.
+func markdownText(value string) string {
+	return strings.NewReplacer(
+		"&", "&amp;", "<", "&lt;", ">", "&gt;", "\\", "\\\\",
+		"`", "\\`", "*", "\\*", "_", "\\_", "[", "\\[", "]", "\\]",
+		"#", "\\#", "|", "\\|", "\r", " ", "\n", " ",
+	).Replace(value)
 }
 
 func cloneExactArtifactMap(values map[string]auditstore.ExactArtifact) map[string]auditstore.ExactArtifact {

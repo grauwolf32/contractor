@@ -231,7 +231,8 @@ func (s *Service) GetReport(
 	if err != nil {
 		return ReportProjection{}, err
 	}
-	if machine.Artifact.MediaType != "application/json" || summary.Artifact.MediaType != "text/plain" ||
+	if machine.Artifact.MediaType != "application/json" ||
+		(summary.Artifact.MediaType != "text/markdown" && summary.Artifact.MediaType != "text/plain") ||
 		digestBytes(machineRead.Payload.Data) != machine.Artifact.Digest ||
 		digestBytes(summaryRead.Payload.Data) != summary.Artifact.Digest ||
 		int64(len(machineRead.Payload.Data)) != machine.Artifact.SizeBytes ||

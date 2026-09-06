@@ -488,9 +488,30 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		store.committed.Machine.LogicalKey != "" {
 		t.Fatalf("propose report for human acceptance = (%t, %v, %+v)", worked, err, store.proposed)
 	}
-	if !containsBytes(artifactAccess.writes["report.txt"], "Findings: confirmed=1 proposed=1") ||
-		!containsBytes(artifactAccess.writes["report.txt"], "not a security or compliance certification") {
-		t.Fatalf("human summary omitted qualification: %s", artifactAccess.writes["report.txt"])
+	if store.proposed.Summary.Artifact.MediaType != "text/markdown" ||
+		!containsBytes(artifactAccess.writes["report.md"], "## Findings\n\n| Status | Count |") ||
+		!containsBytes(artifactAccess.writes["report.md"], "| confirmed | 1 |\n| proposed | 1 |") ||
+		!containsBytes(artifactAccess.writes["report.md"], "not a security or compliance certification") {
+		t.Fatalf("human Markdown summary omitted qualification: %s", artifactAccess.writes["report.md"])
+	}
+}
+
+func TestMarkdownSummaryEscapesDynamicFields(t *testing.T) {
+	report := machineReport{
+		AuditID:    "audit_test",
+		StopReason: &reportStopReason{Code: "test", Message: "<script>alert(1)</script>\n# heading [link](https://example.test)"},
+		Baseline:   reportBaseline{InventoryGaps: []string{"*emphasis* | `code`"}},
+	}
+	summary := humanSummary(report)
+	for _, expected := range []string{
+		"# Audit audit\\_test\n\n",
+		"&lt;script&gt;alert(1)&lt;/script&gt; \\# heading \\[link\\](https://example.test)",
+		"- Inventory gap: \\*emphasis\\* \\| \\`code\\`",
+		"Applicable coverage: N/A (zero denominator)",
+	} {
+		if !strings.Contains(summary, expected) {
+			t.Errorf("summary lacks %q: %s", expected, summary)
+		}
 	}
 }
 

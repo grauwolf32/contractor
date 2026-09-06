@@ -210,6 +210,85 @@ function renderApplication(api: PublicAPI, path: string) {
 }
 
 describe("Project Audit routes", () => {
+  it.each(["text/markdown", "text/plain"])(
+    "previews and downloads an exact %s report",
+    async (mediaType) => {
+      const markdown = mediaType === "text/markdown";
+      const summary =
+        "# Coverage summary\n\n| Status | Count |\n| --- | ---: |\n| satisfied | 2 |\n";
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const path = new URL(request.url).pathname;
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example")
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          if (path === "/v1/audits/audit_example")
+            return jsonResponse(auditAt("completed", 3), {
+              headers: { ETag: '"3"' },
+            });
+          if (path === "/v1/audits/audit_example/report")
+            return jsonResponse({
+              status: "ready",
+              summary,
+              summaryArtifact: {
+                ref: {
+                  namespace: "audit-example",
+                  name: markdown ? "report.md" : "report.txt",
+                  revision: "report-r1",
+                },
+                digest: `sha256:${"1".repeat(64)}`,
+                mediaType,
+                sizeBytes: summary.length,
+              },
+            });
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      renderApplication(
+        api,
+        "/projects/project_example/audits/audit_example/report",
+      );
+      const button = await screen.findByRole("button", {
+        name: "Download exact summary",
+      });
+      if (markdown) {
+        expect(
+          await screen.findByRole("heading", { name: "Coverage summary" }),
+        ).toBeVisible();
+        expect(screen.getByRole("table")).toHaveTextContent("satisfied");
+      } else {
+        expect(screen.getByText(/# Coverage summary/u)).toBeVisible();
+        expect(
+          screen.queryByRole("heading", { name: "Coverage summary" }),
+        ).toBeNull();
+      }
+      let downloadedName = "";
+      const click = vi
+        .spyOn(HTMLAnchorElement.prototype, "click")
+        .mockImplementation(function (this: HTMLAnchorElement) {
+          downloadedName = this.download;
+        });
+      const createURL = vi.fn<(blob: Blob) => string>(() => "blob:report-test");
+      const originalCreate = URL.createObjectURL;
+      const originalRevoke = URL.revokeObjectURL;
+      URL.createObjectURL = createURL;
+      URL.revokeObjectURL = vi.fn();
+      try {
+        await userEvent.setup().click(button);
+        expect(downloadedName).toBe(
+          `audit_example-report.${markdown ? "md" : "txt"}`,
+        );
+        expect(createURL.mock.calls[0]?.[0].type).toBe(mediaType);
+      } finally {
+        click.mockRestore();
+        URL.createObjectURL = originalCreate;
+        URL.revokeObjectURL = originalRevoke;
+      }
+    },
+  );
+
   it("creates a draft from one compatible exact Project Artifact", async () => {
     const requests: Request[] = [];
     const draft = auditAt("draft", 1);

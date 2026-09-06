@@ -37,6 +37,37 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 	}
 }
 
+func TestReportSummaryMediaTypes(t *testing.T) {
+	revision := "report-r1"
+	link := func(key, media string) ArtifactLink {
+		return ArtifactLink{LogicalKey: key, Artifact: ExactArtifact{
+			Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "report", Revision: &revision},
+			Digest: testDigest("1"), MediaType: media, SizeBytes: 16,
+		}, SourceProvenance: json.RawMessage(`{}`)}
+	}
+	for _, media := range []string{"text/markdown", "text/plain", "text/html"} {
+		params := CommitReportParams{
+			Claim:                 ControllerClaim{AuditID: "audit", HolderID: "holder", Epoch: 1},
+			ExpectedAuditRevision: 1, RoundID: "round", ExpectedRoundRevision: 1,
+			RequestDigest: testDigest("2"),
+			Machine:       link(ReportMachineLogicalKey, "application/json"),
+			Summary:       link(ReportSummaryLogicalKey, media),
+		}
+		for name, err := range map[string]error{
+			"commit": validateCommitReport(params),
+			"review": validateReportCandidateLinks(params.Machine, params.Summary),
+		} {
+			if media == "text/html" {
+				if !errors.Is(err, ErrInvalid) {
+					t.Errorf("%s accepted unsupported %s: %v", name, media, err)
+				}
+			} else if err != nil {
+				t.Errorf("%s rejected supported %s: %v", name, media, err)
+			}
+		}
+	}
+}
+
 func TestMaterializationAndExecutionRejectDuplicateMembership(t *testing.T) {
 	t.Parallel()
 	artifact := testExact("tasks", "one", "r1")

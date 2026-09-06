@@ -544,7 +544,7 @@ func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
 		Machine: auditstore.ArtifactLink{LogicalKey: auditstore.ReportMachineLogicalKey,
 			Artifact: artifact("report.json", "application/json", 32), SourceProvenance: provenance},
 		Summary: auditstore.ArtifactLink{LogicalKey: auditstore.ReportSummaryLogicalKey,
-			Artifact: artifact("report.txt", "text/plain", 16), SourceProvenance: provenance},
+			Artifact: artifact("report.md", "text/markdown", 16), SourceProvenance: provenance},
 		RequestDigest: serviceTestDigest("report-candidate"),
 	}
 	waiting, inserted, err := store.ProposeReport(ctx, params)

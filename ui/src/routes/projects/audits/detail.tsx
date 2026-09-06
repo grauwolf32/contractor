@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import {
@@ -40,6 +47,10 @@ import {
 import { StateBadge } from "../../runs/components";
 
 import "./styles.css";
+
+const MarkdownArtifactPreview = lazy(
+  () => import("../../artifacts/previews/markdown"),
+);
 
 type AuditSection =
   | "overview"
@@ -1385,8 +1396,8 @@ function AuditReportView({
                     type="button"
                     onClick={() =>
                       downloadReport(
-                        `${audit.auditId}-summary.txt`,
-                        "text/plain",
+                        `${audit.auditId}-report.${report.data.summaryArtifact?.mediaType === "text/markdown" ? "md" : "txt"}`,
+                        report.data.summaryArtifact?.mediaType ?? "text/plain",
                         report.data.summary!,
                       )
                     }
@@ -1400,7 +1411,13 @@ function AuditReportView({
           {report.data.summary === undefined ? null : (
             <div className="audit-report-summary">
               <h4>Summary</h4>
-              <p>{report.data.summary}</p>
+              {report.data.summaryArtifact?.mediaType === "text/markdown" ? (
+                <Suspense fallback={<p>Loading Markdown preview…</p>}>
+                  <MarkdownArtifactPreview source={report.data.summary} />
+                </Suspense>
+              ) : (
+                <p style={{ whiteSpace: "pre-wrap" }}>{report.data.summary}</p>
+              )}
             </div>
           )}
         </>

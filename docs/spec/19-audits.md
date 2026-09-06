@@ -1046,6 +1046,13 @@ still have an inconclusive security assessment. Technical Run failure,
 collection failure, and semantic assessment therefore remain three distinct
 report dimensions.
 
+The human-readable report is `report.md` with media type `text/markdown`,
+headings, and coverage/finding/attempt tables. The Audit Report view renders it
+with the existing safe Markdown preview and downloads the exact Markdown bytes.
+The machine-readable report remains `report.json`. Previously retained
+`text/plain` summaries remain readable and downloadable without rewriting their
+immutable artifacts or pending review subjects.
+
 The report includes baseline/profile/standard versions, scope, coverage matrix,
 confirmed and proposed findings separately, unresolved questions, exclusions,
 incomplete evidence, human decisions, limits, and reproducible provenance. Any

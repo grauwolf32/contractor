@@ -270,9 +270,10 @@ func validateReportCandidateLinks(machine, summary ArtifactLink) error {
 		media string
 	}{
 		{machine, ReportMachineLogicalKey, "application/json"},
-		{summary, ReportSummaryLogicalKey, "text/plain"},
+		{summary, ReportSummaryLogicalKey, "text/markdown"},
 	} {
-		if pair.link.LogicalKey != pair.key || pair.link.Artifact.MediaType != pair.media ||
+		legacySummary := pair.key == ReportSummaryLogicalKey && pair.link.Artifact.MediaType == "text/plain"
+		if pair.link.LogicalKey != pair.key || (pair.link.Artifact.MediaType != pair.media && !legacySummary) ||
 			validateExactArtifact("report candidate", pair.link.Artifact, false) != nil ||
 			len(pair.link.SourceProvenance) == 0 || !json.Valid(pair.link.SourceProvenance) {
 			return ErrInvalid
