@@ -18,8 +18,10 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 	want := []string{
 		"artifact-copy@1",
 		"audit-asvs-source-verification@1",
+		"audit-openapi-operation-trace@2",
 		"audit-source-check@1",
 		"audit-top10-source-risk@1",
+		"findings-review@1",
 		"likec4-from-analysis@3",
 		"likec4-from-workspace-streamline@2",
 		"likec4-from-workspace@5",

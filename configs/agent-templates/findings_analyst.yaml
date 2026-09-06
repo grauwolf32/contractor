@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: findings_analyst
+  version: "1"
+spec:
+  description: Analyzes an explicit finding collection and writes an evidence-grounded report
+  runtime: adk@1
+  instructions:
+    ref: instructions/findings-analyst-worker.md
+  modelPolicy: domain_worker@2
+  toolsets:
+    - ref: security-findings@2
+      tools: [list_findings]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: text-artifacts@1
+      tools: [write_text_artifact]
+  sandboxProfile: local-workdir@1

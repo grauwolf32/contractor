@@ -1,0 +1,48 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+
+metadata:
+  name: openapi-operation-trace
+  version: "3"
+
+spec:
+  mode: operation-tracing
+  standards: []
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    openapi:
+      required: true
+      mediaTypes: [application/json, application/yaml, application/zip]
+  inventory:
+    implementation: openapi-operations@1
+    sourceInput: openapi
+    itemWorkflowRole: trace
+  workflows:
+    trace:
+      kind: check
+      ref: audit-openapi-operation-trace@2
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        source: {source: audit-input, name: source}
+      parameters: {}
+      outputs:
+        result: result
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 256
+    maxItemsTotal: 256
+    maxSubmittedRuns: 768
+    maxItemRunAttempts: 3
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: human-required
+    notApplicable: profile-rule
+    reportAcceptance: automatic

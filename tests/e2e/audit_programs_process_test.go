@@ -769,8 +769,12 @@ func runAuditProgram(
 	afterStart ...func(auditProgramAudit, []auditProgramItem),
 ) auditProgramAudit {
 	t.Helper()
+	profileName, profileVersion, versioned := strings.Cut(profile, "@")
+	if !versioned {
+		profileVersion = "1"
+	}
 	body, err := json.Marshal(map[string]any{
-		"profile": map[string]string{"name": profile, "version": "1"},
+		"profile": map[string]string{"name": profileName, "version": profileVersion},
 		"inputs":  inputs,
 		"scope": map[string]string{
 			"objective": "Exercise a bounded, non-certifying Audit fixture.",
@@ -789,7 +793,7 @@ func runAuditProgram(
 	}
 	request.Header.Set("Authorization", "Bearer "+publicToken)
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Idempotency-Key", "audit-program-"+profile)
+	request.Header.Set("Idempotency-Key", "audit-program-"+strings.ReplaceAll(profile, "@", "-v"))
 	response := do(t, client, request, http.StatusCreated)
 	var draft auditProgramAudit
 	decodeAuditProgramResponse(t, response, &draft)
@@ -805,7 +809,7 @@ func runAuditProgram(
 		t.Fatal(err)
 	}
 	startRequest.Header.Set("Authorization", "Bearer "+publicToken)
-	startRequest.Header.Set("Idempotency-Key", "audit-program-start-"+profile)
+	startRequest.Header.Set("Idempotency-Key", "audit-program-start-"+strings.ReplaceAll(profile, "@", "-v"))
 	startRequest.Header.Set("If-Match", fmt.Sprintf("\"%d\"", draft.Revision))
 	startResponse := do(t, client, startRequest, http.StatusOK)
 	var started struct {

@@ -3,9 +3,10 @@
 Status: V43-001 specifies the contract and implements the Go codec, package
 validation and deterministic destination mapping. V43-002 implements Server
 publication through `POST /v1/finding-collections`. V43-003 implements Runtime
-preparation and `list_findings` in `security-findings@2`. Agent integration
-(V43-004) and the process gate (V43-005) remain pending; existing agent
-configuration versions keep their selected tools and instructions.
+preparation and `list_findings` in `security-findings@2`. V43-004 adds explicit
+producer and reader configurations with a production-process integration test.
+The broader process gate (V43-005) remains pending; existing agent configuration
+versions keep their selected tools and instructions.
 
 ## Responsibilities and compatibility
 
@@ -325,6 +326,22 @@ envelope; it never returns source bytes in error text. Preparation and reads can
 confirm findings or mutate review state.
 
 ## Verification and rollout
+
+Opt-in configurations:
+
+- `openapi-operation-trace@3` binds `audit-openapi-operation-trace@2` and
+  `audit_openapi_operation_tracer@2`. It retains structural graph/source tools,
+  adds text evidence writing and `finding`, and uses human-required finding
+  confirmation. Canonical results carry successful proposal client keys;
+  `operation-resolution` coverage retains its existing meaning.
+- `findings-review@1` uses `findings_analyst@1`, accepting only the required
+  `findings` collection input and publishing a Markdown `report`. It selects
+  `list_findings`, `read_artifact` and text report writing. Its generic analysis
+  requires no hypothesis, annotation, OpenAPI input or Audit origin.
+
+Producer guidance lives in a new instruction file; the frozen `trace` Skill and
+instruction-eval baselines retain their bytes. Neither configuration changes
+default deployment or establishes model-quality improvements.
 
 The [shared fixture](../../internal/auditdomain/testdata/finding-collection-v1.fixture.json)
 contains generic function/configuration subjects, ordinary Run and Audit origins,

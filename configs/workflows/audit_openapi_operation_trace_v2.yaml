@@ -1,0 +1,77 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: audit-openapi-operation-trace
+  version: "2"
+
+spec:
+  parameters: {}
+
+  inputs:
+    task:
+      required: true
+      mediaTypes: [application/zip]
+    execution_manifest:
+      required: true
+      mediaTypes: [application/json]
+    source:
+      required: true
+      mediaTypes: [application/zip]
+
+  outputs:
+    result:
+      required: true
+      primary: true
+      mediaTypes: [application/zip]
+
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+
+  entryStage: check
+  stages:
+    check:
+      objective: Trace the assigned OpenAPI operation through the pinned source workspace using structural graph evidence
+      instructions:
+        ref: instructions/audit-openapi-operation-tracer-worker-v2.md
+      planner: passthrough@1
+      agents:
+        checker:
+          template: audit_openapi_operation_tracer@2
+          namespace: audit-check
+      context:
+        artifacts:
+          task:
+            namespace: inputs
+            name: task
+            required: true
+          execution_manifest:
+            namespace: inputs
+            name: execution_manifest
+            required: true
+          source:
+            namespace: inputs
+            name: source
+            required: true
+        workspace:
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
+      result:
+        artifacts:
+          result:
+            required: true
+            mediaTypes: [application/zip]
+            from: {namespace: audit-check, name: result}
+      workflowOutputs:
+        result: result
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}
