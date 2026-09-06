@@ -74,6 +74,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"finding_proposal_audit_holds", "finding_proposal_receipts", "finding_proposal_retention",
 		"git_ssh_keys", "llm_credential_identities", "llm_credential_tombstones", "llm_credentials", "owner_queue_controls",
 		"performance_minutes", "planner_events", "planner_execution_reports", "planner_sessions", "projects",
+		"run_stage_resumptions",
 		"runtime_agent_principals", "runtime_config_publications", "runtime_config_versions",
 		"runtime_credential_creations", "runtime_credential_tombstones", "runtime_credentials",
 		"runtime_label_bindings", "runtime_management_operations", "scheduler_settings", "stage_allocations",
