@@ -1,6 +1,9 @@
-// Target architecture for docs/spec/00–20 and tasks/index.yml.
-// V25–V27 additions include planned work; dashed #planned elements are not yet
-// implemented. Task files remain authoritative for delivery status.
+// Target architecture for docs/spec/00–24 and tasks/index.yml (V25–V36).
+// Reconciled on 2026-09-06 against spec/task changes since 9509666c, including
+// working-tree amendments. Task files remain authoritative for delivery status.
+// Dashed #planned elements and tagged relationships mark pending/in-progress work:
+// Podman activation V31-004–008, performance API/UI V32-005–006/008 and Git
+// import V35-002–005. Implemented primitives do not imply an enabled feature.
 specification {
   element actor {
     style {
@@ -56,6 +59,10 @@ global {
 }
 
 model {
+  operator = actor 'Deployment Operator — local diagnostics and offline maintenance' {
+    #external
+  }
+
   browser = actor 'User Browser' {
     #external
   }
@@ -96,6 +103,42 @@ model {
     #external
   }
 
+  serverConfigFile = system 'ServerConfig YAML — optional non-secret process bootstrap' {
+    #external #optional
+  }
+
+  gitKnownHosts = system 'Git known_hosts — operator-managed read-only SSH trust' {
+    #external #optional
+  }
+
+  gitRemote = system 'Allowlisted Git Remote — anonymous HTTPS or owner-key SSH' {
+    #external #optional
+  }
+
+  podmanPolicy = system 'Runtime Podman Startup Policy — opt-in image digest, stable owner and finite limits' {
+    #external #optional
+  }
+
+  localPodmanEngine = system 'Local rootless Podman — preinstalled image, exact owned containers' {
+    #external #optional
+  }
+
+  podmanGuardian = system 'Contractor Host Guardian — private socket, pinned cgroup v2 scope and PID 1 pidfd' {
+    #contractor #optional
+  }
+
+  podmanContainer = system 'Allocation Podman Container — planned lifecycle; /workspace bind, private /tmp, no network' {
+    #contractor #optional #planned
+
+    imageSupervisor = component 'Approved image PID 1 — subordinate UID, inert orphan reaper' {
+      #contractor
+    }
+
+    command = component 'Selected shell workload — nonzero keep-id UID; no Runtime secrets or control channel' {
+      #contractor #planned
+    }
+  }
+
   artifactDatabase = system 'PostgreSQL — Contractor State' {
     #external
 
@@ -112,7 +155,7 @@ model {
     }
 
     schedulerSettings = storage 'scheduler_settings — global maxConcurrentRuns 1..32, default 1 / revision / updatedAt' {
-      #contractor #planned
+      #contractor
     }
 
     plannerSessions = storage 'Contractor Planner Sessions — completion recovery + typed plans + redacted ADK facts' {
@@ -138,10 +181,34 @@ model {
     artifactEvents = storage 'Scoped artifact events / grants / lineage' {
       #contractor
     }
+
+    artifactBlobs = storage 'Artifact blobs — PostgreSQL bytea by default; digest/size/object keys for filesystem mode' {
+      #contractor
+    }
+
+    performanceMinutes = storage 'performance_minutes — generation + minute, bounded aggregates, 7-day retention' {
+      #contractor
+    }
+
+    allocationPolicy = storage 'Allocation record extension — pinned requested / disabled / unsupported resource policy' {
+      #contractor #planned
+    }
+
+    gitKeys = storage 'Owner Git SSH keys — authenticated ciphertext + key generation; no private readback' {
+      #contractor
+    }
+
+    gitSources = storage 'Artifact version Git provenance — repository / requested ref / exact commit / import time' {
+      #contractor #planned
+    }
   }
 
-  blobBackend = system 'Artifact Blob Backend — PostgreSQL or S3' {
-    #external
+  blobBackend = system 'Filesystem Artifact Blobs — optional Server-owned root, persistent or ephemeral' {
+    #external #optional
+  }
+
+  futureS3 = system 'S3-compatible Artifact Blobs — deferred, unsupported at startup' {
+    #external #optional #planned
   }
 
   telemetryBackend = system 'Telemetry Backend — optional' {
@@ -159,15 +226,27 @@ model {
   server = system 'Contractor Server' {
     #contractor
 
-    productSurface = component 'Product Surface — authenticated Projects, Audits, Runs, Queue and Artifacts' {
+    productSurface = component 'Product Surface — Projects, Audits, Runs, Catalog, Artifacts, Evals and Settings' {
       #contractor
 
       publicApi = component 'Projects / Runs / Queue API' {
         #contractor
       }
 
-      auditApi = component 'Audit / read-only AuditProfile API — owner commands, exact review decisions and revision polling' {
+      catalogApi = component 'Catalog API — exact Workflows / AgentTemplates and read-only resolved base instructions' {
+        #contractor
+      }
+
+      gitKeyApi = component 'Git-key Settings API — owner replace / remove / non-secret metadata' {
+        #contractor
+      }
+
+      gitImportApi = component 'Git Import API — ordinary UserScope / ProjectScope source ZIP creation or CAS replacement' {
         #contractor #planned
+      }
+
+      auditApi = component 'Audit / read-only AuditProfile API — owner commands, exact review decisions and revision polling' {
+        #contractor
       }
 
       userArtifactApi = component 'UserScope / ProjectScope Artifact API' {
@@ -185,6 +264,14 @@ model {
 
     identityConfiguration = component 'Identity and Configuration — immutable execution inputs and secret boundaries' {
       #contractor
+
+      processSettings = component 'Process Bootstrap — defaults < strict 64 KiB ServerConfig < environment < CLI; restart-only' {
+        #contractor
+      }
+
+      gitKeyService = component 'Git-key Service — owner/purpose/generation encryption, safe metadata and admitted-key snapshot' {
+        #contractor
+      }
 
       authService = component 'In-memory Local Session + Principal Boundary' {
         #contractor
@@ -219,15 +306,15 @@ model {
       }
 
       runService = component 'Trusted Run Service — ordinary creation + atomic pinned AuditExecution association' {
-        #contractor #planned
+        #contractor
       }
 
       schedulerSupervisor = component 'Scheduler Supervisor — bounded concurrent Run lanes; resize by drain' {
-        #contractor #planned
+        #contractor
       }
 
       schedulerMaintenance = component 'Scheduler Maintenance — bounded loss polling, terminal release and cleanup outside Run lanes' {
-        #contractor #planned
+        #contractor
       }
 
       plannerFactories = component 'PlannerFactory Registry' {
@@ -259,8 +346,8 @@ model {
       }
     }
 
-    // Spec 19 / V25-V26: Audit coordination and bounded compatible check batches
-    // are implemented; broader curated programs remain delivery work.
+    // V25-V27 are complete: Audit coordination, byte-bounded batches, Top 10
+    // 2025 and the five-requirement ASVS 5.0.0 L1 pilot, global Run concurrency.
     auditCoordination = component 'Audit Coordination — Project-bound multi-Run program; PostgreSQL reconciliation' {
       #contractor
 
@@ -277,28 +364,27 @@ model {
       }
 
       auditService = component 'Audit Service — atomic baseline start, capability gate, pause/cancel/delete fences' {
-        #contractor #planned
+        #contractor
       }
 
       auditController = component 'Audit Controller — periodic reconcile, bounded dispatch, collection and round barriers' {
-        #contractor #planned
+        #contractor
       }
 
       resultImporter = component 'Audit Result Import + Coverage — exact terminal receipt, per-item disposition and retained evidence' {
-        #contractor #planned
+        #contractor
       }
 
       findingIntake = component 'Private Finding Intake — allocation/invocation-bound proposals, evidence pins and replay receipts' {
-        #contractor #planned
+        #contractor
       }
 
       reviewService = component 'Audit Review — authenticated exact-subject decisions, finding triage and next-round approval' {
-        #contractor #planned
+        #contractor
       }
 
-      // V26: curated programs and bounded batchSize > 1 are separate increments.
-      standardCatalog = component 'Audit Standard Catalog — exact licensed packages + evidence mappings; Top 10 / ASVS programs' {
-        #contractor #planned
+      standardCatalog = component 'Audit Standard Catalog — exact licensed packages; Top 10 2025 / five-requirement ASVS 5.0.0 L1 pilot' {
+        #contractor
       }
     }
 
@@ -337,9 +423,61 @@ model {
         #contractor
       }
 
-      blobStore = component 'ArtifactBlobStore Adapter' {
+      blobStore = component 'ArtifactBlobStore — installation-pinned PostgreSQL or filesystem; 64 MiB generic payload ceiling' {
         #contractor
       }
+
+      transferBudget = component 'Artifact Transfer Admission — four active payload operations, shared nested lease, no waiting queue' {
+        #contractor
+      }
+
+      blobCleanup = component 'Offline Blob Cleanup CLI — bounded registry/key scan; dry-run default, explicit offline apply' {
+        #contractor
+      }
+
+      gitImporter = component 'Git Snapshot Importer — one admitted fetch/ZIP/publication, in-memory objects, 120 s deadline' {
+        #contractor #planned
+      }
+    }
+
+    performanceMonitoring = component 'Built-in Performance — optional collection; API/UI integration pending' {
+      #contractor #optional
+
+      httpAccounting = component 'HTTP Accounting — fixed public/private counters + latency histograms; no request content' {
+        #contractor
+      }
+
+      serverSampler = component '15 s Server Sampler — process CPU/RSS, Go heap/GC/goroutines and working pgxpool.Stat()' {
+        #contractor
+      }
+
+      liveFrames = storage 'Live Performance Frames — last hour, 240 + active frame, 8 MiB bound; group freshness' {
+        #contractor
+      }
+
+      postgresCollector = component 'PostgreSQL Observer — aggregate statistics every 60 s; database size separately every 300 s' {
+        #contractor
+      }
+
+      diagnosticPool = component 'Performance pgx Pool — MaxConns=1, MinConns=0; bounded collection and maintenance only' {
+        #contractor
+      }
+
+      historyWriter = component 'Minute History Writer — ten pending records, idempotent writes, bounded retention cleanup' {
+        #contractor
+      }
+
+      performanceApi = component 'Operations Performance API — memory-only current, bounded history; authenticated read-only' {
+        #contractor #planned
+      }
+
+      allocationResources = component 'Allocation Resource Ingestion / History — independent validation, owner-safe terminal joins' {
+        #contractor #planned
+      }
+    }
+
+    profilingListener = component 'Optional Go pprof — separate loopback-only mux, finite recording slots; no public/private routes' {
+      #contractor #optional
     }
 
     runtimeOperations = component 'Runtime Fleet and Operations — placement, private control and telemetry' {
@@ -350,7 +488,7 @@ model {
       }
 
       schedulerSettingsService = component 'Scheduler Settings Service — global typed singleton; GET / PUT with strong If-Match' {
-        #contractor #planned
+        #contractor
       }
 
       controlPlane = component 'Control Plane' {
@@ -367,6 +505,13 @@ model {
     }
 
     productSurface.publicApi -> identityConfiguration.authService 'Authenticate session and bind owner principal'
+    productSurface.catalogApi -> identityConfiguration.authService 'Authenticate exact-template reads; private caching and safe selectors'
+    productSurface.catalogApi -> orchestration.workflowCatalog 'List exact Workflows and linked logical Worker bindings'
+    productSurface.catalogApi -> orchestration.agentTemplateCatalog 'Read template + instruction ref/digest/text from one loaded snapshot; no path API or invocation context'
+    productSurface.gitKeyApi -> identityConfiguration.authService 'Bind owner; require CSRF for key replacement/removal'
+    productSurface.gitKeyApi -> identityConfiguration.gitKeyService 'One owner key: metadata-only GET, validated PUT and DELETE'
+    productSurface.gitImportApi -> identityConfiguration.authService 'Authorize owner/Project and create/CAS headers before fetch' #planned
+    productSurface.gitImportApi -> artifactPlane.gitImporter 'Import repository URL and branch/tag into one ordinary exact ArtifactRef; never start a Run' #planned
     productSurface.auditApi -> identityConfiguration.authService 'Authorize owner and ordinary Project; CSRF, idempotency and revision CAS'
     productSurface.userArtifactApi -> identityConfiguration.authService 'Authenticate session and bind owner scope'
     productSurface.authApi -> identityConfiguration.authService 'Verify Argon2id login; issue/revoke session + CSRF'
@@ -449,7 +594,7 @@ model {
     auditCoordination.auditController -> orchestration.runService 'Replay stable intent with start-pinned Workflow/Runtime/Skill snapshots; internal audit-managed publication'
     auditCoordination.auditController -> workspaceLifecycle.runStore 'Read authoritative child terminal outcome/version; notifications are wake hints only'
     auditCoordination.auditController -> auditCoordination.resultImporter 'Collect every terminal execution before retry/settlement; one receipt even for missing, invalid, failed or cancelled output'
-    auditCoordination.auditController -> auditCoordination.packageInventory 'Freeze ordered execution manifest and deterministic bounded task-set package'
+    auditCoordination.auditController -> auditCoordination.packageInventory 'Preflight exact task sizes; truncate compatible ordered prefix to 16 MiB package budget before reserving attempts; single-item fallback'
     auditCoordination.auditController -> auditCoordination.reviewService 'Apply exact authorized decisions; discovery/assessment/next rounds only after capability and barrier checks'
     auditCoordination.auditController -> orchestration.workflowScheduler 'Request ordinary child cancellation; wait for terminal release while paused or deleting'
     auditCoordination.auditController -> identityConfiguration.executionConfigService 'Release dispatch holds only after dispatch closes and submission intents resolve'
@@ -480,9 +625,33 @@ model {
     runtimeOperations.controlPlane -> runtimeOperations.telemetry 'Bind allocation final reports and Run metadata labels to trusted execution identity'
 
     artifactPlane.artifactService -> artifactPlane.artifactRegistry 'Versions / scoped bindings / CAS / grants / events / output publication'
-    artifactPlane.artifactService -> artifactPlane.blobStore 'Stream immutable content'
+    artifactPlane.artifactService -> artifactPlane.transferBudget 'Acquire before buffering/read; nested trusted operations share admission, metadata/forks need none'
+    artifactPlane.artifactService -> artifactPlane.blobStore 'Prepare complete verified content before short CAS transaction; bounded buffers, not constant-memory streaming'
     artifactPlane.artifactPurger -> artifactPlane.artifactRegistry 'Remove complete scope-owned bindings, pins, lineage and unreferenced versions'
-    artifactPlane.artifactPurger -> artifactPlane.blobStore 'Collect only globally unreferenced immutable content'
+    artifactPlane.artifactPurger -> artifactPlane.blobStore 'Unreferenced exact objects only: PostgreSQL transactional delete; filesystem best-effort unlink after registry commit'
+    artifactPlane.blobCleanup -> artifactPlane.artifactRegistry 'Scan complete references in bounded batches; report missing objects without deleting metadata'
+    artifactPlane.blobCleanup -> artifactPlane.blobStore 'Remove only unreferenced exact generations/staging files with all writers stopped'
+    artifactPlane.gitImporter -> artifactPlane.transferBudget 'Hold one of four transfer slots from before fetch through publication/response; one active import' #planned
+    artifactPlane.gitImporter -> identityConfiguration.gitKeyService 'Capture importing owner key generation for SSH; no SQL lock held during transfer' #planned
+    artifactPlane.gitImporter -> artifactPlane.artifactService 'Publish deterministic tracked-file ZIP up to 64 MiB; ordinary authority/CAS and exact input forks' #planned
+    artifactPlane.gitImporter -> artifactPlane.artifactRegistry 'Atomically attach per-version Git origin; recheck CAS and Project lifecycle after fetch' #planned
+
+    identityConfiguration.processSettings -> artifactPlane.blobStore 'Choose backend/path at startup and verify installation pin; no automatic fallback or online migration'
+    identityConfiguration.processSettings -> performanceMonitoring 'performance-metrics defaults true; false skips middleware, buffers, timers and diagnostic pool'
+    identityConfiguration.processSettings -> profilingListener 'Independent pprof opt-in defaults false; numeric loopback listener, bounded shutdown'
+    identityConfiguration.processSettings -> artifactPlane.gitImporter 'Explicit remote host:port allowlist and read-only SSH trust; empty allowlist disables import' #planned
+    performanceMonitoring.httpAccounting -> performanceMonitoring.serverSampler 'Snapshot fixed counters/histograms; exclude health, performance reads and profiling traffic'
+    performanceMonitoring.serverSampler -> performanceMonitoring.liveFrames '15 s frames, monotonic CPU/rates, explicit unknown/partial groups; no forced GC'
+    performanceMonitoring.postgresCollector -> performanceMonitoring.diagnosticPool 'Separate bounded statistics/size cycles; no overlap, query text or immediate retry'
+    performanceMonitoring.postgresCollector -> performanceMonitoring.liveFrames 'Keep each group original observation time; hidden/reset/unavailable data remains explicit'
+    performanceMonitoring.liveFrames -> performanceMonitoring.historyWriter 'Aggregate minute coverage and histograms; samplers never wait for writes'
+    performanceMonitoring.historyWriter -> performanceMonitoring.diagnosticPool 'Serial minute writes and at most 1000 expired-row deletions per cycle; bounded backlog/loss'
+    performanceMonitoring.performanceApi -> performanceMonitoring.liveFrames 'Current is memory-only; 15 s history limited to this generation and last hour' #planned
+    performanceMonitoring.performanceApi -> identityConfiguration.authService 'Existing Operations authority; retained reads allowed with collection disabled' #planned
+    performanceMonitoring.allocationResources -> identityConfiguration.authService 'Owner-filter terminal history and optional exact Run; default 50, max 100 keyset page' #planned
+    performanceMonitoring.allocationResources -> workspaceLifecycle.runStore 'Join durable allocation/Stage terminal identity, including missing reports; stable finished_at ordering' #planned
+    runtimeOperations.controlPlane -> performanceMonitoring.allocationResources 'Pin diagnostic policy without affecting placement; validate optional resources independently of execution truth' #planned
+    performanceMonitoring.allocationResources -> runtimeOperations.telemetry 'Preserve valid reports and 30-day retention; no second report store or changed Stage outcome' #planned
   }
 
   runtimeAgent = system 'Runtime Agent — N environment-specific single-slot processes' {
@@ -542,6 +711,10 @@ model {
       executionCollector = component 'Execution / allocation report collector' {
         #contractor
       }
+
+      resourceSampler = component 'Allocation Process Resource Sampler — boundary CPU/RSS + 15 s observed RSS peak, constant-size accumulator' {
+        #contractor #optional
+      }
     }
 
     allocationCapabilities = component 'Allocation Capabilities — narrowed tools, adapters and disposable workspace' {
@@ -551,12 +724,24 @@ model {
         #contractor
       }
 
-      sandboxManager = component 'SandboxProfile manager — local-workdir@1 initially, lifecycle isolation only' {
+      sandboxManager = component 'SandboxProfile manager — existing scratch lifecycle; Podman allocation integration pending' {
         #contractor
       }
 
-      workspaceProvider = component 'Workspace Provider — exact Run ZIP hydration / local or memory / overlay' {
+      workspaceProvider = component 'Workspace Provider — local direct disk authority + shared operation lock; isolated memory/overlay alternatives' {
         #contractor #optional
+      }
+
+      podmanClient = component 'Private Podman Engine Client — bounded argv/output, exact owner lock/creation IDs and cleanup verification' {
+        #contractor #optional
+      }
+
+      podmanLifecycle = component 'Podman Allocation Lifecycle — hydrate then start; finalize stops; release removes container before files' {
+        #contractor #optional #planned
+      }
+
+      codeExecutionTools = component 'Selected code-execution@1.exec_command — narrow sandbox handle, one bounded command, no uncertain replay' {
+        #contractor #optional #planned
       }
 
       filesystemTools = component 'Selected filesystem@1 / edit-files@1 / workspace-changes@1 tools' {
@@ -580,7 +765,7 @@ model {
       }
 
       securityFindingsTools = component 'Selected security-findings@1 — finding proposals only; no model-selectable Audit/Project identity' {
-        #contractor #optional #planned
+        #contractor #optional
       }
 
       namespaceTools = component 'Explicitly selected Namespace-bound domain tools' {
@@ -620,6 +805,19 @@ model {
     agentControl.capabilityProbe -> allocationCapabilities.workspaceProvider 'Probe immutable local/memory storage and positive filesystem tool subset'
     agentControl.capabilityProbe -> allocationCapabilities.codeAnalysisTools 'Probe offline Tree-sitter subset and local-only Trailmark subset'
     agentControl.capabilityProbe -> allocationCapabilities.taintAnnotationTools 'Probe complete offline Tree-sitter annotation surface'
+    agentControl.capabilityProbe -> workerExecution.resourceSampler 'Advertise optional performance metrics version 1; omission disables sampling, never a placement constraint'
+    agentControl.slotManager -> workerExecution.resourceSampler 'When requested: start after ownership before prepare; freeze after teardown before cached report; idle/release excluded'
+    workerExecution.resourceSampler -> workerExecution.executionCollector 'Optional runtime.resources aggregate; process only, no children/containers; failures affect resources only'
+    agentControl.slotManager -> allocationCapabilities.podmanLifecycle 'Own one idempotent container lifecycle; uncertain cleanup retains task and fences slot' #planned
+    agentControl.capabilityProbe -> allocationCapabilities.podmanLifecycle 'V31-006: advertise only after real image/resource/mount/descendant/liveness/removal probes' #planned
+    allocationCapabilities.podmanLifecycle -> allocationCapabilities.workspaceProvider 'Require local + direct; hydrate before container; remove mounted files only after confirmed removal' #planned
+    allocationCapabilities.podmanLifecycle -> allocationCapabilities.podmanClient 'Prepare/stop/remove exact allocation container; owner recovery precedes workspace cleanup' #planned
+    allocationCapabilities.podmanLifecycle -> podmanGuardian 'Private control/liveness renewal bounded by confirmed lease; no workload access' #planned
+    allocationCapabilities.podmanClient -> podmanPolicy 'Validated immutable startup image/owner/limits; separate from Runtime labels and host subprocess adapters'
+    allocationCapabilities.podmanClient -> localPodmanEngine 'Local structured argv only; bounded owned operations, no remote engine or global prune'
+    allocationCapabilities.codeExecutionTools -> allocationCapabilities.podmanClient 'Private execution handle; fixed container shell argv, bounded output/deadline; no host execution' #planned
+    allocationCapabilities.codeExecutionTools -> allocationCapabilities.workspaceProvider 'Hold shared workspace ownership until guardian confirms no remaining writers; reacquire current disk afterward' #planned
+    allocationCapabilities.codeExecutionTools -> podmanGuardian 'Confirm complete descendant cleanup; timeout/output/cancellation/uncertainty stops whole container' #planned
 
     workerExecution.a2aServer -> workerExecution.workerRuntime 'Validate and deliver one sequential A2A Task for the active allocation'
     workerExecution.workerRuntime -> workerExecution.workerSessionLifecycle 'Acquire shared or fresh isolated session only after admission'
@@ -639,6 +837,7 @@ model {
     workerExecution.workerRuntime -> allocationCapabilities.codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
     workerExecution.workerRuntime -> allocationCapabilities.taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
     workerExecution.workerRuntime -> allocationCapabilities.httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
+    workerExecution.workerRuntime -> allocationCapabilities.codeExecutionTools 'Explicit Toolset allowlist plus podman@1 required; ADK/A2A/trusted tools remain in Runtime process' #planned
     workerExecution.workerRuntime -> allocationCapabilities.securityFindingsTools 'Construct only explicitly selected proposal tool; no Run creation, approval or final assessment'
     workerExecution.workerRuntime -> allocationCapabilities.skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     workerExecution.workerRuntime -> allocationCapabilities.artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'
@@ -653,10 +852,10 @@ model {
     allocationCapabilities.adapterHost -> allocationCapabilities.namespaceTools 'Inject proxy-aware clients only into selected tools'
     allocationCapabilities.adapterHost -> allocationCapabilities.httpCaidoTools 'Inject optional forward-proxy and mandatory typed Caido handles'
     allocationCapabilities.filesystemTools -> allocationCapabilities.workspaceProvider 'Relative run_workdir paths only; no raw local path or backend selection'
-    allocationCapabilities.codeAnalysisTools -> allocationCapabilities.workspaceProvider 'Read exact effective managed-text snapshots; no provider root'
+    allocationCapabilities.codeAnalysisTools -> allocationCapabilities.workspaceProvider 'Reacquire current local-direct disk snapshots including external changes; no hydration/mtime cache authority or refresh tool'
     allocationCapabilities.codeAnalysisTools -> allocationCapabilities.trailmarkChild 'Materialize bounded private mirror and issue typed graph queries'
     allocationCapabilities.taintAnnotationTools -> allocationCapabilities.workspaceProvider 'Resolve current function syntax and atomically update one managed-text file'
-    allocationCapabilities.workspaceProvider -> allocationCapabilities.artifactClient 'Read exact ZIP/state and auto-export cumulative state/diff'
+    allocationCapabilities.workspaceProvider -> allocationCapabilities.artifactClient 'Read exact ZIP/state; overlay auto-export keeps independent 16 MiB ceiling despite 64 MiB Artifact transport'
     allocationCapabilities.workspaceProvider -> runtimeWorkspaceStorage 'Create isolated disposable allocation storage'
     allocationCapabilities.httpCaidoTools -> allocationCapabilities.artifactClient 'Persist bounded response bodies as ordinary exact Run artifacts'
     allocationCapabilities.httpCaidoTools -> caidoService 'Target HTTP via optional proxy; call static GraphQL operations through typed adapter'
@@ -665,20 +864,35 @@ model {
   browser -> webUi 'Load client bundle + public runtime API URL' #contextOnly
   browser -> server.productSurface.authApi 'Direct login / session / logout with credentialed CORS'
   browser -> server.productSurface.publicApi 'Direct authenticated Project, Run and Queue queries/mutations'
+  browser -> server.productSurface.catalogApi 'Catalog Workflows / Agents: exact definitions and base prompts with Preview, Source and Copy'
+  browser -> server.productSurface.gitKeyApi 'Planned Settings editor; existing owner key API returns safe metadata only' #planned
+  browser -> server.productSurface.gitImportApi 'Planned shared Workflow/Project input import dialog; select returned exact source ref' #planned
   browser -> server.productSurface.auditApi 'Project Audits UI: bounded revision polling, lifecycle commands, coverage/findings/reviews/report'
   browser -> server.productSurface.userArtifactApi 'Direct UserScope / ProjectScope Artifact queries/uploads/downloads'
   browser -> server.runtimeOperations.operationsApi 'Direct Runtime visibility and configuration management'
+  browser -> server.performanceMonitoring.performanceApi 'Planned Operations Performance page; visible-only 15 s polling and bounded range changes' #planned
+  browser -> server.performanceMonitoring.allocationResources 'Planned completed-allocation history and Run-attempt resource projection, separate from live registry' #planned
   browser -> server.productSurface.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.productSurface.authApi 'Authenticate through the same local session contract when needed'
   apiClient -> server.productSurface.publicApi 'Manage Projects, Queue and Runs without the UI'
   apiClient -> server.productSurface.auditApi 'Read exact profiles; manage owner Audits and exact human decisions'
   apiClient -> server.productSurface.userArtifactApi 'Upload / read / list UserScope or ProjectScope artifacts'
+  apiClient -> server.productSurface.gitKeyApi 'Authenticated owner key management; no private readback'
+  apiClient -> server.productSurface.gitImportApi 'Planned bounded Git import with explicit create/CAS headers' #planned
+
+  operator -> server.profilingListener 'Local pprof client or SSH tunnel; profiles streamed to client, never Operations or report storage'
+  operator -> server.artifactPlane.blobCleanup 'Offline CLI: dry-run report; apply only with all writers stopped'
+  operator -> serverConfigFile 'Provide optional non-secret process settings and paths; no hot reload'
+  localPodmanEngine -> podmanContainer 'Planned allocation create/start/remove; preinstalled image only, /workspace RW and /tmp tmpfs' #planned
+  podmanGuardian -> podmanContainer 'Freeze/inventory pinned cgroup; confirm no writers; EOF/expiry/uncertainty kills entire scope within lease/10 s cap' #planned
+  podmanContainer.imageSupervisor -> podmanContainer.command 'Reap orphan descendants; workload cannot renew guardian or forge completion' #planned
+  podmanContainer.command -> runtimeWorkspaceStorage 'RW mount of this allocation content directory only; no parent roots, credentials or skill scripts' #planned
 
   runtimeAgent.agentControl.registryClient -> server.runtimeOperations.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
   server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint 'Control Plane mTLS: prepare / state snapshot / finalize / abort / release'
   server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
-  runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService 'Agent mTLS + allocation ID: RunScope operations; no owner/Project/DB/S3 authority'
+  runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService 'Agent mTLS + allocation ID: RunScope operations; no owner/Project/database/blob-backend authority'
   runtimeAgent.allocationCapabilities.securityFindingsTools -> server.auditCoordination.findingIntake 'mTLS POST /private/v1/allocations/{allocation_id}/finding-proposals with trusted invocation/submission IDs'
 
   server.workspaceLifecycle.projectStore -> artifactDatabase.projectState 'Persist Project metadata, targets, lifecycle and deletion claims'
@@ -688,7 +902,22 @@ model {
   server.runtimeOperations.schedulerSettingsService -> artifactDatabase.schedulerSettings 'Authoritative singleton GET / revision CAS; equal-value update is a no-op; restart reads durable value'
   server.orchestration.plannerSessionService -> artifactDatabase.plannerSessions 'Persist request/completion, typed plans and redacted ADK facts'
   server.artifactPlane.artifactRegistry -> artifactDatabase 'Transactional scoped registry writes and reads'
-  server.artifactPlane.blobStore -> blobBackend 'Immutable blob operations'
+  server.artifactPlane.blobStore -> artifactDatabase.artifactBlobs 'Installation backend pin + blob registry; default PostgreSQL bytes share registry transaction, no blob directory/PVC'
+  server.artifactPlane.blobStore -> blobBackend 'Filesystem only: unique verified immutable objects, atomic publish, post-commit best-effort unlink; loss is explicit missing content'
+  server.artifactPlane.blobStore -> futureS3 'Deferred backend; no current S3 adapter or fallback' #planned
+  server.artifactPlane.artifactRegistry -> artifactDatabase.gitSources 'Planned immutable per-version origin in same revision transaction; exact forks preserve provenance' #planned
+  server.artifactPlane.gitImporter -> gitKnownHosts 'SSH verifies configured host keys; no TOFU, host agent or machine-key fallback' #planned
+  server.artifactPlane.gitImporter -> gitRemote 'Bounded in-process HTTPS/SSH fetch; allowlisted actual destination, no redirects, disk checkout, hooks or subprocesses' #planned
+  server.identityConfiguration.gitKeyService -> artifactDatabase.gitKeys 'Store/replace/remove ciphertext and non-secret metadata; one owner key generation'
+  server.identityConfiguration.gitKeyService -> credentialMasterKey 'Reuse bootstrap encryption key; validate key rows at startup, decrypt only for admitted owner import'
+  server.identityConfiguration.processSettings -> serverConfigFile 'Strict optional ServerConfig; relative paths resolved beside file, secrets stay outside YAML'
+  server.performanceMonitoring.httpAccounting -> server.productSurface 'Observe public workload HTTP without raw routes/IDs; preserve streaming and WebSocket handshake semantics'
+  server.performanceMonitoring.httpAccounting -> server.runtimeOperations.controlPlane 'Observe private workload HTTP with same bounded dimensions'
+  server.performanceMonitoring.diagnosticPool -> artifactDatabase 'Bounded current_database statistics/size and history maintenance; independent from working/LISTEN pools'
+  server.performanceMonitoring.historyWriter -> artifactDatabase.performanceMinutes 'Via diagnostic pool: generation/minute idempotency, 7-day TTL; disabled periods/restarts/loss remain gaps'
+  server.performanceMonitoring.performanceApi -> artifactDatabase.performanceMinutes 'Planned authorized request-pool reads: 7 days, at most 1000 points, filter expired data even when collection is off' #planned
+  server.runtimeOperations.controlPlane -> artifactDatabase.allocationPolicy 'Persist requested/disabled/unsupported once; duplicate prepare/restart retains original decision' #planned
+  server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy 'Read trusted pinned decision; legacy/missing reports remain visible as unknown resources' #planned
   server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
   runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane 'Trusted allocation final report'
@@ -751,7 +980,7 @@ views {
       title 'PostgreSQL'
     }
     include blobBackend with {
-      title 'Artifact Blobs'
+      title 'Filesystem Blobs (optional)'
     }
     include llmGateway with {
       title 'LLM Gateway'
@@ -833,6 +1062,11 @@ views {
       navigateTo runtimeOverview
     }
 
+    include server.performanceMonitoring with {
+      title 'Built-in Performance'
+      navigateTo serverPerformance
+    }
+
     // Show only the relationships relevant to this view.
     exclude * -> *
     include server.productSurface -> server.identityConfiguration with {
@@ -871,6 +1105,12 @@ views {
     include runtimeAgent -> server.artifactPlane with {
       title 'Allocation-bound RunScope'
     }
+    include server.runtimeOperations -> server.performanceMonitoring with {
+      title 'Planned allocation resource integration'
+    }
+    include server.identityConfiguration -> server.performanceMonitoring with {
+      title 'Startup collection switch'
+    }
     global predicate withoutContextOnly
 
     autoLayout TopBottom 100 70
@@ -904,9 +1144,18 @@ views {
       title 'Artifact Storage'
       navigateTo artifacts
     }
+    include server.profilingListener with {
+      title 'Optional Local Go Profiling'
+      navigateTo processBootstrap
+    }
     include server.runtimeOperations with {
       title 'Runtime Operations'
       navigateTo controlPlane
+    }
+
+    include server.performanceMonitoring with {
+      title 'Built-in Performance'
+      navigateTo serverPerformance
     }
 
     // Show only the relationships relevant to this view.
@@ -955,6 +1204,15 @@ views {
     }
     include server.runtimeOperations -> server.identityConfiguration with {
       title 'Credentials / Runtime settings'
+    }
+    include server.runtimeOperations -> server.performanceMonitoring with {
+      title 'Planned allocation resource integration'
+    }
+    include server.identityConfiguration -> server.performanceMonitoring with {
+      title 'Startup collection switch'
+    }
+    include server.identityConfiguration -> server.profilingListener with {
+      title 'Independent startup opt-in'
     }
     global predicate withoutContextOnly
 
@@ -1029,6 +1287,14 @@ views {
     include server.productSurface.publicApi with {
       title 'Projects / Runs / Queue API'
     }
+    include server.productSurface.catalogApi with {
+      title 'Catalog / Exact Agent Prompts'
+      navigateTo catalog
+    }
+    include server.productSurface.gitImportApi with {
+      title 'Planned Git Import API'
+      navigateTo gitArtifacts
+    }
     include server.productSurface.auditApi with {
       title 'Audit / Profile / Review API'
       navigateTo audits
@@ -1064,6 +1330,18 @@ views {
     }
     include browser -> server.productSurface.publicApi with {
       title 'Projects / Runs / Queue'
+    }
+    include browser -> server.productSurface.catalogApi with {
+      title 'Catalog Workflows / Agents'
+    }
+    include server.productSurface.catalogApi -> server.identityConfiguration.authService with {
+      title 'Authenticated exact base instructions'
+    }
+    include server.productSurface.catalogApi -> server.orchestration with {
+      title 'One loaded definition snapshot'
+    }
+    include browser -> server.productSurface.gitImportApi with {
+      title 'Planned Workflow / Project import'
     }
     include browser -> server.productSurface.auditApi with {
       title 'Audits / revision polling'
@@ -1599,10 +1877,14 @@ views {
 
   view runtimeFilesystems {
     title 'Runtime / Workspaces and File Tools'
-    description 'Selected tools receive narrowed handles and relative run_workdir paths. Workspace storage is allocation-local and disposable.'
+    description 'V30 release-verified: local direct disk is authoritative, including external writes; commands/edits/snapshots share workspace ownership. Memory and overlay remain independent; overlay export stays bounded at 16 MiB.'
 
     include runtimeAgent.agentControl.slotManager with {
       title 'Exclusive Allocation Slot'
+    }
+    include runtimeAgent.allocationCapabilities.podmanLifecycle with {
+      title 'Planned Podman Lifecycle'
+      navigateTo podmanSandbox
     }
     include runtimeAgent.allocationCapabilities.sandboxManager with {
       title 'Sandbox Lifecycle'
@@ -1648,6 +1930,12 @@ views {
     }
     include runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.allocationCapabilities.workspaceProvider with {
       title 'Probe usable tool subset'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.podmanLifecycle with {
+      title 'Planned allocation-owned container'
+    }
+    include runtimeAgent.allocationCapabilities.podmanLifecycle -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Hydrate first / remove container before files'
     }
     global predicate withoutContextOnly
 
@@ -1776,7 +2064,7 @@ views {
 
   view artifacts {
     title 'Artifacts / Scopes and Durable Storage'
-    description 'Owner APIs expose UserScope and ProjectScope. Runtime has allocation-bound RunScope access only.'
+    description 'V34 implemented: PostgreSQL registry and default payloads need no blob directory/PVC; optional filesystem payloads can be ephemeral. Generic transfers allow 64 MiB with four active operations; package/workspace limits remain independent.'
 
     include server.productSurface.userArtifactApi with {
       title 'Owner Artifact API'
@@ -1794,13 +2082,14 @@ views {
       title 'Artifact Registry'
     }
     include server.artifactPlane.blobStore with {
-      title 'Blob Store'
+      title 'Selected Blob Backend'
+      navigateTo artifactBackends
     }
     include artifactDatabase with {
       title 'PostgreSQL'
     }
     include blobBackend with {
-      title 'Artifact Blobs'
+      title 'Filesystem Blobs (optional)'
     }
 
     // Show only the relationships relevant to this view.
@@ -1826,6 +2115,9 @@ views {
     include server.artifactPlane.blobStore -> blobBackend with {
       title 'Immutable blob operations'
     }
+    include server.artifactPlane.blobStore -> artifactDatabase with {
+      title 'Default PostgreSQL bytes / backend pin'
+    }
     global predicate withoutContextOnly
 
     autoLayout LeftRight 100 70
@@ -1833,7 +2125,7 @@ views {
 
   view artifactCleanup {
     title 'Artifacts / Released Scope Purge'
-    description 'Purge released RunScope only after any required Audit collection receipt; drain Audit holds before ProjectScope purge. Collect content only when globally unreferenced.'
+    description 'Drain Runs and Audit holds before scope purge. PostgreSQL blob deletion is transactional; filesystem unlink follows registry commit and may leave orphans for offline cleanup. Missing bytes never authorize deleting referenced metadata.'
 
     include server.workspaceLifecycle.projectDeletionController with {
       title 'Project Deletion Controller'
@@ -1848,13 +2140,14 @@ views {
       title 'Artifact Registry'
     }
     include server.artifactPlane.blobStore with {
-      title 'Blob Store'
+      title 'Transactional Delete / Post-commit Unlink'
+      navigateTo artifactBackends
     }
     include artifactDatabase with {
       title 'PostgreSQL'
     }
     include blobBackend with {
-      title 'Artifact Blobs'
+      title 'Filesystem Blobs (optional)'
     }
 
     // Show only the relationships relevant to this view.
@@ -1879,6 +2172,9 @@ views {
     }
     include server.artifactPlane.blobStore -> blobBackend with {
       title 'Blob operations'
+    }
+    include server.artifactPlane.blobStore -> artifactDatabase with {
+      title 'Default transactional payload deletion'
     }
     global predicate withoutContextOnly
 
@@ -2008,6 +2304,7 @@ views {
     }
     include runtimeAgent.workerExecution.executionCollector with {
       title 'Allocation Reports'
+      navigateTo allocationPerformance
     }
     include runtimeAgent.agentControl.controlEndpoint with {
       title 'Private Control Endpoint'
@@ -2353,7 +2650,7 @@ views {
 
   view auditBaseline {
     title 'Audits / Exact Baseline and Catalogs'
-    description 'Spec 19 / V25-001–005; V26 standards catalog is planned. Start rechecks capabilities and pins all future child inputs; later mutable bindings cannot change the baseline.'
+    description 'V25/V26 implemented. Start pins Workflow/Runtime/Skill and licensed standard packages; later catalog or mutable binding changes cannot alter the baseline.'
 
     include server.productSurface.auditApi with {
       title 'Read-only Profile / Start API'
@@ -2506,7 +2803,7 @@ views {
 
   view auditReviewAndPrograms {
     title 'Audits / Finding Proposals, Review and Programs'
-    description 'Planned V25-010–011 / V26. Workers propose; authenticated decisions bind exact subjects. Top 10 risk scenarios and ASVS requirements retain versioned evidence and explicit gaps.'
+    description 'V25/V26 implemented. Workers propose; authenticated decisions bind exact subjects. Top 10 2025 and the five-requirement ASVS 5.0.0 L1 pilot preserve exact denominators, retained evidence and explicit gaps; broader ASVS coverage is deferred.'
 
     include browser with {
       title 'Owner / Human Reviewer'
@@ -2533,7 +2830,7 @@ views {
       title 'Round / Assessment Barriers'
     }
     include server.auditCoordination.standardCatalog with {
-      title 'Top 10 / ASVS Package Catalog'
+      title 'Top 10 / ASVS L1 Pilot Catalog'
     }
     include server.auditCoordination.profileCatalog with {
       title 'Versioned Audit Programs'
@@ -2579,7 +2876,7 @@ views {
 
   view schedulerConcurrency {
     title 'Execution / Global Concurrency and Audit Backpressure'
-    description 'Spec 20 / V27, planned. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
+    description 'Spec 20 / V27 implemented. One active Server; maxConcurrentRuns 1..32 (default 1) bounds Run lanes. Decreases drain; owner pause and compatible single-slot Runtime capacity constrain admission separately.'
 
     include browser with {
       title 'Operations / Settings UI'
@@ -2653,6 +2950,534 @@ views {
     }
     include server.auditCoordination.auditController -> server.runtimeOperations.schedulerSettingsService with {
       title 'Current N look-ahead: intents + children'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view catalog {
+    title 'Surface / Catalog and Agent Base Prompts'
+    description 'V33 implemented: /catalog groups Workflows, Agents and Skills; legacy links redirect. Agent detail shows exact base instructions, not task context or an effective invocation prompt. Runtime processes remain in Operations.'
+
+    include browser with {
+      title 'Catalog UI'
+    }
+    include server.productSurface.catalogApi with {
+      title 'Authenticated Catalog API'
+    }
+    include server.orchestration.workflowCatalog with {
+      title 'Exact Workflows'
+    }
+    include server.orchestration.agentTemplateCatalog with {
+      title 'AgentTemplates + Base Instructions'
+    }
+    include configFilesystem with {
+      title 'Loaded Published Definitions'
+    }
+    include server.productSurface.userArtifactApi with {
+      title 'Owner Skill Artifact API'
+    }
+    include server.orchestration.skillCatalog with {
+      title 'Bundled Skill Seeding / Exact Resolution'
+      navigateTo agentSkills
+    }
+    include server.artifactPlane.artifactService with {
+      title 'Ordinary skills/* Artifacts'
+      navigateTo artifacts
+    }
+
+    exclude * -> *
+    include browser -> server.productSurface.catalogApi with {
+      title 'Workflows / Agents; Preview / Source / Copy'
+    }
+    include server.productSurface.catalogApi -> server.orchestration.workflowCatalog with {
+      title 'Exact versions / linked Worker bindings'
+    }
+    include server.productSurface.catalogApi -> server.orchestration.agentTemplateCatalog with {
+      title 'One snapshot: template + instruction digest/text'
+    }
+    include server.orchestration.agentTemplateCatalog -> configFilesystem with {
+      title 'Load once; endpoint reads no paths'
+    }
+    include browser -> server.productSurface.userArtifactApi with {
+      title 'Catalog Skills: ordinary owner artifacts'
+    }
+    include server.productSurface.userArtifactApi -> server.artifactPlane.artifactService with {
+      title 'Existing owner permissions / CAS'
+    }
+    include server.orchestration.skillCatalog -> configFilesystem with {
+      title 'Validate bundled sources'
+    }
+    include server.orchestration.skillCatalog -> server.artifactPlane.artifactService with {
+      title 'Create missing / resolve / fork exact package'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view artifactBackends {
+    title 'Artifacts / Backend Selection and Offline Cleanup'
+    description 'V34 implemented. PostgreSQL is the default payload backend; filesystem is explicit and installation-pinned. Ephemeral file loss is an error, not empty content. Four admitted 64 MiB payloads are not a total process-memory cap. S3 is deferred.'
+
+    include operator with {
+      title 'Offline Maintenance Operator'
+    }
+    include server.identityConfiguration.processSettings with {
+      title 'Startup Backend Selection'
+      navigateTo processBootstrap
+    }
+    include server.artifactPlane.artifactService with {
+      title 'ArtifactStore'
+    }
+    include server.artifactPlane.transferBudget with {
+      title 'Four Shared Transfer Slots'
+    }
+    include server.artifactPlane.artifactRegistry with {
+      title 'Transactional Registry / CAS'
+    }
+    include server.artifactPlane.blobStore with {
+      title 'Verified Immutable Blob Adapter'
+    }
+    include artifactDatabase.artifactBlobs with {
+      title 'PostgreSQL Bytes / Blob Registry'
+    }
+    include blobBackend with {
+      title 'Optional Filesystem Root'
+    }
+    include futureS3 with {
+      title 'Deferred S3'
+    }
+    include server.artifactPlane.blobCleanup with {
+      title 'Dry-run / Explicit Offline Apply'
+    }
+
+    exclude * -> *
+    include server.identityConfiguration.processSettings -> server.artifactPlane.blobStore with {
+      title 'Restart-only; reject backend mismatch'
+    }
+    include server.artifactPlane.artifactService -> server.artifactPlane.transferBudget with {
+      title 'Admit before buffering; no queue'
+    }
+    include server.artifactPlane.artifactService -> server.artifactPlane.artifactRegistry with {
+      title 'Version / scope / CAS authority'
+    }
+    include server.artifactPlane.artifactService -> server.artifactPlane.blobStore with {
+      title 'Prepare verified bytes before registry transaction'
+    }
+    include server.artifactPlane.blobStore -> artifactDatabase.artifactBlobs with {
+      title 'Default bytes in transaction; no PVC'
+    }
+    include server.artifactPlane.blobStore -> blobBackend with {
+      title 'Atomic file publish; unlink after commit'
+    }
+    include server.artifactPlane.blobStore -> futureS3 with {
+      title 'Unsupported until separately implemented'
+    }
+    include operator -> server.artifactPlane.blobCleanup with {
+      title 'Stop all writers before apply'
+    }
+    include server.artifactPlane.blobCleanup -> server.artifactPlane.artifactRegistry with {
+      title 'Bounded complete reference scan'
+    }
+    include server.artifactPlane.blobCleanup -> server.artifactPlane.blobStore with {
+      title 'Unreferenced generations/staging only'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view gitArtifacts {
+    title 'Artifacts / Planned Git Snapshot Import'
+    description 'V35-001 key/settings contracts are implemented; V35-002 fetch is in progress, publication/UI/gate remain planned. One allowlisted HTTPS/SSH snapshot becomes an ordinary exact source ZIP. No clone during execution, local checkout, hooks, automatic refresh or new job queue.'
+
+    include browser with {
+      title 'Workflow / Project Import Dialog (planned)'
+    }
+    include server.productSurface.gitImportApi with {
+      title 'Owner Import / CAS API (planned)'
+    }
+    include server.artifactPlane.gitImporter with {
+      title 'Bounded In-memory Git Snapshot (planned)'
+    }
+    include server.identityConfiguration.gitKeyService with {
+      title 'Owner Key Generation'
+      navigateTo gitSettings
+    }
+    include gitKnownHosts with {
+      title 'Read-only SSH Host Trust'
+    }
+    include gitRemote with {
+      title 'Allowlisted HTTPS / SSH Remote'
+    }
+    include server.artifactPlane.transferBudget with {
+      title 'One Import + One of Four Transfer Slots'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'Ordinary Exact Source ZIP'
+      navigateTo artifactBackends
+    }
+    include server.artifactPlane.artifactRegistry with {
+      title 'Short Registry Transaction'
+    }
+    include artifactDatabase.gitSources with {
+      title 'Immutable Per-version Commit Provenance'
+    }
+
+    exclude * -> *
+    include browser -> server.productSurface.gitImportApi with {
+      title 'Repository/ref + existing input selection'
+    }
+    include server.productSurface.gitImportApi -> server.artifactPlane.gitImporter with {
+      title 'Validate authority/CAS; never launch a Run'
+    }
+    include server.artifactPlane.gitImporter -> server.artifactPlane.transferBudget with {
+      title 'Hold admission through response; 120 s deadline'
+    }
+    include server.artifactPlane.gitImporter -> server.identityConfiguration.gitKeyService with {
+      title 'Capture one owner key; no DB lock during fetch'
+    }
+    include server.artifactPlane.gitImporter -> gitKnownHosts with {
+      title 'Reject unknown/changed host keys'
+    }
+    include server.artifactPlane.gitImporter -> gitRemote with {
+      title 'Bound pack/object decoding; fixed commit'
+    }
+    include server.artifactPlane.gitImporter -> server.artifactPlane.artifactService with {
+      title 'Deterministic tracked-file ZIP <= 64 MiB'
+    }
+    include server.artifactPlane.gitImporter -> server.artifactPlane.artifactRegistry with {
+      title 'Recheck lifecycle/CAS; atomic origin + revision'
+    }
+    include server.artifactPlane.artifactRegistry -> artifactDatabase.gitSources with {
+      title 'Exact forks preserve origin; dedup does not merge it'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view gitSettings {
+    title 'Surface / Owner Git SSH-key Settings'
+    description 'V35-001 API/storage implemented; V35-004 browser editor is planned. One owner key is write-only, encrypted with owner/purpose/generation identity. Replacement affects later imports; existing snapshots and provenance survive key deletion.'
+
+    include browser with {
+      title 'Settings Key Editor (planned)'
+    }
+    include apiClient with {
+      title 'Authenticated API Client'
+    }
+    include server.productSurface.gitKeyApi with {
+      title 'GET / PUT / DELETE Git-key Settings'
+    }
+    include server.identityConfiguration.gitKeyService with {
+      title 'Owner Key Validation / Encryption'
+    }
+    include artifactDatabase.gitKeys with {
+      title 'Ciphertext + Safe Key Metadata'
+    }
+    include credentialMasterKey with {
+      title 'Host Credential Master Key'
+      navigateTo bootstrapSecrets
+    }
+
+    exclude * -> *
+    include browser -> server.productSurface.gitKeyApi with {
+      title 'Replace/remove; clear secret input (planned)'
+    }
+    include apiClient -> server.productSurface.gitKeyApi with {
+      title 'Existing owner API / CSRF contract'
+    }
+    include server.productSurface.gitKeyApi -> server.identityConfiguration.gitKeyService with {
+      title 'Validate key; return only fingerprint/type/time'
+    }
+    include server.identityConfiguration.gitKeyService -> artifactDatabase.gitKeys with {
+      title 'Authenticated ciphertext; no key readback'
+    }
+    include server.identityConfiguration.gitKeyService -> credentialMasterKey with {
+      title 'Startup integrity / admitted import decryption'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view podmanSandbox {
+    title 'Runtime / Podman Ownership and Execution'
+    description 'V30 and V31-001–003 primitives are verified; V31-004 lifecycle is in progress and execution/probes/activation are planned. ADK/A2A/trusted tools stay in Python. Local direct workspace only; no overlay/memory fallback, network or skill scripts. Guardian primitives do not yet enable the profile.'
+
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Exclusive Allocation Slot'
+    }
+    include runtimeAgent.agentControl.capabilityProbe with {
+      title 'Startup Capability Probes'
+    }
+    include runtimeAgent.allocationCapabilities.podmanLifecycle with {
+      title 'Planned Allocation Lifecycle'
+    }
+    include runtimeAgent.allocationCapabilities.codeExecutionTools with {
+      title 'Planned exec_command'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Local Direct Disk + Shared Ownership'
+      navigateTo runtimeFilesystems
+    }
+    include runtimeAgent.allocationCapabilities.podmanClient with {
+      title 'Private Bounded Podman Client'
+    }
+    include podmanPolicy with {
+      title 'Immutable Owner / Image / Limits'
+    }
+    include localPodmanEngine with {
+      title 'Local Rootless Podman'
+    }
+    include podmanGuardian with {
+      title 'Host Guardian / Exact cgroup v2 Scope'
+    }
+    include podmanContainer with {
+      title 'Allocation Container: PID 1 + Workload'
+    }
+
+    exclude * -> *
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.podmanLifecycle with {
+      title 'Own prepare / finalize / release; fence uncertainty'
+    }
+    include runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.allocationCapabilities.podmanLifecycle with {
+      title 'Advertise only after complete real probes'
+    }
+    include runtimeAgent.allocationCapabilities.podmanLifecycle -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Hydrate first; remove files after container'
+    }
+    include runtimeAgent.allocationCapabilities.podmanLifecycle -> runtimeAgent.allocationCapabilities.podmanClient with {
+      title 'Exact create / stop / remove / owner recovery'
+    }
+    include runtimeAgent.allocationCapabilities.podmanLifecycle -> podmanGuardian with {
+      title 'Private lease-bounded liveness renewal'
+    }
+    include runtimeAgent.allocationCapabilities.codeExecutionTools -> runtimeAgent.allocationCapabilities.podmanClient with {
+      title 'One bounded command / private sandbox handle'
+    }
+    include runtimeAgent.allocationCapabilities.codeExecutionTools -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Hold ownership until no writers remain'
+    }
+    include runtimeAgent.allocationCapabilities.codeExecutionTools -> podmanGuardian with {
+      title 'Verify descendants; uncertain outcome stops container'
+    }
+    include runtimeAgent.allocationCapabilities.podmanClient -> podmanPolicy with {
+      title 'Opt-in; exact digest / owner / finite limits'
+    }
+    include runtimeAgent.allocationCapabilities.podmanClient -> localPodmanEngine with {
+      title 'Structured argv / exact IDs / bounded output'
+    }
+    include localPodmanEngine -> podmanContainer with {
+      title 'Planned lifecycle; /workspace RW, /tmp tmpfs'
+    }
+    include podmanGuardian -> podmanContainer with {
+      title 'Freeze/inventory; kill on EOF/expiry/uncertainty'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view serverPerformance {
+    title 'Operations / Server and PostgreSQL Performance'
+    description 'V32-001–003 collection/history implemented; API integration V32-005 is in progress and UI V32-006 is planned. Metrics default on, startup opt-out creates no collector/pool. No external monitoring service required. Rates use observation intervals; stale/partial/disabled periods remain explicit.'
+
+    include browser with {
+      title 'Operations Performance UI (planned)'
+    }
+    include server.performanceMonitoring.performanceApi with {
+      title 'Current / History Read API (planned)'
+    }
+    include server.performanceMonitoring.httpAccounting with {
+      title 'Public + Private HTTP Counters / Histograms'
+    }
+    include server.performanceMonitoring.serverSampler with {
+      title '15 s Process / HTTP / Working-pool Samples'
+    }
+    include server.performanceMonitoring.liveFrames with {
+      title 'Last Hour in Memory / Group Freshness'
+    }
+    include server.performanceMonitoring.postgresCollector with {
+      title '60 s Statistics / 300 s Database Size'
+    }
+    include server.performanceMonitoring.diagnosticPool with {
+      title 'Separate Single-connection Performance Pool'
+    }
+    include server.performanceMonitoring.historyWriter with {
+      title 'Minute Writer / Bounded Cleanup'
+    }
+    include artifactDatabase with {
+      title 'Current Database'
+    }
+    include artifactDatabase.performanceMinutes with {
+      title 'Generation-keyed 7-day Minute History'
+    }
+
+    exclude * -> *
+    include browser -> server.performanceMonitoring.performanceApi with {
+      title 'Visible-only 15 s polling / bounded range reads'
+    }
+    include server.performanceMonitoring.performanceApi -> server.performanceMonitoring.liveFrames with {
+      title 'Memory-only current / last-hour fine series'
+    }
+    include server.performanceMonitoring.performanceApi -> artifactDatabase.performanceMinutes with {
+      title 'Authorized request pool: <= 1000 points / 7 days'
+    }
+    include server.performanceMonitoring.httpAccounting -> server.performanceMonitoring.serverSampler with {
+      title 'Fixed dimensions; observer traffic excluded'
+    }
+    include server.performanceMonitoring.serverSampler -> server.performanceMonitoring.liveFrames with {
+      title 'Bounded frames; no forced GC or SQL'
+    }
+    include server.performanceMonitoring.postgresCollector -> server.performanceMonitoring.diagnosticPool with {
+      title 'Serial, separately bounded queries'
+    }
+    include server.performanceMonitoring.postgresCollector -> server.performanceMonitoring.liveFrames with {
+      title 'Original observedAt / partial or unknown groups'
+    }
+    include server.performanceMonitoring.liveFrames -> server.performanceMonitoring.historyWriter with {
+      title 'Nonblocking minute aggregates / ten pending records'
+    }
+    include server.performanceMonitoring.historyWriter -> server.performanceMonitoring.diagnosticPool with {
+      title 'Bounded writes / retention; no work-pool contention'
+    }
+    include server.performanceMonitoring.diagnosticPool -> artifactDatabase with {
+      title 'Fixed aggregate SELECTs / maintenance only'
+    }
+    include server.performanceMonitoring.historyWriter -> artifactDatabase.performanceMinutes with {
+      title 'Idempotent generation/minute; gaps survive restart'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view allocationPerformance {
+    title 'Operations / Allocation Resource Reports and History'
+    description 'V32-004 Runtime sampler implemented; Server request/policy/ingestion/history integration V32-005 is in progress, UI planned. CPU and observed RSS peak cover only the Runtime process during ownership, excluding idle/release, children and Podman. No live Runtime polling or per-allocation time series.'
+
+    include browser with {
+      title 'Completed Allocations / Run Attempts (planned)'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Trusted Allocation Identity / Optional Policy'
+    }
+    include artifactDatabase.allocationPolicy with {
+      title 'Pinned Requested / Disabled / Unsupported'
+    }
+    include runtimeAgent.agentControl.controlEndpoint with {
+      title 'Private Allocation Control Endpoint'
+    }
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Allocation Ownership / Teardown'
+    }
+    include runtimeAgent.workerExecution.resourceSampler with {
+      title 'Boundary CPU/RSS + 15 s RSS Accumulator'
+    }
+    include runtimeAgent.workerExecution.executionCollector with {
+      title 'Cached Finalize / Abort Report'
+    }
+    include server.performanceMonitoring.allocationResources with {
+      title 'Resource Validation / Terminal History (planned)'
+    }
+    include server.runtimeOperations.telemetry with {
+      title 'Existing Report Ingestion / Retention'
+    }
+    include artifactDatabase.executionReports with {
+      title 'Existing Reports / 30-day Terminal Retention'
+    }
+    include server.workspaceLifecycle.runStore with {
+      title 'Durable Terminal Allocations / Stages'
+    }
+
+    exclude * -> *
+    include server.runtimeOperations.controlPlane -> artifactDatabase.allocationPolicy with {
+      title 'Persist original decision; never affect placement'
+    }
+    include server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint with {
+      title 'Existing private control protocol'
+    }
+    include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.agentControl.slotManager with {
+      title 'Prepare / finalize / abort / release'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.resourceSampler with {
+      title 'Requested only; start before prepare, freeze after teardown'
+    }
+    include runtimeAgent.workerExecution.resourceSampler -> runtimeAgent.workerExecution.executionCollector with {
+      title 'Constant-size runtime.resources; explicit partial/unknown'
+    }
+    include runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane with {
+      title 'Existing cached final report transport'
+    }
+    include server.runtimeOperations.controlPlane -> server.performanceMonitoring.allocationResources with {
+      title 'Validate optional block independently'
+    }
+    include server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy with {
+      title 'History uses pinned policy, not current switch'
+    }
+    include server.performanceMonitoring.allocationResources -> server.runtimeOperations.telemetry with {
+      title 'Invalid resources do not poison valid execution reports'
+    }
+    include server.runtimeOperations.telemetry -> artifactDatabase.executionReports with {
+      title 'Existing immutable/idempotent report storage'
+    }
+    include server.performanceMonitoring.allocationResources -> server.workspaceLifecycle.runStore with {
+      title 'Owner-filtered keyset; missing/late reports stay visible'
+    }
+    include browser -> server.performanceMonitoring.allocationResources with {
+      title 'Bounded history after live registry release'
+    }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view processBootstrap {
+    title 'Operations / Process Settings and Local Go Profiling'
+    description 'V36-001 and V32-007 implemented. Optional ServerConfig is non-secret bootstrap, separate from published execution configs and durable Scheduler settings. Defaults < YAML < environment < CLI; restart-only. pprof defaults off independently of performance collection; no browser profiling API.'
+
+    include operator with {
+      title 'Deployment / Diagnostic Operator'
+    }
+    include serverConfigFile with {
+      title 'Optional Strict ServerConfig YAML'
+    }
+    include server.identityConfiguration.processSettings with {
+      title 'Immutable Process Settings'
+    }
+    include server.artifactPlane.blobStore with {
+      title 'Installation Blob Selection'
+      navigateTo artifactBackends
+    }
+    include server.performanceMonitoring with {
+      title 'Performance Collection Switch'
+      navigateTo serverPerformance
+    }
+    include server.profilingListener with {
+      title 'Independent Loopback pprof Listener'
+    }
+    include server.artifactPlane.gitImporter with {
+      title 'Planned Git Import / Remote Allowlist'
+      navigateTo gitArtifacts
+    }
+
+    exclude * -> *
+    include operator -> serverConfigFile with {
+      title 'Non-secret paths / switches; no DB URL or key bytes'
+    }
+    include server.identityConfiguration.processSettings -> serverConfigFile with {
+      title 'Strict 64 KiB YAML; relative paths beside file'
+    }
+    include server.identityConfiguration.processSettings -> server.artifactPlane.blobStore with {
+      title 'Validate backend/path before readiness'
+    }
+    include server.identityConfiguration.processSettings -> server.performanceMonitoring with {
+      title 'Metrics default on; opt-out skips new resources'
+    }
+    include server.identityConfiguration.processSettings -> server.profilingListener with {
+      title 'Independent opt-in / finite shutdown'
+    }
+    include server.identityConfiguration.processSettings -> server.artifactPlane.gitImporter with {
+      title 'Allowlisted remotes / read-only SSH trust'
+    }
+    include operator -> server.profilingListener with {
+      title 'Local/SSH tunnel; CPU <= 60 s, trace <= 10 s'
     }
 
     autoLayout LeftRight 100 70
