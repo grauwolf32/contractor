@@ -3,7 +3,7 @@ id: "V37-004"
 title: "Distinguish format-compatible input suggestions from reviewed Run inputs"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V37-002", "V23-007"]
 languages: ["typescript"]
@@ -20,7 +20,10 @@ context:
   decision: >-
     Keep unique-candidate suggestions, but mark automatically chosen inputs as needing review.
     Require explicit selection or confirmation per populated suggested slot before submission;
-    do not claim that confirmation validates content. Optional empty slots remain optional.
+    do not claim that confirmation validates content. Store confirmation against the input slot
+    and exact ArtifactRef. An explicit picker choice or upload confirms only its originating slot;
+    a changed automatic suggestion invalidates only that slot. Optional empty slots remain
+    optional.
   specification: >-
     Amend docs/spec/17-projects-and-queue.md and docs/spec/06-server-ui-and-operations.md with
     the distinction between candidate compatibility, reviewed form readiness and Server
@@ -53,7 +56,8 @@ requirements:
   - id: "R2"
     text: >-
       Users may intentionally confirm the same exact artifact for multiple slots. A data refetch
-      must not reset a deliberate unchanged selection or confirmation.
+      must not reset a deliberate unchanged selection or confirmation. Exact confirmed revisions
+      remain available in the retained draft even when a mutable current binding advances.
   - id: "R3"
     text: >-
       Recommended remains an advisory format-based view; All workflows and explicit
