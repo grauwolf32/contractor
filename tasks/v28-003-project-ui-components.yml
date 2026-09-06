@@ -3,7 +3,7 @@ id: V28-003
 title: Split the Project detail page by user operation
 milestone: implementation-maintainability
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V23-010, V24-005]
 languages: [typescript]

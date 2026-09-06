@@ -60,6 +60,85 @@ function renderProjectApplication(api: PublicAPI, path: string) {
 }
 
 describe("Project routes", () => {
+  it.each(["metadata", "target"] as const)(
+    "retains the unsaved %s draft and its exact revision after a Project refresh",
+    async (operation) => {
+      let currentProject = { ...project };
+      let projectReads = 0;
+      const writes: Request[] = [];
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          const url = new URL(request.url);
+          if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+          if (url.pathname === "/v1/projects/project_example") {
+            if (request.method === "PATCH") {
+              writes.push(request.clone());
+              return jsonResponse(
+                {
+                  code: "precondition_failed",
+                  message: "resource revision precondition failed",
+                  retryable: false,
+                  requestId: "request-stale-project",
+                },
+                { status: 412 },
+              );
+            }
+            projectReads += 1;
+            return jsonResponse(currentProject, {
+              headers: { ETag: `"${currentProject.revision}"` },
+            });
+          }
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        }),
+      );
+      renderProjectApplication(api, "/projects/project_example");
+      const user = userEvent.setup();
+      await screen.findByRole("heading", { name: "Payment service" });
+      await user.click(
+        screen.getByRole("button", {
+          name: operation === "metadata" ? "Edit metadata" : "Configure target",
+        }),
+      );
+      const label = operation === "metadata" ? "Name" : "Application URL";
+      const draft =
+        operation === "metadata"
+          ? "Unsaved name"
+          : "https://draft.example.test/api";
+      await user.clear(screen.getByLabelText(label));
+      await user.type(screen.getByLabelText(label), draft);
+      expect(projectReads).toBe(1);
+
+      currentProject = { ...project, name: "Updated elsewhere", revision: "2" };
+      await user.click(
+        within(
+          screen
+            .getByRole("heading", { name: "Payment service" })
+            .closest("header")!,
+        ).getByRole("button", { name: "Refresh" }),
+      );
+      await screen.findByRole("heading", { name: "Updated elsewhere" });
+      expect(projectReads).toBe(2);
+      expect(screen.getByLabelText(label)).toHaveValue(draft);
+      await user.click(
+        screen.getByRole("button", {
+          name: operation === "metadata" ? "Save exact update" : "Save target",
+        }),
+      );
+      await screen.findByText("resource revision precondition failed");
+      expect(screen.getByLabelText(label)).toHaveValue(draft);
+      expect(writes).toHaveLength(1);
+      expect(writes[0]?.headers.get("If-Match")).toBe('"1"');
+      expect(writes[0]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+      await expect(writes[0]?.json()).resolves.toEqual(
+        operation === "metadata"
+          ? { name: draft, description: project.description }
+          : { httpTarget: { url: draft } },
+      );
+    },
+  );
+
   it("confirms the exact name, shows durable progress, and reconciles deletion to 404", async () => {
     const deleteRequests: Request[] = [];
     let deleting = false;
