@@ -55,6 +55,10 @@ func (r *PostgresRepository) Write(
 		return WriteResult{}, err
 	}
 	digest := blob.Digest
+	reusableKey, err := reusableBlobKey(ctx, r.db, blob)
+	if err != nil {
+		return WriteResult{}, err
+	}
 	// Scope creation is intentionally a separate statement. Under READ COMMITTED, a
 	// concurrent INSERT ... DO NOTHING that waited for the winning transaction
 	// is visible to the binding statement below; a same-statement CTE would keep
@@ -103,7 +107,11 @@ WITH scope_ready AS (
     INSERT INTO artifact_blobs (sha256, payload, size_bytes, backend, object_key)
     SELECT $8, $9, $10, $12, $13 FROM claimed_binding
     ON CONFLICT (sha256) DO UPDATE
-    SET sha256 = EXCLUDED.sha256
+    SET sha256 = EXCLUDED.sha256,
+        object_key = CASE
+            WHEN artifact_blobs.backend = 'filesystem'
+             AND artifact_blobs.object_key IS DISTINCT FROM $14::text
+            THEN EXCLUDED.object_key ELSE artifact_blobs.object_key END
     WHERE artifact_blobs.backend = EXCLUDED.backend
       AND (artifact_blobs.backend = 'filesystem' OR artifact_blobs.payload = EXCLUDED.payload)
       AND artifact_blobs.size_bytes = EXCLUDED.size_bytes
@@ -125,7 +133,7 @@ SELECT inserted_revision.revision, $11::text, $10::bigint,
        claimed_binding.created_at, inserted_revision.created_at, (SELECT object_key FROM inserted_blob)
 FROM inserted_revision, claimed_binding`,
 		scope.kind, scope.id, target.Namespace, target.Name, revision, expectedRevision,
-		versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key),
+		versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key), reusableKey,
 	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt, &storedObjectKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)

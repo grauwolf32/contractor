@@ -49,6 +49,10 @@ func (r *PostgresRepository) WriteAuditArtifact(
 		return WriteResult{}, err
 	}
 	digest := blob.Digest
+	reusableKey, err := reusableBlobKey(ctx, r.db, blob)
+	if err != nil {
+		return WriteResult{}, err
+	}
 
 	if _, err := r.db.Exec(ctx, `
 INSERT INTO artifact_scopes (scope_kind, scope_id)
@@ -82,7 +86,11 @@ WITH scope_ready AS (
     INSERT INTO artifact_blobs (sha256, payload, size_bytes, backend, object_key)
     SELECT $7, $8, $9, $11, $12 FROM created_binding
     ON CONFLICT (sha256) DO UPDATE
-    SET sha256 = EXCLUDED.sha256
+    SET sha256 = EXCLUDED.sha256,
+        object_key = CASE
+            WHEN artifact_blobs.backend = 'filesystem'
+             AND artifact_blobs.object_key IS DISTINCT FROM $13::text
+            THEN EXCLUDED.object_key ELSE artifact_blobs.object_key END
     WHERE artifact_blobs.backend = EXCLUDED.backend
       AND (artifact_blobs.backend = 'filesystem' OR artifact_blobs.payload = EXCLUDED.payload)
       AND artifact_blobs.size_bytes = EXCLUDED.size_bytes
@@ -102,7 +110,7 @@ SELECT inserted_revision.revision, $10::text, $9::bigint,
        created_binding.created_at, inserted_revision.created_at, (SELECT object_key FROM inserted_blob)
 FROM inserted_revision, created_binding`,
 		projectScope.kind, projectScope.id, target.Namespace, target.Name,
-		revision, versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key),
+		revision, versionID, digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend), nullableBlobKey(blob.Key), reusableKey,
 	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt, &storedObjectKey)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return WriteResult{}, &ConflictError{Ref: target}

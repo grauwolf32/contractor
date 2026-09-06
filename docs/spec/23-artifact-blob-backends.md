@@ -138,6 +138,19 @@ writers attach only a complete verified winning object; losing files are
 best-effort removed. Scope forks continue to reuse the existing immutable blob.
 Use rooted filesystem operations and reject symlink/special-file escapes.
 
+Before deduplication, verify the candidate and any existing filesystem object,
+including size and digest. The publication statement may reuse only the exact
+physical key that was verified. If content is missing, or a concurrent writer
+has installed a different unverified key, atomically attach the complete upload
+candidate instead. Existing revisions referencing the same SHA then read the
+replacement bytes without changing logical revisions or content identity.
+Corruption, permission/I/O errors and cancellation are not treated as absence.
+This applies to ordinary writes and Controller-generated Audit artifacts and
+preserves caller-owned transaction/rollback boundaries. Verification reads are
+payload- and transfer-capacity-bounded; payload staging still precedes publication.
+Do not eagerly unlink a displaced generation: an in-flight reader may have
+already resolved that key. Such unreferenced files remain for offline cleanup.
+
 A process/pod/storage failure can leave an orphan or lose bytes. No distributed
 transaction, durable upload-intent queue, automatic reconstruction, background
 reconciliation service or power-loss durability guarantee is required here.
