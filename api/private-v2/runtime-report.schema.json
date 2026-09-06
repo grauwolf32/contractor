@@ -102,15 +102,7 @@
       "type": "object"
     },
     "resources": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/RuntimeResources"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
+      "$ref": "#/$defs/RuntimeResources"
     }
   },
   "required": [

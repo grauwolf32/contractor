@@ -72,6 +72,10 @@ def test_performance_golden_resource_errors_are_isolated(case: dict) -> None:
     report = json.loads(FINAL.read_text())
     original_worker = report["report"]["worker"].copy()
     report["report"]["runtime"]["resources"] = case["value"]
+    if case["schemaInvalid"]:
+        assert not schema_validator("private-v2/runtime-report").is_valid(
+            report["report"]["runtime"]
+        )
     final = decode_private_v2(AllocationFinalResponse, json.dumps(report))
     assert final.report.runtime.resources is None
     assert final.report.runtime.resources_error == "invalid_report"
