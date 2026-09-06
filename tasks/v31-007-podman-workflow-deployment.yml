@@ -3,7 +3,7 @@ id: V31-007
 title: Add a local Podman workflow and reproducible deployment instructions
 milestone: podman-allocation-execution
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V31-006]
 languages: [go, python]
