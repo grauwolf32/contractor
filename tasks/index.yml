@@ -52,6 +52,10 @@ fixed_decisions:
     packaging: uv with a src-layout package
     agent_framework: Google ADK Python
     a2a_sdk: Official a2a-sdk Python package
+    llm_client: >-
+      A Contractor-owned ADK BaseLlm adapter speaks openai-compatible@1 directly
+      through allocation-owned AsyncOpenAI. LiteLLM remains an external shared
+      Gateway implementation and is not imported by each Runtime process.
   planner:
     mvp: >-
       passthrough@1 is deterministic Go code and makes one A2A call. It records

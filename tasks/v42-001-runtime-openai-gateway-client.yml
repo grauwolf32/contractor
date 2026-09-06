@@ -1,0 +1,120 @@
+schema_version: "1.0"
+id: V42-001
+title: "Replace per-Runtime LiteLLM SDK with a bounded OpenAI-compatible ADK client"
+milestone: runtime-memory-efficiency
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: ["python", "markdown", "yaml"]
+
+goal: >-
+  Reduce each Python Runtime Agent's steady memory footprint while preserving
+  the external LLM Gateway boundary, Worker behavior and accounting contracts.
+context:
+  architecture: >-
+    LiteLLM remains the shared external Gateway and remains authoritative for
+    virtual keys, routing, quotas and spend. Only the allocation-local Python
+    model client changes: Runtime speaks the configured openai-compatible@1
+    protocol directly instead of importing the universal LiteLLM SDK.
+  measured_problem: >-
+    On the pinned Runtime environment, importing litellm retained roughly 119
+    MiB and raised RSS by roughly 130 MiB per process. A full-lifecycle prototype
+    using AsyncOpenAI and an ADK BaseLlm adapter stabilized near 183 MiB instead
+    of roughly 287 MiB for a warmed current Runtime.
+  compatibility: >-
+    AgentTemplate, ModelPolicy, RuntimeSettings, AllocationSpec, Planner, Server,
+    Gateway credential management and the external Gateway wire contract do not
+    change. The adapter must declare support for simultaneous tools and output
+    schema because Contractor uses both ordinary Worker tools and a mandatory
+    structured result finalizer.
+  security: >-
+    Provider exceptions and request data may contain credentials or model-visible
+    content. Preserve the existing secret-free GatewayModelError boundary, zero
+    hidden retries, allocation-owned HTTP/proxy client, cancellation propagation,
+    bounded timeout and credential erasure/close behavior.
+
+scope:
+  in:
+    - "Implement a Contractor-owned OpenAICompatibleGatewayLlm over google.adk.models.BaseLlm and openai.AsyncOpenAI."
+    - "Translate ADK system/content/function-call/function-response messages, tool declarations and response schemas to the OpenAI-compatible chat-completions protocol."
+    - "Translate non-streaming model text, reasoning text, tool calls, finish reason and token usage back to ADK LlmResponse."
+    - "Keep the current external LiteLLM Gateway and its Server-side virtual-key lifecycle unchanged."
+    - "Remove the Runtime's direct litellm dependency and prove the production import graph does not load litellm."
+    - "Document the runtime-only boundary and measured rationale in the specification and Runtime README."
+  out:
+    - "Optimizing or replacing the shared LiteLLM proxy process, its PostgreSQL database, UI or key APIs."
+    - "Changing Workflow, AgentTemplate, ModelPolicy, Scheduler, Planner or AllocationSpec schemas."
+    - "Adding provider-specific routing to Runtime, hidden retries, streaming UI events or a Responses API migration."
+    - "Depending on the experimental google.adk.labs.openai package at runtime."
+
+deliverables:
+  - path: runtime/src/contractor_runtime/openai_gateway_llm.py
+    description: "Bounded ADK BaseLlm adapter for the configured OpenAI-compatible Gateway."
+  - path: runtime/src/contractor_runtime/model_client.py
+    description: "Allocation-owned AsyncOpenAI construction and explicit secret/client cleanup."
+  - path: runtime/src/contractor_runtime/adk_runtime.py
+    description: "Worker model factory using the new adapter without LiteLLM imports."
+  - path: runtime/tests/test_openai_gateway_llm.py
+    description: "Offline request/response, structured-output, tool, usage, error and cleanup contract tests."
+  - path: runtime/tests/test_dependency_smoke.py
+    description: "Dependency/import regression coverage proving the Runtime no longer requires LiteLLM."
+  - path: docs/spec/02-runtime-and-a2a.md
+    description: "Backend-neutral Gateway and direct Runtime client boundary."
+  - path: runtime/README.md
+    description: "Runtime implementation and memory-boundary note."
+
+requirements:
+  - id: R1
+    text: >-
+      One configured AsyncOpenAI client performs each request with the exact
+      allocation Gateway URL/token, bounded timeout and max_retries=0; proxy
+      routing remains allocation-owned and never mutates process globals.
+  - id: R2
+    text: >-
+      ADK Content roles, multipart text, function calls/responses and function
+      declarations round-trip without exposing allocation identities or changing
+      model-visible Worker instructions.
+  - id: R3
+    text: >-
+      response_schema uses strict json_schema and application/json without a
+      schema uses json_object. Usage preserves prompt, completion, total and
+      cached token counts needed by Worker budgets and summarization.
+  - id: R4
+    text: >-
+      asyncio cancellation propagates unchanged. All other provider failures are
+      reduced to GatewayModelError with only a bounded safe provider type and no
+      retained exception. Cleanup clears credentials and closes only a client
+      owned by the model; shared proxy adapter HTTP clients remain adapter-owned.
+  - id: R5
+    text: >-
+      The Runtime lock and production modules contain no litellm dependency or
+      import. The external Gateway contract and Server LiteLLM integration remain
+      unchanged.
+
+acceptance_criteria:
+  - id: A1
+    given: "An ADK request with system text, tools, tool history and a response schema"
+    when: "The Runtime invokes the configured Gateway"
+    then: "The exact compatible chat-completions request is emitted and a text or tool-call response becomes a valid ADK LlmResponse."
+  - id: A2
+    given: "Gateway usage including cached tokens"
+    when: "The response is projected through Worker instrumentation"
+    then: "Prompt, completion, total and cached counts remain available to existing deterministic budget accounting."
+  - id: A3
+    given: "Cancellation, provider failure, ordinary finalize, abort or release"
+    when: "The model boundary exits"
+    then: "Cancellation is not wrapped, errors contain no secret/provider message, and owned client resources and credentials are cleared idempotently."
+  - id: A4
+    given: "A clean synchronized Runtime environment"
+    when: "Production Runtime modules and one full offline Worker lifecycle are exercised"
+    then: "LiteLLM is not installed or imported and ordinary tools plus the structured result finalizer still complete."
+
+tests:
+  - command: "cd runtime && uv sync --locked && uv run pytest tests/test_openai_gateway_llm.py tests/test_dependency_smoke.py tests/test_adk_runtime.py tests/test_result_finalizer.py tests/test_worker_summarizer.py tests/test_http_proxy_adapter.py"
+    covers: ["A1", "A2", "A3", "A4"]
+  - command: "cd runtime && uv run ruff check src tests && uv run ruff format --check src tests"
+    covers: ["A1", "A3", "A4"]
+  - command: "cd runtime && uv run python -c \"import sys; import contractor_runtime.cli; assert 'litellm' not in sys.modules\""
+    covers: ["A4"]
+
