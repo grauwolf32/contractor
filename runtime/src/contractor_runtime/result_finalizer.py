@@ -144,6 +144,12 @@ class WorkerResultFinalizer:
             session_created = True
             await self._observer.before_result_finalizer_call(invocation_id=invocation_id)
             call_started = True
+            capture = getattr(self._observer, "capture_result_finalizer_content", None)
+            if callable(capture):
+                await capture(
+                    invocation_id=invocation_id,
+                    input={"systemInstruction": _SYSTEM_INSTRUCTION, "contents": prompt},
+                )
             try:
                 async for event in runner.run_async(
                     user_id=user_id,
@@ -161,6 +167,8 @@ class WorkerResultFinalizer:
                 )
                 call_started = False
                 raise
+            if callable(capture):
+                await capture(invocation_id=invocation_id, output=candidate)
             await self._observer.after_result_finalizer_call(
                 invocation_id=invocation_id,
                 usage=model.usage,

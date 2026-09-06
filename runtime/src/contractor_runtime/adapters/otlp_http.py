@@ -1,8 +1,9 @@
-"""Bounded content-free ``otlp-http@1`` Worker trace exporter."""
+"""Bounded ``otlp-http@1`` exporter with explicit trusted-sink content capture."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import time
@@ -21,6 +22,7 @@ from opentelemetry.proto.resource.v1.resource_pb2 import Resource
 from opentelemetry.proto.trace.v1.trace_pb2 import ResourceSpans, ScopeSpans, Span, Status
 
 from contractor_runtime import __version__
+from contractor_runtime.adapters.content import MAX_CONTENT_BYTES
 from contractor_runtime.adapters.host import (
     AdapterFactoryError,
     AdapterHandles,
@@ -113,6 +115,17 @@ class _OTLPSpan(RuntimeSpan):
         self._started_unix_ns = started_unix_ns
         self._started_monotonic_ns = started_monotonic_ns
         self._ended = False
+        self.capture_content = instrumentation.capture_content
+        self._content: dict[str, str] = {}
+
+    def set_content(self, field: str, value: str) -> None:
+        if (
+            self.capture_content
+            and not self._ended
+            and field in {"input", "output"}
+            and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
+        ):
+            self._content["langfuse.observation." + field] = value
 
     def end(
         self,
@@ -135,8 +148,10 @@ class _OTLPSpan(RuntimeSpan):
             started_unix_ns=self._started_unix_ns,
             finished_unix_ns=self._started_unix_ns + duration_ns,
             attributes=merged,
+            content=self._content,
         )
         self._attributes.clear()
+        self._content.clear()
 
     def __repr__(self) -> str:
         return f"_OTLPSpan(name={self._name!r}, ended={self._ended!r})"
@@ -156,7 +171,9 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         monotonic_ns: Callable[[], int] = time.perf_counter_ns,
         max_pending_spans: int = MAX_PENDING_SPANS,
         max_pending_bytes: int = MAX_PENDING_BYTES,
+        capture_content: bool = False,
     ) -> None:
+        self.capture_content = capture_content
         self._metrics = metrics
         self._secret_values = tuple(value for value in secret_values if value)
         self._wall_time_ns = wall_time_ns
@@ -202,6 +219,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         started_unix_ns: int,
         finished_unix_ns: int,
         attributes: Mapping[str, TelemetryAttribute],
+        content: Mapping[str, str] | None = None,
     ) -> None:
         if self._closed:
             return
@@ -233,6 +251,24 @@ class OTLPInstrumentation(RuntimeInstrumentation):
                     )
                 ),
             )
+            if name == "contractor.worker.model":
+                span.attributes.add(
+                    key="langfuse.observation.type", value=AnyValue(string_value="generation")
+                )
+                if "model.alias" in safe_attributes:
+                    span.attributes.add(
+                        key="gen_ai.request.model",
+                        value=AnyValue(string_value=str(safe_attributes["model.alias"])),
+                    )
+            if self.capture_content:
+                for key, value in (content or {}).items():
+                    if (
+                        key in {"langfuse.observation.input", "langfuse.observation.output"}
+                        and len(value.encode("utf-8")) <= MAX_CONTENT_BYTES
+                    ):
+                        # Content goes directly to the explicitly trusted sink,
+                        # never through metadata sanitization or log fields.
+                        span.attributes.add(key=key, value=AnyValue(string_value=value))
             encoded = span.SerializeToString()
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
@@ -352,6 +388,7 @@ class OTLPHTTPAdapter:
             resource_attributes,
             secret_values=secret_values,
             run_metadata_labels=context.run_metadata_labels,
+            capture_content=settings.capture_content,
         )
         self.handles = AdapterHandles(instrumentation=self._instrumentation)
         self._endpoint = settings.endpoint
@@ -472,6 +509,23 @@ async def _accepted_response(response: httpx.Response) -> bool:
             if len(body) + len(chunk) > MAX_RESPONSE_BYTES:
                 return False
             body.extend(chunk)
+        if body and "application/json" in response.headers.get("content-type", ""):
+            value = json.loads(body)
+            if not isinstance(value, dict):
+                return False
+            # Langfuse v3 acknowledges its durable ingestion queue job as JSON,
+            # even when the request and Accept header use OTLP protobuf.
+            if value.get("name") == "otel-ingestion-job":
+                return isinstance(value.get("id"), str) and bool(value["id"])
+            if set(value) - {"partialSuccess"}:
+                return False
+            partial = value.get("partialSuccess", {})
+            return (
+                isinstance(partial, dict)
+                and not (set(partial) - {"rejectedSpans", "errorMessage"})
+                and partial.get("rejectedSpans", 0) in (0, "0")
+                and not partial.get("errorMessage")
+            )
         decoded = ExportTraceServiceResponse.FromString(bytes(body))
     except (DecodeError, ValueError):
         return False

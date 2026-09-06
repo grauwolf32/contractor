@@ -145,6 +145,10 @@ func (p *passthroughPlanner) Run(
 	workerCompletion, err := p.invoker.Invoke(
 		invokeContext, p.binding, cloneWorkerHandle(p.handle), cloneStageRequest(p.request),
 	)
+	telemetry.CapturePlannerInput(workerSpan, func() any { return p.request })
+	if err == nil {
+		telemetry.CapturePlannerOutput(workerSpan, func() any { return workerCompletion })
+	}
 	invokeDurationMS = max(0, time.Since(invokeStarted).Milliseconds())
 	if err != nil {
 		failure := FailureFrom(err)

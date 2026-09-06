@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -80,7 +82,8 @@ func (*OTLPHTTPPlannerAdapterFactory) Create(
 		secrets = append(secrets, value.Reveal())
 	}
 	result := &otlpHTTPPlannerTelemetry{
-		endpoint: settings.Endpoint, headers: settings.Headers,
+		captureContent: settings.CaptureContent,
+		endpoint:       settings.Endpoint, headers: settings.Headers,
 		flushTimeout: settings.FlushTimeout, resource: settings.Resource.clone(),
 		runMetadataLabels: settings.RunMetadataLabels.Clone(),
 		client:            client, ownedTransport: true, traceID: traceID,
@@ -91,6 +94,7 @@ func (*OTLPHTTPPlannerAdapterFactory) Create(
 }
 
 type otlpHTTPPlannerTelemetry struct {
+	captureContent    bool
 	mu                sync.Mutex
 	flushMu           sync.Mutex
 	endpoint          string
@@ -116,6 +120,22 @@ type otlpPlannerSpan struct {
 	attributes PlannerSpanAttributes
 	startedAt  time.Time
 	once       sync.Once
+	contentMu  sync.Mutex
+	content    map[string]string
+	ended      bool
+}
+
+func (s *otlpPlannerSpan) capturesContent() bool { return s.owner.captureContent }
+func (s *otlpPlannerSpan) setContent(field, value string) {
+	s.contentMu.Lock()
+	defer s.contentMu.Unlock()
+	if s.ended || !s.owner.captureContent || len(value) > MaxContentBytes {
+		return
+	}
+	if s.content == nil {
+		s.content = map[string]string{}
+	}
+	s.content[field] = value
 }
 
 func (o *otlpHTTPPlannerTelemetry) Instrumentation() PlannerInstrumentation {
@@ -137,8 +157,12 @@ func (i otlpPlannerInstrumentation) StartSpan(
 
 func (s *otlpPlannerSpan) End(outcome string, attributes PlannerSpanAttributes) {
 	s.once.Do(func() {
+		s.contentMu.Lock()
+		defer s.contentMu.Unlock()
+		s.ended = true
 		mergePlannerSpanAttributes(&s.attributes, attributes)
-		s.owner.enqueue(s.name, s.startedAt, time.Now(), outcome, s.attributes)
+		s.owner.enqueue(s.name, s.startedAt, time.Now(), outcome, s.attributes, s.content)
+		s.content = nil
 	})
 }
 
@@ -148,6 +172,7 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	finishedAt time.Time,
 	outcome string,
 	attributes PlannerSpanAttributes,
+	content map[string]string,
 ) {
 	if _, ok := allowedPlannerOutcomes[outcome]; !ok {
 		outcome = "failed"
@@ -169,6 +194,19 @@ func (o *otlpHTTPPlannerTelemetry) enqueue(
 	metadataLabels := o.runMetadataLabels.Clone()
 	o.mu.Unlock()
 	values := plannerAttributeValues(attributes, secrets)
+	if name == PlannerSpanModel {
+		values["langfuse.observation.type"] = "generation"
+		if model, ok := values["model.alias"]; ok {
+			values["gen_ai.request.model"] = model
+		}
+	}
+	if o.captureContent {
+		for key, value := range content {
+			if (key == "langfuse.observation.input" || key == "langfuse.observation.output") && len(value) <= MaxContentBytes {
+				values[key] = value
+			}
+		}
+	}
 	if name == PlannerSpanInvocation {
 		for key, value := range plannerRunMetadataLabelAttributes(metadataLabels, secrets) {
 			values[key] = value
@@ -273,7 +311,22 @@ func (o *otlpHTTPPlannerTelemetry) Flush(ctx context.Context) PlannerExportResul
 	}
 	if len(body) != 0 {
 		var decoded collectortracev1.ExportTraceServiceResponse
-		if proto.Unmarshal(body, &decoded) != nil {
+		var decodeErr error
+		if strings.Contains(response.Header.Get("Content-Type"), "application/json") {
+			// Langfuse v3 returns its queue acknowledgement for protobuf requests.
+			var job struct {
+				Name string `json:"name"`
+				ID   string `json:"id"`
+			}
+			if json.Unmarshal(body, &job) == nil && job.Name == "otel-ingestion-job" && job.ID != "" {
+				decodeErr = nil
+			} else {
+				decodeErr = protojson.Unmarshal(body, &decoded)
+			}
+		} else {
+			decodeErr = proto.Unmarshal(body, &decoded)
+		}
+		if decodeErr != nil || decoded.GetPartialSuccess().GetRejectedSpans() != 0 || decoded.GetPartialSuccess().GetErrorMessage() != "" {
 			return PlannerExportResult{Attempted: true, ErrorCode: "delivery_failed"}
 		}
 	}

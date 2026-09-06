@@ -139,6 +139,8 @@ def test_otlp_protobuf_is_bounded_content_free_and_header_scoped() -> None:
     assert len(model_attributes["model.alias"].encode()) <= MAX_STRING_ATTRIBUTE_BYTES
     assert model_attributes["tokens.total"] == 18
     assert set(model_attributes) <= {
+        "langfuse.observation.type",
+        "gen_ai.request.model",
         "operation.kind",
         "model.alias",
         "outcome",

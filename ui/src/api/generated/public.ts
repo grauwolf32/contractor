@@ -2585,8 +2585,8 @@ export interface components {
             /** Format: uri */
             endpoint: string;
             credential?: components["schemas"]["RuntimeCredentialId"];
-            /** @constant */
-            captureContent?: false;
+            /** @description Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default. */
+            captureContent?: boolean;
             flushTimeoutSeconds?: number;
         };
         RuntimeHTTPProxyConfig: {

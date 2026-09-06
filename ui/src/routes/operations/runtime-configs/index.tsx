@@ -65,10 +65,12 @@ interface ConfigDraft {
   workerTelemetryEndpoint: string;
   workerTelemetryCredential: string;
   workerTelemetryTimeout: string;
+  workerTelemetryCaptureContent: boolean;
   plannerTelemetry: boolean;
   plannerTelemetryEndpoint: string;
   plannerTelemetryCredential: string;
   plannerTelemetryTimeout: string;
+  plannerTelemetryCaptureContent: boolean;
   httpProxy: boolean;
   proxyURL: string;
   proxyCredential: string;
@@ -86,10 +88,12 @@ const emptyConfigDraft = (): ConfigDraft => ({
   workerTelemetryEndpoint: "",
   workerTelemetryCredential: "",
   workerTelemetryTimeout: "5",
+  workerTelemetryCaptureContent: false,
   plannerTelemetry: false,
   plannerTelemetryEndpoint: "",
   plannerTelemetryCredential: "",
   plannerTelemetryTimeout: "5",
+  plannerTelemetryCaptureContent: false,
   httpProxy: false,
   proxyURL: "",
   proxyCredential: "",
@@ -116,13 +120,14 @@ function telemetry(
   endpoint: string,
   credential: string,
   timeout: string,
+  captureContent: boolean,
 ): NonNullable<
   NonNullable<RuntimeConfigDocument["spec"]["worker"]>["telemetry"]
 > {
   return {
     adapter: "otlp-http@1",
     endpoint,
-    captureContent: false,
+    captureContent,
     ...(credential === "" ? {} : { credential }),
     ...(timeout === "" ? {} : { flushTimeoutSeconds: Number(timeout) }),
   };
@@ -217,6 +222,7 @@ function buildDocument(
             draft.workerTelemetryEndpoint,
             draft.workerTelemetryCredential,
             draft.workerTelemetryTimeout,
+            draft.workerTelemetryCaptureContent,
           ),
         }
       : {}),
@@ -249,6 +255,7 @@ function buildDocument(
                   draft.plannerTelemetryEndpoint,
                   draft.plannerTelemetryCredential,
                   draft.plannerTelemetryTimeout,
+                  draft.plannerTelemetryCaptureContent,
                 ),
               },
             }
@@ -387,6 +394,7 @@ function RuntimeConfigPublishForm({
             "workerTelemetryEndpoint",
             "workerTelemetryCredential",
             "workerTelemetryTimeout",
+            "workerTelemetryCaptureContent",
           ],
           [
             "plannerTelemetry",
@@ -394,52 +402,67 @@ function RuntimeConfigPublishForm({
             "plannerTelemetryEndpoint",
             "plannerTelemetryCredential",
             "plannerTelemetryTimeout",
+            "plannerTelemetryCaptureContent",
           ],
         ] as const
-      ).map(([enabled, title, endpoint, credential, timeout]) => (
-        <fieldset className="runtime-config-block" key={enabled}>
-          <legend>
+      ).map(
+        ([enabled, title, endpoint, credential, timeout, captureContent]) => (
+          <fieldset className="runtime-config-block" key={enabled}>
+            <legend>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={draft[enabled]}
+                  onChange={(event) => update(enabled, event.target.checked)}
+                />
+                {title} · otlp-http@1
+              </label>
+            </legend>
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={draft[enabled]}
-                onChange={(event) => update(enabled, event.target.checked)}
-              />
-              {title} · otlp-http@1
-            </label>
-          </legend>
-          <div className="form-grid">
-            <label>
-              OTLP traces endpoint
-              <input
                 disabled={!draft[enabled]}
-                placeholder="https://otel.example/v1/traces"
-                value={draft[endpoint]}
-                onChange={(event) => update(endpoint, event.target.value)}
+                checked={draft[captureContent]}
+                onChange={(event) =>
+                  update(captureContent, event.target.checked)
+                }
               />
+              Capture content — trust this sink with unredacted prompts,
+              responses and tool content, including any secrets they contain.
             </label>
-            <label>
-              Runtime credential ID (optional)
-              <input
-                disabled={!draft[enabled]}
-                value={draft[credential]}
-                onChange={(event) => update(credential, event.target.value)}
-              />
-            </label>
-            <label>
-              Flush timeout seconds
-              <input
-                disabled={!draft[enabled]}
-                type="number"
-                min={1}
-                step={1}
-                value={draft[timeout]}
-                onChange={(event) => update(timeout, event.target.value)}
-              />
-            </label>
-          </div>
-        </fieldset>
-      ))}
+            <div className="form-grid">
+              <label>
+                OTLP traces endpoint
+                <input
+                  disabled={!draft[enabled]}
+                  placeholder="https://otel.example/v1/traces"
+                  value={draft[endpoint]}
+                  onChange={(event) => update(endpoint, event.target.value)}
+                />
+              </label>
+              <label>
+                Runtime credential ID (optional)
+                <input
+                  disabled={!draft[enabled]}
+                  value={draft[credential]}
+                  onChange={(event) => update(credential, event.target.value)}
+                />
+              </label>
+              <label>
+                Flush timeout seconds
+                <input
+                  disabled={!draft[enabled]}
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={draft[timeout]}
+                  onChange={(event) => update(timeout, event.target.value)}
+                />
+              </label>
+            </div>
+          </fieldset>
+        ),
+      )}
 
       <fieldset className="runtime-config-block">
         <legend>

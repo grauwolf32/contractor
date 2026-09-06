@@ -13,6 +13,7 @@ from typing import Any, Protocol
 from google.adk.plugins import BasePlugin
 
 from contractor_runtime.adapters import RuntimeInstrumentation, RuntimeSpan, TelemetryAttribute
+from contractor_runtime.adapters.content import capture_span_content, model_request_content
 from contractor_runtime.metrics import (
     MetricsState,
     bind_tool_metric_correlation,
@@ -217,7 +218,6 @@ class WorkerInstrumentationPlugin(BasePlugin):
             _install_session_snapshot(invocation_context, snapshot)
 
     async def before_model_callback(self, *, callback_context: Any, llm_request: Any) -> None:
-        del llm_request
         async with self._lock:
             self._state.execution.check()
             if not self._is_active(callback_context.invocation_id):
@@ -246,6 +246,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     },
                 )
             )
+            capture_span_content(
+                self._pending_models[-1], input=lambda: model_request_content(llm_request)
+            )
             await self._publish_locked(callback_context)
 
     async def after_model_callback(self, *, callback_context: Any, llm_response: Any) -> None:
@@ -254,6 +257,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 return
             span = self._pending_models.pop(0)
             usage = llm_response.usage_metadata
+            capture_span_content(span, output=lambda: llm_response.content)
             self._metrics.record_model_usage(usage)
             self._require_reducer().record_model_usage(usage)
             _end_span(span, outcome="succeeded", attributes=_usage_attributes(usage))
@@ -333,6 +337,19 @@ class WorkerInstrumentationPlugin(BasePlugin):
             finally:
                 await self._publish_locked(None)
 
+    async def capture_result_finalizer_content(
+        self, *, invocation_id: str, input: Any = None, output: Any = None
+    ) -> None:
+        async with self._lock:
+            if not self._is_active(invocation_id):
+                return
+            span = self._pending_auxiliary_models.get("result_finalizer")
+            capture_span_content(
+                span,
+                input=(lambda: input) if input is not None else None,
+                output=(lambda: output) if output is not None else None,
+            )
+
     async def on_result_finalizer_error(self, *, invocation_id: str, error: BaseException) -> None:
         async with self._lock:
             phase = "result_finalizer"
@@ -401,6 +418,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 metric_token=metric_token,
             )
             self._pending_tools[id(tool_context)] = pending
+            capture_span_content(pending.span, input=lambda: tool_args)
             rejection = None
             raw_argument_error = getattr(owner, "contractor_raw_argument_error", None)
             if callable(raw_argument_error):
@@ -435,6 +453,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if pending is None:
                 return
             failed = pending.error is not None or _result_is_failure(result)
+            capture_span_content(pending.span, output=lambda: result)
             await self._finish_tool_locked(
                 pending,
                 failed=failed,

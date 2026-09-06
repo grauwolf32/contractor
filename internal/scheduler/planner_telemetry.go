@@ -106,8 +106,9 @@ func (s *Scheduler) newPlannerTelemetry(
 	}
 	created, err := s.options.PlannerTelemetry.Create(configuration.Adapter, telemetry.PlannerAdapterSettings{
 		Endpoint: configuration.Endpoint, Headers: headers,
-		FlushTimeout: time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
-		Resource:     resource, RunMetadataLabels: run.MetadataLabels.Clone(),
+		CaptureContent: configuration.CaptureContent,
+		FlushTimeout:   time.Duration(configuration.FlushTimeoutSeconds) * time.Second,
+		Resource:       resource, RunMetadataLabels: run.MetadataLabels.Clone(),
 	})
 	for name := range headers {
 		delete(headers, name)

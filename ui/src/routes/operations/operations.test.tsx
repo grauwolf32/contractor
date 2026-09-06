@@ -653,7 +653,16 @@ describe("Operations routes", () => {
     const telemetryGroup = screen.getByRole("group", {
       name: /Worker telemetry/,
     });
-    await user.click(within(telemetryGroup).getByRole("checkbox"));
+    await user.click(
+      within(telemetryGroup).getByRole("checkbox", {
+        name: /Worker telemetry/,
+      }),
+    );
+    const captureContent = within(telemetryGroup).getByRole("checkbox", {
+      name: /Capture content/,
+    });
+    expect(captureContent).not.toBeChecked();
+    await user.click(captureContent);
     await user.type(
       within(telemetryGroup).getByLabelText("OTLP traces endpoint"),
       "https://otel.example/v1/traces",
@@ -668,6 +677,9 @@ describe("Operations routes", () => {
       }),
     );
     expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
+    expect(publishedResource!.document.spec).toMatchObject({
+      worker: { telemetry: { captureContent: true } },
+    });
 
     const labelForm = view.container.querySelector(
       "form.runtime-label-create",

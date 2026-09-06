@@ -913,6 +913,9 @@ func (s *Scheduler) prepareAndPlan(
 		telemetry.PlannerSpanAttributes{Operation: "planner.run"},
 	)
 	instance, err := s.planners.Create(plannerRef, invocation)
+	telemetry.CapturePlannerInput(invocationSpan, func() any {
+		return map[string]any{"objective": invocation.Stage.Objective, "context": invocation.Context}
+	})
 	if err != nil {
 		invocationSpan.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: "planner_initialization_failed"})
 		s.flushPlannerTelemetry(ctx, plannerTelemetry, stageDeadline, execution.StageExecutionID)
@@ -921,6 +924,9 @@ func (s *Scheduler) prepareAndPlan(
 		})
 	}
 	candidate, err := instance.Run(ctx)
+	if err == nil {
+		telemetry.CapturePlannerOutput(invocationSpan, func() any { return candidate })
+	}
 	invocationOutcome := "succeeded"
 	invocationAttributes := telemetry.PlannerSpanAttributes{}
 	if err != nil {

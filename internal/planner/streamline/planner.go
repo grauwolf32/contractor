@@ -252,7 +252,7 @@ func (p *streamlinePlanner) newRootAgent(
 	}
 	var modelSpanMu sync.Mutex
 	var modelSpan telemetry.PlannerSpan
-	startModelSpan := func() {
+	startModelSpan := func(request *model.LLMRequest) {
 		modelSpanMu.Lock()
 		previous := modelSpan
 		modelSpan = instrumentation.StartSpan(
@@ -261,17 +261,31 @@ func (p *streamlinePlanner) newRootAgent(
 				Operation: "model.generate", ModelAlias: modelAlias,
 			},
 		)
+		telemetry.CapturePlannerInput(modelSpan, func() any {
+			if request == nil {
+				return nil
+			}
+			payload := map[string]any{"contents": request.Contents}
+			if request.Config != nil {
+				payload["systemInstruction"] = request.Config.SystemInstruction
+				payload["tools"] = request.Config.Tools
+			}
+			return payload
+		})
 		modelSpanMu.Unlock()
 		if previous != nil {
 			previous.End("failed", telemetry.PlannerSpanAttributes{ErrorCode: "planner_model_overlap"})
 		}
 	}
-	endModelSpan := func(outcome, code string) {
+	endModelSpan := func(outcome, code string, response *model.LLMResponse) {
 		modelSpanMu.Lock()
 		current := modelSpan
 		modelSpan = nil
 		modelSpanMu.Unlock()
 		if current != nil {
+			if response != nil {
+				telemetry.CapturePlannerOutput(current, func() any { return response.Content })
+			}
 			current.End(outcome, telemetry.PlannerSpanAttributes{ErrorCode: code})
 		}
 	}
@@ -284,11 +298,11 @@ func (p *streamlinePlanner) newRootAgent(
 		GenerateContentConfig: &genai.GenerateContentConfig{Temperature: &temperature},
 		Tools:                 tools,
 		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
-			func(agent.CallbackContext, *model.LLMRequest) (*model.LLMResponse, error) {
+			func(_ agent.CallbackContext, request *model.LLMRequest) (*model.LLMResponse, error) {
 				if err := state.beforeModel(); err != nil {
 					return nil, err
 				}
-				startModelSpan()
+				startModelSpan(request)
 				return nil, nil
 			},
 		},
@@ -297,9 +311,9 @@ func (p *streamlinePlanner) newRootAgent(
 				result, err := state.afterModel(response, allowed)
 				if err != nil {
 					failure := planner.FailureFrom(err)
-					endModelSpan("failed", failure.Code)
+					endModelSpan("failed", failure.Code, response)
 				} else {
-					endModelSpan("succeeded", "")
+					endModelSpan("succeeded", "", response)
 				}
 				return result, err
 			},
@@ -307,11 +321,11 @@ func (p *streamlinePlanner) newRootAgent(
 		OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{
 			func(ctx agent.CallbackContext, _ *model.LLMRequest, providerErr error) (*model.LLMResponse, error) {
 				if ctx.Err() != nil {
-					endModelSpan("cancelled", "planner_cancelled")
+					endModelSpan("cancelled", "planner_cancelled", nil)
 					return nil, providerErr
 				}
 				failure := state.providerFailure()
-				endModelSpan("failed", planner.FailureFrom(failure).Code)
+				endModelSpan("failed", planner.FailureFrom(failure).Code, nil)
 				return nil, failure
 			},
 		},

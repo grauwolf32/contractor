@@ -330,9 +330,10 @@ Workflow graph, Planner/Worker or artifact semantics. It must demonstrate:
   conflicts, performs complete
   capability placement and sends no unresolved label string as Runtime
   behavior;
-- a `debug` Run emits content-free bounded Worker telemetry to its pinned OTLP
-  endpoint, and optional Planner telemetry uses the same pinned Run config on
-  Server;
+- a `debug` Run emits bounded Worker telemetry to its pinned OTLP endpoint,
+  content-free by default or unredacted with explicit `captureContent=true`
+  for a trusted sink; optional Planner telemetry uses the same pinned Run
+  config on Server;
 - a `caido` Run applies HTTP proxying only to explicitly selected Worker model,
   tool-client or tool-subprocess targets while all Contractor private traffic
   bypasses it;

@@ -212,7 +212,8 @@ The first schema fixes those bounds so publication is independently testable:
   adapter schema explicitly permits one, and is normalized without resolving
   DNS or contacting it;
 - `flushTimeoutSeconds` is an integer from 1 through 10 and defaults to 3;
-  omitted `captureContent` is `false`, while `true` is invalid in `v1alpha1`;
+  omitted `captureContent` is `false`; `true` explicitly opts into unredacted
+  content export to a trusted telemetry sink;
 - proxy `targets` is a unique non-empty subset of the three values shown above;
 - `caBundlePem` is at most 64 KiB, contains one through eight parseable X.509
   certificates and no private-key PEM block; the exact validated UTF-8 string
@@ -258,16 +259,24 @@ replace Contractor's durable ExecutionReport. Its bounded resource attributes
 contain Contractor service/version, Run/StageExecution/allocation or Planner
 session correlation IDs, logical Worker name, exact adapter/config refs and
 safe label names. Span attributes may contain operation kind, model alias,
-tool name, outcome, duration and token/count aggregates, but never prompts,
-responses, artifact content, tool arguments/results, URLs with query/userinfo,
-credentials or provider error bodies. Export uses a bounded queue whose
+tool name, outcome, duration and token/count aggregates. With capture disabled,
+prompts, responses, artifact content and tool arguments/results are absent.
+Transport credentials and provider error bodies are never automatically added.
+With capture enabled, content may itself contain secrets and is not filtered.
+Export uses a bounded queue whose
 overflow increments adapter failures without blocking model/tool execution.
 The first queue holds at most 2,048 span records and 2 MiB of encoded pending
 data; a record that would exceed either bound is dropped and counted. One span
-has at most 64 attributes and one string attribute is at most 256 UTF-8 bytes.
+has at most 64 attributes. Metadata strings are at most 256 UTF-8 bytes;
+opt-in input/output content has a separate 256 KiB limit per field.
 There is no durable exporter spool or infinite retry; a process crash may lose
 unflushed external telemetry while Contractor's own durable lifecycle remains
 authoritative.
+
+Export accepts bounded OTLP protobuf or JSON acknowledgements and the Langfuse
+v3 JSON ingestion-job acknowledgement (`name=otel-ingestion-job`, non-empty
+string `id`). Rejected spans, partial-success errors, malformed bodies and
+non-2xx responses remain delivery failures; a 2xx status alone is insufficient.
 
 `http-proxy@1` configures ordinary HTTP proxying. A model-visible Caido API tool
 would be a separately selected Toolset plus a future typed `caido-api@1`
@@ -613,7 +622,7 @@ RuntimeSettings
     adapter                          exact RuntimeAdapterRef
     endpoint
     headers                          secret map resolved from credential
-    captureContent                   false in v1alpha1
+    captureContent                   boolean; false by default, true trusts sink
     flushTimeoutSeconds
   httpProxy?
     adapter                          exact RuntimeAdapterRef
@@ -742,10 +751,27 @@ private Contractor mTLS context.
 Telemetry instrumentation emits bounded framework-neutral spans/events for
 model calls, selected tool calls, A2A task lifecycle and Worker errors. By
 default `captureContent=false`: prompts, model responses, artifact bytes, tool
-arguments/results and RuntimeSettings secrets are absent. Enabling future
-content capture requires a separate explicit schema and redaction contract;
-the first version rejects `captureContent=true` rather than silently exporting
-payloads.
+arguments/results and RuntimeSettings secrets are absent. Setting
+`captureContent=true` independently on Worker and/or Planner telemetry explicitly
+trusts the configured sink with unredacted content. Langfuse is currently treated
+as a trusted sink: no secret-content filter is applied. Secrets included in
+messages or tool results can therefore be exported. Automatic export of client
+configuration or authentication headers is not part of content capture.
+
+Captured model input includes conversation messages, system instructions and
+tool declarations; output includes the model response. Worker tool spans include
+arguments/results; Planner invocation and passthrough dispatch spans include
+their semantic input/output. Worker result-finalizer and terminal-summarizer
+model calls also capture input/output. Content is serialized as JSON into `langfuse.observation.input`
+and `langfuse.observation.output`; model spans carry
+`langfuse.observation.type=generation` and the model alias. Each content field is
+bounded to 256 KiB UTF-8; oversized content becomes a valid JSON object with
+`truncated: true` and a preview. The existing 2 MiB pending queue bound still
+applies, so content-heavy spans may be dropped. Capture does not change durable
+reports, ordinary logs or metrics. Secret filtering and a separate retention
+policy can be added later; they are not prerequisites for this trusted-sink mode.
+Existing Runs retain their pinned configuration; enabling capture affects only
+new Runs resolved against the new RuntimeConfig version.
 
 An OTLP exporter delivery error, timeout or unavailable backend increments
 bounded adapter error metrics but does not change StageResult or
@@ -772,8 +798,8 @@ global OpenTelemetry provider, read ambient proxy variables, follow redirects
 or retry. Passthrough, Streamline and Router use a closed instrumentation
 vocabulary for invocation/session, model, Worker dispatch, subtask transition
 and finish spans. Planner session IDs are attached only after durable session
-creation; prompts, model responses, Stage objective/instructions, subtask
-content and tool arguments/results cannot enter that vocabulary. Every span of
+creation. Content never enters the closed metadata vocabulary; explicit capture
+uses the separate bounded input/output fields described above. Every span of
 one invocation shares safe Run/Stage/Planner and exact pinned RuntimeConfig
 resource correlation; Agent-label provenance is absent.
 
@@ -903,7 +929,7 @@ errors. Error bodies remain bounded and secret-free.
   conflict-on-write;
 - dynamic Runtime adapter download, re-probe or capability update;
 - model-visible Caido API tools and a `caido-api@1` adapter;
-- content-bearing telemetry and its separate consent/redaction/retention model;
+- telemetry secret-content filtering and a separate retention policy;
 - cross-process W3C parent/child trace topology beyond safe correlation
   attributes;
 - external Vault/KMS-backed runtime credentials and automatic secret rotation;

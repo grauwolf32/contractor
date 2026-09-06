@@ -424,8 +424,8 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 	}
 	capture := false
 	if value.CaptureContent.present {
-		if value.CaptureContent.null || value.CaptureContent.value {
-			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.captureContent must be false", path)
+		if value.CaptureContent.null {
+			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.captureContent must be a boolean", path)
 		}
 		capture = value.CaptureContent.value
 	}

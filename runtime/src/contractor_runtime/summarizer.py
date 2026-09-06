@@ -24,6 +24,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import PrivateAttr
 
+from contractor_runtime.adapters.content import capture_span_content, model_request_content
+from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
     ResolvedModelPolicy,
     StageContentRequest,
@@ -191,16 +193,38 @@ class TranscriptRecorder:
 class TerminalSummarizer:
     """One ephemeral, tool-free ADK agent over a separately constructed model."""
 
-    def __init__(self, *, model: BaseLlm, policy: ResolvedModelPolicy) -> None:
+    def __init__(
+        self,
+        *,
+        model: BaseLlm,
+        policy: ResolvedModelPolicy,
+        instrumentation: RuntimeInstrumentation | None = None,
+    ) -> None:
         self._delegate = model
         self._policy = policy
         self._model = _OneShotModel(model)
+        self._instrumentation = instrumentation
 
     @property
     def usage(self) -> SummarizerUsage:
         return self._model.usage
 
     async def run(self, *, prompt: str, invocation_id: str) -> str | None:
+        span = None
+
+        def before_model(callback_context: Any, llm_request: LlmRequest) -> None:
+            nonlocal span
+            with contextlib.suppress(Exception):
+                if self._instrumentation is not None:
+                    span = self._instrumentation.start_span(
+                        "contractor.worker.model",
+                        attributes={"operation.kind": "model", "model.alias": self._policy.model},
+                    )
+                    capture_span_content(span, input=lambda: model_request_content(llm_request))
+
+        def after_model(callback_context: Any, llm_response: LlmResponse) -> None:
+            capture_span_content(span, output=lambda: llm_response.content)
+
         generation = types.GenerateContentConfig(max_output_tokens=self._policy.max_output_tokens)
         if self._policy.temperature is not None:
             generation.temperature = self._policy.temperature
@@ -212,6 +236,8 @@ class TerminalSummarizer:
             tools=[],
             output_schema=WorkerModelResult,
             generate_content_config=generation,
+            before_model_callback=before_model,
+            after_model_callback=after_model,
         )
         app_name = "contractor_runtime_summarizer"
         user_id = "contractor_runtime"
@@ -227,6 +253,7 @@ class TerminalSummarizer:
             session_id=session_id,
         )
         candidate: str | None = None
+        outcome = "failed"
         try:
             try:
                 async for event in runner.run_async(
@@ -255,8 +282,12 @@ class TerminalSummarizer:
                 and usage.total_tokens > self._policy.max_total_tokens
             ):
                 raise SummarizerFailure("budget_exhausted")
+            outcome = "succeeded"
             return candidate
         finally:
+            with contextlib.suppress(Exception):
+                if span is not None:
+                    span.end(outcome=outcome)
             with contextlib.suppress(Exception, asyncio.CancelledError):
                 await runner.close()
             with contextlib.suppress(Exception, asyncio.CancelledError):

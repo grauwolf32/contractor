@@ -66,6 +66,24 @@ func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
 	}
 }
 
+func TestNormalizeTrustedContentOptIn(t *testing.T) {
+	prepared, err := PreparePublication([]byte(`{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"debug","version":"2"},"spec":{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces","captureContent":true}},"planner":{"telemetry":{"adapter":"otlp-http@1","endpoint":"http://localhost:3000/api/public/otel/v1/traces","captureContent":true}}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	version, err := prepared.Resolve(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeStoredDocument(version.CanonicalDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.Spec.Worker.Telemetry.Value.CaptureContent || !decoded.Spec.Planner.Telemetry.Value.CaptureContent {
+		t.Fatal("capture opt-in lost")
+	}
+}
+
 func TestExplicitNullIsPatchAndOmissionIsNot(t *testing.T) {
 	t.Parallel()
 	prepared, err := PreparePublication([]byte(`{
@@ -164,7 +182,7 @@ func TestPreparePublicationRejectsUnsafeOrAmbiguousDocuments(t *testing.T) {
 		"unknown":                 base(`{"worker":{"telemetry":null,"mystery":1}}`),
 		"duplicate":               base(`{"worker":{"telemetry":null,"telemetry":null}}`),
 		"bad endpoint":            base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://user:secret@example/a?x=1"}}}`),
-		"content capture":         base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":true}}}`),
+		"null content capture":    base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/a","captureContent":null}}}`),
 		"duplicate targets":       base(`{"worker":{"httpProxy":{"adapter":"http-proxy@1","proxyUrl":"http://proxy.example","targets":["tool-http","tool-http"]}}}`),
 		"null gateway":            base(`{"worker":{"llmGateway":{"gateway":null}}}`),
 		"invalid surrogate":       base(`{"worker":{"telemetry":{"adapter":"otlp-http@1","endpoint":"https://example/\ud800"}}}`),

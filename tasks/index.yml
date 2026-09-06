@@ -952,9 +952,11 @@ current_planning_review:
       immutable version garbage collection and an S3/file authoring workflow
       are deferred.
     - >-
-      OTLP support exports content-free traces only with a bounded in-memory
-      queue. There is no durable external-telemetry spool, content capture or
-      cross-process W3C parent topology; Contractor reports remain authoritative.
+      OTLP traces are content-free by default; captureContent=true explicitly
+      trusts the sink (currently Langfuse) with unredacted model/tool content.
+      Secret-content filtering is deferred. The in-memory queue is bounded;
+      there is no durable external-telemetry spool or cross-process W3C parent
+      topology. Contractor reports remain authoritative.
     - >-
       Runtime capabilities remain composable positive sets and the process
       environment remains immutable. Combination-specific environments still

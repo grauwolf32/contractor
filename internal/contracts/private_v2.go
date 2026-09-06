@@ -436,9 +436,6 @@ func (s TelemetrySettingsV2) Validate() error {
 	if total > 16*1024 {
 		return invalidf("telemetry header values exceed 16 KiB")
 	}
-	if s.CaptureContent {
-		return invalidf("telemetry captureContent must be false")
-	}
 	if s.FlushTimeoutSeconds < 1 || s.FlushTimeoutSeconds > 10 {
 		return invalidf("telemetry flushTimeoutSeconds must be from 1 through 10")
 	}

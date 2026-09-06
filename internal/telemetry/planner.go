@@ -1,4 +1,4 @@
-// Package telemetry owns supplementary, content-free Server-side telemetry.
+// Package telemetry owns supplementary Server-side telemetry, content-free by default.
 // It deliberately has no dependency on Planner implementations or global
 // OpenTelemetry process state.
 package telemetry
@@ -84,6 +84,7 @@ func (r PlannerResource) clone() PlannerResource {
 }
 
 type PlannerAdapterSettings struct {
+	CaptureContent    bool
 	Endpoint          string
 	Headers           map[string]contracts.SecretString
 	FlushTimeout      time.Duration

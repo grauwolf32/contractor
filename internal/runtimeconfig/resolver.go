@@ -558,7 +558,7 @@ func validateAdapterSettings(
 }
 
 func validateTelemetryConfig(value TelemetryConfig, path string) error {
-	if value.Adapter != string(contracts.RuntimeAdapterOTLPHTTP) || value.CaptureContent ||
+	if value.Adapter != string(contracts.RuntimeAdapterOTLPHTTP) ||
 		value.FlushTimeoutSeconds < 1 || value.FlushTimeoutSeconds > 10 {
 		return resolutionError(ResolutionInvalid, path, ErrInvalid)
 	}

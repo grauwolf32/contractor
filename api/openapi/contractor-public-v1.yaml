@@ -4605,7 +4605,9 @@ components:
         endpoint: {type: string, format: uri, minLength: 8, maxLength: 2048}
         credential:
           $ref: '#/components/schemas/RuntimeCredentialId'
-        captureContent: {type: boolean, const: false}
+        captureContent:
+          type: boolean
+          description: Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default.
         flushTimeoutSeconds: {type: integer, minimum: 1, maximum: 10}
     RuntimeHTTPProxyConfig:
       type: object

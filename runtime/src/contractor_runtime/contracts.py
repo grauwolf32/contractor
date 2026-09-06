@@ -1870,8 +1870,6 @@ class TelemetrySettingsV2(WireModel):
             total += len(value.encode("utf-8"))
         if total > 16 * 1024:
             raise ValueError("telemetry header values exceed 16 KiB")
-        if self.capture_content:
-            raise ValueError("telemetry captureContent must be false")
         return self
 
     @field_serializer("headers", when_used="json")

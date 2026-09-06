@@ -896,7 +896,11 @@ class AdkWorkerRuntime:
             summary_model = self._model_factory(summary_context)
             if summary_model is self._model:
                 raise SummarizerFailure("model_not_isolated")
-            summarizer = TerminalSummarizer(model=summary_model, policy=config.model_policy)
+            summarizer = TerminalSummarizer(
+                model=summary_model,
+                policy=config.model_policy,
+                instrumentation=self._instrumentation,
+            )
             candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)
             usage = summarizer.usage
             result, exportable = self._build_runtime_result(request, candidate, observed_refs)
