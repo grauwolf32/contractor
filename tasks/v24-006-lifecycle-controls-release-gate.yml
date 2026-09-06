@@ -3,7 +3,8 @@ id: V24-006
 title: Prove lifecycle controls recovery retention and browser behavior
 milestone: workspace-lifecycle-controls
 priority: P1
-status: pending
+status: completed
+implementation_commit: 9589827c9105172d6b241d1c96877332b24a27de
 depends_on: [V24-001, V24-002, V24-003, V24-004, V24-005]
 languages: [go, sql, yaml, typescript]
 
@@ -54,4 +55,3 @@ tests:
   - {name: process, command: "make test-lifecycle-controls-e2e", covers: [A1]}
   - {name: browser, command: "cd ui && pnpm exec playwright test", covers: [A2]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}
-
