@@ -3,8 +3,8 @@ id: V34-001
 title: Define startup blob selection and extract the PostgreSQL payload boundary
 milestone: artifact-blob-backends
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: eec2ee5abb60a108e9d7d8b42c3e0d86727f553d
 depends_on:
 - V29-003
 - V25-012

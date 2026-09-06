@@ -1,0 +1,67 @@
+schema_version: '1.0'
+id: V34-002
+title: Implement rooted immutable filesystem blob storage
+milestone: artifact-blob-backends
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on:
+- V34-001
+languages:
+- go
+goal: Store complete immutable blobs under an explicit writable root using a simple failure model
+  that tolerates orphan files and ephemeral-volume loss.
+context:
+  specification: docs/spec/23-artifact-blob-backends.md
+  deployment: PostgreSQL is the default and requires no writable blob/tmp directory or Kubernetes
+    PVC. Filesystem is explicitly selected with an absolute path and may be ephemeral; file loss
+    and physical orphans after failure are accepted, but successful responses must never invent content.
+    S3 is a reserved future backend and must fail startup as unsupported in this increment.
+  publication: Stage under the selected root, compute size/digest, close and atomically publish on
+    the same filesystem. Use Server-generated physical keys with unique generations; never derive
+    paths from logical names or URLs. No power-loss durability or automatic recovery is promised.
+  isolation: File transfer occurs outside DB transactions. The initial filesystem deployment uses
+    one Server replica; any replicas must share one actual storage root, not separate per-pod directories
+    with the same path.
+scope:
+  in:
+  - Implement bounded store/open/delete operations and actual startup create/write/rename/read/delete
+    probes.
+  - Use rooted filesystem access and reject symlink, special-file and traversal escapes.
+  - Publish only complete files; return explicit missing/corrupt content failures and keep storage
+    paths out of public diagnostics.
+  - Keep abandoned staging/losing files safe for later offline cleanup and use exact physical generations
+    for unlink.
+  out:
+  - Registry activation, distributed upload intents, durable cleanup queues, power-loss guarantees,
+    S3 and a background orphan sweeper.
+requirements:
+- id: R1
+  text: No filesystem behavior or probe is invoked in PostgreSQL mode.
+- id: R2
+  text: A referenced missing file is never returned as a successful empty payload or silently replaced.
+- id: R3
+  text: Late cleanup of an old physical object cannot remove a new object with identical content.
+acceptance_criteria:
+- id: A1
+  given: Writable, read-only and escaping/symlinked roots.
+  when: Startup probes and object operations execute.
+  then: Valid roots work; invalid access fails safely without touching paths outside the configured
+    root.
+- id: A2
+  given: 64 MiB payloads, cancellation, oversize input and publication interruption.
+  when: Objects are written and opened.
+  then: Readers receive complete verified bytes or an error; staging files are never published as
+    valid content.
+- id: A3
+  given: An old object and a new physical generation with the same digest.
+  when: Old-object deletion runs after new publication or the ephemeral directory is replaced.
+  then: The new generation survives old deletion; lost referenced bytes produce explicit missing-content
+    failures.
+tests:
+- name: adapter
+  command: go test -race ./internal/artifacts
+  covers:
+  - A1
+  - A2
+  - A3
