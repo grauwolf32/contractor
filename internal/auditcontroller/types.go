@@ -33,6 +33,7 @@ var (
 type Store interface {
 	Claim(context.Context, auditstore.ClaimParams) ([]auditstore.ControllerClaim, error)
 	ReleaseClaim(context.Context, auditstore.ControllerClaim) error
+	ExpireReportReview(context.Context, auditstore.ControllerClaim, uint64) (bool, error)
 	TransitionClaimed(context.Context, auditstore.ClaimedTransitionParams) (auditstore.Audit, error)
 	TransitionRound(context.Context, auditstore.RoundTransitionParams) (auditstore.Round, error)
 	GetReconcileSnapshot(context.Context, auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error)

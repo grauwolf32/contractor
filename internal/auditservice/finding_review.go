@@ -164,7 +164,11 @@ SELECT request_id, request_digest
 		// bytes. Freeze review mutations for this short phase so a report
 		// artifact cannot be stranded by a later CAS failure. Review remains
 		// available again after completion, as required by the public model.
-		if state == auditstore.AuditDeleting || state == auditstore.AuditFinalizing ||
+		reportFrozen, err := pendingReportReview(ctx, tx, params.AuditID)
+		if err != nil {
+			return err
+		}
+		if state == auditstore.AuditDeleting || state == auditstore.AuditFinalizing || reportFrozen ||
 			row.revision != params.ExpectedRevision {
 			return auditstore.ErrPrecondition
 		}
@@ -202,9 +206,10 @@ SELECT request_id
 		requestID = params.RequestID
 		if _, err := tx.Exec(ctx, `
 INSERT INTO audit_review_requests (
-    request_id, audit_id, finding_id, kind, subject_revision, subject_digest,
+    request_id, audit_id, finding_id, subject_kind, subject_id,
+    kind, subject_revision, subject_digest,
     requested_actions, expires_at, idempotency_key, request_digest
-) VALUES ($1, $2, $3, 'finding-triage', $4, $5, $6, $7, $8, $9)`,
+) VALUES ($1, $2, $3, 'finding', $3, 'finding-triage', $4, $5, $6, $7, $8, $9)`,
 			requestID, params.AuditID, params.FindingID, row.revision, subjectDigest,
 			actions, expiresAt, params.IdempotencyKey, params.RequestDigest); err != nil {
 			if persistencepostgres.SQLState(err) == "23505" {
@@ -213,7 +218,12 @@ INSERT INTO audit_review_requests (
 			return err
 		}
 		return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.requested", requestID, nil,
-			map[string]any{"findingId": params.FindingID, "kind": FindingReviewKind})
+			map[string]any{
+				"subjectKind": ReviewSubjectFinding,
+				"subjectId":   params.FindingID,
+				"findingId":   params.FindingID,
+				"kind":        FindingReviewKind,
+			})
 	})
 	if err != nil {
 		return FindingReviewResult{}, err
@@ -289,7 +299,11 @@ SELECT audit.state,
 			return err
 		}
 		request.Revision, row.revision = uint64(requestRevision), uint64(findingRevision)
-		if auditState == auditstore.AuditDeleting || auditState == auditstore.AuditFinalizing ||
+		reportFrozen, err := pendingReportReview(ctx, tx, params.AuditID)
+		if err != nil {
+			return err
+		}
+		if auditState == auditstore.AuditDeleting || auditState == auditstore.AuditFinalizing || reportFrozen ||
 			request.State != ReviewPending ||
 			request.Revision != params.ExpectedRequestRevision || request.Kind != FindingReviewKind {
 			return auditstore.ErrPrecondition
@@ -305,7 +319,12 @@ UPDATE audit_review_requests SET state = 'expired', revision = revision + 1,
 			// Returning ErrPrecondition from inside the transaction would roll the
 			// update back and leave the request permanently pending.
 			expired = true
-			return nil
+			return appendAuditReviewEvent(ctx, tx, params.AuditID, "review.expired",
+				request.RequestID, nil, map[string]any{
+					"subjectKind": ReviewSubjectFinding,
+					"findingId":   row.findingID,
+					"kind":        FindingReviewKind,
+				})
 		}
 		if request.SubjectRevision != row.revision || request.SubjectDigest != findingSubjectDigest(row) {
 			return auditstore.ErrPrecondition
@@ -326,10 +345,10 @@ UPDATE audit_review_requests SET state = 'expired', revision = revision + 1,
 		}
 		if _, err := tx.Exec(ctx, `
 INSERT INTO audit_review_decisions (
-    decision_id, request_id, audit_id, finding_id, actor_id, verdict, severity,
+    decision_id, request_id, audit_id, finding_id, actor_id, action, verdict, severity,
     rationale, duplicate_target_id, subject_revision, subject_digest,
     idempotency_key, request_digest
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+) VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13)`,
 			decisionID, requestID, params.AuditID, findingID, params.OwnerID,
 			string(params.Verdict), severity, params.Rationale, target,
 			request.SubjectRevision, request.SubjectDigest, params.IdempotencyKey,
@@ -378,6 +397,23 @@ UPDATE audit_findings
 	return FindingDecisionResult{
 		Finding: finding, Request: request, Decision: *request.Decision, Replayed: replayed,
 	}, nil
+}
+
+// pendingReportReview is evaluated only after the caller has locked the Audit
+// row. Report proposal takes the same lock, so the check and the subsequent
+// finding mutation cannot cross the immutable report-snapshot boundary.
+func pendingReportReview(ctx context.Context, tx pgx.Tx, auditID string) (bool, error) {
+	var pending bool
+	err := tx.QueryRow(ctx, `
+SELECT EXISTS (
+    SELECT 1
+      FROM audit_report_candidates AS candidate
+      JOIN audit_review_requests AS request
+        ON request.request_id = candidate.request_id
+       AND request.audit_id = candidate.audit_id
+     WHERE candidate.audit_id = $1 AND request.state = 'pending'
+)`, auditID).Scan(&pending)
+	return pending, err
 }
 
 func (s *Service) GetReview(
@@ -744,48 +780,75 @@ func scanFindingRow(row pgx.Row) (findingRow, error) {
 }
 
 const reviewSelect = `
-SELECT request.request_id, request.audit_id, request.finding_id, request.kind,
+SELECT request.request_id, request.audit_id, request.finding_id,
+       request.subject_kind, request.subject_id, request.kind,
        request.subject_revision, request.subject_digest, request.requested_actions,
        request.state, request.expires_at, request.revision,
        request.created_at, request.updated_at,
-       decision.decision_id, decision.actor_id, decision.verdict, decision.severity,
+       decision.decision_id, decision.actor_id, decision.action,
+       decision.verdict, decision.severity,
        decision.rationale, decision.duplicate_target_id, decision.created_at
   FROM audit_review_requests AS request
   JOIN audits AS audit USING (audit_id)
   LEFT JOIN audit_review_decisions AS decision
     ON decision.request_id = request.request_id
-   AND decision.audit_id = request.audit_id
-   AND decision.finding_id = request.finding_id`
+   AND decision.audit_id = request.audit_id`
 
 func scanReviewRequest(row pgx.Row) (ReviewRequest, error) {
 	var result ReviewRequest
 	var actionsJSON []byte
 	var revision int64
-	var decisionID, actor, verdict, severity, rationale, duplicate *string
+	var findingID *string
+	var decisionID, actor, action, verdict, severity, rationale, duplicate *string
 	var decisionAt *time.Time
 	err := row.Scan(
-		&result.RequestID, &result.AuditID, &result.FindingID, &result.Kind,
+		&result.RequestID, &result.AuditID, &findingID,
+		&result.SubjectKind, &result.SubjectID, &result.Kind,
 		&result.SubjectRevision, &result.SubjectDigest, &actionsJSON,
 		&result.State, &result.ExpiresAt, &revision, &result.CreatedAt, &result.UpdatedAt,
-		&decisionID, &actor, &verdict, &severity, &rationale, &duplicate, &decisionAt,
+		&decisionID, &actor, &action, &verdict, &severity, &rationale, &duplicate, &decisionAt,
 	)
 	if err != nil {
 		return ReviewRequest{}, err
 	}
-	if revision < 1 || !result.State.Valid() || json.Unmarshal(actionsJSON, &result.RequestedActions) != nil {
+	if revision < 1 || !result.State.Valid() || !result.SubjectKind.Valid() || result.SubjectID == "" ||
+		(result.SubjectKind == ReviewSubjectFinding) != (findingID != nil) ||
+		json.Unmarshal(actionsJSON, &result.RequestedActions) != nil {
 		return ReviewRequest{}, errors.New("stored Audit review request is invalid")
 	}
+	if len(result.RequestedActions) == 0 {
+		return ReviewRequest{}, errors.New("stored Audit review request has no actions")
+	}
+	for _, action := range result.RequestedActions {
+		if !action.Valid() {
+			return ReviewRequest{}, errors.New("stored Audit review request action is invalid")
+		}
+	}
 	result.Revision = uint64(revision)
+	if findingID != nil {
+		result.FindingID = *findingID
+	}
 	if decisionID != nil {
-		if actor == nil || verdict == nil || rationale == nil || decisionAt == nil {
+		if actor == nil || action == nil || rationale == nil || decisionAt == nil {
 			return ReviewRequest{}, errors.New("stored Audit review decision is incomplete")
 		}
 		decision := ReviewDecision{
 			DecisionID: *decisionID, RequestID: result.RequestID, AuditID: result.AuditID,
-			FindingID: result.FindingID, ActorID: *actor, Verdict: AnalystVerdict(*verdict),
+			FindingID: result.FindingID, ActorID: *actor,
 			Rationale: *rationale, DuplicateTargetID: duplicate,
 			SubjectRevision: result.SubjectRevision, SubjectDigest: result.SubjectDigest,
 			CreatedAt: *decisionAt,
+		}
+		if verdict != nil {
+			decision.Verdict = AnalystVerdict(*verdict)
+		}
+		if findingID == nil {
+			decision.Action = ReviewAction(*action)
+			if !decision.Action.Valid() || decision.Verdict != "" {
+				return ReviewRequest{}, errors.New("stored Audit action review decision is invalid")
+			}
+		} else if !decision.Verdict.Valid() {
+			return ReviewRequest{}, errors.New("stored Audit finding review decision is invalid")
 		}
 		if severity != nil {
 			value := FindingSeverity(*severity)
@@ -798,20 +861,29 @@ func scanReviewRequest(row pgx.Row) (ReviewRequest, error) {
 
 const decisionSelect = `
 SELECT decision.decision_id, decision.request_id, decision.audit_id,
-       decision.finding_id, decision.actor_id, decision.verdict,
+       decision.finding_id, decision.actor_id, decision.action, decision.verdict,
        decision.severity, decision.rationale, decision.duplicate_target_id,
        decision.subject_revision, decision.subject_digest, decision.created_at
   FROM audit_review_decisions AS decision`
 
 func readDecision(row pgx.Row) (ReviewDecision, error) {
 	var result ReviewDecision
-	var severity *string
+	var findingID, action, verdict, severity *string
 	err := row.Scan(&result.DecisionID, &result.RequestID, &result.AuditID,
-		&result.FindingID, &result.ActorID, &result.Verdict, &severity,
+		&findingID, &result.ActorID, &action, &verdict, &severity,
 		&result.Rationale, &result.DuplicateTargetID, &result.SubjectRevision,
 		&result.SubjectDigest, &result.CreatedAt)
 	if err != nil {
 		return ReviewDecision{}, err
+	}
+	if findingID != nil {
+		result.FindingID = *findingID
+	}
+	if action != nil && findingID == nil {
+		result.Action = ReviewAction(*action)
+	}
+	if verdict != nil {
+		result.Verdict = AnalystVerdict(*verdict)
 	}
 	if severity != nil {
 		value := FindingSeverity(*severity)

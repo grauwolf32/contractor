@@ -29,6 +29,9 @@ export type AuditFindingSeverity =
 export type AuditAnalystVerdict = components["schemas"]["AuditAnalystVerdict"];
 export type AuditReviewRequest = components["schemas"]["AuditReviewRequest"];
 export type AuditReviewPage = components["schemas"]["AuditReviewPage"];
+export type AuditReviewAction = components["schemas"]["AuditReviewAction"];
+export type AuditActionDecisionResult =
+  components["schemas"]["AuditActionDecisionResult"];
 export type AuditFindingProvenancePage =
   components["schemas"]["AuditFindingProvenancePage"];
 export type DecideAuditFindingRequest =
@@ -545,6 +548,39 @@ export async function createAuditFindingReview(
   return structuredClone(requireData(result));
 }
 
+export async function decideAuditAction(
+  api: PublicAPI,
+  options: {
+    auditId: string;
+    requestId: string;
+    expectedRevision: number;
+    idempotencyKey: string;
+    action: AuditReviewAction;
+    rationale: string;
+  },
+): Promise<AuditActionDecisionResult> {
+  requireAuditID(options.auditId);
+  requireAuditID(options.requestId);
+  requireAuditRevision(options.expectedRevision);
+  const result = await api.request((client) =>
+    client.POST("/v1/audits/{auditId}/reviews/{requestId}/decisions", {
+      params: {
+        path: { auditId: options.auditId, requestId: options.requestId },
+        header: {
+          "Idempotency-Key": options.idempotencyKey,
+          "If-Match": `"${options.expectedRevision}"`,
+        },
+      },
+      body: { action: options.action, rationale: options.rationale },
+    }),
+  );
+  const response = requireData(result);
+  if ("finding" in response) {
+    throw invalidAuditResponse(result.response.status);
+  }
+  return structuredClone(response);
+}
+
 export async function decideAuditFinding(
   api: PublicAPI,
   options: {
@@ -570,7 +606,11 @@ export async function decideAuditFinding(
       body: options.decision,
     }),
   );
-  return structuredClone(requireData(result));
+  const response = requireData(result);
+  if (!("finding" in response)) {
+    throw invalidAuditResponse(result.response.status);
+  }
+  return structuredClone(response);
 }
 
 export async function listAuditFindingProvenance(

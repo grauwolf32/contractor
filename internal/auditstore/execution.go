@@ -97,7 +97,28 @@ WITH member_input AS MATERIALIZED (
      WHERE item.audit_id = $1 AND item.round_id = $6
        AND item.state = 'ready'
 	   AND item.workflow_role = $13
-       AND member.item_attempt = COALESCE((
+	   AND (
+	       item.approval_kind = 'none'
+	       OR EXISTS (
+	           SELECT 1
+	             FROM audit_review_requests AS approval
+	             JOIN audit_review_decisions AS decision
+	               ON decision.request_id = approval.request_id
+	              AND decision.audit_id = approval.audit_id
+	            WHERE approval.audit_id = item.audit_id
+	              AND approval.subject_kind = 'audit-item-action'
+	              AND approval.subject_id = item.item_id
+	              AND approval.kind = item.approval_kind
+	              AND approval.subject_revision = 1
+	              AND approval.subject_digest = item.approval_subject_digest
+	              AND approval.state = 'decided'
+	              AND (approval.expires_at IS NULL OR approval.expires_at > clock_timestamp())
+	              AND decision.action = 'approve'
+	              AND decision.subject_revision = approval.subject_revision
+	              AND decision.subject_digest = approval.subject_digest
+	       )
+	   )
+	   AND member.item_attempt = COALESCE((
              SELECT max(previous.item_attempt) + 1
                FROM audit_execution_items AS previous
               WHERE previous.item_id = item.item_id

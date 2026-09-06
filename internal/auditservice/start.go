@@ -3,6 +3,7 @@ package auditservice
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -221,11 +222,19 @@ func (s *Service) startInTransaction(
 		if task.Checklist != nil {
 			origin.EntryVersion = task.Checklist.Version
 		}
+		itemID := deterministicID("item", audit.AuditID, item.ItemKey)
+		approvalKind, approvalDigest, initialState, err := materializedItemApproval(
+			audit.AuditID, profile, itemID, item, taskArtifacts[index],
+		)
+		if err != nil {
+			return StartedAudit{}, err
+		}
 		items[index] = auditstore.MaterializedItem{
-			ItemID:  deterministicID("item", audit.AuditID, item.ItemKey),
+			ItemID:  itemID,
 			ItemKey: item.ItemKey, Ordinal: item.Ordinal, Kind: item.Kind,
 			SubjectKey: item.SubjectKey, Task: taskArtifacts[index], Origin: origin,
-			WorkflowRole: item.WorkflowRole, InitialState: auditstore.ItemReady,
+			WorkflowRole: item.WorkflowRole, InitialState: initialState,
+			ApprovalKind: approvalKind, ApprovalDigest: approvalDigest,
 			Coverage: auditstore.Coverage{
 				Status:    auditstore.CoverageStatus(coverage.Status),
 				Requested: append([]string{}, coverage.Requested...),
@@ -250,6 +259,46 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	return s.startedProjectionWithStore(ctx, store, started, !created)
+}
+
+func materializedItemApproval(
+	auditID string,
+	profile config.ResolvedAuditProfile,
+	itemID string,
+	item auditdomain.WorklistItem,
+	task auditstore.ExactArtifact,
+) (auditstore.ItemApprovalKind, string, auditstore.ItemState, error) {
+	kind := auditstore.ItemApprovalNone
+	switch item.ApprovalRequirement {
+	case auditdomain.ApprovalNone:
+		return kind, "", auditstore.ItemReady, nil
+	case auditdomain.ApprovalActiveCheck:
+		kind = auditstore.ItemApprovalActiveCheck
+	case auditdomain.ApprovalHumanReview:
+		kind = auditstore.ItemApprovalApplicability
+	default:
+		return "", "", "", fmt.Errorf("%w: Audit item approval requirement is invalid", ErrInvalid)
+	}
+	encoded, err := json.Marshal(struct {
+		Schema        string                      `json:"schema"`
+		AuditID       string                      `json:"auditId"`
+		ProfileDigest string                      `json:"profileDigest"`
+		ItemID        string                      `json:"itemId"`
+		ItemKey       string                      `json:"itemKey"`
+		SubjectKey    string                      `json:"subjectKey"`
+		WorkflowRole  string                      `json:"workflowRole"`
+		ApprovalKind  auditstore.ItemApprovalKind `json:"approvalKind"`
+		Task          auditstore.ExactArtifact    `json:"task"`
+	}{
+		Schema: "contractor.audit.item-approval.v1", AuditID: auditID,
+		ProfileDigest: profile.Ref.Digest, ItemID: itemID, ItemKey: item.ItemKey,
+		SubjectKey: item.SubjectKey, WorkflowRole: item.WorkflowRole,
+		ApprovalKind: kind, Task: task,
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+	return kind, digestBytes(encoded), auditstore.ItemAwaitingReview, nil
 }
 
 func (s *Service) validateProfileDependencies(
@@ -346,6 +395,10 @@ func buildInventory(
 		Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
 		SourceInputName: profile.Inventory.SourceInput, SourceRef: source.Ref,
 		ApprovalRequirement: auditdomain.ApprovalNone, Scope: selection.Scope.Values(),
+	}
+	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
+		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
+		options.ApprovalRequirement = auditdomain.ApprovalActiveCheck
 	}
 	switch profile.Inventory.Implementation {
 	case "checklist@1":

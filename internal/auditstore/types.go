@@ -371,8 +371,26 @@ type MaterializedItem struct {
 	Origin          ItemOrigin
 	WorkflowRole    string
 	InitialState    ItemState
+	ApprovalKind    ItemApprovalKind
+	ApprovalDigest  string
 	Coverage        Coverage
 	ProposalSources []ProposalItemSource
+}
+
+// ItemApprovalKind is the durable Server-side review gate attached to one
+// immutable Audit item. It is not model-authored authority: the exact digest
+// and accepted decision are checked again by CreateExecutionIntent.
+type ItemApprovalKind string
+
+const (
+	ItemApprovalNone          ItemApprovalKind = "none"
+	ItemApprovalActiveCheck   ItemApprovalKind = "active-check-approval"
+	ItemApprovalApplicability ItemApprovalKind = "requirement-applicability"
+)
+
+func (kind ItemApprovalKind) Valid() bool {
+	return kind == ItemApprovalNone || kind == ItemApprovalActiveCheck ||
+		kind == ItemApprovalApplicability
 }
 
 // ProposalItemSource is the exact consume-once cause of a later-round item.
@@ -440,6 +458,8 @@ type Item struct {
 	Origin              ItemOrigin
 	WorkflowRole        string
 	State               ItemState
+	ApprovalKind        ItemApprovalKind
+	ApprovalDigest      string
 	FinalDisposition    *FinalDisposition
 	AcceptedResult      *ExactArtifact
 	LastExecutionItemID *string
@@ -715,6 +735,18 @@ type CommitReportParams struct {
 	RequestDigest         string
 }
 
+type ProposeReportParams = CommitReportParams
+
+type ReportCandidate struct {
+	RequestID       string
+	RoundID         string
+	SubjectRevision uint64
+	SubjectDigest   string
+	Machine         ArtifactLink
+	Summary         ArtifactLink
+	CreatedAt       time.Time
+}
+
 type Event struct {
 	AuditID        string
 	Sequence       uint64
@@ -769,6 +801,7 @@ type ControllerRepository interface {
 	Claim(context.Context, ClaimParams) ([]ControllerClaim, error)
 	RenewClaim(context.Context, ControllerClaim, time.Duration) (ControllerClaim, error)
 	ReleaseClaim(context.Context, ControllerClaim) error
+	ExpireReportReview(context.Context, ControllerClaim, uint64) (bool, error)
 	TransitionClaimed(context.Context, ClaimedTransitionParams) (Audit, error)
 	TransitionRound(context.Context, RoundTransitionParams) (Round, error)
 	AcceptNextRound(context.Context, AcceptRoundParams) (Round, bool, error)

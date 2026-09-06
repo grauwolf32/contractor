@@ -16,7 +16,8 @@ state, expected_item_count, revision, created_at, updated_at`
 
 const itemColumns = `
 item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-task_ref, task_digest, origin, workflow_role, state, final_disposition,
+task_ref, task_digest, origin, workflow_role, state, approval_kind,
+approval_subject_digest, final_disposition,
 accepted_result_ref, accepted_result_digest, last_execution_item_id,
 created_at, updated_at`
 
@@ -137,6 +138,7 @@ func prefixedItemColumns(prefix string) string {
 	return prefix + ".item_id, " + prefix + ".audit_id, " + prefix + ".round_id, " +
 		prefix + ".item_key, " + prefix + ".ordinal, " + prefix + ".kind, " + prefix + ".subject_key, " +
 		prefix + ".task_ref, " + prefix + ".task_digest, " + prefix + ".origin, " + prefix + ".workflow_role, " + prefix + ".state, " +
+		prefix + ".approval_kind, " + prefix + ".approval_subject_digest, " +
 		prefix + ".final_disposition, " + prefix + ".accepted_result_ref, " + prefix + ".accepted_result_digest, " +
 		prefix + ".last_execution_item_id, " + prefix + ".created_at, " + prefix + ".updated_at"
 }
@@ -694,13 +696,15 @@ func scanRound(row scanner) (Round, error) {
 func scanItem(row scanner) (Item, error) {
 	var result Item
 	var taskRef, origin, acceptedRef []byte
-	var state string
+	var state, approvalKind string
+	var approvalDigest *string
 	var final *string
 	var acceptedDigest *string
 	if err := row.Scan(
 		&result.ItemID, &result.AuditID, &result.RoundID, &result.ItemKey,
 		&result.Ordinal, &result.Kind, &result.SubjectKey, &taskRef,
-		&result.Task.Digest, &origin, &result.WorkflowRole, &state, &final,
+		&result.Task.Digest, &origin, &result.WorkflowRole, &state,
+		&approvalKind, &approvalDigest, &final,
 		&acceptedRef, &acceptedDigest, &result.LastExecutionItemID,
 		&result.CreatedAt, &result.UpdatedAt,
 	); err != nil {
@@ -719,6 +723,17 @@ func scanItem(row scanner) (Item, error) {
 	result.State = ItemState(state)
 	if !result.State.Valid() {
 		return Item{}, errors.New("stored Audit item state is invalid")
+	}
+	result.ApprovalKind = ItemApprovalKind(approvalKind)
+	if !result.ApprovalKind.Valid() ||
+		(result.ApprovalKind == ItemApprovalNone) != (approvalDigest == nil) {
+		return Item{}, errors.New("stored Audit item approval is invalid")
+	}
+	if approvalDigest != nil {
+		if validateDigest("stored item approval digest", *approvalDigest) != nil {
+			return Item{}, errors.New("stored Audit item approval digest is invalid")
+		}
+		result.ApprovalDigest = *approvalDigest
 	}
 	if final != nil {
 		value := FinalDisposition(*final)

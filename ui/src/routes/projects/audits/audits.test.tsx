@@ -380,6 +380,8 @@ describe("Project Audit routes", () => {
       requestId: "review_example",
       auditId: currentAudit.auditId,
       findingId: currentFinding.findingId,
+      subjectKind: "finding",
+      subjectId: currentFinding.findingId,
       kind: "finding-triage",
       subjectRevision: 1,
       subjectDigest: `sha256:${"6".repeat(64)}`,
@@ -608,10 +610,100 @@ describe("Project Audit routes", () => {
 
     await user.click(screen.getByRole("link", { name: "Reviews" }));
     expect(
-      await screen.findByRole("heading", { name: "Finding reviews" }),
+      await screen.findByRole("heading", { name: "Human reviews" }),
     ).toBeVisible();
     expect(
       screen.getByText("Confirmed from exact source evidence."),
+    ).toBeVisible();
+  });
+
+  it("approves an exact non-finding review without treating model text as authority", async () => {
+    let currentAudit = auditAt("waiting_review", 3);
+    let review: AuditReviewRequest = {
+      requestId: "review_active_check",
+      auditId: currentAudit.auditId,
+      subjectKind: "audit-item-action",
+      subjectId: "item_active_check",
+      kind: "active-check-approval",
+      subjectRevision: 1,
+      subjectDigest: `sha256:${"b".repeat(64)}`,
+      requestedActions: ["approve", "reject"],
+      state: "pending",
+      revision: 1,
+      createdAt: currentAudit.createdAt,
+      updatedAt: currentAudit.updatedAt,
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(currentAudit, {
+            headers: { ETag: `"${currentAudit.revision}"` },
+          });
+        }
+        if (
+          path === "/v1/audits/audit_example/reviews" &&
+          request.method === "GET"
+        ) {
+          return jsonResponse({ items: [review], page: { hasMore: false } });
+        }
+        if (
+          path ===
+            "/v1/audits/audit_example/reviews/review_active_check/decisions" &&
+          request.method === "POST"
+        ) {
+          expect(request.headers.get("If-Match")).toBe('"1"');
+          expect(request.headers.get("Idempotency-Key")).toMatch(
+            /^audit-action-review-ui-/u,
+          );
+          expect(await request.json()).toEqual({
+            action: "approve",
+            rationale: "The target and exact active request are approved.",
+          });
+          const decision = {
+            decisionId: "decision_active_check",
+            requestId: review.requestId,
+            auditId: review.auditId,
+            action: "approve" as const,
+            actorId: session.principal.userId,
+            rationale: "The target and exact active request are approved.",
+            subjectRevision: review.subjectRevision,
+            subjectDigest: review.subjectDigest,
+            createdAt: currentAudit.updatedAt,
+          };
+          review = { ...review, state: "decided", revision: 2, decision };
+          currentAudit = auditAt("active", 4);
+          return jsonResponse({ request: review, decision, replayed: false });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/reviews",
+    );
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText("active-check-approval", { exact: false }),
+    ).toBeVisible();
+    await user.type(
+      screen.getByLabelText("Rationale"),
+      "The target and exact active request are approved.",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Approve exact subject" }),
+    );
+    expect(
+      await screen.findByText("approve", { exact: false, selector: "span" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("The target and exact active request are approved."),
     ).toBeVisible();
   });
 

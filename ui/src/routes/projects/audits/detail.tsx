@@ -7,6 +7,7 @@ import {
   auditMutationAudit,
   auditNeedsPolling,
   createAuditFindingReview,
+  decideAuditAction,
   decideAuditFinding,
   getAudit,
   getAuditReport,
@@ -22,6 +23,7 @@ import {
   type AuditFinding,
   type AuditFindingSeverity,
   type AuditMutationAction,
+  type AuditReviewAction,
   type AuditReviewRequest,
   type DecideAuditFindingRequest,
 } from "../../../api/audits";
@@ -1053,6 +1055,100 @@ function AuditFindings({ audit }: { audit: Audit }) {
   );
 }
 
+function ActionReviewControls({
+  audit,
+  review,
+}: {
+  audit: Audit;
+  review: AuditReviewRequest;
+}) {
+  const api = usePublicAPI();
+  const queryClient = useQueryClient();
+  const [rationale, setRationale] = useState("");
+  const [keyring] = useState(
+    () =>
+      new MutationDraftKeyring<Record<string, string | number>>(
+        "audit-action-review",
+      ),
+  );
+  async function invalidate(): Promise<void> {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.detail(audit.auditId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.reviews(audit.auditId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.items(audit.auditId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.audits.report(audit.auditId),
+      }),
+    ]);
+  }
+  const decision = useMutation({
+    mutationFn: (action: AuditReviewAction) => {
+      const trimmed = rationale.trim();
+      const draft = {
+        auditId: audit.auditId,
+        requestId: review.requestId,
+        revision: review.revision,
+        action,
+        rationale: trimmed,
+      };
+      return decideAuditAction(api, {
+        auditId: audit.auditId,
+        requestId: review.requestId,
+        expectedRevision: review.revision,
+        idempotencyKey: keyring.keyFor(draft),
+        action,
+        rationale: trimmed,
+      });
+    },
+    onSuccess: async () => {
+      setRationale("");
+      await invalidate();
+    },
+    onError: invalidate,
+  });
+  const unavailable = rationale.trim().length === 0 || decision.isPending;
+  return (
+    <div className="audit-finding-review-actions">
+      <label>
+        Rationale
+        <textarea
+          value={rationale}
+          maxLength={65_536}
+          rows={3}
+          onChange={(event) => setRationale(event.target.value)}
+          placeholder="Explain why this exact action or report is accepted or rejected."
+        />
+      </label>
+      <div className="button-row">
+        <button
+          type="button"
+          disabled={unavailable}
+          onClick={() => decision.mutate("approve")}
+        >
+          Approve exact subject
+        </button>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={unavailable}
+          onClick={() => decision.mutate("reject")}
+        >
+          Reject
+        </button>
+      </div>
+      {decision.error === null ? null : (
+        <AuditMutationNotice error={decision.error} />
+      )}
+    </div>
+  );
+}
+
 function AuditReviews({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const reviews = useQuery({
@@ -1068,31 +1164,37 @@ function AuditReviews({ audit }: { audit: Audit }) {
     <section className="panel audit-section-panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Immutable analyst history</p>
-          <h3>Finding reviews</h3>
+          <p className="eyebrow">Exact human authority and immutable history</p>
+          <h3>Human reviews</h3>
         </div>
         <span>{reviews.data.items.length} recorded</span>
       </div>
       {reviews.data.items.length === 0 ? (
-        <p className="muted-copy">No finding review has been opened.</p>
+        <p className="muted-copy">No human review has been opened.</p>
       ) : (
         <ol className="audit-review-history">
           {reviews.data.items.map((review) => (
             <li key={review.requestId}>
               <div>
-                <strong>{review.findingId}</strong>
+                <strong>{review.findingId ?? review.subjectId}</strong>
                 <StateBadge state={review.state} />
               </div>
               <span>
-                subject revision {review.subjectRevision} · requested{" "}
-                {formatTimestamp(review.createdAt)}
+                {review.kind} · subject revision {review.subjectRevision} ·
+                requested {formatTimestamp(review.createdAt)}
               </span>
               {review.decision === undefined ? (
-                <span>No decision recorded.</span>
+                <>
+                  <span>No decision recorded.</span>
+                  {review.state === "pending" &&
+                  review.subjectKind !== "finding" ? (
+                    <ActionReviewControls audit={audit} review={review} />
+                  ) : null}
+                </>
               ) : (
                 <>
                   <span>
-                    {review.decision.verdict}
+                    {review.decision.action ?? review.decision.verdict}
                     {review.decision.severity === undefined
                       ? ""
                       : ` · ${review.decision.severity}`}
@@ -1231,6 +1333,20 @@ function AuditReportView({
         </div>
       ) : (
         <>
+          {report.data.status === "proposed" ? (
+            <div className="notice">
+              <strong>This exact report is awaiting owner acceptance.</strong>
+              <p>
+                Review its frozen contents, then approve or reject it in the{" "}
+                <Link
+                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/reviews`}
+                >
+                  Reviews section
+                </Link>
+                .
+              </p>
+            </div>
+          ) : null}
           <div className="audit-artifact-list">
             {report.data.machineArtifact === undefined ? null : (
               <div className="audit-download-row">

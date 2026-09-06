@@ -469,6 +469,25 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		!containsBytes(machineBytes, `"verdict":"true_positive"`) {
 		t.Fatalf("machine report is not truthful: %s", machineBytes)
 	}
+
+	humanProfile := loadResultProfileFixture(t, "disabled", false, "human-required")
+	humanSnapshot, err := json.Marshal(humanProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: humanProfile.Ref.Name, Version: humanProfile.Ref.Version, Digest: humanProfile.Ref.Digest,
+	}
+	snapshot.Audit.ProfileSnapshot = humanSnapshot
+	store.committed = auditstore.CommitReportParams{}
+	store.proposed = auditstore.ProposeReportParams{}
+	artifactAccess.writes = map[string][]byte{}
+	worked, err = importer.Finalize(context.Background(), claim, snapshot)
+	if err != nil || !worked || store.proposed.Machine.Artifact.Ref.Revision == nil ||
+		store.proposed.Summary.Artifact.Ref.Revision == nil ||
+		store.committed.Machine.LogicalKey != "" {
+		t.Fatalf("propose report for human acceptance = (%t, %v, %+v)", worked, err, store.proposed)
+	}
 	if !containsBytes(artifactAccess.writes["report.txt"], "Findings: confirmed=1 proposed=1") ||
 		!containsBytes(artifactAccess.writes["report.txt"], "not a security or compliance certification") {
 		t.Fatalf("human summary omitted qualification: %s", artifactAccess.writes["report.txt"])
@@ -689,6 +708,7 @@ type fakeImportStore struct {
 	findings  []auditstore.ReportFinding
 	counts    auditstore.CollectionDispositionCounts
 	committed auditstore.CommitReportParams
+	proposed  auditstore.ProposeReportParams
 }
 
 func (f *fakeImportStore) ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error) {
@@ -719,6 +739,12 @@ func (f *fakeImportStore) Collect(_ context.Context, params auditstore.CollectPa
 func (f *fakeImportStore) CommitReport(_ context.Context, params auditstore.CommitReportParams) (auditstore.Audit, error) {
 	f.committed = params
 	return auditstore.Audit{State: auditstore.AuditCompleted}, nil
+}
+func (f *fakeImportStore) ProposeReport(
+	_ context.Context, params auditstore.ProposeReportParams,
+) (auditstore.Audit, bool, error) {
+	f.proposed = params
+	return auditstore.Audit{State: auditstore.AuditWaitingReview}, true, nil
 }
 
 type fakeImportRuns struct{ run runstore.WorkflowRun }
@@ -973,6 +999,7 @@ func loadResultProfileFixture(
 	t *testing.T,
 	policy string,
 	withDiscovery bool,
+	reportAcceptance ...string,
 ) config.ResolvedAuditProfile {
 	t.Helper()
 	root := t.TempDir()
@@ -1054,6 +1081,12 @@ spec:
 		files["audit-profiles/checklist.yaml"],
 		"findingConfirmation: disabled", "findingConfirmation: "+policy, 1,
 	)
+	if len(reportAcceptance) == 1 {
+		files["audit-profiles/checklist.yaml"] = strings.Replace(
+			files["audit-profiles/checklist.yaml"],
+			"reportAcceptance: automatic", "reportAcceptance: "+reportAcceptance[0], 1,
+		)
+	}
 	if withDiscovery {
 		files["audit-profiles/checklist.yaml"] = strings.Replace(
 			files["audit-profiles/checklist.yaml"],

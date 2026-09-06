@@ -22,29 +22,18 @@ var reasonOrder = []CompatibilityReason{
 
 func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	reasons := make(map[CompatibilityReason]struct{})
-	if profile.Execution.MaxRounds != 1 {
-		reasons[ReasonMultipleRoundsUnsupported] = struct{}{}
-	}
 	if profile.Execution.BatchSize != 1 {
 		reasons[ReasonBatchingUnsupported] = struct{}{}
 	}
 	if profile.Inventory.Implementation == "finding-candidates@1" {
 		reasons[ReasonAssessmentUnsupported] = struct{}{}
 	}
-	for role := range profile.Workflows {
-		switch profile.Workflows[role].Kind {
-		case config.AuditWorkflowDiscovery:
-			reasons[ReasonDiscoveryUnsupported] = struct{}{}
-		case config.AuditWorkflowAssessment:
-			reasons[ReasonAssessmentUnsupported] = struct{}{}
-		}
-	}
-
 	switch profile.Interaction.ActiveChecks {
 	case config.AuditActiveChecksAutomatic:
 		reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
 	case config.AuditActiveChecksApprovalRequired:
-		reasons[ReasonActiveCheckApprovalUnsupported] = struct{}{}
+		// Exact action approval is enforced by the shared Audit review ledger
+		// and rechecked in CreateExecutionIntent.
 	case config.AuditActiveChecksProhibited:
 		if profileSelectsClassifiedTool(profile, true) {
 			reasons[ReasonAutomaticActiveChecksUnsupported] = struct{}{}
@@ -52,12 +41,6 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 	}
 	if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled && profileCanEmitFindings(profile) {
 		reasons[ReasonFindingConfirmationUnsupported] = struct{}{}
-	}
-	if profile.Interaction.NotApplicable == config.AuditNotApplicableHumanRequired {
-		reasons[ReasonManualApplicabilityUnsupported] = struct{}{}
-	}
-	if profile.Interaction.ReportAcceptance == config.AuditReportHumanRequired {
-		reasons[ReasonReportAcceptanceUnsupported] = struct{}{}
 	}
 	ordered := orderedReasons(reasons)
 	return Compatibility{
@@ -68,31 +51,39 @@ func ProfileCompatibility(profile config.ResolvedAuditProfile) Compatibility {
 }
 
 func InventoryCompatibility(inventory auditdomain.Inventory) []CompatibilityReason {
-	for _, item := range inventory.Worklist.Items {
-		if item.ApprovalRequirement == auditdomain.ApprovalHumanReview {
-			return []CompatibilityReason{ReasonManualItemUnsupported}
-		}
-	}
 	return nil
 }
 
 func profileSelectsClassifiedTool(profile config.ResolvedAuditProfile, active bool) bool {
+	for role := range profile.Workflows {
+		if workflowRoleSelectsClassifiedTool(profile, role, active) {
+			return true
+		}
+	}
+	return false
+}
+
+func workflowRoleSelectsClassifiedTool(
+	profile config.ResolvedAuditProfile, workflowRole string, active bool,
+) bool {
 	descriptors := config.MVPDescriptors().Toolsets
-	for _, binding := range profile.Workflows {
-		for _, stage := range binding.Workflow.Stages {
-			for _, agent := range stage.Agents {
-				for _, selected := range agent.Template.Toolsets {
-					descriptor, ok := descriptors[selected.Ref.ToolsetID+"@"+selected.Ref.Version]
-					if !ok {
-						continue
-					}
-					classified := descriptor.FindingProposalTools
-					if active {
-						classified = descriptor.ActiveCheckTools
-					}
-					if intersects(selected.Tools, classified) {
-						return true
-					}
+	binding, exists := profile.Workflows[workflowRole]
+	if !exists {
+		return false
+	}
+	for _, stage := range binding.Workflow.Stages {
+		for _, agent := range stage.Agents {
+			for _, selected := range agent.Template.Toolsets {
+				descriptor, ok := descriptors[selected.Ref.ToolsetID+"@"+selected.Ref.Version]
+				if !ok {
+					continue
+				}
+				classified := descriptor.FindingProposalTools
+				if active {
+					classified = descriptor.ActiveCheckTools
+				}
+				if intersects(selected.Tools, classified) {
+					return true
 				}
 			}
 		}

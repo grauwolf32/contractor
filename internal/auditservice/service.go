@@ -187,6 +187,17 @@ func (s *Service) GetReport(
 	}
 	machine, machineErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportMachineLogicalKey)
 	summary, summaryErr := store.GetArtifactLink(ctx, auditID, auditstore.ReportSummaryLogicalKey)
+	status := ReportReady
+	if audit.State == auditstore.AuditWaitingReview &&
+		errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
+		candidate, candidateErr := store.GetReportCandidate(ctx, auditID)
+		if candidateErr == nil {
+			machine, summary = candidate.Machine, candidate.Summary
+			machineErr, summaryErr, status = nil, nil, ReportProposed
+		} else if !errors.Is(candidateErr, auditstore.ErrNotFound) {
+			return ReportProjection{}, candidateErr
+		}
+	}
 	if errors.Is(machineErr, auditstore.ErrNotFound) && errors.Is(summaryErr, auditstore.ErrNotFound) {
 		switch audit.State {
 		case auditstore.AuditFailed, auditstore.AuditCancelled:
@@ -227,7 +238,7 @@ func (s *Service) GetReport(
 	}
 	machineArtifact, summaryArtifact := machine.Artifact, summary.Artifact
 	return ReportProjection{
-		Status: ReportReady, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
+		Status: status, MachineArtifact: &machineArtifact, SummaryArtifact: &summaryArtifact,
 		Machine: append(json.RawMessage(nil), machineRead.Payload.Data...), Summary: string(summaryRead.Payload.Data),
 	}, nil
 }

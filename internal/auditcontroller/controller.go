@@ -104,6 +104,24 @@ func (c *Controller) reconcile(
 	}
 	audit := snapshot.Audit
 
+	if audit.State == auditstore.AuditWaitingReview {
+		if changed, expireErr := c.store.ExpireReportReview(ctx, claim, audit.Revision); changed || expireErr != nil {
+			return changed, expireErr
+		}
+		if audit.DeadlineAt != nil && !c.now().Before(*audit.DeadlineAt) {
+			reason := auditstore.StopReason{
+				Code:    "deadline_exhausted",
+				Message: "The Audit wall-time deadline elapsed while exact human approval was pending.",
+			}
+			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+				Claim: claim, ExpectedRevision: audit.Revision,
+				ExpectedState: auditstore.AuditWaitingReview,
+				TargetState:   auditstore.AuditFinalizing, Reason: &reason,
+			})
+			return err == nil, err
+		}
+	}
+
 	if audit.State == auditstore.AuditActive {
 		if reason := c.dispatchClosureReason(snapshot); reason != nil {
 			_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
@@ -166,6 +184,16 @@ func (c *Controller) reconcile(
 					Claim: claim, RoundID: snapshot.Round.RoundID,
 					ExpectedRevision: snapshot.Round.Revision,
 					ExpectedState:    auditstore.RoundExecuting, TargetState: auditstore.RoundAssessing,
+				})
+				return err == nil, err
+			}
+			if audit.OutstandingRunCount == 0 && len(snapshot.Executions) == 0 &&
+				!snapshot.MoreItems && !snapshot.MoreExecutions &&
+				onlyAwaitingReview(snapshot.Items) {
+				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+					Claim: claim, ExpectedRevision: audit.Revision,
+					ExpectedState: auditstore.AuditActive,
+					TargetState:   auditstore.AuditWaitingReview,
 				})
 				return err == nil, err
 			}
@@ -827,6 +855,18 @@ func auditSettlementBarrier(snapshot auditstore.ReconcileSnapshot) bool {
 	return snapshot.Audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 &&
 		len(snapshot.Executions) == 0 && !snapshot.MoreItems && !snapshot.MoreExecutions &&
 		snapshot.Audit.Hold != auditstore.HoldHeld
+}
+
+func onlyAwaitingReview(items []auditstore.Item) bool {
+	if len(items) == 0 {
+		return false
+	}
+	for _, item := range items {
+		if item.State != auditstore.ItemAwaitingReview {
+			return false
+		}
+	}
+	return true
 }
 
 func terminalRun(state runstore.WorkflowRunState) bool {

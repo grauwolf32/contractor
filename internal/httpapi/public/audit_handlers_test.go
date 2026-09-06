@@ -253,10 +253,13 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 		},
 		reviews: []auditservice.ReviewRequest{{
 			RequestID: "review-one", AuditID: "audit-fixed", FindingID: "finding-one",
+			SubjectKind: auditservice.ReviewSubjectFinding, SubjectID: "finding-one",
 			Kind: auditservice.FindingReviewKind, SubjectRevision: 3,
-			SubjectDigest:    auditHandlerDigest("finding-subject"),
-			RequestedActions: []auditservice.AnalystVerdict{auditservice.VerdictTruePositive},
-			State:            auditservice.ReviewPending, Revision: 1, CreatedAt: now, UpdatedAt: now,
+			SubjectDigest: auditHandlerDigest("finding-subject"),
+			RequestedActions: []auditservice.ReviewRequestedAction{
+				auditservice.ReviewRequestedAction(auditservice.VerdictTruePositive),
+			},
+			State: auditservice.ReviewPending, Revision: 1, CreatedAt: now, UpdatedAt: now,
 		}},
 		provenance: []auditservice.FindingProvenance{
 			{RecordID: "proposal:one", Kind: auditservice.ProvenanceSourceProposal,
@@ -336,6 +339,42 @@ func TestAuditFindingReviewHandlersBindCASIdempotencyAndProvenanceRevision(t *te
 		management.decideFindingParams.RequestDigest == "" {
 		t.Fatalf("decide review = %d headers=%v params=%+v body=%s", decideResponse.Code,
 			decideResponse.Header(), management.decideFindingParams, decideResponse.Body.String())
+	}
+
+	action := auditservice.ReviewApprove
+	management.reviews[0] = auditservice.ReviewRequest{
+		RequestID: "review-action", AuditID: "audit-fixed",
+		SubjectKind: auditservice.ReviewSubjectItemAction, SubjectID: "item-one",
+		Kind: auditservice.ActiveCheckReviewKind, SubjectRevision: 1,
+		SubjectDigest: auditHandlerDigest("active-action"),
+		RequestedActions: []auditservice.ReviewRequestedAction{
+			auditservice.ReviewRequestedAction(action),
+		},
+		State: auditservice.ReviewDecided, Revision: 2, CreatedAt: now, UpdatedAt: now,
+		Decision: &auditservice.ReviewDecision{
+			DecisionID: "decision-action", RequestID: "review-action", AuditID: "audit-fixed",
+			Action: action, ActorID: "user-1", Rationale: "Approved exact active action.",
+			SubjectRevision: 1, SubjectDigest: auditHandlerDigest("active-action"), CreatedAt: now,
+		},
+	}
+	actionRequest := auditAuthenticatedRequest(http.MethodPost,
+		"/v1/audits/audit-fixed/reviews/review-action/decisions",
+		[]byte(`{"action":"approve","rationale":"Approved exact active action."}`))
+	actionRequest.SetPathValue("auditId", "audit-fixed")
+	actionRequest.SetPathValue("requestId", "review-action")
+	actionRequest.Header.Set("Content-Type", "application/json")
+	actionRequest.Header.Set("If-Match", `"1"`)
+	actionRequest.Header.Set("Idempotency-Key", "decide-action-one")
+	actionResponse := httptest.NewRecorder()
+	h.decideAuditReview(actionResponse, actionRequest)
+	if actionResponse.Code != http.StatusOK || actionResponse.Header().Get("ETag") != `"2"` ||
+		management.decideActionParams.Action != auditservice.ReviewApprove ||
+		management.decideActionParams.ExpectedRequestRevision != 1 ||
+		management.decideActionParams.Rationale != "Approved exact active action." ||
+		management.decideActionParams.RequestDigest == "" {
+		t.Fatalf("decide action review = %d headers=%v params=%+v body=%s",
+			actionResponse.Code, actionResponse.Header(), management.decideActionParams,
+			actionResponse.Body.String())
 	}
 
 	provenance := auditAuthenticatedRequest(http.MethodGet,
@@ -454,6 +493,7 @@ type fakeAuditManagement struct {
 	reviewListParams    auditservice.ReviewListParams
 	createReviewParams  auditservice.CreateFindingReviewParams
 	decideFindingParams auditservice.DecideFindingParams
+	decideActionParams  auditservice.DecideActionReviewParams
 	provenanceParams    auditservice.ProvenanceListParams
 	reviewReplayed      bool
 	decisionReplayed    bool
@@ -617,6 +657,19 @@ func (f *fakeAuditManagement) DecideFinding(
 	}
 	return auditservice.FindingDecisionResult{
 		Finding: f.findings[0], Request: f.reviews[0], Decision: *f.reviews[0].Decision,
+		Replayed: f.decisionReplayed,
+	}, f.err
+}
+
+func (f *fakeAuditManagement) DecideActionReview(
+	_ context.Context, params auditservice.DecideActionReviewParams,
+) (auditservice.ActionReviewDecisionResult, error) {
+	f.decideActionParams = params
+	if len(f.reviews) == 0 || f.reviews[0].Decision == nil {
+		return auditservice.ActionReviewDecisionResult{}, f.err
+	}
+	return auditservice.ActionReviewDecisionResult{
+		Request: f.reviews[0], Decision: *f.reviews[0].Decision,
 		Replayed: f.decisionReplayed,
 	}, f.err
 }

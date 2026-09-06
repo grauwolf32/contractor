@@ -1,8 +1,8 @@
 # 19 — Audits: checks, findings, and iterative assessment
 
-Status: **Proposed working agreement**
+Status: **Working agreement**
 
-Last implementation review: **2026-09-05**
+Last implementation review: **2026-09-06**
 
 ## 1. Purpose
 
@@ -24,12 +24,13 @@ local to one StageExecution. Workers may produce observations and propose
 findings, but cannot create Runs, select an Audit, approve work, or mutate Audit
 control state.
 
-The first increment supports a deterministic inventory, one immutable round,
+The implemented baseline supports deterministic inventories, immutable rounds,
 one logical item per execution, bounded independent check Runs, PostgreSQL
-recovery, exact result collection, and a coverage report. The durable model
-already separates items from executions so a later execution may carry a small
-ordered batch without changing item identity. Later increments add finding
-intake, human review, discovery, assessment, multiple rounds, and batching.
+recovery, exact result collection, finding intake and triage, exact human
+decisions, pinned discovery/assessment roles, bounded multiple rounds, and
+automatic or owner-accepted coverage reports. The durable model separates
+items from executions so a later execution may carry a small ordered batch
+without changing item identity; batching remains deferred.
 
 ## 2. Ownership boundaries
 
@@ -250,37 +251,33 @@ of required Audit capabilities for presentation; start enforces that set
 against the same profile snapshot it pins. A stale UI projection cannot bypass
 the start check.
 
-The one-round MVP supports only deterministic inventory, `maxRounds: 1`,
-`batchSize: 1`, no discovery/assessment role, and interaction policies that do
-not require a person. A Server-compatible passive profile uses `activeChecks:
-prohibited`, `findingConfirmation: disabled`, `notApplicable: profile-rule`,
-and `reportAcceptance: automatic`. `disabled` means finding proposals are not
-an accepted result surface for that profile; it never turns proposals into
+The current Server supports deterministic inventory, bounded multiple rounds,
+pinned discovery and assessment Workflow roles, exact active-check/manual-item
+approval, human finding confirmation, human applicability decisions, and
+exact report acceptance. It still requires `batchSize: 1`. Automatic active
+checks are not enabled: a profile must prohibit them or require an exact human
+decision. `findingConfirmation: disabled` means finding proposals are not an
+accepted result surface for that profile; it never turns proposals into
 findings implicitly. Start rejects a disabled-finding profile whose resolved
-Workflow outputs or AgentTemplates can emit finding proposals, and similarly
-rejects active-check capabilities under `activeChecks: prohibited`. A Server
-MAY advertise automatic active checks separately,
-but absence of human approval support never downgrades `approval-required` to
-automatic.
+Workflow outputs or AgentTemplates can emit finding proposals, and rejects
+active-check capabilities under `activeChecks: prohibited`.
 
-Profiles requiring active-check approval, manual applicability, finding
-confirmation, report acceptance, discovery, multiple rounds, or batching stay
-listable but cannot start until their owning capability is present. A
-checklist containing a human-only item is also rejected at start while review
-support is absent, because this requirement depends on the exact selected
-input rather than profile metadata alone. The stable start error is
-`audit_profile_unsupported`; its bounded reason codes distinguish the missing
-capabilities. No unsupported policy is silently ignored or interpreted as an
-automatic decision.
+For `activeChecks: approval-required`, each item assigned to a Workflow role
+that exposes a classified active-check tool starts in `awaiting_review`. The
+trusted profile gate wins over a weaker inventory-authored policy. Manual
+checklist items also start in `awaiting_review`; no model-authored marker can
+make either item runnable. Report acceptance and item decisions use the shared
+exact-subject review ledger described in section 14.
 
-Initial reason codes are `discovery_unsupported`, `assessment_unsupported`,
-`multiple_rounds_unsupported`, `batching_unsupported`,
-`automatic_active_checks_unsupported`,
-`active_check_approval_unsupported`, `finding_confirmation_unsupported`,
-`manual_applicability_unsupported`, `report_acceptance_unsupported`, and
-`manual_item_unsupported`. They describe Server features, not transient Worker
-availability: a successfully started Audit may still wait in the ordinary queue for a
-compatible Runtime Agent.
+The stable start error is `audit_profile_unsupported`; its bounded reason codes
+describe missing Server capabilities rather than transient Worker availability.
+The current implementation emits `batching_unsupported`,
+`automatic_active_checks_unsupported`, `finding_confirmation_unsupported`, and
+`assessment_unsupported` for the not-yet-supported finding-candidate inventory
+entry point. Older closed reason values remain valid wire values for compatible
+clients but are not evidence that the current Server lacks discovery, human
+review, or multiple-round execution. A successfully started Audit may still
+wait in the ordinary queue for a compatible Runtime Agent.
 
 ## 5. Baseline and scope
 
@@ -338,15 +335,16 @@ erDiagram
 | --- | --- |
 | `Audit` | id, owner_id, project_id, profile snapshot/digest, exact input/Skill sets, scope snapshot, runtime snapshots, state, revision, current_round_id, dispatch/hold state, deadline, limits/counters, stop reason, optional deletion_requested_at, timestamps |
 | `AuditRound` | id, audit_id, ordinal, exact accepted manifest ref/digest, state, expected_count, revision |
-| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, final disposition, optional accepted result ref, optional last_execution_item_id |
+| `AuditItem` | id, round_id, item_key, ordinal, kind, subject_key, exact task package ref, workflow_role, immutable source origin (exact source ref/content digest, canonical inventory digest, checklist key/version), exact source proposal refs, state, approval kind and optional exact approval-subject digest, final disposition, optional accepted result ref, optional last_execution_item_id |
 | `AuditExecution` | id, audit_id, optional round_id, role kind, exact named workflow_role from the pinned profile, optional role_attempt, exact ordered execution manifest ref/digest, submission_key, optional run_id, safe Workflow closure provenance, optional run_deleted_at, state, optional terminal Run outcome/version |
 | `AuditExecutionItem` | execution_id, item_id, batch_ordinal, item_attempt, exact task/input refs, collection disposition, optional exact result ref |
 | `AuditCollectionReceipt` | id, execution_id, optional run_id, exact terminal observation, output disposition, optional source output ref/digest, retained refs/digests, bounded error code, timestamp |
 | `AuditFinding` | id, audit_id, exact first and contributing proposal refs, current assessment ref with exact supporting check-result/attempt or direct Workflow result refs, triage state, current analyst decision ref, optional duplicate target, revision |
 | `AuditProposalReceipt` | id, run_id, allocation_id, invocation_id, submission_id, payload digest, exact proposal ref, immutable trusted origin including Workflow identity/digest, optional admitted audit_id, source status |
 | `AuditArtifactLink` | audit_id, logical key, exact retained version, source provenance, display ref, timestamp |
-| `AuditReviewRequest` | id, audit_id, kind, exact subject revision/digest, requested actions, state, optional expiry |
-| `AuditReviewDecision` | id, request_id, actor_id, decision, exact subject revision/digest, bounded rationale, timestamp |
+| `AuditReviewRequest` | id, audit_id, subject kind/id, review kind, exact subject revision/digest, requested actions, state, optional expiry |
+| `AuditReviewDecision` | id, request_id, actor_id, typed finding verdict or action decision, exact subject revision/digest, bounded rationale, timestamp |
+| `AuditReportCandidate` | audit_id, request_id, round_id, exact pre-publication Audit revision/digest, frozen machine/summary artifact descriptors, timestamp |
 | `AuditEvent` | audit_id, monotonic sequence, kind, entity id/revision, bounded safe summary |
 
 Execution role kinds are `discovery | check | assessment`; `workflow_role`
@@ -704,12 +702,14 @@ stateDiagram-v2
   active --> waiting_review: no approved runnable work
   waiting_review --> active: accepted exact decision
   active --> paused: pause new audit work
-  waiting_review --> paused: pause
+  waiting_review --> paused: pause item review
   paused --> active: resume
   active --> finalizing: close dispatch
-  waiting_review --> finalizing: accept bounded closure
+  waiting_review --> finalizing: item-review deadline
   finalizing --> waiting_review: report acceptance required
   finalizing --> completed: commit report and coverage
+  waiting_review --> completed: accept exact report candidate
+  waiting_review --> failed: reject or expire report candidate
   active --> cancelling: cancel
   waiting_review --> cancelling: cancel
   paused --> cancelling: cancel
@@ -736,6 +736,17 @@ every item settled, no mandatory open review, and retention of every accepted
 evidence revision. A profile that
 allows partial completion may close review work as deferred/excluded with a
 visible gap.
+
+`waiting_review` has two deliberately distinct uses. While immutable items are
+awaiting approval, accepting the final outstanding item returns the Audit to
+`active`; rejecting one settles it as excluded with a visible coverage gap.
+When a human report policy is selected, finalization instead freezes an exact
+machine/summary candidate and its acceptance request. During that report
+decision, new finding reviews, finding imports, and pause/resume are fenced so
+the reviewed bytes cannot drift; accept publishes exactly those descriptors,
+reject or expiry fails the Audit, and cancel/delete remain available. Once the
+report decision is complete, finding triage may continue without rewriting the
+historical accepted report.
 
 Round lifecycle is `proposed -> accepted -> executing -> assessing -> closed`.
 Items are immutable after acceptance. Checks settle before one assessment
@@ -823,11 +834,13 @@ PostgreSQL is authoritative. The Controller periodically claims and reconciles
 a bounded number of nonterminal Audits. Process-local notifications are wake
 hints only; loss, duplication, or reordering cannot prevent progress.
 
-For deterministic profiles, start creates the accepted first inventory without
-a discovery Run. A profile that requires model discovery instead creates one
-stable discovery AuditExecution, waits for a frozen output, validates it
-atomically, and only then creates the Round. Partial discovery output never
-becomes a worklist.
+Start always creates the deterministic accepted first inventory. If the pinned
+profile has discovery roles, Controller executes each role exactly once (or by
+bounded retry) while that Round is `accepted`; only accepted frozen role output
+allows the Round to enter `executing`. Partial discovery output never mutates
+the accepted worklist. Assessment roles run after all check items settle and
+before the Round closes; accepted proposal receipts may then form a separately
+validated next Round.
 
 One reconcile step:
 
@@ -839,7 +852,9 @@ One reconcile step:
    set when present, retains accepted revisions, commits a receipt for accepted,
    missing, invalid, failed, or cancelled output, and then either requeues or
    settles each item according to its remaining attempt policy;
-5. applies accepted exact review decisions;
+5. observes item state already changed by the authenticated review API, while
+   execution-intent creation independently rechecks the accepted, unexpired
+   exact decision in its own transaction;
 6. creates only the next bounded set of allowed submissions;
 7. creates at most one assessment execution after the barrier;
 8. accepts a next Round or commits exact final report/coverage.
@@ -885,19 +900,34 @@ and coverage gaps are retained. No work is silently dropped.
 
 ## 14. Human review
 
-Review kinds are `plan-approval`, `active-check-approval`, `provide-evidence`,
-`finding-triage`, `requirement-applicability`, and `report-acceptance`.
+The implemented review kinds are `active-check-approval`,
+`requirement-applicability`, `finding-triage`, and `report-acceptance`.
+`plan-approval` and `provide-evidence` are reserved extensions and do not become
+effective merely because a model emits those strings.
 
 A request pins an immutable subject revision/digest. A decision is accepted
 only through the owner-authenticated Audit API with CAS and idempotency. Model
-text or an artifact claiming “approved” has no authority. A new plan revision
-requires a new decision. Active-check approval pins exact target, methods,
-credential role, bounds, and expiry; Runtime adapters still enforce their own
-scope and egress controls.
+text or an artifact claiming “approved” has no authority. A new subject
+revision requires a new decision. An item-action subject hashes the Audit and
+item identities, pinned profile digest, Workflow role, and exact task artifact;
+the immutable Audit baseline supplies the associated scope, execution closure,
+and credential selections. Active-check approval is attached only to roles
+whose pinned AgentTemplates select a classified active tool. Runtime adapters
+still enforce their own scope and egress controls.
 
 Waiting for a person holds no allocation, Controller claim, or DB transaction.
-Human evidence is stored with actor/time provenance and passes the same exact
-package validation. A decision never rewrites original observations.
+Item requests expire no later than the Audit deadline. Before creating an
+authorized execution intent, PostgreSQL rechecks that the item is still ready,
+the exact request was accepted, its digest still matches, and its expiry is in
+the future. Rejecting an item settles it as excluded; an expired request cannot
+authorize later execution. A decision never rewrites original observations.
+
+Human report acceptance uses a frozen candidate rather than regenerating bytes
+after review. The request pins the candidate digest and pre-publication Audit
+revision. Acceptance atomically publishes the two exact report links and marks
+the Audit completed; rejection or bounded expiry records a stable terminal
+reason. A non-expired report request is excluded from Controller claims, while
+an expired request becomes claimable solely for deterministic cleanup.
 
 ### 14.1 Analyst verdict and severity
 
@@ -1171,10 +1201,10 @@ Owner comes from authentication and Project membership, never a request body.
 | `GET /v1/audits/{auditId}/findings/{findingId}/provenance` | Paginated structured source proposals and verification attempts with Workflow/checklist provenance |
 | `POST /v1/audits/{auditId}/findings/{findingId}/reviews` | CAS/idempotent create or reuse of a pending finding-triage request for the exact current finding revision |
 | `GET /v1/audits/{auditId}/coverage` | Requirement or operation matrix |
-| `GET /v1/audits/{auditId}/reviews` | Pending/completed review requests |
-| `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject owner decision |
+| `GET /v1/audits/{auditId}/reviews` | Pending/completed finding, item-action, and report review requests |
+| `POST /v1/audits/{auditId}/reviews/{requestId}/decisions` | Idempotent exact-subject owner finding verdict or approve/reject action |
 | `POST /v1/audits/{auditId}/imports` | Import owner-selected exact proposal/evidence |
-| `GET /v1/audits/{auditId}/report` | Exact accepted report or generation state |
+| `GET /v1/audits/{auditId}/report` | Pending, frozen proposed, exact accepted, or unavailable report projection |
 | `DELETE /v1/audits/{auditId}` | Begin/replay durable delete and return current deletion state |
 
 Unknown and other-owner IDs return the same safe 404. Invalid transitions
@@ -1225,6 +1255,11 @@ source Workflow and checklist separately from verification Workflows and
 attempts; deleted Runs retain readable provenance instead of broken-only links.
 Unreviewed findings display no analyst rating. Stale edits refetch current
 state after conflict and never overwrite another decision silently.
+
+The Reviews view also renders pending item-action and report requests with an
+explicit rationale and exact-subject approve/reject controls. A proposed report
+is readable before acceptance and links back to that request; it is never
+presented as an accepted result.
 
 The MVP UI uses bounded polling of authoritative Audit/profile reads while an
 Audit is nonterminal or deleting, keyed by Audit revision/ETag, and stops when
@@ -1362,6 +1397,12 @@ separate idempotent receipt contract and are not implied by artifact writes.
 24. A direct Workflow finding needs no prior hypothesis or synthetic check item;
     accepted verification traces to that same Run's exact result/contract, while
     absent or invalid verification evidence never implies TP.
+25. A profile-gated active Workflow item cannot create an execution intent
+    without an accepted, unexpired decision for its exact task/profile digest;
+    inventory data cannot weaken that gate.
+26. Human report review displays immutable proposed bytes. Accept publishes
+    those exact revisions, reject/expiry terminates with a stable reason, and
+    finding/import mutations cannot cross the pending candidate boundary.
 
 ## 21. Delivery increments and deferred work
 
@@ -1372,11 +1413,12 @@ receipts and package retention; coverage report; two executable demo profiles;
 polling UI; mandatory ownership, deletion, Skill/credential, idempotency, and
 Run-deletion gates.
 
-**Increment 2:** `security-findings@1` for Audit and ordinary Runs; finding
+**Increment 2 (implemented baseline):** `security-findings@1` for Audit and ordinary Runs; finding
 triage; exact human review; bounded discovery/assessment and multiple rounds;
 analyst TP/FP and severity history; API backtrace from finding through proposals
 and verification attempts to exact Workflow/checklist origins, including after
-source Run deletion; a documented external-script example.
+source Run deletion; exact item-action/report decisions; a documented
+external-script example.
 
 **Increment 3:** curated licensed versioned standards packages and mappings,
 richer evidence contracts, comparison of Audits for the same system, retest of

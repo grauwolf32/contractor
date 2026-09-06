@@ -24,6 +24,8 @@ type materializedItemJSON struct {
 	Origin          json.RawMessage          `json:"origin"`
 	WorkflowRole    string                   `json:"workflow_role"`
 	InitialState    string                   `json:"initial_state"`
+	ApprovalKind    string                   `json:"approval_kind"`
+	ApprovalDigest  string                   `json:"approval_digest,omitempty"`
 	Status          string                   `json:"status"`
 	Requested       []string                 `json:"requested"`
 	Completed       []string                 `json:"completed"`
@@ -56,11 +58,16 @@ func (s *PostgresStore) MaterializeRound(
 	for index, item := range params.Items {
 		encodedTaskRef, _ := json.Marshal(item.Task.Ref)
 		encodedOrigin, _ := json.Marshal(item.Origin)
+		approvalKind := item.ApprovalKind
+		if approvalKind == "" {
+			approvalKind = ItemApprovalNone
+		}
 		items[index] = materializedItemJSON{
 			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
 			Kind: item.Kind, SubjectKey: item.SubjectKey, TaskRef: encodedTaskRef,
 			TaskDigest: item.Task.Digest, Origin: encodedOrigin, WorkflowRole: item.WorkflowRole,
-			InitialState: string(item.InitialState), Status: string(item.Coverage.Status),
+			InitialState: string(item.InitialState), ApprovalKind: string(approvalKind),
+			ApprovalDigest: item.ApprovalDigest, Status: string(item.Coverage.Status),
 			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
 			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
 			ProposalSources: []proposalItemSourceJSON{},
@@ -102,19 +109,24 @@ WITH project_gate AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($9::jsonb) AS item(
         item_id text, item_key text, ordinal integer, kind text,
         subject_key text, task_ref jsonb, task_digest text, origin jsonb,
-        workflow_role text, initial_state text, status text,
+        workflow_role text, initial_state text, approval_kind text,
+        approval_digest text, status text,
         requested jsonb, completed jsonb, gaps jsonb, rationale text
     )
 ), inserted_items AS (
     INSERT INTO audit_items (
         item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-        task_ref, task_digest, origin, workflow_role, state
+        task_ref, task_digest, origin, workflow_role, state,
+        approval_kind, approval_subject_digest
     )
     SELECT item.item_id, round.audit_id, round.round_id,
            item.item_key, item.ordinal, item.kind, item.subject_key,
-           item.task_ref, item.task_digest, item.origin, item.workflow_role, item.initial_state
+           item.task_ref, item.task_digest, item.origin, item.workflow_role,
+           item.initial_state, item.approval_kind,
+           NULLIF(item.approval_digest, '')
       FROM inserted_round AS round CROSS JOIN item_input AS item
-    RETURNING item_id, audit_id, round_id, item_key, subject_key
+    RETURNING item_id, audit_id, round_id, item_key, subject_key,
+              approval_kind, approval_subject_digest
 ), inserted_coverage AS (
     INSERT INTO audit_coverage_rows (
         audit_id, round_id, item_id, item_key, subject_key,
@@ -125,6 +137,20 @@ WITH project_gate AS MATERIALIZED (
            source.status, source.requested, source.completed, source.gaps, source.rationale
       FROM inserted_items AS stored
       JOIN item_input AS source USING (item_id)
+), inserted_reviews AS (
+    INSERT INTO audit_review_requests (
+        request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+        subject_revision, subject_digest, requested_actions, state,
+        expires_at, idempotency_key, request_digest
+    )
+    SELECT 'review-' || item.item_id, item.audit_id, NULL,
+           'audit-item-action', item.item_id, item.approval_kind,
+           1, item.approval_subject_digest, '["approve","reject"]'::jsonb,
+           'pending', started.deadline_at, 'auto:' || item.item_id,
+           item.approval_subject_digest
+      FROM inserted_items AS item JOIN started USING (audit_id)
+     WHERE item.approval_kind <> 'none'
+    RETURNING request_id
 ), idempotency_row AS (
     INSERT INTO audit_idempotency (
         owner_id, operation, idempotency_key, request_digest,
@@ -137,7 +163,10 @@ WITH project_gate AS MATERIALIZED (
         audit_id, sequence_number, kind, entity_id, entity_revision, summary
     )
     SELECT audit_id, next_event_sequence - 1, 'round.accepted', $4, 1,
-           jsonb_build_object('round', $5::integer, 'items', jsonb_array_length($9::jsonb))
+           jsonb_build_object(
+               'round', $5::integer, 'items', jsonb_array_length($9::jsonb),
+               'reviews', (SELECT count(*) FROM inserted_reviews)
+           )
       FROM started
 )
 SELECT `+prefixedAuditColumns("started")+` FROM started`,
@@ -191,6 +220,10 @@ func (s *PostgresStore) AcceptNextRound(
 	for index, item := range params.Items {
 		encodedTaskRef, _ := json.Marshal(item.Task.Ref)
 		encodedOrigin, _ := json.Marshal(item.Origin)
+		approvalKind := item.ApprovalKind
+		if approvalKind == "" {
+			approvalKind = ItemApprovalNone
+		}
 		itemSources := make([]proposalItemSourceJSON, len(item.ProposalSources))
 		for sourceIndex, source := range item.ProposalSources {
 			itemSources[sourceIndex] = proposalItemSourceJSON{
@@ -203,7 +236,8 @@ func (s *PostgresStore) AcceptNextRound(
 			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
 			Kind: item.Kind, SubjectKey: item.SubjectKey, TaskRef: encodedTaskRef,
 			TaskDigest: item.Task.Digest, Origin: encodedOrigin, WorkflowRole: item.WorkflowRole,
-			InitialState: string(item.InitialState), Status: string(item.Coverage.Status),
+			InitialState: string(item.InitialState), ApprovalKind: string(approvalKind),
+			ApprovalDigest: item.ApprovalDigest, Status: string(item.Coverage.Status),
 			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
 			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
 			ProposalSources: itemSources,
@@ -228,7 +262,8 @@ WITH live_claim AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($10::jsonb) AS item(
         item_id text, item_key text, ordinal integer, kind text,
         subject_key text, task_ref jsonb, task_digest text, origin jsonb,
-        workflow_role text, initial_state text, status text,
+        workflow_role text, initial_state text, approval_kind text,
+        approval_digest text, status text,
         requested jsonb, completed jsonb, gaps jsonb, rationale text,
         proposal_sources jsonb
     )
@@ -292,14 +327,17 @@ WITH live_claim AS MATERIALIZED (
 ), inserted_items AS (
     INSERT INTO audit_items (
         item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
-        task_ref, task_digest, origin, workflow_role, state
+        task_ref, task_digest, origin, workflow_role, state,
+        approval_kind, approval_subject_digest
     )
     SELECT item.item_id, round.audit_id, round.round_id,
            item.item_key, item.ordinal, item.kind, item.subject_key,
            item.task_ref, item.task_digest, item.origin, item.workflow_role,
-           item.initial_state
+           item.initial_state, item.approval_kind,
+           NULLIF(item.approval_digest, '')
       FROM inserted_round AS round CROSS JOIN item_input AS item
-    RETURNING item_id, audit_id, round_id, item_key, subject_key
+    RETURNING item_id, audit_id, round_id, item_key, subject_key,
+              approval_kind, approval_subject_digest
 ), inserted_coverage AS (
     INSERT INTO audit_coverage_rows (
         audit_id, round_id, item_id, item_key, subject_key,
@@ -309,6 +347,20 @@ WITH live_claim AS MATERIALIZED (
            stored.item_key, stored.subject_key, source.status,
            source.requested, source.completed, source.gaps, source.rationale
       FROM inserted_items AS stored JOIN item_input AS source USING (item_id)
+), inserted_reviews AS (
+    INSERT INTO audit_review_requests (
+        request_id, audit_id, finding_id, subject_kind, subject_id, kind,
+        subject_revision, subject_digest, requested_actions, state,
+        expires_at, idempotency_key, request_digest
+    )
+    SELECT 'review-' || item.item_id, item.audit_id, NULL,
+           'audit-item-action', item.item_id, item.approval_kind,
+           1, item.approval_subject_digest, '["approve","reject"]'::jsonb,
+           'pending', advanced.deadline_at, 'auto:' || item.item_id,
+           item.approval_subject_digest
+      FROM inserted_items AS item JOIN advanced USING (audit_id)
+     WHERE item.approval_kind <> 'none'
+    RETURNING request_id
 ), inserted_sources AS (
     INSERT INTO audit_proposal_items (
         audit_id, receipt_id, proposed_check_ordinal, round_id, item_id,
@@ -324,7 +376,10 @@ WITH live_claim AS MATERIALIZED (
     )
     SELECT round.audit_id, advanced.next_event_sequence - 1,
            'round.accepted', round.round_id, round.revision,
-           jsonb_build_object('round', round.ordinal, 'items', round.expected_item_count)
+           jsonb_build_object(
+               'round', round.ordinal, 'items', round.expected_item_count,
+               'reviews', (SELECT count(*) FROM inserted_reviews)
+           )
       FROM inserted_round AS round JOIN advanced USING (audit_id)
 )
 SELECT round_id, audit_id, ordinal, manifest_ref, manifest_digest, state,

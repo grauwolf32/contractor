@@ -22,6 +22,7 @@ type Store interface {
 	CollectionDispositionCounts(context.Context, string) (auditstore.CollectionDispositionCounts, error)
 	Collect(context.Context, auditstore.CollectParams) (auditstore.CollectionReceipt, bool, error)
 	CommitReport(context.Context, auditstore.CommitReportParams) (auditstore.Audit, error)
+	ProposeReport(context.Context, auditstore.ProposeReportParams) (auditstore.Audit, bool, error)
 }
 
 type RunReader interface {

@@ -522,6 +522,20 @@ func validateRoundItems(items []MaterializedItem) error {
 		if item.InitialState != ItemReady && item.InitialState != ItemAwaitingReview {
 			return invalidf("round item initial state is invalid")
 		}
+		approvalKind := item.ApprovalKind
+		if approvalKind == "" {
+			approvalKind = ItemApprovalNone
+		}
+		if !approvalKind.Valid() ||
+			(approvalKind == ItemApprovalNone) != (item.ApprovalDigest == "") ||
+			(item.InitialState == ItemAwaitingReview) != (approvalKind != ItemApprovalNone) {
+			return invalidf("round item approval is invalid")
+		}
+		if item.ApprovalDigest != "" {
+			if err := validateDigest("item approval digest", item.ApprovalDigest); err != nil {
+				return err
+			}
+		}
 		if err := validateExactArtifact("item task", item.Task, false); err != nil {
 			return err
 		}

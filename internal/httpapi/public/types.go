@@ -198,6 +198,7 @@ type AuditManagement interface {
 	GetFinding(context.Context, string, string, string) (auditservice.Finding, error)
 	CreateFindingReview(context.Context, auditservice.CreateFindingReviewParams) (auditservice.FindingReviewResult, error)
 	DecideFinding(context.Context, auditservice.DecideFindingParams) (auditservice.FindingDecisionResult, error)
+	DecideActionReview(context.Context, auditservice.DecideActionReviewParams) (auditservice.ActionReviewDecisionResult, error)
 	GetReview(context.Context, string, string, string) (auditservice.ReviewRequest, error)
 	ListReviews(context.Context, auditservice.ReviewListParams) ([]auditservice.ReviewRequest, error)
 	ListFindingProvenance(context.Context, auditservice.ProvenanceListParams) ([]auditservice.FindingProvenance, error)

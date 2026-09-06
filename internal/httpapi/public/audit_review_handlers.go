@@ -35,7 +35,8 @@ type createFindingReviewRequest struct {
 }
 
 type decideFindingRequest struct {
-	Verdict           auditservice.AnalystVerdict   `json:"verdict"`
+	Action            *auditservice.ReviewAction    `json:"action,omitempty"`
+	Verdict           *auditservice.AnalystVerdict  `json:"verdict,omitempty"`
 	Severity          *auditservice.FindingSeverity `json:"severity,omitempty"`
 	Rationale         string                        `json:"rationale"`
 	DuplicateTargetID *string                       `json:"duplicateTargetId,omitempty"`
@@ -248,10 +249,38 @@ func (h *handler) decideAuditReview(w http.ResponseWriter, r *http.Request) {
 	}
 	auditID, requestID := r.PathValue("auditId"), r.PathValue("requestId")
 	digest := reviewRequestDigest("decide", auditID, requestID, revision, request)
+	if request.Action != nil {
+		if request.Verdict != nil || request.Severity != nil || request.DuplicateTargetID != nil {
+			h.handleError(w, errInvalidRequest)
+			return
+		}
+		result, err := h.dependencies.Audits.DecideActionReview(
+			r.Context(), auditservice.DecideActionReviewParams{
+				OwnerID: principalUserID(r.Context()), AuditID: auditID,
+				RequestID: requestID, ExpectedRequestRevision: revision,
+				DecisionID: decisionID, Action: *request.Action, Rationale: request.Rationale,
+				IdempotencyKey: key, RequestDigest: digest,
+			},
+		)
+		if err != nil {
+			h.handleError(w, err)
+			return
+		}
+		if result.Replayed {
+			w.Header().Set("Idempotency-Replayed", "true")
+		}
+		w.Header().Set("ETag", strconv.Quote(strconv.FormatUint(result.Request.Revision, 10)))
+		writeJSON(w, http.StatusOK, result)
+		return
+	}
+	if request.Verdict == nil {
+		h.handleError(w, errInvalidRequest)
+		return
+	}
 	result, err := h.dependencies.Audits.DecideFinding(r.Context(), auditservice.DecideFindingParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, RequestID: requestID,
 		ExpectedRequestRevision: revision, DecisionID: decisionID,
-		Verdict: request.Verdict, Severity: request.Severity, Rationale: request.Rationale,
+		Verdict: *request.Verdict, Severity: request.Severity, Rationale: request.Rationale,
 		DuplicateTargetID: request.DuplicateTargetID, IdempotencyKey: key, RequestDigest: digest,
 	})
 	if err != nil {

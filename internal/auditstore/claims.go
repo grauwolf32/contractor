@@ -18,8 +18,32 @@ WITH candidates AS (
     SELECT claim.audit_id
       FROM audit_controller_claims AS claim
       JOIN audits AS audit USING (audit_id)
-     WHERE audit.state IN (
-               'active', 'waiting_review', 'paused', 'finalizing', 'cancelling', 'deleting'
+     WHERE (
+               audit.state IN ('active', 'paused', 'finalizing', 'cancelling', 'deleting')
+               OR (
+                   audit.state = 'waiting_review'
+                   AND (
+                       (
+                           audit.deadline_at <= clock_timestamp()
+                           AND NOT EXISTS (
+                               SELECT 1 FROM audit_report_candidates AS report
+                                WHERE report.audit_id = audit.audit_id
+                           )
+                       )
+                       OR EXISTS (
+                           SELECT 1
+                             FROM audit_report_candidates AS report
+                             JOIN audit_review_requests AS review
+                               ON review.request_id = report.request_id
+                              AND review.audit_id = report.audit_id
+                            WHERE report.audit_id = audit.audit_id
+                              AND (
+                                  review.state = 'expired'
+                                  OR (review.state = 'pending' AND review.expires_at <= clock_timestamp())
+                              )
+                       )
+                   )
+               )
            )
        AND (claim.holder_id IS NULL OR claim.expires_at <= clock_timestamp())
      ORDER BY claim.epoch, audit.updated_at, audit.audit_id

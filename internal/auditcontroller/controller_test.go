@@ -135,6 +135,24 @@ func TestControllerDeadlineClosesDispatchBeforeRoundOrRunCreation(t *testing.T) 
 	}
 }
 
+func TestControllerExpiresPendingReportAcceptance(t *testing.T) {
+	harness := newControllerHarness(t, 0, 1)
+	harness.store.mu.Lock()
+	harness.store.audit.State = auditstore.AuditWaitingReview
+	harness.store.audit.Dispatch = auditstore.DispatchClosed
+	harness.store.expiredReportReview = true
+	harness.store.mu.Unlock()
+
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("expire report acceptance = (%t, %v)", worked, err)
+	}
+	audit := harness.store.auditSnapshot()
+	if audit.State != auditstore.AuditFailed || audit.StopReason == nil ||
+		audit.StopReason.Code != "report_acceptance_expired" {
+		t.Fatalf("expired report Audit = %+v", audit)
+	}
+}
+
 func TestControllerCollectsClosesBarrierAndFinalizesReport(t *testing.T) {
 	harness := newControllerHarness(t, 1, 1)
 	collector := &fakeControllerCollector{store: harness.store}
@@ -310,16 +328,17 @@ func (fakeSubmissionBuilder) Prepare(
 }
 
 type fakeControllerStore struct {
-	mu             sync.Mutex
-	audit          auditstore.Audit
-	round          auditstore.Round
-	items          []auditstore.Item
-	executions     []auditstore.Execution
-	members        map[string][]auditstore.ExecutionItem
-	held           bool
-	epoch          uint64
-	window         int
-	maxOutstanding int
+	mu                  sync.Mutex
+	audit               auditstore.Audit
+	round               auditstore.Round
+	items               []auditstore.Item
+	executions          []auditstore.Execution
+	members             map[string][]auditstore.ExecutionItem
+	held                bool
+	epoch               uint64
+	window              int
+	maxOutstanding      int
+	expiredReportReview bool
 }
 
 func newFakeControllerStore(t *testing.T, itemCount, window int) *fakeControllerStore {
@@ -398,6 +417,27 @@ func (s *fakeControllerStore) ReleaseClaim(_ context.Context, claim auditstore.C
 	}
 	s.held = false
 	return nil
+}
+
+func (s *fakeControllerStore) ExpireReportReview(
+	_ context.Context, claim auditstore.ControllerClaim, expectedRevision uint64,
+) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.expiredReportReview {
+		return false, nil
+	}
+	if !s.held || claim.Epoch != s.epoch || s.audit.Revision != expectedRevision ||
+		s.audit.State != auditstore.AuditWaitingReview {
+		return false, auditstore.ErrPrecondition
+	}
+	s.expiredReportReview = false
+	s.audit.State = auditstore.AuditFailed
+	s.audit.Revision++
+	s.audit.StopReason = &auditstore.StopReason{
+		Code: "report_acceptance_expired", Message: "The report approval expired.",
+	}
+	return true, nil
 }
 
 func (s *fakeControllerStore) GetReconcileSnapshot(_ context.Context, claim auditstore.ControllerClaim) (auditstore.ReconcileSnapshot, error) {

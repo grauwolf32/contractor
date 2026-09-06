@@ -163,6 +163,8 @@ const review: AuditReviewRequest = {
   requestId: "review_example",
   auditId: audit.auditId,
   findingId: finding.findingId,
+  subjectKind: "finding",
+  subjectId: finding.findingId,
   kind: "finding-triage",
   subjectRevision: finding.revision,
   subjectDigest: `sha256:${"6".repeat(64)}`,

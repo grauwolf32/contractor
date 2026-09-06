@@ -49,7 +49,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 			func(pgx.Tx) (config.CredentialLookup, error) { return credentials, nil },
 		),
 		CredentialGuard: guard,
-		Now:             func() time.Time { return time.Date(2026, 9, 5, 18, 0, 0, 0, time.UTC) },
+		Now:             time.Now,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -190,17 +190,149 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.Start(ctx, StartParams{
+	manualStarted, err := service.Start(ctx, StartParams{
 		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, ExpectedRevision: manualDraft.Revision,
 		IdempotencyKey: "start-manual", RequestDigest: serviceTestDigest("start-manual"),
 	})
-	var unsupportedError *UnsupportedError
-	if !errors.As(err, &unsupportedError) || len(unsupportedError.Reasons) != 1 || unsupportedError.Reasons[0] != ReasonManualItemUnsupported {
-		t.Fatalf("manual start error = %#v", err)
+	if err != nil || len(manualStarted.Items) != 1 ||
+		manualStarted.Items[0].State != auditstore.ItemAwaitingReview ||
+		manualStarted.Items[0].ApprovalKind != auditstore.ItemApprovalApplicability ||
+		manualStarted.Items[0].ApprovalDigest == "" {
+		t.Fatalf("manual start = (%+v, %v)", manualStarted, err)
 	}
 	storedManual, err := service.Get(ctx, project.OwnerID, manualDraft.AuditID)
-	if err != nil || storedManual.State != auditstore.AuditDraft || storedManual.BaselineSnapshot != nil || storedManual.Hold != auditstore.HoldPending {
-		t.Fatalf("manual rollback = (%+v, %v)", storedManual, err)
+	if err != nil || storedManual.State != auditstore.AuditActive || storedManual.BaselineSnapshot == nil ||
+		storedManual.Hold != auditstore.HoldHeld {
+		t.Fatalf("manual Audit state = (%+v, %v)", storedManual, err)
+	}
+	reviews, err := service.ListReviews(ctx, ReviewListParams{
+		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, Limit: 10,
+	})
+	if err != nil || len(reviews) != 1 || reviews[0].Kind != ApplicabilityReviewKind ||
+		reviews[0].SubjectKind != ReviewSubjectItemAction ||
+		reviews[0].SubjectID != manualStarted.Items[0].ItemID {
+		t.Fatalf("manual item reviews = (%+v, %v)", reviews, err)
+	}
+	approved, err := service.DecideActionReview(ctx, DecideActionReviewParams{
+		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID,
+		RequestID: reviews[0].RequestID, ExpectedRequestRevision: reviews[0].Revision,
+		DecisionID: "decision-manual-approve", Action: ReviewApprove,
+		Rationale:      "The owner approved this exact checklist action.",
+		IdempotencyKey: "decision-manual-approve",
+		RequestDigest:  serviceTestDigest("decision-manual-approve"),
+	})
+	if err != nil || approved.Decision.Action != ReviewApprove ||
+		approved.Request.State != ReviewDecided {
+		t.Fatalf("approve manual item = (%+v, %v)", approved, err)
+	}
+	approvedItems, err := service.ListItems(ctx, auditstore.ListItemsParams{
+		OwnerID: project.OwnerID, AuditID: manualDraft.AuditID, Limit: 10,
+	})
+	if err != nil || len(approvedItems) != 1 || approvedItems[0].State != auditstore.ItemReady {
+		t.Fatalf("approved manual item state = (%+v, %v)", approvedItems, err)
+	}
+	claims, err := auditstore.NewPostgresStore(pool).Claim(ctx, auditstore.ClaimParams{
+		HolderID: "controller-manual-approval", Lease: 20 * time.Second, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manualClaim auditstore.ControllerClaim
+	for _, claim := range claims {
+		if claim.AuditID == manualDraft.AuditID {
+			manualClaim = claim
+		} else {
+			_ = auditstore.NewPostgresStore(pool).ReleaseClaim(ctx, claim)
+		}
+	}
+	if manualClaim.AuditID == "" {
+		t.Fatal("manual Audit was not claimable after approval")
+	}
+	if _, err := auditstore.NewPostgresStore(pool).TransitionRound(ctx, auditstore.RoundTransitionParams{
+		Claim: manualClaim, RoundID: manualStarted.Round.RoundID,
+		ExpectedRevision: manualStarted.Round.Revision,
+		ExpectedState:    auditstore.RoundAccepted, TargetState: auditstore.RoundExecuting,
+	}); err != nil {
+		currentAudit, auditErr := auditstore.NewPostgresStore(pool).Get(ctx, project.OwnerID, manualDraft.AuditID)
+		currentRound, roundErr := auditstore.NewPostgresStore(pool).GetRound(
+			ctx, manualDraft.AuditID, manualStarted.Round.RoundID,
+		)
+		t.Fatalf("transition approved manual Round: %v; audit=(state=%s revision=%d deadline=%v, %v); round=(state=%s revision=%d, %v)",
+			err, currentAudit.State, currentAudit.Revision, currentAudit.DeadlineAt, auditErr,
+			currentRound.State, currentRound.Revision, roundErr)
+	}
+	if _, err := pool.Exec(ctx, `
+UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 second'
+ WHERE request_id = $1`, reviews[0].RequestID); err != nil {
+		t.Fatal(err)
+	}
+	roundID := manualStarted.Round.RoundID
+	_, inserted, err := auditstore.NewPostgresStore(pool).CreateExecutionIntent(ctx,
+		auditstore.CreateExecutionIntentParams{
+			Claim: manualClaim, ExecutionID: "execution-expired-approval",
+			RoundID: &roundID, Role: auditstore.ExecutionCheck, WorkflowRole: "check",
+			Manifest:      manualStarted.Round.Manifest,
+			SubmissionKey: "expired-approval", RequestDigest: serviceTestDigest("expired-approval"),
+			Members: []auditstore.ExecutionMemberIntent{{
+				ExecutionItemID: "member-expired-approval", ItemID: approvedItems[0].ItemID,
+				BatchOrdinal: 0, ItemAttempt: 1, Task: approvedItems[0].Task,
+				Inputs: []auditstore.ExactArtifact{},
+			}},
+		})
+	if !errors.Is(err, auditstore.ErrPrecondition) || inserted {
+		t.Fatalf("expired exact approval execution = (%t, %v)", inserted, err)
+	}
+	_ = auditstore.NewPostgresStore(pool).ReleaseClaim(ctx, manualClaim)
+
+	rejectedDraft, _, err := service.CreateDraft(ctx, CreateDraftParams{
+		AuditID: "audit-api-manual-rejected", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile: ProfileSelector{Name: "test-checklist", Version: "1"},
+		Inputs:  map[string]contracts.ArtifactRef{"checklist": manual.Ref},
+		Scope:   Scope{}, IdempotencyKey: "create-manual-rejected",
+		RequestDigest: serviceTestDigest("create-manual-rejected"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectedStarted, err := service.Start(ctx, StartParams{
+		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID,
+		ExpectedRevision: rejectedDraft.Revision, IdempotencyKey: "start-manual-rejected",
+		RequestDigest: serviceTestDigest("start-manual-rejected"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejectedReviews, err := service.ListReviews(ctx, ReviewListParams{
+		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID, Limit: 10,
+	})
+	if err != nil || len(rejectedReviews) != 1 {
+		t.Fatalf("rejected item review = (%+v, %v)", rejectedReviews, err)
+	}
+	if _, err := service.DecideActionReview(ctx, DecideActionReviewParams{
+		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID,
+		RequestID:               rejectedReviews[0].RequestID,
+		ExpectedRequestRevision: rejectedReviews[0].Revision,
+		DecisionID:              "decision-manual-reject", Action: ReviewReject,
+		Rationale:      "The exact manual action is outside this assessment.",
+		IdempotencyKey: "decision-manual-reject",
+		RequestDigest:  serviceTestDigest("decision-manual-reject"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rejectedItems, err := service.ListItems(ctx, auditstore.ListItemsParams{
+		OwnerID: project.OwnerID, AuditID: rejectedDraft.AuditID, Limit: 10,
+	})
+	if err != nil || len(rejectedItems) != 1 || rejectedItems[0].State != auditstore.ItemSettled ||
+		rejectedItems[0].FinalDisposition == nil ||
+		*rejectedItems[0].FinalDisposition != auditstore.FinalExcluded {
+		t.Fatalf("rejected exact item = (%+v, %v)", rejectedItems, err)
+	}
+	rejectedCoverage, err := service.ListCoverage(
+		ctx, project.OwnerID, rejectedDraft.AuditID, rejectedStarted.Round.RoundID, -1, 10,
+	)
+	if err != nil || len(rejectedCoverage) != 1 ||
+		rejectedCoverage[0].Coverage.Status != auditstore.CoverageExcluded {
+		t.Fatalf("rejected item coverage = (%+v, %v)", rejectedCoverage, err)
 	}
 	var roundCount, artifactCount int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_rounds WHERE audit_id = $1`, manualDraft.AuditID).Scan(&roundCount); err != nil {
@@ -212,10 +344,8 @@ SELECT count(*)
  WHERE scope_kind = 'project' AND scope_id = $1 AND namespace LIKE 'audit-%'`, project.ProjectID).Scan(&artifactCount); err != nil {
 		t.Fatal(err)
 	}
-	if roundCount != 0 || artifactCount != 2 {
-		// The successful Audit created exactly a task package and a worklist;
-		// the rejected manual Audit must not add either one.
-		t.Fatalf("unsupported rollback rows = rounds %d, Audit bindings %d", roundCount, artifactCount)
+	if roundCount != 1 || artifactCount != 6 {
+		t.Fatalf("manual materialization rows = rounds %d, Audit bindings %d", roundCount, artifactCount)
 	}
 }
 
@@ -306,6 +436,243 @@ func TestAuditStartUsesOwningTransactionWithSaturatedPool(t *testing.T) {
 	}
 	if started.Audit.State != auditstore.AuditActive || len(started.Items) != 1 {
 		t.Fatalf("started saturated Audit = %+v", started)
+	}
+}
+
+func TestAuditReportAcceptanceUsesFrozenCandidate(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedAuditServicePool(t, ctx, databaseURL)
+	project, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-report-review", OwnerID: "owner-report-review",
+		Kind: projectstore.KindProject, Name: "Report review",
+		IdempotencyKey: "project-report-review", RequestDigest: serviceTestDigest("report-project"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := auditstore.NewPostgresStore(pool)
+	audit, _, err := store.CreateDraft(ctx, auditstore.CreateDraftParams{
+		AuditID: "audit-report-review", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+		Profile:         auditstore.ProfileIdentity{Name: "report-review", Version: "1", Digest: serviceTestDigest("profile")},
+		ProfileSnapshot: json.RawMessage(`{"interaction":{"reportAcceptance":"human-required"}}`),
+		InputSelection:  json.RawMessage(`{"inputs":{}}`),
+		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1,
+			MaxItemsTotal: 1, MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024},
+		IdempotencyKey: "audit-report-review", RequestDigest: serviceTestDigest("report-audit"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	findingID := seedAuditFinding(
+		t, ctx, pool, project.ProjectID, project.OwnerID, audit.AuditID, "report-freeze",
+	)
+	intake, err := findingintake.New(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewService := &Service{pool: pool, findings: intake, now: time.Now}
+	audit, err = store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := "report-manifest-r1"
+	manifest := auditstore.ExactArtifact{Ref: contracts.ArtifactRef{
+		Namespace: "audit-report-review", Name: "round", Revision: &revision,
+	}, Digest: serviceTestDigest("manifest")}
+	audit, _, err = store.MaterializeRound(ctx, auditstore.MaterializeRoundParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision,
+		RoundID: "round-report-review", RoundOrdinal: 1, Manifest: manifest,
+		BaselineSnapshot: json.RawMessage(`{"inputs":{},"skills":[]}`),
+		DeadlineAt:       time.Now().Add(time.Hour), Items: []auditstore.MaterializedItem{},
+		IdempotencyKey: "start-report-review", RequestDigest: serviceTestDigest("report-start"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := store.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "report-review-controller", Lease: 20 * time.Second, Limit: 1,
+	})
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim report Audit = (%+v, %v)", claims, err)
+	}
+	claim := claims[0]
+	round, err := store.GetRound(ctx, audit.AuditID, "round-report-review")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, transition := range []struct {
+		from, to auditstore.RoundState
+	}{
+		{auditstore.RoundAccepted, auditstore.RoundExecuting},
+		{auditstore.RoundExecuting, auditstore.RoundAssessing},
+		{auditstore.RoundAssessing, auditstore.RoundClosed},
+	} {
+		round, err = store.TransitionRound(ctx, auditstore.RoundTransitionParams{
+			Claim: claim, RoundID: round.RoundID, ExpectedRevision: round.Revision,
+			ExpectedState: transition.from, TargetState: transition.to,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	audit, err = store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	audit, err = store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
+		Claim: claim, ExpectedRevision: audit.Revision, ExpectedState: auditstore.AuditActive,
+		TargetState: auditstore.AuditFinalizing,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact := func(name, media string, size int64) auditstore.ExactArtifact {
+		revision := name + "-r1"
+		return auditstore.ExactArtifact{Ref: contracts.ArtifactRef{
+			Namespace: "audit-report-review", Name: name, Revision: &revision,
+		}, Digest: serviceTestDigest(name), MediaType: media, SizeBytes: size}
+	}
+	provenance := json.RawMessage(`{"schema":"contractor.audit.report-provenance.v1"}`)
+	params := auditstore.ProposeReportParams{
+		Claim: claim, ExpectedAuditRevision: audit.Revision,
+		RoundID: round.RoundID, ExpectedRoundRevision: round.Revision,
+		Machine: auditstore.ArtifactLink{LogicalKey: auditstore.ReportMachineLogicalKey,
+			Artifact: artifact("report.json", "application/json", 32), SourceProvenance: provenance},
+		Summary: auditstore.ArtifactLink{LogicalKey: auditstore.ReportSummaryLogicalKey,
+			Artifact: artifact("report.txt", "text/plain", 16), SourceProvenance: provenance},
+		RequestDigest: serviceTestDigest("report-candidate"),
+	}
+	waiting, inserted, err := store.ProposeReport(ctx, params)
+	if err != nil || !inserted || waiting.State != auditstore.AuditWaitingReview {
+		t.Fatalf("propose report = (%+v, %t, %v)", waiting, inserted, err)
+	}
+	if replay, inserted, err := store.ProposeReport(ctx, params); err != nil || inserted ||
+		replay.State != auditstore.AuditWaitingReview {
+		t.Fatalf("replay report proposal = (%+v, %t, %v)", replay, inserted, err)
+	}
+	candidate, err := store.GetReportCandidate(ctx, audit.AuditID)
+	if err != nil || candidate.SubjectDigest != params.RequestDigest ||
+		candidate.Machine.Artifact.Digest != params.Machine.Artifact.Digest {
+		t.Fatalf("report candidate = (%+v, %v)", candidate, err)
+	}
+	// Exercise the claim-bound expiry transaction without consuming the
+	// candidate used by the acceptance assertions below.
+	expiryTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := expiryTx.Exec(ctx, `
+UPDATE audit_review_requests
+   SET expires_at = clock_timestamp() - interval '1 second'
+ WHERE request_id = $1`, candidate.RequestID); err != nil {
+		_ = expiryTx.Rollback(ctx)
+		t.Fatal(err)
+	}
+	changed, err := auditstore.NewPostgresStore(expiryTx).ExpireReportReview(
+		ctx, claim, waiting.Revision,
+	)
+	if err != nil || !changed {
+		_ = expiryTx.Rollback(ctx)
+		t.Fatalf("expire exact report review = (%t, %v)", changed, err)
+	}
+	expiredAudit, err := auditstore.NewPostgresStore(expiryTx).Get(
+		ctx, project.OwnerID, audit.AuditID,
+	)
+	if err != nil || expiredAudit.State != auditstore.AuditFailed ||
+		expiredAudit.StopReason == nil || expiredAudit.StopReason.Code != "report_acceptance_expired" {
+		_ = expiryTx.Rollback(ctx)
+		t.Fatalf("expired report transaction = (%+v, %v)", expiredAudit, err)
+	}
+	if err := expiryTx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	rejectTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateAndApplyReportDecision(
+		ctx, rejectTx, audit.AuditID, candidate.RequestID, audit.AuditID,
+		int64(candidate.SubjectRevision), candidate.SubjectDigest, ReviewReject,
+	); err != nil {
+		_ = rejectTx.Rollback(ctx)
+		t.Fatalf("reject exact report candidate: %v", err)
+	}
+	var rejectedState auditstore.AuditState
+	var rejectedReason *string
+	if err := rejectTx.QueryRow(ctx, `
+SELECT state, stop_reason_code FROM audits WHERE audit_id = $1`, audit.AuditID).Scan(
+		&rejectedState, &rejectedReason,
+	); err != nil || rejectedState != auditstore.AuditFailed || rejectedReason == nil ||
+		*rejectedReason != "report_rejected" {
+		_ = rejectTx.Rollback(ctx)
+		t.Fatalf("rejected report transaction = (%s, %v, %v)", rejectedState, rejectedReason, err)
+	}
+	if err := rejectTx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ReleaseClaim(ctx, claim); err != nil {
+		t.Fatal(err)
+	}
+	claims, err = store.Claim(ctx, auditstore.ClaimParams{
+		HolderID: "report-review-recovery", Lease: 20 * time.Second, Limit: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claims) != 0 {
+		t.Fatalf("non-expired report review was claimed for reconciliation: %+v", claims)
+	}
+	if _, err := reviewService.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, FindingID: findingID,
+		ExpectedRevision: 1, RequestID: "review-during-report-acceptance",
+		IdempotencyKey: "review-during-report-acceptance",
+		RequestDigest:  serviceTestDigest("review-during-report-acceptance"),
+	}); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("finding review during report acceptance error = %v", err)
+	}
+	if _, err := reviewService.Pause(ctx, MutationParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, ExpectedRevision: waiting.Revision,
+		IdempotencyKey: "pause-report-review", RequestDigest: serviceTestDigest("pause-report-review"),
+	}); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("pause during report acceptance error = %v", err)
+	}
+	review, err := reviewService.GetReview(
+		ctx, project.OwnerID, audit.AuditID, candidate.RequestID,
+	)
+	if err != nil || review.Kind != ReportAcceptanceReviewKind ||
+		review.SubjectKind != ReviewSubjectReport {
+		t.Fatalf("report review = (%+v, %v)", review, err)
+	}
+	decision, err := reviewService.DecideActionReview(ctx, DecideActionReviewParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, RequestID: review.RequestID,
+		ExpectedRequestRevision: review.Revision, DecisionID: "decision-report-approve",
+		Action: ReviewApprove, Rationale: "The owner accepts this exact report.",
+		IdempotencyKey: "decision-report-approve", RequestDigest: serviceTestDigest("report-approve"),
+	})
+	if err != nil || decision.Decision.Action != ReviewApprove {
+		t.Fatalf("approve report = (%+v, %v)", decision, err)
+	}
+	completed, err := store.Get(ctx, project.OwnerID, audit.AuditID)
+	if err != nil || completed.State != auditstore.AuditCompleted {
+		t.Fatalf("completed report Audit = (%+v, %v)", completed, err)
+	}
+	for _, key := range []string{auditstore.ReportMachineLogicalKey, auditstore.ReportSummaryLogicalKey} {
+		if _, err := store.GetArtifactLink(ctx, audit.AuditID, key); err != nil {
+			t.Fatalf("accepted report link %q: %v", key, err)
+		}
+	}
+	if _, err := reviewService.CreateFindingReview(ctx, CreateFindingReviewParams{
+		OwnerID: project.OwnerID, AuditID: audit.AuditID, FindingID: findingID,
+		ExpectedRevision: 1, RequestID: "review-after-report-acceptance",
+		IdempotencyKey: "review-after-report-acceptance",
+		RequestDigest:  serviceTestDigest("review-after-report-acceptance"),
+	}); err != nil {
+		t.Fatalf("finding review after report acceptance: %v", err)
 	}
 }
 

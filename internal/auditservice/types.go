@@ -162,6 +162,7 @@ type ReportStatus string
 
 const (
 	ReportPending     ReportStatus = "pending"
+	ReportProposed    ReportStatus = "proposed"
 	ReportReady       ReportStatus = "ready"
 	ReportUnavailable ReportStatus = "unavailable"
 )

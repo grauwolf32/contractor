@@ -310,11 +310,16 @@ func (i *Importer) Finalize(
 	if err != nil {
 		return false, err
 	}
-	_, err = i.store.CommitReport(ctx, auditstore.CommitReportParams{
+	commit := auditstore.CommitReportParams{
 		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
 		RoundID: snapshot.Round.RoundID, ExpectedRoundRevision: snapshot.Round.Revision,
 		Machine: machineLink, Summary: summaryLink, RequestDigest: digestBytes(identity),
-	})
+	}
+	if profile.Interaction.ReportAcceptance == config.AuditReportHumanRequired {
+		_, _, err = i.store.ProposeReport(ctx, auditstore.ProposeReportParams(commit))
+		return err == nil, err
+	}
+	_, err = i.store.CommitReport(ctx, commit)
 	return err == nil, err
 }
 

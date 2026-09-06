@@ -78,7 +78,11 @@ func finishInventory(
 			return Inventory{}, invalid(CodeLimitExceeded, "generated_packages")
 		}
 		approval := subject.approval
-		if approval == "" {
+		// A trusted profile-level active-check gate is stronger than an
+		// inventory-authored/manual gate. One exact owner decision authorizes
+		// the resulting action, so untrusted inventory data can request more
+		// review but can never downgrade the profile policy.
+		if options.ApprovalRequirement == ApprovalActiveCheck || approval == "" {
 			approval = options.ApprovalRequirement
 		}
 		item := WorklistItem{
@@ -218,7 +222,9 @@ func validateBasisItem(
 		itemKey, ok := subject["item_key"].(string)
 		if !ok || itemKey != item.ItemKey || item.Kind != "checklist" || task.Checklist == nil ||
 			!equalStringSlices(coverage.Requested, task.Checklist.RequiredEvidence) || len(coverage.Gaps) != 0 ||
-			task.Checklist.ReviewPolicy == "manual" && item.ApprovalRequirement != ApprovalHumanReview ||
+			task.Checklist.ReviewPolicy == "manual" &&
+				item.ApprovalRequirement != ApprovalHumanReview &&
+				item.ApprovalRequirement != ApprovalActiveCheck ||
 			!sameCanonicalValue(subject, map[string]any{
 				"item_key": item.ItemKey, "version": task.Checklist.Version, "statement": task.Checklist.Statement,
 				"applicability": task.Checklist.Applicability, "allowed_methods": task.Checklist.AllowedMethods,

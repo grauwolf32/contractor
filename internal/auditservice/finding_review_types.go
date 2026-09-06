@@ -8,12 +8,52 @@ import (
 )
 
 const (
-	MaxFindingPageSize = 200
-	MaxReviewRationale = 64 << 10
-	defaultReviewTTL   = 7 * 24 * time.Hour
-	maximumReviewTTL   = 30 * 24 * time.Hour
-	FindingReviewKind  = "finding-triage"
+	MaxFindingPageSize         = 200
+	MaxReviewRationale         = 64 << 10
+	defaultReviewTTL           = 7 * 24 * time.Hour
+	maximumReviewTTL           = 30 * 24 * time.Hour
+	FindingReviewKind          = "finding-triage"
+	ActiveCheckReviewKind      = "active-check-approval"
+	ApplicabilityReviewKind    = "requirement-applicability"
+	ReportAcceptanceReviewKind = "report-acceptance"
 )
+
+func (kind ReviewSubjectKind) Valid() bool {
+	return kind == ReviewSubjectFinding || kind == ReviewSubjectItemAction ||
+		kind == ReviewSubjectReport
+}
+
+type ReviewSubjectKind string
+
+const (
+	ReviewSubjectFinding    ReviewSubjectKind = "finding"
+	ReviewSubjectItemAction ReviewSubjectKind = "audit-item-action"
+	ReviewSubjectReport     ReviewSubjectKind = "audit-report"
+)
+
+type ReviewAction string
+
+const (
+	ReviewApprove ReviewAction = "approve"
+	ReviewReject  ReviewAction = "reject"
+)
+
+func (action ReviewAction) Valid() bool {
+	return action == ReviewApprove || action == ReviewReject
+}
+
+// ReviewRequestedAction is the closed public union used by the shared review
+// ledger. Finding triage and approval decisions deliberately keep distinct
+// typed request bodies even though their immutable request history is listed
+// through one endpoint.
+type ReviewRequestedAction string
+
+func (action ReviewRequestedAction) Valid() bool {
+	if ReviewAction(action).Valid() {
+		return true
+	}
+	return AnalystVerdict(action).Valid()
+}
 
 type FindingState string
 
@@ -101,9 +141,10 @@ type ReviewDecision struct {
 	DecisionID        string           `json:"decisionId"`
 	RequestID         string           `json:"requestId"`
 	AuditID           string           `json:"auditId"`
-	FindingID         string           `json:"findingId"`
+	FindingID         string           `json:"findingId,omitempty"`
+	Action            ReviewAction     `json:"action,omitempty"`
 	ActorID           string           `json:"actorId"`
-	Verdict           AnalystVerdict   `json:"verdict"`
+	Verdict           AnalystVerdict   `json:"verdict,omitempty"`
 	Severity          *FindingSeverity `json:"severity,omitempty"`
 	Rationale         string           `json:"rationale"`
 	DuplicateTargetID *string          `json:"duplicateTargetId,omitempty"`
@@ -113,19 +154,21 @@ type ReviewDecision struct {
 }
 
 type ReviewRequest struct {
-	RequestID        string           `json:"requestId"`
-	AuditID          string           `json:"auditId"`
-	FindingID        string           `json:"findingId"`
-	Kind             string           `json:"kind"`
-	SubjectRevision  uint64           `json:"subjectRevision"`
-	SubjectDigest    string           `json:"subjectDigest"`
-	RequestedActions []AnalystVerdict `json:"requestedActions"`
-	State            ReviewState      `json:"state"`
-	ExpiresAt        *time.Time       `json:"expiresAt,omitempty"`
-	Revision         uint64           `json:"revision"`
-	Decision         *ReviewDecision  `json:"decision,omitempty"`
-	CreatedAt        time.Time        `json:"createdAt"`
-	UpdatedAt        time.Time        `json:"updatedAt"`
+	RequestID        string                  `json:"requestId"`
+	AuditID          string                  `json:"auditId"`
+	FindingID        string                  `json:"findingId,omitempty"`
+	SubjectKind      ReviewSubjectKind       `json:"subjectKind"`
+	SubjectID        string                  `json:"subjectId"`
+	Kind             string                  `json:"kind"`
+	SubjectRevision  uint64                  `json:"subjectRevision"`
+	SubjectDigest    string                  `json:"subjectDigest"`
+	RequestedActions []ReviewRequestedAction `json:"requestedActions"`
+	State            ReviewState             `json:"state"`
+	ExpiresAt        *time.Time              `json:"expiresAt,omitempty"`
+	Revision         uint64                  `json:"revision"`
+	Decision         *ReviewDecision         `json:"decision,omitempty"`
+	CreatedAt        time.Time               `json:"createdAt"`
+	UpdatedAt        time.Time               `json:"updatedAt"`
 }
 
 type Finding struct {
@@ -198,6 +241,24 @@ type DecideFindingParams struct {
 
 type FindingDecisionResult struct {
 	Finding  Finding        `json:"finding"`
+	Request  ReviewRequest  `json:"request"`
+	Decision ReviewDecision `json:"decision"`
+	Replayed bool           `json:"replayed"`
+}
+
+type DecideActionReviewParams struct {
+	OwnerID                 string
+	AuditID                 string
+	RequestID               string
+	ExpectedRequestRevision uint64
+	DecisionID              string
+	Action                  ReviewAction
+	Rationale               string
+	IdempotencyKey          string
+	RequestDigest           string
+}
+
+type ActionReviewDecisionResult struct {
 	Request  ReviewRequest  `json:"request"`
 	Decision ReviewDecision `json:"decision"`
 	Replayed bool           `json:"replayed"`

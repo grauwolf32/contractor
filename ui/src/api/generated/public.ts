@@ -1725,6 +1725,8 @@ export interface components {
             origin: components["schemas"]["AuditItemOrigin"];
             workflowRole: components["schemas"]["ArtifactName"];
             state: components["schemas"]["AuditItemState"];
+            approvalKind: components["schemas"]["AuditItemApprovalKind"];
+            approvalDigest?: components["schemas"]["Digest"];
             finalDisposition?: components["schemas"]["AuditFinalDisposition"];
             acceptedResult?: components["schemas"]["AuditExactArtifact"];
             lastExecutionItemId?: components["schemas"]["ResourceId"];
@@ -1763,7 +1765,9 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         /** @enum {unknown} */
-        AuditReportStatus: "pending" | "ready" | "unavailable";
+        AuditItemApprovalKind: "none" | "active-check-approval" | "requirement-applicability";
+        /** @enum {unknown} */
+        AuditReportStatus: "pending" | "proposed" | "ready" | "unavailable";
         AuditReport: {
             status: components["schemas"]["AuditReportStatus"];
             machineArtifact?: components["schemas"]["AuditExactArtifact"];
@@ -1878,6 +1882,12 @@ export interface components {
         /** @enum {unknown} */
         AuditAnalystVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
         /** @enum {unknown} */
+        AuditReviewAction: "approve" | "reject";
+        /** @enum {unknown} */
+        AuditReviewRequestedAction: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence" | "approve" | "reject";
+        /** @enum {unknown} */
+        AuditReviewSubjectKind: "finding" | "audit-item-action" | "audit-report";
+        /** @enum {unknown} */
         AuditReviewState: "pending" | "decided" | "expired";
         AuditFindingAssessment: {
             assessmentId: components["schemas"]["ResourceId"];
@@ -1897,9 +1907,10 @@ export interface components {
             decisionId: components["schemas"]["ResourceId"];
             requestId: components["schemas"]["ResourceId"];
             auditId: components["schemas"]["ResourceId"];
-            findingId: components["schemas"]["ResourceId"];
+            findingId?: components["schemas"]["ResourceId"];
             actorId: string;
-            verdict: components["schemas"]["AuditAnalystVerdict"];
+            action?: components["schemas"]["AuditReviewAction"];
+            verdict?: components["schemas"]["AuditAnalystVerdict"];
             severity?: components["schemas"]["AuditFindingSeverity"];
             rationale: string;
             duplicateTargetId?: components["schemas"]["ResourceId"];
@@ -1911,12 +1922,14 @@ export interface components {
         AuditReviewRequest: {
             requestId: components["schemas"]["ResourceId"];
             auditId: components["schemas"]["ResourceId"];
-            findingId: components["schemas"]["ResourceId"];
-            /** @constant */
-            kind: "finding-triage";
+            findingId?: components["schemas"]["ResourceId"];
+            subjectKind: components["schemas"]["AuditReviewSubjectKind"];
+            subjectId: components["schemas"]["ResourceId"];
+            /** @enum {unknown} */
+            kind: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
             subjectRevision: number;
             subjectDigest: components["schemas"]["Digest"];
-            requestedActions: components["schemas"]["AuditAnalystVerdict"][];
+            requestedActions: components["schemas"]["AuditReviewRequestedAction"][];
             state: components["schemas"]["AuditReviewState"];
             /** Format: date-time */
             expiresAt?: string;
@@ -1984,12 +1997,23 @@ export interface components {
             rationale: string;
             duplicateTargetId?: components["schemas"]["ResourceId"];
         };
+        DecideAuditActionRequest: {
+            action: components["schemas"]["AuditReviewAction"];
+            rationale: string;
+        };
+        DecideAuditReviewRequest: components["schemas"]["DecideAuditFindingRequest"] | components["schemas"]["DecideAuditActionRequest"];
         AuditFindingDecisionResult: {
             finding: components["schemas"]["AuditFinding"];
             request: components["schemas"]["AuditReviewRequest"];
             decision: components["schemas"]["AuditReviewDecision"];
             replayed: boolean;
         };
+        AuditActionDecisionResult: {
+            request: components["schemas"]["AuditReviewRequest"];
+            decision: components["schemas"]["AuditReviewDecision"];
+            replayed: boolean;
+        };
+        AuditReviewDecisionResult: components["schemas"]["AuditFindingDecisionResult"] | components["schemas"]["AuditActionDecisionResult"];
         RuntimeInfrastructureId: string;
         RuntimeCredentialId: string;
         RuntimeConfigVersion: string;
@@ -4734,11 +4758,11 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["DecideAuditFindingRequest"];
+                "application/json": components["schemas"]["DecideAuditReviewRequest"];
             };
         };
         responses: {
-            /** @description Immutable decision and current finding projection */
+            /** @description Immutable exact-subject decision and affected projection */
             200: {
                 headers: {
                     "X-Request-ID": components["headers"]["RequestId"];
@@ -4748,7 +4772,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditFindingDecisionResult"];
+                    "application/json": components["schemas"]["AuditReviewDecisionResult"];
                 };
             };
             400: components["responses"]["BadRequest"];

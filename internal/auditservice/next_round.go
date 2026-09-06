@@ -125,7 +125,8 @@ func (s *Service) PrepareNextRound(
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	approval := auditdomain.ApprovalNone
-	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired {
+	if profile.Interaction.ActiveChecks == config.AuditActiveChecksApprovalRequired &&
+		workflowRoleSelectsClassifiedTool(profile, profile.Inventory.ItemWorkflowRole, true) {
 		// Proposed-check methods are operator/model data, not a safe classifier.
 		// Requiring approval for the whole later-round set is conservative and
 		// cannot weaken a profile that requests an active-check gate.
@@ -169,18 +170,21 @@ func (s *Service) PrepareNextRound(
 		if !exists || proposal.Digest != task.Finding.ProposalDigest {
 			return auditstore.AcceptRoundParams{}, nil, errors.New("next Round proposal descriptor drifted")
 		}
-		state := auditstore.ItemReady
-		if item.ApprovalRequirement != auditdomain.ApprovalNone {
-			state = auditstore.ItemAwaitingReview
+		itemID := deterministicID(
+			"item", snapshot.Audit.AuditID, fmt.Sprint(roundOrdinal), item.ItemKey,
+		)
+		approvalKind, approvalDigest, state, err := materializedItemApproval(
+			snapshot.Audit.AuditID, profile, itemID, item, taskArtifacts[index],
+		)
+		if err != nil {
+			return auditstore.AcceptRoundParams{}, nil, err
 		}
 		originRef := task.SourceRef
 		items[index] = auditstore.MaterializedItem{
-			ItemID: deterministicID(
-				"item", snapshot.Audit.AuditID, fmt.Sprint(roundOrdinal), item.ItemKey,
-			),
+			ItemID:  itemID,
 			ItemKey: item.ItemKey, Ordinal: item.Ordinal, Kind: item.Kind,
 			SubjectKey: item.SubjectKey, Task: taskArtifacts[index], WorkflowRole: item.WorkflowRole,
-			InitialState: state,
+			InitialState: state, ApprovalKind: approvalKind, ApprovalDigest: approvalDigest,
 			Origin: auditstore.ItemOrigin{
 				Schema: auditstore.ItemOriginSchema, SourceRef: &originRef,
 				SourceContentDigest:      task.SourceContentDigest,

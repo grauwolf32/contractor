@@ -1086,12 +1086,12 @@ paths:
         - $ref: '#/components/parameters/OptionalCSRFToken'
       requestBody:
         required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/DecideAuditFindingRequest'}}}
+        content: {application/json: {schema: {$ref: '#/components/schemas/DecideAuditReviewRequest'}}}
       responses:
         '200':
-          description: Immutable decision and current finding projection
+          description: Immutable exact-subject decision and affected projection
           headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}, ETag: {$ref: '#/components/headers/ETag'}, Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}, Cache-Control: {$ref: '#/components/headers/NoStore'}}
-          content: {application/json: {schema: {$ref: '#/components/schemas/AuditFindingDecisionResult'}}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/AuditReviewDecisionResult'}}}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -3282,7 +3282,7 @@ components:
     AuditItem:
       type: object
       additionalProperties: false
-      required: [itemId, roundId, itemKey, ordinal, kind, subjectKey, task, origin, workflowRole, state, attempts, createdAt, updatedAt]
+      required: [itemId, roundId, itemKey, ordinal, kind, subjectKey, task, origin, workflowRole, state, approvalKind, attempts, createdAt, updatedAt]
       properties:
         itemId: {$ref: '#/components/schemas/ResourceId'}
         roundId: {$ref: '#/components/schemas/ResourceId'}
@@ -3294,6 +3294,8 @@ components:
         origin: {$ref: '#/components/schemas/AuditItemOrigin'}
         workflowRole: {$ref: '#/components/schemas/ArtifactName'}
         state: {$ref: '#/components/schemas/AuditItemState'}
+        approvalKind: {$ref: '#/components/schemas/AuditItemApprovalKind'}
+        approvalDigest: {$ref: '#/components/schemas/Digest'}
         finalDisposition: {$ref: '#/components/schemas/AuditFinalDisposition'}
         acceptedResult: {$ref: '#/components/schemas/AuditExactArtifact'}
         lastExecutionItemId: {$ref: '#/components/schemas/ResourceId'}
@@ -3338,7 +3340,8 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
-    AuditReportStatus: {enum: [pending, ready, unavailable]}
+    AuditItemApprovalKind: {enum: [none, active-check-approval, requirement-applicability]}
+    AuditReportStatus: {enum: [pending, proposed, ready, unavailable]}
     AuditReport:
       type: object
       additionalProperties: false
@@ -3489,6 +3492,9 @@ components:
     AuditFindingState: {enum: [proposed, confirmed, rejected, duplicate, needs-evidence]}
     AuditFindingSeverity: {enum: [informational, low, medium, high, critical]}
     AuditAnalystVerdict: {enum: [true_positive, false_positive, duplicate, reopen, needs_evidence]}
+    AuditReviewAction: {enum: [approve, reject]}
+    AuditReviewRequestedAction: {enum: [true_positive, false_positive, duplicate, reopen, needs_evidence, approve, reject]}
+    AuditReviewSubjectKind: {enum: [finding, audit-item-action, audit-report]}
     AuditReviewState: {enum: [pending, decided, expired]}
     AuditFindingAssessment:
       type: object
@@ -3508,13 +3514,14 @@ components:
     AuditReviewDecision:
       type: object
       additionalProperties: false
-      required: [decisionId, requestId, auditId, findingId, actorId, verdict, rationale, subjectRevision, subjectDigest, createdAt]
+      required: [decisionId, requestId, auditId, actorId, rationale, subjectRevision, subjectDigest, createdAt]
       properties:
         decisionId: {$ref: '#/components/schemas/ResourceId'}
         requestId: {$ref: '#/components/schemas/ResourceId'}
         auditId: {$ref: '#/components/schemas/ResourceId'}
         findingId: {$ref: '#/components/schemas/ResourceId'}
         actorId: {type: string, minLength: 1, maxLength: 256}
+        action: {$ref: '#/components/schemas/AuditReviewAction'}
         verdict: {$ref: '#/components/schemas/AuditAnalystVerdict'}
         severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
         rationale: {type: string, minLength: 1, maxLength: 65536}
@@ -3525,15 +3532,17 @@ components:
     AuditReviewRequest:
       type: object
       additionalProperties: false
-      required: [requestId, auditId, findingId, kind, subjectRevision, subjectDigest, requestedActions, state, revision, createdAt, updatedAt]
+      required: [requestId, auditId, subjectKind, subjectId, kind, subjectRevision, subjectDigest, requestedActions, state, revision, createdAt, updatedAt]
       properties:
         requestId: {$ref: '#/components/schemas/ResourceId'}
         auditId: {$ref: '#/components/schemas/ResourceId'}
         findingId: {$ref: '#/components/schemas/ResourceId'}
-        kind: {type: string, const: finding-triage}
+        subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
+        subjectId: {$ref: '#/components/schemas/ResourceId'}
+        kind: {enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
         subjectRevision: {type: integer, minimum: 1}
         subjectDigest: {$ref: '#/components/schemas/Digest'}
-        requestedActions: {type: array, minItems: 1, maxItems: 16, items: {$ref: '#/components/schemas/AuditAnalystVerdict'}}
+        requestedActions: {type: array, minItems: 1, maxItems: 16, items: {$ref: '#/components/schemas/AuditReviewRequestedAction'}}
         state: {$ref: '#/components/schemas/AuditReviewState'}
         expiresAt: {type: string, format: date-time}
         revision: {type: integer, minimum: 1}
@@ -3610,6 +3619,17 @@ components:
         severity: {$ref: '#/components/schemas/AuditFindingSeverity'}
         rationale: {type: string, minLength: 1, maxLength: 65536}
         duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
+    DecideAuditActionRequest:
+      type: object
+      additionalProperties: false
+      required: [action, rationale]
+      properties:
+        action: {$ref: '#/components/schemas/AuditReviewAction'}
+        rationale: {type: string, minLength: 1, maxLength: 65536}
+    DecideAuditReviewRequest:
+      oneOf:
+        - $ref: '#/components/schemas/DecideAuditFindingRequest'
+        - $ref: '#/components/schemas/DecideAuditActionRequest'
     AuditFindingDecisionResult:
       type: object
       additionalProperties: false
@@ -3619,6 +3639,18 @@ components:
         request: {$ref: '#/components/schemas/AuditReviewRequest'}
         decision: {$ref: '#/components/schemas/AuditReviewDecision'}
         replayed: {type: boolean}
+    AuditActionDecisionResult:
+      type: object
+      additionalProperties: false
+      required: [request, decision, replayed]
+      properties:
+        request: {$ref: '#/components/schemas/AuditReviewRequest'}
+        decision: {$ref: '#/components/schemas/AuditReviewDecision'}
+        replayed: {type: boolean}
+    AuditReviewDecisionResult:
+      oneOf:
+        - $ref: '#/components/schemas/AuditFindingDecisionResult'
+        - $ref: '#/components/schemas/AuditActionDecisionResult'
     RuntimeInfrastructureId:
       type: string
       minLength: 1

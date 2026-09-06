@@ -73,6 +73,18 @@ items:
 	if changed.CanonicalInventoryDigest != inventory.CanonicalInventoryDigest || changed.Tasks[0].Item.TaskPackageID == inventory.Tasks[0].Item.TaskPackageID || changed.Tasks[0].PackageDigest == inventory.Tasks[0].PackageDigest {
 		t.Fatal("exact source ref did not affect task provenance independently of inventory identity")
 	}
+
+	activeOptions := options
+	activeOptions.ApprovalRequirement = ApprovalActiveCheck
+	active, err := BuildChecklistInventory(source, "application/yaml", activeOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range active.Worklist.Items {
+		if item.ApprovalRequirement != ApprovalActiveCheck {
+			t.Fatalf("profile active-check approval was weakened by inventory policy: %+v", item)
+		}
+	}
 }
 
 func TestChecklistRejectsDuplicateOrMalformedItemWithoutPartialResult(t *testing.T) {

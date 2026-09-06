@@ -152,6 +152,8 @@ type auditItemResponse struct {
 	Origin              auditstore.ItemOrigin        `json:"origin"`
 	WorkflowRole        string                       `json:"workflowRole"`
 	State               auditstore.ItemState         `json:"state"`
+	ApprovalKind        auditstore.ItemApprovalKind  `json:"approvalKind"`
+	ApprovalDigest      string                       `json:"approvalDigest,omitempty"`
 	FinalDisposition    *auditstore.FinalDisposition `json:"finalDisposition,omitempty"`
 	AcceptedResult      *auditstore.ExactArtifact    `json:"acceptedResult,omitempty"`
 	LastExecutionItemID *string                      `json:"lastExecutionItemId,omitempty"`
@@ -863,6 +865,7 @@ func auditItemReadModel(source auditstore.Item) auditItemResponse {
 		ItemID: source.ItemID, RoundID: source.RoundID, ItemKey: source.ItemKey,
 		Ordinal: source.Ordinal, Kind: source.Kind, SubjectKey: source.SubjectKey,
 		Task: source.Task, Origin: source.Origin, WorkflowRole: source.WorkflowRole, State: source.State,
+		ApprovalKind: source.ApprovalKind, ApprovalDigest: source.ApprovalDigest,
 		FinalDisposition: source.FinalDisposition, AcceptedResult: source.AcceptedResult,
 		LastExecutionItemID: source.LastExecutionItemID,
 		Attempts:            []auditstore.ItemAttempt{},
