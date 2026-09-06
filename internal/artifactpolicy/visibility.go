@@ -6,11 +6,16 @@ import "strings"
 const (
 	MemoryArtifactPrefix               = "memory."
 	AuditManagedProjectNamespacePrefix = "audit-"
+	AuditStandardCatalogNamespace      = "audit-standards"
 	FindingProposalNamespace           = "finding-proposals"
 )
 
 func IsAuditManagedProjectNamespace(namespace string) bool {
 	return strings.HasPrefix(namespace, AuditManagedProjectNamespacePrefix)
+}
+
+func IsAuditStandardCatalogNamespace(namespace string) bool {
+	return strings.HasPrefix(namespace, AuditStandardCatalogNamespace)
 }
 
 // IsPurposeReservedNamespace reports whether a Run Namespace is owned by a

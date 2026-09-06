@@ -420,6 +420,7 @@ type MaterializeRoundParams struct {
 	BaselineSnapshot json.RawMessage
 	DeadlineAt       time.Time
 	Items            []MaterializedItem
+	InitialRetained  []ArtifactLink
 	IdempotencyKey   string
 	RequestDigest    string
 }

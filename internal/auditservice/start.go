@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -138,6 +139,25 @@ func (s *Service) startInTransaction(
 	}
 
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
+	standardCatalog, err := auditstandards.NewCatalog(artifactService)
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	standardRefs := make([]auditstandards.Reference, len(profile.Standards))
+	for index, ref := range profile.Standards {
+		standardRefs[index] = auditstandards.Reference{Scheme: ref.Scheme, Version: ref.Version}
+	}
+	pinnedStandards, err := standardCatalog.Pin(
+		ctx, params.OwnerID, audit.ProjectID, namespace, standardRefs,
+	)
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	standardLinks, err := auditStandardLinks(pinnedStandards)
+	if err != nil {
+		return StartedAudit{}, err
+	}
 	skillCatalog, err := agentskills.NewCatalog(artifactService)
 	if err != nil {
 		return StartedAudit{}, err
@@ -177,7 +197,6 @@ func (s *Service) startInTransaction(
 	if err != nil {
 		return StartedAudit{}, err
 	}
-	namespace := auditdomain.ArtifactNamespace(audit.AuditID)
 	taskArtifacts, executionManifest, err := writeTaskPackages(
 		ctx, projectArtifacts, namespace, profile, selection, inventory,
 	)
@@ -198,6 +217,7 @@ func (s *Service) startInTransaction(
 		LLMCredentialIDs:     mergeIDs(workflowCredentialIDs, runtimeSnapshot.LLMCredentialIDs),
 		RuntimeCredentialIDs: mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, projectRuntimeCredentialIDs),
 		ProjectHTTPTarget:    projectTarget,
+		Standards:            append([]auditstandards.PinnedPackage{}, pinnedStandards...),
 		Inventory: BaselineInventory{
 			SourceContentDigest:      inventory.SourceContentDigest,
 			CanonicalInventoryDigest: inventory.CanonicalInventoryDigest,
@@ -252,13 +272,33 @@ func (s *Service) startInTransaction(
 		DeadlineAt: s.now().UTC().Add(
 			timeDurationSeconds(profile.Execution.DeadlineSeconds),
 		),
-		Items: items, IdempotencyKey: params.IdempotencyKey,
+		Items: items, InitialRetained: standardLinks, IdempotencyKey: params.IdempotencyKey,
 		RequestDigest: params.RequestDigest,
 	})
 	if err != nil {
 		return StartedAudit{}, err
 	}
 	return s.startedProjectionWithStore(ctx, store, started, !created)
+}
+
+func auditStandardLinks(pinned []auditstandards.PinnedPackage) ([]auditstore.ArtifactLink, error) {
+	result := make([]auditstore.ArtifactLink, len(pinned))
+	for index, standard := range pinned {
+		provenance, err := auditstandards.RetainedProvenance(standard)
+		if err != nil {
+			return nil, err
+		}
+		result[index] = auditstore.ArtifactLink{
+			LogicalKey: "standard/" + standard.Reference.Scheme + "/" + standard.Reference.Version,
+			Artifact: auditstore.ExactArtifact{
+				Ref: standard.Retained.Artifact, Digest: standard.Retained.Digest,
+				MediaType: standard.Retained.MediaType, SizeBytes: standard.Retained.SizeBytes,
+			},
+			SourceProvenance: provenance,
+			DisplayRef:       standard.Reference.Scheme + "@" + standard.Reference.Version,
+		}
+	}
+	return result, nil
 }
 
 func materializedItemApproval(

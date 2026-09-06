@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
@@ -18,11 +19,18 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "user-artifacts", true, "")
+	h.listArtifactBindings(
+		w, r, store, "user-artifacts", true,
+		artifactpolicy.AuditStandardCatalogNamespace,
+	)
 }
 
 func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
+		return
+	}
+	if err := validateUserArtifactReadRoute(r); err != nil {
+		h.handleError(w, err)
 		return
 	}
 	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
@@ -37,6 +45,10 @@ func (h *handler) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
 		return
 	}
+	if err := validateUserArtifactReadRoute(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
 	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		h.handleError(w, err)
@@ -47,6 +59,10 @@ func (h *handler) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
 
 func (h *handler) listArtifactLineage(w http.ResponseWriter, r *http.Request) {
 	if h.rejectHead(w, r) {
+		return
+	}
+	if err := validateUserArtifactReadRoute(r); err != nil {
+		h.handleError(w, err)
 		return
 	}
 	store, err := h.dependencies.Artifacts.User(principalUserID(r.Context()))
@@ -402,6 +418,10 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
+		h.handleError(w, artifacts.ErrReservedNamespace)
+		return
+	}
 	mediaType, err := requestMediaType(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -448,6 +468,10 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		h.methodNotAllowed(w, r)
 		return
 	}
+	if err := validateUserArtifactReadRoute(r); err != nil {
+		h.handleError(w, err)
+		return
+	}
 	ref, err := artifactRouteRef(r)
 	if err != nil {
 		h.handleError(w, err)
@@ -464,4 +488,14 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeArtifactBytes(w, result)
+}
+
+func validateUserArtifactReadRoute(r *http.Request) error {
+	if err := validateArtifactRouteNames(r); err != nil {
+		return err
+	}
+	if artifactpolicy.IsAuditStandardCatalogNamespace(r.PathValue("namespace")) {
+		return artifacts.ErrArtifactNotFound
+	}
+	return nil
 }

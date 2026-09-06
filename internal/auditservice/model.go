@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -92,6 +93,14 @@ func ValidateBaseline(value BaselineSnapshot) error {
 	}
 	if !validSortedIDs(value.LLMCredentialIDs) || !validSortedIDs(value.RuntimeCredentialIDs) {
 		return fmt.Errorf("%w: Audit baseline credential snapshot is invalid", ErrInvalid)
+	}
+	previousStandard := ""
+	for _, standard := range value.Standards {
+		key := standard.Reference.Scheme + "\x00" + standard.Reference.Version
+		if key <= previousStandard || auditstandards.ValidatePinnedPackage(standard) != nil {
+			return fmt.Errorf("%w: Audit baseline standard snapshot is invalid", ErrInvalid)
+		}
+		previousStandard = key
 	}
 	if value.ProjectHTTPTarget != nil {
 		if err := value.ProjectHTTPTarget.Validate(); err != nil {
@@ -240,6 +249,11 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	}
 	result.LLMCredentialIDs = append([]string(nil), source.LLMCredentialIDs...)
 	result.RuntimeCredentialIDs = append([]string(nil), source.RuntimeCredentialIDs...)
+	result.Standards = append([]auditstandards.PinnedPackage(nil), source.Standards...)
+	for index := range result.Standards {
+		cloneExactPackageRef(&result.Standards[index].Catalog)
+		cloneExactPackageRef(&result.Standards[index].Retained)
+	}
 	if source.ProjectHTTPTarget != nil {
 		target := *source.ProjectHTTPTarget
 		if source.ProjectHTTPTarget.Credential != nil {
@@ -266,4 +280,11 @@ func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 		}
 	}
 	return result
+}
+
+func cloneExactPackageRef(value *auditstandards.ExactPackage) {
+	if value != nil && value.Artifact.Revision != nil {
+		revision := *value.Artifact.Revision
+		value.Artifact.Revision = &revision
+	}
 }

@@ -89,6 +89,14 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 		RoundID: "round-one", RoundOrdinal: 1, Manifest: manifest,
 		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
 		DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "audit-start", RequestDigest: testDigest("4"),
+		InitialRetained: []ArtifactLink{{
+			LogicalKey: "standard/example/1",
+			Artifact:   testExact("audit-one", "standard-example", "standard-r1"),
+			SourceProvenance: json.RawMessage(
+				`{"schema":"contractor.audit-standard-provenance.v1"}`,
+			),
+			DisplayRef: "example@1",
+		}},
 		Items: []MaterializedItem{
 			{ItemID: "item-one", ItemKey: "check-one", Ordinal: 0, Kind: "checklist", SubjectKey: "subject-one", Task: itemOneTask, Origin: testOrigin("check-one"), WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
 			{ItemID: "item-two", ItemKey: "check-two", Ordinal: 1, Kind: "checklist", SubjectKey: "subject-two", Task: itemTwoTask, Origin: testOrigin("check-two"), WorkflowRole: "check", InitialState: ItemReady, Coverage: emptyCoverage()},
@@ -111,7 +119,8 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	var started Audit
 	startInsertions := 0
 	for _, result := range startResults {
-		if result.err != nil || result.audit.State != AuditActive || result.audit.CurrentRoundID == nil {
+		if result.err != nil || result.audit.State != AuditActive || result.audit.CurrentRoundID == nil ||
+			result.audit.RetainedEvidenceBytes != 1 {
 			t.Fatalf("concurrent Audit start = (%+v, %t, %v)", result.audit, result.inserted, result.err)
 		}
 		started = result.audit
@@ -121,6 +130,12 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 	}
 	if startInsertions != 1 {
 		t.Fatalf("Audit start insertions = %d, want 1", startInsertions)
+	}
+	var initialLinks int
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM audit_artifact_links
+ WHERE audit_id = $1 AND logical_key = 'standard/example/1'`, create.AuditID).Scan(&initialLinks); err != nil || initialLinks != 1 {
+		t.Fatalf("initial retained links = %d, error=%v", initialLinks, err)
 	}
 	replayed, inserted, err := store.MaterializeRound(ctx, startParams)
 	if err != nil || inserted || replayed.AuditID != started.AuditID {

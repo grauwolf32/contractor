@@ -112,6 +112,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/projects/{projectId}/runs", current.listProjectRuns)
 	mux.HandleFunc("GET /v1/audit-profiles", current.listAuditProfiles)
 	mux.HandleFunc("GET /v1/audit-profiles/{name}/versions/{version}", current.getAuditProfile)
+	mux.HandleFunc("GET /v1/audit-standards", current.listAuditStandards)
+	mux.HandleFunc("GET /v1/audit-standards/{scheme}/versions/{version}", current.getAuditStandard)
 	mux.HandleFunc("POST /v1/projects/{projectId}/audits", current.createAudit)
 	mux.HandleFunc("GET /v1/projects/{projectId}/audits", current.listProjectAudits)
 	mux.HandleFunc("GET /v1/audits/{auditId}", current.getAudit)

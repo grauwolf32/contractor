@@ -242,7 +242,60 @@ rounds; it does not bound simultaneous execution. The global Scheduler setting
 in [20](20-scheduler-concurrency-control.md) is the sole execution-concurrency
 authority for Audit and non-Audit Runs alike.
 
-### 4.2 Server capabilities and start compatibility
+### 4.2 Curated standard package catalog
+
+Curated requirements and risks live in versioned Audit standard packages, not
+in prompts or model memory. Operator sources are immediate directories below
+`configs/audit-standards`; each contains exactly one `standard.json`. Startup
+normalizes that strict document, builds a canonical ZIP with media type
+`application/vnd.contractor.audit-standard+zip`, and creates the absent
+owner-scoped catalog binding. The complete source tree is validated before any
+binding is written. Duplicate `(scheme, version)`, unknown fields, duplicate
+JSON keys, symlinks, extra/archive traversal members, excessive data, dangling
+mappings, and unsupported license/disclosure pairs reject the load.
+
+The `contractor.audit-standard.v1` document contains:
+
+- exact standard metadata and source/license attribution;
+- bounded `risk | requirement` entries with applicability and allowed methods;
+- independently versioned evidence contracts defining allowed assessments,
+  evidence kinds/counts, rationale, and human-review policy;
+- deterministic mappings from one check key to exact entry IDs, one named
+  Workflow role, an allowed method, and one exact evidence contract.
+
+Every entry and mapping reference is checked against the package itself. A
+Worker can cite these identifiers, but neither Worker nor Planner output can
+create, redefine, or change their authoritative membership.
+
+Catalog packages use the reserved UserScope namespace `audit-standards`.
+Generic Artifact APIs cannot write it or read/list raw package bytes; only the
+trusted catalog seed path can create a binding. Existing identity bytes are
+never updated. A different current media type or digest is fatal catalog drift
+rather than an implicit new revision. A changed standard requires a new exact
+version.
+
+At Audit start the Server resolves every profile `(scheme, version)` to the
+current exact catalog revision, validates the package again, and copies its
+canonical bytes into a frozen create-only binding in the matching protected
+`audit-<audit-id>` Project namespace. The baseline records both catalog and
+retained exact refs, digest, size, title, source, license, and disclosure
+policy. Matching `standard/<scheme>/<version>` artifact links and their source
+provenance commit atomically with the first Round; retained package bytes count
+against `maxEvidenceBytes`. Reports include these baseline pins, so later
+catalog additions, source Run deletion, or restart cannot rewrite historical
+identity. Audit deletion removes them with the other Audit-managed artifacts.
+Legacy baseline snapshots without the additive `standards` field remain
+readable.
+
+`GET /v1/audit-standards` returns bounded metadata, counts, digest, and exact
+catalog ref. `GET /v1/audit-standards/{scheme}/versions/{version}` returns the
+exact package projection. Raw ZIP bytes are never public. Detail disclosure is
+license-policy-aware: `metadata` returns no entry bodies, `identifiers` returns
+only entry identities/kinds, and `full` may include entries, evidence
+contracts, and mappings. The initial license allowlist is explicit; an unknown
+license or a disclosure level not allowed for that license is invalid.
+
+### 4.3 Server capabilities and start compatibility
 
 Catalog validity and executable Server support are deliberately different.
 The read-only catalog may retain a profile before every mechanism it requests
@@ -1453,9 +1506,11 @@ and verification attempts to exact Workflow/checklist origins, including after
 source Run deletion; exact item-action/report decisions; a documented
 external-script example.
 
-**Increment 3:** curated licensed versioned standards packages and mappings,
-richer evidence contracts, comparison of Audits for the same system, retest of
-accepted findings against a new baseline, and bounded multi-item executions.
+**Increment 3:** the curated licensed versioned standard package catalog,
+canonical seeding, exact Audit pins, and license-aware read API are implemented.
+Curated Top 10/ASVS program data, comparison of Audits for the same system,
+retest of accepted findings against a new baseline, and bounded multi-item
+executions remain follow-up work.
 
 Deferred: a generic event-driven workflow language, arbitrary nested Audit
 graphs, mutable accepted worklists, semantic auto-merge, cross-Project analysis,

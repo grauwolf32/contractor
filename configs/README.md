@@ -28,6 +28,14 @@ execution manifest, performs bounded source analysis and uses
 `audit-results@1/submit_check_result` to package a strict result without asking
 the model to reproduce item identities or construct ZIP bytes manually.
 
+`audit-standards/` is the operator-owned source for immutable curated standard
+packages. Each immediate package directory contains only a strict
+`standard.json`; Server startup validates and canonicalizes the complete set
+before create-only seeding into the protected owner catalog. AuditProfiles name
+only `(scheme, version)`. Audit start resolves and retains the exact package
+revision and license provenance; changing content under an existing identity
+is fatal drift, so changed content must use a new version.
+
 Each current workspace Workflow hydrates the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code
 tools. It exports exact cumulative `workspace_state` plus checkpoint

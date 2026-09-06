@@ -549,6 +549,52 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/audit-standards:
+    get:
+      operationId: listAuditStandards
+      tags: [Audits]
+      summary: List exact immutable Audit standard package metadata
+      description: Package bodies are omitted; source, license policy, counts, digest, and exact catalog revision are returned.
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Bounded standard package catalog
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditStandardPackagePage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audit-standards/{scheme}/versions/{version}:
+    parameters:
+      - name: scheme
+        in: path
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 64, pattern: '^[a-z][a-z0-9.-]{0,63}$'}
+      - name: version
+        in: path
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'}
+    get:
+      operationId: getAuditStandard
+      tags: [Audits]
+      summary: Get one exact Audit standard package projection
+      description: Entry and evidence bodies are disclosed only as permitted by the package license policy; raw package bytes are never returned.
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Exact license-aware package projection
+          headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditStandardPackageResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/projects/{projectId}/audits:
     parameters:
       - $ref: '#/components/parameters/ProjectId'
@@ -2882,8 +2928,139 @@ components:
       additionalProperties: false
       required: [scheme, version]
       properties:
-        scheme: {$ref: '#/components/schemas/ConfigId'}
-        version: {$ref: '#/components/schemas/ConfigVersion'}
+        scheme: {type: string, minLength: 1, maxLength: 64, pattern: '^[a-z][a-z0-9.-]{0,63}$'}
+        version: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'}
+    AuditStandardSource:
+      type: object
+      additionalProperties: false
+      required: [name, url]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 512}
+        url: {type: string, format: uri, pattern: '^https://', maxLength: 2048}
+        revision: {type: string, maxLength: 512}
+    AuditStandardLicense:
+      type: object
+      additionalProperties: false
+      required: [id, url, attribution, disclosure]
+      properties:
+        id: {enum: [CC-BY-4.0, CC-BY-SA-4.0, Apache-2.0, MIT, LicenseRef-Proprietary]}
+        url: {type: string, format: uri, pattern: '^https://', maxLength: 2048}
+        attribution: {type: string, minLength: 1, maxLength: 4096}
+        disclosure: {enum: [metadata, identifiers, full]}
+    AuditStandardEvidenceContractRef:
+      type: object
+      additionalProperties: false
+      required: [id, version]
+      properties:
+        id: {type: string, minLength: 1, maxLength: 128}
+        version: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'}
+    AuditStandardApplicability:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: {enum: [always, profile-rule, human-review]}
+        rule: {type: string, maxLength: 4096}
+    AuditStandardEntry:
+      type: object
+      additionalProperties: false
+      required: [id, kind]
+      properties:
+        id: {type: string, minLength: 1, maxLength: 128}
+        kind: {enum: [risk, requirement]}
+        title: {type: string, maxLength: 1024}
+        statement: {type: string, maxLength: 16384}
+        level: {type: string, maxLength: 128}
+        applicability: {$ref: '#/components/schemas/AuditStandardApplicability'}
+        allowedMethods:
+          type: array
+          maxItems: 16
+          uniqueItems: true
+          items: {enum: [source-analysis, configuration-review, documentation-review, active-test, manual-review]}
+        evidenceContract: {$ref: '#/components/schemas/AuditStandardEvidenceContractRef'}
+    AuditStandardEvidenceContract:
+      type: object
+      additionalProperties: false
+      required: [id, version, assessments, evidenceKinds, minimumEvidence, maximumEvidence, humanReview, rationaleRequired]
+      properties:
+        id: {type: string, minLength: 1, maxLength: 128}
+        version: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$'}
+        assessments:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          items: {enum: [satisfied, violated, inconclusive, not-tested, blocked, not-applicable, supported, refuted]}
+        evidenceKinds:
+          type: array
+          maxItems: 16
+          uniqueItems: true
+          items: {enum: [artifact, observation, tool-result, manual-attestation, runtime-metric]}
+        minimumEvidence: {type: integer, minimum: 0, maximum: 64}
+        maximumEvidence: {type: integer, minimum: 0, maximum: 64}
+        humanReview: {enum: [never, on-inconclusive, required]}
+        rationaleRequired: {type: boolean}
+    AuditStandardMapping:
+      type: object
+      additionalProperties: false
+      required: [key, entryIds, workflowRole, method, evidenceContract, title, objective]
+      properties:
+        key: {type: string, minLength: 1, maxLength: 128}
+        entryIds:
+          type: array
+          minItems: 1
+          maxItems: 64
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 128}
+        workflowRole: {type: string, minLength: 1, maxLength: 64}
+        method: {enum: [source-analysis, configuration-review, documentation-review, active-test, manual-review]}
+        evidenceContract: {$ref: '#/components/schemas/AuditStandardEvidenceContractRef'}
+        title: {type: string, minLength: 1, maxLength: 1024}
+        objective: {type: string, minLength: 1, maxLength: 16384}
+    AuditStandardPackage:
+      type: object
+      additionalProperties: false
+      required: [reference, title, description, source, license, digest, artifact, entryCount, mappingCount, evidenceContractCount]
+      properties:
+        reference: {$ref: '#/components/schemas/AuditStandardRef'}
+        title: {type: string, minLength: 1, maxLength: 512}
+        description: {type: string, minLength: 1, maxLength: 4096}
+        source: {$ref: '#/components/schemas/AuditStandardSource'}
+        license: {$ref: '#/components/schemas/AuditStandardLicense'}
+        digest: {$ref: '#/components/schemas/Digest'}
+        artifact: {$ref: '#/components/schemas/ArtifactRef'}
+        entryCount: {type: integer, minimum: 1, maximum: 10000}
+        mappingCount: {type: integer, minimum: 0, maximum: 20000}
+        evidenceContractCount: {type: integer, minimum: 1, maximum: 512}
+        entries:
+          type: array
+          maxItems: 10000
+          items: {$ref: '#/components/schemas/AuditStandardEntry'}
+        evidenceContracts:
+          type: array
+          maxItems: 512
+          items: {$ref: '#/components/schemas/AuditStandardEvidenceContract'}
+        mappings:
+          type: array
+          maxItems: 20000
+          items: {$ref: '#/components/schemas/AuditStandardMapping'}
+    AuditStandardPackagePage:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, items]
+      properties:
+        apiVersion: {const: contractor/v1alpha1}
+        items:
+          type: array
+          maxItems: 64
+          items: {$ref: '#/components/schemas/AuditStandardPackage'}
+    AuditStandardPackageResponse:
+      type: object
+      additionalProperties: false
+      required: [apiVersion, standard]
+      properties:
+        apiVersion: {const: contractor/v1alpha1}
+        standard: {$ref: '#/components/schemas/AuditStandardPackage'}
     AuditProfileInput:
       type: object
       additionalProperties: false

@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -127,6 +128,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	case errors.Is(err, artifacts.ErrArtifactNotFound), errors.Is(err, projectstore.ErrNotFound),
 		errors.Is(err, runstore.ErrNotFound),
 		errors.Is(err, auditstore.ErrNotFound), errors.Is(err, auditservice.ErrProfileNotFound),
+		errors.Is(err, auditstandards.ErrNotFound),
 		errors.Is(err, config.ErrConfigurationNotFound), errors.Is(err, findingintake.ErrNotFound):
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, errInvalidRequest), errors.Is(err, artifacts.ErrInvalidScope),
@@ -135,6 +137,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, artifacts.ErrReservedNamespace), errors.Is(err, contracts.ErrValidation),
 		errors.Is(err, runstore.ErrInvalid), errors.Is(err, projectstore.ErrInvalid),
 		errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid),
+		errors.Is(err, auditstandards.ErrInvalid),
 		errors.Is(err, findingintake.ErrInvalid),
 		errors.Is(err, runservice.ErrInvalid),
 		errors.Is(err, settingsstore.ErrInvalid),

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -63,6 +64,47 @@ func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
 	if detailResponse.Code != http.StatusOK || detailResponse.Header().Get("ETag") != `"`+auditHandlerDigest("profile")+`"` ||
 		!strings.Contains(detailResponse.Body.String(), `"mode":"custom-checklist"`) {
 		t.Fatalf("profile detail = %d headers=%v body=%s", detailResponse.Code, detailResponse.Header(), detailResponse.Body.String())
+	}
+}
+
+func TestAuditStandardHandlersExposeCatalogProjectionOnly(t *testing.T) {
+	revision := "standard-r1"
+	management := &fakeAuditManagement{standards: []auditstandards.PackageProjection{{
+		Reference: auditstandards.Reference{Scheme: "example", Version: "1"},
+		Title:     "Example", Description: "Example standard.",
+		Source: auditstandards.Source{Name: "Source", URL: "https://example.invalid/source"},
+		License: auditstandards.License{
+			ID: "CC-BY-4.0", URL: "https://creativecommons.org/licenses/by/4.0/",
+			Attribution: "Example authors", Disclosure: auditstandards.DisclosureFull,
+		},
+		Digest: auditHandlerDigest("standard"), Artifact: contracts.ArtifactRef{
+			Namespace: auditstandards.CatalogNamespace, Name: "std-example", Revision: &revision,
+		},
+		EntryCount: 1, MappingCount: 1, EvidenceContractCount: 1,
+	}}}
+	h := auditTestHandler(management)
+
+	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-standards", nil)
+	response := httptest.NewRecorder()
+	h.listAuditStandards(response, list)
+	if response.Code != http.StatusOK ||
+		!strings.Contains(response.Body.String(), `"scheme":"example"`) ||
+		!strings.Contains(response.Body.String(), `"entryCount":1`) ||
+		strings.Contains(response.Body.String(), `"entries"`) {
+		t.Fatalf("standard list = %d %s", response.Code, response.Body.String())
+	}
+
+	management.standards[0].Entries = []auditstandards.EntryProjection{{
+		ID: "EX-1", Kind: "requirement", Title: "Example requirement",
+	}}
+	detail := auditAuthenticatedRequest(http.MethodGet, "/v1/audit-standards/example/versions/1", nil)
+	detail.SetPathValue("scheme", "example")
+	detail.SetPathValue("version", "1")
+	detailResponse := httptest.NewRecorder()
+	h.getAuditStandard(detailResponse, detail)
+	if detailResponse.Code != http.StatusOK ||
+		!strings.Contains(detailResponse.Body.String(), `"id":"EX-1"`) {
+		t.Fatalf("standard detail = %d %s", detailResponse.Code, detailResponse.Body.String())
 	}
 }
 
@@ -479,6 +521,7 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 
 type fakeAuditManagement struct {
 	profiles            []auditservice.ProfileProjection
+	standards           []auditstandards.PackageProjection
 	audit               auditstore.Audit
 	started             auditservice.StartedAudit
 	created             auditservice.CreateDraftParams
@@ -541,6 +584,23 @@ func (f *fakeAuditManagement) Profile(selector auditservice.ProfileSelector) (au
 		}
 	}
 	return auditservice.ProfileProjection{}, auditservice.ErrProfileNotFound
+}
+
+func (f *fakeAuditManagement) Standards(
+	_ context.Context, _ string,
+) ([]auditstandards.PackageProjection, error) {
+	return append([]auditstandards.PackageProjection(nil), f.standards...), f.err
+}
+
+func (f *fakeAuditManagement) Standard(
+	_ context.Context, _ string, selector auditstandards.Reference,
+) (auditstandards.PackageProjection, error) {
+	for _, standard := range f.standards {
+		if standard.Reference == selector {
+			return standard, f.err
+		}
+	}
+	return auditstandards.PackageProjection{}, auditstandards.ErrNotFound
 }
 
 func (f *fakeAuditManagement) CreateDraft(

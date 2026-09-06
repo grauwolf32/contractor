@@ -74,6 +74,18 @@ func (s *PostgresStore) MaterializeRound(
 		}
 	}
 	encodedItems, _ := json.Marshal(items)
+	links := make([]artifactLinkJSON, len(params.InitialRetained))
+	for index, link := range params.InitialRetained {
+		ref, _ := json.Marshal(link.Artifact.Ref)
+		links[index] = artifactLinkJSON{
+			LogicalKey: link.LogicalKey, ArtifactRef: ref,
+			ArtifactDigest: link.Artifact.Digest, MediaType: link.Artifact.MediaType,
+			SizeBytes: link.Artifact.SizeBytes, SourceProvenance: link.SourceProvenance,
+			DisplayRef: link.DisplayRef,
+		}
+	}
+	encodedLinks, _ := json.Marshal(links)
+	retainedBytes, _ := validateArtifactLinks(params.InitialRetained)
 	response, _ := json.Marshal(map[string]string{"auditId": params.AuditID, "roundId": params.RoundID})
 	audit, err := scanAudit(s.db.QueryRow(ctx, `
 WITH project_gate AS MATERIALIZED (
@@ -82,10 +94,11 @@ WITH project_gate AS MATERIALIZED (
      WHERE audit_id = $2 AND owner_id = $1
 ), started AS (
     UPDATE audits AS audit
-       SET baseline_snapshot = $7::jsonb,
-           state = 'active', current_round_id = $4,
-           hold_state = 'held', deadline_at = $8,
-           started_at = clock_timestamp(),
+	       SET baseline_snapshot = $7::jsonb,
+	           state = 'active', current_round_id = $4,
+	           hold_state = 'held', deadline_at = $8,
+	           retained_evidence_bytes = $15,
+	           started_at = clock_timestamp(),
            revision = revision + 1,
            next_event_sequence = next_event_sequence + 1,
            updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
@@ -93,9 +106,10 @@ WITH project_gate AS MATERIALIZED (
      WHERE audit.owner_id = $1 AND audit.audit_id = $2
        AND audit.revision = $3 AND audit.state = 'draft'
        AND $5 <= audit.max_rounds
-       AND jsonb_array_length($9::jsonb) <= audit.max_items_per_round
-       AND jsonb_array_length($9::jsonb) <= audit.max_items_total
-    RETURNING audit.*
+	       AND jsonb_array_length($9::jsonb) <= audit.max_items_per_round
+	       AND jsonb_array_length($9::jsonb) <= audit.max_items_total
+	       AND $15 <= audit.max_evidence_bytes
+	    RETURNING audit.*
 ), inserted_round AS (
     INSERT INTO audit_rounds (
         round_id, audit_id, ordinal, manifest_ref, manifest_digest,
@@ -149,8 +163,22 @@ WITH project_gate AS MATERIALIZED (
            'pending', started.deadline_at, 'auto:' || item.item_id,
            item.approval_subject_digest
       FROM inserted_items AS item JOIN started USING (audit_id)
-     WHERE item.approval_kind <> 'none'
-    RETURNING request_id
+	     WHERE item.approval_kind <> 'none'
+	    RETURNING request_id
+), link_input AS MATERIALIZED (
+	SELECT * FROM jsonb_to_recordset($14::jsonb) AS link(
+	    logical_key text, artifact_ref jsonb, artifact_digest text,
+	    media_type text, size_bytes bigint, source_provenance jsonb, display_ref text
+	)
+), inserted_links AS (
+	INSERT INTO audit_artifact_links (
+	    audit_id, logical_key, artifact_ref, artifact_digest,
+	    media_type, size_bytes, source_provenance, display_ref
+	)
+	SELECT started.audit_id, link.logical_key, link.artifact_ref,
+	       link.artifact_digest, link.media_type, link.size_bytes,
+	       link.source_provenance, link.display_ref
+	  FROM started CROSS JOIN link_input AS link
 ), idempotency_row AS (
     INSERT INTO audit_idempotency (
         owner_id, operation, idempotency_key, request_digest,
@@ -174,6 +202,7 @@ SELECT `+prefixedAuditColumns("started")+` FROM started`,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
 		[]byte(params.BaselineSnapshot), params.DeadlineAt, encodedItems,
 		params.Manifest.Digest, params.IdempotencyKey, params.RequestDigest, response,
+		encodedLinks, retainedBytes,
 	))
 	if err == nil {
 		return audit, true, nil

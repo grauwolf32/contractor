@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditcontroller"
 	"github.com/grauwolf32/contractor/internal/auditimport"
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -358,6 +359,41 @@ func RunCLI(
 			"bundled_digest", outcome.BundledDigest,
 			"current_digest", outcome.CurrentDigest,
 		)
+	}
+	standardCatalog, err := auditstandards.NewCatalog(artifactService)
+	if err != nil {
+		return fmt.Errorf("configure Audit standard catalog: %w", err)
+	}
+	standardSeedPlan, err := auditstandards.DiscoverBundled(cfg.OperatorConfigRoot)
+	if err != nil {
+		return fmt.Errorf("discover bundled Audit standards: %w", err)
+	}
+	standardSeedOutcomes, err := standardCatalog.Initialize(
+		ctx, bootstrap.Principal.UserID, standardSeedPlan,
+	)
+	if err != nil {
+		return fmt.Errorf("initialize bundled Audit standards: %w", err)
+	}
+	for _, outcome := range standardSeedOutcomes {
+		logger.Info(
+			"bundled Audit standard initialization",
+			"scheme", outcome.Reference.Scheme,
+			"version", outcome.Reference.Version,
+			"outcome", outcome.Status,
+			"digest", outcome.Digest,
+		)
+	}
+	for _, profile := range configurationManager.AuditProfiles() {
+		for _, standard := range profile.Standards {
+			if _, err := standardCatalog.Resolve(ctx, bootstrap.Principal.UserID, auditstandards.Reference{
+				Scheme: standard.Scheme, Version: standard.Version,
+			}); err != nil {
+				return fmt.Errorf(
+					"resolve AuditProfile %s@%s standard %s@%s: %w",
+					profile.Ref.Name, profile.Ref.Version, standard.Scheme, standard.Version, err,
+				)
+			}
+		}
 	}
 	artifactInspector, err := planner.NewArtifactServiceInspector(artifactService)
 	if err != nil {

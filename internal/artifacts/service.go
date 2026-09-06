@@ -86,6 +86,9 @@ func (s ScopedStore) Write(
 			return WriteResult{}, err
 		}
 	}
+	if s.scope.kind == ScopeUser && artifactpolicy.IsAuditStandardCatalogNamespace(target.Namespace) {
+		return WriteResult{}, ErrReservedNamespace
+	}
 	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills" ||
 		target.Namespace == artifactpolicy.FindingProposalNamespace) {
 		return WriteResult{}, ErrReservedNamespace
@@ -94,6 +97,36 @@ func (s ScopedStore) Write(
 		return WriteResult{}, err
 	}
 	return s.service.repository.Write(ctx, s.scope, target, payload, expectedRevision)
+}
+
+// WriteAuditStandardPackage is the trusted, catalog-only UserScope mutation.
+// Generic User artifact writes cannot create or advance this namespace.
+func (s *Service) WriteAuditStandardPackage(
+	ctx context.Context,
+	userID string,
+	target ArtifactRef,
+	payload Payload,
+	expectedRevision *string,
+) (WriteResult, error) {
+	scope, err := UserScope(userID)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	if target.Namespace != artifactpolicy.AuditStandardCatalogNamespace || target.Revision != nil {
+		return WriteResult{}, ErrInvalidName
+	}
+	if err := validateRef(target); err != nil {
+		return WriteResult{}, err
+	}
+	if expectedRevision != nil {
+		if err := validateRevision(*expectedRevision); err != nil {
+			return WriteResult{}, err
+		}
+	}
+	if err := validatePayload(payload); err != nil {
+		return WriteResult{}, err
+	}
+	return s.repository.Write(ctx, scope, target, payload, expectedRevision)
 }
 
 type skillForkRepository interface {

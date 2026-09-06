@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -48,6 +49,7 @@ type Service struct {
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
 	credentialGuard           CredentialReferenceGuard
 	findings                  *findingintake.Service
+	standards                 *auditstandards.Catalog
 	now                       func() time.Time
 }
 
@@ -101,6 +103,7 @@ type BaselineSnapshot struct {
 	LLMCredentialIDs     []string                            `json:"llmCredentialIds"`
 	RuntimeCredentialIDs []string                            `json:"runtimeCredentialIds"`
 	ProjectHTTPTarget    *contracts.HTTPOriginTargetRef      `json:"projectHttpTarget,omitempty"`
+	Standards            []auditstandards.PinnedPackage      `json:"standards"`
 	Inventory            BaselineInventory                   `json:"inventory"`
 }
 

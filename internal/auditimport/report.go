@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -39,6 +40,7 @@ type reportBaseline struct {
 	CanonicalInventoryDigest string                              `json:"canonicalInventoryDigest"`
 	Worklist                 auditstore.ExactArtifact            `json:"worklist"`
 	InventoryGaps            []string                            `json:"inventoryGaps"`
+	Standards                []auditstandards.PinnedPackage      `json:"standards"`
 }
 
 type reportStopReason struct {
@@ -164,6 +166,7 @@ func (i *Importer) Finalize(
 		Schema    string                              `json:"schema"`
 		Inputs    map[string]auditstore.ExactArtifact `json:"inputs"`
 		Scope     map[string]string                   `json:"scope"`
+		Standards []auditstandards.PinnedPackage      `json:"standards"`
 		Inventory struct {
 			SourceContentDigest      string                   `json:"sourceContentDigest"`
 			CanonicalInventoryDigest string                   `json:"canonicalInventoryDigest"`
@@ -239,6 +242,7 @@ func (i *Importer) Finalize(
 			CanonicalInventoryDigest: baseline.Inventory.CanonicalInventoryDigest,
 			Worklist:                 baseline.Inventory.Worklist,
 			InventoryGaps:            append([]string{}, baseline.Inventory.Gaps...),
+			Standards:                append([]auditstandards.PinnedPackage{}, baseline.Standards...),
 		},
 		Round: reportRound{
 			RoundID: snapshot.Round.RoundID, Ordinal: snapshot.Round.Ordinal,

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -30,11 +31,18 @@ func New(options Options) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	standards, err := auditstandards.NewCatalog(
+		artifacts.NewService(artifacts.NewPostgresRepository(options.Pool)),
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		pool: options.Pool, profiles: options.Profiles,
 		transactionLLMCredentials: options.TransactionLLMCredentials,
 		credentialGuard:           options.CredentialGuard,
 		findings:                  findings,
+		standards:                 standards,
 		now:                       options.Now,
 	}, nil
 }

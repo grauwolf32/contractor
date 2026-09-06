@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
@@ -89,6 +90,9 @@ func loadConfigurationRoots(
 		}
 		if _, err := agentskills.DiscoverBundled(root.path); err != nil {
 			return nil, fmt.Errorf("bundled skills: %w", err)
+		}
+		if _, err := auditstandards.DiscoverBundled(root.path); err != nil {
+			return nil, fmt.Errorf("bundled Audit standards: %w", err)
 		}
 	}
 

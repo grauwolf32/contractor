@@ -16,6 +16,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
@@ -181,6 +182,8 @@ type ProjectManagement interface {
 type AuditManagement interface {
 	Profiles() []auditservice.ProfileProjection
 	Profile(auditservice.ProfileSelector) (auditservice.ProfileProjection, error)
+	Standards(context.Context, string) ([]auditstandards.PackageProjection, error)
+	Standard(context.Context, string, auditstandards.Reference) (auditstandards.PackageProjection, error)
 	CreateDraft(context.Context, auditservice.CreateDraftParams) (auditstore.Audit, bool, error)
 	Start(context.Context, auditservice.StartParams) (auditservice.StartedAudit, error)
 	Pause(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)

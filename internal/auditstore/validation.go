@@ -435,6 +435,12 @@ func validateMaterialize(params MaterializeRoundParams) error {
 	if err := validateRoundItems(params.Items); err != nil {
 		return err
 	}
+	if len(params.InitialRetained) > MaxArtifactLinksPerCall {
+		return invalidf("initial retained artifact payload is too large")
+	}
+	if _, err := validateArtifactLinks(params.InitialRetained); err != nil {
+		return err
+	}
 	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
 }
 
@@ -801,40 +807,47 @@ func validateCollect(params CollectParams) error {
 		}
 		collectionBytes += len(encoded)
 	}
-	seenLinks := make(map[string]struct{}, len(params.Retained))
+	if _, err := validateArtifactLinks(params.Retained); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateArtifactLinks(links []ArtifactLink) (int64, error) {
+	seenLinks := make(map[string]struct{}, len(links))
 	var retainedBytes int64
-	retainedArtifacts := make(map[string]struct{}, len(params.Retained))
-	for _, link := range params.Retained {
+	retainedArtifacts := make(map[string]struct{}, len(links))
+	for _, link := range links {
 		if err := validateText("artifact logical key", link.LogicalKey, 512, true); err != nil {
-			return err
+			return 0, err
 		}
 		if _, duplicate := seenLinks[link.LogicalKey]; duplicate {
-			return invalidf("artifact logical key is duplicated")
+			return 0, invalidf("artifact logical key is duplicated")
 		}
 		seenLinks[link.LogicalKey] = struct{}{}
 		if err := validateExactArtifact("retained artifact", link.Artifact, true); err != nil {
-			return err
+			return 0, err
 		}
 		if err := validateJSONObject("artifact source provenance", link.SourceProvenance, 1<<20); err != nil {
-			return err
+			return 0, err
 		}
 		if err := validateText("artifact display ref", link.DisplayRef, 1024, false); err != nil {
-			return err
+			return 0, err
 		}
 		artifactKey := link.Artifact.Ref.Namespace + "\x00" + link.Artifact.Ref.Name + "\x00" + *link.Artifact.Ref.Revision
 		if _, counted := retainedArtifacts[artifactKey]; !counted {
 			if link.Artifact.SizeBytes > 1<<30-retainedBytes {
-				return invalidf("retained artifact bytes overflow")
+				return 0, invalidf("retained artifact bytes overflow")
 			}
 			retainedArtifacts[artifactKey] = struct{}{}
 			retainedBytes += link.Artifact.SizeBytes
 		}
 	}
-	encodedRetained, err := json.Marshal(params.Retained)
-	if err != nil || len(encodedRetained) > MaxRetainedRefsBytes {
-		return invalidf("retained artifact refs are too large")
+	encoded, err := json.Marshal(links)
+	if err != nil || len(encoded) > MaxRetainedRefsBytes {
+		return 0, invalidf("retained artifact refs are too large")
 	}
-	return nil
+	return retainedBytes, nil
 }
 
 func validateCommitReport(params CommitReportParams) error {
