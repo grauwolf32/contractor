@@ -3,8 +3,8 @@ id: V35-001
 title: Define Git import contracts and owner-scoped encrypted SSH-key settings
 milestone: git-artifact-import
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b9e821d18f96e1b7c487da6b6206c940dd03af51
 depends_on:
 - V34-005
 languages:

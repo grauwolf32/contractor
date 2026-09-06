@@ -1,6 +1,7 @@
 # 24 — Git repositories as Artifact inputs
 
-Status: **Planned — implementation pending (V35)**
+Status: **In progress (V35) — key Settings and bounded Git reader implemented;
+Artifact publication and UI pending**
 
 Depends on: [03](03-artifact-plane.md), [06](06-server-ui-and-operations.md),
 [17](17-projects-and-queue.md), [23](23-artifact-blob-backends.md).
@@ -168,6 +169,41 @@ a bounded selected-ref snapshot, fail explicitly instead of fetching unlimited
 history. Large Git history can therefore hit an import budget even when the
 final tree is small; return the relevant limit without publishing a partial
 artifact.
+
+### Reader implementation and evidence (V35-002)
+
+The reader uses `go-git/v5 v5.19.2` protocol, pack-scanner and delta primitives.
+It does not use `Clone`, an on-disk repository, the high-level pack parser or
+host Git configuration. The scanner exposes declared object sizes before
+inflation; the importer checks them before allocating fixed buffers. Delta
+base/result sizes are checked before patching. SHA-1 pack checksums and decoded
+object identities are verified; SHA-256 repositories are rejected explicitly.
+The client requires shallow negotiation and requests depth one for the chosen
+advertised ref. Annotated tags are peeled from fetched objects to a commit.
+
+Additional parser caps are 4 MiB per advertisement/ACK negotiation, 10,000
+advertised references including peeled entries, 50,000 packed objects,
+64 MiB per decoded object or delta result, delta depth 50, and annotated-tag
+depth eight. Decoded accounting includes delta programs and intermediate
+results, even after their buffers become reclaimable. All traversed tree
+entries count toward 10,000, including directories; paths are at most 512 UTF-8
+bytes. Git internals, special modes, control characters and paths incompatible
+with Runtime source validation are refused. The ZIP uses sorted regular-file
+paths, mode 0644 and a fixed 1980 timestamp.
+
+On 2026-09-06, `go test -race -tags=integration -count=1 ./internal/gitimport`
+passed with native Git fixture servers over verified HTTPS and authenticated
+SSH. The test advances the branch between advertisement and fetch and checks
+the original commit, annotated tags, deterministic ZIP bytes, wrong owner and
+changed host keys. Adversarial tests cover transport refusal, redirects, TLS,
+advertisement/object/delta caps, malformed packs, unsafe content and cancellation.
+A static probe also completed both imports in an unprivileged Podman container
+with `--read-only --read-only-tmpfs=false`, no writable checkout or temporary
+directory, and only read-only fixture mounts. The 13-file fixture contains about
+1.6 MiB expanded content and yields a 5,747-byte ZIP; the probe's measured peak
+RSS was 17,276 KiB. This small transport fixture is not a maximum-size Server
+RAM estimate: publication/driver copies and near-budget imports remain part
+of the V35-005 release measurements.
 
 ## Public API and publication
 
