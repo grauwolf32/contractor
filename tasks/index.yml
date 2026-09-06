@@ -614,6 +614,13 @@ milestones:
       legacy workflows remain unchanged, and real importer/fault tests verify
       authority, bounded continuation, publication and cancellation.
 
+  - id: agent-instruction-evaluation
+    exit_task: V40-003
+    outcome: >-
+      Grounded positive/negative fixtures, isolated paired instruction variants,
+      and bounded live evidence support per-family quality/cost decisions before
+      any default-catalog rollout. Compatibility alone is not a quality gate.
+
 audit_worker_completion_planning:
   planned_on: "2026-09-06"
   status: planned_not_implemented
@@ -2417,3 +2424,6 @@ tasks:
   - {id: V39-005, file: v39-005-common-worker-completion-gate.yml}
   - {id: V39-006, file: v39-006-audit-completion-diagnostics-configs.yml}
   - {id: V39-007, file: v39-007-audit-completion-release-gate.yml}
+  - {id: V40-001, file: v40-001-agent-instruction-eval-fixtures.yml}
+  - {id: V40-002, file: v40-002-agent-instruction-paired-runner.yml}
+  - {id: V40-003, file: v40-003-agent-instruction-eval-decision.yml}

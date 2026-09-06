@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: V40-003
+title: "Evaluate instruction candidates and record evidence-based adoption decisions"
+milestone: agent-instruction-evaluation
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V40-002"]
+languages: ["go", "markdown"]
+
+goal: >-
+  Decide which instruction families improve measured quality and cost, with a
+  reproducible paired report and explicit inconclusive or rejected outcomes.
+context:
+  plan: tests/eval/agent_instructions/README.md
+  integration_proposal: docs/agent-evals-proposal.md
+  runner: >-
+    Use the existing playground-v2 CLI/runner extended by V40-002. Record its
+    actual supported invocation in the measured report; do not invent a second
+    live matrix runner in Contractor. Existing Go gates check compatibility only.
+    The run-experiment command below is planned in V40-002 and is not available
+    before that task. Author experiments/agent-instructions.yaml in playground
+    with the reviewed cases, bindings and explicit execution limits before running.
+  server: >-
+    Run the experiment through the existing evaluation Project, ordinary Runs,
+    exact eval labels and public APIs. Store manifest, scores and comparison as
+    Project artifacts linked to exact Run outputs. Reuse one configured evaluation
+    Server; the driver does not own execution or introduce a separate queue.
+  pilot: >-
+    Start D1/O1/L1/T1/T2/A1, two repetitions per arm: 24 attempts. Predeclare
+    limits; initial proposal is 2 million total model tokens and 90 minutes with
+    unchanged per-worker policies. A reached cap means incomplete, not successful.
+  confirmation: >-
+    Freeze candidate after pilot fixes; evaluate all implemented cases plus held-out
+    variants with three repetitions per arm and a separately recorded total budget.
+    Run workers on fixed inputs before full workflows. Use worker/planner ablations
+    only to resolve attribution. Keep live Caido and transport-double tiers distinct.
+  gates: >-
+    No new unsupported secure/clean claims, fabricated evidence, scope violations
+    or duplicate unknown-outcome mutations. Preserve required fact coverage and
+    adjudicate new false positives/negatives. Flag over 15 percent median token or
+    20 percent p90 latency growth; report measured quality/cost tradeoffs rather
+    than calling longer instructions an optimization by assumption.
+  evidence: >-
+    Persist success/failure attempts, exact experiment pins, family denominators,
+    paired differences, p50/p90 cost/latency and sample sizes. Do not infer statistical
+    significance from the small pilot. Record missing infrastructure explicitly;
+    live prerequisites and an explicit execution budget are required for completion.
+
+scope:
+  in:
+    - "Bounded local-target pilot, held-out confirmation and blinded adjudication of causal evidence."
+    - "Per-family adopt/revise/reject/inconclusive decision with exact candidate digests and rollout checklist."
+    - "Updated review containing measured outcomes, limitations and exact evaluation Project/Run/artifact references."
+  out:
+    - "Automatic default-catalog rollout, changes to running Audits, V39 contract mixing, Evals UI or broad public-target testing."
+deliverables:
+  - {path: docs/reviews, description: "Dated measured instruction A/B report with family-level adoption decisions."}
+  - {path: tests/eval/agent_instructions/README.md, description: "Actual run command, evidence location and revised status after evaluation."}
+  - {path: ../playground-v2/experiments/agent-instructions.yaml, description: "Reviewed experiment manifest consumed by the V40-002 CLI extension."}
+requirements:
+  - {id: R1, text: "Compatibility checks cannot stand in for LLM quality; unavailable live runs leave the task unfinished."}
+  - {id: R2, text: "Rollout is a later explicit choice of new immutable versions, with old versions and experiment pins retained."}
+acceptance_criteria:
+  - {id: A1, given: "Pilot and held-out confirmation", when: "Reviewed", then: "Each attempt and family decision is reproducible and no failure is hidden by retries or pass@N."}
+  - {id: A2, given: "Any claimed improvement", when: "Compared with baseline", then: "Quality, coverage, error and cost evidence support it, or the conclusion is explicitly inconclusive."}
+  - {id: A3, given: "A candidate selected for later rollout", when: "Handed off", then: "Exact versions, digests, limitations and required default/profile binding changes are listed without deploying them."}
+tests:
+  - command: "go test ./tests/eval/agent_instructions ./internal/config"
+    covers: ["A3"]
+  - command: "cd ../playground-v2/evals && uv run playground-eval run-experiment --manifest ../experiments/agent-instructions.yaml"
+    covers: ["A1", "A2"]

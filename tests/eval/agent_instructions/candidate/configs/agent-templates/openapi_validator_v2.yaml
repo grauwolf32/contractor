@@ -1,0 +1,42 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: openapi_validator
+  version: "2"
+
+spec:
+  description: Validates and minimally repairs a candidate OpenAPI document against project evidence
+  runtime: adk@1
+  instructions:
+    ref: instructions/openapi-validator-worker-v2.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: source-analysis@1
+      tools:
+        - open_source_archive
+        - search_source
+        - read_source
+    - ref: text-artifacts@1
+      tools:
+        - read_text_artifact
+        - write_text_artifact
+    - ref: openapi@1
+      tools:
+        - load_openapi
+        - get_openapi_info
+        - set_openapi_info
+        - list_openapi_servers
+        - set_openapi_servers
+        - list_openapi_tags
+        - set_openapi_tags
+        - list_openapi_paths
+        - get_openapi_path
+        - upsert_openapi_path
+        - remove_openapi_path
+        - list_openapi_components
+        - get_openapi_component
+        - upsert_openapi_component
+        - remove_openapi_component
+        - validate_openapi
+  sandboxProfile: local-workdir@1

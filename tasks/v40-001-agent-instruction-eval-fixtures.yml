@@ -1,0 +1,68 @@
+schema_version: "1.0"
+id: V40-001
+title: "Reuse playground-v2 evals and cover missing instruction-quality cases"
+milestone: agent-instruction-evaluation
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: []
+languages: ["go", "python", "yaml"]
+
+goal: >-
+  Make instruction quality measurable against reviewed source facts, positive
+  and negative security cases, and real artifact contracts before comparing models.
+context:
+  plan: tests/eval/agent_instructions/README.md
+  integration_proposal: docs/agent-evals-proposal.md
+  implementation_repository: >-
+    Dataset/scorer changes belong in sibling playground-v2. Reuse its projects,
+    pinned corpora, suite/case/result schemas and existing semantic scorers.
+    Contractor retains API/execution conformance and instruction-overlay tests.
+  candidate: >-
+    baseline.json and variants.json pin 20 instruction changes, 15 candidate
+    AgentTemplates and 10 Workflows. candidate/configs is an opt-in overlay;
+    default configs and existing AuditProfiles remain unchanged.
+  cases: >-
+    Implement D1-D2 dependency/project discovery; O1-O3 OpenAPI coverage, seed/resume,
+    failed validation; L1-L2 architecture facts and bounded repair; T1-T4 unsafe,
+    safe, bypass and ambiguous/truncated traces; H1-H2 HTTP sequencing/unknown
+    outcomes; C1-C2 Caido false positives/timeouts; A1-A3 ordered batches, exact
+    standard mappings and unresolved/conflicting publication.
+  ground_truth: >-
+    First map each matrix scenario to existing playground assets and implement
+    only missing cases. Every fixture pins source/service bytes, task inputs, allowed actions,
+    expected facts/defects, forbidden claims and evidence anchors outside model
+    context. Include clean cases, misleading names/comments/reports, safe siblings
+    and alternate paths. Reserve held-out variants before tuning. Ground truth
+    stays evaluator-local and never enters Contractor ProjectScope or model inputs.
+  reuse: >-
+    Reuse tests/eval/project_workflows fixture and real validators. Adapt old
+    FastAPI/VaultPay expectations only after pinning source revision and license;
+    do not copy old regex scorers or legacy result envelopes. Current Audit program
+    tests are deterministic contract tests, not LLM quality measurements.
+
+scope:
+  in:
+    - "Inventory existing playground coverage; add only missing fixtures/negative controls and local target scenarios."
+    - "Semantic coverage, finding precision/recall, evidence correctness and safe/unresolved verdict scoring."
+    - "Parsed artifacts, actual CLI/importer outcomes, annotation diffs and frozen blinded-review rubrics."
+    - "Scorer negative controls: unsupported citations, missing routes, phantom services, duplicate findings and fabricated clean claims."
+  out:
+    - "Paid model runs, default catalog rollout, public targets, new Evals UI/service, or V39 completion-contract migration."
+deliverables:
+  - {path: ../playground-v2/projects, description: "Reuse or extend source/cases/hidden expectations and provenance."}
+  - {path: ../playground-v2/evals/src/playground_evals/scorers, description: "Reuse existing scorers; add only missing evidence and negative-control checks."}
+  - {path: tests/eval/agent_instructions/README.md, description: "Map matrix IDs to exact playground assets and uncovered behavior."}
+requirements:
+  - {id: R1, text: "Expected answers never enter worker source/context; evidence must support a claim, not merely exist."}
+  - {id: R2, text: "Run success, validator execution, importer acceptance and semantic quality are separate observations."}
+  - {id: R3, text: "Safe and incomplete cases can pass without findings; keyword occurrence is not a security finding."}
+acceptance_criteria:
+  - {id: A1, given: "Reviewed correct and deliberately corrupted outputs", when: "Scored", then: "Expected facts pass and missing/unsupported facts produce stable predicate failures."}
+  - {id: A2, given: "Safe, unsafe and unresolved source paths", when: "Scored", then: "False positives, false negatives and unsupported conclusive assessments are distinguishable."}
+  - {id: A3, given: "Every matrix case and held-out variant", when: "Inspected", then: "Source and ground truth are pinned, separately stored, reproducible and scoped to local tests."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_catalog.py tests/test_scorers.py tests/test_audit.py"
+    covers: ["A1", "A2", "A3"]
+  - command: "go test ./tests/eval/agent_instructions ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'"
+    covers: ["A1", "A2", "A3"]

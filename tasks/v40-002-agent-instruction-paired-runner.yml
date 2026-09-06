@@ -1,0 +1,94 @@
+schema_version: "1.0"
+id: V40-002
+title: "Extend playground adapters with portable contracts and recoverable Server A/B"
+milestone: agent-instruction-evaluation
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: ["V40-001"]
+languages: ["go", "python"]
+
+goal: >-
+  Extend the existing playground-v2 adapter and runners with portable case/result
+  boundaries and recoverable A/B over Server evaluation Projects and ordinary Runs.
+context:
+  plan: tests/eval/agent_instructions/README.md
+  integration_proposal: docs/agent-evals-proposal.md
+  portability: >-
+    Reuse playground_evals.contractor_v2, runner, audit_runner, results and scorers.
+    Separate dataset/expectations from execution binding (Workflow/Profile/API
+    input/output mapping). Expose submit/observe/cancel/collect through an adapter
+    boundary; normalized outputs/usage/provenance and opaque provider execution
+    refs feed backend-independent scorers. Keep v1 suites/results readable via
+    explicit schema versioning/conversion. Prove the boundary with a recorded-output
+    adapter, not a second production backend or a new plugin framework.
+  isolation: >-
+    Use a Project of kind evaluation and distinct immutable baseline/candidate
+    Workflow versions loaded into one evaluation Server. Keep all non-instruction
+    effective settings and exact source inputs equal. Every sample is a fresh
+    ordinary Run, with isolated artifacts, workspace, sessions and reset service
+    state. Same-selector text substitution remains an offline compatibility test.
+  existing_server: >-
+    Reuse POST /v1/projects/{project_id}/runs, ordinary Run/Artifact read APIs,
+    cancellation, owner isolation, idempotency and pagination through
+    playground's existing HTTP client. Import no Contractor internal packages.
+    Attach purpose=eval and eval.name,
+    eval.id, eval.leg, eval.fixture, eval.case, eval.sample. Server scheduling,
+    retries and Run storage remain authoritative; no new execution path is needed.
+  recovery: >-
+    Store a bounded manifest and score/comparison records as versioned Project
+    JSON/Markdown artifacts with CAS. Pin expected case/sample/leg members,
+    requests, stable idempotency keys, config/input refs and observed Run IDs.
+    Recover a lost response by identical request replay. Labels are not unique:
+    report duplicate/missing members, follow every page, and score exact Run outputs
+    rather than create-only Project outputs. Retain playground's portable result
+    envelope and publish server copies through a separate publisher with matching
+    identities/digests. Hidden ground truth never enters ProjectScope.
+  existing_harness: >-
+    tests/eval/project_workflows/live_test.go uses real Server/Runtime and validators,
+    but currently accepts only workspace @5 workflows and saves evidence only on
+    failure. Reuse it for CI without changing existing opt-in behavior, not as a
+    separate user-facing executor. Add worker/trace, local HTTP/Caido and real Audit
+    controller/importer coverage. If child eval labels are unsupported, use
+    authoritative Audit/item/Run refs in the manifest; do not forge managed Runs.
+  pinning: >-
+    Record runtime/ADK/validator builds, resolved model/sampling/policies, complete
+    tool descriptions, selected Skill revisions, input/source/config digests and
+    budgets. Hold standardized tool docstrings constant. Existing audit-results@1
+    stays separate from the planned V39 audit-results@2 completion experiment.
+  execution: >-
+    Alternate/randomize A/B within case; record every attempt including retries,
+    timeouts and infrastructure failures. Retain successful artifacts as well as
+    failed artifacts. Unknown telemetry is not zero. Separate deterministic
+    transport-double checks from opt-in integration with actual Caido.
+
+scope:
+  in:
+    - "Portable case/result/adapter boundary and backwards reading of current playground suites/results; reuse existing runners and scorers."
+    - "Add playground-eval run-experiment --manifest PATH to the existing CLI; this is a planned command, missing live prerequisites fail explicitly."
+    - "Bounded model/tool/token/wall limits and cancellation; interrupted experiments remain incomplete."
+    - "Recoverable bounded submission and paired score/comparison Project artifacts over existing APIs."
+    - "Explicit duplicate/missing members and complete pagination; input/output/total token metrics respect reportsComplete/truncated, absent cached usage is unknown."
+    - "Isolated exact Audit profile bindings and actual decoding/import instead of equating Run success with accepted coverage."
+  out:
+    - "Default configuration publication, production credentials/services, new queue/Run store/experiment service, per-case Server startup, or Evals UI."
+deliverables:
+  - {path: ../playground-v2/evals/src/playground_evals, description: "Extend existing adapter/runners/results with portable boundaries, manifest recovery and paired comparison."}
+  - {path: ../playground-v2/evals/schemas, description: "Versioned portable contract with v1 compatibility; Contractor bindings remain adapter-specific."}
+  - {path: ../playground-v2/evals/tests, description: "Recorded-output adapter, unchanged scorer reuse, backwards compatibility and recovery tests."}
+  - {path: tests/eval/project_workflows, description: "Shared production-harness helpers with preserved existing behavior."}
+requirements:
+  - {id: R1, text: "A/B differs only in instructions and associated version/digest refs; capabilities and inputs match and outputs do not contaminate another attempt."}
+  - {id: R2, text: "Per-attempt rates and family denominators are primary; pass@N cannot hide failed attempts."}
+  - {id: R3, text: "Evidence records bound/redact sensitive content while retaining source and exchange references needed for review."}
+acceptance_criteria:
+  - {id: A1, given: "The same fixture and two instruction variants", when: "Run", then: "Resolved settings match except instructions; state is independently reset and all attempts are retained."}
+  - {id: A2, given: "Timeout, missing telemetry, invalid submission or unavailable validator", when: "Compared", then: "Failure categories remain explicit without fabricated zero cost, clean validation or accepted Audit coverage."}
+  - {id: A3, given: "An enabled live invocation missing required services or exceeding a budget", when: "Started or stopped", then: "It fails or records incomplete status rather than silently skipping/passing."}
+  - {id: A4, given: "A lost create response, partial submission, duplicate labels and multiple result pages", when: "The client resumes", then: "Original keys replay without extra Runs, manifest members are reconciled explicitly, and every result is retained as a Project artifact."}
+  - {id: A5, given: "One case/scorer, Contractor adapter and recorded-output adapter", when: "Evaluated alongside existing v1 suites/results", then: "Case/scorer code is unchanged across adapters, v1 remains readable, and Contractor implementation details stay inside its binding/adapter."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest"
+    covers: ["A1", "A2", "A3", "A4", "A5"]
+  - command: "go test ./tests/eval/agent_instructions ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'"
+    covers: ["A1"]

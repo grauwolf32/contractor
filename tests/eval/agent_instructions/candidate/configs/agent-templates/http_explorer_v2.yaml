@@ -1,0 +1,27 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: http_explorer
+  version: "2"
+
+spec:
+  description: Performs bounded authorized HTTP exploration and publishes an evidence report
+  runtime: adk@1
+  instructions:
+    ref: instructions/http-explorer-worker-v2.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: http-tools@1
+      tools:
+        - http_request
+        - http_read_body
+        - http_history
+        - http_session_set
+        - http_session_get
+        - http_session_clear
+    - ref: text-artifacts@1
+      tools:
+        - read_text_artifact
+        - write_text_artifact
+  sandboxProfile: local-workdir@1
