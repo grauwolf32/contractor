@@ -540,6 +540,12 @@ milestones:
       logical item retains independent identity, attempts, evidence, authority,
       coverage and whole-batch recovery semantics.
 
+  - id: catalog-and-agent-prompts
+    exit_task: V33-001
+    outcome: >-
+      Catalog groups Workflows, Agents and Skills, with exact-version base
+      instruction viewing, safe Markdown/source/copy and compatible legacy links.
+
 worker_results_state_planning_review:
   reviewed_on: "2026-09-04"
   verdict: ready_to_implement_in_dependency_order
@@ -2155,3 +2161,4 @@ tasks:
   - {id: V29-005, file: v29-005-batched-run-detail.yml}
   - {id: V29-006, file: v29-006-sqlstate-and-transaction-recovery.yml}
   - {id: V29-007, file: v29-007-database-budgets-and-verification.yml}
+  - {id: V33-001, file: v33-001-catalog-and-agent-prompts.yml}

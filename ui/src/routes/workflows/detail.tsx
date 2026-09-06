@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router";
 
 import type { components } from "../../api/generated/public";
 import { usePublicAPI } from "../../api/context";
+import { agentPath } from "../../api/agents";
 import { queryKeys } from "../../api/query-keys";
 import {
   CONFIG_ID_PATTERN,
@@ -203,9 +204,14 @@ function StageContract({
               .map(([logicalName, binding]) => (
                 <li key={logicalName}>
                   <strong>{logicalName}</strong>
-                  <span>
+                  <Link
+                    to={agentPath(
+                      binding.template.templateId,
+                      binding.template.version,
+                    )}
+                  >
                     {binding.template.templateId}@{binding.template.version}
-                  </span>
+                  </Link>
                   <span>namespace {binding.namespace}</span>
                   {(binding.skills ?? []).length === 0 ? (
                     <span className="muted-copy">No global Skills</span>

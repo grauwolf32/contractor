@@ -19,7 +19,10 @@ The target navigation contains:
 ```text
 Projects
 Evals
-Workflows
+Catalog
+  -> Workflows
+  -> Agents (AgentTemplates and base prompts)
+  -> Skills
 Artifacts
 Runs
   -> Queue (default)
@@ -29,8 +32,6 @@ Runs
      -> Inputs / outputs
      -> Metrics
 
-Skills
-
 Operations
   -> Runtime Agents
   -> Allocations
@@ -38,6 +39,29 @@ Operations
   -> Credentials
   -> Settings
 ```
+
+Catalog groups reusable execution definitions. Its canonical routes are
+`/catalog/workflows`, `/catalog/agents` and `/catalog/skills`; `/catalog` opens
+Workflows. Legacy `/workflows`, `/workflows/:name/:version` and `/skills` redirect
+to their Catalog equivalents while preserving query and fragment state.
+Runtime Agent processes remain in Operations.
+
+Agents lists exact published AgentTemplate versions, with description and links
+to a read-only detail at `/catalog/agents/:name/:version`. Detail emphasizes the
+base instructions with Markdown Preview, literal Source and Copy, alongside
+Skills, selected tools, Runtime, sandbox and ModelPolicy. Workflow logical Worker
+bindings link to the exact AgentTemplate version. Instruction text is not an
+effective invocation prompt: task context, conversation and expanded Skills are
+not included. Preview executes no HTML and loads no remote images.
+
+Authenticated users read base instructions through
+`GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions`.
+It returns `{template, instructions}` from one loaded configuration snapshot:
+the exact AgentTemplate ref and instruction ref/digest/text. An ETag identifies
+the template digest; caching is private. The endpoint accepts no filesystem path
+and performs no file read. Invalid selectors and unknown versions return bounded
+400/404 errors. General configuration and Workflow projections remain
+reference-only; prompt editing and raw invocation inspection are deferred.
 
 The UI remains domain-neutral. Project artifact tiles may provide familiar
 OpenAPI, LikeC4, source, documentation and diff icons, but they are shortcuts
@@ -305,8 +329,9 @@ manifests. Existing
 Workflow, AgentTemplate, ExecutionConfig and instruction resources remain
 operator-authored and read-only until their editors receive a separate
 contract. Operations lists the version-indexed configuration kinds here;
-instruction refs and digests remain visible through their consuming resources,
-while a standalone path-indexed instruction API is deferred rather than
+instruction refs and digests remain visible through their consuming resources.
+Catalog adds the exact-template instruction read described above, while a
+standalone path-indexed instruction API is deferred rather than
 inventing a `name@version` identity for them.
 
 UI publication is create-only. It cannot edit, replace, disable or delete an

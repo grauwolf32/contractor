@@ -1063,6 +1063,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/configurations/agent-templates/{name}/versions/{version}/instructions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["ConfigName"];
+                version: components["parameters"]["ConfigVersion"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Read the loaded base instructions of an exact AgentTemplate
+         * @description Authenticated catalog read; excludes invocation context and performs no filesystem lookup.
+         */
+        get: operations["getAgentInstructions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/operations/runtime-configs": {
         parameters: {
             query?: never;
@@ -2890,6 +2913,14 @@ export interface components {
             };
             outputs: {
                 [key: string]: components["schemas"]["WorkflowOutputArtifactSlot"];
+            };
+        };
+        AgentInstructions: {
+            template: components["schemas"]["AgentTemplateRef"];
+            instructions: {
+                ref: components["schemas"]["InstructionPath"];
+                digest: components["schemas"]["Digest"];
+                text: string;
             };
         };
         InstructionsRef: {
@@ -6045,6 +6076,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigurationResource"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAgentInstructions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: components["parameters"]["ConfigName"];
+                version: components["parameters"]["ConfigVersion"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact template identity and base instruction text */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control"?: "private, no-cache";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInstructions"];
                 };
             };
             400: components["responses"]["BadRequest"];

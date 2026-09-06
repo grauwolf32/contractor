@@ -20,6 +20,13 @@ import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
 import { LegacyQueueRedirect, RunsRoute } from "../routes/runs";
 import { SkillsRoute } from "../routes/skills";
+import {
+  CatalogIndexRedirect,
+  CatalogLayoutRoute,
+  LegacyCatalogRedirect,
+} from "../routes/catalog/layout";
+import { AgentListRoute } from "../routes/catalog/agents";
+import { AgentDetailRoute } from "../routes/catalog/agent-detail";
 import { AllocationListRoute } from "../routes/operations/allocations";
 import { CredentialDetailRoute } from "../routes/operations/credentials/detail";
 import { CredentialListRoute } from "../routes/operations/credentials";
@@ -48,11 +55,11 @@ export function applicationRoutes(): RouteObject[] {
             { index: true, element: <HomeRoute /> },
             {
               path: "/workflows",
-              element: <WorkflowListRoute />,
+              element: <LegacyCatalogRedirect />,
             },
             {
               path: "/workflows/:name/:version",
-              element: <WorkflowDetailRoute />,
+              element: <LegacyCatalogRedirect />,
             },
             {
               path: "/projects",
@@ -102,7 +109,25 @@ export function applicationRoutes(): RouteObject[] {
               path: "/runs/:runId/artifacts/:namespace/:name",
               element: <RunArtifactDetailRoute />,
             },
-            { path: "/skills", element: <SkillsRoute /> },
+            { path: "/skills", element: <LegacyCatalogRedirect /> },
+            {
+              path: "/catalog",
+              element: <CatalogLayoutRoute />,
+              children: [
+                { index: true, element: <CatalogIndexRedirect /> },
+                { path: "workflows", element: <WorkflowListRoute /> },
+                {
+                  path: "workflows/:name/:version",
+                  element: <WorkflowDetailRoute />,
+                },
+                { path: "agents", element: <AgentListRoute /> },
+                {
+                  path: "agents/:name/:version",
+                  element: <AgentDetailRoute />,
+                },
+                { path: "skills", element: <SkillsRoute /> },
+              ],
+            },
             {
               path: "/operations",
               element: <OperationsLayoutRoute />,

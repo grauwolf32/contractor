@@ -1,0 +1,142 @@
+.catalog-page,
+.catalog-agents,
+.catalog-agent-detail {
+  display: grid;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.catalog-navigation {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.catalog-navigation a {
+  padding: 0.65rem 0;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.catalog-navigation a.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.catalog-search,
+.catalog-version-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted-strong);
+}
+
+.catalog-search input,
+.catalog-version-form input {
+  min-height: 2.65rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--text);
+  background: var(--surface-subtle);
+}
+
+.catalog-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+}
+
+.catalog-agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: var(--text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.catalog-agent-card:hover {
+  border-color: var(--accent);
+}
+
+.catalog-agent-card p {
+  margin: 0;
+}
+
+.catalog-agent-identity,
+.catalog-prompt-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+}
+
+.catalog-agent-open {
+  margin-top: auto;
+  color: var(--link);
+}
+
+.catalog-version-form {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.catalog-version-form input {
+  max-width: 12rem;
+}
+
+.catalog-agent-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(17rem, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.catalog-prompt,
+.catalog-agent-configuration {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalog-agent-configuration .configuration-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.catalog-agent-configuration code {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.catalog-prompt .markdown-artifact-preview {
+  max-height: 65vh;
+  overflow: auto;
+}
+
+.catalog-prompt-source {
+  max-height: 65vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.catalog-version-label {
+  color: var(--muted);
+  font-size: 0.7em;
+  margin-left: 0.5rem;
+}
+
+@media (max-width: 1050px) {
+  .catalog-agent-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

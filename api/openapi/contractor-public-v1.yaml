@@ -1815,6 +1815,31 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/configurations/agent-templates/{name}/versions/{version}/instructions:
+    parameters:
+      - $ref: '#/components/parameters/ConfigName'
+      - $ref: '#/components/parameters/ConfigVersion'
+    get:
+      operationId: getAgentInstructions
+      tags: [Configuration]
+      summary: Read the loaded base instructions of an exact AgentTemplate
+      description: Authenticated catalog read; excludes invocation context and performs no filesystem lookup.
+      x-contractor-implementation: implemented
+      responses:
+        '200':
+          description: Exact template identity and base instruction text
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {schema: {type: string, const: 'private, no-cache'}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AgentInstructions'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/operations/runtime-configs:
     get:
       operationId: listRuntimeConfigs
@@ -5010,6 +5035,20 @@ components:
         parameters: {type: object, additionalProperties: {$ref: '#/components/schemas/ParameterSlot'}}
         inputs: {type: object, additionalProperties: {$ref: '#/components/schemas/ArtifactSlot'}}
         outputs: {type: object, additionalProperties: {$ref: '#/components/schemas/WorkflowOutputArtifactSlot'}}
+    AgentInstructions:
+      type: object
+      additionalProperties: false
+      required: [template, instructions]
+      properties:
+        template: {$ref: '#/components/schemas/AgentTemplateRef'}
+        instructions:
+          type: object
+          additionalProperties: false
+          required: [ref, digest, text]
+          properties:
+            ref: {$ref: '#/components/schemas/InstructionPath'}
+            digest: {$ref: '#/components/schemas/Digest'}
+            text: {type: string, minLength: 1}
     InstructionsRef:
       type: object
       additionalProperties: false

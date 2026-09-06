@@ -149,6 +149,7 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
     page.getByRole("link", { name: "run-browser-leg-a" }),
   ).toBeVisible();
 
+  await page.getByRole("link", { name: "Catalog", exact: true }).click();
   await page.getByRole("link", { name: "Skills", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Skills" })).toBeVisible();
   const skill = page.getByRole("link", { name: "architecture-review" });

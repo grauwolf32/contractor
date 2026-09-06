@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V33-001
+title: Group Workflows, Agents and Skills in Catalog and expose agent base prompts
+milestone: catalog-and-agent-prompts
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: [V4-010, V23-009]
+languages: [go, typescript, css]
+
+goal: >-
+  Provide one Catalog navigation entry with Workflows, Agents and Skills, and
+  let authenticated users read the base instructions of an exact AgentTemplate.
+
+context:
+  specification: docs/spec/06-server-ui-and-operations.md
+  identities: >-
+    Catalog Agents are reusable AgentTemplates, not deployed Runtime Agents.
+    Runtime instances remain in Operations. Base instructions are loaded catalog
+    text pinned by the selected template version and digest, not live invocation
+    prompts, tool messages, task context or expanded Skills.
+  browser_verification: >-
+    Build and serve the UI, then set CONTRACTOR_UI_E2E_BASE_URL to that server.
+    Catalog browser fixtures intercept the API and do not require a database.
+
+scope:
+  in:
+    - Add Catalog with Workflows, Agents and Skills tabs; canonical paths are /catalog/workflows, /catalog/agents and /catalog/skills.
+    - Preserve old Workflow and Skills links with redirects retaining query and fragment state.
+    - Reuse existing Workflow and Skills pages and configuration list/detail data for AgentTemplates.
+    - Add a paged/searchable Agent list and exact-version detail with base prompt Preview/Source, Copy and linked Skills/ModelPolicy/tool selections.
+    - Add links from Workflow logical Worker bindings to exact Catalog Agent versions.
+    - Add authenticated GET /v1/configurations/agent-templates/{name}/versions/{version}/instructions from the in-memory configuration snapshot.
+    - Return template identity and resolved instruction ref/digest/text with an ETag and private cache policy; never accept a caller-supplied filesystem path.
+    - Update owning specifications, OpenAPI/generated client and focused backend/UI tests.
+  out:
+    - Prompt editing, raw invocation history, effective model context, Runtime monitoring changes, arbitrary instruction file access or new configuration storage.
+
+requirements:
+  - {id: R1, text: Exact-version instruction reads use one loaded snapshot and fail normally for invalid selectors or missing templates; general list/detail projections remain reference-only.}
+  - {id: R2, text: Catalog is available under ordinary authenticated user access; Markdown preview does not execute HTML or load external images and Copy handles clipboard failure.}
+  - {id: R3, text: Legacy routes retain query/fragment state, workflow creation and Skill upload continue working, and Catalog is the active sidebar item across its children.}
+
+acceptance_criteria:
+  - id: A1
+    given: Authenticated/unauthenticated requests, invalid paths, unknown templates and a loaded template whose instruction file later changes.
+    when: The exact instruction endpoint is read.
+    then: Authorization and selector validation hold, the response contains the loaded pinned text and general configuration lists still omit it.
+  - id: A2
+    given: Multiple template versions and an Agent with tools, Skills and Markdown instructions.
+    when: Users browse Agents, select a version, change Preview/Source and copy instructions.
+    then: The exact prompt and metadata match, rendering is safe and clipboard failures are visible.
+  - id: A3
+    given: Old/new Workflow and Skills links with query/fragment state and Workflow logical bindings.
+    when: Users navigate Catalog and follow an Agent link.
+    then: Redirects preserve state, tabs/sidebar highlight correctly and existing Workflow/Skill flows remain usable.
+
+tests:
+  - {name: backend, command: "go test ./internal/config ./internal/httpapi/public", covers: [A1]}
+  - {name: ui, command: "cd ui && pnpm exec vitest run src/routes/catalog/catalog.test.tsx src/routes/workflows/workflows.test.tsx src/routes/evals-skills.test.tsx src/app/application.test.tsx", covers: [A2, A3]}
+  - {name: typecheck, command: "make ui-typecheck", covers: [A2, A3]}
+  - {name: api-contract, command: "make verify-public-api", covers: [A1]}
+  - {name: browser, command: "cd ui && pnpm exec playwright test e2e/catalog.spec.ts e2e/evals-skills.spec.ts", covers: [A2, A3]}

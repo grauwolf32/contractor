@@ -2,6 +2,10 @@
 
 Status: **Working agreement**
 
+The authenticated Catalog UI exposes exact template versions and their loaded
+base instruction text under [06](06-server-ui-and-operations.md). This read-only
+view does not expose invocation context or introduce a prompt editor.
+
 Depends on: [00](00-workflow-and-planner.md)
 
 ## Purpose
