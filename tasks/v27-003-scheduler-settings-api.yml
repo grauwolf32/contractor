@@ -3,8 +3,8 @@ id: V27-003
 title: Expose the Scheduler settings Operations API
 milestone: workflow-scheduler-concurrency
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: "bcd90605b84f76153e6fdd5397daeff098dc55e5"
 depends_on: [V27-002]
 languages: [go, openapi, typescript]
 
