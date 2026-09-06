@@ -2250,3 +2250,4 @@ tasks:
   - {id: V34-004, file: v34-004-offline-blob-cleanup.yml}
   - {id: V34-005, file: v34-005-blob-backends-release-gate.yml}
   - {id: V34-006, file: v34-006-overlay-export-size-contract.yml}
+  - {id: V36-001, file: v36-001-server-process-config.yml}

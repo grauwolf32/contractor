@@ -3,8 +3,8 @@ id: V36-001
 title: Load non-secret Server process settings from strict YAML
 milestone: implementation-maintainability
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 3d56f4fdf2532fb8ee874c1c1841d81bd1139404
 depends_on: [MVP-003, V32-001]
 languages: [go, yaml, markdown]
 
@@ -80,3 +80,11 @@ tests:
   - {name: app-race, command: "go test -race -count=1 ./internal/app", covers: [A1, A2, A3, A4]}
   - {name: config-catalog, command: "go run ./cmd/contractor-server config validate --root ./configs && go test -count=1 ./internal/config", covers: [A4]}
   - {name: repository-diff, command: "git diff --check", covers: [A1, A2, A3, A4]}
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - The app race suite passed on the exact implementation commit.
+    - The checked-in ServerConfig parsed and catalog validation retained 11 Workflows, 16 AgentTemplates, 7 ModelPolicies, 1 LLMGateway, 1 ExecutionConfig, 4 AuditProfiles and 25 instructions.
+    - The internal configuration suite and repository diff check passed on the exact implementation commit.
+    - Strict tests cover aliases, relative paths, false booleans, precedence, unknown and duplicate fields, multiple documents, forbidden secret fields, malformed durations, empty files, directories and the 64 KiB bound.
