@@ -566,7 +566,10 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(streamlineMetadata).toContainText("eval.id:ui-stack-eval-01");
   await expect(streamlineMetadata).toContainText("eval.leg:a");
   await expect(streamlineMetadata).toContainText(
-    "They do not select Runtime infrastructure",
+    "Labels are fixed at creation",
+  );
+  await expect(page.locator(".run-runtime-configuration")).toContainText(
+    "Runtime infrastructure configuration",
   );
   await page.goto("/runs?view=completed");
   await openDetails(
