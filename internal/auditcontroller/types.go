@@ -41,6 +41,7 @@ type Store interface {
 	ListExecutionItems(context.Context, string) ([]auditstore.ExecutionItem, error)
 	ObserveTerminal(context.Context, auditstore.ObserveTerminalParams) (auditstore.Execution, error)
 	ObserveSubmissionFailure(context.Context, auditstore.ObserveSubmissionFailureParams) (auditstore.Execution, error)
+	AcceptNextRound(context.Context, auditstore.AcceptRoundParams) (auditstore.Round, bool, error)
 	SettleUndispatched(context.Context, auditstore.ControllerClaim, int) (int, error)
 	ReleaseDispatchHold(context.Context, auditstore.ControllerClaim) (auditstore.Audit, bool, error)
 	NextLiveRunForDeletion(context.Context, auditstore.ControllerClaim) (string, bool, error)
@@ -81,6 +82,17 @@ type Collector interface {
 	Finalize(context.Context, auditstore.ControllerClaim, auditstore.ReconcileSnapshot) (bool, error)
 }
 
+// RoundBuilder prepares the immutable manifest and exact proposal bindings for
+// a later Audit round. The Store remains responsible for claim-bound atomic
+// acceptance and consume-once validation.
+type RoundBuilder interface {
+	PrepareNextRound(
+		context.Context,
+		auditstore.ControllerClaim,
+		auditstore.ReconcileSnapshot,
+	) (auditstore.AcceptRoundParams, *auditstore.StopReason, error)
+}
+
 type Clock interface {
 	Now() time.Time
 	After(time.Duration) <-chan time.Time
@@ -96,17 +108,19 @@ type Options struct {
 	NewID            func(string) (string, error)
 	Logger           *slog.Logger
 	Collector        Collector
+	RoundBuilder     RoundBuilder
 }
 
 type Controller struct {
-	store     Store
-	runs      RunStore
-	creator   RunCreator
-	builder   SubmissionBuilder
-	collector Collector
-	notifier  RunNotifier
-	options   Options
-	wake      chan struct{}
+	store        Store
+	runs         RunStore
+	creator      RunCreator
+	builder      SubmissionBuilder
+	collector    Collector
+	roundBuilder RoundBuilder
+	notifier     RunNotifier
+	options      Options
+	wake         chan struct{}
 
 	runMu   sync.Mutex
 	running bool
@@ -161,7 +175,8 @@ func New(
 	}
 	return &Controller{
 		store: store, runs: runs, creator: creator, builder: builder,
-		collector: options.Collector, notifier: notifier, options: options, wake: make(chan struct{}, 1),
+		collector: options.Collector, roundBuilder: options.RoundBuilder,
+		notifier: notifier, options: options, wake: make(chan struct{}, 1),
 	}, nil
 }
 

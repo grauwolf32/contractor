@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -431,13 +432,70 @@ func validateMaterialize(params MaterializeRoundParams) error {
 	if params.DeadlineAt.IsZero() {
 		return invalidf("Audit deadline is invalid")
 	}
-	if len(params.Items) > 10_000 {
+	if err := validateRoundItems(params.Items); err != nil {
+		return err
+	}
+	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
+}
+
+func validateAcceptRound(params AcceptRoundParams) error {
+	if err := validateClaimIdentity(params.Claim); err != nil {
+		return err
+	}
+	if params.ExpectedAuditRevision == 0 || params.ExpectedAuditRevision > math.MaxInt64 || params.RoundOrdinal < 2 {
+		return invalidf("next Round precondition is invalid")
+	}
+	if err := validateID("previousRoundID", params.PreviousRoundID); err != nil {
+		return err
+	}
+	if err := validateID("roundID", params.RoundID); err != nil {
+		return err
+	}
+	if params.RoundID == params.PreviousRoundID {
+		return invalidf("next Round identity equals its predecessor")
+	}
+	if err := validateExactArtifact("round manifest", params.Manifest, false); err != nil {
+		return err
+	}
+	if len(params.Items) == 0 {
+		return invalidf("next Round must contain work")
+	}
+	if err := validateRoundItems(params.Items); err != nil {
+		return err
+	}
+	seenSources := make(map[string]struct{}, len(params.Items))
+	for _, item := range params.Items {
+		if len(item.ProposalSources) != 1 {
+			return invalidf("next Round item must have one exact proposal source")
+		}
+		for _, source := range item.ProposalSources {
+			if err := validateID("proposal receipt ID", source.ReceiptID); err != nil {
+				return err
+			}
+			if source.ProposedCheckOrdinal < 0 || source.ProposedCheckOrdinal >= 512 {
+				return invalidf("proposal check ordinal is invalid")
+			}
+			if err := validateExactArtifact("proposal source", source.Proposal, true); err != nil {
+				return err
+			}
+			key := source.ReceiptID + "\x00" + strconv.Itoa(source.ProposedCheckOrdinal)
+			if _, duplicate := seenSources[key]; duplicate {
+				return invalidf("proposal check source is duplicated")
+			}
+			seenSources[key] = struct{}{}
+		}
+	}
+	return nil
+}
+
+func validateRoundItems(items []MaterializedItem) error {
+	if len(items) > 10_000 {
 		return invalidf("round has too many items")
 	}
-	seenIDs := make(map[string]struct{}, len(params.Items))
-	seenKeys := make(map[string]struct{}, len(params.Items))
+	seenIDs := make(map[string]struct{}, len(items))
+	seenKeys := make(map[string]struct{}, len(items))
 	materializedBytes := 0
-	for index, item := range params.Items {
+	for index, item := range items {
 		if err := validateID("itemID", item.ItemID); err != nil || item.Ordinal != index {
 			return invalidf("round item %d identity or ordinal is invalid", index)
 		}
@@ -479,7 +537,7 @@ func validateMaterialize(params MaterializeRoundParams) error {
 		}
 		materializedBytes += len(encoded)
 	}
-	return validateIdempotency(params.IdempotencyKey, params.RequestDigest)
+	return nil
 }
 
 func validateClaimIdentity(claim ControllerClaim) error {

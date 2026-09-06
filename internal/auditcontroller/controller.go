@@ -189,13 +189,30 @@ func (c *Controller) reconcile(
 			}
 		case auditstore.RoundClosed:
 			if audit.OutstandingRunCount == 0 && len(snapshot.Items) == 0 && len(snapshot.Executions) == 0 {
-				reason := auditstore.StopReason{
-					Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
+				var reason *auditstore.StopReason
+				if c.roundBuilder != nil {
+					params, closureReason, buildErr := c.roundBuilder.PrepareNextRound(ctx, claim, snapshot)
+					if buildErr != nil {
+						return false, buildErr
+					}
+					if params.RoundID != "" {
+						_, _, acceptErr := c.store.AcceptNextRound(ctx, params)
+						if errors.Is(acceptErr, auditstore.ErrPrecondition) {
+							return false, nil
+						}
+						return acceptErr == nil, acceptErr
+					}
+					reason = closureReason
+				}
+				if reason == nil {
+					reason = &auditstore.StopReason{
+						Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
+					}
 				}
 				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
 					Claim: claim, ExpectedRevision: audit.Revision,
 					ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-					Reason: &reason,
+					Reason: reason,
 				})
 				return err == nil, err
 			}

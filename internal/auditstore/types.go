@@ -362,16 +362,26 @@ type ItemOrigin struct {
 }
 
 type MaterializedItem struct {
-	ItemID       string
-	ItemKey      string
-	Ordinal      int
-	Kind         string
-	SubjectKey   string
-	Task         ExactArtifact
-	Origin       ItemOrigin
-	WorkflowRole string
-	InitialState ItemState
-	Coverage     Coverage
+	ItemID          string
+	ItemKey         string
+	Ordinal         int
+	Kind            string
+	SubjectKey      string
+	Task            ExactArtifact
+	Origin          ItemOrigin
+	WorkflowRole    string
+	InitialState    ItemState
+	Coverage        Coverage
+	ProposalSources []ProposalItemSource
+}
+
+// ProposalItemSource is the exact consume-once cause of a later-round item.
+// MVP generation uses one source per item while the durable shape can later
+// admit explicitly merged checks without changing proposal identity.
+type ProposalItemSource struct {
+	ReceiptID            string
+	ProposedCheckOrdinal int
+	Proposal             ExactArtifact
 }
 
 type Coverage struct {
@@ -394,6 +404,16 @@ type MaterializeRoundParams struct {
 	Items            []MaterializedItem
 	IdempotencyKey   string
 	RequestDigest    string
+}
+
+type AcceptRoundParams struct {
+	Claim                 ControllerClaim
+	ExpectedAuditRevision uint64
+	PreviousRoundID       string
+	RoundID               string
+	RoundOrdinal          int
+	Manifest              ExactArtifact
+	Items                 []MaterializedItem
 }
 
 type Round struct {
@@ -751,6 +771,7 @@ type ControllerRepository interface {
 	ReleaseClaim(context.Context, ControllerClaim) error
 	TransitionClaimed(context.Context, ClaimedTransitionParams) (Audit, error)
 	TransitionRound(context.Context, RoundTransitionParams) (Round, error)
+	AcceptNextRound(context.Context, AcceptRoundParams) (Round, bool, error)
 	CreateExecutionIntent(context.Context, CreateExecutionIntentParams) (Execution, bool, error)
 	NextItemAttempt(context.Context, ControllerClaim, string) (int, error)
 	ListExecutionItems(context.Context, string) ([]ExecutionItem, error)

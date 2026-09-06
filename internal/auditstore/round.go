@@ -2,30 +2,41 @@ package auditstore
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
 type materializedItemJSON struct {
-	ItemID       string          `json:"item_id"`
-	ItemKey      string          `json:"item_key"`
-	Ordinal      int             `json:"ordinal"`
-	Kind         string          `json:"kind"`
-	SubjectKey   string          `json:"subject_key"`
-	TaskRef      json.RawMessage `json:"task_ref"`
-	TaskDigest   string          `json:"task_digest"`
-	Origin       json.RawMessage `json:"origin"`
-	WorkflowRole string          `json:"workflow_role"`
-	InitialState string          `json:"initial_state"`
-	Status       string          `json:"status"`
-	Requested    []string        `json:"requested"`
-	Completed    []string        `json:"completed"`
-	Gaps         []string        `json:"gaps"`
-	Rationale    string          `json:"rationale"`
+	ItemID          string                   `json:"item_id"`
+	ItemKey         string                   `json:"item_key"`
+	Ordinal         int                      `json:"ordinal"`
+	Kind            string                   `json:"kind"`
+	SubjectKey      string                   `json:"subject_key"`
+	TaskRef         json.RawMessage          `json:"task_ref"`
+	TaskDigest      string                   `json:"task_digest"`
+	Origin          json.RawMessage          `json:"origin"`
+	WorkflowRole    string                   `json:"workflow_role"`
+	InitialState    string                   `json:"initial_state"`
+	Status          string                   `json:"status"`
+	Requested       []string                 `json:"requested"`
+	Completed       []string                 `json:"completed"`
+	Gaps            []string                 `json:"gaps"`
+	Rationale       string                   `json:"rationale"`
+	ProposalSources []proposalItemSourceJSON `json:"proposal_sources"`
+}
+
+type proposalItemSourceJSON struct {
+	ItemID               string        `json:"item_id"`
+	ReceiptID            string        `json:"receipt_id"`
+	ProposedCheckOrdinal int           `json:"proposed_check_ordinal"`
+	Proposal             ExactArtifact `json:"proposal"`
 }
 
 func (s *PostgresStore) MaterializeRound(
@@ -52,6 +63,7 @@ func (s *PostgresStore) MaterializeRound(
 			InitialState: string(item.InitialState), Status: string(item.Coverage.Status),
 			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
 			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
+			ProposalSources: []proposalItemSourceJSON{},
 		}
 	}
 	encodedItems, _ := json.Marshal(items)
@@ -157,6 +169,249 @@ SELECT `+prefixedAuditColumns("started")+` FROM started`,
 		return Audit{}, false, getErr
 	}
 	return Audit{}, false, ErrPrecondition
+}
+
+func (s *PostgresStore) AcceptNextRound(
+	ctx context.Context,
+	params AcceptRoundParams,
+) (Round, bool, error) {
+	if err := validateAcceptRound(params); err != nil {
+		return Round{}, false, err
+	}
+	if replay, found, err := s.lookupAcceptedRoundReplay(ctx, params); err != nil || found {
+		return replay, false, err
+	}
+	acceptanceDigest, err := roundAcceptanceDigest(params)
+	if err != nil {
+		return Round{}, false, err
+	}
+	encodedManifestRef, _ := json.Marshal(params.Manifest.Ref)
+	items := make([]materializedItemJSON, len(params.Items))
+	sources := make([]proposalItemSourceJSON, 0, len(params.Items))
+	for index, item := range params.Items {
+		encodedTaskRef, _ := json.Marshal(item.Task.Ref)
+		encodedOrigin, _ := json.Marshal(item.Origin)
+		itemSources := make([]proposalItemSourceJSON, len(item.ProposalSources))
+		for sourceIndex, source := range item.ProposalSources {
+			itemSources[sourceIndex] = proposalItemSourceJSON{
+				ItemID: item.ItemID, ReceiptID: source.ReceiptID,
+				ProposedCheckOrdinal: source.ProposedCheckOrdinal, Proposal: source.Proposal,
+			}
+			sources = append(sources, itemSources[sourceIndex])
+		}
+		items[index] = materializedItemJSON{
+			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
+			Kind: item.Kind, SubjectKey: item.SubjectKey, TaskRef: encodedTaskRef,
+			TaskDigest: item.Task.Digest, Origin: encodedOrigin, WorkflowRole: item.WorkflowRole,
+			InitialState: string(item.InitialState), Status: string(item.Coverage.Status),
+			Requested: nonNilStrings(item.Coverage.Requested), Completed: nonNilStrings(item.Coverage.Completed),
+			Gaps: nonNilStrings(item.Coverage.Gaps), Rationale: item.Coverage.Rationale,
+			ProposalSources: itemSources,
+		}
+	}
+	encodedItems, _ := json.Marshal(items)
+	encodedSources, _ := json.Marshal(sources)
+	round, err := scanRound(s.db.QueryRow(ctx, `
+WITH live_claim AS MATERIALIZED (
+    SELECT claim.audit_id
+      FROM audit_controller_claims AS claim
+     WHERE claim.audit_id = $1 AND claim.holder_id = $2 AND claim.epoch = $3
+       AND claim.expires_at > clock_timestamp()
+     FOR UPDATE OF claim
+), previous_round AS MATERIALIZED (
+    SELECT round.round_id, round.audit_id, round.ordinal
+      FROM audit_rounds AS round
+      JOIN live_claim USING (audit_id)
+     WHERE round.round_id = $5 AND round.state = 'closed'
+     FOR UPDATE OF round
+), item_input AS MATERIALIZED (
+    SELECT * FROM jsonb_to_recordset($10::jsonb) AS item(
+        item_id text, item_key text, ordinal integer, kind text,
+        subject_key text, task_ref jsonb, task_digest text, origin jsonb,
+        workflow_role text, initial_state text, status text,
+        requested jsonb, completed jsonb, gaps jsonb, rationale text,
+        proposal_sources jsonb
+    )
+), source_input AS MATERIALIZED (
+    SELECT * FROM jsonb_to_recordset($11::jsonb) AS source(
+        item_id text, receipt_id text, proposed_check_ordinal integer, proposal jsonb
+    )
+), source_gate AS MATERIALIZED (
+    SELECT count(*)::integer AS source_count
+      FROM source_input AS source
+      JOIN item_input AS item USING (item_id)
+      JOIN finding_proposal_audit_holds AS hold
+        ON hold.audit_id = $1 AND hold.receipt_id = source.receipt_id
+       AND hold.proposal_ref = source.proposal
+      JOIN audits AS source_audit
+        ON source_audit.audit_id = hold.audit_id
+       AND source_audit.project_id = hold.project_id
+     WHERE NOT EXISTS (
+         SELECT 1 FROM audit_proposal_items AS used
+          WHERE used.audit_id = $1 AND used.receipt_id = source.receipt_id
+            AND used.proposed_check_ordinal = source.proposed_check_ordinal
+     )
+), audit_gate AS MATERIALIZED (
+    SELECT audit.audit_id, audit.max_items_per_round, audit.max_items_total,
+           audit.max_rounds, audit.next_event_sequence,
+           contractor_require_active_audit_project(audit.project_id, audit.owner_id)
+      FROM audits AS audit
+      JOIN live_claim USING (audit_id)
+      JOIN previous_round AS previous USING (audit_id)
+      CROSS JOIN source_gate
+     WHERE audit.audit_id = $1 AND audit.revision = $4
+       AND audit.state = 'active' AND audit.dispatch_state = 'open'
+       AND audit.current_round_id = previous.round_id
+       AND audit.deadline_at > clock_timestamp()
+       AND $7 = previous.ordinal + 1 AND $7 <= audit.max_rounds
+       AND jsonb_array_length($10::jsonb) > 0
+       AND jsonb_array_length($10::jsonb) <= audit.max_items_per_round
+       AND (SELECT count(*) FROM audit_items WHERE audit_id = $1)
+             + jsonb_array_length($10::jsonb) <= audit.max_items_total
+       AND source_gate.source_count = jsonb_array_length($11::jsonb)
+       AND jsonb_array_length($11::jsonb) = jsonb_array_length($10::jsonb)
+     FOR UPDATE OF audit
+), advanced AS (
+    UPDATE audits AS audit
+       SET current_round_id = $6,
+           revision = audit.revision + 1,
+           next_event_sequence = audit.next_event_sequence + 1,
+           updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
+      FROM audit_gate
+     WHERE audit.audit_id = audit_gate.audit_id
+    RETURNING audit.*
+), inserted_round AS (
+    INSERT INTO audit_rounds (
+        round_id, audit_id, ordinal, manifest_ref, manifest_digest,
+        state, expected_item_count, acceptance_digest
+    )
+    SELECT $6, audit_id, $7, $8::jsonb, $9,
+           'accepted', jsonb_array_length($10::jsonb), $12
+      FROM advanced
+    RETURNING *
+), inserted_items AS (
+    INSERT INTO audit_items (
+        item_id, audit_id, round_id, item_key, ordinal, kind, subject_key,
+        task_ref, task_digest, origin, workflow_role, state
+    )
+    SELECT item.item_id, round.audit_id, round.round_id,
+           item.item_key, item.ordinal, item.kind, item.subject_key,
+           item.task_ref, item.task_digest, item.origin, item.workflow_role,
+           item.initial_state
+      FROM inserted_round AS round CROSS JOIN item_input AS item
+    RETURNING item_id, audit_id, round_id, item_key, subject_key
+), inserted_coverage AS (
+    INSERT INTO audit_coverage_rows (
+        audit_id, round_id, item_id, item_key, subject_key,
+        status, requested, completed, gaps, rationale
+    )
+    SELECT stored.audit_id, stored.round_id, stored.item_id,
+           stored.item_key, stored.subject_key, source.status,
+           source.requested, source.completed, source.gaps, source.rationale
+      FROM inserted_items AS stored JOIN item_input AS source USING (item_id)
+), inserted_sources AS (
+    INSERT INTO audit_proposal_items (
+        audit_id, receipt_id, proposed_check_ordinal, round_id, item_id,
+        proposal_ref, proposal_digest
+    )
+    SELECT stored.audit_id, source.receipt_id, source.proposed_check_ordinal,
+           stored.round_id, stored.item_id, source.proposal->'ref',
+           source.proposal->>'digest'
+      FROM inserted_items AS stored JOIN source_input AS source USING (item_id)
+), event_row AS (
+    INSERT INTO audit_events (
+        audit_id, sequence_number, kind, entity_id, entity_revision, summary
+    )
+    SELECT round.audit_id, advanced.next_event_sequence - 1,
+           'round.accepted', round.round_id, round.revision,
+           jsonb_build_object('round', round.ordinal, 'items', round.expected_item_count)
+      FROM inserted_round AS round JOIN advanced USING (audit_id)
+)
+SELECT round_id, audit_id, ordinal, manifest_ref, manifest_digest, state,
+       expected_item_count, revision, created_at, updated_at
+  FROM inserted_round`,
+		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
+		params.ExpectedAuditRevision, params.PreviousRoundID,
+		params.RoundID, params.RoundOrdinal, encodedManifestRef,
+		params.Manifest.Digest, encodedItems, encodedSources, acceptanceDigest,
+	))
+	if err == nil {
+		return round, true, nil
+	}
+	if persistencepostgres.SQLState(err) == "55000" {
+		return Round{}, false, ErrProjectDeleting
+	}
+	if persistencepostgres.SQLState(err) == "23505" || errors.Is(err, pgx.ErrNoRows) {
+		if replay, found, replayErr := s.lookupAcceptedRoundReplay(ctx, params); replayErr != nil || found {
+			return replay, false, replayErr
+		}
+		if live, liveErr := s.claimLive(ctx, params.Claim); liveErr != nil {
+			return Round{}, false, liveErr
+		} else if !live {
+			return Round{}, false, ErrClaimLost
+		}
+		if persistencepostgres.SQLState(err) == "23505" {
+			return Round{}, false, ErrConflict
+		}
+		return Round{}, false, ErrPrecondition
+	}
+	return Round{}, false, fmt.Errorf("accept next Audit round: %w", err)
+}
+
+func (s *PostgresStore) lookupAcceptedRoundReplay(
+	ctx context.Context, params AcceptRoundParams,
+) (Round, bool, error) {
+	acceptanceDigest, err := roundAcceptanceDigest(params)
+	if err != nil {
+		return Round{}, false, err
+	}
+	round, err := s.GetRound(ctx, params.Claim.AuditID, params.RoundID)
+	if errors.Is(err, ErrNotFound) {
+		return Round{}, false, nil
+	}
+	if err != nil {
+		return Round{}, false, err
+	}
+	if round.Ordinal != params.RoundOrdinal || round.ExpectedItemCount != len(params.Items) ||
+		round.Manifest.Digest != params.Manifest.Digest || !sameRoundArtifactRef(round.Manifest.Ref, params.Manifest.Ref) {
+		return Round{}, true, ErrConflict
+	}
+	var storedDigest *string
+	if err := s.db.QueryRow(ctx, `
+SELECT acceptance_digest
+  FROM audit_rounds
+ WHERE audit_id = $1 AND round_id = $2`, params.Claim.AuditID, params.RoundID).Scan(&storedDigest); err != nil {
+		return Round{}, true, err
+	}
+	if storedDigest == nil || *storedDigest != acceptanceDigest {
+		return Round{}, true, ErrConflict
+	}
+	return round, true, nil
+}
+
+func roundAcceptanceDigest(params AcceptRoundParams) (string, error) {
+	encoded, err := json.Marshal(struct {
+		Schema          string             `json:"schema"`
+		PreviousRoundID string             `json:"previousRoundId"`
+		RoundID         string             `json:"roundId"`
+		RoundOrdinal    int                `json:"roundOrdinal"`
+		Manifest        ExactArtifact      `json:"manifest"`
+		Items           []MaterializedItem `json:"items"`
+	}{
+		Schema: "contractor.audit.round-acceptance.v1", PreviousRoundID: params.PreviousRoundID,
+		RoundID: params.RoundID, RoundOrdinal: params.RoundOrdinal,
+		Manifest: params.Manifest, Items: params.Items,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode Audit Round acceptance identity: %w", err)
+	}
+	digest := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
+}
+
+func sameRoundArtifactRef(left, right contracts.ArtifactRef) bool {
+	return left.Namespace == right.Namespace && left.Name == right.Name &&
+		left.Revision != nil && right.Revision != nil && *left.Revision == *right.Revision
 }
 
 func (s *PostgresStore) TransitionRound(

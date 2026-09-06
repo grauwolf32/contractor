@@ -159,6 +159,34 @@ func TestControllerCollectsClosesBarrierAndFinalizesReport(t *testing.T) {
 	}
 }
 
+func TestControllerAcceptsPreparedNextRoundInsteadOfFinalizing(t *testing.T) {
+	harness := newControllerHarness(t, 1, 1)
+	harness.store.mu.Lock()
+	harness.store.round.State = auditstore.RoundClosed
+	harness.store.items = nil
+	harness.store.executions = nil
+	harness.store.audit.Limits.MaxRounds = 2
+	harness.store.audit.Limits.MaxItemsTotal = 2
+	harness.store.mu.Unlock()
+
+	roundBuilder := &fakeRoundBuilder{}
+	harness.controller.roundBuilder = roundBuilder
+	if worked, err := harness.controller.RunOnce(harness.ctx); err != nil || !worked {
+		t.Fatalf("accept next Round = (%t, %v)", worked, err)
+	}
+	if roundBuilder.calls.Load() != 1 {
+		t.Fatalf("next Round builder calls = %d, want 1", roundBuilder.calls.Load())
+	}
+	harness.store.mu.Lock()
+	defer harness.store.mu.Unlock()
+	if harness.store.audit.State != auditstore.AuditActive ||
+		harness.store.round.Ordinal != 2 || harness.store.round.State != auditstore.RoundAccepted ||
+		len(harness.store.items) != 1 || harness.store.items[0].RoundID != "round-next" {
+		t.Fatalf("accepted next Round = (audit=%+v round=%+v items=%+v)",
+			harness.store.audit, harness.store.round, harness.store.items)
+	}
+}
+
 func TestRoleDispositionRetryabilityIsExplicit(t *testing.T) {
 	evidenceBudget := "evidence-budget-exhausted"
 	for _, test := range []struct {
@@ -223,6 +251,28 @@ func (h *controllerHarness) finishOldest(t *testing.T, state runstore.WorkflowRu
 }
 
 type fakeSubmissionBuilder struct{}
+
+type fakeRoundBuilder struct{ calls atomic.Int64 }
+
+func (b *fakeRoundBuilder) PrepareNextRound(
+	_ context.Context,
+	claim auditstore.ControllerClaim,
+	snapshot auditstore.ReconcileSnapshot,
+) (auditstore.AcceptRoundParams, *auditstore.StopReason, error) {
+	b.calls.Add(1)
+	manifest := builderExact("round-two", "round-two-r1")
+	task := builderExact("task-two", "task-two-r1")
+	return auditstore.AcceptRoundParams{
+		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
+		PreviousRoundID: snapshot.Round.RoundID, RoundID: "round-next", RoundOrdinal: 2,
+		Manifest: manifest,
+		Items: []auditstore.MaterializedItem{{
+			ItemID: "item-next", ItemKey: "finding-next", Ordinal: 0,
+			Kind: "finding-verification", SubjectKey: "subject-next", Task: task,
+			WorkflowRole: "check", InitialState: auditstore.ItemReady,
+		}},
+	}, nil, nil
+}
 
 func (fakeSubmissionBuilder) PrepareRole(
 	_ context.Context, _ auditstore.ReconcileSnapshot, _ string, _ int,
@@ -523,6 +573,36 @@ func (s *fakeControllerStore) SettleUndispatched(
 		s.audit.Revision++
 	}
 	return settled, nil
+}
+
+func (s *fakeControllerStore) AcceptNextRound(
+	_ context.Context, params auditstore.AcceptRoundParams,
+) (auditstore.Round, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.held || params.Claim.Epoch != s.epoch ||
+		s.audit.State != auditstore.AuditActive || s.round.State != auditstore.RoundClosed ||
+		s.audit.Revision != params.ExpectedAuditRevision ||
+		s.round.RoundID != params.PreviousRoundID {
+		return auditstore.Round{}, false, auditstore.ErrPrecondition
+	}
+	s.round = auditstore.Round{
+		RoundID: params.RoundID, AuditID: s.audit.AuditID, Ordinal: params.RoundOrdinal,
+		State: auditstore.RoundAccepted, Revision: 1, Manifest: params.Manifest,
+		ExpectedItemCount: len(params.Items),
+	}
+	s.audit.CurrentRoundID = &s.round.RoundID
+	s.audit.Revision++
+	s.items = make([]auditstore.Item, len(params.Items))
+	for index, item := range params.Items {
+		s.items[index] = auditstore.Item{
+			ItemID: item.ItemID, AuditID: s.audit.AuditID, RoundID: params.RoundID,
+			ItemKey: item.ItemKey, Ordinal: item.Ordinal, Kind: item.Kind,
+			SubjectKey: item.SubjectKey, Task: item.Task, WorkflowRole: item.WorkflowRole,
+			State: item.InitialState,
+		}
+	}
+	return s.round, true, nil
 }
 
 func (s *fakeControllerStore) ReleaseDispatchHold(

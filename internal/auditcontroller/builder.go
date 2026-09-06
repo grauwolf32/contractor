@@ -260,7 +260,11 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	if !exists {
 		return PreparedSubmission{}, invalidSubmission("Audit item names an unknown Workflow role")
 	}
-	manifestItem, err := findManifestItem(baseline.Inventory.ExecutionManifest, item)
+	roundManifest, err := b.readRoundExecutionManifest(ctx, audit.ProjectID, snapshot.Round.Manifest)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	manifestItem, err := findManifestItem(roundManifest, item)
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
@@ -361,18 +365,46 @@ func (b *PinnedSubmissionBuilder) Prepare(
 	return PreparedSubmission{Intent: intent, Run: run}, nil
 }
 
+func (b *PinnedSubmissionBuilder) readRoundExecutionManifest(
+	ctx context.Context,
+	projectID string,
+	descriptor auditstore.ExactArtifact,
+) (auditdomain.ExecutionManifest, error) {
+	payload, err := b.artifacts.ReadProjectExact(ctx, projectID, descriptor)
+	if err != nil {
+		return auditdomain.ExecutionManifest{}, err
+	}
+	if payload.MediaType != auditdomain.PackageMediaType {
+		return auditdomain.ExecutionManifest{}, invalidSubmission("current Round manifest is not an Audit package")
+	}
+	pkg, err := auditdomain.ValidatePackage(payload.Data)
+	if err != nil || pkg.Digest != descriptor.Digest || pkg.Manifest.Kind != auditdomain.PackageKindWorklist {
+		return auditdomain.ExecutionManifest{}, invalidSubmission("current Round worklist package is invalid")
+	}
+	member, found := pkg.MemberByID("execution-manifest")
+	if !found || member.Metadata().Path != "execution.json" ||
+		member.Metadata().MediaType != auditdomain.JSONMediaType {
+		return auditdomain.ExecutionManifest{}, invalidSubmission("current Round execution manifest is missing")
+	}
+	manifest, err := auditdomain.DecodeExecutionManifest(member.Data())
+	if err != nil || auditdomain.ValidateDispatchExecutionManifest(manifest) != nil {
+		return auditdomain.ExecutionManifest{}, invalidSubmission("current Round execution manifest is invalid")
+	}
+	return manifest, nil
+}
+
 func findManifestItem(
 	manifest auditdomain.ExecutionManifest, item auditstore.Item,
 ) (auditdomain.ExecutionItem, error) {
 	if auditdomain.ValidateDispatchExecutionManifest(manifest) != nil {
-		return auditdomain.ExecutionItem{}, invalidSubmission("baseline execution manifest is invalid")
+		return auditdomain.ExecutionItem{}, invalidSubmission("current Round execution manifest is invalid")
 	}
 	for _, candidate := range manifest.Items {
 		if candidate.ItemKey != item.ItemKey {
 			continue
 		}
 		if candidate.Ordinal != item.Ordinal || candidate.SubjectKey != item.SubjectKey {
-			return auditdomain.ExecutionItem{}, invalidSubmission("Audit item differs from baseline manifest")
+			return auditdomain.ExecutionItem{}, invalidSubmission("Audit item differs from current Round manifest")
 		}
 		candidate.Inputs = append([]auditdomain.ExactInput(nil), candidate.Inputs...)
 		if candidate.TaskRef != nil {
@@ -381,7 +413,7 @@ func findManifestItem(
 		}
 		return candidate, nil
 	}
-	return auditdomain.ExecutionItem{}, invalidSubmission("Audit item is absent from baseline manifest")
+	return auditdomain.ExecutionItem{}, invalidSubmission("Audit item is absent from current Round manifest")
 }
 
 func (b *PinnedSubmissionBuilder) resolveInputs(

@@ -46,6 +46,14 @@ func DecodeFindingProposal(data []byte) (FindingProposal, error) {
 	return decodeDocument(data, validateFindingProposal)
 }
 
+func EncodeFindingInventory(value FindingInventoryDocument) ([]byte, error) {
+	return encodeDocument(value, validateFindingInventory)
+}
+
+func DecodeFindingInventory(data []byte) (FindingInventoryDocument, error) {
+	return decodeDocument(data, validateFindingInventory)
+}
+
 func EncodeEvidence(value EvidenceEnvelope) ([]byte, error) {
 	return encodeDocument(value, validateEvidence)
 }
@@ -178,7 +186,17 @@ func validateItemTask(value ItemTask) error {
 			return invalid(CodeInvalid, "scope")
 		}
 	}
-	if (value.Checklist == nil) == (value.Operation == nil) {
+	shapes := 0
+	if value.Checklist != nil {
+		shapes++
+	}
+	if value.Operation != nil {
+		shapes++
+	}
+	if value.Finding != nil {
+		shapes++
+	}
+	if shapes != 1 {
 		return invalid(CodeInvalid, "task")
 	}
 	if value.Checklist != nil {
@@ -187,10 +205,64 @@ func validateItemTask(value ItemTask) error {
 		}
 		return validateChecklistTask(*value.Checklist)
 	}
-	if value.Kind != "operation-trace" {
+	if value.Operation != nil {
+		if value.Kind != "operation-trace" {
+			return invalid(CodeInvalid, "kind")
+		}
+		return validateOperationTask(*value.Operation)
+	}
+	if value.Kind != "finding-verification" {
 		return invalid(CodeInvalid, "kind")
 	}
-	return validateOperationTask(*value.Operation)
+	return validateFindingTask(*value.Finding)
+}
+
+func validateFindingTask(value FindingTask) error {
+	if validateIdentifier(value.ReceiptID, "finding.receipt_id") != nil ||
+		value.ProposalRef.ValidateExact() != nil || !validDigest(value.ProposalDigest) ||
+		value.ProposedCheckOrdinal < 0 || value.ProposedCheckOrdinal >= MaximumCoverageValues ||
+		validateText(value.Objective, "finding.objective", true) != nil ||
+		validateIdentifier(value.Method, "finding.method") != nil {
+		return invalid(CodeInvalid, "finding")
+	}
+	return validateSortedStrings(value.Limitations, MaximumCoverageValues, "finding.limitations", false)
+}
+
+func validateFindingInventory(value FindingInventoryDocument) error {
+	if value.Schema != FindingInventorySchema || value.Proposals == nil || len(value.Proposals) > MaximumItems {
+		return invalid(CodeInventoryInvalid, "finding_inventory")
+	}
+	previous := ""
+	totalChecks := 0
+	for _, proposal := range value.Proposals {
+		if validateIdentifier(proposal.ReceiptID, "proposals.receipt_id") != nil ||
+			proposal.ReceiptID <= previous || proposal.Proposal.Ref.ValidateExact() != nil ||
+			!validDigest(proposal.Proposal.Digest) || proposal.Proposal.MediaType != JSONMediaType ||
+			proposal.Proposal.SizeBytes < 1 || proposal.Proposal.SizeBytes > MaximumDocumentBytes {
+			return invalid(CodeInventoryInvalid, "finding_inventory.proposals")
+		}
+		encoded, err := EncodeFindingProposal(proposal.Document)
+		if err != nil || digestBytes(encoded) != proposal.Proposal.Digest ||
+			int64(len(encoded)) != proposal.Proposal.SizeBytes {
+			return invalid(CodeInventoryInvalid, "finding_inventory.proposal")
+		}
+		if proposal.SelectedCheckOrdinals == nil || len(proposal.SelectedCheckOrdinals) == 0 {
+			return invalid(CodeInventoryInvalid, "finding_inventory.selected_checks")
+		}
+		previousOrdinal := -1
+		for _, ordinal := range proposal.SelectedCheckOrdinals {
+			if ordinal <= previousOrdinal || ordinal < 0 || ordinal >= len(proposal.Document.ProposedChecks) {
+				return invalid(CodeInventoryInvalid, "finding_inventory.selected_checks")
+			}
+			previousOrdinal = ordinal
+		}
+		totalChecks += len(proposal.SelectedCheckOrdinals)
+		if totalChecks > MaximumItems {
+			return invalid(CodeLimitExceeded, "finding_inventory.checks")
+		}
+		previous = proposal.ReceiptID
+	}
+	return nil
 }
 
 func validateChecklistTask(value ChecklistTask) error {

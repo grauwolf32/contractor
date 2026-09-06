@@ -17,6 +17,7 @@ const (
 	EvidenceSchema          = "contractor.audit.evidence.v1"
 	CoverageSchema          = "contractor.audit.coverage.v1"
 	InventoryBasisSchema    = "contractor.audit.inventory-basis.v1"
+	FindingInventorySchema  = "contractor.audit.finding-inventory.v1"
 )
 
 type PackageKind string
@@ -132,6 +133,39 @@ type ItemTask struct {
 	Scope                    map[string]string     `json:"scope,omitempty"`
 	Checklist                *ChecklistTask        `json:"checklist,omitempty"`
 	Operation                *OperationTask        `json:"operation,omitempty"`
+	Finding                  *FindingTask          `json:"finding,omitempty"`
+}
+
+// FindingTask binds one later-round check to an exact admitted proposal and
+// one immutable proposed-check ordinal. The proposal text is not copied into
+// mutable Scheduler state; Workers receive it through this exact task package.
+type FindingTask struct {
+	ReceiptID            string                `json:"receipt_id"`
+	ProposalRef          contracts.ArtifactRef `json:"proposal_ref"`
+	ProposalDigest       string                `json:"proposal_digest"`
+	ProposedCheckOrdinal int                   `json:"proposed_check_ordinal"`
+	Objective            string                `json:"objective"`
+	Method               string                `json:"method"`
+	Limitations          []string              `json:"limitations"`
+}
+
+type FindingInventoryArtifact struct {
+	Ref       contracts.ArtifactRef `json:"ref"`
+	Digest    string                `json:"digest"`
+	MediaType string                `json:"media_type"`
+	SizeBytes int64                 `json:"size_bytes"`
+}
+
+type FindingInventoryProposal struct {
+	ReceiptID             string                   `json:"receipt_id"`
+	Proposal              FindingInventoryArtifact `json:"proposal"`
+	Document              FindingProposal          `json:"document"`
+	SelectedCheckOrdinals []int                    `json:"selected_check_ordinals"`
+}
+
+type FindingInventoryDocument struct {
+	Schema    string                     `json:"schema"`
+	Proposals []FindingInventoryProposal `json:"proposals"`
 }
 
 type ChecklistTask struct {

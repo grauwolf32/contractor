@@ -543,7 +543,9 @@ func RunCLI(
 	auditController, err := auditcontroller.New(
 		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool),
 		runCreationService, auditSubmissionBuilder, workflowScheduler,
-		auditcontroller.Options{Logger: logger, Collector: auditImporter},
+		auditcontroller.Options{
+			Logger: logger, Collector: auditImporter, RoundBuilder: auditService,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("configure Audit Controller: %w", err)

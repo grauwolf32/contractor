@@ -22,6 +22,38 @@ type ArtifactAccess interface {
 	ResolveProjectExact(
 		context.Context, string, auditstore.ExactArtifact,
 	) (auditstore.ExactArtifact, error)
+	ReadProjectExact(
+		context.Context, string, auditstore.ExactArtifact,
+	) (artifacts.Payload, error)
+}
+
+func (a *ProjectArtifactAccess) ReadProjectExact(
+	ctx context.Context,
+	projectID string,
+	descriptor auditstore.ExactArtifact,
+) (artifacts.Payload, error) {
+	if err := descriptor.Ref.ValidateExact(); err != nil || descriptor.Digest == "" ||
+		descriptor.MediaType == "" || descriptor.SizeBytes < 0 {
+		return artifacts.Payload{}, fmt.Errorf("%w: exact Project artifact descriptor is invalid", ErrInvalidSubmission)
+	}
+	store, err := a.service.Project(projectID)
+	if err != nil {
+		return artifacts.Payload{}, err
+	}
+	result, err := store.Read(ctx, descriptor.Ref)
+	if err != nil {
+		return artifacts.Payload{}, err
+	}
+	if !sameExactRef(result.Ref, descriptor.Ref) ||
+		digestBytes(result.Payload.Data) != descriptor.Digest ||
+		result.Payload.MediaType != descriptor.MediaType ||
+		int64(len(result.Payload.Data)) != descriptor.SizeBytes {
+		return artifacts.Payload{}, fmt.Errorf("%w: exact Project artifact content changed", ErrInvalidSubmission)
+	}
+	return artifacts.Payload{
+		MediaType: result.Payload.MediaType,
+		Data:      append([]byte(nil), result.Payload.Data...),
+	}, nil
 }
 
 type ProjectArtifactAccess struct{ service *artifacts.Service }

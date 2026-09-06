@@ -437,13 +437,12 @@ func (i *Importer) collectSucceeded(
 		}
 		evidenceByID[value.ID] = validated
 	}
-	seenProposalReceipts := make(map[string]struct{})
 	for index := range members {
 		value, exists := resultByKey[members[index].item.ItemKey]
 		if !exists || value.SubjectKey != members[index].item.SubjectKey {
 			return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
 		}
-		if len(value.Proposals) != 0 {
+		if len(value.Proposals) != 0 || members[index].task.Finding != nil {
 			if i.findings == nil {
 				return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
 			}
@@ -453,18 +452,35 @@ func (i *Importer) collectSucceeded(
 					InvocationID: proposal.InvocationID, ClientKey: proposal.ClientKey,
 				}
 			}
-			resolved, resolveErr := i.findings.ResolveAuditProposals(
-				ctx, snapshot.Audit.OwnerID, snapshot.Audit.AuditID,
-				execution.ExecutionID, *execution.RunID, keys,
-			)
-			if resolveErr != nil {
-				if errors.Is(resolveErr, findingintake.ErrInvalid) ||
-					errors.Is(resolveErr, findingintake.ErrNotFound) ||
-					errors.Is(resolveErr, findingintake.ErrConflict) {
-					return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
+			resolved := make([]findingintake.ResolvedProposal, 0, len(keys)+1)
+			if len(keys) != 0 {
+				selected, resolveErr := i.findings.ResolveAuditProposals(
+					ctx, snapshot.Audit.OwnerID, snapshot.Audit.AuditID,
+					execution.ExecutionID, *execution.RunID, keys,
+				)
+				if resolveErr != nil {
+					if errors.Is(resolveErr, findingintake.ErrInvalid) ||
+						errors.Is(resolveErr, findingintake.ErrNotFound) ||
+						errors.Is(resolveErr, findingintake.ErrConflict) {
+						return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
+					}
+					return false, resolveErr
 				}
-				return false, resolveErr
+				resolved = append(resolved, selected...)
 			}
+			if members[index].task.Finding != nil {
+				proposal, resolveErr := i.resolveTaskProposal(ctx, snapshot, *members[index].task.Finding)
+				if resolveErr != nil {
+					if errors.Is(resolveErr, findingintake.ErrInvalid) ||
+						errors.Is(resolveErr, findingintake.ErrNotFound) ||
+						errors.Is(resolveErr, findingintake.ErrConflict) {
+						return i.collectInvalid(ctx, claim, execution, members, source, "finding-task-proposal-invalid")
+					}
+					return false, resolveErr
+				}
+				resolved = append(resolved, proposal)
+			}
+			seenProposalReceipts := make(map[string]struct{}, len(resolved))
 			for _, proposal := range resolved {
 				if _, duplicate := seenProposalReceipts[proposal.ReceiptID]; duplicate {
 					return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
@@ -561,6 +577,38 @@ func (i *Importer) collectSucceeded(
 	}
 	return i.commitCollection(ctx, claim, execution, auditstore.CollectionAccepted,
 		&source, links, nil, collectionItems)
+}
+
+func (i *Importer) resolveTaskProposal(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	task auditdomain.FindingTask,
+) (findingintake.ResolvedProposal, error) {
+	receipt, err := i.findings.GetAuditReceipt(
+		ctx, snapshot.Audit.OwnerID, snapshot.Audit.AuditID, task.ReceiptID,
+	)
+	if err != nil {
+		return findingintake.ResolvedProposal{}, err
+	}
+	if task.ProposedCheckOrdinal < 0 || task.ProposedCheckOrdinal >= len(receipt.Document.ProposedChecks) {
+		return findingintake.ResolvedProposal{}, findingintake.ErrInvalid
+	}
+	check := receipt.Document.ProposedChecks[task.ProposedCheckOrdinal]
+	if check.Objective != task.Objective || check.Method != task.Method ||
+		!equalStrings(sortedCopy(receipt.Document.Limitations), task.Limitations) {
+		return findingintake.ResolvedProposal{}, findingintake.ErrConflict
+	}
+	for _, hold := range receipt.AuditHolds {
+		if hold.AuditID != snapshot.Audit.AuditID ||
+			hold.ProjectID != snapshot.Audit.ProjectID ||
+			hold.Proposal.Digest != task.ProposalDigest || !sameRef(hold.Proposal.Ref, task.ProposalRef) {
+			continue
+		}
+		return findingintake.ResolvedProposal{
+			ReceiptID: receipt.ReceiptID, Proposal: hold.Proposal, Origin: receipt.Origin,
+		}, nil
+	}
+	return findingintake.ResolvedProposal{}, findingintake.ErrNotFound
 }
 
 func (i *Importer) collectInvalid(
@@ -748,7 +796,7 @@ func semanticCoverage(
 			coverage.Status = auditstore.CoverageViolated
 		}
 	case "supported":
-		if mode != config.AuditModeRiskAssessment {
+		if mode != config.AuditModeRiskAssessment && task.Finding == nil {
 			return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
 		}
 		if len(completed) != len(requested) || len(gaps) != 0 {
@@ -757,7 +805,7 @@ func semanticCoverage(
 			coverage.Status = auditstore.CoverageViolated
 		}
 	case "refuted":
-		if mode != config.AuditModeRiskAssessment || len(completed) != len(requested) || len(gaps) != 0 {
+		if mode != config.AuditModeRiskAssessment && task.Finding == nil || len(completed) != len(requested) || len(gaps) != 0 {
 			coverage.Status = auditstore.CoverageInconclusive
 		} else {
 			coverage.Status = auditstore.CoverageSatisfied
@@ -809,14 +857,20 @@ func expectedCoverage(task auditdomain.ItemTask) []string {
 	if task.Checklist != nil {
 		return sortedCopy(task.Checklist.RequiredEvidence)
 	}
+	if task.Finding != nil {
+		return []string{task.Finding.Method}
+	}
 	return []string{"operation-resolution"}
 }
 
 func taskGaps(task auditdomain.ItemTask) []string {
-	if task.Operation == nil {
-		return []string{}
+	if task.Operation != nil {
+		return sortedCopy(task.Operation.Gaps)
 	}
-	return sortedCopy(task.Operation.Gaps)
+	if task.Finding != nil {
+		return sortedCopy(task.Finding.Limitations)
+	}
+	return []string{}
 }
 
 func encodeTaskOrigin(task auditdomain.ItemTask) (json.RawMessage, error) {

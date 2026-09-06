@@ -15,6 +15,7 @@ type inventorySubject struct {
 	approval   ApprovalRequirement
 	checklist  *ChecklistTask
 	operation  *OperationTask
+	finding    *FindingTask
 	requested  []string
 	gaps       []string
 }
@@ -58,7 +59,8 @@ func finishInventory(
 			SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
 			SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: copyArtifactRef(options.SourceRef),
 			CanonicalInventoryDigest: canonicalDigest,
-			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist, Operation: subject.operation,
+			Scope:                    copyStringMap(options.Scope), Checklist: subject.checklist,
+			Operation: subject.operation, Finding: subject.finding,
 		}
 		documentBytes, encodeErr := EncodeItemTask(document)
 		if encodeErr != nil {
@@ -133,7 +135,7 @@ func ValidateInventory(value Inventory) error {
 	canonical, err := canonicalJSON(parsed)
 	if err != nil || !bytes.Equal(canonical, value.CanonicalInventory) || !equalStringSlices(basis.Gaps, value.Gaps) ||
 		validateSortedStrings(basis.Gaps, MaximumCoverageValues, "inventory.gaps", false) != nil ||
-		basis.Kind != "checklist" && basis.Kind != "openapi-operations" {
+		basis.Kind != "checklist" && basis.Kind != "openapi-operations" && basis.Kind != "finding-candidates" {
 		return invalid(CodeInventoryInvalid, "inventory.canonical")
 	}
 	if err := validateWorklist(value.Worklist); err != nil {
@@ -238,6 +240,22 @@ func validateBasisItem(
 				"resolved": task.Operation.Resolved, "gaps": task.Operation.Gaps,
 			}) {
 			return invalid(CodeInventoryInvalid, "inventory.operation")
+		}
+	case "finding-candidates":
+		if task.Finding == nil || item.Kind != "finding-verification" ||
+			!equalStringSlices(coverage.Requested, []string{task.Finding.Method}) ||
+			!equalStringSlices(coverage.Gaps, task.Finding.Limitations) ||
+			!sameCanonicalValue(subject, map[string]any{
+				"receipt_id":             task.Finding.ReceiptID,
+				"proposal_ref":           task.Finding.ProposalRef,
+				"proposal_digest":        task.Finding.ProposalDigest,
+				"proposed_check_ordinal": task.Finding.ProposedCheckOrdinal,
+				"objective":              task.Finding.Objective,
+				"method":                 task.Finding.Method,
+				"subject_key":            task.SubjectKey,
+				"limitations":            task.Finding.Limitations,
+			}) {
+			return invalid(CodeInventoryInvalid, "inventory.finding")
 		}
 	}
 	return nil

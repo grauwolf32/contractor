@@ -247,6 +247,65 @@ func TestImporterAssociatesOnlyExactInvocationLocalFindingProposal(t *testing.T)
 	}
 }
 
+func TestImporterAssociatesLaterRoundResultWithExactTaskProposal(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+
+	proposalRevision := "proposal-r1"
+	proposal := findingintake.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: "audit-findings", Name: "candidate", Revision: &proposalRevision,
+		},
+		Digest: digestBytes([]byte("proposal")), MediaType: "application/json", SizeBytes: 8,
+	}
+	proposalDocument := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate-1",
+		Title: "Candidate", Description: "A bounded candidate finding.",
+		Subject:       auditdomain.FindingSubject{Kind: "component", Key: "subject-1"},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{{
+			Objective: "Verify the candidate", Method: "static-trace",
+		}}, SeveritySuggestion: "medium", Limitations: []string{},
+	}
+	findings := &fakeFindingRetention{getReceipts: []findingintake.Receipt{{
+		ReceiptID: "finding-receipt", Proposal: proposal, Document: proposalDocument,
+		AuditHolds: []findingintake.AuditHold{{
+			AuditID: harness.snapshot.Audit.AuditID, ProjectID: harness.snapshot.Audit.ProjectID,
+			Proposal: proposal, Evidence: []findingintake.ExactArtifact{},
+		}},
+	}}}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configureFindingTaskResult(t, &harness, proposal, proposalDocument)
+
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked {
+		t.Fatalf("collect later-Round finding verification = (%t, %v)", worked, err)
+	}
+	associations := harness.store.collected.Items[0].FindingAssociations
+	if len(associations) != 1 || associations[0].ReceiptID != "finding-receipt" ||
+		associations[0].Proposal.Digest != proposal.Digest ||
+		associations[0].SemanticAssessment != "supported" {
+		_, directErr := harness.importer.collect(
+			context.Background(), harness.claim, harness.snapshot, harness.execution,
+		)
+		t.Fatalf("later-Round finding association = %+v; collection = %+v; direct error = %v",
+			associations, harness.store.collected, directErr)
+	}
+}
+
 func TestImporterRejectsUnexpectedProposalWhenFindingsAreDisabled(t *testing.T) {
 	harness := newImportHarness(t)
 	revision := "finding-revision"
@@ -662,9 +721,21 @@ func (f *fakeImportRuns) GetRun(context.Context, string) (runstore.WorkflowRun, 
 }
 
 type fakeFindingRetention struct {
-	receipts []findingintake.Receipt
-	imports  []findingintake.ImportRequest
-	resolved []findingintake.ResolvedProposal
+	receipts    []findingintake.Receipt
+	getReceipts []findingintake.Receipt
+	imports     []findingintake.ImportRequest
+	resolved    []findingintake.ResolvedProposal
+}
+
+func (f *fakeFindingRetention) GetAuditReceipt(
+	_ context.Context, _, _, receiptID string,
+) (findingintake.Receipt, error) {
+	for _, receipt := range append(append([]findingintake.Receipt{}, f.getReceipts...), f.receipts...) {
+		if receipt.ReceiptID == receiptID {
+			return receipt, nil
+		}
+	}
+	return findingintake.Receipt{}, findingintake.ErrNotFound
 }
 
 func (f *fakeFindingRetention) ResolveAuditProposals(
@@ -735,6 +806,108 @@ func rebuildHarnessResult(
 	harness.artifacts.runPayload = payload
 	harness.artifacts.runDescriptor.Digest = pkg.Digest
 	harness.artifacts.runDescriptor.SizeBytes = int64(len(payload))
+}
+
+func configureFindingTaskResult(
+	t *testing.T,
+	harness *importHarness,
+	proposal findingintake.ExactArtifact,
+	document auditdomain.FindingProposal,
+) {
+	t.Helper()
+	sourceRevision := "proposal-inventory-r1"
+	sourceRef := contracts.ArtifactRef{
+		Namespace: "audit-test", Name: "proposal-inventory", Revision: &sourceRevision,
+	}
+	taskDocument := auditdomain.ItemTask{
+		Schema: auditdomain.TaskSchema, ItemKey: "finding-check-1", Kind: "finding-verification",
+		SubjectKey: document.Subject.Key, WorkflowRole: "check",
+		SourceContentDigest: digestBytes([]byte("inventory")), SourceMediaType: "application/json",
+		SourceRef: sourceRef, CanonicalInventoryDigest: digestBytes([]byte("canonical-inventory")),
+		Finding: &auditdomain.FindingTask{
+			ReceiptID: "finding-receipt", ProposalRef: proposal.Ref, ProposalDigest: proposal.Digest,
+			ProposedCheckOrdinal: 0, Objective: document.ProposedChecks[0].Objective,
+			Method: document.ProposedChecks[0].Method, Limitations: []string{},
+		},
+	}
+	taskJSON, err := auditdomain.EncodeItemTask(taskDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskPayload, taskPackage, err := auditdomain.BuildPackage(
+		"finding-task-1", auditdomain.PackageKindTask, "",
+		[]auditdomain.PackageInput{{
+			ID: "task-document", Path: "task.json", MediaType: auditdomain.JSONMediaType, Data: taskJSON,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskRevision := "finding-task-r1"
+	task := auditstore.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: "audit-test", Name: "finding-task-1", Revision: &taskRevision,
+		},
+		Digest: taskPackage.Digest, MediaType: auditdomain.PackageMediaType, SizeBytes: int64(len(taskPayload)),
+	}
+	manifest := auditdomain.ExecutionManifest{
+		Schema: auditdomain.ExecutionManifestSchema,
+		Items: []auditdomain.ExecutionItem{{
+			ItemKey: taskDocument.ItemKey, Ordinal: 0, SubjectKey: taskDocument.SubjectKey,
+			TaskPackageID: "finding-task-1", TaskPackageDigest: task.Digest, TaskRef: &task.Ref,
+			Inputs: []auditdomain.ExactInput{},
+		}},
+	}
+	manifestBytes, err := auditdomain.EncodeExecutionManifest(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.artifacts.project = map[string][]byte{
+		refKey(task.Ref): taskPayload, refKey(harness.execution.Manifest.Ref): manifestBytes,
+	}
+	harness.execution.Manifest.Digest = digestBytes(manifestBytes)
+	harness.execution.Manifest.SizeBytes = int64(len(manifestBytes))
+	harness.store.members[0].Task = task
+	harness.store.members[0].Inputs = []auditstore.ExactArtifact{}
+	harness.snapshot.Items[0].ItemKey = taskDocument.ItemKey
+	harness.snapshot.Items[0].Kind = taskDocument.Kind
+	harness.snapshot.Items[0].SubjectKey = taskDocument.SubjectKey
+	harness.snapshot.Items[0].Task = task
+	harness.store.members[0].ItemID = harness.snapshot.Items[0].ItemID
+
+	resultSet, err := auditdomain.EncodeCheckResultSet(auditdomain.CheckResultSet{
+		Schema:                  auditdomain.CheckResultsSchema,
+		ExecutionManifestDigest: harness.execution.Manifest.Digest,
+		Results: []auditdomain.CheckResult{{
+			ItemKey: taskDocument.ItemKey, SubjectKey: taskDocument.SubjectKey,
+			Assessment: "supported", Summary: "The candidate is supported.",
+			EvidenceIDs: []string{}, Coverage: auditdomain.ResultCoverage{
+				Requested: []string{"static-trace"}, Completed: []string{"static-trace"}, Gaps: []string{},
+			}, Proposals: []auditdomain.ProposalSelection{},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence, err := auditdomain.EncodeEvidence(auditdomain.EvidenceEnvelope{
+		Schema: auditdomain.EvidenceSchema, Evidence: []auditdomain.Evidence{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultPayload, resultPackage, err := auditdomain.BuildPackage(
+		"finding-result-1", auditdomain.PackageKindCheckResults, "",
+		[]auditdomain.PackageInput{
+			{ID: auditdomain.CheckResultsMemberID, Path: "check-results.json", MediaType: auditdomain.JSONMediaType, Data: resultSet},
+			{ID: auditdomain.EvidenceMemberID, Path: "evidence.json", MediaType: auditdomain.JSONMediaType, Data: evidence},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.artifacts.runPayload = resultPayload
+	harness.artifacts.runDescriptor.Digest = resultPackage.Digest
+	harness.artifacts.runDescriptor.SizeBytes = int64(len(resultPayload))
 }
 
 func (f *fakeImportArtifacts) ReadProjectExact(_ context.Context, _ string, artifact auditstore.ExactArtifact) ([]byte, error) {

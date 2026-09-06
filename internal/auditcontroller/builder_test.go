@@ -2,14 +2,62 @@ package auditcontroller
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
+
+func TestReadRoundExecutionManifestUsesExactValidatedWorklistPackage(t *testing.T) {
+	taskRevision := "task-r1"
+	taskRef := contracts.ArtifactRef{
+		Namespace: "audit-fixture", Name: "task", Revision: &taskRevision,
+	}
+	manifest := auditdomain.ExecutionManifest{
+		Schema: auditdomain.ExecutionManifestSchema,
+		Items: []auditdomain.ExecutionItem{{
+			ItemKey: "finding-one", Ordinal: 0, SubjectKey: "subject-one",
+			TaskPackageID: "task-one", TaskPackageDigest: builderExact("task", taskRevision).Digest,
+			TaskRef: &taskRef, Inputs: []auditdomain.ExactInput{},
+		}},
+	}
+	encoded, err := auditdomain.EncodeExecutionManifest(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, pkg, err := auditdomain.BuildPackage(
+		"round-two", auditdomain.PackageKindWorklist, "",
+		[]auditdomain.PackageInput{{
+			ID: "execution-manifest", Path: "execution.json",
+			MediaType: auditdomain.JSONMediaType, Data: encoded,
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := "round-r1"
+	descriptor := auditstore.ExactArtifact{
+		Ref: contracts.ArtifactRef{
+			Namespace: "audit-fixture", Name: "round-two", Revision: &revision,
+		},
+		Digest: pkg.Digest, MediaType: auditdomain.PackageMediaType, SizeBytes: int64(len(archive)),
+	}
+	builder := &PinnedSubmissionBuilder{artifacts: &fakeBuilderArtifactAccess{
+		payload: artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: archive},
+	}}
+	decoded, err := builder.readRoundExecutionManifest(context.Background(), "project-one", descriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Items) != 1 || decoded.Items[0].ItemKey != "finding-one" {
+		t.Fatalf("decoded current Round manifest = %+v", decoded)
+	}
+}
 
 func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testing.T) {
 	source := builderExact("source", "source-r1")
@@ -87,6 +135,29 @@ type fakeRoleOutputLookup struct {
 	link       auditstore.ArtifactLink
 	auditID    string
 	logicalKey string
+}
+
+type fakeBuilderArtifactAccess struct{ payload artifacts.Payload }
+
+func (f *fakeBuilderArtifactAccess) PutImmutableProject(
+	context.Context, string, contracts.ArtifactRef, artifacts.Payload,
+) (auditstore.ExactArtifact, error) {
+	return auditstore.ExactArtifact{}, errors.New("unexpected immutable write")
+}
+
+func (f *fakeBuilderArtifactAccess) ResolveProjectExact(
+	context.Context, string, auditstore.ExactArtifact,
+) (auditstore.ExactArtifact, error) {
+	return auditstore.ExactArtifact{}, errors.New("unexpected exact resolve")
+}
+
+func (f *fakeBuilderArtifactAccess) ReadProjectExact(
+	context.Context, string, auditstore.ExactArtifact,
+) (artifacts.Payload, error) {
+	return artifacts.Payload{
+		MediaType: f.payload.MediaType,
+		Data:      append([]byte(nil), f.payload.Data...),
+	}, nil
 }
 
 func (f *fakeRoleOutputLookup) GetArtifactLink(

@@ -1,10 +1,12 @@
 package auditservice
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
@@ -182,7 +184,7 @@ func (s *Service) startInTransaction(
 		return StartedAudit{}, err
 	}
 	worklistArtifact, err := writeRoundPackage(
-		ctx, projectArtifacts, namespace, inventory, executionManifest,
+		ctx, projectArtifacts, namespace, 1, inventory, executionManifest,
 	)
 	if err != nil {
 		return StartedAudit{}, err
@@ -373,19 +375,19 @@ func writeTaskPackages(
 	manifest.Items = append([]auditdomain.ExecutionItem(nil), inventory.ExecutionManifest.Items...)
 	result := make([]auditstore.ExactArtifact, len(inventory.Tasks))
 	for index, task := range inventory.Tasks {
-		write, err := store.Write(ctx, contracts.ArtifactRef{
+		write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
 			Namespace: namespace, Name: task.Item.TaskPackageID,
-		}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: task.Package}, nil)
+		}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: task.Package})
 		if err != nil {
 			return nil, auditdomain.ExecutionManifest{}, err
 		}
-		if task.PackageDigest != digestBytes(task.Package) || write.Size != int64(len(task.Package)) ||
+		if task.PackageDigest != digestBytes(task.Package) || write.SizeBytes != int64(len(task.Package)) ||
 			write.MediaType != auditdomain.PackageMediaType {
 			return nil, auditdomain.ExecutionManifest{}, errors.New("stored Audit task package failed integrity validation")
 		}
 		result[index] = auditstore.ExactArtifact{
 			Ref: write.Ref, Digest: task.PackageDigest,
-			MediaType: write.MediaType, SizeBytes: write.Size,
+			MediaType: write.MediaType, SizeBytes: write.SizeBytes,
 		}
 		manifest.Items[index].TaskRef = exactRefPointer(write.Ref)
 		binding, exists := profile.Workflows[task.Item.WorkflowRole]
@@ -430,6 +432,7 @@ func writeRoundPackage(
 	ctx context.Context,
 	store artifacts.ScopedStore,
 	namespace string,
+	roundOrdinal int,
 	inventory auditdomain.Inventory,
 	manifest auditdomain.ExecutionManifest,
 ) (auditstore.ExactArtifact, error) {
@@ -457,18 +460,47 @@ func writeRoundPackage(
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	write, err := store.Write(ctx, contracts.ArtifactRef{
-		Namespace: namespace, Name: "round-1-worklist",
-	}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: payload}, nil)
+	write, err := writeImmutableArtifact(ctx, store, contracts.ArtifactRef{
+		Namespace: namespace, Name: "round-" + strconv.Itoa(roundOrdinal) + "-worklist",
+	}, artifacts.Payload{MediaType: auditdomain.PackageMediaType, Data: payload})
 	if err != nil {
 		return auditstore.ExactArtifact{}, err
 	}
-	if validated.Digest != digestBytes(payload) || write.Size != int64(len(payload)) {
+	if validated.Digest != digestBytes(payload) || write.SizeBytes != int64(len(payload)) {
 		return auditstore.ExactArtifact{}, errors.New("stored Audit worklist package failed integrity validation")
 	}
 	return auditstore.ExactArtifact{
 		Ref: write.Ref, Digest: validated.Digest,
-		MediaType: write.MediaType, SizeBytes: write.Size,
+		MediaType: write.MediaType, SizeBytes: write.SizeBytes,
+	}, nil
+}
+
+func writeImmutableArtifact(
+	ctx context.Context,
+	store artifacts.ScopedStore,
+	target contracts.ArtifactRef,
+	payload artifacts.Payload,
+) (auditstore.ExactArtifact, error) {
+	written, err := store.Write(ctx, target, payload, nil)
+	if err == nil {
+		return auditstore.ExactArtifact{
+			Ref: written.Ref, Digest: digestBytes(payload.Data),
+			MediaType: written.MediaType, SizeBytes: written.Size,
+		}, nil
+	}
+	if !errors.Is(err, artifacts.ErrArtifactConflict) {
+		return auditstore.ExactArtifact{}, err
+	}
+	current, readErr := store.Read(ctx, target)
+	if readErr != nil {
+		return auditstore.ExactArtifact{}, readErr
+	}
+	if current.Payload.MediaType != payload.MediaType || !bytes.Equal(current.Payload.Data, payload.Data) {
+		return auditstore.ExactArtifact{}, artifacts.ErrArtifactConflict
+	}
+	return auditstore.ExactArtifact{
+		Ref: current.Ref, Digest: digestBytes(current.Payload.Data),
+		MediaType: current.Payload.MediaType, SizeBytes: int64(len(current.Payload.Data)),
 	}, nil
 }
 
