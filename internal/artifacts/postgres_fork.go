@@ -270,7 +270,8 @@ func (r *PostgresRepository) PinExact(
 	if _, err := exactRevision(ref); err != nil {
 		return err
 	}
-	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult && kind != PinRunOutput {
+	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult &&
+		kind != PinRunOutput && kind != PinFindingProposal && kind != PinFindingEvidence {
 		return ErrInvalidName
 	}
 	if err := validatePinID(pinID); err != nil {

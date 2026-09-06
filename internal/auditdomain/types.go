@@ -200,7 +200,7 @@ type FindingProposal struct {
 	Title              string              `json:"title"`
 	Description        string              `json:"description"`
 	Subject            FindingSubject      `json:"subject"`
-	Hypothesis         string              `json:"hypothesis"`
+	Hypothesis         string              `json:"hypothesis,omitempty"`
 	Preconditions      []string            `json:"preconditions"`
 	StandardRefs       []StandardReference `json:"standard_refs"`
 	EvidenceIDs        []string            `json:"evidence_ids"`

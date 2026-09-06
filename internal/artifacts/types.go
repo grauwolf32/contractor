@@ -136,10 +136,12 @@ const (
 type PinKind string
 
 const (
-	PinRunInput     PinKind = "run_input"
-	PinStageContext PinKind = "stage_context"
-	PinStageResult  PinKind = "stage_result"
-	PinRunOutput    PinKind = "run_output"
+	PinRunInput        PinKind = "run_input"
+	PinStageContext    PinKind = "stage_context"
+	PinStageResult     PinKind = "stage_result"
+	PinRunOutput       PinKind = "run_output"
+	PinFindingProposal PinKind = "finding_proposal"
+	PinFindingEvidence PinKind = "finding_evidence"
 )
 
 // Repository is implemented by PostgreSQL and can be bound either to a pool

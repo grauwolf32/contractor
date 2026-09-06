@@ -69,6 +69,7 @@ func TestPostgresIntegrationMigrationsAndConstraints(t *testing.T) {
 		"audit_idempotency", "audit_items", "audit_rounds", "audits",
 		"configuration_publications",
 		"contractor_schema_migrations", "credential_operations",
+		"finding_proposal_audit_holds", "finding_proposal_receipts", "finding_proposal_retention",
 		"llm_credential_identities", "llm_credential_tombstones", "llm_credentials", "owner_queue_controls",
 		"planner_events", "planner_execution_reports", "planner_sessions", "projects",
 		"runtime_agent_principals", "runtime_config_publications", "runtime_config_versions",

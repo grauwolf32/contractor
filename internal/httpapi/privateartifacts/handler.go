@@ -12,6 +12,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
@@ -26,8 +27,14 @@ type AllocationRegistry interface {
 type Dependencies struct {
 	Registry     AllocationRegistry
 	Artifacts    *artifacts.Service
+	Findings     FindingIntake
 	NewRequestID func() (string, error)
 	Logger       *slog.Logger
+}
+
+type FindingIntake interface {
+	FindReplay(context.Context, controlplane.AllocationGrant, findingintake.Submission) (findingintake.Receipt, bool, error)
+	Submit(context.Context, controlplane.AllocationGrant, findingintake.Submission) (findingintake.Receipt, bool, error)
 }
 
 type handler struct{ dependencies Dependencies }
@@ -48,6 +55,8 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts", current.listArtifacts)
 	mux.HandleFunc("GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.getArtifact)
 	mux.HandleFunc("PUT /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.putArtifact)
+	mux.HandleFunc("POST /private/v1/allocations/{allocationID}/finding-proposals", current.postFindingProposal)
+	mux.HandleFunc("/private/v1/allocations/{allocationID}/finding-proposals", current.methodNotAllowed)
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}", current.methodNotAllowed)
 	mux.HandleFunc("/private/v1/allocations/{allocationID}/artifacts", current.methodNotAllowed)
 	mux.HandleFunc("/", current.notFound)
@@ -76,19 +85,33 @@ func (h *handler) requireMTLS(next http.Handler) http.Handler {
 }
 
 func (h *handler) runStore(r *http.Request, write bool) (artifacts.ScopedStore, error) {
-	allocationID := r.PathValue("allocationID")
-	if strings.TrimSpace(allocationID) == "" {
-		return artifacts.ScopedStore{}, errInvalidRequest
-	}
-	grant, err := h.dependencies.Registry.GetGrant(allocationID)
+	grant, identity, err := h.allocationGrant(r)
 	if err != nil {
 		return artifacts.ScopedStore{}, err
 	}
+	return h.runStoreForGrant(r.PathValue("allocationID"), grant, identity, write)
+}
+
+func (h *handler) allocationGrant(
+	r *http.Request,
+) (controlplane.AllocationGrant, authenticatedRuntime, error) {
+	allocationID := r.PathValue("allocationID")
+	if strings.TrimSpace(allocationID) == "" {
+		return controlplane.AllocationGrant{}, authenticatedRuntime{}, errInvalidRequest
+	}
+	grant, err := h.dependencies.Registry.GetGrant(allocationID)
+	if err != nil {
+		return controlplane.AllocationGrant{}, authenticatedRuntime{}, err
+	}
 	identity, ok := r.Context().Value(authenticatedRuntimeContextKey{}).(authenticatedRuntime)
 	if !ok {
-		return artifacts.ScopedStore{}, errArtifactAccessDenied
+		return controlplane.AllocationGrant{}, authenticatedRuntime{}, errArtifactAccessDenied
 	}
-	return h.runStoreForGrant(allocationID, grant, identity, write)
+	if grant.AllocationID != allocationID || grant.RuntimeAgentID != identity.principalID ||
+		grant.RuntimeInstanceID != identity.instanceID {
+		return controlplane.AllocationGrant{}, authenticatedRuntime{}, controlplane.ErrAllocationNotFound
+	}
+	return grant, identity, nil
 }
 
 func (h *handler) runStoreForGrant(

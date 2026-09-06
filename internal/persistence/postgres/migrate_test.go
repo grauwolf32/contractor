@@ -34,6 +34,36 @@ func TestEmbeddedMigrationsAreOrderedAndExcludeRuntimeLiveness(t *testing.T) {
 	}
 }
 
+func TestFindingProposalMigrationSeparatesReceiptsRetentionAndAuditHolds(t *testing.T) {
+	t.Parallel()
+	items, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var contents string
+	for _, item := range items {
+		if item.name == "000040_finding_proposals.sql" {
+			contents = string(item.contents)
+			break
+		}
+	}
+	if contents == "" {
+		t.Fatal("finding proposal migration is not embedded")
+	}
+	for _, required := range []string{
+		"CREATE TABLE finding_proposal_receipts",
+		"UNIQUE (allocation_id, invocation_id, submission_id)",
+		"CREATE TABLE finding_proposal_retention",
+		"CREATE TABLE finding_proposal_audit_holds",
+		"finding_proposal_receipts_protect_immutable",
+		"'finding_proposal', 'finding_evidence'",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("finding proposal migration does not contain %q", required)
+		}
+	}
+}
+
 func TestRuntimeConfigurationMigrationContainsExactIdempotentBootstrap(t *testing.T) {
 	t.Parallel()
 

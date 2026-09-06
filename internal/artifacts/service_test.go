@@ -54,6 +54,11 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 			ref:     ArtifactRef{Namespace: "outputs", Name: "archive"},
 			payload: Payload{MediaType: "application/zip"}, want: ErrReservedNamespace,
 		},
+		{
+			name: "reserved finding proposal", scope: "run",
+			ref:     ArtifactRef{Namespace: "finding-proposals", Name: "forged"},
+			payload: Payload{MediaType: "application/json"}, want: ErrReservedNamespace,
+		},
 	}
 
 	for _, test := range tests {

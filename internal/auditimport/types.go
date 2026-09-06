@@ -8,6 +8,7 @@ import (
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -26,17 +27,41 @@ type RunReader interface {
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 }
 
+// FindingRetention is the purpose-specific bridge used only while collecting
+// an Audit child Run. It transfers exact proposal/evidence revisions into the
+// owning Audit inbox; it does not create findings, items, or review decisions.
+type FindingRetention interface {
+	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
+	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+}
+
 type Importer struct {
 	store     Store
 	runs      RunReader
 	artifacts ArtifactAccess
+	findings  FindingRetention
 }
 
-func New(store Store, runs RunReader, artifactAccess ArtifactAccess) (*Importer, error) {
+func New(
+	store Store,
+	runs RunReader,
+	artifactAccess ArtifactAccess,
+	findings ...FindingRetention,
+) (*Importer, error) {
 	if store == nil || runs == nil || artifactAccess == nil {
 		return nil, errors.New("Audit importer dependencies are incomplete")
 	}
-	return &Importer{store: store, runs: runs, artifacts: artifactAccess}, nil
+	if len(findings) > 1 {
+		return nil, errors.New("Audit importer accepts at most one finding intake")
+	}
+	result := &Importer{store: store, runs: runs, artifacts: artifactAccess}
+	if len(findings) == 1 {
+		if findings[0] == nil {
+			return nil, errors.New("Audit importer finding intake is nil")
+		}
+		result.findings = findings[0]
+	}
+	return result, nil
 }
 
 type sourceProvenance struct {

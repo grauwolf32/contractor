@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -120,12 +121,13 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "project_deleting", "Project deletion is in progress", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen),
 		errors.Is(err, projectstore.ErrConflict),
-		errors.Is(err, runstore.ErrConflict), errors.Is(err, auditstore.ErrConflict):
+		errors.Is(err, runstore.ErrConflict), errors.Is(err, auditstore.ErrConflict),
+		errors.Is(err, findingintake.ErrConflict):
 		h.writeError(w, http.StatusConflict, "conflict", "resource state changed; retry with the current revision", true)
 	case errors.Is(err, artifacts.ErrArtifactNotFound), errors.Is(err, projectstore.ErrNotFound),
 		errors.Is(err, runstore.ErrNotFound),
 		errors.Is(err, auditstore.ErrNotFound), errors.Is(err, auditservice.ErrProfileNotFound),
-		errors.Is(err, config.ErrConfigurationNotFound):
+		errors.Is(err, config.ErrConfigurationNotFound), errors.Is(err, findingintake.ErrNotFound):
 		h.writeError(w, http.StatusNotFound, "not_found", "resource was not found", false)
 	case errors.Is(err, errInvalidRequest), errors.Is(err, artifacts.ErrInvalidScope),
 		errors.Is(err, artifacts.ErrInvalidName), errors.Is(err, artifacts.ErrInvalidMediaType),
@@ -133,6 +135,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		errors.Is(err, artifacts.ErrReservedNamespace), errors.Is(err, contracts.ErrValidation),
 		errors.Is(err, runstore.ErrInvalid), errors.Is(err, projectstore.ErrInvalid),
 		errors.Is(err, auditstore.ErrInvalid), errors.Is(err, auditservice.ErrInvalid),
+		errors.Is(err, findingintake.ErrInvalid),
 		errors.Is(err, runservice.ErrInvalid),
 		errors.Is(err, settingsstore.ErrInvalid),
 		errors.Is(err, config.ErrInvalidConfigurationKind),

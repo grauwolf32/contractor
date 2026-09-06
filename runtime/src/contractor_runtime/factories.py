@@ -39,6 +39,7 @@ from contractor_runtime.toolsets.likec4 import LikeC4ToolsetFactory
 from contractor_runtime.toolsets.memory import MemoryToolsetFactory
 from contractor_runtime.toolsets.openapi import OpenAPIToolsetFactory
 from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
+from contractor_runtime.toolsets.security_findings import SecurityFindingsToolsetFactory
 from contractor_runtime.toolsets.source_analysis import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.taint_annotations import TaintAnnotationsToolsetFactory
 from contractor_runtime.toolsets.text_artifacts import TextArtifactsToolsetFactory
@@ -189,6 +190,7 @@ def built_in_factories(
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
     audit_results_toolset = AuditResultsToolsetFactory(artifact_client_factory)
+    security_findings_toolset = SecurityFindingsToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)
     openapi_toolset = OpenAPIToolsetFactory(artifact_client_factory)
@@ -213,6 +215,7 @@ def built_in_factories(
         toolsets={
             artifact_toolset.ref: artifact_toolset,
             audit_results_toolset.ref: audit_results_toolset,
+            security_findings_toolset.ref: security_findings_toolset,
             caido_toolset.ref: caido_toolset,
             code_analysis_toolset.ref: code_analysis_toolset,
             edit_files_toolset.ref: edit_files_toolset,

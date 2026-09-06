@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 )
 
 func TestAuditProfileHandlersExposeCompatibilityAndExactDetail(t *testing.T) {
@@ -192,6 +193,44 @@ func TestAuditReportHandlerReturnsOnlyAcceptedProjection(t *testing.T) {
 	}
 }
 
+func TestAuditFindingProposalHandlersExposeInboxAndExactImport(t *testing.T) {
+	revision := "finding-revision"
+	findings := &fakeFindingProposalManagement{receipts: []findingintake.Receipt{{
+		ReceiptID: "receipt-one", ProposalID: "proposal-one", ClientKey: "candidate-one",
+		Proposal: findingintake.ExactArtifact{Ref: contracts.ArtifactRef{
+			Namespace: "finding-proposals", Name: "proposal-one", Revision: &revision,
+		}},
+		Retention:  findingintake.RetentionSourceHeld,
+		AuditHolds: []findingintake.AuditHold{}, CreatedAt: time.Now().UTC(),
+	}}}
+	h := auditTestHandler(&fakeAuditManagement{audit: auditstore.Audit{AuditID: "audit-fixed"}})
+	h.dependencies.FindingProposals = findings
+
+	list := auditAuthenticatedRequest(http.MethodGet, "/v1/audits/audit-fixed/finding-proposals?limit=10", nil)
+	list.SetPathValue("auditId", "audit-fixed")
+	listed := httptest.NewRecorder()
+	h.listAuditFindingProposals(listed, list)
+	if listed.Code != http.StatusOK || listed.Header().Get("Cache-Control") != "no-store" ||
+		!strings.Contains(listed.Body.String(), `"receiptId":"receipt-one"`) ||
+		findings.listOwner != "user-1" || findings.listAudit != "audit-fixed" {
+		t.Fatalf("Audit finding inbox = %d headers=%v body=%s calls=%+v",
+			listed.Code, listed.Header(), listed.Body.String(), findings)
+	}
+
+	body := []byte(`{"runId":"run-one","proposal":{"namespace":"finding-proposals","name":"proposal-one","revision":"finding-revision"}}`)
+	request := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/audit-fixed/finding-proposal-imports", body)
+	request.SetPathValue("auditId", "audit-fixed")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	h.importAuditFindingProposal(response, request)
+	if response.Code != http.StatusCreated || findings.imported.OwnerID != "user-1" ||
+		findings.imported.AuditID != "audit-fixed" || findings.imported.RunID != "run-one" ||
+		!strings.Contains(response.Body.String(), `"replayed":false`) {
+		t.Fatalf("Audit finding import = %d body=%s request=%+v",
+			response.Code, response.Body.String(), findings.imported)
+	}
+}
+
 func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 	now := time.Date(2026, 9, 6, 1, 0, 0, 0, time.UTC)
 	revision := "input-r1"
@@ -260,6 +299,37 @@ type fakeAuditManagement struct {
 	mutation auditservice.MutationParams
 	err      error
 	report   auditservice.ReportProjection
+}
+
+type fakeFindingProposalManagement struct {
+	receipts  []findingintake.Receipt
+	listOwner string
+	listAudit string
+	imported  findingintake.ImportRequest
+}
+
+func (f *fakeFindingProposalManagement) ListRun(
+	context.Context, string, string, findingintake.ListQuery,
+) ([]findingintake.Receipt, error) {
+	return append([]findingintake.Receipt(nil), f.receipts...), nil
+}
+
+func (f *fakeFindingProposalManagement) ListAuditInbox(
+	_ context.Context, ownerID, auditID string, _ findingintake.ListQuery,
+) ([]findingintake.Receipt, error) {
+	f.listOwner, f.listAudit = ownerID, auditID
+	return append([]findingintake.Receipt(nil), f.receipts...), nil
+}
+
+func (f *fakeFindingProposalManagement) ImportIntoAudit(
+	_ context.Context, request findingintake.ImportRequest,
+) (findingintake.AuditHold, bool, error) {
+	f.imported = request
+	return findingintake.AuditHold{
+		AuditID: request.AuditID, ProjectID: "project-one",
+		Proposal: f.receipts[0].Proposal, Evidence: []findingintake.ExactArtifact{},
+		CreatedAt: time.Now().UTC(),
+	}, false, nil
 }
 
 func (f *fakeAuditManagement) Profiles() []auditservice.ProfileProjection {
@@ -373,3 +443,4 @@ func auditHandlerDigest(value string) string {
 }
 
 var _ AuditManagement = (*fakeAuditManagement)(nil)
+var _ FindingProposalManagement = (*fakeFindingProposalManagement)(nil)

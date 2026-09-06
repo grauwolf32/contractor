@@ -506,8 +506,13 @@ unreferenced evidence, missing or aliased content members, duplicate content
 ownership, and any other unreferenced package member make the complete package
 an `invalid-result`. Evidence may instead reference an exact revision in the
 same RunScope. The importer never follows a path or accepts an unversioned or
-foreign-scope reference. Until finding intake is implemented, a non-empty
-`proposals` array is also rejected rather than silently ignored.
+foreign-scope reference. The initial finding-intake increment retains every
+trusted child-Run proposal in the Audit inbox before committing the collection
+receipt, including proposals from technically failed Runs. A non-empty
+`proposals` association array remains rejected until finding triage can resolve
+its invocation-local client keys to exact receipts and validate item
+membership; proposals are never silently ignored or associated merely because
+they share a Run.
 
 The initial Runtime exposes the optional `audit-results@1` Toolset only when an
 AgentTemplate selects it. `submit_check_result` reads the exact `inputs/task`
@@ -659,8 +664,25 @@ and records the receipt. A generic artifact write cannot forge a receipt.
 Replay of `(allocation_id, invocation_id, submission_id)` with the same
 canonical digest returns the original receipt; a different digest conflicts.
 Receipt replay remains readable after the write fence, while a new submission
-is rejected. Intake and fence transition are serialized by the same durable
-grant transaction used by ordinary private artifact writes.
+is rejected. Intake and fence transition are serialized by the allocation
+write-authorization critical section used by ordinary private artifact writes;
+the proposal Artifact, exact evidence pins, receipt, and retention row commit
+in one PostgreSQL transaction.
+
+Before an Audit child Run receives its collection receipt, every committed
+proposal and its evidence is copied to collision-free protected ProjectScope
+bindings and recorded in an exact Audit hold. This transfer is idempotent and
+does not confirm or associate the proposal with an item. A profile with
+`findingConfirmation: disabled` cannot select the Toolset, and an unexpected
+receipt makes collection contract-invalid rather than admitting it.
+
+An owner may similarly import an exact proposal from an ordinary Run into a
+non-terminal Audit in the same Project whose pinned profile requires finding
+confirmation. Hard deletion of the source Run atomically marks imported
+receipts `audit-held` and unimported receipts `discarded`, then releases every
+source-owned proposal/evidence pin. Receipt provenance and discarded
+tombstones survive the source Run; only protected imported Artifact revisions
+survive as readable content.
 
 ## 10. Audit and Round lifecycle
 

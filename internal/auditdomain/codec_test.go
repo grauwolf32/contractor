@@ -142,6 +142,10 @@ func TestAllAuditEnvelopeCodecsAcceptBoundedEmptyCollections(t *testing.T) {
 	if encoded, err := EncodeFindingProposal(proposal); err != nil || len(encoded) == 0 {
 		t.Fatalf("proposal = %q, %v", encoded, err)
 	}
+	proposal.Hypothesis = ""
+	if encoded, err := EncodeFindingProposal(proposal); err != nil || bytes.Contains(encoded, []byte(`"hypothesis"`)) {
+		t.Fatalf("optional proposal hypothesis = %q, %v", encoded, err)
+	}
 }
 
 func testDigest(character byte) string {

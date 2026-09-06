@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -82,6 +83,69 @@ func TestImporterRecordsFailedAndCancelledWithoutInventedOutput(t *testing.T) {
 				t.Fatalf("technical collection = (%t, %v, %+v)", worked, err, harness.store.collected)
 			}
 		})
+	}
+}
+
+func TestImporterRetainsAuditChildFindingProposalsBeforeCollection(t *testing.T) {
+	harness := newImportHarness(t)
+	profile := loadResultProfileWithFindingConfirmation(t, "human-required")
+	profileSnapshot, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	harness.snapshot.Audit.Profile = auditstore.ProfileIdentity{
+		Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
+	}
+	harness.snapshot.Audit.ProfileSnapshot = profileSnapshot
+	revision := "finding-revision"
+	findings := &fakeFindingRetention{receipts: []findingintake.Receipt{{
+		ReceiptID: "finding-receipt", Proposal: findingintake.ExactArtifact{Ref: contracts.ArtifactRef{
+			Namespace: "finding-proposals", Name: "candidate", Revision: &revision,
+		}},
+		Origin: findingintake.Origin{
+			RunID: *harness.execution.RunID,
+			Audit: &findingintake.AuditOrigin{
+				AuditID: harness.execution.AuditID, ExecutionID: harness.execution.ExecutionID,
+				Role: string(harness.execution.Role),
+			},
+		},
+	}}}
+	harness.importer, err = New(harness.store, harness.importer.runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || len(findings.imports) != 1 ||
+		findings.imports[0].AuditID != harness.execution.AuditID ||
+		harness.store.collected.Disposition != auditstore.CollectionAccepted {
+		t.Fatalf("finding-aware collection = (%t, %v, imports=%+v, collection=%+v)",
+			worked, err, findings.imports, harness.store.collected)
+	}
+}
+
+func TestImporterRejectsUnexpectedProposalWhenFindingsAreDisabled(t *testing.T) {
+	harness := newImportHarness(t)
+	revision := "finding-revision"
+	findings := &fakeFindingRetention{receipts: []findingintake.Receipt{{
+		ReceiptID: "unexpected-receipt", Proposal: findingintake.ExactArtifact{Ref: contracts.ArtifactRef{
+			Namespace: "finding-proposals", Name: "unexpected", Revision: &revision,
+		}},
+	}}}
+	runs := harness.importer.runs
+	var err error
+	harness.importer, err = New(harness.store, runs, harness.artifacts, findings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	worked, err := harness.importer.Collect(
+		context.Background(), harness.claim, harness.snapshot, harness.execution,
+	)
+	if err != nil || !worked || len(findings.imports) != 0 ||
+		harness.store.collected.Disposition != auditstore.CollectionContractInvalid {
+		t.Fatalf("disabled finding collection = (%t, %v, imports=%+v, collection=%+v)",
+			worked, err, findings.imports, harness.store.collected)
 	}
 }
 
@@ -435,6 +499,24 @@ func (f *fakeImportRuns) GetRun(context.Context, string) (runstore.WorkflowRun, 
 	return f.run, nil
 }
 
+type fakeFindingRetention struct {
+	receipts []findingintake.Receipt
+	imports  []findingintake.ImportRequest
+}
+
+func (f *fakeFindingRetention) ListRun(
+	context.Context, string, string, findingintake.ListQuery,
+) ([]findingintake.Receipt, error) {
+	return append([]findingintake.Receipt(nil), f.receipts...), nil
+}
+
+func (f *fakeFindingRetention) ImportIntoAudit(
+	_ context.Context, request findingintake.ImportRequest,
+) (findingintake.AuditHold, bool, error) {
+	f.imports = append(f.imports, request)
+	return findingintake.AuditHold{AuditID: request.AuditID}, false, nil
+}
+
 type fakeImportArtifacts struct {
 	project        map[string][]byte
 	runDescriptor  auditstore.ExactArtifact
@@ -480,6 +562,13 @@ func (f *fakeImportArtifacts) PutImmutableProject(_ context.Context, _ string, t
 }
 
 func loadResultProfile(t *testing.T) config.ResolvedAuditProfile {
+	return loadResultProfileWithFindingConfirmation(t, "disabled")
+}
+
+func loadResultProfileWithFindingConfirmation(
+	t *testing.T,
+	policy string,
+) config.ResolvedAuditProfile {
 	t.Helper()
 	root := t.TempDir()
 	for _, directory := range []string{
@@ -555,6 +644,10 @@ spec:
   interaction: {activeChecks: prohibited, findingConfirmation: disabled, notApplicable: profile-rule, reportAcceptance: automatic}
 `,
 	}
+	files["audit-profiles/checklist.yaml"] = strings.Replace(
+		files["audit-profiles/checklist.yaml"],
+		"findingConfirmation: disabled", "findingConfirmation: "+policy, 1,
+	)
 	for name, body := range files {
 		path := filepath.Join(root, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

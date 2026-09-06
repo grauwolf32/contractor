@@ -6,6 +6,7 @@ import "strings"
 const (
 	MemoryArtifactPrefix               = "memory."
 	AuditManagedProjectNamespacePrefix = "audit-"
+	FindingProposalNamespace           = "finding-proposals"
 )
 
 func IsAuditManagedProjectNamespace(namespace string) bool {
@@ -16,7 +17,7 @@ func IsAuditManagedProjectNamespace(namespace string) bool {
 // trusted purpose-specific flow rather than by a Stage Agent binding.
 func IsPurposeReservedNamespace(namespace string) bool {
 	switch namespace {
-	case "inputs", "outputs", "skills":
+	case "inputs", "outputs", "skills", FindingProposalNamespace:
 		return true
 	default:
 		return false

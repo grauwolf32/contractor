@@ -26,6 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -333,6 +334,10 @@ func RunCLI(
 		return fmt.Errorf("configure Runtime Agent lifecycle: %w", err)
 	}
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
+	findingService, err := findingintake.New(pool)
+	if err != nil {
+		return fmt.Errorf("configure finding intake: %w", err)
+	}
 	skillCatalog, err := agentskills.NewCatalog(artifactService)
 	if err != nil {
 		return fmt.Errorf("configure SkillCatalog: %w", err)
@@ -527,6 +532,7 @@ func RunCLI(
 	}
 	auditImporter, err := auditimport.New(
 		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), auditImportArtifacts,
+		findingService,
 	)
 	if err != nil {
 		return fmt.Errorf("configure Audit importer: %w", err)
@@ -549,12 +555,13 @@ func RunCLI(
 		RuntimeAgentPrincipals: principalOperations,
 		Projects:               projectstore.NewPostgresStore(pool),
 		Audits:                 auditService,
+		FindingProposals:       findingService,
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
-		Operations:              registry,
-		OperationsInvalidator:   registry,
-		SchedulerSettings:       schedulerSettings,
-		Events:                  eventHub,
+		Operations:             registry,
+		OperationsInvalidator:  registry,
+		SchedulerSettings:      schedulerSettings,
+		Events:                 eventHub,
 		Transactions: postgresPublicUnitOfWork{
 			pool: pool, transactionLLMCredentials: transactionCredentialLookup,
 		},
@@ -574,7 +581,7 @@ func RunCLI(
 		return fmt.Errorf("configure private Control Plane API: %w", err)
 	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
-		Registry: registry, Artifacts: artifactService, Logger: logger,
+		Registry: registry, Artifacts: artifactService, Findings: findingService, Logger: logger,
 	})
 	if err != nil {
 		return fmt.Errorf("configure private Artifact API: %w", err)

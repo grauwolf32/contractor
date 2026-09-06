@@ -10,8 +10,9 @@ import (
 
 // ImportAuditArtifact retains one exact Run revision in the owning Project.
 // Source selection and target/lineage creation are one SQL statement, while
-// the surrounding Audit collector makes the deterministic target externally
-// visible only by committing an AuditArtifactLink receipt.
+// the trusted caller makes the deterministic target externally visible only
+// by committing its Audit-owned receipt. The caller, not publication_mode,
+// proves whether this is an Audit child result or an ordinary finding import.
 func (r *PostgresRepository) ImportAuditArtifact(
 	ctx context.Context,
 	runScope Scope,
@@ -64,7 +65,6 @@ WITH source_selection AS MATERIALIZED (
       JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
       JOIN workflow_runs AS run
         ON run.run_id = $2 AND run.project_id = $7
-       AND run.publication_mode = 'audit-managed'
      WHERE revision.scope_kind = $1 AND revision.scope_id = $2
        AND revision.namespace = $3 AND revision.name = $4
        AND revision.revision = $5

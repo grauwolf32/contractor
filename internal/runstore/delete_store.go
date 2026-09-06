@@ -112,6 +112,26 @@ UPDATE audit_executions
 			return &RunNotDeletableError{RunID: runID, Reason: RunAuditCollectionPending}
 		}
 	}
+	// Finding receipt identity and safe provenance outlive an ordinary source
+	// Run. Imported proposals already have destination-Audit bindings; every
+	// other proposal becomes a durable discarded tombstone before Run-owned
+	// pins and bindings are purged below.
+	if _, err := tx.Exec(ctx, `
+UPDATE finding_proposal_retention AS retention
+   SET source_run_deleted_at = COALESCE(retention.source_run_deleted_at, clock_timestamp()),
+       state = CASE WHEN EXISTS (
+           SELECT 1 FROM finding_proposal_audit_holds AS hold
+            WHERE hold.receipt_id = retention.receipt_id
+       ) THEN 'audit-held' ELSE 'discarded' END,
+       discarded_at = CASE WHEN EXISTS (
+           SELECT 1 FROM finding_proposal_audit_holds AS hold
+            WHERE hold.receipt_id = retention.receipt_id
+       ) THEN NULL ELSE COALESCE(retention.discarded_at, clock_timestamp()) END,
+       updated_at = clock_timestamp()
+  FROM finding_proposal_receipts AS receipt
+ WHERE receipt.receipt_id = retention.receipt_id AND receipt.run_id = $1`, runID); err != nil {
+		return fmt.Errorf("dispose WorkflowRun %q finding proposals: %w", runID, err)
+	}
 
 	purger, err := artifacts.NewPostgresPurger(tx)
 	if err != nil {

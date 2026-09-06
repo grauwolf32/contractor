@@ -29,6 +29,7 @@ MAX_ARTIFACT_JSON_BYTES = 1 << 20
 MAX_RESPONSE_HEADERS = 64
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 MEDIA_TYPE_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*/[a-z0-9][a-z0-9!#$%&'+.^_`|~-]*$"
 )
@@ -104,8 +105,88 @@ class ArtifactClient:
         self._allocation_id = allocation_id
         self._transport = transport
         self._root = f"/allocations/{quote(allocation_id, safe='')}/artifacts"
+        self._finding_root = (
+            f"/allocations/{quote(allocation_id, safe='')}/finding-proposals"
+        )
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
         self._observed_exact_refs: list[ArtifactRef] = []
+
+    async def submit_finding_proposal(self, request: Mapping[str, object]) -> dict[str, object]:
+        """Submit one stable allocation-bound finding request.
+
+        A transport loss is retried once with byte-identical content. The
+        Server receipt is the idempotency authority; this client never invents
+        a second submission identity after an ambiguous commit.
+        """
+
+        body = json.dumps(
+            request, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        if len(body) > MAX_ARTIFACT_JSON_BYTES:
+            raise ValueError("finding proposal request exceeds its size limit")
+        response: ArtifactHTTPResponse | None = None
+        for attempt in range(2):
+            try:
+                response = await self._transport.request(
+                    "POST",
+                    self._finding_root,
+                    headers={"Accept": "application/json", "Content-Type": "application/json"},
+                    body=body,
+                    max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
+                )
+                break
+            except ArtifactTransportError:
+                if attempt != 0:
+                    raise
+        assert response is not None
+        self._raise_for_status(response)
+        if response.status_code not in {200, 201}:
+            raise ArtifactTransportError("finding proposal API returned an invalid status")
+        _require_json(response.headers)
+        try:
+            value = json.loads(response.body)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ArtifactTransportError(
+                "finding proposal API returned invalid JSON"
+            ) from error
+        expected = {"apiVersion", "proposalId", "receiptId", "proposal", "replayed"}
+        if not isinstance(value, dict) or set(value) != expected:
+            raise ArtifactTransportError("finding proposal API returned an invalid receipt")
+        if value.get("apiVersion") != "contractor/v1alpha1":
+            raise ArtifactTransportError("finding proposal API returned an invalid version")
+        for field_name in ("proposalId", "receiptId"):
+            candidate = value.get(field_name)
+            if not isinstance(candidate, str) or REQUEST_ID_PATTERN.fullmatch(candidate) is None:
+                raise ArtifactTransportError("finding proposal API returned an invalid identity")
+        if not isinstance(value.get("replayed"), bool):
+            raise ArtifactTransportError("finding proposal API returned an invalid replay marker")
+        proposal = value.get("proposal")
+        if not isinstance(proposal, dict) or set(proposal) != {
+            "ref",
+            "digest",
+            "mediaType",
+            "sizeBytes",
+        }:
+            raise ArtifactTransportError("finding proposal API returned invalid artifact metadata")
+        try:
+            ref = ArtifactRef.model_validate(proposal.get("ref"))
+            ref.require_exact()
+        except (ValidationError, ValueError, AttributeError) as error:
+            raise ArtifactTransportError(
+                "finding proposal API returned invalid artifact metadata"
+            ) from error
+        digest = proposal.get("digest")
+        size = proposal.get("sizeBytes")
+        if (
+            ref.namespace != "finding-proposals"
+            or not isinstance(digest, str)
+            or DIGEST_PATTERN.fullmatch(digest) is None
+            or proposal.get("mediaType") != "application/json"
+            or type(size) is not int
+            or not 0 <= size <= 8 * 1024 * 1024
+        ):
+            raise ArtifactTransportError("finding proposal API returned invalid artifact metadata")
+        return value
 
     @property
     def known_exact_refs(self) -> tuple[ArtifactRef, ...]:
@@ -339,7 +420,7 @@ class MTLSArtifactTransport:
         body: bytes,
         max_response_bytes: int,
     ) -> ArtifactHTTPResponse:
-        if method not in {"GET", "PUT"} or not path.startswith("/") or "#" in path:
+        if method not in {"GET", "PUT", "POST"} or not path.startswith("/") or "#" in path:
             raise ValueError("invalid private Artifact API request target")
         if not 0 <= max_response_bytes <= MAX_ARTIFACT_BYTES:
             raise ValueError("invalid Artifact API response limit")

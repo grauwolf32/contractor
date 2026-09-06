@@ -325,7 +325,7 @@ func validateFindingProposal(proposal FindingProposal) error {
 	}
 	if validateIdentifier(proposal.ClientKey, "client_key") != nil || validateText(proposal.Title, "title", true) != nil ||
 		validateText(proposal.Description, "description", true) != nil || validateIdentifier(proposal.Subject.Kind, "subject.kind") != nil ||
-		validateIdentifier(proposal.Subject.Key, "subject.key") != nil || validateText(proposal.Hypothesis, "hypothesis", true) != nil ||
+		validateIdentifier(proposal.Subject.Key, "subject.key") != nil || validateText(proposal.Hypothesis, "hypothesis", false) != nil ||
 		!validSeverity(proposal.SeveritySuggestion) {
 		return invalid(CodeInvalid, "proposal")
 	}

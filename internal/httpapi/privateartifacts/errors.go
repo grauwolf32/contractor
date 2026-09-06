@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -37,12 +38,20 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusRequestEntityTooLarge, "artifact_too_large", "artifact exceeds the 16 MiB limit", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict), errors.Is(err, artifacts.ErrArtifactFrozen):
 		h.writeError(w, http.StatusConflict, "artifact_conflict", "artifact revision precondition did not match", true)
+	case errors.Is(err, findingintake.ErrConflict):
+		h.writeError(w, http.StatusConflict, "finding_submission_conflict", "finding submission identity already has different content", false)
+	case errors.Is(err, findingintake.ErrAccessDenied), errors.Is(err, findingintake.ErrToolNotSelected):
+		h.writeError(w, http.StatusForbidden, "finding_access_denied", "allocation does not permit finding submission", false)
+	case errors.Is(err, findingintake.ErrNotFound):
+		h.writeError(w, http.StatusNotFound, "finding_receipt_not_found", "finding receipt was not found", false)
 	case errors.Is(err, artifacts.ErrArtifactNotFound):
 		h.writeError(w, http.StatusNotFound, "artifact_not_found", "artifact was not found", false)
 	case errors.Is(err, errInvalidRequest), errors.Is(err, artifacts.ErrInvalidScope),
 		errors.Is(err, artifacts.ErrInvalidName), errors.Is(err, artifacts.ErrInvalidMediaType),
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, contracts.ErrValidation):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private Artifact API contract", false)
+	case errors.Is(err, findingintake.ErrInvalid):
+		h.writeError(w, http.StatusBadRequest, "invalid_finding_request", "request does not satisfy the finding intake contract", false)
 	default:
 		h.writeError(w, http.StatusInternalServerError, "internal_error", "artifact operation could not be processed", true)
 	}

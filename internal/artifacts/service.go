@@ -3,6 +3,8 @@ package artifacts
 import (
 	"context"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 )
 
 // Service owns validation and creates scope-bound views over one Repository.
@@ -41,6 +43,29 @@ func (s *Service) Run(runID string) (ScopedStore, error) {
 	return ScopedStore{service: s, scope: scope}, nil
 }
 
+// WriteFindingProposal is the trusted finding-intake write path. The
+// namespace is deliberately unavailable through generic allocation Artifact
+// writes, while the resulting exact revision remains readable in its RunScope.
+func (s *Service) WriteFindingProposal(
+	ctx context.Context,
+	runID string,
+	name string,
+	payload Payload,
+) (WriteResult, error) {
+	scope, err := RunScope(runID)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	target := ArtifactRef{Namespace: artifactpolicy.FindingProposalNamespace, Name: name}
+	if err := validateRef(target); err != nil {
+		return WriteResult{}, err
+	}
+	if err := validatePayload(payload); err != nil {
+		return WriteResult{}, err
+	}
+	return s.repository.Write(ctx, scope, target, payload, nil)
+}
+
 func (s ScopedStore) Write(
 	ctx context.Context,
 	target ArtifactRef,
@@ -61,7 +86,8 @@ func (s ScopedStore) Write(
 			return WriteResult{}, err
 		}
 	}
-	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills") {
+	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills" ||
+		target.Namespace == artifactpolicy.FindingProposalNamespace) {
 		return WriteResult{}, ErrReservedNamespace
 	}
 	if err := validatePayload(payload); err != nil {
@@ -449,6 +475,20 @@ func (s *Service) ImportAuditArtifact(
 	return repository.ImportAuditArtifact(ctx, run, source, project, target)
 }
 
+// ImportFindingArtifact is the trusted finding-intake counterpart for an
+// ordinary Project Run. Authorization and receipt creation belong to the
+// finding service; this method only enforces exact source identity and a
+// create-only Audit-managed target in the same Project.
+func (s *Service) ImportFindingArtifact(
+	ctx context.Context,
+	runID string,
+	source ArtifactRef,
+	projectID string,
+	target ArtifactRef,
+) (ForkResult, error) {
+	return s.ImportAuditArtifact(ctx, runID, source, projectID, target)
+}
+
 // WriteAuditArtifact is the trusted counterpart used for Controller-generated
 // Audit reports. It creates one frozen, create-only ProjectScope binding in a
 // server-reserved audit-* namespace. Public Project artifact routes never
@@ -497,7 +537,8 @@ func (s *Service) PinExact(
 	if _, err := exactRevision(ref); err != nil {
 		return err
 	}
-	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult && kind != PinRunOutput {
+	if kind != PinRunInput && kind != PinStageContext && kind != PinStageResult &&
+		kind != PinRunOutput && kind != PinFindingProposal && kind != PinFindingEvidence {
 		return ErrInvalidName
 	}
 	if err := validatePinID(pinID); err != nil {

@@ -883,6 +883,72 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/audits/{auditId}/finding-proposals:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    get:
+      operationId: listAuditFindingProposals
+      tags: [Audits]
+      summary: List unconfirmed candidate finding receipts in one owned Audit inbox
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable oldest-first finding proposal receipt page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FindingProposalPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/audits/{auditId}/finding-proposal-imports:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: importAuditFindingProposal
+      tags: [Audits]
+      summary: Retain one exact ordinary-Run proposal in a compatible owned Audit
+      x-contractor-implementation: implemented
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ImportFindingProposalRequest'}
+      responses:
+        '200':
+          description: Exact import replay
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportFindingProposalResponse'}
+        '201':
+          description: Exact proposal and evidence revisions retained by the Audit
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImportFindingProposalResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/queue:
     get:
       operationId: listRunQueue
@@ -1183,6 +1249,31 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ArtifactPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
+  /v1/runs/{runId}/finding-proposals:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+    get:
+      operationId: listRunFindingProposals
+      tags: [Runs]
+      summary: List unconfirmed candidate finding receipts emitted by one owned Run
+      x-contractor-implementation: implemented
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Stable oldest-first finding proposal receipt page
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FindingProposalPage'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '404': {$ref: '#/components/responses/NotFound'}
@@ -3085,6 +3176,132 @@ components:
         audit: {$ref: '#/components/schemas/Audit'}
         round: {$ref: '#/components/schemas/AuditRound'}
         items: {type: array, maxItems: 10000, items: {$ref: '#/components/schemas/AuditItem'}}
+    FindingExactArtifact:
+      type: object
+      additionalProperties: false
+      required: [ref, digest, mediaType, sizeBytes]
+      properties:
+        ref: {$ref: '#/components/schemas/ExactArtifactRef'}
+        digest: {$ref: '#/components/schemas/Digest'}
+        mediaType: {$ref: '#/components/schemas/MediaType'}
+        sizeBytes: {type: integer, minimum: 0, maximum: 67108864}
+    FindingSubject:
+      type: object
+      additionalProperties: false
+      required: [kind, key]
+      properties:
+        kind: {type: string, minLength: 1, maxLength: 160}
+        key: {type: string, minLength: 1, maxLength: 160}
+    FindingStandardReference:
+      type: object
+      additionalProperties: false
+      required: [scheme, version, requirement_id]
+      properties:
+        scheme: {type: string, minLength: 1, maxLength: 160}
+        version: {type: string, minLength: 1, maxLength: 65536}
+        requirement_id: {type: string, minLength: 1, maxLength: 160}
+    FindingProposedCheck:
+      type: object
+      additionalProperties: false
+      required: [objective, method]
+      properties:
+        objective: {type: string, minLength: 1, maxLength: 65536}
+        method: {type: string, minLength: 1, maxLength: 160}
+    FindingProposalDocument:
+      type: object
+      additionalProperties: false
+      required: [schema, client_key, title, description, subject, preconditions, standard_refs, evidence_ids, proposed_checks, severity_suggestion, limitations]
+      properties:
+        schema: {type: string, const: contractor.audit.finding-proposal.v1}
+        client_key: {type: string, minLength: 1, maxLength: 160}
+        title: {type: string, minLength: 1, maxLength: 65536}
+        description: {type: string, minLength: 1, maxLength: 65536}
+        subject: {$ref: '#/components/schemas/FindingSubject'}
+        hypothesis: {type: string, maxLength: 65536}
+        preconditions: {type: array, maxItems: 512, items: {type: string, maxLength: 65536}}
+        standard_refs: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingStandardReference'}}
+        evidence_ids: {type: array, maxItems: 256, items: {type: string, minLength: 1, maxLength: 160}}
+        proposed_checks: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingProposedCheck'}}
+        severity_suggestion: {enum: ['', informational, low, medium, high, critical]}
+        limitations: {type: array, maxItems: 512, items: {type: string, maxLength: 65536}}
+    FindingWorkflowOrigin:
+      type: object
+      additionalProperties: false
+      required: [name, version, schemaVersion, configurationRef, closureDigest]
+      properties:
+        name: {$ref: '#/components/schemas/ConfigId'}
+        version: {$ref: '#/components/schemas/ConfigVersion'}
+        schemaVersion: {type: string, minLength: 1, maxLength: 128}
+        configurationRef: {$ref: '#/components/schemas/WorkflowRef'}
+        closureDigest: {$ref: '#/components/schemas/Digest'}
+    FindingAuditOrigin:
+      type: object
+      additionalProperties: false
+      required: [auditId, executionId, role]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        executionId: {$ref: '#/components/schemas/ResourceId'}
+        role: {$ref: '#/components/schemas/AuditExecutionRole'}
+    FindingOrigin:
+      type: object
+      additionalProperties: false
+      required: [runId, stageExecutionId, allocationId, invocationId, logicalAgentName, workflow, runDeleted]
+      properties:
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        stageExecutionId: {$ref: '#/components/schemas/ResourceId'}
+        allocationId: {$ref: '#/components/schemas/ResourceId'}
+        invocationId: {$ref: '#/components/schemas/ResourceId'}
+        logicalAgentName: {$ref: '#/components/schemas/ArtifactName'}
+        workflow: {$ref: '#/components/schemas/FindingWorkflowOrigin'}
+        audit: {$ref: '#/components/schemas/FindingAuditOrigin'}
+        runDeleted: {type: boolean}
+    FindingAuditHold:
+      type: object
+      additionalProperties: false
+      required: [auditId, projectId, proposal, evidence, createdAt]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        projectId: {$ref: '#/components/schemas/ResourceId'}
+        proposal: {$ref: '#/components/schemas/FindingExactArtifact'}
+        evidence: {type: array, maxItems: 256, items: {$ref: '#/components/schemas/FindingExactArtifact'}}
+        createdAt: {type: string, format: date-time}
+    FindingProposalReceipt:
+      type: object
+      additionalProperties: false
+      required: [receiptId, proposalId, requestDigest, clientKey, proposal, document, evidence, origin, retention, auditHolds, createdAt]
+      properties:
+        receiptId: {$ref: '#/components/schemas/ResourceId'}
+        proposalId: {$ref: '#/components/schemas/ResourceId'}
+        requestDigest: {$ref: '#/components/schemas/Digest'}
+        clientKey: {type: string, minLength: 1, maxLength: 160}
+        proposal: {$ref: '#/components/schemas/FindingExactArtifact'}
+        document: {$ref: '#/components/schemas/FindingProposalDocument'}
+        evidence: {type: array, maxItems: 256, items: {$ref: '#/components/schemas/FindingExactArtifact'}}
+        origin: {$ref: '#/components/schemas/FindingOrigin'}
+        retention: {enum: [source-held, audit-held, discarded]}
+        auditHolds: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/FindingAuditHold'}}
+        createdAt: {type: string, format: date-time}
+    FindingProposalPage:
+      type: object
+      additionalProperties: false
+      required: [items, page]
+      properties:
+        items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/FindingProposalReceipt'}}
+        page: {$ref: '#/components/schemas/PageInfo'}
+    ImportFindingProposalRequest:
+      type: object
+      additionalProperties: false
+      required: [runId, proposal]
+      properties:
+        runId: {$ref: '#/components/schemas/ResourceId'}
+        proposal: {$ref: '#/components/schemas/ExactArtifactRef'}
+    ImportFindingProposalResponse:
+      type: object
+      additionalProperties: false
+      required: [hold, replayed]
+      properties:
+        hold: {$ref: '#/components/schemas/FindingAuditHold'}
+        replayed: {type: boolean}
     RuntimeInfrastructureId:
       type: string
       minLength: 1

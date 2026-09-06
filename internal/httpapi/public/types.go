@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -195,6 +196,12 @@ type AuditManagement interface {
 	GetReport(context.Context, string, string) (auditservice.ReportProjection, error)
 }
 
+type FindingProposalManagement interface {
+	ListRun(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
+	ListAuditInbox(context.Context, string, string, findingintake.ListQuery) ([]findingintake.Receipt, error)
+	ImportIntoAudit(context.Context, findingintake.ImportRequest) (findingintake.AuditHold, bool, error)
+}
+
 type Dependencies struct {
 	Authentication          *auth.Service
 	BrowserOrigins          auth.OriginPolicy
@@ -208,6 +215,7 @@ type Dependencies struct {
 	RuntimeAgentPrincipals  RuntimeAgentPrincipalManagement
 	Projects                ProjectManagement
 	Audits                  AuditManagement
+	FindingProposals        FindingProposalManagement
 	Runs                    RunReader
 	RunCreator              RunCreationService
 	PlannerPlans            PlannerPlanReader

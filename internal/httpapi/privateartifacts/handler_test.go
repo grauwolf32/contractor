@@ -18,9 +18,11 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/mtls"
 )
 
@@ -133,6 +135,14 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	if _, exists := repository.current("run-a", "skills", "likec4"); exists {
 		t.Fatal("reserved Skill write reached the repository")
 	}
+
+	proposal := putArtifact(t, handler, "finding-proposals", "forged", "*", []byte(`{}`))
+	if proposal.Code != http.StatusForbidden {
+		t.Fatalf("finding proposal generic write = %d %s", proposal.Code, proposal.Body.String())
+	}
+	if _, exists := repository.current("run-a", "finding-proposals", "forged"); exists {
+		t.Fatal("reserved finding proposal write reached the repository")
+	}
 }
 
 func TestPrivateArtifactResponseLossRetryCreatesNoSecondRevision(t *testing.T) {
@@ -186,6 +196,38 @@ func TestPrivateArtifactWriteFenceRejectsLaterWriteWithoutMutation(t *testing.T)
 	current, _ := repository.current("run-a", "inputs", "source")
 	if repository.writeCalls != writesBefore || string(current.data) != "before fence" {
 		t.Fatalf("fenced write mutated repository: calls=%d current=%q", repository.writeCalls, current.data)
+	}
+}
+
+func TestFindingReceiptReplaySurvivesFenceButNewSubmissionDoesNot(t *testing.T) {
+	repository := newMemoryRepository()
+	registry := &fakeRegistry{grant: testGrant("run-a")}
+	findings := &fakeFindingIntake{}
+	handler, err := NewHandler(Dependencies{
+		Registry: registry, Artifacts: artifacts.NewService(repository), Findings: findings,
+		NewRequestID: func() (string, error) { return "artifact-request-fixed", nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := postFinding(t, handler, "candidate-1")
+	if first.Code != http.StatusCreated {
+		t.Fatalf("new finding = %d %s", first.Code, first.Body.String())
+	}
+	registry.mu.Lock()
+	registry.grant.WriteFenced = true
+	registry.mu.Unlock()
+	replay := postFinding(t, handler, "candidate-1")
+	if replay.Code != http.StatusOK || !strings.Contains(replay.Body.String(), `"replayed":true`) {
+		t.Fatalf("fenced receipt replay = %d %s", replay.Code, replay.Body.String())
+	}
+	newSubmission := postFinding(t, handler, "candidate-2")
+	if newSubmission.Code != http.StatusConflict ||
+		!strings.Contains(newSubmission.Body.String(), "allocation_write_fenced") {
+		t.Fatalf("fenced new finding = %d %s", newSubmission.Code, newSubmission.Body.String())
+	}
+	if findings.submits != 1 {
+		t.Fatalf("finding intake submissions = %d, want 1", findings.submits)
 	}
 }
 
@@ -641,6 +683,77 @@ func testGrant(runID string) controlplane.AllocationGrant {
 type fakeRegistry struct {
 	mu    sync.Mutex
 	grant controlplane.AllocationGrant
+}
+
+type fakeFindingIntake struct {
+	receipts map[string]findingintake.Receipt
+	submits  int
+}
+
+func (f *fakeFindingIntake) FindReplay(
+	_ context.Context,
+	_ controlplane.AllocationGrant,
+	input findingintake.Submission,
+) (findingintake.Receipt, bool, error) {
+	value, ok := f.receipts[input.SubmissionID]
+	return value, ok, nil
+}
+
+func (f *fakeFindingIntake) Submit(
+	_ context.Context,
+	grant controlplane.AllocationGrant,
+	input findingintake.Submission,
+) (findingintake.Receipt, bool, error) {
+	if f.receipts == nil {
+		f.receipts = make(map[string]findingintake.Receipt)
+	}
+	if value, ok := f.receipts[input.SubmissionID]; ok {
+		return value, true, nil
+	}
+	f.submits++
+	revision := "revision-1"
+	value := findingintake.Receipt{
+		ReceiptID: "receipt-1", ProposalID: "proposal-1",
+		Proposal: findingintake.ExactArtifact{
+			Ref: contracts.ArtifactRef{
+				Namespace: "finding-proposals", Name: "proposal-1", Revision: &revision,
+			},
+			Digest: "sha256:" + strings.Repeat("a", 64), MediaType: "application/json", SizeBytes: 2,
+		},
+		Origin: findingintake.Origin{RunID: grant.RunID},
+	}
+	f.receipts[input.SubmissionID] = value
+	return value, false, nil
+}
+
+func postFinding(t *testing.T, handler http.Handler, clientKey string) *httptest.ResponseRecorder {
+	t.Helper()
+	invocationID := "worker-invocation-1"
+	input := findingintake.Submission{
+		APIVersion: findingintake.APIVersion, InvocationID: invocationID,
+		SubmissionID: findingintake.StableSubmissionID(invocationID, clientKey),
+		Proposal: auditdomain.FindingProposal{
+			Schema: auditdomain.FindingProposalSchema, ClientKey: clientKey,
+			Title: "Candidate", Description: "Candidate description",
+			Subject:       auditdomain.FindingSubject{Kind: "code", Key: "handler"},
+			Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+			EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
+			Limitations: []string{},
+		},
+		EvidenceRefs: []contracts.ArtifactRef{},
+	}
+	body, err := json.Marshal(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := trustedRequest(
+		http.MethodPost, "/private/v1/allocations/allocation-1/finding-proposals",
+		bytes.NewReader(body),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
 }
 
 func (f *fakeRegistry) GetGrant(allocationID string) (controlplane.AllocationGrant, error) {

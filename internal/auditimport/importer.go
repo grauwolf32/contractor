@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -75,6 +76,9 @@ func (i *Importer) collect(
 	if err != nil {
 		return false, err
 	}
+	if err := i.retainFindingProposals(ctx, snapshot, execution); err != nil {
+		return false, err
+	}
 
 	switch *execution.TerminalOutcome {
 	case auditstore.TerminalFailed, auditstore.TerminalSubmissionFailed:
@@ -87,6 +91,55 @@ func (i *Importer) collect(
 		return i.collectSucceeded(ctx, claim, snapshot, execution, prepared)
 	default:
 		return false, fmt.Errorf("%w: terminal outcome is unsupported", ErrPermanent)
+	}
+}
+
+// retainFindingProposals runs before the collection receipt commits. The
+// transfer is independently idempotent, so a later collection retry resumes
+// safely. A Run can fail after committing a proposal; technical failure must
+// not erase that candidate or silently promote it to a confirmed finding.
+func (i *Importer) retainFindingProposals(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	execution auditstore.Execution,
+) error {
+	if i.findings == nil || execution.RunID == nil {
+		return nil
+	}
+	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+	if err != nil {
+		return fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
+	}
+	query := findingintake.ListQuery{Limit: 200}
+	for {
+		receipts, err := i.findings.ListRun(
+			ctx, snapshot.Audit.OwnerID, *execution.RunID, query,
+		)
+		if err != nil {
+			return fmt.Errorf("list Audit child finding proposals: %w", err)
+		}
+		if profile.Interaction.FindingConfirmation == config.AuditFindingDisabled && len(receipts) != 0 {
+			return fmt.Errorf("%w: findings-disabled Audit child produced a proposal", ErrPermanent)
+		}
+		for _, receipt := range receipts {
+			if receipt.Origin.Audit == nil || receipt.Origin.Audit.AuditID != snapshot.Audit.AuditID ||
+				receipt.Origin.Audit.ExecutionID != execution.ExecutionID ||
+				receipt.Origin.RunID != *execution.RunID {
+				return fmt.Errorf("%w: Audit child finding origin is inconsistent", ErrPermanent)
+			}
+			if _, _, err := i.findings.ImportIntoAudit(ctx, findingintake.ImportRequest{
+				OwnerID: snapshot.Audit.OwnerID, AuditID: snapshot.Audit.AuditID,
+				RunID: *execution.RunID, Proposal: receipt.Proposal.Ref,
+			}); err != nil {
+				return fmt.Errorf("retain Audit child finding proposal: %w", err)
+			}
+		}
+		if len(receipts) < query.Limit {
+			return nil
+		}
+		last := receipts[len(receipts)-1]
+		query.AfterCreatedAt = &last.CreatedAt
+		query.AfterReceiptID = last.ReceiptID
 	}
 }
 
