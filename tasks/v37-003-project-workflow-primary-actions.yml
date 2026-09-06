@@ -3,8 +3,8 @@ id: "V37-003"
 title: "Put Project source actions and Workflow Run setup at the start of the page"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "918fae30113b9df9f418d6ab949e4a5990cbf65b"
 depends_on: ["V28-003", "V33-001", "V35-004"]
 languages: ["typescript"]
 goal: "Expose the next useful Project and Workflow actions before long execution details."
