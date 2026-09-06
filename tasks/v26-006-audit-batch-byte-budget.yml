@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V26-006
+title: Bound Audit batches by task-package bytes before dispatch
+milestone: audit-batch-efficiency
+priority: P2
+status: completed
+implementation_commit: c5e19b5c3bc64e11fa002da0a3002486d58ec9e9
+depends_on: [V26-004]
+languages: [go]
+
+goal: >-
+  Keep a valid large set of individually valid Audit tasks runnable when the
+  configured item-count batch would exceed the independent Audit package byte
+  bounds.
+
+context:
+  specification: docs/spec/19-audits.md
+  failure: >-
+    V26-004 groups ready items only by batchSize. Three individually valid task
+    packages can exceed the 16 MiB stored task-set package limit, after which
+    trusted preparation reports dispatch_contract_invalid and prematurely moves
+    the whole Audit to finalizing.
+  policy: >-
+    AuditItem remains the logical unit and batchSize remains only a maximum item
+    count. The Controller must form a deterministic non-empty batch that also
+    fits the package byte envelope. A valid item that cannot join another item
+    is dispatched alone; package capacity is not a semantic Audit failure.
+
+scope:
+  in:
+    - Resolve exact task metadata in the trusted submission builder and apply a conservative deterministic task-set byte budget before any intent or payload read.
+    - Preserve ordinal order, compatibility envelopes, item attempt accounting and the existing count limit.
+    - Keep the single-item path able to use the full valid Audit task-package limit without wrapping it in a task set.
+    - Add regression coverage for three approximately 6 MiB task packages producing a two-item batch plus a later single-item Run rather than finalization.
+    - Clarify in the Audit specification that batchSize is jointly bounded by encoded package bytes.
+  out:
+    - Bin packing for optimal utilization, changing Audit package limits, partial item checkpoints or changing generic Artifact limits.
+
+requirements:
+  - id: R1
+    text: A task-set batch is selected only when its members plus bounded manifest and ZIP structure fit the current Audit archive limit.
+  - id: R2
+    text: Reducing a batch for capacity does not consume an attempt or settle any omitted item.
+  - id: R3
+    text: Invalid exact task content still fails closed; only ordinary multi-item capacity causes deterministic batch reduction.
+
+acceptance_criteria:
+  - id: A1
+    given: Three compatible ready items whose individually valid task packages are approximately 6 MiB and batchSize is three.
+    when: The Controller dispatches until no ready items remain.
+    then: It creates a two-member execution and a one-member execution without transitioning the Audit to finalizing for dispatch_contract_invalid.
+  - id: A2
+    given: One individually valid task package near the 16 MiB Audit package limit.
+    when: It is selected for dispatch.
+    then: It remains runnable through the unwrapped single-item input path.
+  - id: A3
+    given: Invalid task metadata or content rather than an ordinary multi-item capacity boundary.
+    when: Trusted preparation validates it.
+    then: Existing fail-closed dispatch behavior is preserved.
+
+tests:
+  - {name: controller, command: "go test -race -count=1 ./internal/auditcontroller -run 'Batch|TaskSet'", covers: [A1, A2, A3]}
+  - {name: regression, command: "go test -count=1 ./internal/auditcontroller ./internal/auditdomain", covers: [A1, A2, A3]}
