@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
@@ -1089,5 +1089,171 @@ describe("Project Audit routes", () => {
     );
     expect(pauseRequested).toBe(true);
     expect(screen.getByText("revision 3")).toBeVisible();
+  });
+
+  it("confirms Audit cancellation and deletion without duplicate mutations", async () => {
+    let current = auditAt("active", 2);
+    const mutations: Request[] = [];
+    let releaseCancel: (() => void) | undefined;
+    const cancelGate = new Promise<void>((resolve) => {
+      releaseCancel = resolve;
+    });
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example/cancel") {
+          mutations.push(request.clone());
+          await cancelGate;
+          current = auditAt("cancelled", 3);
+          return jsonResponse(current, {
+            status: 202,
+            headers: { ETag: '"3"' },
+          });
+        }
+        if (
+          path === "/v1/audits/audit_example" &&
+          request.method === "DELETE"
+        ) {
+          mutations.push(request.clone());
+          current = auditAt("deleting", 4);
+          return jsonResponse(current, {
+            status: 202,
+            headers: { ETag: '"4"' },
+          });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(current, {
+            headers: { ETag: `"${current.revision}"` },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    let dialog = screen.getByRole("alertdialog", {
+      name: "Cancel this Audit?",
+    });
+    expect(within(dialog).getByText(/Payment service/u)).toBeVisible();
+    expect(within(dialog).getByText("audit_example")).toBeVisible();
+    expect(
+      within(dialog).getByText("owasp-top10-2025-source-risk@1"),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Keep Audit unchanged" }),
+    ).toHaveFocus();
+    fireEvent.click(dialog.parentElement!);
+    expect(dialog).toBeVisible();
+    expect(mutations).toHaveLength(0);
+
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("alertdialog", { name: "Cancel this Audit?" }),
+    ).toBeNull();
+    expect(mutations).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    dialog = screen.getByRole("alertdialog", {
+      name: "Cancel this Audit?",
+    });
+    await user.dblClick(
+      within(dialog).getByRole("button", { name: "Confirm cancellation" }),
+    );
+    await vi.waitFor(() => expect(mutations).toHaveLength(1));
+    expect(mutations[0]?.headers.get("If-Match")).toBe('"2"');
+    expect(mutations[0]?.headers.get("Idempotency-Key")).toMatch(
+      /^mutate-audit-ui-/u,
+    );
+    releaseCancel?.();
+    await vi.waitFor(() =>
+      expect(screen.getByText("cancelled", { exact: true })).toBeVisible(),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    dialog = screen.getByRole("alertdialog", {
+      name: "Delete this Audit?",
+    });
+    expect(within(dialog).getByText(/Deletion is asynchronous/u)).toBeVisible();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Begin Audit deletion" }),
+    );
+    await vi.waitFor(() => expect(mutations).toHaveLength(2));
+    expect(mutations[1]?.method).toBe("DELETE");
+    expect(mutations[1]?.headers.get("If-Match")).toBe('"3"');
+    await vi.waitFor(() =>
+      expect(screen.getByText("deleting", { exact: true })).toBeVisible(),
+    );
+  });
+
+  it("refreshes a stale destructive confirmation before an explicit retry", async () => {
+    let current = auditAt("active", 2);
+    const cancelRevisions: string[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example") {
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        }
+        if (path === "/v1/audits/audit_example/cancel") {
+          cancelRevisions.push(request.headers.get("If-Match") ?? "");
+          if (cancelRevisions.length === 1) {
+            current = auditAt("paused", 3);
+            return jsonResponse(
+              {
+                code: "precondition_failed",
+                message: "Audit revision changed",
+                retryable: false,
+                requestId: "request_stale_cancel",
+              },
+              { status: 412 },
+            );
+          }
+          current = auditAt("cancelled", 4);
+          return jsonResponse(current, {
+            status: 202,
+            headers: { ETag: '"4"' },
+          });
+        }
+        if (path === "/v1/audits/audit_example") {
+          return jsonResponse(current, {
+            headers: { ETag: `"${current.revision}"` },
+          });
+        }
+        throw new Error(`unexpected ${request.method} ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/audits/audit_example");
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirm cancellation" }),
+    );
+    expect(
+      await screen.findByText("The Audit revision changed.", { exact: false }),
+    ).toBeVisible();
+    await vi.waitFor(() =>
+      expect(screen.getByText(/paused · revision 3/u)).toBeVisible(),
+    );
+    expect(cancelRevisions).toEqual(['"2"']);
+
+    await user.click(
+      screen.getByRole("button", { name: "Confirm cancellation" }),
+    );
+    await vi.waitFor(() => expect(cancelRevisions).toEqual(['"2"', '"3"']));
+    await vi.waitFor(() =>
+      expect(screen.getByText("cancelled", { exact: true })).toBeVisible(),
+    );
   });
 });

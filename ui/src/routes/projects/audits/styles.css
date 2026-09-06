@@ -116,6 +116,19 @@
   flex-basis: 100%;
 }
 
+.audit-mutation-dialog {
+  width: min(100%, 42rem);
+  border-color: #753f42;
+}
+
+.audit-mutation-identity code {
+  overflow-wrap: anywhere;
+}
+
+.audit-mutation-actions {
+  justify-content: flex-end;
+}
+
 .audit-section-navigation {
   display: flex;
   position: sticky;

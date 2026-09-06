@@ -1030,8 +1030,35 @@ test("Audit UI reviews exact evidence and completes destructive lifecycle contro
   ).toBeVisible();
   await expect(page.getByText(/not a certification/u)).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
+  let confirmation = page.getByRole("alertdialog", {
+    name: "Cancel this Audit?",
+  });
+  await expect(confirmation).toContainText(project.name);
+  await expect(confirmation).toContainText(auditId);
+  await expect(
+    confirmation.getByRole("button", { name: "Keep Audit unchanged" }),
+  ).toBeFocused();
+  await confirmation
+    .getByRole("button", { name: "Keep Audit unchanged" })
+    .click();
+  expect(mutations).toHaveLength(1);
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  confirmation = page.getByRole("alertdialog", {
+    name: "Cancel this Audit?",
+  });
+  await confirmation
+    .getByRole("button", { name: "Confirm cancellation" })
+    .click();
   await expect(page.getByText("cancelled", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Delete" }).click();
+  confirmation = page.getByRole("alertdialog", {
+    name: "Delete this Audit?",
+  });
+  await expect(confirmation).toContainText("Deletion is asynchronous");
+  await confirmation
+    .getByRole("button", { name: "Begin Audit deletion" })
+    .click();
   await expect(page.getByText("deleting", { exact: true })).toBeVisible();
 
   expect(mutations).toEqual([

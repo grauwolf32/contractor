@@ -3,7 +3,9 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -38,6 +40,7 @@ import { usePublicAPI } from "../../../api/context";
 import { PublicAPIError } from "../../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
+import { Dialog } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import {
   ErrorNotice,
@@ -147,9 +150,159 @@ function AuditMutationNotice({ error }: { error: unknown }) {
   );
 }
 
-function AuditControls({ audit }: { audit: Audit }) {
+type DestructiveAuditAction = Extract<AuditMutationAction, "cancel" | "delete">;
+
+function auditActionAllowed(
+  audit: Audit,
+  action: DestructiveAuditAction,
+): boolean {
+  if (action === "cancel") {
+    return (
+      audit.state === "active" ||
+      audit.state === "waiting_review" ||
+      audit.state === "paused" ||
+      audit.state === "finalizing"
+    );
+  }
+  return (
+    audit.state === "draft" ||
+    audit.state === "completed" ||
+    audit.state === "cancelled" ||
+    audit.state === "failed"
+  );
+}
+
+function AuditMutationDialog({
+  action,
+  audit,
+  projectName,
+  error,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  action: DestructiveAuditAction;
+  audit: Audit;
+  projectName: string | undefined;
+  error: unknown;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const heading = useId();
+  const description = useId();
+  const safeAction = useRef<HTMLButtonElement>(null);
+  const allowed = auditActionAllowed(audit, action);
+  const cancelling = action === "cancel";
+  return (
+    <Dialog
+      className="project-dialog panel audit-mutation-dialog"
+      labelledBy={heading}
+      describedBy={description}
+      initialFocusRef={safeAction}
+      onRequestClose={onClose}
+      role="alertdialog"
+    >
+      <div className="project-dialog-heading">
+        <div>
+          <p className="eyebrow">Destructive Audit action</p>
+          <h2 id={heading}>
+            {cancelling ? "Cancel this Audit?" : "Delete this Audit?"}
+          </h2>
+        </div>
+        <button
+          className="project-dialog-close"
+          type="button"
+          aria-label="Close Audit confirmation"
+          disabled={pending}
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      <p id={description}>
+        {cancelling
+          ? "Cancellation closes dispatch and begins bounded cancellation, collection and release of child Runs. The Audit may remain cancelling while that cleanup finishes; retained evidence is not deleted."
+          : "Deletion is asynchronous. The Server closes dispatch, drains and collects owned Runs, releases retained evidence, and then purges Audit-managed artifacts and records."}
+      </p>
+      <dl className="metadata-grid audit-mutation-identity">
+        <div>
+          <dt>Project</dt>
+          <dd>
+            {projectName ?? audit.projectId} <code>{audit.projectId}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Audit</dt>
+          <dd>
+            <code>{audit.auditId}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Profile</dt>
+          <dd>
+            <code>
+              {audit.profile.name}@{audit.profile.version}
+            </code>
+          </dd>
+        </div>
+        <div>
+          <dt>Current state</dt>
+          <dd>
+            {audit.state} · revision {audit.revision}
+          </dd>
+        </div>
+      </dl>
+      {!allowed ? (
+        <div className="notice notice-warning" role="status">
+          <strong>This action is no longer available.</strong>
+          <p>
+            Authoritative state is now <code>{audit.state}</code>. Close this
+            confirmation and review the refreshed Audit.
+          </p>
+        </div>
+      ) : null}
+      {error === null ? null : <AuditMutationNotice error={error} />}
+      <div className="inline-actions audit-mutation-actions">
+        <button
+          ref={safeAction}
+          type="button"
+          className="secondary-button"
+          disabled={pending}
+          onClick={onClose}
+        >
+          Keep Audit unchanged
+        </button>
+        <button
+          type="button"
+          className="danger-button"
+          disabled={pending || !allowed}
+          onClick={onConfirm}
+        >
+          {pending
+            ? cancelling
+              ? "Cancelling…"
+              : "Starting deletion…"
+            : cancelling
+              ? "Confirm cancellation"
+              : "Begin Audit deletion"}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+function AuditControls({
+  audit,
+  projectName,
+}: {
+  audit: Audit;
+  projectName: string | undefined;
+}) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
+  const [confirmation, setConfirmation] = useState<DestructiveAuditAction>();
+  const destructiveRequestInFlight = useRef(false);
   const [keyring] = useState(
     () =>
       new MutationDraftKeyring<{
@@ -172,6 +325,7 @@ function AuditControls({ audit }: { audit: Audit }) {
       });
     },
     onSuccess: async (result) => {
+      setConfirmation(undefined);
       const updated = auditMutationAudit(result);
       queryClient.setQueryData(
         queryKeys.audits.detail(updated.auditId),
@@ -197,7 +351,28 @@ function AuditControls({ audit }: { audit: Audit }) {
         queryKey: queryKeys.audits.detail(audit.auditId),
       });
     },
+    onSettled: () => {
+      destructiveRequestInFlight.current = false;
+    },
   });
+  function closeConfirmation(): void {
+    if (mutation.isPending) return;
+    mutation.reset();
+    setConfirmation(undefined);
+  }
+  function confirmDestructiveAction(): void {
+    if (
+      confirmation === undefined ||
+      mutation.isPending ||
+      destructiveRequestInFlight.current ||
+      !auditActionAllowed(audit, confirmation)
+    ) {
+      return;
+    }
+    destructiveRequestInFlight.current = true;
+    mutation.reset();
+    mutation.mutate(confirmation);
+  }
   const buttons: Array<{
     action: AuditMutationAction;
     label: string;
@@ -234,17 +409,35 @@ function AuditControls({ audit }: { audit: Audit }) {
           className={button.dangerous ? "danger-button" : "secondary-button"}
           type="button"
           disabled={mutation.isPending}
-          onClick={() => mutation.mutate(button.action)}
+          onClick={() => {
+            if (button.dangerous) {
+              mutation.reset();
+              setConfirmation(button.action as DestructiveAuditAction);
+            } else {
+              mutation.mutate(button.action);
+            }
+          }}
         >
           {mutation.isPending && mutation.variables === button.action
             ? `${button.label}…`
             : button.label}
         </button>
       ))}
-      {mutation.error === null ? null : (
+      {confirmation === undefined && mutation.error !== null ? (
         <div className="audit-control-error">
           <AuditMutationNotice error={mutation.error} />
         </div>
+      ) : null}
+      {confirmation === undefined ? null : (
+        <AuditMutationDialog
+          action={confirmation}
+          audit={audit}
+          projectName={projectName}
+          error={mutation.error}
+          pending={mutation.isPending}
+          onClose={closeConfirmation}
+          onConfirm={confirmDestructiveAction}
+        />
       )}
     </div>
   );
@@ -1626,7 +1819,9 @@ export function ProjectAuditDetailRoute() {
         )}
       </header>
       {project.error === null ? null : <ErrorNotice error={project.error} />}
-      {audit.data === undefined ? null : <AuditControls audit={audit.data} />}
+      {audit.data === undefined ? null : (
+        <AuditControls audit={audit.data} projectName={project.data?.name} />
+      )}
       <nav className="audit-section-navigation" aria-label="Audit sections">
         {SECTIONS.map((candidate) => {
           const target =
