@@ -49,6 +49,13 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
         ref: {name: sorted(channels) for name, channels in factory.infrastructure_channels.items()}
         for ref, factory in factories.items()
     }
+    # Registered contracts are not installed execution factories before V31-006.
+    from contractor_runtime.sandbox_contracts import EXECUTION_CHANNELS, EXECUTION_TOOLSET
+
+    assert EXECUTION_TOOLSET not in factories
+    actual[EXECUTION_TOOLSET] = {
+        name: sorted(channels) for name, channels in EXECUTION_CHANNELS.items()
+    }
     assert actual == fixture["toolsets"]
 
 

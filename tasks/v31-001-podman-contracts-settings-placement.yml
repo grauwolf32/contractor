@@ -59,3 +59,20 @@ acceptance_criteria:
 tests:
   - {name: runtime-contracts, command: "cd runtime && uv run pytest -W error tests/test_podman_settings.py tests/test_podman_contracts.py tests/test_capabilities.py", covers: [A1, A2, A3]}
   - {name: authoring-placement, command: "go test -count=1 ./internal/config ./internal/scheduler", covers: [A1, A3]}
+  - {name: placement-registry, command: "go test -count=1 ./internal/controlplane", covers: [A1, A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  results:
+    - Runtime contract/settings/capability gate passed, 126 tests with warnings treated as errors.
+    - Extended settings and allocation regression gate passed, 182 tests with warnings treated as errors.
+    - Config, Scheduler and Control Plane tests passed with count=1, including authoring and binding-specific local direct placement.
+    - >-
+      make verify passed: formatting, lint, Go tests/build, 1107 Runtime tests
+      (three live LLM Gateway tests skipped), UI generation/lint/typecheck,
+      233 UI tests, six UI server tests and production build.
+    - Final isolated execution-channel validation was rechecked by the targeted Go and Runtime gates.
+  boundaries:
+    - No Podman engine invocation, image provisioning, execution factory or capability advertisement is introduced.
+    - CLI policy validation does not prove engine/image/supervisor availability; those gates remain V31-002 through V31-006.
+    - Workspace cwd validation is lexical here; execution-time rooted directory validation and shared guard ownership remain V31-005.

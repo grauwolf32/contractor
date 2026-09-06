@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import WorkspaceStorageV2
+from contractor_runtime.podman_settings import PodmanSettings, add_podman_arguments, podman_settings
 
 LOCAL_WORKSPACE_DEFAULTS = (50_000, 2 << 30, 256 << 20, 16 << 20)
 MEMORY_WORKSPACE_DEFAULTS = (10_000, 256 << 20, 64 << 20, 4 << 20)
@@ -44,6 +45,7 @@ class Settings:
     initial_labels: tuple[str, ...] = ()
     enabled_runtime_adapters: tuple[str, ...] | None = None
     workspace: WorkspaceSettings | None = None
+    podman: PodmanSettings = field(default_factory=PodmanSettings)
     host: str = "127.0.0.1"
     port: int = 9443
     heartbeat_interval_seconds: float = 10.0
@@ -64,6 +66,7 @@ def parse_settings(
 ) -> Settings:
     values = os.environ if environ is None else environ
     parser = argparse.ArgumentParser(prog="contractor-runtime")
+    add_podman_arguments(parser, values)
     parser.add_argument("--control-plane-url", default=values.get("CONTRACTOR_CONTROL_PLANE_URL"))
     parser.add_argument(
         "--advertised-control-url", default=values.get("CONTRACTOR_ADVERTISED_CONTROL_URL")
@@ -173,6 +176,9 @@ def parse_settings(
     initial_labels = _initial_labels(parser, args.initial_label, values)
     enabled_runtime_adapters = _runtime_adapters(parser, args.runtime_adapter, values)
     workspace = _workspace_settings(parser, args)
+    podman = podman_settings(parser, args)
+    if podman.enabled and (workspace is None or workspace.storage != "local"):
+        parser.error("enabled podman requires --workspace-storage local")
 
     return Settings(
         control_plane_url=control_plane_url,
@@ -184,6 +190,7 @@ def parse_settings(
         initial_labels=initial_labels,
         enabled_runtime_adapters=enabled_runtime_adapters,
         workspace=workspace,
+        podman=podman,
         host=host,
         port=port,
         heartbeat_interval_seconds=heartbeat,

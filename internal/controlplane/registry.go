@@ -1079,6 +1079,9 @@ func isCompatible(
 	template contracts.ResolvedAgentTemplate,
 	workspace *contracts.AllocationWorkspaceSpecV2,
 ) bool {
+	if !workflowconfig.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
+		return false
+	}
 	runtime := template.Runtime.RuntimeID + "@" + template.Runtime.Version
 	if !contains(registration.SupportedRuntimes, runtime) {
 		return false

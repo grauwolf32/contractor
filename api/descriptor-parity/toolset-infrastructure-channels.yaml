@@ -13,6 +13,8 @@ toolsets:
     caido_workflow_list: [caido-graphql-client]
     caido_workflow_run: [caido-graphql-client]
   code-analysis@1: {}
+  code-execution@1:
+    exec_command: [sandbox-execution]
   edit-files@1: {}
   filesystem@1: {}
   http-tools@1:

@@ -144,10 +144,18 @@ class SandboxFactory(Protocol):
 
 
 InfrastructureChannel = Literal[
-    "caido-graphql-client", "runtime-http-client", "runtime-subprocess-launcher"
+    "caido-graphql-client",
+    "runtime-http-client",
+    "runtime-subprocess-launcher",
+    "sandbox-execution",
 ]
 INFRASTRUCTURE_CHANNELS = frozenset(
-    {"caido-graphql-client", "runtime-http-client", "runtime-subprocess-launcher"}
+    {
+        "caido-graphql-client",
+        "runtime-http-client",
+        "runtime-subprocess-launcher",
+        "sandbox-execution",
+    }
 )
 
 
@@ -294,6 +302,11 @@ def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:
     channels = getattr(factory, "infrastructure_channels", None)
     if not isinstance(channels, Mapping):
         raise ValueError(f"Toolset {ref!r} has no infrastructure-channel descriptor")
+    if ref == "code-execution@1" and (
+        factory.exported_tools != frozenset({"exec_command"})
+        or dict(channels) != {"exec_command": frozenset({"sandbox-execution"})}
+    ):
+        raise ValueError("sandbox execution requires its exact isolated Toolset channel")
     if not set(channels) <= factory.exported_tools:
         raise ValueError(f"Toolset {ref!r} describes a channel for an unknown tool")
     for tool, selected in channels.items():
@@ -303,3 +316,9 @@ def _validate_toolset_channels(ref: str, factory: ToolsetFactory) -> None:
             or not selected <= INFRASTRUCTURE_CHANNELS
         ):
             raise ValueError(f"Toolset {ref!r} has invalid channels for {tool!r}")
+        if "sandbox-execution" in selected and (
+            ref != "code-execution@1"
+            or tool != "exec_command"
+            or selected != frozenset({"sandbox-execution"})
+        ):
+            raise ValueError("sandbox execution requires its exact isolated Toolset channel")

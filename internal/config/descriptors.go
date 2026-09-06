@@ -13,6 +13,7 @@ const (
 	RuntimeHTTPClient         ToolInfrastructureChannel = "runtime-http-client"
 	RuntimeSubprocessLauncher ToolInfrastructureChannel = "runtime-subprocess-launcher"
 	CaidoGraphQLClient        ToolInfrastructureChannel = "caido-graphql-client"
+	SandboxExecution          ToolInfrastructureChannel = "sandbox-execution"
 )
 
 // ToolsetDescriptor is the Server-visible part of one runtime ToolsetFactory.
@@ -23,23 +24,33 @@ const (
 // Audit compatibility checks; model text and tool names are never trusted to
 // infer those effects at start time.
 type ToolsetDescriptor struct {
+	RequiredSandboxProfile string
 	Tools                  []string
 	InfrastructureChannels map[string][]ToolInfrastructureChannel
 	ActiveCheckTools       []string
 	FindingProposalTools   []string
 }
 
-// Descriptors enumerates code-backed factories that configuration is allowed
-// to select. Map keys use exact <id>@<version> selectors.
+// SandboxProfileDescriptor describes authoring and binding-specific placement
+// requirements, not proof that a Runtime has installed the implementation.
+type SandboxProfileDescriptor struct {
+	WorkspaceMode    contracts.WorkspaceModeV2
+	WorkspaceStorage contracts.WorkspaceStorageV2
+}
+
+// Descriptors enumerates registered contracts that configuration is allowed to
+// select. Installation/readiness is checked separately against Runtime discovery.
+// Map keys use exact <id>@<version> selectors.
 type Descriptors struct {
 	PlannerFactories map[string]struct{}
 	WorkerRuntimes   map[string]struct{}
 	Toolsets         map[string]ToolsetDescriptor
-	SandboxProfiles  map[string]struct{}
+	SandboxProfiles  map[string]SandboxProfileDescriptor
 }
 
-// MVPDescriptors returns every code-backed implementation available to strict
-// Workflow configuration in the current executable slice.
+// MVPDescriptors returns contracts available to strict Workflow configuration.
+// Podman/execution descriptors are registered before their Runtime factories;
+// their presence here must never be interpreted as fleet capability.
 func MVPDescriptors() Descriptors {
 	return Descriptors{
 		PlannerFactories: map[string]struct{}{
@@ -51,6 +62,13 @@ func MVPDescriptors() Descriptors {
 			"adk@1": {},
 		},
 		Toolsets: map[string]ToolsetDescriptor{
+			"code-execution@1": {
+				Tools:                  []string{"exec_command"},
+				RequiredSandboxProfile: "podman@1",
+				InfrastructureChannels: map[string][]ToolInfrastructureChannel{
+					"exec_command": {SandboxExecution},
+				},
+			},
 			"audit-results@1": {
 				Tools: []string{"read_audit_task", "submit_check_result"},
 			},
@@ -149,7 +167,8 @@ func MVPDescriptors() Descriptors {
 				Tools: []string{"changed_paths", "diff", "rollback_changes"},
 			},
 		},
-		SandboxProfiles: map[string]struct{}{
+		SandboxProfiles: map[string]SandboxProfileDescriptor{
+			"podman@1":        {WorkspaceMode: contracts.WorkspaceModeDirect, WorkspaceStorage: contracts.WorkspaceStorageLocal},
 			"local-workdir@1": {},
 		},
 	}
@@ -160,7 +179,7 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 		PlannerFactories: make(map[string]struct{}, len(input.PlannerFactories)),
 		WorkerRuntimes:   make(map[string]struct{}, len(input.WorkerRuntimes)),
 		Toolsets:         make(map[string]ToolsetDescriptor, len(input.Toolsets)),
-		SandboxProfiles:  make(map[string]struct{}, len(input.SandboxProfiles)),
+		SandboxProfiles:  make(map[string]SandboxProfileDescriptor, len(input.SandboxProfiles)),
 	}
 
 	for raw := range input.PlannerFactories {
@@ -175,13 +194,27 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 		}
 		result.WorkerRuntimes[raw] = struct{}{}
 	}
-	for raw := range input.SandboxProfiles {
+	for raw, descriptor := range input.SandboxProfiles {
 		if _, err := ParseSelector(raw); err != nil {
 			return Descriptors{}, fmt.Errorf("invalid SandboxProfile descriptor %q: %w", raw, err)
 		}
-		result.SandboxProfiles[raw] = struct{}{}
+		if descriptor.WorkspaceMode != "" && descriptor.WorkspaceMode != contracts.WorkspaceModeDirect && descriptor.WorkspaceMode != contracts.WorkspaceModeOverlay {
+			return Descriptors{}, fmt.Errorf("invalid workspace mode for SandboxProfile %q", raw)
+		}
+		if descriptor.WorkspaceStorage != "" && (descriptor.WorkspaceMode == "" || (descriptor.WorkspaceStorage != contracts.WorkspaceStorageLocal && descriptor.WorkspaceStorage != contracts.WorkspaceStorageMemory)) {
+			return Descriptors{}, fmt.Errorf("invalid workspace storage for SandboxProfile %q", raw)
+		}
+		result.SandboxProfiles[raw] = descriptor
 	}
 	for raw, descriptor := range input.Toolsets {
+		if raw == "code-execution@1" && !validExecutionDescriptor(descriptor) {
+			return Descriptors{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
+		}
+		if descriptor.RequiredSandboxProfile != "" {
+			if _, ok := result.SandboxProfiles[descriptor.RequiredSandboxProfile]; !ok {
+				return Descriptors{}, fmt.Errorf("Toolset %q requires an unknown SandboxProfile", raw)
+			}
+		}
 		if _, err := ParseSelector(raw); err != nil {
 			return Descriptors{}, fmt.Errorf("invalid Toolset descriptor %q: %w", raw, err)
 		}
@@ -209,11 +242,16 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 			sort.Slice(selected, func(i, j int) bool { return selected[i] < selected[j] })
 			for index, channel := range selected {
 				if channel != RuntimeHTTPClient && channel != RuntimeSubprocessLauncher &&
-					channel != CaidoGraphQLClient {
+					channel != CaidoGraphQLClient && channel != SandboxExecution {
 					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has invalid channel for tool %q", raw, tool)
 				}
 				if index > 0 && channel == selected[index-1] {
 					return Descriptors{}, fmt.Errorf("Toolset descriptor %q has duplicate channel for tool %q", raw, tool)
+				}
+			}
+			for _, channel := range selected {
+				if channel == SandboxExecution && (raw != "code-execution@1" || tool != "exec_command" || len(selected) != 1 || descriptor.RequiredSandboxProfile != "podman@1") {
+					return Descriptors{}, fmt.Errorf("sandbox execution requires its exact isolated Toolset channel")
 				}
 			}
 			channels[tool] = selected
@@ -227,12 +265,21 @@ func normalizeDescriptors(input Descriptors) (Descriptors, error) {
 			return Descriptors{}, err
 		}
 		result.Toolsets[raw] = ToolsetDescriptor{
-			Tools: tools, InfrastructureChannels: channels,
+			RequiredSandboxProfile: descriptor.RequiredSandboxProfile,
+			Tools:                  tools, InfrastructureChannels: channels,
 			ActiveCheckTools: active, FindingProposalTools: findings,
 		}
 	}
 
 	return result, nil
+}
+
+func validExecutionDescriptor(descriptor ToolsetDescriptor) bool {
+	channels := descriptor.InfrastructureChannels["exec_command"]
+	return len(descriptor.Tools) == 1 && descriptor.Tools[0] == "exec_command" &&
+		descriptor.RequiredSandboxProfile == "podman@1" &&
+		len(descriptor.InfrastructureChannels) == 1 && len(channels) == 1 &&
+		channels[0] == SandboxExecution
 }
 
 func normalizeToolClassification(

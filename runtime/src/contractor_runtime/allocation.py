@@ -59,6 +59,7 @@ from contractor_runtime.projectfs import (
     hydrate_workspace,
 )
 from contractor_runtime.resource_metrics import ProcessReading, ResourceCollector
+from contractor_runtime.sandbox_contracts import SandboxContractError, validate_sandbox_selection
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.worker_state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
@@ -638,6 +639,16 @@ class AllocationService:
 
     def _validate_spec(self, spec: AllocationSpec) -> None:
         capabilities = self._capabilities or self._state.capabilities
+        provider = self._factories.workspace_provider
+        try:
+            validate_sandbox_selection(spec, provider.capability.storage if provider else None)
+        except SandboxContractError as error:
+            raise AllocationError(
+                error.code.value,
+                "incompatible sandbox, Toolset or workspace selection",
+                retryable=False,
+                status_code=422,
+            ) from None
         try:
             normalize_run_metadata_labels(spec.run_metadata_labels)
         except (TypeError, ValueError, AttributeError, UnicodeError):

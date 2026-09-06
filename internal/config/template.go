@@ -92,6 +92,9 @@ func (l *loader) resolveAgentTemplate(
 			Version:          sandbox.Version,
 		},
 	}
+	if err := l.descriptors.ValidateSandboxToolCompatibility(result); err != nil {
+		return contracts.ResolvedAgentTemplate{}, err
+	}
 	digest, err := agentTemplateDigest(selector, result)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("compute AgentTemplate digest: %w", err)

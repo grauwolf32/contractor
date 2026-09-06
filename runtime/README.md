@@ -49,6 +49,9 @@ V30-004 passed these gates and `make verify` on 2026-09-06; evidence is recorded
 [`tasks/v30-004-local-direct-release-gate.yml`](../tasks/v30-004-local-direct-release-gate.yml).
 These changes expose no command-execution Toolset or Podman capability.
 
+The opt-in Podman contract and startup settings are documented in
+[Podman policy](PODMAN.md). The execution backend is not installed yet.
+
 The listener requires both a deployment-CA client certificate and the reserved
 Control Plane URI SAN before HTTP dispatch. Readiness remains false until the
 listener is accepting and registration has succeeded.

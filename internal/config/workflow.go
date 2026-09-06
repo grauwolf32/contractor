@@ -246,7 +246,7 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return ResolvedStage{}, err
 	}
-	if err := validateStageWorkspace(context, result, agents); err != nil {
+	if err := validateStageWorkspace(context, result, agents, l.descriptors); err != nil {
 		return ResolvedStage{}, err
 	}
 	if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
@@ -464,10 +464,23 @@ func validateStageWorkspace(
 	context StageContext,
 	result StageResultContract,
 	agents map[string]ResolvedAgentBinding,
+	registered ...Descriptors,
 ) error {
+	descriptors := MVPDescriptors()
+	if len(registered) > 0 {
+		descriptors = registered[0]
+	}
 	workspaceToolsets := false
 	changesToolset := false
 	for _, agent := range agents {
+		if err := descriptors.ValidateSandboxToolCompatibility(agent.Template); err != nil {
+			return err
+		}
+		profile := agent.Template.SandboxProfile.SandboxProfileID + "@" + agent.Template.SandboxProfile.Version
+		required := descriptors.SandboxProfiles[profile]
+		if required.WorkspaceMode != "" && (context.Workspace == nil || context.Workspace.Mode != required.WorkspaceMode) {
+			return fmt.Errorf("SandboxProfile %s requires context.workspace.mode %s", profile, required.WorkspaceMode)
+		}
 		for _, selection := range agent.Template.Toolsets {
 			ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
 			switch ref {
