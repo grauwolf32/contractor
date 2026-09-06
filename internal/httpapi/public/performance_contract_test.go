@@ -37,6 +37,12 @@ func TestPerformancePublicContracts(t *testing.T) {
 	for _, name := range []string{"PerformanceSnapshot", "PerformanceHistory", "AllocationResourceSummary"} {
 		validate(name, document.Components.Schemas[name].Value.Example, true)
 	}
+	collector := performance.New(performance.Options{})
+	collector.Collect()
+	if collector.Snapshot().Current == nil {
+		t.Fatal("real process sample unavailable")
+	}
+	validate("PerformanceSample", collector.Snapshot().Current, true)
 	at := time.Date(2026, 9, 6, 10, 0, 0, 0, time.UTC)
 	for _, state := range []struct {
 		status performance.Status

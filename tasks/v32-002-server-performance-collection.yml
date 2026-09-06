@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: V32-002
+title: Collect bounded Server HTTP, process and pool performance every 15 seconds
+milestone: operations-performance-and-profiling
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V32-001]
+languages: [go]
+
+goal: >-
+  Provide cheap, truthful in-memory Server performance without tying collection
+  to browser polling or changing HTTP streaming and execution behavior.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  composition: >-
+    The performance flag defaults true; false installs no new HTTP instrumentation,
+    sampler, performance buffer, timer or writer. Existing telemetry, budget
+    enforcement and readiness continue. Use a dedicated internal/performance
+    package rather than mixing operational samples into StageMetrics.
+  bounds: >-
+    Sample every 15 seconds using monotonic durations and UTC display timestamps.
+    Keep at most 240 completed frames plus one active frame, 32 KiB encoded per
+    frame and 8 MiB of retained live frames. Missed ticks are skipped, never
+    replayed. No periodic heap/stack profiles or forced GC are allowed.
+
+scope:
+  in:
+    - Compose optional collection on public/private Server HTTP handlers with fixed-cardinality counters and duration histograms.
+    - Read process user/system CPU, RSS, selected Go runtime/GC counters and the existing working pgxpool.Stat every 15 seconds.
+    - Implement bounded rings, generation identity, sample coverage/freshness, safe errors and deterministic minute aggregation primitives for V32-003.
+    - Keep current samples readable from memory even if PostgreSQL becomes unavailable.
+    - Make health/readiness independent of metrics; use a working-pool dependency check bounded to one second for readyz.
+    - Add focused fake-clock, concurrent HTTP, collector and benchmark fixtures under internal/performance.
+  out:
+    - PostgreSQL diagnostic SELECTs, persistent history, allocation sampling, per-route breakdowns, host/container/subprocess metrics or pprof.
+
+requirements:
+  - id: R1
+    text: >-
+      Count completed requests by fixed public/private surface, method allowlist
+      plus other and status class plus no_response; track in-flight entry/exit
+      exactly once. Exclude health, readiness, performance-read APIs and profiling
+      traffic. Preserve implicit 200, panic/disconnect accounting, Flusher,
+      Hijacker, cancellation and WebSockets; upgrades measure handshake only.
+  - id: R2
+    text: >-
+      Per-surface histogram bounds in seconds are .005,.01,.025,.05,.1,.25,.5,1,
+      2.5,5,10,30,60,+Inf. Merge count/sum/buckets, never percentile values. Empty
+      windows have unknown quantiles; overflow quantiles are greater than 60s.
+      5xx/no_response are Server errors and 4xx are separate client responses.
+  - id: R3
+    text: >-
+      CPU cores equal delta user+system CPU seconds divided by measured elapsed
+      seconds. RSS, heap, goroutines, completed GC cycles/pause histogram and
+      acquired/idle/total/max pool connections have explicit units. Preserve pool
+      cumulative acquisition counts/times, empty-pool waits and cancellations;
+      mean successful acquisition time is not p95 or failed-acquire latency.
+  - id: R4
+    text: >-
+      Missing baselines, unsupported measurements, resets and process generations
+      produce unknown/gap data rather than negative deltas or fabricated zeros.
+      Count/histogram minute windows, time-based CPU deltas and last/min/max gauge
+      aggregation retain partial coverage without spanning restart boundaries.
+
+acceptance_criteria:
+  - id: A1
+    given: Enabled/disabled startup, fake time, unsupported OS readings and database outage.
+    when: Samples would become due or readiness is requested.
+    then: Disabled mode creates no collection work; enabled memory data remains bounded and available; readyz independently returns 503 within one second when its working DB path is unusable.
+  - id: A2
+    given: Concurrent ordinary, failed, cancelled, streaming and WebSocket requests plus arbitrary raw paths/methods.
+    when: Responses and snapshots complete.
+    then: Accounting is exact, interfaces remain usable and dimensions/memory stay bounded without counting observation traffic.
+  - id: A3
+    given: Histogram overflow, empty windows, delayed ticks, partial minutes, CPU reset and process restart.
+    when: Current values and minute aggregates are produced.
+    then: Rates, percentile estimates, gaps and coverage follow the declared semantics without replaying missed work.
+
+tests:
+  - {name: collectors-and-http, command: "go test -race -count=1 ./internal/performance ./internal/app ./internal/httpapi/public ./internal/httpapi/public/events", covers: [A1, A2, A3]}
+  - {name: microbenchmarks, command: "go test ./internal/performance -run '^$' -bench 'Performance|HTTP' -benchmem -count=5", covers: [A2, A3]}
+
+verification:
+  verified_on: "2026-09-06"
+  review_notes: docs/reviews/2026-09-06-performance-v32-002.md
+  results:
+    - Required race tests passed for performance, app, public handlers and WebSocket events.
+    - Required collection, minute aggregation and HTTP microbenchmarks passed with five repetitions.
+    - Public OpenAPI validation and generated TypeScript typecheck passed, including a real process sample.
+  boundary: >-
+    In-memory Server collection only. No diagnostic database queries, durable
+    history, allocation sampling, performance HTTP routes or profiling listener
+    are implemented here. Ambiguous cross-minute observation windows remain
+    available in fine history and produce explicit partial minute coverage,
+    never invented per-minute event counts. Unrelated workspace changes are
+    excluded from the implementation commit.

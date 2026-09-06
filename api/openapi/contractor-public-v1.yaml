@@ -5681,6 +5681,21 @@ components:
           maxItems: 2
           description: Exactly public then private.
           items: {$ref: '#/components/schemas/PerformanceHTTPSurface'}
+    PerformanceGCPauseHistogram:
+      type: object
+      additionalProperties: false
+      required: [boundsSeconds, counts]
+      description: Cumulative process-lifetime GC pause histogram with non-cumulative bucket populations. Bounds are finite upper edges; counts has one additional overflow bucket for positive infinity. Unknown/reset deltas are not zero.
+      properties:
+        boundsSeconds:
+          type: array
+          maxItems: 256
+          items: {$ref: '#/components/schemas/PerformanceNumber'}
+        counts:
+          type: array
+          minItems: 1
+          maxItems: 257
+          items: {$ref: '#/components/schemas/PerformanceInteger'}
     PerformanceProcess:
       type: object
       additionalProperties: false
@@ -5695,6 +5710,7 @@ components:
         goroutines: {$ref: '#/components/schemas/PerformanceInteger'}
         gcCycles: {$ref: '#/components/schemas/PerformanceInteger'}
         gcPauseSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        gcPauses: {$ref: '#/components/schemas/PerformanceGCPauseHistogram'}
     PerformancePool:
       type: object
       additionalProperties: false
@@ -5709,6 +5725,7 @@ components:
         acquireCount: {$ref: '#/components/schemas/PerformanceInteger'}
         acquireDurationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
         emptyAcquireCount: {$ref: '#/components/schemas/PerformanceInteger'}
+        emptyAcquireWaitSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
         canceledAcquireCount: {$ref: '#/components/schemas/PerformanceInteger'}
     PerformanceDatabase:
       type: object

@@ -34,6 +34,7 @@ import (
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/persistence/configaudit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
@@ -659,6 +660,16 @@ func RunCLI(
 	privateHandler := http.NewServeMux()
 	privateHandler.Handle("/private/v1/agents/", controlHandler)
 	privateHandler.Handle("/private/v1/allocations/", artifactHandler)
+	processHandler, instrumentedPrivate, performanceCollector := instrumentPerformance(
+		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
+		func() *performance.Collector {
+			return performance.New(performance.Options{ReadPool: performance.WorkingPoolReader(pool)})
+		},
+	)
+	runners := backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController}
+	if performanceCollector != nil {
+		runners = append(runners, performanceCollector)
+	}
 
 	publicListener, err := net.Listen("tcp", cfg.ListenAddress)
 	if err != nil {
@@ -676,9 +687,9 @@ func RunCLI(
 		privateListener,
 		cfg.ShutdownTimeout,
 		logger,
-		NewHandler(publicHandler),
-		privateHandler,
-		backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController},
+		processHandler,
+		instrumentedPrivate,
+		runners,
 	)
 }
 
@@ -740,9 +751,13 @@ func ServeHandler(
 // NewHandler composes unauthenticated process health routes with the optional
 // authenticated public API.
 func NewHandler(publicAPI ...http.Handler) http.Handler {
+	return newProcessHandler(http.HandlerFunc(writeHealthy), publicAPI...)
+}
+
+func newProcessHandler(readiness http.Handler, publicAPI ...http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", writeHealthy)
-	mux.HandleFunc("GET /readyz", writeHealthy)
+	mux.Handle("GET /readyz", readiness)
 	if len(publicAPI) == 1 && publicAPI[0] != nil {
 		mux.Handle("/v1/", publicAPI[0])
 	}

@@ -21,6 +21,16 @@ func (s Sample) Validate() error {
 	groups := make([]group, 0, 5)
 	if s.Process != nil {
 		groups = append(groups, group{&s.Process.Freshness, 15})
+		if h := s.Process.GCPauses; h != nil {
+			if len(h.BoundsSeconds) > MaxGCPauseBounds || len(h.Counts) != len(h.BoundsSeconds)+1 {
+				return errInvalidRecord
+			}
+			for i, bound := range h.BoundsSeconds {
+				if math.IsNaN(bound) || math.IsInf(bound, 0) || bound < 0 || (i > 0 && bound <= h.BoundsSeconds[i-1]) {
+					return errInvalidRecord
+				}
+			}
+		}
 	}
 	if s.Pool != nil {
 		groups = append(groups, group{&s.Pool.Freshness, 15})

@@ -3391,6 +3391,11 @@ export interface components {
             /** @description Exactly public then private. */
             surfaces: components["schemas"]["PerformanceHTTPSurface"][];
         };
+        /** @description Cumulative process-lifetime GC pause histogram with non-cumulative bucket populations. Bounds are finite upper edges; counts has one additional overflow bucket for positive infinity. Unknown/reset deltas are not zero. */
+        PerformanceGCPauseHistogram: {
+            boundsSeconds: components["schemas"]["PerformanceNumber"][];
+            counts: components["schemas"]["PerformanceInteger"][];
+        };
         PerformanceProcess: {
             freshness: components["schemas"]["PerformanceFreshness"];
             cpuUserSeconds?: components["schemas"]["PerformanceNumber"];
@@ -3401,6 +3406,7 @@ export interface components {
             goroutines?: components["schemas"]["PerformanceInteger"];
             gcCycles?: components["schemas"]["PerformanceInteger"];
             gcPauseSeconds?: components["schemas"]["PerformanceNumber"];
+            gcPauses?: components["schemas"]["PerformanceGCPauseHistogram"];
         };
         /** @description Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency. */
         PerformancePool: {
@@ -3412,6 +3418,7 @@ export interface components {
             acquireCount?: components["schemas"]["PerformanceInteger"];
             acquireDurationSeconds?: components["schemas"]["PerformanceNumber"];
             emptyAcquireCount?: components["schemas"]["PerformanceInteger"];
+            emptyAcquireWaitSeconds?: components["schemas"]["PerformanceNumber"];
             canceledAcquireCount?: components["schemas"]["PerformanceInteger"];
         };
         /** @description Aggregates for the current database only. Restricted visibility produces partial or unavailable data; resets invalidate deltas. No SQL text or per-backend records. */

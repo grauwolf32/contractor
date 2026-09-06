@@ -1,5 +1,5 @@
-// Package performance defines bounded operational records. It does not start
-// collectors, allocate history buffers, or register HTTP/profiling handlers.
+// Package performance collects bounded in-memory operational measurements.
+// Construction and lifecycle are explicit; importing it starts no work.
 package performance
 
 import "time"
@@ -97,27 +97,38 @@ type HTTP struct {
 }
 
 type Process struct {
-	Freshness        Freshness `json:"freshness"`
-	CPUUserSeconds   *float64  `json:"cpuUserSeconds,omitempty"`
-	CPUSystemSeconds *float64  `json:"cpuSystemSeconds,omitempty"`
-	CPUCores         *float64  `json:"cpuCores,omitempty"`
-	RSSBytes         *uint64   `json:"rssBytes,omitempty"`
-	HeapLiveBytes    *uint64   `json:"heapLiveBytes,omitempty"`
-	Goroutines       *uint64   `json:"goroutines,omitempty"`
-	GCCycles         *uint64   `json:"gcCycles,omitempty"`
-	GCPauseSeconds   *float64  `json:"gcPauseSeconds,omitempty"`
+	Freshness        Freshness         `json:"freshness"`
+	CPUUserSeconds   *float64          `json:"cpuUserSeconds,omitempty"`
+	CPUSystemSeconds *float64          `json:"cpuSystemSeconds,omitempty"`
+	CPUCores         *float64          `json:"cpuCores,omitempty"`
+	RSSBytes         *uint64           `json:"rssBytes,omitempty"`
+	HeapLiveBytes    *uint64           `json:"heapLiveBytes,omitempty"`
+	Goroutines       *uint64           `json:"goroutines,omitempty"`
+	GCCycles         *uint64           `json:"gcCycles,omitempty"`
+	GCPauseSeconds   *float64          `json:"gcPauseSeconds,omitempty"`
+	GCPauses         *GCPauseHistogram `json:"gcPauses,omitempty"`
+}
+
+const MaxGCPauseBounds = 256
+
+// Counts are non-cumulative bucket populations. Bounds are finite upper edges;
+// the final count covers +Inf, which is never emitted as a JSON number.
+type GCPauseHistogram struct {
+	BoundsSeconds []float64 `json:"boundsSeconds"`
+	Counts        []uint64  `json:"counts"`
 }
 
 type Pool struct {
-	Freshness              Freshness `json:"freshness"`
-	AcquiredConnections    *uint32   `json:"acquiredConnections,omitempty"`
-	IdleConnections        *uint32   `json:"idleConnections,omitempty"`
-	TotalConnections       *uint32   `json:"totalConnections,omitempty"`
-	MaxConnections         *uint32   `json:"maxConnections,omitempty"`
-	AcquireCount           *uint64   `json:"acquireCount,omitempty"`
-	AcquireDurationSeconds *float64  `json:"acquireDurationSeconds,omitempty"`
-	EmptyAcquireCount      *uint64   `json:"emptyAcquireCount,omitempty"`
-	CanceledAcquireCount   *uint64   `json:"canceledAcquireCount,omitempty"`
+	Freshness               Freshness `json:"freshness"`
+	AcquiredConnections     *uint32   `json:"acquiredConnections,omitempty"`
+	IdleConnections         *uint32   `json:"idleConnections,omitempty"`
+	TotalConnections        *uint32   `json:"totalConnections,omitempty"`
+	MaxConnections          *uint32   `json:"maxConnections,omitempty"`
+	AcquireCount            *uint64   `json:"acquireCount,omitempty"`
+	AcquireDurationSeconds  *float64  `json:"acquireDurationSeconds,omitempty"`
+	EmptyAcquireCount       *uint64   `json:"emptyAcquireCount,omitempty"`
+	EmptyAcquireWaitSeconds *float64  `json:"emptyAcquireWaitSeconds,omitempty"`
+	CanceledAcquireCount    *uint64   `json:"canceledAcquireCount,omitempty"`
 }
 
 type Database struct {
