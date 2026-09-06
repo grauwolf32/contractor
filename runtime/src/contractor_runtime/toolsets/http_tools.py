@@ -771,7 +771,28 @@ class _HTTPTool:
 
 class HTTPRequestTool(_HTTPTool):
     name = "http_request"
-    description = "Send one bounded HTTP/HTTPS request and retain its complete body as an artifact."
+    description = """Send an HTTP/HTTPS request and store the response body as an artifact.
+
+    Only a bounded text preview is returned inline. Use http_read_body to inspect
+    more text or binary content. Request bodies are limited to 1 MiB and response
+    bodies to 16 MiB.
+
+    Args:
+        url: Absolute HTTP or HTTPS URL.
+        method: GET, POST, PUT, PATCH, DELETE, HEAD or OPTIONS; defaults to GET.
+        headers: Per-request string headers merged over session defaults.
+        query: Query parameter mapping.
+        body: Payload shaped according to body_type.
+        body_type: "none" for no body, "json" for JSON data, "form" for a field
+            mapping, or "text" for a string; defaults to "none".
+        timeout: Positive timeout in seconds within the configured runtime cap;
+            omit to use that cap.
+        follow_redirects: Follow redirects up to the request limit; defaults to true.
+
+    Returns:
+        Request ID, response status and headers, body kind and preview, timing,
+        redirect/retry counts and an exact body artifact reference.
+    """
 
     async def __call__(
         self,
@@ -831,7 +852,17 @@ class HTTPRequestTool(_HTTPTool):
 
 class HTTPReadBodyTool(_HTTPTool):
     name = "http_read_body"
-    description = "Read one bounded text-character or binary-byte slice by HTTP request ID."
+    description = """Read a bounded slice of a response stored by http_request.
+
+    Args:
+        request_id: Integer request_id returned by http_request in this session.
+        offset: Zero-based character offset for text or byte offset for binary.
+        length: Maximum characters or bytes, from 1 to 8192; defaults to 8192.
+
+    Returns:
+        Text in data or base64 binary in data_b64, plus kind, unit, offset,
+        returned length, total length and eof.
+    """
 
     async def __call__(
         self,
@@ -862,7 +893,16 @@ class HTTPReadBodyTool(_HTTPTool):
 
 class HTTPHistoryTool(_HTTPTool):
     name = "http_history"
-    description = "List bounded HTTP request summaries from this allocation session, oldest first."
+    description = """List recent HTTP request summaries from this allocation session.
+
+    Args:
+        limit: Number of most recent requests to include, from 1 to 128;
+            defaults to 128.
+
+    Returns:
+        Summaries ordered oldest first within the selected recent requests.
+        Use http_read_body with a request_id to read its stored body.
+    """
 
     async def __call__(self, limit: int = MAX_HISTORY) -> list[dict[str, Any]]:
         started_ns = time.perf_counter_ns()
@@ -880,7 +920,22 @@ class HTTPHistoryTool(_HTTPTool):
 
 class HTTPSessionSetTool(_HTTPTool):
     name = "http_session_set"
-    description = "Replace selected allocation-memory HTTP headers, cookies or authentication."
+    description = """Update HTTP session cookies, default headers or authentication.
+
+    Omitted fields keep their current values. Supplied cookies and headers merge
+    by default; replacement flags clear their collections before applying values.
+
+    Args:
+        cookies: Cookie name-to-string-value mapping.
+        headers: Default header name-to-string-value mapping for future requests.
+        auth: {"kind": "bearer", "token": "..."}, {"kind": "basic",
+            "username": "...", "password": "..."}, or {"kind": "none"} to clear.
+        replace_cookies: Clear existing cookies before applying cookies; default false.
+        replace_headers: Clear existing headers before applying headers; default false.
+
+    Returns:
+        A redacted view of the updated session and its auth_kind.
+    """
 
     async def __call__(
         self,
@@ -923,7 +978,11 @@ class HTTPSessionSetTool(_HTTPTool):
 
 class HTTPSessionGetTool(_HTTPTool):
     name = "http_session_get"
-    description = "Return a redacted view of allocation-memory HTTP session state."
+    description = """Read the current HTTP session settings.
+
+    Returns:
+        A redacted view of cookies, default headers and auth_kind.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
@@ -940,7 +999,11 @@ class HTTPSessionGetTool(_HTTPTool):
 
 class HTTPSessionClearTool(_HTTPTool):
     name = "http_session_clear"
-    description = "Erase allocation-memory HTTP headers, cookies, auth and request history."
+    description = """Clear HTTP session cookies, default headers, authentication and history.
+
+    Returns:
+        The cleared session view. Previously persisted body artifacts remain stored.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()

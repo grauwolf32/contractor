@@ -1124,7 +1124,20 @@ class _BaseCodeAnalysisTool:
 
 class SearchDefinitionTool(_BaseCodeAnalysisTool):
     name = "search_def"
-    description = "Find structural symbol definitions in the current project workspace."
+    description = """Find structural symbol definitions in the current project workspace.
+
+    Args:
+        symbol: Symbol name to match.
+        path: Project-relative file or subtree; empty searches the whole workspace.
+        language: Supported language name, such as "python"; empty includes all.
+        cursor: Opaque nextCursor from the same query; empty starts a new search.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum definitions per page, from 1 to 200; defaults to 50.
+
+    Returns:
+        Definition items with source locations, observedTotal, nextCursor,
+        truncated and coverage. Only structurally parsed definitions are returned.
+    """
 
     async def __call__(
         self,
@@ -1149,7 +1162,19 @@ class SearchDefinitionTool(_BaseCodeAnalysisTool):
 
 class ListSymbolsTool(_BaseCodeAnalysisTool):
     name = "list_symbols"
-    description = "List structural symbol definitions in the current project workspace."
+    description = """List structural symbol definitions in the current project workspace.
+
+    Args:
+        path: Project-relative file or subtree; empty scans the whole workspace.
+        language: Supported language name, such as "python"; empty includes all.
+        node_type: Symbol kind, such as "function" or "class"; empty includes all.
+        cursor: Opaque nextCursor from the same query; empty starts a new listing.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum symbols per page, from 1 to 200; defaults to 100.
+
+    Returns:
+        Symbol items and locations, observedTotal, nextCursor, truncated and coverage.
+    """
 
     async def __call__(
         self,
@@ -1174,7 +1199,14 @@ class ListSymbolsTool(_BaseCodeAnalysisTool):
 
 class GraphSummaryTool(_BaseCodeAnalysisTool):
     name = "graph_summary"
-    description = "Report bounded structural graph counts for the current project workspace."
+    description = """Report the size and coverage of the current workspace code graph.
+
+    Use this before graph queries to understand which source was analyzed.
+
+    Returns:
+        nodeCount, callEdgeCount, entrypointCount, languages and coverage.
+        Missing edges or entrypoints may reflect analysis coverage limits.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
@@ -1192,7 +1224,19 @@ class GraphSummaryTool(_BaseCodeAnalysisTool):
 
 class FindSymbolTool(_BaseCodeAnalysisTool):
     name = "find_symbol"
-    description = "Resolve a symbol name to every matching exact graph symbol ID."
+    description = """Resolve a symbol query to matching exact graph symbol IDs.
+
+    Use the returned IDs in caller, callee and path queries.
+
+    Args:
+        query: Symbol name or exact graph symbol ID to look up.
+        cursor: Opaque nextCursor from the same query; empty starts a new search.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum symbols per page, from 1 to 200; defaults to 50.
+
+    Returns:
+        Matching symbol items and locations, nextCursor, truncated and coverage.
+    """
 
     async def __call__(
         self,
@@ -1215,7 +1259,18 @@ class FindSymbolTool(_BaseCodeAnalysisTool):
 
 class FindCallersTool(_BaseCodeAnalysisTool):
     name = "find_callers"
-    description = "List direct callers of one exact graph symbol ID."
+    description = """List direct callers of an exact graph symbol.
+
+    Args:
+        symbol_id: Exact ID returned by find_symbol; resolve names before calling.
+        cursor: Opaque nextCursor from the same query; empty starts a new listing.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum callers per page, from 1 to 200; defaults to 100.
+
+    Returns:
+        Caller items with edge metadata, nextCursor, truncated and coverage.
+        An empty result is limited to the analyzed graph.
+    """
 
     async def __call__(
         self,
@@ -1238,7 +1293,18 @@ class FindCallersTool(_BaseCodeAnalysisTool):
 
 class FindCalleesTool(_BaseCodeAnalysisTool):
     name = "find_callees"
-    description = "List direct callees of one exact graph symbol ID."
+    description = """List direct callees of an exact graph symbol.
+
+    Args:
+        symbol_id: Exact ID returned by find_symbol; resolve names before calling.
+        cursor: Opaque nextCursor from the same query; empty starts a new listing.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum callees per page, from 1 to 200; defaults to 100.
+
+    Returns:
+        Callee items with edge metadata, nextCursor, truncated and coverage.
+        An empty result is limited to the analyzed graph.
+    """
 
     async def __call__(
         self,
@@ -1261,7 +1327,18 @@ class FindCalleesTool(_BaseCodeAnalysisTool):
 
 class PathsBetweenTool(_BaseCodeAnalysisTool):
     name = "paths_between"
-    description = "Find bounded direct-call paths between two exact graph symbol IDs."
+    description = """Find bounded direct-call paths between two exact graph symbols.
+
+    Args:
+        source_id: Exact starting caller ID returned by find_symbol.
+        target_id: Exact destination callee ID returned by find_symbol.
+        max_depth: Maximum call-path exploration depth, from 1 to 20; defaults to 20.
+        limit: Maximum paths to return, from 1 to 50; defaults to 20.
+
+    Returns:
+        Path items, truncated and coverage. An empty result means no path was
+        found within the graph coverage and traversal limits.
+    """
 
     async def __call__(
         self,
@@ -1290,7 +1367,19 @@ class PathsBetweenTool(_BaseCodeAnalysisTool):
 
 class EntrypointPathsToTool(_BaseCodeAnalysisTool):
     name = "entrypoint_paths_to"
-    description = "Find bounded call paths from detected entrypoints to one exact symbol ID."
+    description = """Find bounded call paths from detected entrypoints to an exact graph symbol.
+
+    Use this to investigate reachability from framework-detected handlers.
+
+    Args:
+        symbol_id: Exact target ID returned by find_symbol.
+        max_depth: Maximum call-path exploration depth, from 1 to 20; defaults to 20.
+        limit: Maximum paths to return, from 1 to 50; defaults to 20.
+
+    Returns:
+        Path items, truncated and coverage. An empty result does not establish
+        unreachability beyond the analyzed graph and traversal limits.
+    """
 
     async def __call__(
         self,
@@ -1313,7 +1402,17 @@ class EntrypointPathsToTool(_BaseCodeAnalysisTool):
 
 class AttackSurfaceTool(_BaseCodeAnalysisTool):
     name = "attack_surface"
-    description = "List bounded framework-detected entrypoints and reviewed trust metadata."
+    description = """List framework-detected entrypoints in the current workspace graph.
+
+    Args:
+        cursor: Opaque nextCursor from this listing; empty starts a new page set.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum entrypoints per page, from 1 to 200; defaults to 100.
+
+    Returns:
+        Entrypoint items with reviewed trust metadata, nextCursor, truncated
+        and coverage. Detection is limited to supported frameworks and source.
+    """
 
     async def __call__(self, cursor: str = "", limit: int = 100) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
@@ -1331,7 +1430,18 @@ class AttackSurfaceTool(_BaseCodeAnalysisTool):
 
 class ComplexityHotspotsTool(_BaseCodeAnalysisTool):
     name = "complexity_hotspots"
-    description = "List graph symbols at or above a cyclomatic-complexity threshold."
+    description = """Find graph symbols at or above a cyclomatic-complexity threshold.
+
+    Args:
+        threshold: Minimum complexity to include, from 1 to 10000; defaults to 10.
+        cursor: Opaque nextCursor from the same query; empty starts a new listing.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum symbols per page, from 1 to 200; defaults to 100.
+
+    Returns:
+        Matching symbols with locations and complexity, nextCursor, truncated
+        and coverage.
+    """
 
     async def __call__(
         self,
@@ -1354,7 +1464,17 @@ class ComplexityHotspotsTool(_BaseCodeAnalysisTool):
 
 class FunctionsThatRaiseTool(_BaseCodeAnalysisTool):
     name = "functions_that_raise"
-    description = "List graph symbols whose parser-detected exceptions exactly match a name."
+    description = """Find graph symbols with a parser-detected exception matching an exact name.
+
+    Args:
+        exception: Exception name to match, such as "ValueError".
+        cursor: Opaque nextCursor from the same query; empty starts a new listing.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum symbols per page, from 1 to 200; defaults to 100.
+
+    Returns:
+        Matching symbol items and locations, nextCursor, truncated and coverage.
+    """
 
     async def __call__(
         self,

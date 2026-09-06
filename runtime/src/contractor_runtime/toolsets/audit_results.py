@@ -119,11 +119,16 @@ class AuditResultsToolsetFactory:
 
 class ReadAuditTaskTool:
     name = "read_audit_task"
-    description = (
-        "Read the assigned immutable Audit task set as validated JSON. The tool "
-        "checks every exact task package against the ordered execution manifest "
-        "and does not return raw package bytes."
-    )
+    description = """Read the immutable Audit task set assigned to this Worker.
+
+    Validates each exact task package against the ordered execution manifest.
+    Use the returned task order and requested coverage when submitting results.
+
+    Returns:
+        batchSize, ordered tasks and taskPackageIds, the exact taskArtifact and
+        executionManifestDigest. A single-task result also includes task and
+        taskPackageId. Raw package bytes are not returned.
+    """
 
     def __init__(
         self,
@@ -202,11 +207,30 @@ class ReadAuditTaskTool:
 
 class SubmitCheckResultTool:
     name = "submit_check_result"
-    description = (
-        "Publish one complete result set for the assigned Audit checks. For a "
-        "single task use the scalar fields; for a batch use the ordered results "
-        "array. Identity and requested coverage come from trusted inputs."
-    )
+    description = """Publish one complete result set for the assigned Audit checks.
+
+    Call read_audit_task first. For one task, provide assessment, summary, completed
+    and gaps. For a batch, provide results in task order and omit all individual result fields.
+    Task identity and requested coverage come from the validated assignment.
+
+    Args:
+        assessment: satisfied, violated, supported, refuted, blocked, inconclusive
+            or not-tested; required in single-task mode.
+        summary: Non-empty explanation of the outcome; required in single-task mode.
+        completed: Sorted unique requested coverage identifiers completed for the
+            task; required in single-task mode, and may be empty.
+        gaps: Sorted unique gap identifiers; required in single-task mode, and may
+            be empty.
+        evidence: Optional evidence objects containing only kind and summary.
+        proposal_keys: Optional sorted unique client keys of finding proposals.
+        results: One object per assigned task, in order, with assessment, summary,
+            completed and gaps, plus optional evidence and proposal_keys. Use this
+            for batch mode without the individual result arguments.
+
+    Returns:
+        Saved result package metadata with its exact artifact revision, mediaType
+        and size.
+    """
 
     def __init__(
         self,
@@ -382,14 +406,16 @@ def _normalize_results(
             raise ValueError("a batch requires one complete ordered results array")
         if assessment is None or summary is None or completed is None or gaps is None:
             raise ValueError("single-result fields are incomplete")
-        source: list[dict[str, Any]] = [{
-            "assessment": assessment,
-            "summary": summary,
-            "completed": completed,
-            "gaps": gaps,
-            "evidence": [] if evidence is None else evidence,
-            "proposal_keys": [] if proposal_keys is None else proposal_keys,
-        }]
+        source: list[dict[str, Any]] = [
+            {
+                "assessment": assessment,
+                "summary": summary,
+                "completed": completed,
+                "gaps": gaps,
+                "evidence": [] if evidence is None else evidence,
+                "proposal_keys": [] if proposal_keys is None else proposal_keys,
+            }
+        ]
     else:
         if any(
             value is not None
@@ -411,21 +437,26 @@ def _normalize_results(
         ):
             raise ValueError(f"result {index} has invalid fields")
         candidate_evidence = _validate_arguments(
-            candidate["assessment"], candidate["summary"],
-            candidate["completed"], candidate["gaps"], candidate.get("evidence"),
+            candidate["assessment"],
+            candidate["summary"],
+            candidate["completed"],
+            candidate["gaps"],
+            candidate.get("evidence"),
         )
         candidate_proposals = _validate_proposal_keys(candidate.get("proposal_keys"))
-        normalized.append({
-            "assessment": candidate["assessment"],
-            "summary": candidate["summary"],
-            "completed": candidate["completed"],
-            "gaps": candidate["gaps"],
-            "evidence": candidate_evidence,
-            "proposals": [
-                {"invocation_id": invocation_id, "client_key": key}
-                for key in candidate_proposals
-            ],
-        })
+        normalized.append(
+            {
+                "assessment": candidate["assessment"],
+                "summary": candidate["summary"],
+                "completed": candidate["completed"],
+                "gaps": candidate["gaps"],
+                "evidence": candidate_evidence,
+                "proposals": [
+                    {"invocation_id": invocation_id, "client_key": key}
+                    for key in candidate_proposals
+                ],
+            }
+        )
     if sum(len(item["evidence"]) for item in normalized) > MAX_EVIDENCE:
         raise ValueError("batch evidence exceeds its aggregate bound")
     return normalized
@@ -524,9 +555,7 @@ def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any
     return task, manifest["package_id"]
 
 
-def _decode_task_input(
-    payload: bytes, media_type: str
-) -> list[tuple[dict[str, Any], str, bytes]]:
+def _decode_task_input(payload: bytes, media_type: str) -> list[tuple[dict[str, Any], str, bytes]]:
     try:
         task, package_id = _decode_task_package(payload, media_type)
         return [(task, package_id, payload)]
@@ -537,9 +566,7 @@ def _decode_task_input(
             raise ValueError("task input is not a valid Audit task or task set") from batch_error
 
 
-def _decode_task_set(
-    payload: bytes, media_type: str
-) -> list[tuple[dict[str, Any], str, bytes]]:
+def _decode_task_set(payload: bytes, media_type: str) -> list[tuple[dict[str, Any], str, bytes]]:
     if media_type != PACKAGE_MEDIA_TYPE or not 0 < len(payload) <= MAX_PACKAGE_BYTES:
         raise ValueError("task set input is not an Audit package")
     try:
@@ -663,31 +690,37 @@ def _build_result_package(
                 evidence_id = f"ev-{task_index + 1}-{evidence_index + 1}"
             content_id = evidence_id.replace("ev-", "ev-content-", 1)
             evidence_ids.append(evidence_id)
-            evidence_values.append({
-                "id": evidence_id,
-                "kind": evidence["kind"],
-                "summary": evidence["summary"],
-                "content_member_id": content_id,
-            })
-            evidence_members.append((
-                content_id,
-                f"evidence/{evidence_id}.txt",
-                "text/plain",
-                evidence["summary"].encode("utf-8"),
-            ))
-        result_values.append({
-            "item_key": task["item_key"],
-            "subject_key": task["subject_key"],
-            "assessment": result["assessment"],
-            "summary": result["summary"],
-            "evidence_ids": evidence_ids,
-            "coverage": {
-                "requested": requested,
-                "completed": completed,
-                "gaps": result["gaps"],
-            },
-            "proposals": result["proposals"],
-        })
+            evidence_values.append(
+                {
+                    "id": evidence_id,
+                    "kind": evidence["kind"],
+                    "summary": evidence["summary"],
+                    "content_member_id": content_id,
+                }
+            )
+            evidence_members.append(
+                (
+                    content_id,
+                    f"evidence/{evidence_id}.txt",
+                    "text/plain",
+                    evidence["summary"].encode("utf-8"),
+                )
+            )
+        result_values.append(
+            {
+                "item_key": task["item_key"],
+                "subject_key": task["subject_key"],
+                "assessment": result["assessment"],
+                "summary": result["summary"],
+                "evidence_ids": evidence_ids,
+                "coverage": {
+                    "requested": requested,
+                    "completed": completed,
+                    "gaps": result["gaps"],
+                },
+                "proposals": result["proposals"],
+            }
+        )
     result_document = {
         "schema": RESULT_SCHEMA,
         "execution_manifest_digest": _digest(execution_bytes),
@@ -765,9 +798,7 @@ def _canonical_object(payload: bytes, name: str) -> dict[str, Any]:
     return value
 
 
-def _read_bounded(
-    archive: zipfile.ZipFile, name: str, limit: int = MAX_DOCUMENT_BYTES
-) -> bytes:
+def _read_bounded(archive: zipfile.ZipFile, name: str, limit: int = MAX_DOCUMENT_BYTES) -> bytes:
     info = archive.getinfo(name)
     if info.is_dir() or info.file_size > limit:
         raise ValueError("Audit package member exceeds its bound")

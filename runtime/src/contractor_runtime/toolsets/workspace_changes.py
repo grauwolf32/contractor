@@ -232,7 +232,17 @@ class _BaseChangesTool:
 
 class ChangedPathsTool(_BaseChangesTool):
     name = "changed_paths"
-    description = "List sorted created, modified, deleted and type-changed paths."
+    description = """List workspace changes since the current checkpoint.
+
+    Args:
+        cursor: Opaque nextCursor from this listing; empty starts a new page set.
+            Restart the listing after further workspace changes.
+        limit: Maximum entries per page, from 1 to 100; defaults to 100.
+
+    Returns:
+        Sorted created, modified, deleted and type-changed paths with pagination
+        and truncation metadata.
+    """
 
     async def __call__(self, cursor: str = "", limit: int = MAX_PAGE_ITEMS) -> dict[str, Any]:
         return await self._invoke(lambda: self._session.changed_paths(cursor, limit))
@@ -240,7 +250,19 @@ class ChangedPathsTool(_BaseChangesTool):
 
 class WorkspaceDiffTool(_BaseChangesTool):
     name = "diff"
-    description = "Read a bounded non-authoritative unified diff since the current checkpoint."
+    description = """Read a bounded unified diff of workspace changes since the checkpoint.
+
+    The diff is a review preview; use read_file for exact current content.
+
+    Args:
+        path: Project-relative file or subtree; empty selects the whole workspace.
+        cursor: Opaque nextCursor from the same query; empty starts a new diff.
+            Restart after further workspace changes.
+        max_bytes: Maximum UTF-8 diff bytes, from 1 to 1048576; defaults to 65536.
+
+    Returns:
+        A unified diff preview with pagination and truncation metadata.
+    """
 
     async def __call__(
         self,
@@ -253,7 +275,16 @@ class WorkspaceDiffTool(_BaseChangesTool):
 
 class RollbackChangesTool(_BaseChangesTool):
     name = "rollback_changes"
-    description = "Restore one path/subtree or the full workspace to the current checkpoint."
+    description = """Restore workspace content to the current checkpoint.
+
+    Discards changes under the selected path, including newly created content.
+
+    Args:
+        path: Project-relative file or subtree; empty restores the whole workspace.
+
+    Returns:
+        {"changed": true} after restoration succeeds.
+    """
 
     async def __call__(self, path: str = "") -> dict[str, Any]:
         return await self._invoke(lambda: self._session.rollback(path))

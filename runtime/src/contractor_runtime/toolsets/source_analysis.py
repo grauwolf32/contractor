@@ -469,10 +469,20 @@ class _BaseSourceTool:
 
 class OpenSourceArchiveTool(_BaseSourceTool):
     name = "open_source_archive"
-    description = (
-        "Open an exact application/zip Run artifact as this Worker's bounded read-only "
-        "source tree. Call this before other source tools."
-    )
+    description = """Open an exact ZIP artifact as a bounded read-only source tree.
+
+    Call this before list_source_files, search_source or read_source. The archive
+    is separate from the editable project workspace.
+
+    Args:
+        namespace: Source artifact namespace.
+        name: Artifact binding name with media type application/zip.
+        revision: Required exact source artifact revision.
+
+    Returns:
+        The exact artifact reference, fileCount, totalUncompressedBytes and
+        ignoredCount for the opened archive.
+    """
 
     async def __call__(self, namespace: str, name: str, revision: str) -> dict[str, Any]:
         arguments = {"namespace": namespace, "name": name, "revision": revision}
@@ -491,7 +501,16 @@ class OpenSourceArchiveTool(_BaseSourceTool):
 
 class ListSourceFilesTool(_BaseSourceTool):
     name = "list_source_files"
-    description = "List bounded POSIX-relative paths in the opened source archive."
+    description = """List files in the archive opened by open_source_archive.
+
+    Args:
+        pattern: Archive-relative path glob; defaults to "**/*".
+        offset: Zero-based pagination offset; defaults to 0.
+        limit: Maximum files per page, from 1 to 200; defaults to 200.
+
+    Returns:
+        Sorted relative file paths and sizes, offset, limit, total and truncated.
+    """
 
     async def __call__(
         self, pattern: str = "**/*", offset: int = 0, limit: int = MAX_LIST_RESULTS
@@ -512,10 +531,21 @@ class ListSourceFilesTool(_BaseSourceTool):
 
 class SearchSourceTool(_BaseSourceTool):
     name = "search_source"
-    description = (
-        "Search opened UTF-8 source files with a fixed string or timeout-bounded regular "
-        "expression and return file/line evidence."
-    )
+    description = """Search UTF-8 files in the archive opened by open_source_archive.
+
+    Search has time, scan and output limits. Narrow query or path_pattern if the
+    result is truncated.
+
+    Args:
+        query: Non-empty literal string or regular expression, at most 512 characters.
+        path_pattern: Archive-relative file glob; defaults to "**/*".
+        regex: Interpret query as a regular expression; defaults to false.
+        case_sensitive: Match letter case; defaults to false.
+        max_results: Maximum matches to return, from 1 to 100; defaults to 100.
+
+    Returns:
+        File/line matches and snippets, scannedFiles, scannedBytes and truncated.
+    """
 
     async def __call__(
         self,
@@ -553,7 +583,18 @@ class SearchSourceTool(_BaseSourceTool):
 
 class ReadSourceTool(_BaseSourceTool):
     name = "read_source"
-    description = "Read a bounded line window from one opened UTF-8 source file."
+    description = """Read a UTF-8 line window from the archive opened by open_source_archive.
+
+    Output is limited to 128 KiB.
+
+    Args:
+        path: Exact archive-relative file path from list_source_files or search_source.
+        start_line: First line to read, 1-based and inclusive; defaults to 1.
+        max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+
+    Returns:
+        File metadata, text, startLine, endLine, totalLines, truncated and partialLine.
+    """
 
     async def __call__(
         self,

@@ -140,7 +140,14 @@ class _BaseTool:
 
 class ListArtifactsTool(_BaseTool):
     name = "list_artifacts"
-    description = "List current artifact refs in this Workflow Run, optionally by namespace."
+    description = """List current artifact references visible in this Workflow Run.
+
+    Args:
+        namespace: Namespace to filter by; omit to list all visible namespaces.
+
+    Returns:
+        Artifact references with namespace, name and current revision.
+    """
 
     async def __call__(self, namespace: str | None = None) -> list[dict[str, Any]]:
         started_ns = time.perf_counter_ns()
@@ -163,7 +170,19 @@ class ListArtifactsTool(_BaseTool):
 
 class ReadArtifactTool(_BaseTool):
     name = "read_artifact"
-    description = "Read current or exact artifact bytes from this Workflow Run as base64."
+    description = """Read artifact bytes from this Workflow Run as base64.
+
+    Use read_text_artifact for a bounded UTF-8 text preview.
+
+    Args:
+        namespace: Artifact namespace.
+        name: Exact artifact binding name.
+        revision: Exact revision to read; omit for the current revision. Use the
+            exact revision supplied in Stage context when available.
+
+    Returns:
+        The exact artifact reference, mediaType, byte size and dataBase64.
+    """
 
     async def __call__(
         self,
@@ -201,7 +220,22 @@ class ReadArtifactTool(_BaseTool):
 
 class WriteArtifactTool(_BaseTool):
     name = "write_artifact"
-    description = "Create or CAS-update artifact bytes in this Workflow Run from base64."
+    description = """Create or update an artifact in this Workflow Run from base64 bytes.
+
+    Updates require the expected current revision to prevent overwriting a
+    concurrent write.
+
+    Args:
+        namespace: Destination artifact namespace.
+        name: Destination artifact binding name.
+        media_type: MIME type describing the decoded bytes.
+        data_base64: Canonical base64 payload within the 64 MiB decoded artifact limit.
+        expected_revision: Current destination revision for an update; omit only
+            to create a new binding.
+
+    Returns:
+        Saved artifact metadata including its exact revision, mediaType and size.
+    """
 
     async def __call__(
         self,

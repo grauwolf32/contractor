@@ -704,9 +704,22 @@ def _artifact_metric(result: Mapping[str, Any]) -> Mapping[str, Any]:
 
 class LoadOpenAPITool(_BaseOpenAPITool):
     name = "load_openapi"
-    description = (
-        "Load an OpenAPI YAML/JSON artifact and copy or resume it in this Agent Namespace."
-    )
+    description = """Load an OpenAPI YAML or JSON artifact into the current document session.
+
+    Copies the source into the Worker's namespace or resumes the same binding.
+    Call this or initialize_openapi before other OpenAPI operations.
+
+    Args:
+        namespace: Source artifact namespace.
+        name: Source artifact binding name.
+        revision: Source revision; required for a source outside the Worker's namespace.
+        target_name: Destination binding in the Worker's namespace; defaults to "openapi".
+        expected_revision: Current destination revision when copying over an existing
+            binding; omit to create it. Resuming the same binding uses its revision.
+
+    Returns:
+        Exact current artifact reference, mediaType, targetName and changed/copied flags.
+    """
 
     async def __call__(
         self,
@@ -738,7 +751,21 @@ class LoadOpenAPITool(_BaseOpenAPITool):
 
 class InitializeOpenAPITool(_BaseOpenAPITool):
     name = "initialize_openapi"
-    description = "Create a minimal OpenAPI 3.0.3 YAML document in this Agent Namespace."
+    description = """Create a minimal OpenAPI 3.0.3 YAML document in the Worker's namespace.
+
+    Initializes the current document session for subsequent OpenAPI operations.
+
+    Args:
+        title: Non-empty API title.
+        version: Non-empty API version; defaults to "1.0.0".
+        description: API description; defaults to an empty string.
+        target_name: Destination artifact binding; defaults to "openapi".
+        expected_revision: Current destination revision to replace; omit only to
+            create a new binding.
+
+    Returns:
+        Exact saved artifact reference, mediaType, targetName and changed/copied flags.
+    """
 
     async def __call__(
         self,
@@ -768,7 +795,13 @@ class InitializeOpenAPITool(_BaseOpenAPITool):
 
 class GetOpenAPIInfoTool(_BaseOpenAPITool):
     name = "get_openapi_info"
-    description = "Read the current OpenAPI info object."
+    description = """Read the current OpenAPI info object.
+
+    Load or initialize the document first.
+
+    Returns:
+        The info object and exact artifact reference.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(
@@ -780,7 +813,20 @@ class GetOpenAPIInfoTool(_BaseOpenAPITool):
 
 class SetOpenAPIInfoTool(_BaseOpenAPITool):
     name = "set_openapi_info"
-    description = "CAS-update OpenAPI info while preserving fields not explicitly supplied."
+    description = """Update the current OpenAPI info object and save with a revision check.
+
+    Load or initialize the document first. Omitted optional fields are preserved.
+
+    Args:
+        title: Non-empty API title.
+        version: New non-empty API version; omit to preserve it.
+        description: New API description; omit to preserve it, or use empty to clear.
+        framework: New x-framework value; omit to preserve it.
+        code_language: New x-code-language value; omit to preserve it.
+
+    Returns:
+        Exact saved artifact metadata, operation and changed flag.
+    """
 
     async def __call__(
         self,
@@ -814,7 +860,13 @@ class SetOpenAPIInfoTool(_BaseOpenAPITool):
 
 class ListOpenAPIServersTool(_BaseOpenAPITool):
     name = "list_openapi_servers"
-    description = "Read the current OpenAPI server list."
+    description = """Read the current OpenAPI server list.
+
+    Load or initialize the document first.
+
+    Returns:
+        Server objects and the exact artifact reference.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(
@@ -826,7 +878,17 @@ class ListOpenAPIServersTool(_BaseOpenAPITool):
 
 class SetOpenAPIServersTool(_BaseOpenAPITool):
     name = "set_openapi_servers"
-    description = "Validate and CAS-replace the OpenAPI server list."
+    description = """Replace the entire OpenAPI server list and save with a revision check.
+
+    Load or initialize the document first.
+
+    Args:
+        servers: Up to 100 server objects, each with a unique non-empty url and
+            optional description. An empty list removes all servers.
+
+    Returns:
+        Exact saved artifact metadata, operation and changed flag.
+    """
 
     async def __call__(self, servers: list[dict[str, Any]]) -> dict[str, Any]:
         return await self._call(
@@ -836,7 +898,13 @@ class SetOpenAPIServersTool(_BaseOpenAPITool):
 
 class ListOpenAPITagsTool(_BaseOpenAPITool):
     name = "list_openapi_tags"
-    description = "Read the current top-level OpenAPI tag declarations."
+    description = """Read the current top-level OpenAPI tag declarations.
+
+    Load or initialize the document first.
+
+    Returns:
+        Tag objects and the exact artifact reference.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(
@@ -848,7 +916,17 @@ class ListOpenAPITagsTool(_BaseOpenAPITool):
 
 class SetOpenAPITagsTool(_BaseOpenAPITool):
     name = "set_openapi_tags"
-    description = "Validate and CAS-replace top-level OpenAPI tag declarations."
+    description = """Replace all top-level OpenAPI tag declarations and save with a revision check.
+
+    Load or initialize the document first.
+
+    Args:
+        tags: Up to 100 objects with unique non-empty name, optional description,
+            externalDocs and x-* extensions. An empty list removes all declarations.
+
+    Returns:
+        Exact saved artifact metadata, operation and changed flag.
+    """
 
     async def __call__(self, tags: list[dict[str, Any]]) -> dict[str, Any]:
         return await self._call({"content": tags}, self._session.set_tags(tags), _artifact_metric)
@@ -856,7 +934,13 @@ class SetOpenAPITagsTool(_BaseOpenAPITool):
 
 class ListOpenAPIPathsTool(_BaseOpenAPITool):
     name = "list_openapi_paths"
-    description = "List current OpenAPI path keys without returning whole path definitions."
+    description = """List path keys in the current OpenAPI document.
+
+    Load or initialize the document first. Use get_openapi_path for one definition.
+
+    Returns:
+        Sorted path strings, total, truncated and the exact artifact reference.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(
@@ -873,7 +957,16 @@ class ListOpenAPIPathsTool(_BaseOpenAPITool):
 
 class GetOpenAPIPathTool(_BaseOpenAPITool):
     name = "get_openapi_path"
-    description = "Read one current OpenAPI Path Item."
+    description = """Read one Path Item from the current OpenAPI document.
+
+    Load or initialize the document first.
+
+    Args:
+        path: Exact API path key, such as "/users/{id}".
+
+    Returns:
+        path, pathItem and the exact artifact reference. A missing path fails.
+    """
 
     async def __call__(self, path: str) -> dict[str, Any]:
         return await self._call(
@@ -885,10 +978,23 @@ class GetOpenAPIPathTool(_BaseOpenAPITool):
 
 class UpsertOpenAPIPathTool(_BaseOpenAPITool):
     name = "upsert_openapi_path"
-    description = (
-        "Validate and merge one OpenAPI Path Item with required implementation-source evidence, "
-        "then CAS-save canonical YAML."
-    )
+    description = """Create or merge an OpenAPI Path Item and save with a revision check.
+
+    Load or initialize the document first. Fields merge recursively; supplied
+    lists and reference objects replace existing values. Local $ref values must
+    resolve. Implementation-source evidence is required.
+
+    Args:
+        path: API path key, such as "/users/{id}".
+        path_item: Structured Path Item object with operations; pass an object,
+            not a JSON string.
+        evidence_files: Non-empty list of existing relative implementation source paths
+            in the project workspace or opened source archive. Files ending in
+            .json, .yaml, .yml, .md or .c4 are rejected.
+
+    Returns:
+        Exact saved artifact metadata, path, operation and changed flag.
+    """
 
     async def __call__(
         self, path: str, path_item: dict[str, Any], evidence_files: list[str]
@@ -902,7 +1008,16 @@ class UpsertOpenAPIPathTool(_BaseOpenAPITool):
 
 class RemoveOpenAPIPathTool(_BaseOpenAPITool):
     name = "remove_openapi_path"
-    description = "Remove one existing OpenAPI path and CAS-save the document."
+    description = """Remove an existing OpenAPI path and save with a revision check.
+
+    Load or initialize the document first.
+
+    Args:
+        path: Exact API path key to remove, such as "/users/{id}".
+
+    Returns:
+        Exact saved artifact metadata, path, operation and changed flag.
+    """
 
     async def __call__(self, path: str) -> dict[str, Any]:
         return await self._call({"path": path}, self._session.remove_path(path), _artifact_metric)
@@ -910,7 +1025,17 @@ class RemoveOpenAPIPathTool(_BaseOpenAPITool):
 
 class ListOpenAPIComponentsTool(_BaseOpenAPITool):
     name = "list_openapi_components"
-    description = "List component names in one allowed OpenAPI component section."
+    description = """List component names in a section of the current OpenAPI document.
+
+    Load or initialize the document first.
+
+    Args:
+        section: schemas, responses, parameters, examples, requestBodies, headers,
+            securitySchemes, links, callbacks, or pathItems for OpenAPI 3.1.
+
+    Returns:
+        Sorted component names, section, total, truncated and exact artifact reference.
+    """
 
     async def __call__(self, section: str) -> dict[str, Any]:
         return await self._call(
@@ -928,7 +1053,18 @@ class ListOpenAPIComponentsTool(_BaseOpenAPITool):
 
 class GetOpenAPIComponentTool(_BaseOpenAPITool):
     name = "get_openapi_component"
-    description = "Read one named OpenAPI component from an allowed section."
+    description = """Read one named component from the current OpenAPI document.
+
+    Load or initialize the document first.
+
+    Args:
+        section: schemas, responses, parameters, examples, requestBodies, headers,
+            securitySchemes, links, callbacks, or pathItems for OpenAPI 3.1.
+        name: Exact component name within the section.
+
+    Returns:
+        The component object, section, name and exact artifact reference.
+    """
 
     async def __call__(self, section: str, name: str) -> dict[str, Any]:
         return await self._call(
@@ -944,10 +1080,24 @@ class GetOpenAPIComponentTool(_BaseOpenAPITool):
 
 class UpsertOpenAPIComponentTool(_BaseOpenAPITool):
     name = "upsert_openapi_component"
-    description = (
-        "Validate and merge one OpenAPI component with required implementation-source "
-        "evidence, then CAS-save canonical YAML."
-    )
+    description = """Create or merge an OpenAPI component and save with a revision check.
+
+    Load or initialize the document first. Fields merge recursively; supplied
+    lists and reference objects replace existing values. Local $ref values must
+    resolve. Implementation-source evidence is required.
+
+    Args:
+        section: schemas, responses, parameters, examples, requestBodies, headers,
+            securitySchemes, links, callbacks, or pathItems for OpenAPI 3.1.
+        name: Component name within the section.
+        component: Structured component object; pass an object, not a JSON string.
+        evidence_files: Non-empty list of existing relative implementation source paths
+            in the project workspace or opened source archive. Files ending in
+            .json, .yaml, .yml, .md or .c4 are rejected.
+
+    Returns:
+        Exact saved artifact metadata, section, name, operation and changed flag.
+    """
 
     async def __call__(
         self,
@@ -970,7 +1120,18 @@ class UpsertOpenAPIComponentTool(_BaseOpenAPITool):
 
 class RemoveOpenAPIComponentTool(_BaseOpenAPITool):
     name = "remove_openapi_component"
-    description = "Remove one existing named OpenAPI component and CAS-save the document."
+    description = """Remove an existing OpenAPI component and save with a revision check.
+
+    Load or initialize the document first. Remaining local references must resolve.
+
+    Args:
+        section: schemas, responses, parameters, examples, requestBodies, headers,
+            securitySchemes, links, callbacks, or pathItems for OpenAPI 3.1.
+        name: Exact component name to remove.
+
+    Returns:
+        Exact saved artifact metadata, section, name, operation and changed flag.
+    """
 
     async def __call__(self, section: str, name: str) -> dict[str, Any]:
         return await self._call(
@@ -982,9 +1143,14 @@ class RemoveOpenAPIComponentTool(_BaseOpenAPITool):
 
 class ReadOpenAPIDocumentTool(_BaseOpenAPITool):
     name = "read_openapi_document"
-    description = (
-        "Read the full canonical OpenAPI YAML only for global review; prefer targeted tools."
-    )
+    description = """Read the full canonical YAML of the current OpenAPI document for global review.
+
+    Load or initialize the document first. Prefer targeted list/get tools for
+    individual paths or components; full reads have a model output size limit.
+
+    Returns:
+        Canonical YAML in document, mediaType and the exact artifact reference.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(
@@ -1000,10 +1166,16 @@ class ReadOpenAPIDocumentTool(_BaseOpenAPITool):
 
 class ValidateOpenAPITool(_BaseOpenAPITool):
     name = "validate_openapi"
-    description = (
-        "Validate current structure, local refs, provenance, and serious Vacuum findings. "
-        "valid is false when Vacuum is unavailable or fails."
-    )
+    description = """Validate the current OpenAPI structure, local references and source provenance.
+
+    Load or initialize the document first. Also runs Vacuum to check serious
+    lint findings. Validation does not change the document.
+
+    Returns:
+        Exact artifact reference, valid, structuralErrors, bounded issues,
+        issuesTruncated, validatorAvailable and validatorExecutionError.
+        valid is false when Vacuum is unavailable or fails.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(

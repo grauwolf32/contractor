@@ -924,7 +924,18 @@ class _CaidoTool:
 
 class CaidoScopeTool(_CaidoTool):
     name = "caido_scope"
-    description = "List Caido proxy scopes; create becomes available only with the action slice."
+    description = """List or create Caido proxy scopes.
+
+    Args:
+        action: "list" to inspect scopes or "create" to create one; defaults to list.
+        name: Non-empty scope name for create; leave empty for list.
+        allowlist: Allowed host patterns for create, such as "*.example.com";
+            omit for list.
+        denylist: Excluded host patterns for create; omit for list.
+
+    Returns:
+        Existing scopes, or the creation status and created scope.
+    """
 
     async def __call__(
         self,
@@ -968,7 +979,18 @@ class CaidoScopeTool(_CaidoTool):
 
 class CaidoHistoryTool(_CaidoTool):
     name = "caido_history"
-    description = "Query one bounded page of Caido proxy history using HTTPQL."
+    description = """Query a page of Caido proxy history, newest first.
+
+    Args:
+        filter: HTTPQL expression; empty matches all requests. Examples:
+            req.host.cont:"example.com" or req.method.eq:"POST" AND resp.code.gte:400.
+        limit: Maximum requests per page, from 1 to 100; defaults to 20.
+        offset: Zero-based pagination offset; defaults to 0.
+
+    Returns:
+        Request summaries and pagination metadata. Use their IDs with
+        caido_request_detail to inspect request and response content.
+    """
 
     async def __call__(self, filter: str = "", limit: int = 20, offset: int = 0) -> dict[str, Any]:
         arguments = {
@@ -985,7 +1007,17 @@ class CaidoHistoryTool(_CaidoTool):
 
 class CaidoRequestDetailTool(_CaidoTool):
     name = "caido_request_detail"
-    description = "Read bounded raw previews and an exact exchange artifact for one Caido request."
+    description = """Read a captured Caido request and response.
+
+    Call this after caido_history to inspect an exchange before replay or automate.
+
+    Args:
+        request_id: Exact string ID from Caido history or another Caido result.
+
+    Returns:
+        Request/response metadata and bounded raw previews, with raw_artifact
+        pointing to the exact stored exchange when available.
+    """
 
     async def __call__(self, request_id: str) -> dict[str, Any]:
         arguments = {"hasRequestId": bool(request_id) if isinstance(request_id, str) else False}
@@ -1001,7 +1033,24 @@ class CaidoRequestDetailTool(_CaidoTool):
 
 class CaidoReplayTool(_CaidoTool):
     name = "caido_replay"
-    description = "Send one existing or bounded raw request through Caido Replay without retries."
+    description = """Send an existing or raw request through Caido Replay without mutation retries.
+
+    Choose either request_id or raw_request with connection details.
+
+    Args:
+        request_id: Captured request ID to replay; leave empty for a raw request.
+        raw_request: Full HTTP request text, including headers and blank line;
+            leave empty when using request_id. Limited to 1 MiB.
+        host: Target host for raw_request; leave empty when using request_id.
+        port: Target port for raw_request, from 1 to 65535; defaults to 80.
+        is_tls: Use TLS for raw_request; defaults to false.
+        wait: Poll for a response before returning; defaults to true.
+        timeout_seconds: Polling deadline from 1 to 60 seconds; defaults to 15.
+
+    Returns:
+        Replay status and session identifiers, with request details when available.
+        Status is started when wait is false, or timeout when polling expires.
+    """
 
     async def __call__(
         self,
@@ -1037,7 +1086,23 @@ class CaidoReplayTool(_CaidoTool):
 
 class CaidoAutomateRunTool(_CaidoTool):
     name = "caido_automate_run"
-    description = "Create, configure and start one bounded Caido Automate task without retries."
+    description = """Create and start a Caido Automate session without mutation retries.
+
+    Inspect the raw request with caido_request_detail first. After starting, use
+    caido_automate_results to inspect responses.
+
+    Args:
+        request_id: Captured request ID to use as the template.
+        targets: From 1 to 32 literal substrings marking injection points.
+            Only the first occurrence of each is selected; spans must not overlap.
+        payloads: From 1 to 1000 string values to inject.
+        strategy: ALL, SEQUENTIAL, PARALLEL or MATRIX; defaults to ALL.
+        workers: Concurrent workers, from 1 to 50; defaults to 5.
+        delay_ms: Delay between requests, from 0 to 60000 milliseconds; defaults to 0.
+
+    Returns:
+        Start status, session_id, entry_id and task_id for subsequent result queries.
+    """
 
     async def __call__(
         self,
@@ -1076,7 +1141,22 @@ class CaidoAutomateRunTool(_CaidoTool):
 
 class CaidoAutomateResultsTool(_CaidoTool):
     name = "caido_automate_results"
-    description = "Read one bounded page of results from a Caido Automate session."
+    description = """Read a page of results from a Caido Automate session.
+
+    Compare status codes, response lengths and roundtrip times across payloads.
+
+    Args:
+        session_id: Session ID returned by caido_automate_run.
+        entry_id: Specific entry ID; empty selects the latest entry.
+        limit: Maximum results per page, from 1 to 100; defaults to 50.
+        offset: Zero-based pagination offset; defaults to 0.
+        sort_by: RESP_STATUS_CODE, RESP_LENGTH, RESP_ROUNDTRIP_TIME, POSITION
+            or PAYLOAD_0; defaults to RESP_STATUS_CODE.
+        ascending: Sort in ascending order; defaults to true.
+
+    Returns:
+        Payload values and response metadata with status and pagination information.
+    """
 
     async def __call__(
         self,
@@ -1113,7 +1193,19 @@ class CaidoAutomateResultsTool(_CaidoTool):
 
 class CaidoSitemapTool(_CaidoTool):
     name = "caido_sitemap"
-    description = "Browse one bounded root or descendant page of Caido's passive sitemap."
+    description = """Browse Caido's passive sitemap of previously proxied traffic.
+
+    Start at the root, then pass an entry ID to expand a subtree. The sitemap
+    reflects captured traffic and does not discover URLs by crawling the target.
+
+    Args:
+        parent_id: Parent entry ID to expand; empty selects root entries.
+        scope_id: Scope ID to filter by; empty includes all scopes.
+        depth: DIRECT for immediate children or ALL for descendants; default DIRECT.
+
+    Returns:
+        A bounded list of sitemap entries and truncation metadata.
+    """
 
     async def __call__(
         self, parent_id: str = "", scope_id: str = "", depth: str = "DIRECT"
@@ -1132,7 +1224,17 @@ class CaidoSitemapTool(_CaidoTool):
 
 class CaidoWorkflowListTool(_CaidoTool):
     name = "caido_workflow_list"
-    description = "List the bounded installed Caido workflow inventory, optionally by kind."
+    description = """List installed Caido workflows and their IDs.
+
+    Convert workflows transform text, active workflows process captured requests,
+    and passive workflows run on traffic and report through caido_workflow_findings.
+
+    Args:
+        kind: "convert", "active" or "passive"; empty lists all kinds.
+
+    Returns:
+        A bounded workflow inventory with IDs, names, kinds and enabled state.
+    """
 
     async def __call__(self, kind: str = "") -> dict[str, Any]:
         selected = kind if isinstance(kind, str) and kind.lower() in _WORKFLOW_KINDS else ""
@@ -1146,7 +1248,19 @@ class CaidoWorkflowListTool(_CaidoTool):
 
 class CaidoWorkflowRunTool(_CaidoTool):
     name = "caido_workflow_run"
-    description = "Run one bounded convert or active Caido workflow without mutation retries."
+    description = """Run a Caido convert or active workflow without mutation retries.
+
+    Discover IDs with caido_workflow_list. Passive workflows cannot run on demand.
+
+    Args:
+        workflow_id: Exact installed workflow ID.
+        input: Text for a convert workflow; leave empty for an active workflow.
+        request_id: Captured request ID for an active workflow; empty selects convert.
+
+    Returns:
+        Convert output with bounded preview and artifact reference when needed,
+        or active task status and ID. Read findings with caido_workflow_findings.
+    """
 
     async def __call__(
         self, workflow_id: str, input: str = "", request_id: str = ""
@@ -1169,7 +1283,17 @@ class CaidoWorkflowRunTool(_CaidoTool):
 
 class CaidoWorkflowFindingsTool(_CaidoTool):
     name = "caido_workflow_findings"
-    description = "Read one bounded newest-first page of findings reported in Caido."
+    description = """Read findings reported in Caido, newest first.
+
+    The reporter identifies the workflow or other source that raised each finding.
+
+    Args:
+        limit: Maximum findings per page, from 1 to 100; defaults to 20.
+        offset: Zero-based pagination offset; defaults to 0.
+
+    Returns:
+        Finding records with associated requests, reporters and pagination metadata.
+    """
 
     async def __call__(self, limit: int = 20, offset: int = 0) -> dict[str, Any]:
         arguments = {

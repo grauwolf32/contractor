@@ -160,7 +160,15 @@ class _BaseEditTool:
 
 class WriteFileTool(_BaseEditTool):
     name = "write_file"
-    description = "Atomically create or replace one UTF-8 project file."
+    description = """Atomically create or replace a UTF-8 project workspace file.
+
+    Args:
+        path: Project-relative file path.
+        content: Complete replacement text, without displayed line numbers.
+
+    Returns:
+        {"changed": true} after the write succeeds.
+    """
 
     async def __call__(self, path: str, content: str) -> dict[str, bool]:
         return await self._invoke(lambda: self._session._writer.write_text(path, content))
@@ -168,7 +176,17 @@ class WriteFileTool(_BaseEditTool):
 
 class AppendFileTool(_BaseEditTool):
     name = "append_file"
-    description = "Append UTF-8 text while preserving the file newline style."
+    description = """Append UTF-8 text to an existing project workspace file.
+
+    Preserves the file newline style and inserts a separating newline when needed.
+
+    Args:
+        path: Project-relative path of an existing text file.
+        content: Text to append, without displayed line numbers.
+
+    Returns:
+        {"changed": true} after the append succeeds.
+    """
 
     async def __call__(self, path: str, content: str) -> dict[str, bool]:
         def transform(current: str) -> str:
@@ -183,7 +201,15 @@ class AppendFileTool(_BaseEditTool):
 
 class MakeDirectoryTool(_BaseEditTool):
     name = "mkdir"
-    description = "Create one project directory, optionally including absent parents."
+    description = """Create a project workspace directory.
+
+    Args:
+        path: Project-relative directory path.
+        parents: Create missing parent directories too; defaults to false.
+
+    Returns:
+        {"changed": true} after directory creation succeeds.
+    """
 
     async def __call__(self, path: str, parents: bool = False) -> dict[str, bool]:
         _require_bool(parents)
@@ -194,7 +220,15 @@ class MakeDirectoryTool(_BaseEditTool):
 
 class RemovePathTool(_BaseEditTool):
     name = "rm"
-    description = "Remove one text file or an explicitly recursive project directory."
+    description = """Remove a text file or directory from the project workspace.
+
+    Args:
+        path: Project-relative path to remove.
+        recursive: Allow removal of a directory subtree; defaults to false.
+
+    Returns:
+        {"changed": true} after removal succeeds.
+    """
 
     async def __call__(self, path: str, recursive: bool = False) -> dict[str, bool]:
         _require_bool(recursive)
@@ -205,7 +239,16 @@ class RemovePathTool(_BaseEditTool):
 
 class CopyPathTool(_BaseEditTool):
     name = "cp"
-    description = "Copy one text file or an explicitly recursive project directory."
+    description = """Copy a text file or directory within the project workspace.
+
+    Args:
+        source: Project-relative source path.
+        destination: Project-relative destination path.
+        recursive: Allow copying a directory subtree; defaults to false.
+
+    Returns:
+        {"changed": true} after the copy succeeds.
+    """
 
     async def __call__(
         self, source: str, destination: str, recursive: bool = False
@@ -218,7 +261,15 @@ class CopyPathTool(_BaseEditTool):
 
 class MovePathTool(_BaseEditTool):
     name = "mv"
-    description = "Move one managed project path without crossing the workspace root."
+    description = """Move a managed path within the project workspace.
+
+    Args:
+        source: Project-relative source path.
+        destination: Project-relative destination path.
+
+    Returns:
+        {"changed": true} after the move succeeds.
+    """
 
     async def __call__(self, source: str, destination: str) -> dict[str, bool]:
         return await self._invoke(lambda: self._session._writer.move_path(source, destination))
@@ -226,7 +277,18 @@ class MovePathTool(_BaseEditTool):
 
 class InsertLineTool(_BaseEditTool):
     name = "insert_line"
-    description = "Insert UTF-8 content at one 1-based line boundary."
+    description = """Insert UTF-8 text before a line in an existing project file.
+
+    Read the file first to obtain current line numbers. Preserves newline style.
+
+    Args:
+        path: Project-relative file path.
+        line: 1-based insertion boundary; total line count plus 1 appends at EOF.
+        content: Text to insert, without displayed line numbers.
+
+    Returns:
+        {"changed": true} after insertion succeeds.
+    """
 
     async def __call__(self, path: str, line: int, content: str) -> dict[str, bool]:
         _require_positive_line(line)
@@ -248,7 +310,21 @@ class InsertLineTool(_BaseEditTool):
 
 class EditTextTool(_BaseEditTool):
     name = "edit"
-    description = "Replace exactly one text match unless replace_all is explicit."
+    description = """Replace an exact text fragment in an existing project file.
+
+    Read the file first and include enough surrounding text to make old unique.
+    Matching preserves whitespace and indentation and normalizes newline style.
+    A missing match or ambiguous match fails unless replace_all allows ambiguity.
+
+    Args:
+        path: Project-relative file path.
+        old: Non-empty literal text to find, without displayed line numbers.
+        new: Replacement text; empty deletes the matched text.
+        replace_all: Replace every occurrence; false requires exactly one match.
+
+    Returns:
+        {"changed": true} after replacement succeeds.
+    """
 
     async def __call__(
         self,
@@ -278,7 +354,21 @@ class EditTextTool(_BaseEditTool):
 
 class ReplaceRangeTool(_BaseEditTool):
     name = "replace_range"
-    description = "Replace one inclusive 1-based line range with UTF-8 content."
+    description = """Replace an inclusive line range in an existing project file.
+
+    Read the file first: line numbers refer to current content and shift after
+    edits. Use edit for a unique text fragment. Preserves the file newline style.
+
+    Args:
+        path: Project-relative file path.
+        start_line: First existing line to replace, 1-based and inclusive.
+        end_line: Last existing line to replace, inclusive and at least start_line.
+        content: Replacement text without displayed line numbers; empty deletes
+            the selected lines.
+
+    Returns:
+        {"changed": true} after replacement succeeds.
+    """
 
     async def __call__(
         self,

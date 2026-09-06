@@ -437,7 +437,22 @@ def _artifact_metric(result: Mapping[str, Any]) -> Mapping[str, Any]:
 
 class LoadLikeC4Tool(_BaseLikeC4Tool):
     name = "load_likec4"
-    description = "Load an exact LikeC4 artifact and copy or resume it in this Agent Namespace."
+    description = """Load a LikeC4 artifact into the Worker's current document session.
+
+    Copies the source into the Worker's namespace or resumes the same binding.
+    Call this or write_likec4 before reading, editing or validating the document.
+
+    Args:
+        namespace: Source artifact namespace.
+        name: Source artifact binding name.
+        revision: Source revision; required for a source outside the Worker's namespace.
+        target_name: Destination binding in the Worker's namespace; default "architecture".
+        expected_revision: Current destination revision when copying over an existing
+            binding; omit to create it. Resuming the same binding uses its revision.
+
+    Returns:
+        Exact current artifact reference, document size and changed/copied flags.
+    """
 
     async def __call__(
         self,
@@ -469,7 +484,20 @@ class LoadLikeC4Tool(_BaseLikeC4Tool):
 
 class WriteLikeC4Tool(_BaseLikeC4Tool):
     name = "write_likec4"
-    description = "Create or CAS-replace the bounded UTF-8 LikeC4 document in this Agent Namespace."
+    description = """Create or replace the current UTF-8 LikeC4 document.
+
+    Writes in the Worker's namespace with revision checks. Use validate_likec4
+    after editing to check the document syntax.
+
+    Args:
+        content: Complete LikeC4 source text.
+        target_name: Destination binding; defaults to "architecture".
+        expected_revision: Current destination revision. Omit to reuse the loaded
+            revision of this target, or to create a new binding when none is loaded.
+
+    Returns:
+        Exact saved artifact reference, document size and changed/copied flags.
+    """
 
     async def __call__(
         self,
@@ -495,7 +523,18 @@ class WriteLikeC4Tool(_BaseLikeC4Tool):
 
 class ReadLikeC4Tool(_BaseLikeC4Tool):
     name = "read_likec4"
-    description = "Read a bounded line window from the current exact LikeC4 document."
+    description = """Read a line window from the current LikeC4 document.
+
+    Load or write the document first. Output is limited to 128 KiB.
+
+    Args:
+        start_line: First line to read, 1-based and inclusive; defaults to 1.
+        max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+
+    Returns:
+        Exact artifact metadata, text, startLine, endLine, totalLines, truncated
+        and partialLine.
+    """
 
     async def __call__(
         self,
@@ -519,7 +558,16 @@ class ReadLikeC4Tool(_BaseLikeC4Tool):
 
 class AppendLikeC4Tool(_BaseLikeC4Tool):
     name = "append_likec4"
-    description = "Append exact text to the current document and CAS-save one new revision."
+    description = """Append exact text to the current LikeC4 document and save its revision.
+
+    Load or write the document first. Saving checks the current revision.
+
+    Args:
+        content: Non-empty text to append; include any required separating newline.
+
+    Returns:
+        Exact saved artifact metadata, changed and appendedUtf8Bytes.
+    """
 
     async def __call__(self, content: str) -> dict[str, Any]:
         return await self._call(
@@ -531,9 +579,20 @@ class AppendLikeC4Tool(_BaseLikeC4Tool):
 
 class ReplaceLikeC4Tool(_BaseLikeC4Tool):
     name = "replace_likec4"
-    description = (
-        "Replace one exact fragment, or an explicit bounded number of matches, then CAS-save."
-    )
+    description = """Replace an exact fragment in the current LikeC4 document and save its revision.
+
+    Read the document first and copy the exact fragment, including whitespace.
+    Saving checks the current revision.
+
+    Args:
+        old: Non-empty literal fragment to find.
+        new: Replacement text; empty deletes the matched fragment.
+        count: Number of occurrences to replace from the start, from 1 to 100.
+            Omit to require exactly one match; cannot exceed matching occurrences.
+
+    Returns:
+        Exact saved artifact metadata, changed and replacementCount.
+    """
 
     async def __call__(
         self,
@@ -550,7 +609,16 @@ class ReplaceLikeC4Tool(_BaseLikeC4Tool):
 
 class ValidateLikeC4Tool(_BaseLikeC4Tool):
     name = "validate_likec4"
-    description = "Validate the current exact document with a fixed bounded LikeC4 CLI invocation."
+    description = """Validate the current LikeC4 document with the LikeC4 CLI.
+
+    Load or write the document first. Validation checks the current session's
+    exact artifact revision and does not modify it.
+
+    Returns:
+        Exact artifact reference, valid, bounded issues, issuesTruncated,
+        validatorAvailable and validatorExecutionError. Unavailable or failed
+        validation is not a successful check.
+    """
 
     async def __call__(self) -> dict[str, Any]:
         return await self._call(

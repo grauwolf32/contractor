@@ -131,10 +131,23 @@ class _BaseTextTool:
 
 class ReadTextArtifactTool(_BaseTextTool):
     name = "read_text_artifact"
-    description = (
-        "Read a bounded line window from a UTF-8 artifact in this Workflow Run. "
-        "Use the exact revision supplied in Stage context when one is available."
-    )
+    description = """Read a bounded UTF-8 line window from an artifact in this Workflow Run.
+
+    Output is limited to 128 KiB; inspect truncated and partialLine before treating
+    the window as complete.
+
+    Args:
+        namespace: Artifact namespace.
+        name: Exact artifact binding name.
+        revision: Exact revision to read; omit for the current revision. Use the
+            exact revision supplied in Stage context when available.
+        start_line: First line to read, 1-based and inclusive; defaults to 1.
+        max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+
+    Returns:
+        Exact artifact metadata, text, startLine, endLine, totalLines, truncated
+        and partialLine. Non-UTF-8 content is rejected.
+    """
 
     async def __call__(
         self,
@@ -204,10 +217,21 @@ class ReadTextArtifactTool(_BaseTextTool):
 
 class WriteTextArtifactTool(_BaseTextTool):
     name = "write_text_artifact"
-    description = (
-        "Create or CAS-update a UTF-8 artifact in this Worker's fixed Namespace. "
-        "Omit expected_revision only when creating a new binding."
-    )
+    description = """Create or update a UTF-8 artifact in the Worker's fixed namespace.
+
+    Updates require the expected current revision to prevent overwriting a
+    concurrent write.
+
+    Args:
+        name: Destination artifact binding name within the Worker's namespace.
+        text: Complete UTF-8 text, limited to 1 MiB after encoding.
+        media_type: MIME type describing the text, such as "text/markdown".
+        expected_revision: Current destination revision for an update; omit only
+            to create a new binding.
+
+    Returns:
+        Saved artifact metadata including its exact revision, mediaType and size.
+    """
 
     def __init__(
         self,

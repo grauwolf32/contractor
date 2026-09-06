@@ -349,7 +349,13 @@ class _BaseMemoryTool:
 
 class ListMemoriesTool(_BaseMemoryTool):
     name = "list_memories"
-    description = "List current shared memory note previews without their content."
+    description = """List shared memory note previews, most recently updated first.
+
+    Use this to discover exact names before reading or writing notes.
+
+    Returns:
+        Note metadata and descriptions without content. Use read_memory for a body.
+    """
 
     async def __call__(self) -> list[dict[str, Any]]:
         started = time.perf_counter_ns()
@@ -365,7 +371,18 @@ class ListMemoriesTool(_BaseMemoryTool):
 
 class ReadMemoryTool(_BaseMemoryTool):
     name = "read_memory"
-    description = "Read one current shared memory note by its exact logical name."
+    description = """Read a shared memory note by its exact logical name.
+
+    Use list_memories or search_memory to discover names. Reuse content already
+    read until the note changes.
+
+    Args:
+        name: Exact logical note name in the Worker's shared memory namespace.
+
+    Returns:
+        The full note, including content, description, tags, ordinal, created_at
+        and updated_at.
+    """
 
     async def __call__(self, name: str) -> dict[str, Any]:
         started = time.perf_counter_ns()
@@ -382,7 +399,22 @@ class ReadMemoryTool(_BaseMemoryTool):
 
 class WriteMemoryTool(_BaseMemoryTool):
     name = "write_memory"
-    description = "Create or replace one shared memory note. Replacement preserves creation order."
+    description = """Create or replace a shared memory note.
+
+    Replacement overwrites content, description and tags. Use append_memory to
+    extend a note while preserving metadata. Check existing notes to avoid duplicates.
+    The original creation time and ordinal are preserved.
+
+    Args:
+        name: Stable lowercase snake_case note name in the shared memory namespace.
+        content: Non-empty note text; the complete encoded note is limited to 32 KiB.
+        description: Preview summary, at most 512 UTF-8 bytes; defaults to empty.
+        tags: Up to 3 lowercase tags; defaults to an empty list. Use list_memory_tags
+            to reuse existing tags. Tags may contain letters, digits, _ and -.
+
+    Returns:
+        The full stored note with tags, description, ordinal, created_at and updated_at.
+    """
 
     async def __call__(
         self,
@@ -405,7 +437,17 @@ class WriteMemoryTool(_BaseMemoryTool):
 
 class AppendMemoryTool(_BaseMemoryTool):
     name = "append_memory"
-    description = "Append one newline and non-empty content to an existing shared memory note."
+    description = """Append a newline and text to an existing shared memory note.
+
+    Preserves the note description, tags, creation time and ordinal.
+
+    Args:
+        name: Exact logical name of an existing note.
+        content: Non-empty text to append after a newline.
+
+    Returns:
+        The full updated note with tags, description, ordinal, created_at and updated_at.
+    """
 
     async def __call__(self, name: str, content: str) -> dict[str, Any]:
         started = time.perf_counter_ns()
@@ -425,7 +467,16 @@ class AppendMemoryTool(_BaseMemoryTool):
 
 class SearchMemoryTool(_BaseMemoryTool):
     name = "search_memory"
-    description = "List previews of shared memory notes matching any supplied tag."
+    description = """Find shared memory note previews matching any supplied tag.
+
+    Use read_memory only for matches whose full content is needed.
+
+    Args:
+        tags: Tags to match with OR semantics and exact spelling and case.
+
+    Returns:
+        Matching previews, most recently updated first, without note content.
+    """
 
     async def __call__(self, tags: list[str]) -> list[dict[str, Any]]:
         started = time.perf_counter_ns()
@@ -442,7 +493,11 @@ class SearchMemoryTool(_BaseMemoryTool):
 
 class ListMemoryTagsTool(_BaseMemoryTool):
     name = "list_memory_tags"
-    description = "List the current unique shared memory tags in lexical order."
+    description = """List unique tags currently used by shared memory notes.
+
+    Returns:
+        Tag strings in lexical order for reuse in search_memory or write_memory.
+    """
 
     async def __call__(self) -> list[str]:
         started = time.perf_counter_ns()

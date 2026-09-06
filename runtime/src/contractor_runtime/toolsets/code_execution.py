@@ -56,11 +56,20 @@ class CodeExecutionToolsetFactory:
 
 class ExecCommandTool:
     name = "exec_command"
-    description = (
-        "Run a bounded shell command in the allocation container. cwd is workspace-"
-        "relative. Background processes are forbidden. Timeout or output overflow "
-        "terminates the allocation; partial file changes are not rolled back."
-    )
+    description = """Run a shell command in the allocation container.
+
+    Background processes are forbidden. Timeout or output overflow terminates the
+    allocation; partial file changes are not rolled back.
+
+    Args:
+        command: Shell command to execute in the container.
+        cwd: Workspace-relative working directory; empty means the workspace root.
+        timeout_seconds: Wall-clock limit from 1 to 3600 seconds; defaults to 60.
+
+    Returns:
+        Status, exitCode, stdout and stderr previews, truncation flags, durationMs
+        and errorCode when execution fails.
+    """
 
     def __init__(self, executor, state):
         self._executor = executor

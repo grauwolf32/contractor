@@ -276,10 +276,26 @@ class ContractorSkillTool(BaseTool):
         metrics: Any,
     ) -> None:
         descriptions = {
-            "list_skills": "List the exact Agent Skills selected for this Worker.",
-            "load_skill": "Load the SKILL.md guidance for one selected Agent Skill.",
+            "list_skills": (
+                "List the Agent Skills selected for this Worker.\n\n"
+                "Returns:\n"
+                "    Skill names and descriptions as XML. Use an exact name with load_skill."
+            ),
+            "load_skill": (
+                "Read the SKILL.md instructions for a selected Agent Skill.\n\n"
+                "Args:\n"
+                "    skill_name: Exact skill name returned by list_skills.\n\n"
+                "Returns:\n"
+                "    The skill instructions and resource guidance for the current task."
+            ),
             "load_skill_resource": (
-                "Load one references/... or assets/... file from a selected Agent Skill."
+                "Read a reference or asset from a selected Agent Skill.\n\n"
+                "Load the skill first and use a resource path named in its guidance.\n\n"
+                "Args:\n"
+                "    skill_name: Exact skill name returned by list_skills.\n"
+                "    file_path: Exact skill-relative references/... or assets/... path.\n\n"
+                "Returns:\n"
+                "    Resource text, or a status indicating that binary content was attached."
             ),
         }
         super().__init__(name=name, description=descriptions[name])
@@ -293,13 +309,13 @@ class ContractorSkillTool(BaseTool):
         if self.name in {"load_skill", "load_skill_resource"}:
             properties["skill_name"] = {
                 "type": "string",
-                "description": "Exact selected Agent Skill name.",
+                "description": "Exact skill name returned by list_skills.",
             }
             required.append("skill_name")
         if self.name == "load_skill_resource":
             properties["file_path"] = {
                 "type": "string",
-                "description": "Portable references/... or assets/... path.",
+                "description": "Exact skill-relative references/... or assets/... path.",
             }
             required.append("file_path")
         schema: dict[str, Any] = {

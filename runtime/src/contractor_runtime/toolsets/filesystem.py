@@ -447,7 +447,17 @@ class _BaseFilesystemTool:
 
 class ListWorkspaceTool(_BaseFilesystemTool):
     name = "ls"
-    description = "List immediate entries below one relative project workspace directory."
+    description = """List immediate children of a project workspace directory.
+
+    Args:
+        path: Project-relative directory; empty means the workspace root.
+        cursor: Opaque nextCursor from the same query; empty starts a new listing.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum entries per page, from 1 to 100; defaults to 100.
+
+    Returns:
+        Entries with path, type and size, plus nextCursor, truncated and scanned.
+    """
 
     async def __call__(
         self, path: str = "", cursor: str = "", limit: int = MAX_PAGE_ITEMS
@@ -464,7 +474,18 @@ class ListWorkspaceTool(_BaseFilesystemTool):
 
 class GlobWorkspaceTool(_BaseFilesystemTool):
     name = "glob"
-    description = "Find sorted project-relative paths with path-aware glob syntax."
+    description = """Find sorted project-relative paths by glob pattern.
+
+    Args:
+        pattern: Project-relative glob, such as "src/**/*.py". A single * matches
+            within a path segment; ** matches across directories.
+        cursor: Opaque nextCursor from the same query; empty starts a new search.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum matches per page, from 1 to 100; defaults to 100.
+
+    Returns:
+        Matching path entries, nextCursor, truncated and scanned.
+    """
 
     async def __call__(
         self, pattern: str, cursor: str = "", limit: int = MAX_PAGE_ITEMS
@@ -481,7 +502,20 @@ class GlobWorkspaceTool(_BaseFilesystemTool):
 
 class ReadWorkspaceFileTool(_BaseFilesystemTool):
     name = "read_file"
-    description = "Read bounded numbered UTF-8 lines from one project-relative file."
+    description = """Read numbered UTF-8 lines from a project workspace file.
+
+    Read the current content before editing. Returned line numbers are metadata;
+    pass only the text to editing tools. Output is limited to 128 KiB.
+
+    Args:
+        path: Project-relative file path.
+        start_line: First line to read, 1-based and inclusive; defaults to 1.
+        max_lines: Maximum lines to return, from 1 to 400; defaults to 200.
+
+    Returns:
+        Numbered lines, totalLines, nextLine, returnedBytes and truncated.
+        Binary files are unsupported.
+    """
 
     async def __call__(
         self,
@@ -501,7 +535,24 @@ class ReadWorkspaceFileTool(_BaseFilesystemTool):
 
 class GrepWorkspaceTool(_BaseFilesystemTool):
     name = "grep"
-    description = "Search bounded project text with literal or timeout-bounded regex matching."
+    description = """Search project text for a literal string or regular expression.
+
+    Use a specific pattern and narrow the path or glob when output is truncated.
+    Regular expression matching has time and scan limits.
+
+    Args:
+        pattern: Non-empty search text or expression, at most 512 characters.
+        path: Project-relative file or subtree; empty means the workspace root.
+        glob: Project-relative file glob; defaults to "**/*".
+        regex: Interpret pattern as a regular expression; defaults to false.
+        case_sensitive: Match letter case; defaults to true.
+        cursor: Opaque nextCursor from the same query; empty starts a new search.
+            Restart after workspace changes invalidate the cursor.
+        limit: Maximum matches per page, from 1 to 100; defaults to 100.
+
+    Returns:
+        File and line matches with excerpts, pagination and truncation metadata.
+    """
 
     async def __call__(
         self,

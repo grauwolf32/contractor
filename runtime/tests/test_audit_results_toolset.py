@@ -35,16 +35,12 @@ def test_submit_check_result_advertises_bounded_batch_member_schema() -> None:
         (),
         "audit-check",
     )
-    declaration = FunctionTool(tool)._get_declaration().model_dump(
-        mode="json", by_alias=True
-    )
+    declaration = FunctionTool(tool)._get_declaration().model_dump(mode="json", by_alias=True)
     schema = declaration["parametersJsonSchema"]
     batch = schema["$defs"]["BatchResultArgument"]
 
     assert batch["required"] == ["assessment", "summary", "completed", "gaps"]
-    assert batch["properties"]["evidence"]["items"]["$ref"].endswith(
-        "/EvidenceArgument"
-    )
+    assert batch["properties"]["evidence"]["items"]["$ref"].endswith("/EvidenceArgument")
     assert schema["properties"]["results"]["anyOf"][0]["items"]["$ref"].endswith(
         "/BatchResultArgument"
     )
@@ -239,9 +235,7 @@ def test_submit_check_result_publishes_one_complete_ordered_batch() -> None:
                     "summary": "Authorization is checked.",
                     "completed": ["source-trace"],
                     "gaps": [],
-                    "evidence": [
-                        {"kind": "source-trace", "summary": "Guard at app.py:12."}
-                    ],
+                    "evidence": [{"kind": "source-trace", "summary": "Guard at app.py:12."}],
                 },
                 {
                     "assessment": "inconclusive",
@@ -253,9 +247,7 @@ def test_submit_check_result_publishes_one_complete_ordered_batch() -> None:
             ],
         )
 
-        result_document, evidence_document, _ = decode_result_package(
-            client.written_payload
-        )
+        result_document, evidence_document, _ = decode_result_package(client.written_payload)
         assert [item["item_key"] for item in result_document["results"]] == [
             "check-authz",
             "check-input",
@@ -295,12 +287,14 @@ def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
         with pytest.raises(ValueError, match="exactly match"):
             await tools["submit_check_result"](
                 tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
-                results=[{
-                    "assessment": "inconclusive",
-                    "summary": "Only one item was returned.",
-                    "completed": [],
-                    "gaps": ["incomplete-batch"],
-                }],
+                results=[
+                    {
+                        "assessment": "inconclusive",
+                        "summary": "Only one item was returned.",
+                        "completed": [],
+                        "gaps": ["incomplete-batch"],
+                    }
+                ],
             )
         assert client.written_payload == b""
 

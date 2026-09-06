@@ -310,7 +310,24 @@ class _BaseAnnotationTool:
 class AnnotateTraceTool(_BaseAnnotationTool):
     name = "annotate_trace"
     kind = "trace"
-    description = "Insert one canonical trace annotation above an exact function."
+    description = """Insert a canonical @trace comment above an exact function.
+
+    Resolves the function, selects the language comment syntax, preserves
+    indentation and handles existing annotations. Use this for trace annotations.
+
+    Args:
+        path: Project-relative source file path.
+        symbol: Function or qualified method name, such as "Handler.get".
+        target: Assignment target identifier; defaults to "unknown".
+        args: Comma-separated name:state pairs; states are tainted, validated,
+            clean or derived. Empty omits argument states.
+        calls: Comma-separated relevant callee symbols; empty omits calls.
+        definition_line: 1-based definition line to disambiguate the symbol;
+            0 requires resolution by name alone.
+
+    Returns:
+        path, symbol, kind, annotationLine, definitionLine and changed.
+    """
 
     async def __call__(
         self,
@@ -347,7 +364,22 @@ class AnnotateTraceTool(_BaseAnnotationTool):
 class AnnotateValidateTool(_BaseAnnotationTool):
     name = "annotate_validate"
     kind = "validate"
-    description = "Insert one canonical validation annotation above an exact function."
+    description = """Insert a canonical @validate comment above an exact function.
+
+    Use when the function validates or sanitizes the named argument. Selects the
+    language comment syntax and preserves indentation.
+
+    Args:
+        path: Project-relative source file path.
+        symbol: Function or qualified method name.
+        arg: Name of the validated argument.
+        kind: Validation label, such as "regex", "schema", "length" or "allowlist".
+        definition_line: 1-based definition line to disambiguate the symbol;
+            0 requires resolution by name alone.
+
+    Returns:
+        path, symbol, kind, annotationLine, definitionLine and changed.
+    """
 
     async def __call__(
         self,
@@ -375,7 +407,22 @@ class AnnotateValidateTool(_BaseAnnotationTool):
 class AnnotateSinkTool(_BaseAnnotationTool):
     name = "annotate_sink"
     kind = "sink"
-    description = "Insert one canonical sink annotation above an exact function."
+    description = """Insert a canonical @sink comment above an exact function.
+
+    Use when the function directly performs or clearly wraps the sink. Selects
+    the language comment syntax and preserves indentation.
+
+    Args:
+        path: Project-relative source file path.
+        symbol: Function or qualified method name.
+        kind: Sink category, such as "sql", "shell", "ssrf" or "deserialize".
+        arg: Argument reaching the sink; defaults to "unknown".
+        definition_line: 1-based definition line to disambiguate the symbol;
+            0 requires resolution by name alone.
+
+    Returns:
+        path, symbol, kind, annotationLine, definitionLine and changed.
+    """
 
     async def __call__(
         self,

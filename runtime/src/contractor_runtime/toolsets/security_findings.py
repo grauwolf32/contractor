@@ -73,10 +73,27 @@ class SecurityFindingsToolsetFactory:
 
 class FindingTool:
     name = "finding"
-    description = (
-        "Register a candidate security finding supported by exact artifacts from this Run. "
-        "This does not confirm the finding or start more work."
-    )
+    description = """Submit a security finding proposal with exact evidence references.
+
+    The server records a proposal receipt; this does not confirm the vulnerability
+    or assign its final assessment.
+
+    Args:
+        client_key: Stable proposal key for deduplication within this invocation.
+        title: Non-empty finding title.
+        description: Non-empty explanation of the observed issue and impact.
+        subject: Object containing only kind and key identifiers for the subject.
+        evidence_refs: Unique exact artifact references, each with namespace, name
+            and revision, supporting the proposal.
+        hypothesis: Optional hypothesis requiring verification.
+        proposed_checks: Optional objects with objective text and method identifier.
+        standard_refs: Optional objects with scheme, version and requirement_id.
+        severity_suggestion: informational, low, medium, high or critical;
+            omit when no severity is proposed.
+
+    Returns:
+        proposal_id and receipt_id for the submitted proposal.
+    """
 
     def __init__(
         self,
