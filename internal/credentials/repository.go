@@ -46,7 +46,7 @@ func (r *Repository) CountCredentials(ctx context.Context) (int64, error) {
 	}
 	var count int64
 	if err := r.db.QueryRow(ctx, `SELECT count(*) FROM llm_credentials`).Scan(&count); err != nil {
-		return 0, errors.New("count encrypted credentials")
+		return 0, persistencepostgres.WrapError("count encrypted credentials", err)
 	}
 	return count, nil
 }
@@ -64,7 +64,7 @@ func (r *Repository) VerifyActiveKey(ctx context.Context, keyID string) error {
 	var mismatch bool
 	if err := r.db.QueryRow(ctx, `
 SELECT EXISTS (SELECT 1 FROM llm_credentials WHERE key_id <> $1)`, keyID).Scan(&mismatch); err != nil {
-		return errors.New("verify encrypted credential key")
+		return persistencepostgres.WrapError("verify encrypted credential key", err)
 	}
 	if mismatch {
 		return ErrKeyUnavailable
@@ -104,7 +104,7 @@ WHERE credential_id > $1
 ORDER BY credential_id
 LIMIT $2`, afterCredentialID, limit)
 	if err != nil {
-		return nil, errors.New("list encrypted credentials")
+		return nil, persistencepostgres.WrapError("list encrypted credentials", err)
 	}
 	defer rows.Close()
 	result := make([]Record, 0)
@@ -116,7 +116,7 @@ LIMIT $2`, afterCredentialID, limit)
 		result = append(result, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, errors.New("iterate encrypted credentials")
+		return nil, persistencepostgres.WrapError("iterate encrypted credentials", rows.Err())
 	}
 	return result, nil
 }
@@ -224,7 +224,7 @@ WHERE credential_id = $1`, credentialID).Scan(
 		return Tombstone{}, ErrNotFound
 	}
 	if err != nil {
-		return Tombstone{}, errors.New("read credential tombstone")
+		return Tombstone{}, persistencepostgres.WrapError("read credential tombstone", err)
 	}
 	result.DeletedAt = result.DeletedAt.UTC()
 	return result, nil
@@ -293,7 +293,7 @@ WHERE operation_id = $1 AND phase = 'prepared' AND updated_at <= $2`,
 	if err := r.db.QueryRow(ctx, `SELECT phase FROM credential_operations WHERE operation_id = $1`, operationID).Scan(&phase); errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	} else if err != nil {
-		return errors.New("read credential operation phase")
+		return persistencepostgres.WrapError("read credential operation phase", err)
 	}
 	if phase == OperationCompleted {
 		return nil
@@ -313,7 +313,7 @@ WHERE phase = 'prepared'
 ORDER BY created_at, operation_id
 LIMIT $1`, limit)
 	if err != nil {
-		return nil, errors.New("list prepared credential operations")
+		return nil, persistencepostgres.WrapError("list prepared credential operations", err)
 	}
 	defer rows.Close()
 	result := make([]Operation, 0)
@@ -325,7 +325,7 @@ LIMIT $1`, limit)
 		result = append(result, operation)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, errors.New("iterate prepared credential operations")
+		return nil, persistencepostgres.WrapError("iterate prepared credential operations", rows.Err())
 	}
 	return result, nil
 }
@@ -345,7 +345,7 @@ func scanRecord(row rowScanner) (Record, error) {
 		return Record{}, ErrNotFound
 	}
 	if err != nil {
-		return Record{}, errors.New("read encrypted credential")
+		return Record{}, persistencepostgres.WrapError("read encrypted credential", err)
 	}
 	if err := decodeStrictJSON(policy, &result.EffectivePolicy); err != nil || validateRecord(result) != nil {
 		return Record{}, errors.New("stored encrypted credential is invalid")
@@ -367,7 +367,7 @@ func scanOperation(row rowScanner) (Operation, error) {
 		return Operation{}, ErrNotFound
 	}
 	if err != nil {
-		return Operation{}, errors.New("read credential operation")
+		return Operation{}, persistencepostgres.WrapError("read credential operation", err)
 	}
 	result.CreatedAt = result.CreatedAt.UTC()
 	result.UpdatedAt = result.UpdatedAt.UTC()
@@ -497,10 +497,10 @@ func classifyRepositoryWrite(err error) error {
 	if errors.As(err, &postgresError) {
 		switch postgresError.Code {
 		case "23505":
-			return ErrConflict
+			return persistencepostgres.WrapError(ErrConflict.Error(), errors.Join(ErrConflict, err))
 		case "23503", "23514", "22001", "22P02":
-			return ErrInvalid
+			return persistencepostgres.WrapError(ErrInvalid.Error(), errors.Join(ErrInvalid, err))
 		}
 	}
-	return errors.New("persist encrypted credential state")
+	return persistencepostgres.WrapError("persist encrypted credential state", err)
 }

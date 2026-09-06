@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/config"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -131,7 +132,10 @@ func validateSpecRuntimeCredentials(
 			if contextError := ctx.Err(); contextError != nil {
 				return contextError
 			}
-			return fmt.Errorf("%w: RuntimeConfig references an unavailable or incompatible credential", ErrInvalid)
+			return persistencepostgres.WrapError(
+				fmt.Sprintf("%s: RuntimeConfig references an unavailable or incompatible credential", ErrInvalid),
+				errors.Join(ErrInvalid, err),
+			)
 		}
 	}
 	return nil

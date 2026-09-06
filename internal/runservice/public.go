@@ -85,6 +85,9 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 			}
 
 			return s.publicTransaction(ctx, func(runs PublicRunWriter, artifactService *artifacts.Service) error {
+				// The PostgreSQL unit of work may replay this entire database-only
+				// callback with a fresh snapshot after a definite transaction abort.
+				stored, created, err = runstore.WorkflowRun{}, false, nil
 				catalog, catalogErr := agentskills.NewCatalog(artifactService)
 				if catalogErr != nil {
 					return catalogErr
@@ -161,7 +164,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 
 	err = createPinned()
 	if err != nil {
-		if !errors.Is(err, runstore.ErrConflict) && persistencepostgres.SQLState(err) != "40001" {
+		if ctx.Err() != nil || (!errors.Is(err, runstore.ErrConflict) && !persistencepostgres.IsTransactionConflict(err)) {
 			return CreateResult{}, err
 		}
 		var recovered bool

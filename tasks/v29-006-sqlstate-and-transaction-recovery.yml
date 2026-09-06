@@ -3,7 +3,7 @@ id: V29-006
 title: Preserve SQLSTATE and recover safe PostgreSQL transaction conflicts
 milestone: postgres-reliability-and-query-efficiency
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on:
 - V8-005

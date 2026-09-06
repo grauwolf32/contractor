@@ -729,7 +729,7 @@ func (u postgresPublicUnitOfWork) Do(
 	ctx context.Context,
 	fn func(publicapi.RunWriter, *artifacts.Service) error,
 ) error {
-	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
+	return persistencepostgres.InTxWithRetry(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 		txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 			tx, u.transactionLLMCredentials,
 		)

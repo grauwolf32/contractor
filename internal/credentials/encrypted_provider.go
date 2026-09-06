@@ -6,6 +6,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 type RecordReader interface {
@@ -35,7 +36,7 @@ func (p *EncryptedProvider) LookupLLMCredential(
 		if errors.Is(err, ErrNotFound) {
 			return config.CredentialMetadata{}, ErrNotFound
 		}
-		return config.CredentialMetadata{}, errors.New("lookup encrypted credential metadata")
+		return config.CredentialMetadata{}, persistencepostgres.WrapError("lookup encrypted credential metadata", err)
 	}
 	return config.CredentialMetadata{
 		Ref:           contracts.LLMCredentialRef{CredentialID: record.CredentialID},
@@ -58,7 +59,7 @@ func (p *EncryptedProvider) ResolveLLMCredential(
 		return contracts.SecretString{}, ErrNotFound
 	}
 	if err != nil {
-		return contracts.SecretString{}, errors.New("resolve encrypted credential")
+		return contracts.SecretString{}, persistencepostgres.WrapError("resolve encrypted credential", err)
 	}
 	if record.CredentialID != ref.CredentialID || record.LLMGateway != gateway {
 		return contracts.SecretString{}, ErrNotFound

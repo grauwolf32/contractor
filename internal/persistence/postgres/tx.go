@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -30,14 +29,14 @@ func InTx(
 ) (err error) {
 	tx, err := pool.BeginTx(ctx, options)
 	if err != nil {
-		return fmt.Errorf("begin PostgreSQL transaction: %w", err)
+		return WrapError("begin PostgreSQL transaction", err)
 	}
 	defer func() {
 		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		rollbackErr := tx.Rollback(rollbackCtx)
 		if rollbackErr != nil && rollbackErr != pgx.ErrTxClosed && err == nil {
-			err = fmt.Errorf("rollback PostgreSQL transaction: %w", rollbackErr)
+			err = WrapError("rollback PostgreSQL transaction", rollbackErr)
 		}
 	}()
 
@@ -45,7 +44,7 @@ func InTx(
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit PostgreSQL transaction: %w", err)
+		return WrapError("commit PostgreSQL transaction", err)
 	}
 	return nil
 }

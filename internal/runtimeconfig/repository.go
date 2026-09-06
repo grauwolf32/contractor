@@ -106,7 +106,7 @@ WHERE (name, version) > ($1, $2)
 ORDER BY name, version
 LIMIT $3`, afterName, afterVersion, limit)
 	if err != nil {
-		return nil, errors.New("list RuntimeConfig versions")
+		return nil, persistencepostgres.WrapError("list RuntimeConfig versions", err)
 	}
 	defer rows.Close()
 	result := make([]Version, 0)
@@ -118,7 +118,7 @@ LIMIT $3`, afterName, afterVersion, limit)
 		result = append(result, item)
 	}
 	if rows.Err() != nil {
-		return nil, errors.New("iterate RuntimeConfig versions")
+		return nil, persistencepostgres.WrapError("iterate RuntimeConfig versions", rows.Err())
 	}
 	return result, nil
 }
@@ -141,7 +141,7 @@ WHERE idempotency_key_digest = $1`, idempotencyKeyDigest).Scan(
 		return Publication{}, ErrNotFound
 	}
 	if err != nil {
-		return Publication{}, errors.New("get RuntimeConfig publication")
+		return Publication{}, persistencepostgres.WrapError("get RuntimeConfig publication", err)
 	}
 	return publication, nil
 }
@@ -209,7 +209,7 @@ func (r *Repository) ListBindings(ctx context.Context, afterLabel string, limit 
 	}
 	rows, err := r.db.Query(ctx, bindingSelect+` WHERE label > $1 ORDER BY label LIMIT $2`, afterLabel, limit)
 	if err != nil {
-		return nil, errors.New("list RuntimeConfig bindings")
+		return nil, persistencepostgres.WrapError("list RuntimeConfig bindings", err)
 	}
 	defer rows.Close()
 	result := make([]Binding, 0)
@@ -221,7 +221,7 @@ func (r *Repository) ListBindings(ctx context.Context, afterLabel string, limit 
 		result = append(result, item)
 	}
 	if rows.Err() != nil {
-		return nil, errors.New("iterate RuntimeConfig bindings")
+		return nil, persistencepostgres.WrapError("iterate RuntimeConfig bindings", rows.Err())
 	}
 	return result, nil
 }
@@ -348,7 +348,7 @@ func scanVersion(row rowScanner) (Version, error) {
 		return Version{}, ErrNotFound
 	}
 	if err != nil {
-		return Version{}, errors.New("read RuntimeConfig version")
+		return Version{}, persistencepostgres.WrapError("read RuntimeConfig version", err)
 	}
 	decoded, err := DecodeStoredDocument([]byte(canonical))
 	if err != nil || decoded.Ref != result.Ref || decoded.BuiltIn != result.BuiltIn {
@@ -368,7 +368,7 @@ func scanBinding(row rowScanner) (Binding, error) {
 		return Binding{}, ErrNotFound
 	}
 	if err != nil {
-		return Binding{}, errors.New("read RuntimeConfig binding")
+		return Binding{}, persistencepostgres.WrapError("read RuntimeConfig binding", err)
 	}
 	parsed, err := strconv.ParseUint(revision, 10, 64)
 	if err != nil {
@@ -410,10 +410,10 @@ func classifyWrite(err error) error {
 	if errors.As(err, &postgresError) {
 		switch postgresError.Code {
 		case "23505":
-			return ErrConflict
+			return persistencepostgres.WrapError(ErrConflict.Error(), errors.Join(ErrConflict, err))
 		case "23503", "23514", "22001", "22P02":
-			return ErrInvalid
+			return persistencepostgres.WrapError(ErrInvalid.Error(), errors.Join(ErrInvalid, err))
 		}
 	}
-	return errors.New("persist RuntimeConfig state")
+	return persistencepostgres.WrapError("persist RuntimeConfig state", err)
 }
