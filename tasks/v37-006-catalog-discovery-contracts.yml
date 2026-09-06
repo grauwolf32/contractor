@@ -3,7 +3,7 @@ id: "V37-006"
 title: "Expose authored Workflow summaries and bounded Catalog discovery queries"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "pending"
+status: "in_progress"
 implementation_commit: null
 depends_on: ["V33-001", "V23-004"]
 languages: ["go", "typescript", "yaml"]
