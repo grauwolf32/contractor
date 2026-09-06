@@ -1,0 +1,21 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata:
+  name: podman_python_fixer
+  version: "1"
+spec:
+  description: Fix and check a small Python source fixture inside an offline Podman allocation
+  runtime: adk@1
+  instructions:
+    ref: instructions/podman-python-fixer.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: filesystem@1
+      tools: [read_file]
+    - ref: edit-files@1
+      tools: [edit]
+    - ref: code-execution@1
+      tools: [exec_command]
+    - ref: run-artifacts@1
+      tools: [write_artifact]
+  sandboxProfile: podman@1

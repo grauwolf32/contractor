@@ -20,6 +20,12 @@ test-runtime-hardening:
 	cd runtime && uv run pytest -W error tests
 
 .PHONY: test-podman-supervisor
+.PHONY: test-podman-workflow
+test-podman-workflow:
+	@test -n "$$CONTRACTOR_TEST_PODMAN_IMAGE" || (echo "CONTRACTOR_TEST_PODMAN_IMAGE must name a preinstalled digest-pinned image" >&2; exit 1)
+	go test -count=1 ./internal/config
+	cd runtime && CONTRACTOR_RUN_PODMAN_WORKFLOW_GATE=1 uv run pytest -W error tests/test_podman_workflow.py tests/test_agent_skill_package.py tests/test_podman_deployment_integration.py
+
 test-podman-supervisor:
 	@test -n "$$CONTRACTOR_TEST_PODMAN_IMAGE" || (echo "CONTRACTOR_TEST_PODMAN_IMAGE must name a preinstalled digest-pinned image" >&2; exit 1)
 	cd runtime && CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_supervisor_integration.py tests/test_podman_owner_integration.py tests/test_podman_execution_integration.py tests/test_podman_capabilities.py

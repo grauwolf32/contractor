@@ -22,7 +22,8 @@ not valid `ServerConfig` fields.
   focused analysis contracts;
 - `audit-source-check@1` as the Audit-owned bounded task-set child Workflow used
   by the `source-checklist@1` and `openapi-operation-trace@1` AuditProfiles;
-- `artifact-copy@1` as the one intentionally published smoke fixture.
+- `artifact-copy@1` as the ordinary artifact smoke fixture;
+- `podman-python-check@1` as the explicitly selected offline Podman execution fixture.
 
 Historical source-analysis and earlier workspace/Skill versions are deleted,
 not archived or republished. Existing Runs retain their complete resolved
@@ -48,7 +49,7 @@ only `(scheme, version)`. Audit start resolves and retains the exact package
 revision and license provenance; changing content under an existing identity
 is fatal drift, so changed content must use a new version.
 
-Each current workspace Workflow hydrates the exact `inputs/source` ZIP below a
+The overlay workspace Workflows hydrate the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code
 tools. It exports exact cumulative `workspace_state` plus checkpoint
 `workspace_diff`; a later Stage imports the exact prior state revision. With no
@@ -56,6 +57,14 @@ imported state, the cumulative overlay is the canonical empty delta over the
 hydrated sources. An unchanged Stage therefore exports an identity state and
 empty diff. These are internal lineage artifacts retained for future explicit
 Workflow composition; no join behavior or implicit workspace sharing exists.
+
+`podman-python-check@1` is a separate opt-in **direct** workspace example. It
+selects `podman_python_fixer@1`, fixes a small offline Python fixture and publishes
+only an explicitly written JSON report. It neither exports nor imports overlay
+state, mounts Skills nor downloads packages. See the [local Podman setup and
+source ZIP recipe](../runtime/README.md#local-podman-workflow). Existing agents
+need no policy changes; only agents advertising verified local/direct Podman
+execution can accept this workflow.
 
 The discovery Stages use `workspace_source_graph_analyst@1` and select all
 eleven bounded structural operations. They wait for a Runtime Agent whose

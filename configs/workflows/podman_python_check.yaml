@@ -1,0 +1,56 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: podman-python-check
+  version: "1"
+spec:
+  parameters: {}
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+  outputs:
+    report:
+      required: true
+      mediaTypes: [application/json]
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+  entryStage: check
+  stages:
+    check:
+      objective: Fix add in calculator.py, run check.py, and publish the successful JSON report
+      instructions:
+        ref: instructions/podman-check-planner.md
+      planner: passthrough@1
+      agents:
+        builder:
+          template: podman_python_fixer@1
+          namespace: builder
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+        workspace:
+          mode: direct
+          sources:
+            - artifact: source
+              target: ""
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [application/json]
+            from: {namespace: builder, name: check_report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

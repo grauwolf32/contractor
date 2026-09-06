@@ -47,10 +47,106 @@ allocation cleanup retries. `make test-project-workspaces-e2e` additionally
 requires `CONTRACTOR_TEST_DATABASE_URL` for isolated PostgreSQL process tests.
 V30-004 passed these gates and `make verify` on 2026-09-06; evidence is recorded in
 [`tasks/v30-004-local-direct-release-gate.yml`](../tasks/v30-004-local-direct-release-gate.yml).
-These changes expose no command-execution Toolset or Podman capability.
+Local/direct storage alone grants no command-execution authority. The opt-in
+Podman backend and `code-execution@1` now require complete positive startup
+probes; see [Podman policy](PODMAN.md).
 
-The opt-in Podman contract and startup settings are documented in
-[Podman policy](PODMAN.md). The execution backend is not installed yet.
+## Local Podman workflow
+
+The sample `podman-python-check@1` uses `podman_python_fixer@1`: read and fix a
+small Python source, execute its offline checker, and explicitly publish
+`builder/check_report` as the ordinary JSON workflow output `report`. It uses
+local **direct** storage, not an overlay, and does not automatically export files.
+
+First follow [image and host provisioning](../deploy/podman/README.md), including
+the real-host gates. From the repository root, after provisioning the existing
+Control Plane and agent mTLS certificates, run:
+
+```sh
+uv sync --project runtime --locked
+mkdir -p -m 700 .local/podman-runtime/scratch .local/podman-runtime/project
+export CONTRACTOR_CONTROL_PLANE_URL=https://localhost:8443
+export CONTRACTOR_ADVERTISED_CONTROL_URL=https://localhost:9443
+export CONTRACTOR_ADVERTISED_A2A_URL=https://localhost:9443
+export CONTRACTOR_CA_FILE="$PWD/.local/pki/ca.crt"
+export CONTRACTOR_CERTIFICATE_FILE="$PWD/.local/pki/agents/agent-local.crt"
+export CONTRACTOR_PRIVATE_KEY_FILE="$PWD/.local/pki/agents/agent-local.key"
+export CONTRACTOR_WORK_ROOT="$PWD/.local/podman-runtime/scratch"
+export CONTRACTOR_WORKSPACE_STORAGE=local
+export CONTRACTOR_WORKSPACE_WORK_ROOT="$PWD/.local/podman-runtime/project"
+export CONTRACTOR_PODMAN_ENABLED=true
+export CONTRACTOR_PODMAN_IMAGE="${CONTRACTOR_TEST_PODMAN_IMAGE:?set the preinstalled digest reference}"
+export CONTRACTOR_PODMAN_OWNER=local-podman-runtime
+export CONTRACTOR_PODMAN_CPUS=2
+export CONTRACTOR_PODMAN_MEMORY_BYTES=2147483648
+export CONTRACTOR_PODMAN_PIDS=256
+export CONTRACTOR_PODMAN_TMPFS_BYTES=268435456
+export CONTRACTOR_PODMAN_COMMAND_MAX_SECONDS=300
+export CONTRACTOR_PODMAN_PREPARE_MAX_SECONDS=30
+export CONTRACTOR_PODMAN_STOP_GRACE_SECONDS=5
+export CONTRACTOR_PODMAN_PREVIEW_BYTES=32768
+export CONTRACTOR_PODMAN_OUTPUT_MAX_BYTES=1048576
+export CONTRACTOR_SHUTDOWN_GRACE_SECONDS=30
+runtime/.venv/bin/contractor-runtime --listen 127.0.0.1:9443
+```
+
+Run under the nonzero UID that owns the Podman image store and both dedicated
+roots. The certificate must identify the agent authorized by your Control Plane;
+adjust URLs and certificate paths to your existing local setup. This command
+does not launch the Control Plane, provision credentials or enable Podman for
+other agents. The corresponding CLI flags are `--podman-enabled true`,
+`--podman-image`, `--podman-owner`, and `--podman-<setting-with-hyphens>`.
+
+Before submitting the workflow, check the Runtime Agent in Operations (or
+`GET /v1/operations/runtime-agents`): it must be registered and available with
+`podman@1`, `code-execution@1` / `exec_command`, and local/direct workspace
+capacity. Startup logs report `Runtime Podman effective policy verified` only
+after cleanup. Enabled settings alone, a listening port, or `systemctl active`
+are not positive capabilities. Missing optional prerequisites omit the paired
+capabilities; unconfirmed recovery/cleanup prevents registration entirely.
+
+Create the example source ZIP without an extra enclosing directory:
+
+```sh
+sample_bundle_dir=$(mktemp -d /tmp/contractor-podman-source.XXXXXX)
+(cd configs/fixtures/podman-python-check &&
+  python3 -m zipfile -c "$sample_bundle_dir/source.zip" calculator.py check.py)
+printf '%s\n' "$sample_bundle_dir/source.zip"
+```
+
+Start/reload the Server with the `configs` catalog, select `podman-python-check@1`
+in the Run form and upload this ZIP as `source` (`application/zip`). The Server
+resolves the exact input Artifact revision before allocation. The ordinary
+`worker@1` model policy uses the configured `local-litellm@1` gateway and
+`development-worker` credential; those are host-side deployment prerequisites,
+not container credentials. A user-triggered Run uses that real model. For a
+reproducible check **without a model service or live credentials**, run from the
+repository root:
+
+```sh
+make test-podman-workflow
+```
+
+The gate requires `CONTRACTOR_TEST_PODMAN_IMAGE`, starts the real Runtime CLI and
+mTLS listener, verifies registration after real probes, runs the sample through
+ADK and allocation preparation/finalization/release, and checks the exact output
+ArtifactRef. Model responses and remote Control Plane/Artifact peers are
+deterministic in-process stand-ins; this is not a full Server/PostgreSQL/LLM test.
+The ordinary suite tests the same selected tools with a fake command transport
+that never launches host code. Real-host skips do not satisfy the gate.
+
+Only an explicit `write_artifact` persists output before the Server's write
+fence. A successful command or `report.json` on disk is insufficient. `direct`
+edits, the checker and any unuploaded files disappear after confirmed container
+removal; export source explicitly if another workflow needs it. `read_file`
+returns numbered lines: encode the underlying file content, not its display
+wrapper, when publishing an artifact.
+
+First-version limits: no memory/overlay execution, container networking or
+package downloads, PTY, detached/background jobs, host engine socket, arbitrary
+mounts or skill-script mounts. Agent Skills remain script-free. The image root
+is read-only, `/tmp` is bounded tmpfs, and the bind has **no disk quota**; operator
+filesystem capacity/quotas are separate from the workspace API's read/edit limits.
 
 The listener requires both a deployment-CA client certificate and the reserved
 Control Plane URI SAN before HTTP dispatch. Readiness remains false until the

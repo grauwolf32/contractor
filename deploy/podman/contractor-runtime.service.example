@@ -1,0 +1,19 @@
+# User-unit template: replace checkout/venv paths before installation.
+[Unit]
+Description=Contractor local rootless Podman Runtime
+
+[Service]
+Type=exec
+WorkingDirectory=/srv/contractor
+EnvironmentFile=%h/.config/contractor/podman.env
+ExecStart=/srv/contractor/runtime/.venv/bin/contractor-runtime --listen 127.0.0.1:9443
+UMask=0077
+Delegate=yes
+# Keep independent cleanup owners/guardians alive after MainPID exits.
+KillMode=mixed
+SendSIGKILL=no
+TimeoutStopSec=45
+Restart=no
+
+[Install]
+WantedBy=default.target

@@ -25,6 +25,7 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 		"likec4-from-workspace@5",
 		"openapi-from-analysis@2",
 		"openapi-from-workspace@5",
+		"podman-python-check@1",
 		"security-analysis@2",
 		"taint-trace-from-workspace@2",
 	}
