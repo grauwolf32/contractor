@@ -719,6 +719,40 @@ value, while malformed or repeated values are replaced. Server-side 5xx logs
 record the request ID, boundary, method, status, and safe error type without
 raw request paths, bodies, artifact bytes, or exception messages.
 
+## Workflow Scheduler concurrency release gate
+
+The executable policy and fault map is
+[`tests/e2e/scheduler_concurrency_matrix.yml`](../tests/e2e/scheduler_concurrency_matrix.yml).
+It binds the seeded serial default, PostgreSQL CAS/restart, lane claims,
+dynamic resize drain, Runtime capacity, deferred-owner rotation, lifecycle
+maintenance and the Operations browser flow to named tests. Keep new
+concurrency failure modes in this matrix so the release evidence cannot drift
+into prose-only claims.
+
+Run the complete boundary with a disposable PostgreSQL database:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable' \
+  make test-scheduler-concurrency-e2e
+```
+
+The process test starts the production Go Server, two certificate-distinct
+single-slot Python Runtime Agents and a deterministic OpenAI-compatible
+Gateway. Before mutation it proves the migration default admits only one Run.
+After the Operations API changes the setting to two, two one-Worker Runs block
+inside separate agents while a third has no allocation or Planner invocation;
+all three then finish, release their claims and allocations, and a restarted
+Server reads the same durable setting. The multi-Worker production fixture
+separately proves that one Router Stage may consume both Runtime slots while
+still counting as one Run lane.
+
+For the local demo, keep the product migration unchanged and explicitly select
+`2` from **Operations → Settings → Workflow scheduling** after the Server is
+ready. Lowering the value is a drain: it does not terminate work already
+admitted. Owner **Queue Pause** remains a separate admission control, and two
+configured lanes are only an upper bound when fewer compatible Runtime slots
+are idle.
+
 Public Run creation requires exactly one `Idempotency-Key` of 1–128 safe ASCII
 characters. Retrying the same semantic request with the same authenticated
 user/key returns the original Run and `Idempotency-Replayed: true`; reusing the

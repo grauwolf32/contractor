@@ -233,7 +233,7 @@ test-faults:
 test-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
 	cd runtime && uv sync --locked
-	go test -tags=e2e -count=1 -timeout=24m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSummarizerProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses)$$'
+	go test -tags=e2e -count=1 -timeout=28m ./tests/e2e -run '^(TestLocalGoToPythonArtifactCopy|TestRoutingAndEscalationProductionBoundaries|TestHeterogeneousRuntimeCapabilityPlacement|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSharedMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestWorkerSummarizerProductionBoundaries|TestWorkerSessionModesAcrossProductionProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestSchedulerConcurrencyAcrossProductionProcesses)$$'
 
 test-capability-e2e:
 	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
@@ -289,6 +289,24 @@ test-lifecycle-controls-e2e:
 test-lifecycle-controls-browser: test-ui-stack
 
 test-lifecycle-controls-release: test-lifecycle-controls-hardening test-lifecycle-controls-e2e test-lifecycle-controls-browser
+
+.PHONY: test-scheduler-concurrency-matrix test-scheduler-concurrency-hardening test-scheduler-concurrency-process test-scheduler-concurrency-browser test-scheduler-concurrency-e2e
+
+test-scheduler-concurrency-matrix: test-hardening-matrices
+
+test-scheduler-concurrency-hardening: test-scheduler-concurrency-matrix
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -race -count=1 ./internal/persistence/postgres ./internal/settingsstore ./internal/runstore ./internal/scheduler ./internal/projectlifecycle -run '^(TestSchedulerSettingsMigrationIsNarrowSeededAndProtected|TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed|TestPostgresSchedulerSupervisorBoundsRealRunClaims|TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes|TestPostgresClaimRunnableRunRotatesAfterDeferredRelease|TestPostgresQueuePauseAllowsTerminalResultCommit|TestPostgresCancelAndSuccessRaceSerializesOnRunRow|TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources|TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort|TestTerminalReleaseFailureDoesNotBlockClaimPath|TestSchedulerSupervisorFailsClosedAndShutdownReleasesClaim)$$'
+
+test-scheduler-concurrency-process:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	cd runtime && uv sync --locked
+	go test -tags=e2e -count=1 -timeout=4m ./tests/e2e -run '^TestSchedulerConcurrencyAcrossProductionProcesses$$'
+
+# The browser process builds and serves the Node UI independently from the Go API.
+test-scheduler-concurrency-browser: test-ui-stack
+
+test-scheduler-concurrency-e2e: test-scheduler-concurrency-hardening test-scheduler-concurrency-process test-scheduler-concurrency-browser
 
 # Backward-compatible name retained for local scripts.
 test-project-workflows: test-project-workspaces-e2e
@@ -359,4 +377,4 @@ build:
 
 verify: lint test build ui-verify
 
-release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release
+release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e

@@ -1,0 +1,124 @@
+schema_version: "1.0"
+
+policy:
+  limit: >-
+    The PostgreSQL singleton is authoritative, defaults to one, and bounds
+    distinct claimed WorkflowRuns rather than durable running records or
+    Runtime Agent allocations.
+  resize: >-
+    Increasing the desired value fills lanes after a wake or bounded refresh;
+    decreasing it never cancels admitted work and starts no replacement above
+    the lower value while existing lanes drain.
+  capacity: >-
+    Every Runtime process has one slot. A multi-Worker Stage consumes one Run
+    lane but all of its required slots, so actual concurrency may be below the
+    setting without turning capacity wait into failure.
+  recovery: >-
+    Pause, cancellation, Project deletion, lease loss, release and shutdown
+    retain independent bounded progress; process-local wake and UI events are
+    hints reconciled against PostgreSQL and authoritative HTTP reads.
+
+cases:
+  - id: migration_preserves_serial_default
+    category: default
+    acceptance: [A1]
+    faults: [F01]
+    expected: The forward migration seeds exactly one protected value of one and never guesses a process-local fallback.
+    test: {source: internal/persistence/postgres/migrate_test.go, kind: go_test, name: TestSchedulerSettingsMigrationIsNarrowSeededAndProtected}
+  - id: settings_cas_and_restart
+    category: persistence
+    acceptance: [A1, A4]
+    faults: [F02]
+    expected: Concurrent exact-revision updates have one winner and a reopened PostgreSQL store observes the committed value.
+    test: {source: internal/settingsstore/postgres_integration_test.go, kind: go_test, name: TestPostgresSchedulerSettingsSeedCASRestartAndFailClosed}
+  - id: durable_resize_drains
+    category: resize
+    acceptance: [A1, A3, A4]
+    faults: [F03, F04, F05]
+    expected: Production PostgreSQL claims progress at one, increase to two, decrease to one and retain the durable final revision without replacement during drain.
+    test: {source: internal/scheduler/supervisor_postgres_test.go, kind: go_test, name: TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes}
+  - id: distinct_postgres_claims_are_bounded
+    category: claims
+    acceptance: [A2]
+    faults: [F06]
+    expected: Two lanes own two distinct real PostgreSQL claims and a third Run waits until a claim is released.
+    test: {source: internal/scheduler/supervisor_postgres_test.go, kind: go_test, name: TestPostgresSchedulerSupervisorBoundsRealRunClaims}
+  - id: two_runtime_process_concurrency
+    category: process
+    acceptance: [A1, A2, A4]
+    faults: [F07, F14]
+    expected: Real Server, PostgreSQL, mTLS and two Python Runtimes run two one-Worker Runs together, keep a third before Planner/Runtime work, release all provenance and preserve setting two over restart.
+    test: {source: tests/e2e/scheduler_concurrency_test.go, kind: go_test, name: TestSchedulerConcurrencyAcrossProductionProcesses}
+  - id: multi_worker_stage_uses_two_slots
+    category: runtime_capacity
+    acceptance: [A2]
+    faults: [F08]
+    expected: One ordinary Router Stage durably binds its two named Workers to two distinct single-slot Runtime processes while remaining one Run execution.
+    test: {source: tests/e2e/worker_session_modes_test.go, kind: go_test, name: TestWorkerSessionModesAcrossProductionProcesses}
+  - id: deferred_claim_rotates
+    category: deferred
+    acceptance: [A2, A3]
+    faults: [F09]
+    expected: Releasing a capacity-deferred claim advances its ordering token so later runnable work is selected instead of hot-loop starvation.
+    test: {source: internal/runstore/postgres_integration_test.go, kind: go_test, name: TestPostgresClaimRunnableRunRotatesAfterDeferredRelease}
+  - id: pause_allows_terminal_progress
+    category: pause
+    acceptance: [A3]
+    faults: [F10]
+    expected: Owner Queue Pause fences only new Stage admission and cannot prevent an admitted Stage from committing its terminal result.
+    test: {source: internal/scheduler/postgres_integration_test.go, kind: go_test, name: TestPostgresQueuePauseAllowsTerminalResultCommit}
+  - id: cancellation_serializes_with_success
+    category: cancellation
+    acceptance: [A3]
+    faults: [F11]
+    expected: Cancellation racing a terminal result has one PostgreSQL-serialized outcome and cannot leak a second execution.
+    test: {source: internal/scheduler/postgres_integration_test.go, kind: go_test, name: TestPostgresCancelAndSuccessRaceSerializesOnRunRow}
+  - id: project_deletion_drains_runs
+    category: project_deletion
+    acceptance: [A3]
+    faults: [F12]
+    expected: Project deletion durably cancels and drains member Runs and allocations without depending on normal admission capacity.
+    test: {source: internal/projectlifecycle/controller_integration_test.go, kind: go_test, name: TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources}
+  - id: lease_loss_enters_bounded_abort
+    category: lease_loss
+    acceptance: [A3]
+    faults: [F13]
+    expected: A lost allocation lease interrupts only its owning Run and enters the existing bounded abort path.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestSchedulerLeaseLossInterruptsPlannerAndStartsBoundedAbort}
+  - id: terminal_release_does_not_block_admission
+    category: release
+    acceptance: [A3]
+    faults: [F15]
+    expected: A failed terminal Runtime release is retried by maintenance and cannot stop another lane from claiming runnable work.
+    test: {source: internal/scheduler/scheduler_test.go, kind: go_test, name: TestTerminalReleaseFailureDoesNotBlockClaimPath}
+  - id: shutdown_releases_active_claims
+    category: shutdown
+    acceptance: [A3, A4]
+    faults: [F16]
+    expected: Supervisor shutdown joins lanes and renewal loops and releases every active claim without a goroutine leak under the race detector.
+    test: {source: internal/scheduler/supervisor_test.go, kind: go_test, name: TestSchedulerSupervisorFailsClosedAndShutdownReleasesClaim}
+  - id: browser_cas_recovers_stale_edit
+    category: browser
+    acceptance: [A3, A4]
+    faults: [F17]
+    expected: Independently served UI sends exact ETag and CSRF data, preserves a stale draft and requires explicit reset to the authoritative value.
+    test: {source: ui/e2e/scheduler-settings.spec.ts, kind: test_title, name: operator CAS-updates Scheduler settings and recovers a stale edit}
+  - id: ui_reconciles_invalidation_and_reconnect
+    category: invalidation
+    acceptance: [A2, A4]
+    faults: [F18]
+    expected: Typed schedulerSettings invalidation and live reconnect both refetch the singleton instead of treating the event as state.
+    test: {source: ui/src/routes/operations/settings/settings.test.tsx, kind: test_title, name: refetches the singleton on typed Operations invalidation and live reconnect}
+  - id: matrix_self_validation
+    category: matrix
+    acceptance: [A1, A2, A3, A4]
+    faults: [F19]
+    expected: Strict decoding rejects missing policies, acceptance, categories, faults, named owners and release commands.
+    test: {source: tests/e2e/scheduler_concurrency_matrix_test.go, kind: go_test, name: TestSchedulerConcurrencyMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-scheduler-concurrency-matrix}
+  - {id: hardening, command: make test-scheduler-concurrency-hardening}
+  - {id: process, command: make test-scheduler-concurrency-process}
+  - {id: browser, command: make test-scheduler-concurrency-browser}
+  - {id: release, command: make test-scheduler-concurrency-e2e}

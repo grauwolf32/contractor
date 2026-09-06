@@ -97,6 +97,104 @@ func TestPostgresSchedulerSupervisorBoundsRealRunClaims(t *testing.T) {
 	}
 }
 
+func TestPostgresSchedulerSupervisorResizesAndDrainsDurableLanes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedSchedulerPool(t, ctx)
+	postgresStore := runstore.NewPostgresStore(pool)
+	workflow := loadSchedulerWorkflow(t)
+	workflowJSON, err := json.Marshal(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, runID := range []string{"run-resize-1", "run-resize-2", "run-resize-3", "run-resize-4"} {
+		if _, err := postgresStore.CreateRun(ctx, runstore.CreateRunParams{
+			RunID: runID, OwnerID: "user-resize", WorkflowName: workflow.Ref.Name,
+			WorkflowVersion: workflow.Ref.Version, WorkflowSchemaVersion: contracts.APIVersion,
+			WorkflowSnapshot: workflowJSON, Parameters: map[string]string{"objective": "hold lane"},
+			RuntimeConfig: runtimeconfig.BuiltInRunSnapshot(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := postgresStore.TransitionRun(
+			ctx, runID, runstore.RunInitializing, runstore.RunRunning,
+			runstore.Reason{Code: "initialized"},
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	settings := settingsstore.NewPostgresStore(pool)
+	store := newPostgresLaneBlockingStore(postgresStore)
+	scheduler, err := New(
+		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
+		laneNoopWorkers{}, laneNoopPlanners{}, Options{
+			PollInterval: 60 * time.Millisecond, ClaimDuration: time.Hour,
+			OperationTimeout: 2 * time.Second, PlannerTimeout: time.Second,
+			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
+			LeaseScanInterval: time.Second, MetricsCleanupInterval: time.Hour,
+			RuntimeSettings: contracts.RuntimeSettings{
+				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
+			},
+			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runContext, stop := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- scheduler.Run(runContext) }()
+
+	first := receiveString(t, store.claimed, 5*time.Second, "default serial PostgreSQL claim")
+	assertNoString(t, store.claimed, 150*time.Millisecond, "migration default admitted a second lane")
+
+	current, err := settings.GetSchedulerSettings(ctx)
+	if err != nil || current.MaxConcurrentRuns != 1 {
+		t.Fatalf("initial durable Scheduler settings = (%+v, %v)", current, err)
+	}
+	current, err = settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 2, ExpectedRevision: current.Revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduler.Wake()
+	second := receiveString(t, store.claimed, 5*time.Second, "PostgreSQL claim after increase")
+	if second == first {
+		t.Fatalf("increased lane duplicated active Run %q", first)
+	}
+
+	current, err = settings.UpdateSchedulerSettings(ctx, settingsstore.UpdateSchedulerSettingsParams{
+		MaxConcurrentRuns: 1, ExpectedRevision: current.Revision,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduler.Wake()
+	store.unblock(first)
+	store.waitReleased(t, 1, 5*time.Second)
+	assertNoString(t, store.claimed, 180*time.Millisecond, "decrease replaced a drained lane above one")
+	store.unblock(second)
+	third := receiveString(t, store.claimed, 5*time.Second, "single PostgreSQL claim after drain")
+	store.unblock(third)
+	fourth := receiveString(t, store.claimed, 5*time.Second, "serial replacement after drain")
+	store.unblock(fourth)
+	store.waitReleased(t, 4, 5*time.Second)
+
+	stop()
+	if err := receiveError(t, done, 5*time.Second, "resized PostgreSQL Scheduler shutdown"); err != nil {
+		t.Fatal(err)
+	}
+	if active, maximum := store.counts(); active != 0 || maximum != 2 {
+		t.Fatalf("resized PostgreSQL lane counts active=%d maximum=%d, want 0/2", active, maximum)
+	}
+	persisted, err := settings.GetSchedulerSettings(ctx)
+	if err != nil || persisted.MaxConcurrentRuns != 1 || persisted.Revision != current.Revision {
+		t.Fatalf("persisted drained settings = (%+v, %v), want revision %d at one", persisted, err, current.Revision)
+	}
+}
+
 type postgresLaneState struct {
 	gate        chan struct{}
 	unblockOnce sync.Once
