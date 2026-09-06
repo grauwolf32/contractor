@@ -1,0 +1,91 @@
+schema_version: "1.0"
+id: V32-003
+title: Collect PostgreSQL health and persist bounded minute performance history
+milestone: operations-performance-and-profiling
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: [V32-002, V29-007]
+languages: [go, sql]
+
+goal: >-
+  Add a low-frequency DB observer and seven-day operational history that cannot
+  consume the working connection pool or block normal execution on telemetry writes.
+
+context:
+  specification: docs/spec/22-performance-metrics-and-profiling.md
+  isolation: >-
+    Enabled mode uses one additional performance pool with MaxConns=1, MinConns=0,
+    the existing DB connection configuration and a fixed performance application_name.
+    Diagnostic reads, size reads and background history maintenance share that
+    bounded pool. Startup/reconnect failure only marks collection unavailable.
+    Disabled mode creates none of it; retained-history reads use normal request
+    budgets. Existing Run/Project/report deletion remains independent.
+  budgets: >-
+    Connect/acquire deadline 250 ms; lock_timeout 100 ms; statement_timeout 750 ms
+    for statistics and 1500 ms for size/history maintenance; query deadlines 1 s
+    and 2 s respectively; complete minute collection at most 5 s. Earlier
+    deadlines win. Integrate V29-007 budgets without session-setting leakage.
+
+scope:
+  in:
+    - Aggregate current_database pg_stat_database, pg_stat_activity and pg_stat_user_tables every 60 seconds.
+    - Read pg_database_size(current_database()) separately every 300 seconds with independent freshness/failure status.
+    - Add a forward-only performance_minutes migration keyed by server_generation and minute_start, schema version, coverage, bounded payload and expiry.
+    - Persist idempotent minute batches with a queue of at most ten records, each at most 32 KiB; drop oldest pending records on overflow and record loss.
+    - Add seven-day TTL filtering and bounded cleanup of at most 1000 expired rows per minute within maintenance budgets.
+    - Provide bounded history repository reads and generation-aware aggregation for the later API task.
+    - Document optional pg_read_all_stats privileges and collector behavior without them; never grant privileges automatically.
+  out:
+    - pg_stat_statements, track_io_timing, EXPLAIN of application queries, table scans, manual VACUUM, host disk capacity, WAL/cluster size or an external exporter.
+
+requirements:
+  - id: R1
+    text: >-
+      Database counters are commits, rollbacks, deadlocks, temp files/bytes,
+      blks_read/blks_hit and stats_reset. Activity reports client state counts,
+      Lock waits and longest open/idle transaction age, excluding its own backend
+      and all query text. Table statistics are estimated live/dead tuples and
+      available vacuum/autovacuum activity, not an exact bloat/health verdict.
+  - id: R2
+    text: >-
+      Hidden session fields, unavailable stats, changed reset identity, decreasing
+      counters and failed reads have explicit partial/unknown status. Rates use
+      real observation intervals. Database-wide counters include monitoring and
+      other applications; cache ratios refer only to PostgreSQL buffers. Sparse
+      cached observations keep their original timestamps in history and the UI.
+  - id: R3
+    text: >-
+      No overlapping collector queries, immediate retry or backlog of missed
+      ticks exists. End transactions each cycle. Size/history work is separately
+      bounded; timeout/cancellation leaves no open transaction or leaked settings.
+      Samplers and HTTP paths never wait for the history writer.
+  - id: R4
+    text: >-
+      Retained history is seven days, at most 1000 output points per query. Use
+      count/histogram merging and meaningful gauge/CPU coverage, not averaged
+      percentiles or repeated stale DB measurements. Restart changes generation;
+      disabled periods, queue loss and missing samples remain gaps. Disabled mode
+      pauses feature-owned physical cleanup but excludes expired rows on reads.
+
+acceptance_criteria:
+  - id: A1
+    given: Fake time, a normal PostgreSQL role, hidden sessions and a role with pg_read_all_stats.
+    when: Minute and five-minute collection runs.
+    then: Cadences/query counts are bounded, visibility is truthful and no SQL text, privilege mutation or working-pool connection is used.
+  - id: A2
+    given: Connection exhaustion, blocked queries, DB outage, size failure and shutdown.
+    when: Collector deadlines expire and later recover.
+    then: HTTP/process data remains available, no backlog accumulates and performance connections recover without settings/transaction leaks.
+  - id: A3
+    given: Duplicate writes, partial minutes, resets, restart, more than ten pending minutes and expired rows.
+    when: Writing, history reads and cleanup run.
+    then: Keys are idempotent, losses/gaps are visible, bounds hold and no execution truth is deleted.
+  - id: A4
+    given: A representative seven-day fixture with several generations and explicit metrics-off startup.
+    when: Query plans and disabled behavior are checked.
+    then: Bounded ranges use intended indexes and disabled startup opens no diagnostic pool or new history work.
+
+tests:
+  - {name: deterministic-scheduling, command: "go test -race -count=1 ./internal/performance ./internal/app", covers: [A1, A2, A3, A4]}
+  - {name: postgres, command: "test -n \"$CONTRACTOR_TEST_DATABASE_URL\" && go test -race -count=1 ./internal/performance ./internal/persistence/postgres", covers: [A1, A2, A3, A4]}
