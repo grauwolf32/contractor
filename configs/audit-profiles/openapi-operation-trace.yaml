@@ -3,7 +3,7 @@ kind: AuditProfile
 
 metadata:
   name: openapi-operation-trace
-  version: "1"
+  version: "2"
 
 spec:
   mode: operation-tracing
@@ -22,7 +22,7 @@ spec:
   workflows:
     trace:
       kind: check
-      ref: audit-source-check@1
+      ref: audit-openapi-operation-trace@1
       inputs:
         task: {source: item-package}
         execution_manifest: {source: execution-manifest}

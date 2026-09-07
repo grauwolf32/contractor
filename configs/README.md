@@ -20,8 +20,13 @@ not valid `ServerConfig` fields.
   has exact dependency and project reports;
 - `security-analysis@2` and `taint-trace-from-workspace@2` for their explicit
   focused analysis contracts;
-- `audit-source-check@1` as the Audit-owned bounded task-set child Workflow used
-  by the `source-checklist@1` and `openapi-operation-trace@1` AuditProfiles;
+- `audit-source-check@1` for bounded task sets in `source-checklist@1`;
+- `audit-openapi-operation-trace@1` for graph-backed operation analysis in
+  the limited `openapi-operation-trace@2` comparison variant;
+- `audit-openapi-operation-trace@2` for graph-backed analysis and finding proposals
+  in `openapi-operation-trace@3`, plus `findings-review@1` for a supplied collection;
+- `audit-top10-source-risk@1` and `audit-asvs-source-verification@1` for the
+  standard-specific AuditProfiles;
 - `artifact-copy@1` as the ordinary artifact smoke fixture;
 - `podman-python-check@1` as the explicitly selected offline Podman execution fixture.
 
@@ -41,6 +46,23 @@ set without asking the model to decode ZIP bytes, reproduce item identities, or
 construct ZIP bytes manually. The checklist profile currently batches up to two
 compatible items; the OpenAPI profile retains `batchSize: 1`.
 
+`openapi-operation-trace@2` selects `audit_openapi_operation_tracer@1`, with
+all eleven `code-analysis@1` operations and bounded filesystem reads. Its
+read-only tools inspect an overlay workspace hydrated from the exact Audit
+`source` input. The existing task/execution-manifest and result ZIP contracts
+are retained. Graph coverage and source evidence inform the trace; the current
+coverage key remains `operation-resolution`. This limited comparison variant
+does not export annotations or propose findings. Version 1 is
+superseded in the default catalog; existing Audits retain their pinned snapshot.
+A Runtime must advertise local workspace and graph capabilities to run version 2.
+
+`openapi-operation-trace@3` selects `audit_openapi_operation_tracer@2`, adding
+`security-findings@2.finding` and `text-artifacts@1.write_text_artifact` with
+`findingConfirmation: human-required`. It preserves the operation inventory and
+prohibits active checks. Findings do not turn `operation-resolution` into full
+trace coverage. `findings-review@1` independently reads a pinned collection with
+`list_findings` and publishes an analysis report; it does not confirm findings.
+
 `audit-standards/` is the operator-owned source for immutable curated standard
 packages. Each immediate package directory contains only a strict
 `standard.json`; Server startup validates and canonicalizes the complete set
@@ -49,7 +71,7 @@ only `(scheme, version)`. Audit start resolves and retains the exact package
 revision and license provenance; changing content under an existing identity
 is fatal drift, so changed content must use a new version.
 
-The overlay workspace Workflows hydrate the exact `inputs/source` ZIP below a
+The document-generation overlay workspace Workflows hydrate the exact `inputs/source` ZIP below a
 private project-workspace root for every Stage and uses bounded filesystem/code
 tools. It exports exact cumulative `workspace_state` plus checkpoint
 `workspace_diff`; a later Stage imports the exact prior state revision. With no

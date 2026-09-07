@@ -239,6 +239,7 @@ func assertMigratedAnalysisSkillAssignments(t *testing.T) {
 	targets := map[string]bool{"stride": true, "trace": true, "vuln-scan": true, "vulns": true}
 	wantedAssignments := map[string]map[string]bool{
 		"audit_openapi_operation_tracer_v2.yaml": {"trace": false},
+		"audit_openapi_operation_tracer.yaml":    {"trace": false},
 		"audit_asvs_source_verifier.yaml":        {"trace": false},
 		"audit_risk_source_checker.yaml":         {"trace": false},
 		"audit_source_checker.yaml":              {"trace": false},

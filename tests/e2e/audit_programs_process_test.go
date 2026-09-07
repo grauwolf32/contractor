@@ -238,6 +238,8 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 		"--private-key-file", agentPaths.PrivateKey,
 		"--listen", runtimeAddress,
 		"--work-root", workRoot,
+		"--workspace-storage", "local",
+		"--workspace-work-root", filepath.Join(temporaryRoot, "workspace"),
 		"--request-timeout-seconds", "12",
 		"--shutdown-grace-seconds", "5",
 	)
@@ -276,7 +278,7 @@ func TestAuditProgramsAcrossProductionProcesses(t *testing.T) {
 
 	openAPIAudit := runAuditProgram(
 		t, ctx, server, runtimeProcess, gateway, client, publicBaseURL, project.ProjectID,
-		"openapi-operation-trace", map[string]artifactRef{"source": source, "openapi": openAPI},
+		"openapi-operation-trace@2", map[string]artifactRef{"source": source, "openapi": openAPI},
 		2, 2, 0, "",
 	)
 	openAPICoverage := getAuditProgramCoverage(t, client, publicBaseURL, openAPIAudit.AuditID)
@@ -359,13 +361,21 @@ func auditProgramGatewayStages() []domainGatewayStage {
 		"open_source_archive", "read_artifact", "read_source", "search_source",
 		"read_audit_task", "submit_check_result",
 	}
+	graphTools := append([]string{
+		"list_skills", "load_skill", "load_skill_resource",
+		"read_artifact", "read_audit_task", "submit_check_result",
+		"ls", "glob", "grep", "read_file",
+	}, completeCodeAnalysisTools...)
 	result := func(name, assessment string, completed, gaps []string, evidence []map[string]string) domainGatewayStage {
-		return domainGatewayStage{name: name, tools: tools, steps: []domainGatewayStep{
+		return domainGatewayStage{name: name, tools: graphTools, steps: []domainGatewayStep{
 			toolGatewayStep("read_audit_task", fixedArguments(map[string]any{})),
-			toolGatewayStep("open_source_archive", stageRefArguments("source", nil)),
-			toolGatewayStep("read_source", fixedArguments(map[string]any{
-				"path": "app.py", "start_line": 1, "max_lines": 100,
-			})),
+			toolGatewayStep("graph_summary", fixedArguments(map[string]any{})),
+			toolGatewayStep("read_file", func(request map[string]any) (map[string]any, error) {
+				if !hasGraphSummary(request) {
+					return nil, fmt.Errorf("OpenAPI Audit did not build a graph from its source workspace")
+				}
+				return map[string]any{"path": "app.py", "start_line": 1, "max_lines": 100}, nil
+			}),
 			toolGatewayStep("submit_check_result", fixedArguments(map[string]any{
 				"assessment": assessment,
 				"summary":    "Deterministic fixture assessment based on source/app.py.",
@@ -592,7 +602,7 @@ func assertAuditProfilesCompatible(t *testing.T, client *http.Client, baseURL st
 	}
 	auditProgramGET(t, client, baseURL+"/v1/audit-profiles?limit=100", &page)
 	wanted := map[string]bool{
-		"source-checklist@1": false, "openapi-operation-trace@1": false,
+		"source-checklist@1": false, "openapi-operation-trace@2": false,
 		"owasp-top10-2025-source-risk@1":    false,
 		"owasp-asvs-5-0-l1-source-review@1": false,
 	}
