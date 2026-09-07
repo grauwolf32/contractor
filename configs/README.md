@@ -14,8 +14,8 @@ not valid `ServerConfig` fields.
 
 - `openapi-from-workspace@5` and `likec4-from-workspace@5` for four-Stage local
   graph-backed analysis and document generation;
-- `likec4-from-workspace-streamline@2` for the same LikeC4 contract with a
-  modeled single-Worker Planner;
+- `openapi-from-workspace-streamline@1` and `likec4-from-workspace-streamline@2`
+  for the same document contracts with a modeled single-Worker Planner;
 - `openapi-from-analysis@2` and `likec4-from-analysis@3` when the caller already
   has exact dependency and project reports;
 - `security-analysis@2` and `taint-trace-from-workspace@2` for their explicit
@@ -99,10 +99,12 @@ The passthrough workspace Workflows pin `domain_worker@2`. It retains the
 from 250,000 to 500,000 so a completed artifact still has room for terminal
 result finalization.
 
-`likec4-from-workspace-streamline@2` retains the exact graph-backed workspace,
-artifact handoffs, cumulative state/diff and output contract of
-`likec4-from-workspace@5`, but uses `streamline@1` for every Stage. Its modeled
-Planners use `project_planner@1`; its Workers use `project_worker@1`. Choose it
+`openapi-from-workspace-streamline@1` and `likec4-from-workspace-streamline@2`
+retain the exact graph-backed workspace, artifact handoffs, cumulative state/diff
+and output contracts of their respective `*-from-workspace@5` variants, with
+`streamline@1` in every Stage. Their modeled Planners use `project_planner@1`;
+their Workers use `project_worker@1`. OpenAPI retains the `strong-oas-review@1`
+validator escalation, including the modeled Planner in its effective policy. Choose these
 when each semantic Stage benefits from explicit ordered subtask decomposition;
 the passthrough variant remains the simpler default when one Worker invocation
 can own the complete Stage objective.
