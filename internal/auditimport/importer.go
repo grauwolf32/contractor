@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -67,6 +67,9 @@ func (i *Importer) collect(
 		execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
 		return false, fmt.Errorf("%w: collection snapshot is inconsistent", ErrPermanent)
 	}
+	loadStandards := sync.OnceValues(func() (retainedStandardIndex, error) {
+		return i.loadPinnedStandards(ctx, snapshot)
+	})
 	members, err := i.store.ListExecutionItems(ctx, execution.ExecutionID)
 	if err != nil {
 		return false, err
@@ -77,7 +80,7 @@ func (i *Importer) collect(
 		return false, fmt.Errorf("%w: collection membership is invalid", ErrPermanent)
 	}
 	if execution.Role != auditstore.ExecutionCheck {
-		if err := i.retainFindingProposals(ctx, snapshot, execution); err != nil {
+		if err := i.retainFindingProposals(ctx, snapshot, execution, loadStandards); err != nil {
 			return false, err
 		}
 		return i.collectRole(ctx, claim, snapshot, execution)
@@ -86,7 +89,7 @@ func (i *Importer) collect(
 	if err != nil {
 		return false, err
 	}
-	if err := i.retainFindingProposals(ctx, snapshot, execution); err != nil {
+	if err := i.retainFindingProposals(ctx, snapshot, execution, loadStandards); err != nil {
 		return false, err
 	}
 
@@ -98,7 +101,7 @@ func (i *Importer) collect(
 		return i.collectTechnical(ctx, claim, execution, prepared,
 			auditstore.CollectionExecutionCancelled, false, "execution-cancelled", auditstore.CoverageBlocked)
 	case auditstore.TerminalSucceeded:
-		return i.collectSucceeded(ctx, claim, snapshot, execution, prepared)
+		return i.collectSucceeded(ctx, claim, snapshot, execution, prepared, loadStandards)
 	default:
 		return false, fmt.Errorf("%w: terminal outcome is unsupported", ErrPermanent)
 	}
@@ -269,6 +272,7 @@ func (i *Importer) retainFindingProposals(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
 	execution auditstore.Execution,
+	loadStandards retainedStandardLoader,
 ) error {
 	if i.findings == nil || execution.RunID == nil {
 		return nil
@@ -297,7 +301,7 @@ func (i *Importer) retainFindingProposals(
 			}
 			if len(receipt.Document.StandardRefs) != 0 {
 				if standards == nil {
-					standards, err = i.loadPinnedStandards(ctx, snapshot)
+					standards, err = loadStandards()
 					if err != nil {
 						return err
 					}
@@ -321,191 +325,6 @@ func (i *Importer) retainFindingProposals(
 		query.AfterReceiptID = last.ReceiptID
 	}
 }
-
-type retainedStandard struct {
-	pinned auditstandards.PinnedPackage
-	pkg    auditstandards.Package
-}
-
-type retainedStandardIndex map[string]retainedStandard
-
-func (i *Importer) loadPinnedStandards(
-	ctx context.Context, snapshot auditstore.ReconcileSnapshot,
-) (retainedStandardIndex, error) {
-	var baseline struct {
-		Schema    string                         `json:"schema"`
-		Standards []auditstandards.PinnedPackage `json:"standards"`
-	}
-	if json.Unmarshal(snapshot.Audit.BaselineSnapshot, &baseline) != nil ||
-		baseline.Schema != "contractor.audit.baseline.v1" || baseline.Standards == nil {
-		return nil, fmt.Errorf("%w: Audit standard baseline is invalid", ErrPermanent)
-	}
-	result := make(retainedStandardIndex, len(baseline.Standards))
-	for _, pinned := range baseline.Standards {
-		key := retainedStandardKey(pinned.Reference.Scheme, pinned.Reference.Version)
-		if _, duplicate := result[key]; duplicate || auditstandards.ValidatePinnedPackage(pinned) != nil {
-			return nil, fmt.Errorf("%w: Audit standard baseline is invalid", ErrPermanent)
-		}
-		payload, err := i.artifacts.ReadProjectExact(
-			ctx, snapshot.Audit.ProjectID,
-			auditstore.ExactArtifact{
-				Ref: pinned.Retained.Artifact, Digest: pinned.Retained.Digest,
-				MediaType: pinned.Retained.MediaType, SizeBytes: pinned.Retained.SizeBytes,
-			},
-		)
-		if err != nil {
-			return nil, fmt.Errorf("read exact retained Audit standard: %w", err)
-		}
-		pkg, err := auditstandards.ValidateRetainedPayload(payload, pinned)
-		if err != nil {
-			return nil, fmt.Errorf("%w: retained Audit standard is invalid", ErrPermanent)
-		}
-		result[key] = retainedStandard{pinned: pinned, pkg: *pkg}
-	}
-	return result, nil
-}
-
-func (i *Importer) validateMappedProposalStandards(
-	ctx context.Context,
-	snapshot auditstore.ReconcileSnapshot,
-	task auditdomain.ItemTask,
-	document auditdomain.FindingProposal,
-) error {
-	if task.Standard == nil && len(document.StandardRefs) == 0 {
-		return nil
-	}
-	standards, err := i.loadPinnedStandards(ctx, snapshot)
-	if err != nil {
-		return err
-	}
-	if err := validateProposalStandardRefs(document, standards); err != nil {
-		return err
-	}
-	if task.Standard == nil {
-		return nil
-	}
-	standard, exists := standards[retainedStandardKey(task.Standard.Scheme, task.Standard.Version)]
-	if !exists || !standardTaskMatchesPackage(task, standard) {
-		return errors.New("task standard mapping does not match its retained package")
-	}
-	references := make(map[string]struct{}, len(document.StandardRefs))
-	for _, reference := range document.StandardRefs {
-		if reference.Scheme == task.Standard.Scheme && reference.Version == task.Standard.Version {
-			references[reference.RequirementID] = struct{}{}
-		}
-	}
-	for _, entryID := range task.Standard.EntryIDs {
-		if _, exists := references[entryID]; !exists {
-			return errors.New("proposal omits its assigned standard entry")
-		}
-	}
-	return nil
-}
-
-func validateProposalStandardRefs(
-	document auditdomain.FindingProposal, standards retainedStandardIndex,
-) error {
-	seen := make(map[string]struct{}, len(document.StandardRefs))
-	for _, reference := range document.StandardRefs {
-		key := retainedStandardKey(reference.Scheme, reference.Version)
-		standard, exists := standards[key]
-		if !exists {
-			return errors.New("proposal names an unpinned standard")
-		}
-		identity := key + "\x00" + reference.RequirementID
-		if _, duplicate := seen[identity]; duplicate {
-			return errors.New("proposal repeats a standard reference")
-		}
-		seen[identity] = struct{}{}
-		matched := false
-		for _, entry := range standard.pkg.Document.Entries {
-			matched = matched || entry.ID == reference.RequirementID
-		}
-		if !matched {
-			return errors.New("proposal names an unknown standard entry")
-		}
-	}
-	return nil
-}
-
-func standardTaskMatchesPackage(task auditdomain.ItemTask, standard retainedStandard) bool {
-	if task.Standard == nil || task.Checklist == nil ||
-		task.SourceContentDigest != standard.pinned.Retained.Digest ||
-		!sameRef(task.SourceRef, standard.pinned.Retained.Artifact) {
-		return false
-	}
-	var mapping *auditstandards.Mapping
-	for index := range standard.pkg.Document.Mappings {
-		candidate := &standard.pkg.Document.Mappings[index]
-		if candidate.Key == task.Standard.MappingKey {
-			mapping = candidate
-			break
-		}
-	}
-	if mapping == nil || mapping.Key != task.ItemKey || mapping.WorkflowRole != task.WorkflowRole ||
-		!standardTaskStatementMatches(task.Checklist.Statement, *mapping, standard.pkg) ||
-		task.Checklist.Version != standard.pinned.Reference.Version ||
-		len(task.Checklist.AllowedMethods) != 1 || task.Checklist.AllowedMethods[0] != mapping.Method ||
-		!equalStrings(mapping.EntryIDs, task.Standard.EntryIDs) ||
-		mapping.EvidenceContract.ID != task.Standard.EvidenceContract.ID ||
-		mapping.EvidenceContract.Version != task.Standard.EvidenceContract.Version {
-		return false
-	}
-	for _, contract := range standard.pkg.Document.EvidenceContracts {
-		if contract.ID != mapping.EvidenceContract.ID || contract.Version != mapping.EvidenceContract.Version {
-			continue
-		}
-		selected := task.Standard.EvidenceContract
-		expectedApplicability, expectedReview := "always", "automatic"
-		for _, entryID := range mapping.EntryIDs {
-			for _, entry := range standard.pkg.Document.Entries {
-				if entry.ID == entryID && entry.Applicability.Mode == "human-review" {
-					expectedApplicability, expectedReview = "human-review", "manual"
-				}
-			}
-		}
-		if contract.HumanReview == "required" {
-			expectedReview = "manual"
-		}
-		requiredEvidence := []string{}
-		if contract.MinimumEvidence > 0 {
-			requiredEvidence = contract.EvidenceKinds
-		}
-		return task.Checklist.Applicability == expectedApplicability &&
-			task.Checklist.ReviewPolicy == expectedReview &&
-			equalStrings(task.Checklist.RequiredEvidence, requiredEvidence) &&
-			equalStrings(contract.Assessments, selected.Assessments) &&
-			equalStrings(contract.EvidenceKinds, selected.EvidenceKinds) &&
-			contract.MinimumEvidence == selected.MinimumEvidence &&
-			contract.MaximumEvidence == selected.MaximumEvidence &&
-			contract.HumanReview == selected.HumanReview &&
-			contract.RationaleRequired == selected.RationaleRequired
-	}
-	return false
-}
-
-func standardTaskStatementMatches(
-	statement string, mapping auditstandards.Mapping, pkg auditstandards.Package,
-) bool {
-	if statement == mapping.Objective {
-		return true
-	}
-	// Exact one-entry selections deliberately carry the authoritative standard
-	// statement instead of the broader Contractor-authored mapping objective.
-	// Accept only that other exact, retained-package value; model-authored text
-	// cannot satisfy this boundary.
-	if len(mapping.EntryIDs) != 1 {
-		return false
-	}
-	for _, entry := range pkg.Document.Entries {
-		if entry.ID == mapping.EntryIDs[0] {
-			return statement == entry.Statement
-		}
-	}
-	return false
-}
-
-func retainedStandardKey(scheme, version string) string { return scheme + "\x00" + version }
 
 func (i *Importer) collectContractInvalid(
 	ctx context.Context,
@@ -568,240 +387,6 @@ func (i *Importer) prepareMembers(
 		}
 	}
 	return result, nil
-}
-
-func (i *Importer) collectSucceeded(
-	ctx context.Context,
-	claim auditstore.ControllerClaim,
-	snapshot auditstore.ReconcileSnapshot,
-	execution auditstore.Execution,
-	members []preparedMember,
-) (bool, error) {
-	if execution.RunID == nil {
-		return false, fmt.Errorf("%w: succeeded execution has no Run", ErrPermanent)
-	}
-	profile, err := config.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
-	if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name || profile.Ref.Version != snapshot.Audit.Profile.Version ||
-		profile.Ref.Digest != snapshot.Audit.Profile.Digest {
-		return false, fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
-	}
-	outputSlot, ok := resultOutputSlot(profile, members)
-	if !ok {
-		return i.collectTechnical(ctx, claim, execution, members,
-			auditstore.CollectionMissingOutput, true, "result-output-contract-missing", auditstore.CoverageInconclusive)
-	}
-	source, payload, frozen, err := i.artifacts.ReadRunBinding(
-		ctx, *execution.RunID, contracts.ArtifactRef{Namespace: "outputs", Name: outputSlot},
-	)
-	if errors.Is(err, artifacts.ErrArtifactNotFound) {
-		return i.collectTechnical(ctx, claim, execution, members,
-			auditstore.CollectionMissingOutput, true, "missing-output", auditstore.CoverageInconclusive)
-	}
-	if err != nil {
-		return false, err
-	}
-	if source.MediaType != auditdomain.PackageMediaType || !frozen {
-		return i.collectInvalid(ctx, claim, execution, members, source, "result-output-not-frozen-package")
-	}
-	manifestBytes, err := i.artifacts.ReadProjectExact(ctx, snapshot.Audit.ProjectID, execution.Manifest)
-	if err != nil {
-		return false, err
-	}
-	manifest, err := auditdomain.DecodeExecutionManifest(manifestBytes)
-	if err != nil || auditdomain.ValidateDispatchExecutionManifest(manifest) != nil {
-		return false, fmt.Errorf("%w: exact execution manifest is invalid", ErrPermanent)
-	}
-	resultPackage, err := auditdomain.DecodeCheckResultPackage(payload)
-	if err != nil {
-		return i.collectInvalid(ctx, claim, execution, members, source, stableValidationCode(err))
-	}
-	if resultPackage.Package.Digest != source.Digest || auditdomain.ValidateResultSet(resultPackage.Results, manifest) != nil ||
-		len(resultPackage.Results.Results) != len(members) {
-		return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
-	}
-
-	resultByKey := make(map[string]auditdomain.CheckResult, len(resultPackage.Results.Results))
-	for _, value := range resultPackage.Results.Results {
-		resultByKey[value.ItemKey] = value
-	}
-	evidenceByID := make(map[string]validatedEvidence, len(resultPackage.Evidence.Evidence))
-	evidenceOwner := make(map[string]int, len(resultPackage.Evidence.Evidence))
-	proposalOwner := make(map[string]int)
-	for _, value := range resultPackage.Evidence.Evidence {
-		validated := validatedEvidence{value: value}
-		if value.Artifact != nil {
-			descriptor, _, readErr := i.artifacts.ReadRunExact(ctx, *execution.RunID, *value.Artifact)
-			if readErr != nil {
-				return i.collectInvalid(ctx, claim, execution, members, source, "evidence-reference-invalid")
-			}
-			validated.descriptor = &descriptor
-		}
-		evidenceByID[value.ID] = validated
-	}
-	for index := range members {
-		value, exists := resultByKey[members[index].item.ItemKey]
-		if !exists || value.SubjectKey != members[index].item.SubjectKey {
-			return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
-		}
-		if len(value.Proposals) != 0 || members[index].task.Finding != nil {
-			if i.findings == nil {
-				return i.collectInvalid(ctx, claim, execution, members, source, auditdomain.CodeResultSetInvalid)
-			}
-			keys := make([]findingintake.ProposalKey, len(value.Proposals))
-			for proposalIndex, proposal := range value.Proposals {
-				keys[proposalIndex] = findingintake.ProposalKey{
-					InvocationID: proposal.InvocationID, ClientKey: proposal.ClientKey,
-				}
-			}
-			resolved := make([]findingintake.ResolvedProposal, 0, len(keys)+1)
-			if len(keys) != 0 {
-				selected, resolveErr := i.findings.ResolveAuditProposals(
-					ctx, snapshot.Audit.OwnerID, snapshot.Audit.AuditID,
-					execution.ExecutionID, *execution.RunID, keys,
-				)
-				if resolveErr != nil {
-					if errors.Is(resolveErr, findingintake.ErrInvalid) ||
-						errors.Is(resolveErr, findingintake.ErrNotFound) ||
-						errors.Is(resolveErr, findingintake.ErrConflict) {
-						return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
-					}
-					return false, resolveErr
-				}
-				for _, proposal := range selected {
-					if owner, duplicate := proposalOwner[proposal.ReceiptID]; duplicate && owner != index {
-						return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-item-membership-invalid")
-					}
-					proposalOwner[proposal.ReceiptID] = index
-				}
-				resolved = append(resolved, selected...)
-			}
-			if members[index].task.Finding != nil {
-				proposal, resolveErr := i.resolveTaskProposal(ctx, snapshot, *members[index].task.Finding)
-				if resolveErr != nil {
-					if errors.Is(resolveErr, findingintake.ErrInvalid) ||
-						errors.Is(resolveErr, findingintake.ErrNotFound) ||
-						errors.Is(resolveErr, findingintake.ErrConflict) {
-						return i.collectInvalid(ctx, claim, execution, members, source, "finding-task-proposal-invalid")
-					}
-					return false, resolveErr
-				}
-				resolved = append(resolved, proposal)
-			}
-			seenProposalReceipts := make(map[string]struct{}, len(resolved))
-			for _, proposal := range resolved {
-				if _, duplicate := seenProposalReceipts[proposal.ReceiptID]; duplicate {
-					return i.collectInvalid(ctx, claim, execution, members, source, "finding-proposal-association-invalid")
-				}
-				seenProposalReceipts[proposal.ReceiptID] = struct{}{}
-				if validationErr := i.validateMappedProposalStandards(
-					ctx, snapshot, members[index].task, proposal.Document,
-				); validationErr != nil {
-					return i.collectInvalid(
-						ctx, claim, execution, members, source,
-						"finding-proposal-standard-reference-invalid",
-					)
-				}
-			}
-			members[index].proposals = resolved
-		}
-		coverage, validationErr := semanticCoverage(profile.Mode, members[index].task, value, evidenceByID)
-		if validationErr != nil {
-			return i.collectInvalid(ctx, claim, execution, members, source, stableValidationCode(validationErr))
-		}
-		members[index].result, members[index].cover = value, coverage
-		for _, evidenceID := range value.EvidenceIDs {
-			if _, duplicate := evidenceOwner[evidenceID]; duplicate {
-				return i.collectInvalid(ctx, claim, execution, members, source, "evidence-item-membership-invalid")
-			}
-			evidenceOwner[evidenceID] = index
-		}
-	}
-
-	run, err := i.runs.GetRun(ctx, *execution.RunID)
-	if err != nil {
-		return false, err
-	}
-	if run.State != runstore.RunSucceeded || run.PublicationMode != runstore.PublicationAuditManaged ||
-		run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID ||
-		run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID {
-		return false, fmt.Errorf("%w: source Run identity is invalid", ErrPermanent)
-	}
-	if !retainedEvidenceFits(snapshot.Audit, source, evidenceByID) {
-		return i.collectTechnical(ctx, claim, execution, members,
-			auditstore.CollectionInvalidResult, false, "evidence-budget-exhausted",
-			auditstore.CoverageInconclusive, &source)
-	}
-	namespace := auditdomain.ArtifactNamespace(snapshot.Audit.AuditID)
-	retainedResult, err := i.artifacts.RetainRunExact(
-		ctx, run.RunID, source, snapshot.Audit.ProjectID,
-		contracts.ArtifactRef{Namespace: namespace, Name: deterministicID("result", execution.ExecutionID)},
-	)
-	if err != nil {
-		return false, err
-	}
-	links := make([]auditstore.ArtifactLink, 0, 1+len(evidenceByID))
-	collectionItems := make([]auditstore.CollectionItem, len(members))
-	for index, member := range members {
-		provenance, provenanceErr := collectionProvenance(snapshot, execution, member, run, source)
-		if provenanceErr != nil {
-			return false, provenanceErr
-		}
-		links = append(links, auditstore.ArtifactLink{
-			LogicalKey: "result/" + member.member.ExecutionItemID,
-			Artifact:   retainedResult, SourceProvenance: provenance,
-		})
-		collectionItems[index] = auditstore.CollectionItem{
-			ExecutionItemID: member.member.ExecutionItemID,
-			Disposition:     auditstore.CollectionAccepted, Result: &retainedResult,
-			FinalDisposition: auditstore.FinalAccepted, Coverage: member.cover,
-		}
-		for _, proposal := range member.proposals {
-			collectionItems[index].FindingAssociations = append(
-				collectionItems[index].FindingAssociations,
-				auditstore.FindingAssociation{
-					AssessmentID: deterministicID(
-						"finding-assessment", member.member.ExecutionItemID, proposal.ReceiptID,
-					),
-					ReceiptID: proposal.ReceiptID,
-					Proposal: auditstore.ExactArtifact{
-						Ref: proposal.Proposal.Ref, Digest: proposal.Proposal.Digest,
-						MediaType: proposal.Proposal.MediaType, SizeBytes: proposal.Proposal.SizeBytes,
-					},
-					SemanticAssessment: member.result.Assessment,
-				},
-			)
-		}
-	}
-	evidenceIDs := sortedEvidenceIDs(evidenceByID)
-	for _, id := range evidenceIDs {
-		evidence := evidenceByID[id]
-		artifact := retainedResult
-		displayRef := "member:" + evidence.value.ContentMemberID
-		if evidence.descriptor != nil {
-			artifact, err = i.artifacts.RetainRunExact(
-				ctx, run.RunID, *evidence.descriptor, snapshot.Audit.ProjectID,
-				contracts.ArtifactRef{Namespace: namespace, Name: deterministicID("evidence", execution.ExecutionID, id)},
-			)
-			if err != nil {
-				return false, err
-			}
-			displayRef = ""
-		}
-		owner, exists := evidenceOwner[id]
-		if !exists || owner < 0 || owner >= len(members) {
-			return i.collectInvalid(ctx, claim, execution, members, source, "evidence-item-membership-invalid")
-		}
-		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[owner], run, source, evidence.value)
-		if provenanceErr != nil {
-			return false, provenanceErr
-		}
-		links = append(links, auditstore.ArtifactLink{
-			LogicalKey: "evidence/" + execution.ExecutionID + "/" + id,
-			Artifact:   artifact, SourceProvenance: provenance, DisplayRef: displayRef,
-		})
-	}
-	return i.commitCollection(ctx, claim, execution, auditstore.CollectionAccepted,
-		&source, links, nil, collectionItems)
 }
 
 func (i *Importer) resolveTaskProposal(
