@@ -3,8 +3,8 @@ id: V32-006
 title: Show Server performance charts and completed allocation resources in Operations
 milestone: operations-performance-and-profiling
 priority: P2
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: dfd30428dee1da1832f8504a41725fb3b04a7529
 depends_on: [V32-005, V4-010]
 languages: [typescript, css]
 

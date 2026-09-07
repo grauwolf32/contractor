@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V43-004
+title: "Connect finding producers and a reusable findings analyst"
+milestone: findings-tools
+priority: P1
+status: completed
+implementation_commit: 40c13401416868948b48ddc1176d8e2740a0c402
+depends_on: ["V43-003"]
+languages: ["yaml", "markdown", "go"]
+goal: "Let OpenAPI trace publish direct findings and let a separate generic analyst consume a supplied collection."
+context:
+  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
+  completion: "Use existing exact evidence, finding receipts and submit_check_result proposal_keys; V39 is not a prerequisite."
+  shared_assets: >-
+    V40 measures instruction-only changes with equal tool/Skill pins. Keep the
+    new finding-field guidance in versioned producer instructions or a separately
+    published Skill revision; do not overwrite its frozen baseline Skill bundle.
+    New catalog files must not be copied into either arm as unrecorded changes.
+  verification: >-
+    Add TestFindingsProducerAndReaderAcrossProcesses with a scripted gateway and
+    disposable PostgreSQL. It must fail on absent prerequisites; untagged config
+    tests alone do not execute the producer/reader acceptance cases.
+scope:
+  in:
+    - "Publish new OpenAPI producer template/Workflow/Profile versions selecting finding plus evidence writing and compatible emission policy."
+    - "Add a generic reader template and findings-review Workflow taking the pinned collection and publishing an analysis report."
+    - "Adapt legacy reporting discipline to current tool arguments; keep reproduction instructions in security prompts and annotations as optional outputs."
+    - "Keep discovery, review decisions and coverage distinct; adding findings does not turn operation-resolution into full trace coverage."
+  out:
+    - "Automatic verifier rounds, annotation index, hardcoded OpenAPI fields in shared tools, or deployment/default instruction-quality claims."
+deliverables:
+  - {path: configs/agent-templates, description: "Versioned producer and generic reader roles."}
+  - {path: configs/workflows, description: "Producer revision and reusable findings-review consumer."}
+  - {path: configs/audit-profiles, description: "Compatible opt-in OpenAPI binding and finding confirmation policy."}
+  - {path: configs/instructions, description: "Role-specific usage, finding-field mapping and evidence/reproduction guidance in new instructions; shared Skill adaptation requires a separate pinned revision."}
+requirements:
+  - {id: R1, text: "Reader instructions and input schema do not require OpenAPI, annotations or a prior hypothesis."}
+  - {id: R2, text: "Pinned existing closures and instruction-eval baselines remain intact; new behavior uses explicit versions."}
+acceptance_criteria:
+  - {id: A1, given: "A source-supported issue in an OpenAPI operation", when: "The producer runs against an offline gateway fixture", then: "Evidence is published before finding and the exact proposal key reaches the canonical item result."}
+  - {id: A2, given: "A collection with non-OpenAPI subjects and no annotations", when: "The reader workflow runs against an offline fixture", then: "It reads the findings and emits an analysis report without changing triage state."}
+tests:
+  - command: "go test ./internal/config ./internal/agentskills ./tests/eval/agent_instructions ./tests/e2e"
+    covers: ["A1", "A2"]
+  - command: "go run ./cmd/contractor-server config validate --root ./configs"
+    covers: ["A1", "A2"]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=e2e ./tests/e2e -run "^TestFindingsProducerAndReaderAcrossProcesses$" -count=1'
+    covers: ["A1", "A2"]

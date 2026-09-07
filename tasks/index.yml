@@ -24,8 +24,12 @@ execution_policy:
     task already being worked on unless explicitly assigned to continue it.
   dependency_rule: >-
     A task may start only after every ID in depends_on is complete. The worker
-    may inspect code produced by those dependencies but is not expected to read
-    docs/spec or know earlier design discussions.
+    may inspect code produced by those dependencies. Each task states its scope,
+    authority, dependencies and acceptance locally. Normative documents explicitly
+    named in context.specification, context.design, context.format or
+    context.proposal are required contract inputs; unlisted design documents and
+    earlier conversation are not prerequisites. A normative format must be
+    resolved before its dependent implementation is marked ready.
   change_rule: >-
     Keep each implementation task in its own commit unless two tasks must be
     landed atomically to keep the repository buildable.
@@ -638,9 +642,73 @@ milestones:
       and bounded live evidence support per-family quality/cost decisions before
       any default-catalog rollout. Compatibility alone is not a quality gate.
 
+  - id: portable-eval-format
+    exit_task: V41-008
+    outcome: >-
+      Versioned portable playground documents, v1 compatibility, provider adapters,
+      frozen experiment recovery, scoring/comparison and safe server publication
+      pass offline conformance before any instruction quality evaluation starts.
+
+  - id: findings-tools
+    exit_task: V43-005
+    outcome: >-
+      Independently selected finding/list_findings tools connect producers and
+      reusable analysts through exact collections from existing Run/Audit records.
+      Offline integration verifies provenance, bounded reading and review semantics
+      without mandatory annotations, OpenAPI subjects or hypothesis verification.
+
+active_delivery_order:
+  prioritized_on: "2026-09-06"
+  rationale: >-
+    Deliver the reusable findings producer/reader path first. Prepare portable
+    eval infrastructure before measuring new behavior. Audit completion is a
+    separate reliability improvement; UI work follows the execution contracts.
+    Sequence does not override depends_on or take over another in-progress task.
+  queues:
+    - {rank: 1, tasks: [V43-001, V43-002, V43-003, V43-004, V43-005], outcome: "Shared finding/list_findings tools and producer-to-analyst handoff."}
+    - {rank: 2, tasks: [V41-001, V41-002, V41-003, V41-004, V41-005, V41-006, V41-007, V41-008], outcome: "Portable evaluation format and offline readiness."}
+    - {rank: 3, tasks: [V39-001, V39-004, V39-002, V39-003, V39-005, V39-006, V39-007], outcome: "Deterministic Audit completion without a model serializer."}
+    - {rank: 4, tasks: [V40-001, V40-002, V40-003], outcome: "Grounded instruction evaluation with separately frozen pilot/confirmation; explicit live prerequisites apply."}
+    - {rank: 5, tasks: [V37-001, V37-002, V37-003, V37-004, V37-005, V37-006, V37-007, V37-008, V37-009, V37-010, V37-011, V37-012], outcome: "Connected UI journeys over stable public contracts."}
+    - {rank: 6, tasks: [V38-001], outcome: "Evals UI design over the established portable format."}
+  blocked_queue_rule: >-
+    An unavailable live evaluation environment does not block independent
+    contract/UI work in later queues. Do not run paid model evaluations merely
+    because the queue lists them; their task-specific frozen plan and limits apply.
+
+portable_eval_format_planning:
+  planned_on: "2026-09-06"
+  status: implemented
+  implementation_status:
+    reviewed_on: "2026-09-07"
+    completed: [V41-001, V41-002, V41-003, V41-004, V41-005, V41-006, V41-007, V41-008]
+    in_progress: []
+    pending: []
+  specification: docs/spec/26-portable-evaluation-format.md
+  implementation_repository: playground-v2
+  tasks: [V41-001, V41-002, V41-003, V41-004, V41-005, V41-006, V41-007, V41-008]
+  delivery_order:
+    - {wave: 1, tasks: [V41-001], outcome: Closed versioned schemas and semantic conformance fixtures.}
+    - {wave: 2, tasks: [V41-002], outcome: Explicit v1 compatibility with no inferred history.}
+    - {wave: 3, tasks: [V41-003], outcome: Contractor and recorded providers over one portable contract.}
+    - {wave: 4, tasks: [V41-004, V41-005], outcome: Durable planning/recovery and immutable domain assessments.}
+    - {wave: 5, tasks: [V41-006], outcome: Complete membership and honest quality/cost comparison.}
+    - {wave: 6, tasks: [V41-007], outcome: Safe recoverable publication through existing Project APIs.}
+    - {wave: 7, tasks: [V41-008], outcome: Offline readiness gate and pinned implementation handoff.}
+    - {wave: 8, tasks: [V40-001, V40-002], outcome: Sequential fixture-gap mapping and instruction experiment preparation after readiness.}
+    - {wave: 9, tasks: [V40-003], outcome: Separate future model evaluation with an explicit frozen budget.}
+  boundaries:
+    - V41 implements format and conformance; it does not run model evaluations or benchmark campaigns.
+    - Playground owns evaluator records; Contractor owns ordinary execution; public artifacts are safe projections, not another manifest authority.
+    - V38 consumes this format for UI design; V39 Audit completion contracts remain separate bindings and experiments.
+    - Current v1 data and published configuration versions are preserved; no default deployment is implied.
+
 audit_worker_completion_planning:
   planned_on: "2026-09-06"
-  status: planned_not_implemented
+  status: partially_implemented
+  completed: [V39-001, V39-004]
+  in_progress: []
+  pending: [V39-002, V39-003, V39-005, V39-006, V39-007]
   specification: docs/spec/25-audit-worker-finalization.md
   plan_review: docs/reviews/2026-09-06-audit-worker-completion-plan.md
   tasks: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
@@ -683,12 +751,16 @@ ui_usability_planning:
 
 performance_metrics_planning:
   specification: docs/spec/22-performance-metrics-and-profiling.md
-  status: partially_implemented
+  status: implemented
   implementation_status:
     reviewed_on: "2026-09-06"
-    completed: [V32-001, V32-002, V32-003, V32-004, V32-007]
-    in_progress: [V32-005]
-    pending: [V32-006, V32-008]
+    completed: [V32-001, V32-002, V32-003, V32-004, V32-005, V32-006, V32-007, V32-008]
+    in_progress: []
+    pending: []
+    source_branch: v32-performance-ui
+    integration_note: >-
+      Integrated with main on 2026-09-06; allocation performance policy uses
+      migration 000053 because 000052 is already Run-stage resumption.
   defaults:
     performance_metrics: true
     pprof: false
@@ -2444,4 +2516,17 @@ tasks:
   - {id: V40-001, file: v40-001-agent-instruction-eval-fixtures.yml}
   - {id: V40-002, file: v40-002-agent-instruction-paired-runner.yml}
   - {id: V40-003, file: v40-003-agent-instruction-eval-decision.yml}
+  - {id: V41-001, file: v41-001-eval-schemas.yml}
+  - {id: V41-002, file: v41-002-eval-legacy-compatibility.yml}
+  - {id: V41-003, file: v41-003-eval-execution-adapters.yml}
+  - {id: V41-004, file: v41-004-eval-plans-and-recovery.yml}
+  - {id: V41-005, file: v41-005-eval-assessments.yml}
+  - {id: V41-006, file: v41-006-eval-comparisons.yml}
+  - {id: V41-007, file: v41-007-eval-server-publication.yml}
+  - {id: V41-008, file: v41-008-eval-format-release-gate.yml}
   - {id: V42-001, file: v42-001-runtime-openai-gateway-client.yml}
+  - {id: V43-001, file: v43-001-findings-access-contract.yml}
+  - {id: V43-002, file: v43-002-findings-collection-publication.yml}
+  - {id: V43-003, file: v43-003-findings-reader-tool.yml}
+  - {id: V43-004, file: v43-004-findings-agent-integration.yml}
+  - {id: V43-005, file: v43-005-findings-contract-gate.yml}

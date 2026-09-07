@@ -1,0 +1,49 @@
+schema_version: "1.0"
+id: V43-002
+title: "Prepare pinned findings collections from existing server records"
+milestone: findings-tools
+priority: P1
+status: completed
+implementation_commit: 67452ff58aa4ea63b50470b8f9c9a4b07e5bb689
+depends_on: ["V43-001"]
+languages: ["go", "typescript"]
+goal: "Supply analytical Workflows with exact findings inputs assembled from existing Run/Audit records."
+context:
+  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
+  specification: docs/spec/27-findings-tools-and-collections.md
+  reuse: "findingintake ListRun/ListAuditInbox and auditservice ListFindings already exist. New collection publication reuses their records and Artifact plane."
+  handoff: >-
+    Publish V43-001's self-contained ZIP with selected proposal/evidence bytes and
+    original scoped provenance. Existing public Run creation forks this one
+    declared input unchanged. V43-003 materializes its members through the
+    selected reader toolset; no collection-specific Run-create branch or foreign
+    Runtime artifact read grant is required.
+  verification: >-
+    New PostgreSQL collection/retention/handoff tests must execute against the
+    disposable database and fail rather than skip when explicitly selected.
+scope:
+  in:
+    - "Implement explicit collection preparation/publication and passing its exact ref as an ordinary Workflow input."
+    - "Preserve selected receipts, all contributing proposal refs and available pinned review revisions; distinguish admitted, unreviewed and discarded provenance."
+    - "Embed all selected exact bytes so ordinary ZIP input retention covers documents/evidence; preserve the frozen selection across pagination and retries."
+    - "Implement atomic publication, conflict/replay and cleanup through the existing Artifact lifecycle; never publish an incomplete collection."
+    - "Update the public OpenAPI contract and generated client for the explicit preparation surface."
+  out:
+    - "A second findings store, implicit project-wide reads, verification inventory creation or automatic triage."
+deliverables:
+  - {path: internal/findingintake, description: "Collection builder/publication using existing immutable receipt data."}
+  - {path: internal/auditservice, description: "Adapter for Audit selection and review snapshots."}
+  - {path: internal/httpapi/public, description: "Explicit owner-authorized preparation surface using existing Artifact/Run contracts."}
+  - {path: api/openapi/contractor-public-v1.yaml, description: "Preparation contract and generated-client synchronization."}
+requirements:
+  - {id: R1, text: "Selection policy is explicit; paging, retention gaps and rejected or unadmitted receipts are never silently interpreted as confirmed findings."}
+  - {id: R2, text: "A collection is a reusable input artifact; it does not itself authorize foreign refs or require an Audit consumer."}
+acceptance_criteria:
+  - {id: A1, given: "Selected Run and Audit receipts", when: "A collection is published and forked as an ordinary input", then: "The downstream Run can read a complete ZIP containing the exact permitted documents with distinct origin and captured review state."}
+  - {id: A2, given: "Later proposals, source deletion or interrupted publication", when: "The original collection is read or publication retried", then: "Membership stays fixed, retained refs remain readable, and incomplete publication is not reported as success."}
+  - {id: A3, given: "Two producer Runs with colliding binding names and a forged foreign ref", when: "A collection is prepared and passed as an ordinary input", then: "Authorized bytes retain distinct scoped document IDs and survive source deletion inside the ZIP; forged refs fail without widening the Runtime read policy."}
+tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/findingintake ./internal/auditservice ./internal/runservice ./internal/httpapi/public'
+    covers: ["A1", "A2", "A3"]
+  - command: "make verify-public-api ui-typecheck"
+    covers: ["A1", "A3"]

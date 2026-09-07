@@ -54,7 +54,7 @@ requirements:
   - {id: R2, text: "Conclusive checklist results with missing required evidence fail before collection changes; completed coverage cannot stand in for evidence."}
   - {id: R3, text: "Invalid partial/full-batch calls preserve all previously accepted items and their revisions."}
   - {id: R4, text: "No proposed or failed tool call satisfies any completion condition; all expected item keys must be accepted."}
-  - {id: R5, text: "Limits are aggregate: 64 items, 16 KiB summary, 512 bounded coverage entries, 256 evidence records, 8 MiB canonical collected data and 16 MiB prospective ZIP."}
+  - {id: R5, text: "Limits have distinct scopes: 64 items per collection; 16 KiB per summary; 512 values per bounded coverage list and the existing importer limit of 128 proposal keys per item; 256 evidence records and 8 MiB canonical data across the collection; 16 MiB prospective ZIP. Do not turn the per-list limit into an aggregate 512-entry cap."}
 
 acceptance_criteria:
   - id: A1

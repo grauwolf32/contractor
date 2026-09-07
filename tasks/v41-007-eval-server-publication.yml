@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V41-007
+title: "Publish portable eval reports through existing Contractor artifact APIs"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 2ee43504ffd8e319af4803d60107b1fe002b39b9
+implementation_repository: playground-v2
+depends_on: ["V41-004","V41-006"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Expose experiment manifests and results in existing evaluation Projects without copying hidden truth or creating another authoritative store."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  authority: "The local immutable bundle/journal stays evaluator authority; Server remains execution authority. Publish allowlisted JSON/Markdown projections with their own digest and source_record_sha256. No raw private asdict serialization."
+  transport: "Reuse owner-scoped Project artifacts in eval-manifests/results/assessments/comparisons namespaces; content-addressed create-only writes verify exact bytes after conflict. Advance a per-experiment index using exact CAS only after records are durable."
+  recovery: "Retain pending publication receipts on failure and resume without rerunning the model. Follow exact Run outputs, not Project outputs/<slot>; if a referenced output was deleted, mark evidence unavailable rather than recreate proof."
+  privacy: "Never publish ground-truth refs/paths/bytes, credentials, private bindings, raw request dumps or secret-bearing locators. Labels are safe grouping metadata. Handle foreign-owner, deletion/retention and artifact size failures via existing public contracts."
+  server: "No new eval Scheduler, Run store, auth bypass or global aggregate endpoint. Extend server/client API only for a proven missing general artifact capability and retain existing authority boundaries."
+scope:
+  in:
+    - "Add independent publisher interface plus Contractor/local implementations and experiment publish CLI."
+    - "Publish safe digested projections and CAS index through existing API paths."
+    - "Test owner isolation, sentinel exclusion, lost response, conflicting writes, deleted evidence and publication-only resume."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/src/playground_evals/publishers.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/contractor_v2.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/cli.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_publication.py", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "Private plans/results containing sentinels and exact public refs", when: "Published", then: "Only the allowed projection crosses the API; its digest differs where fields were removed and links to the source digest."}
+  - {id: A2, given: "Lost response, stale CAS, foreign owner or deleted artifact", when: "Published/resumed", then: "Conflicts and unavailability are explicit; no foreign overwrite or model resubmission occurs."}
+  - {id: A3, given: "Local/Contractor publisher over the same portable records", when: "Used", then: "Core case/scorer execution is unchanged, all published references resolve before the index advances."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_publication.py tests/test_contractor_v2.py"
+    covers: ["A1","A2","A3"]

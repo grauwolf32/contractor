@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V41-003
+title: "Separate execution adapters and normalize Contractor observations"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 6b0219842ff30dc986a66d0d037aaec9e6bc20b6
+implementation_repository: playground-v2
+depends_on: ["V41-001","V41-002"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Run unchanged portable cases and scorers over Contractor public API observations or a recorded-output provider."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  interface: "Implement preflight, prepare, submit, reconcile, observe, cancel and collect. Provider capabilities and binding schemas are explicit/versioned; unsupported does not remove a member. Core/scorers import no Contractor packages and parse no execution IDs."
+  contractor: "Reuse ContractorV2Client and Workflow/Audit runners. Workflow mode creates ordinary evaluation Project Runs; Audit mode uses real Audit APIs/controller/importer authority and existing Project-kind behavior. Never manufacture managed inputs or guess child metadata support."
+  evidence: "Resolve exact upload revisions using put_exact_project_artifact or equivalent verification; collect exact Run outputs and bounded raw refs even on failure where available. Preserve gaps, provider state, source snapshot mapping and normalizer pins."
+  pins: "Resolve only actually available model/config/Skill/tool/runtime identities; state observed/operator-supplied/unavailable provenance. Strict required-equal missing pins block execution instead of inventing API capabilities or digests."
+  cost: "Propagate reportsComplete/truncated, missing cached usage, cumulative counter scope and child/parent deduplication. Local timeout or accepted cancellation is not remote terminal state."
+scope:
+  in:
+    - "Add adapter protocol and provider-specific closed bindings; reuse current HTTP client."
+    - "Normalize execution/output/evidence/usage records without ground-truth access."
+    - "Add recorded-output adapter and deterministic API fixtures for capability, timeout, Audit mapping and exact-ref behavior."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/src/playground_evals/adapters", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/contractor_v2.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/runner.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/audit_runner.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_adapters.py", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "One portable case and the same observed outputs", when: "Evaluated via Contractor stub and recorded adapter", then: "Case and scorer code are unchanged; provider mappings and opaque refs remain in adapters."}
+  - {id: A2, given: "Missing capability, changed pin, lost response or partial output", when: "Preflight/reconcile/collect run", then: "Unsupported/gaps/uncertain state are explicit; no fresh implicit sample, fake terminal state or fabricated evidence appears."}
+  - {id: A3, given: "Workflow and multi-child Audit responses", when: "Normalized", then: "Exact source/output refs and trusted item mapping survive; attempts/counters are neither omitted silently nor double-counted."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_adapters.py tests/test_contractor_v2.py tests/test_runner.py tests/test_audit.py"
+    covers: ["A1","A2","A3"]

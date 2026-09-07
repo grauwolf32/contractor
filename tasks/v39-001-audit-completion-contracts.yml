@@ -3,8 +3,8 @@ id: V39-001
 title: "Define opt-in Audit Worker completion contracts and shared interfaces"
 milestone: audit-worker-completion
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: f17476a792a6bc29eab44a9fcaf5d615a71f1ea2
 depends_on: ["V21-001","V26-004","V28-002"]
 languages: ["go","python","yaml"]
 
@@ -43,6 +43,8 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: api/v1alpha1/allocation.schema.json
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: api/private-v2
+    description: "Update generated production allocation/registration schemas and shared private-v2 fixtures, not only the v1alpha1 schema."
   - path: runtime/src/contractor_runtime/contracts.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/src/contractor_runtime/audit_completion_contracts.py
@@ -80,6 +82,8 @@ acceptance_criteria:
     then: "Both turns are observed under one invocation; model/tool counters and artifact observations persist, and begin/terminal cleanup each occur once."
 
 tests:
+  - command: "make verify-wire-contracts"
+    covers: ["A1","A2"]
   - command: "go test ./internal/config ./internal/contracts"
     covers: ["A1","A2"]
   - command: "cd runtime && uv run --frozen pytest tests/test_audit_completion_contracts.py tests/test_audit_completion_continuation.py tests/test_allocation_contracts.py tests/test_contracts.py tests/test_instrumentation.py"

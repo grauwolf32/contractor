@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V41-005
+title: "Score normalized results with immutable provenance and existing scorers"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 5b1dd323623b5243b0b1b4f34e0d051820aefb98
+implementation_repository: playground-v2
+depends_on: ["V41-002","V41-003"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Reuse domain scorers through a portable assessment contract that separates technical outcome, quality and incomplete evidence."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  scorers: "Keep current OpenAPI/LikeC4/trace/Audit scorers and pinned real-oracle semantics. Add registration of required roles/media/expected schema, implementation digest, metric definitions and accepts_partial=false default."
+  assessment: "Assessment pins one exact Result, suite, expected refs and scorer implementations. Required checks use error > fail > incomplete > pass precedence; optional errors remain visible. N/A is explicit; 0/0 is never silently perfect recall."
+  evidence: "Scorers receive expected data separately, not through adapters. Ground truth never enters provider requests/public projections. A line that exists but does not support a claim is not sufficient evidence."
+  revisions: "Rescoring writes a new assessment without changing old result/state/score. Legacy scoring behavior remains under its legacy pins; an unavailable validator is evaluator error, not a clean output."
+scope:
+  in:
+    - "Add scorer registration/assessment records around existing scoring functions."
+    - "Normalize raw evidence before scoring without Contractor internals in generic checks."
+    - "Test safe/unsafe/partial results, scorer errors, N/A and immutable rescoring using retained fixtures only."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/src/playground_evals/assessments.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/scorers", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_assessments.py", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "A succeeded execution with wrong output and a failed execution with partial evidence", when: "Scored", then: "Provider state is unchanged; quality failure/error/incomplete and explicitly permitted partial checks remain distinct."}
+  - {id: A2, given: "Safe fixtures, missing outputs and zero positive denominator", when: "Scored", then: "False positives and gaps are detected; no forced findings, missing-data zeros or vacuous required-check passes appear."}
+  - {id: A3, given: "Changed expected data or scorer implementation", when: "Rescored", then: "A new assessment pins new inputs and preserves the original judgment and raw evidence refs."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_assessments.py tests/test_scorers.py tests/test_audit.py tests/test_webexploit.py"
+    covers: ["A1","A2","A3"]

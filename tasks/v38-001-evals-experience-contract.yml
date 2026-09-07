@@ -15,6 +15,13 @@ context:
   review_findings: ["UX-11"]
   planning_document: "docs/ui-user-stories.md"
   design_document: "docs/evals-experience-design.md"
+  portable_format: >-
+    docs/spec/26-portable-evaluation-format.md owns identity, documents, local
+    evaluator authority, safe published projections and comparison semantics.
+    V41 implements that contract before live evals. This task designs UI/API
+    presentation over it; do not redefine the format or introduce a second
+    writable manifest authority. The first CLI release cannot reconstruct its
+    private recovery state from labels or public artifact projections alone.
   baseline: >-
     Evals currently renders evaluation Projects and ordinary Runs grouped by purpose=eval and
     eval.* labels. There is no complete experiment setup or comparison flow, and a page of Run
@@ -26,13 +33,14 @@ context:
 scope:
   in:
     - >-
-      Define experiment identity/scope, exact variant Workflow/Agent/config selection, cases
+      Use the portable format's experiment identity/scope and define UI selection of exact variant Workflow/Agent/config, cases
       with exact input refs, repeat/sample identity and the user journey from setup through
       comparison.
     - >-
       Specify how normal Run submissions are bounded, idempotent and recoverable after partial
-      submission, lost responses, reload or duplicate case/sample labels; decide explicitly
-      whether a durable manifest is needed and define its ownership/versioning if selected.
+      submission, lost responses, reload or duplicate case/sample labels; preserve the
+      frozen-plan/local-authority and safe-publication contract from spec 26. Any richer
+      server-owned recovery design needs an explicit compatible contract extension.
     - >-
       Define paired comparisons by case/sample, missing/failed/duplicate handling, duration and
       token accounting provenance, units and completeness. Separate optional explicit

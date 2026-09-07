@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V41-001
+title: "Implement portable eval schemas, records and semantic validation"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 2f2bccb76fca5ceeb8b389f784c43df874eb8949
+implementation_repository: playground-v2
+depends_on: []
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Implement the versioned portable format before any model experiment, with strict references, privacy projections and frozen conformance examples."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  documents: "Implement playground.case/v2, suite/v2, binding/v1, experiment/v1, plan/v1, submission/v1, result/v2, assessment/v1 and comparison/v1. Keep project/corpus/target v1 manifests. Schema objects are closed except owned configuration/extensions; duplicate YAML/JSON keys, aliases, unknown versions, invalid refs and over-limit plans fail."
+  identity: "Use exact-byte SHA-256 refs, UTF-8 JSON frozen records, explicit UTC timestamps, finite values and units. Member ID hashes the compact JSON array [experiment_id,suite_id,case_id,sample,variant_id]. Plan matrix is immutable; scoring and provider outcome are separate."
+  versioned_identity: "Keep plain Id distinct from VersionedId for registered providers/scorers: <Id>@<Id>, at most 128 ASCII characters in total. The @ separator is legal only in the versioned type; registration is exact, with no latest or semantic-version ordering inference."
+  privacy: "Case execution projection contains only id/task/inputs/requires/outputs. Hidden expected data remains evaluator-local. Public projection is allowlisted and has a different digest linked to the private record digest."
+  boundaries: "Pure types/validation/conformance data only; no provider calls, target startup, model evaluation or schema rollout. Read the Contractor canonical specification via the cross-repository handoff; do not create a divergent contract."
+scope:
+  in:
+    - "Add JSON Schemas, typed Python records and cross-document semantic checks with the specified bounds."
+    - "Create valid examples and negative/fault fixtures for the worked 8-member experiment, scoring precedence, missing pins and duplicate members."
+    - "Validate runtime-visible and publication projections with hidden-data sentinels."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/schemas", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/formats.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_formats.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/fixtures/portable-v2", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "Valid and malformed v2 documents", when: "Validated offline", then: "Valid examples load; duplicate keys, unsupported versions, bad digests/units, illegal state combinations and expanded limits fail with stable codes."}
+  - {id: A2, given: "Cases with hidden ground-truth sentinels", when: "Execution/public projections are built", then: "Neither projection includes hidden refs, bytes or private provider configuration."}
+  - {id: A3, given: "The 8-member example and altered identities", when: "Cross-document validation runs", then: "Members and references are deterministic; changed plan/member pins, score/result disagreement and conflicting identities are rejected."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_formats.py"
+    covers: ["A1","A2","A3"]
+
+verification_results:
+  verified_on: "2026-09-07"
+  format_tests: "113 passed: uv run --extra dev pytest tests/test_formats.py"
+  evals_regression: "145 passed: uv run --extra dev pytest"
+  static_checks: "Ruff check and format --check passed for formats.py and its test/fixture modules."
+  packaging: "Wheel build and isolated import passed; all 10 local schema files are packaged."
+  handoff: "../playground-v2/docs/portable-eval-format-handoff.md"
+  specification_sha256: "sha256:df496ffa4ef7d7eea9260c59505c49b4976dbb1e16d9613585fc73d026311f7a"
+  boundaries: "Offline format/conformance only. No live models, targets, provider execution, CLI migration or publication. V41-002–008 remain separate tasks."

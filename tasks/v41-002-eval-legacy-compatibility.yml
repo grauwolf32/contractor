@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V41-002
+title: "Preserve playground v1 suites and results through explicit conversion"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 7eeb274e044b83b88bb73884f12b60d5599d9da5
+implementation_repository: playground-v2
+depends_on: ["V41-001"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Keep current playground catalogs and results usable while separating portable cases/scoring from provider execution bindings."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  reuse: "Retain existing project/corpus/target manifests, packaging rules, expected datasets, scorer implementations and upstream oracles. Convert suite/v1 Workflow/Audit configuration into an explicit Contractor binding without rewriting source files."
+  legacy: "Preserve original bytes/digest. contractor_run_id/audit_id/run_ids become opaque refs; old passed/failed and scalar scores are legacy assessments, not inferred execution state. Missing sample/experiment/usage/pins remain unknown and legacy-unpaired."
+  scope: "Converters are deterministic and side-effect free. Old run-project/run-audit and corpus commands remain usable. Do not assign repeats from timestamps or infer canonical Audit operation keys."
+scope:
+  in:
+    - "Add explicit v1 readers/converters and provenance-preserving catalog integration."
+    - "Adapt existing suites through generated bindings and retain threshold/scorer behavior."
+    - "Gate old fixtures and result data with unknown-field and unpaired-comparison tests."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/src/playground_evals/catalog.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/compat.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/results.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_compat.py", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "Existing Workflow/Audit suites and v1 results", when: "Read through the compatibility path", then: "Their tasks, expected data, thresholds and original digests are preserved without in-place rewrites."}
+  - {id: A2, given: "Legacy score failure, missing usage and no sample identity", when: "Converted", then: "Execution state is not guessed, cost is not zero-filled and strict A/B pairing is unavailable without explicit evidence."}
+  - {id: A3, given: "Current catalog/result/runner tests", when: "Run without provider/model services", then: "Existing supported commands and fixtures remain compatible."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_compat.py tests/test_catalog.py tests/test_results.py tests/test_runner.py tests/test_audit.py"
+    covers: ["A1","A2","A3"]

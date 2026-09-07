@@ -3,8 +3,8 @@ id: V32-005
 title: Expose Operations performance and durable allocation resource history
 milestone: operations-performance-and-profiling
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 78016cf29ec4dada507bdc45f465a902a9668092
 depends_on: [V32-003, V32-004]
 languages: [go, sql, typescript]
 

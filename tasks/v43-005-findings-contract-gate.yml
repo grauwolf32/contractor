@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V43-005
+title: "Verify the reusable findings path and prepare quality eval scenarios"
+milestone: findings-tools
+priority: P1
+status: completed
+implementation_commit: 243fed1034140f9f9af625a2a190fc5c92faa925
+depends_on: ["V43-004"]
+languages: ["go", "python", "markdown"]
+goal: "Prove creation, transfer, reading and analysis independently of annotation or operation-specific data."
+context:
+  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
+  eval_boundary: "This task runs offline contract checks and prepares scenario descriptions. Model evaluations require V41-008 and a separately frozen portable plan; no quality claim follows from conformance."
+  required_gate: >-
+    Add make test-findings-e2e over production processes and scripted model
+    fixtures. Require disposable PostgreSQL and Runtime prerequisites, a nonzero
+    expected test set and actual execution of every mandatory case. Fail on
+    missing prerequisites, no matching tests or skipped mandatory cases; a green
+    go test command with no executed integration cases is not acceptance.
+scope:
+  in:
+    - "Exercise producer receipt to collection to reader with real importer/Artifact boundaries and deterministic model fixtures."
+    - "Cover ordinary Run and Audit origins, direct finding, optional hypothesis, report/log evidence, empty results and bounded pagination."
+    - "Verify idempotency, read-only selection, retained refs and several operations sharing code without hidden semantic dedup."
+    - "Document eval cases for external middleware controls, safe sinks, source-inferred reproduction, multiple findings and evidence-grounded analyst conclusions."
+  out:
+    - "Live model campaigns, deployment, mandatory verification pipeline or annotation-index implementation."
+deliverables:
+  - {path: Makefile, description: "Dedicated test-findings-e2e target with required-test execution and no-skip checks."}
+  - {path: tests/e2e, description: "Deterministic producer/collection/reader integration and failure coverage."}
+  - {path: runtime/tests/test_findings_reader_toolset.py, description: "Reader protocol and bounds regression tests."}
+  - {path: docs/reviews/2026-09-06-findings-tools-validation.md, description: "Implementation evidence, limitations and portable eval scenario descriptions; create during implementation."}
+requirements:
+  - {id: R1, text: "Conformance succeeds with no annotation output and no hypothesis while preserving provenance and review semantics."}
+  - {id: R2, text: "Process integration requiring PostgreSQL must actually run in a configured test environment; compilation alone is not its passing evidence."}
+acceptance_criteria:
+  - {id: A1, given: "Producer and reader Workflows with deterministic gateway responses", when: "Executed end to end for Run and Audit sources", then: "All selected findings and evidence reach the reader with stable identity and no implicit assessment changes."}
+  - {id: A2, given: "Empty, paginated, inaccessible or interrupted inputs", when: "The same path executes", then: "Completeness and errors remain explicit and no successful or confirmed result is fabricated."}
+  - {id: A3, given: "Missing database/Runtime prerequisites, no matching tests or a skipped required case", when: "The dedicated gate runs", then: "The gate fails rather than reporting integration success."}
+tests:
+  - command: "go test ./internal/findingintake ./internal/auditservice ./internal/config ./tests/e2e"
+    covers: ["A1", "A2"]
+  - command: "make test-findings-e2e"
+    covers: ["A1", "A2", "A3"]
+  - command: "cd runtime && uv run --frozen pytest tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py"
+    covers: ["A1", "A2"]

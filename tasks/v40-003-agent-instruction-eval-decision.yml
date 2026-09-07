@@ -5,7 +5,7 @@ milestone: agent-instruction-evaluation
 priority: P1
 status: pending
 implementation_commit: null
-depends_on: ["V40-002"]
+depends_on: ["V40-002", "V41-008"]
 languages: ["go", "markdown"]
 
 goal: >-
@@ -14,18 +14,22 @@ goal: >-
 context:
   plan: tests/eval/agent_instructions/README.md
   integration_proposal: docs/agent-evals-proposal.md
+  format: docs/spec/26-portable-evaluation-format.md
   runner: >-
-    Use the existing playground-v2 CLI/runner extended by V40-002. Record its
+    Use the existing playground-v2 CLI/runner extended by V41. Record its
     actual supported invocation in the measured report; do not invent a second
     live matrix runner in Contractor. Existing Go gates check compatibility only.
-    The run-experiment command below is planned in V40-002 and is not available
-    before that task. Author experiments/agent-instructions.yaml in playground
-    with the reviewed cases, bindings and explicit execution limits before running.
+    The experiment run command below is implemented by V41; format readiness
+    does not authorize a model run without the frozen V40 experiment and limits. V40-002 supplies experiments/agent-instructions/plan.json as a
+    validated frozen plan with reviewed cases, exact bindings and explicit limits.
   server: >-
-    Run the experiment through the existing evaluation Project, ordinary Runs,
-    exact eval labels and public APIs. Store manifest, scores and comparison as
-    Project artifacts linked to exact Run outputs. Reuse one configured evaluation
-    Server; the driver does not own execution or introduce a separate queue.
+    Workflow members use ordinary evaluation Project Runs. Audit members use
+    normal Audit create/start APIs and the Project kind supported by the existing
+    Audit runner; associate their exact receipts with the experiment rather than
+    pretending that child Runs are ordinary eval submissions. Child eval labels
+    are not required for membership. Publish allowlisted manifest/score/comparison
+    projections in the evaluation Project; retain private plans and truth locally.
+    Reuse one configured evaluation Server and existing execution authority.
   pilot: >-
     Start D1/O1/L1/T1/T2/A1, two repetitions per arm: 24 attempts. Predeclare
     limits; initial proposal is 2 million total model tokens and 90 minutes with
@@ -33,6 +37,10 @@ context:
   confirmation: >-
     Freeze candidate after pilot fixes; evaluate all implemented cases plus held-out
     variants with three repetitions per arm and a separately recorded total budget.
+    The V40-002 plan is the immutable pilot. Confirmation has a new experiment ID,
+    authoring document and bundle, for example experiments/agent-instructions/confirmation;
+    use the existing plan CLI to freeze it before submission. Any candidate fix
+    gets new immutable versions; never rewrite pilot pins or relabel its samples.
     Run workers on fixed inputs before full workflows. Use worker/planner ablations
     only to resolve attribution. Keep live Caido and transport-double tiers distinct.
   gates: >-
@@ -50,6 +58,7 @@ context:
 scope:
   in:
     - "Bounded local-target pilot, held-out confirmation and blinded adjudication of causal evidence."
+    - "Prepare and retain a separate confirmation plan using the existing V41 CLI; record its exact plan/run commands and budget in the measured report. The listed run commands execute the two independently frozen plans."
     - "Per-family adopt/revise/reject/inconclusive decision with exact candidate digests and rollout checklist."
     - "Updated review containing measured outcomes, limitations and exact evaluation Project/Run/artifact references."
   out:
@@ -57,10 +66,12 @@ scope:
 deliverables:
   - {path: docs/reviews, description: "Dated measured instruction A/B report with family-level adoption decisions."}
   - {path: tests/eval/agent_instructions/README.md, description: "Actual run command, evidence location and revised status after evaluation."}
-  - {path: ../playground-v2/experiments/agent-instructions.yaml, description: "Reviewed experiment manifest consumed by the V40-002 CLI extension."}
+  - {path: ../playground-v2/experiments/agent-instructions/plan.json, description: "Frozen plan prepared by V40-002 after V41 format readiness; retained with the private experiment bundle."}
+  - {path: ../playground-v2/experiments/agent-instructions/confirmation, description: "Separate frozen confirmation plan, member receipts and exact commands; do not overwrite the pilot bundle."}
 requirements:
   - {id: R1, text: "Compatibility checks cannot stand in for LLM quality; unavailable live runs leave the task unfinished."}
   - {id: R2, text: "Rollout is a later explicit choice of new immutable versions, with old versions and experiment pins retained."}
+  - {id: R3, text: "Completion requires executed pilot and separately frozen confirmation evidence. A pilot CLI success or changed plan at the old path does not satisfy confirmation acceptance."}
 acceptance_criteria:
   - {id: A1, given: "Pilot and held-out confirmation", when: "Reviewed", then: "Each attempt and family decision is reproducible and no failure is hidden by retries or pass@N."}
   - {id: A2, given: "Any claimed improvement", when: "Compared with baseline", then: "Quality, coverage, error and cost evidence support it, or the conclusion is explicitly inconclusive."}
@@ -68,5 +79,7 @@ acceptance_criteria:
 tests:
   - command: "go test ./tests/eval/agent_instructions ./internal/config"
     covers: ["A3"]
-  - command: "cd ../playground-v2/evals && uv run playground-eval run-experiment --manifest ../experiments/agent-instructions.yaml"
+  - command: "cd ../playground-v2/evals && uv run playground-eval experiment run --plan ../experiments/agent-instructions/plan.json"
+    covers: ["A1", "A2"]
+  - command: "cd ../playground-v2/evals && uv run playground-eval experiment run --plan ../experiments/agent-instructions/confirmation/plan.json"
     covers: ["A1", "A2"]

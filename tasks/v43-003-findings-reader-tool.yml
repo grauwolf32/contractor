@@ -1,0 +1,41 @@
+schema_version: "1.0"
+id: V43-003
+title: "Add list_findings with independently selectable read and write tools"
+milestone: findings-tools
+priority: P1
+status: completed
+implementation_commit: 89c4dcae60d3e8b000b81f43ed18fce5cd4b382a
+depends_on: ["V43-002"]
+languages: ["python", "go"]
+goal: "Expose finding and list_findings according to the agent's role through a versioned toolset."
+context:
+  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
+  specification: docs/spec/27-findings-tools-and-collections.md
+  compatibility: "Preserve security-findings@1 and its idempotent finding call. Add the reader in an explicit new version."
+  input: "Read the V43-002 self-contained ZIP input. Selected reader-toolset preparation validates and materializes every document through the current-Run ArtifactClient, retaining actual exact write receipts. Original source refs are provenance."
+scope:
+  in:
+    - "Implement collection-bound list_findings with stable filters/cursors, bounded previews and exact refs for read_artifact."
+    - "Implement deterministic create-only document materialization before exposing the reader, exact replay verification and bounded failure/cleanup through the existing Artifact lifecycle."
+    - "Consume the shared Go/Python collection fixture; verify identical document IDs, ZIP digest and consumer destinations."
+    - "Register Runtime capabilities and Server descriptors; classify creation by selected operation rather than the presence of a reader toolset."
+    - "Standardize ADK-visible docstrings for creation, reading, evidence and the distinction between proposal and assessment."
+  out:
+    - "Separate get/update/delete tools, model-assigned scope identities, hidden dedup or confirmation side effects."
+deliverables:
+  - {path: runtime/src/contractor_runtime/toolsets/security_findings.py, description: "Versioned independently selectable finding/list_findings operations."}
+  - {path: runtime/tests/test_findings_reader_toolset.py, description: "Offline reader, filtering, pagination and capability tests; create during implementation."}
+  - {path: internal/config, description: "Tool authoring descriptors and role-selection checks."}
+  - {path: internal/auditservice, description: "Compatibility checks that distinguish reading from emitting findings."}
+requirements:
+  - {id: R1, text: "Reader-only selection exposes no creation operation and does not require finding-emission policy."}
+  - {id: R2, text: "Unknown cursor, inaccessible document, byte limit and an empty collection are explicit distinct outcomes."}
+acceptance_criteria:
+  - {id: A1, given: "Writer-only, reader-only and combined templates", when: "Resolved and prepared", then: "Exactly the selected tools are exposed; @1 behavior remains compatible."}
+  - {id: A2, given: "A multi-page collection and changed filters or foreign refs", when: "Read through tools", then: "No entries are silently dropped, scope is enforced and full details remain accessible through exact artifact reads."}
+  - {id: A3, given: "Colliding source bindings, interrupted preparation and existing destination bytes", when: "The reader is prepared or replayed", then: "Distinct documents receive current-Run exact refs; identical prior writes are verified and reused, changed bytes fail, and partially prepared tools are not exposed."}
+tests:
+  - command: "cd runtime && uv run --frozen pytest tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py"
+    covers: ["A1", "A2", "A3"]
+  - command: "go test ./internal/config ./internal/auditservice"
+    covers: ["A1"]

@@ -3,8 +3,8 @@ id: V32-008
 title: Verify performance metrics, disabled paths and profiling overhead end to end
 milestone: operations-performance-and-profiling
 priority: P2
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 18bf39cdaf33cb63ef60fd85617888447aed5c8d
 depends_on: [V32-006, V32-007]
 languages: [go, python, typescript]
 

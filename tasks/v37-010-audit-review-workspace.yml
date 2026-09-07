@@ -24,7 +24,7 @@ context:
   authority: >-
     Audit aggregate state, coverage and revision remain Server-owned. Findings disposition,
     review decision and technical execution are distinct. Use existing bounded queries where
-    adequate; extend auditstore/public read projections for whole-Audit counts and filters if
+    adequate; extend auditservice/auditstore/public read projections for whole-Audit counts and filters if
     missing, with an explicit matching revision/as-of basis.
   browser_verification: >-
     Build the UI with make ui-build and serve it using the documented UI development or Node
@@ -86,10 +86,10 @@ acceptance_criteria:
     then: "The distinct states and missing evidence remain visible; success is not presented as approval."
 tests:
   - name: "backend"
-    command: "go test ./internal/auditstore ./internal/httpapi/public"
+    command: "go test ./internal/auditservice ./internal/auditstore ./internal/httpapi/public"
     covers: ["A1", "A2", "A3"]
   - name: "postgres"
-    command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/auditstore'
+    command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/auditservice ./internal/auditstore ./internal/httpapi/public'
     covers: ["A1", "A2"]
   - name: "api"
     command: "make verify-public-api"

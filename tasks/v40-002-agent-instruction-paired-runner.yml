@@ -1,94 +1,82 @@
 schema_version: "1.0"
 id: V40-002
-title: "Extend playground adapters with portable contracts and recoverable Server A/B"
+title: "Prepare instruction experiment bindings and a frozen plan after format readiness"
 milestone: agent-instruction-evaluation
 priority: P1
 status: pending
 implementation_commit: null
-depends_on: ["V40-001"]
-languages: ["go", "python"]
+depends_on: ["V40-001", "V41-008"]
+languages: ["python", "json", "yaml", "go"]
 
 goal: >-
-  Extend the existing playground-v2 adapter and runners with portable case/result
-  boundaries and recoverable A/B over Server evaluation Projects and ordinary Runs.
+  Prepare the instruction-specific experiment using the portable format already
+  implemented by V41, without starting model executions.
 context:
+  specification: docs/spec/26-portable-evaluation-format.md
   plan: tests/eval/agent_instructions/README.md
-  integration_proposal: docs/agent-evals-proposal.md
-  portability: >-
-    Reuse playground_evals.contractor_v2, runner, audit_runner, results and scorers.
-    Separate dataset/expectations from execution binding (Workflow/Profile/API
-    input/output mapping). Expose submit/observe/cancel/collect through an adapter
-    boundary; normalized outputs/usage/provenance and opaque provider execution
-    refs feed backend-independent scorers. Keep v1 suites/results readable via
-    explicit schema versioning/conversion. Prove the boundary with a recorded-output
-    adapter, not a second production backend or a new plugin framework.
-  isolation: >-
-    Use a Project of kind evaluation and distinct immutable baseline/candidate
-    Workflow versions loaded into one evaluation Server. Keep all non-instruction
-    effective settings and exact source inputs equal. Every sample is a fresh
-    ordinary Run, with isolated artifacts, workspace, sessions and reset service
-    state. Same-selector text substitution remains an offline compatibility test.
-  existing_server: >-
-    Reuse POST /v1/projects/{project_id}/runs, ordinary Run/Artifact read APIs,
-    cancellation, owner isolation, idempotency and pagination through
-    playground's existing HTTP client. Import no Contractor internal packages.
-    Attach purpose=eval and eval.name,
-    eval.id, eval.leg, eval.fixture, eval.case, eval.sample. Server scheduling,
-    retries and Run storage remain authoritative; no new execution path is needed.
-  recovery: >-
-    Store a bounded manifest and score/comparison records as versioned Project
-    JSON/Markdown artifacts with CAS. Pin expected case/sample/leg members,
-    requests, stable idempotency keys, config/input refs and observed Run IDs.
-    Recover a lost response by identical request replay. Labels are not unique:
-    report duplicate/missing members, follow every page, and score exact Run outputs
-    rather than create-only Project outputs. Retain playground's portable result
-    envelope and publish server copies through a separate publisher with matching
-    identities/digests. Hidden ground truth never enters ProjectScope.
-  existing_harness: >-
-    tests/eval/project_workflows/live_test.go uses real Server/Runtime and validators,
-    but currently accepts only workspace @5 workflows and saves evidence only on
-    failure. Reuse it for CI without changing existing opt-in behavior, not as a
-    separate user-facing executor. Add worker/trace, local HTTP/Caido and real Audit
-    controller/importer coverage. If child eval labels are unsupported, use
-    authoritative Audit/item/Run refs in the manifest; do not forge managed Runs.
-  pinning: >-
-    Record runtime/ADK/validator builds, resolved model/sampling/policies, complete
-    tool descriptions, selected Skill revisions, input/source/config digests and
-    budgets. Hold standardized tool docstrings constant. Existing audit-results@1
-    stays separate from the planned V39 audit-results@2 completion experiment.
+  implementation_repository: >-
+    Use sibling playground-v2 and its existing CLI, dataset catalog, adapters,
+    scorers and publishers. V41 owns their generic implementation; this task
+    creates only instruction experiment bindings, suite selections and pins.
+  inputs: >-
+    Reuse baseline.json, variants.json and candidate/configs from
+    tests/eval/agent_instructions. V40-001 supplies the mapping to playground
+    assets and remaining negative cases. Preserve all original default configs.
+  comparability: >-
+    Pin identical source/tasks, ground truth, scorers, tools/docstrings, Skills,
+    model/sampling and effective budgets. Allow only instruction bytes and their
+    dependent template/workflow/AuditProfile wrapper version/digest refs to differ.
+    Audit wrappers must otherwise preserve inventory, standards, evidence contract,
+    execution and interaction policy. Unknown required
+    pins prevent strict execution; never invent server metadata support.
   execution: >-
-    Alternate/randomize A/B within case; record every attempt including retries,
-    timeouts and infrastructure failures. Retain successful artifacts as well as
-    failed artifacts. Unknown telemetry is not zero. Separate deterministic
-    transport-double checks from opt-in integration with actual Caido.
+    Workflow bindings use ordinary evaluation Project Runs; Audit bindings retain
+    existing controller/importer authority and exact profile pins. Labels do not
+    select prompts. Hidden expectations stay evaluator-local, never Project inputs.
+  wrappers: >-
+    Existing AuditProfiles still select baseline Workflows. Prepare explicit
+    immutable evaluation profile wrappers for both arms using the intended exact
+    baseline/candidate Workflow refs. Record these release artifacts without
+    publishing them in this task. Labels or a Workflow binding cannot override
+    an AuditProfile's child Workflow. Add an equivalent ordinary test wrapper
+    for any standalone Worker case such as http_explorer when selected.
+  preparation: >-
+    Author experiments/agent-instructions.yaml in playground using
+    playground.experiment/v1, then use experiment plan to validate/resolve a
+    frozen experiments/agent-instructions/plan.json. Plan/preflight may read
+    configuration but must not submit Runs/Audits, launch targets or publish defaults.
+  budgets: >-
+    Start with the six mapped D1/O1/L1/T1/T2/A1 scenarios, two arms and two repeats
+    (24 members) only if coverage/capabilities support them. Record unsupported
+    members rather than shrinking the denominator. Initial proposal is 90 minutes,
+    one in-flight member and 2 million observed model tokens; observation thresholds
+    are not guaranteed hard spend caps. Freeze actual limits before future run.
 
 scope:
   in:
-    - "Portable case/result/adapter boundary and backwards reading of current playground suites/results; reuse existing runners and scorers."
-    - "Add playground-eval run-experiment --manifest PATH to the existing CLI; this is a planned command, missing live prerequisites fail explicitly."
-    - "Bounded model/tool/token/wall limits and cancellation; interrupted experiments remain incomplete."
-    - "Recoverable bounded submission and paired score/comparison Project artifacts over existing APIs."
-    - "Explicit duplicate/missing members and complete pagination; input/output/total token metrics respect reportsComplete/truncated, absent cached usage is unknown."
-    - "Isolated exact Audit profile bindings and actual decoding/import instead of equating Run success with accepted coverage."
+    - "Author exact baseline/candidate bindings and suites using the implemented portable schemas."
+    - "Prepare source/config/scorer pins, explicit member order, budgets and equality checks."
+    - "Validate with recorded observations and read-only provider preflight; report blockers and exact release versions needed."
   out:
-    - "Default configuration publication, production credentials/services, new queue/Run store/experiment service, per-case Server startup, or Evals UI."
+    - "Generic format/runner implementation, model evaluation, benchmark target startup, server deployment, publishing default configs or changing running Audits."
 deliverables:
-  - {path: ../playground-v2/evals/src/playground_evals, description: "Extend existing adapter/runners/results with portable boundaries, manifest recovery and paired comparison."}
-  - {path: ../playground-v2/evals/schemas, description: "Versioned portable contract with v1 compatibility; Contractor bindings remain adapter-specific."}
-  - {path: ../playground-v2/evals/tests, description: "Recorded-output adapter, unchanged scorer reuse, backwards compatibility and recovery tests."}
-  - {path: tests/eval/project_workflows, description: "Shared production-harness helpers with preserved existing behavior."}
+  - {path: ../playground-v2/experiments/agent-instructions.yaml, description: "Instruction experiment authoring document."}
+  - {path: ../playground-v2/evals/bindings, description: "Exact provider bindings, with no hidden expectations or literal credentials."}
+  - {path: tests/eval/agent_instructions/evaluation-configs, description: "New immutable AuditProfile/Worker wrappers required by selected cases; preserve original baseline and candidate snapshots."}
+  - {path: ../playground-v2/experiments/agent-instructions/plan.json, description: "Frozen private plan and referenced local bundle; no live results implied."}
+  - {path: tests/eval/agent_instructions/README.md, description: "Actual preparation commands, pins, readiness and future execution boundary."}
 requirements:
-  - {id: R1, text: "A/B differs only in instructions and associated version/digest refs; capabilities and inputs match and outputs do not contaminate another attempt."}
-  - {id: R2, text: "Per-attempt rates and family denominators are primary; pass@N cannot hide failed attempts."}
-  - {id: R3, text: "Evidence records bound/redact sensitive content while retaining source and exchange references needed for review."}
+  - {id: R1, text: "Use the implemented V41 format and adapter contract; no parallel experiment implementation."}
+  - {id: R2, text: "Required-equal pin mismatches or unsupported exact candidate versions remain explicit blockers."}
+  - {id: R3, text: "Planning never starts a model evaluation; execution belongs only to V40-003."}
 acceptance_criteria:
-  - {id: A1, given: "The same fixture and two instruction variants", when: "Run", then: "Resolved settings match except instructions; state is independently reset and all attempts are retained."}
-  - {id: A2, given: "Timeout, missing telemetry, invalid submission or unavailable validator", when: "Compared", then: "Failure categories remain explicit without fabricated zero cost, clean validation or accepted Audit coverage."}
-  - {id: A3, given: "An enabled live invocation missing required services or exceeding a budget", when: "Started or stopped", then: "It fails or records incomplete status rather than silently skipping/passing."}
-  - {id: A4, given: "A lost create response, partial submission, duplicate labels and multiple result pages", when: "The client resumes", then: "Original keys replay without extra Runs, manifest members are reconciled explicitly, and every result is retained as a Project artifact."}
-  - {id: A5, given: "One case/scorer, Contractor adapter and recorded-output adapter", when: "Evaluated alongside existing v1 suites/results", then: "Case/scorer code is unchanged across adapters, v1 remains readable, and Contractor implementation details stay inside its binding/adapter."}
+  - {id: A1, given: "Baseline and candidate bindings", when: "Resolved", then: "Only declared instruction/version differences remain; source, scorer, model, tools and Skills pins match."}
+  - {id: A2, given: "The requested matrix and budgets", when: "Frozen", then: "Members and denominators are explicit, private truth is excluded from execution projections and every required pin is available."}
+  - {id: A3, given: "Preparation and recorded-provider checks", when: "Reviewed", then: "The plan is valid without any model Run/Audit or target campaign, and actual commands/provenance are retained."}
 tests:
-  - command: "cd ../playground-v2/evals && uv run --extra dev pytest"
-    covers: ["A1", "A2", "A3", "A4", "A5"]
-  - command: "go test ./tests/eval/agent_instructions ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'"
-    covers: ["A1"]
+  - command: "cd ../playground-v2/evals && uv run playground-eval validate"
+    covers: ["A1", "A2"]
+  - command: "cd ../playground-v2/evals && uv run playground-eval experiment plan --spec ../experiments/agent-instructions.yaml --out ../experiments/agent-instructions"
+    covers: ["A1", "A2", "A3"]
+  - command: "go test ./tests/eval/agent_instructions ./internal/config"
+    covers: ["A1", "A3"]

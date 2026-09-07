@@ -1,0 +1,42 @@
+schema_version: "1.0"
+id: V41-004
+title: "Freeze experiment matrices and recover submission intents safely"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 74bda220ea6b108918c48ff5b20e12c6a080129b
+implementation_repository: playground-v2
+depends_on: ["V41-003"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Extend the existing playground runner with durable bounded experiment planning and resumable member submission, without another execution engine."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  plan: "Resolve suite/case/binding/scorer/source/config pins, expand immutable members and execution order, validate budgets and required-equal dimensions before submit. Preserve unsupported/blocked members. A changed frozen plan gets a new experiment ID."
+  durability: "The local bundle is evaluator authority under one exclusive writer lock; fsync exact request/key intents before external mutations, append receipts and replace indexes atomically. Server owns remote execution. First release cannot reconstruct private authority from labels or published artifacts."
+  recovery: "Replay identical requests/keys after lost responses; do not regenerate UUID keys or statistical samples. Unreconcilable submission remains unknown. Validate receipt membership and all query pages; two actual executions for one member conflict."
+  budget: "Bound members and in-flight submissions, preserve deadline/spent work across restarts. Observed token threshold can overshoot delayed/in-flight usage; stop further dispatch, request cancellation and report incomplete/unknown costs honestly."
+  cli: "Add experiment plan/run/resume to existing playground-eval. Plan performs no execution/target traffic; preflight can read public metadata. Explicit run with invalid/missing prerequisites fails rather than skips."
+scope:
+  in:
+    - "Implement frozen plans, local journal/lock and prepare/submit/reconcile integration."
+    - "Add deterministic A/B ordering, exact eval labels and stable operation-specific keys."
+    - "Test crash boundaries, partial launch, conflicting writers, budget interruption and isolated target lifecycle receipts."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/src/playground_evals/experiments.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/journal.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/cli.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_experiment_recovery.py", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "An 8-member plan interrupted before/after submit", when: "Resumed from the same bundle", then: "Only unsubmitted/uncertain work is reconciled, existing keys/Run IDs/samples remain, and changed plan/body fails."}
+  - {id: A2, given: "Duplicate labels/receipts and multiple pages", when: "Membership is reconciled", then: "Unassociated Runs are quarantined, conflicting members are explicit, and no arbitrary best/latest result wins."}
+  - {id: A3, given: "Missing live settings, a held lock, budget threshold or restarted client", when: "Planning/execution proceeds", then: "No silent pass, concurrent writer, reset budget or fabricated hard token cap occurs."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_experiment_recovery.py"
+    covers: ["A1","A2","A3"]

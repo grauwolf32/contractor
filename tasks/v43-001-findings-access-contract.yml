@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V43-001
+title: "Specify reusable finding creation and collection reading"
+milestone: findings-tools
+priority: P1
+status: completed
+implementation_commit: 054f1c203603cb3565385c36e294d05e35a10a12
+depends_on: []
+languages: ["markdown", "go", "json"]
+goal: "Define finding/list_findings independently of OpenAPI, annotations and mandatory verification."
+context:
+  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
+  specification: docs/spec/27-findings-tools-and-collections.md
+  existing: "Reuse FindingProposal, exact ArtifactRef, receipts and optional hypothesis/proposed_checks; keep current creation semantics."
+  artifact_scope: >-
+    Runtime read_artifact reads only the current RunScope; ArtifactRef has no
+    foreign Run selector. A manifest containing producer refs alone is therefore
+    insufficient. Freeze the collection-to-consumer materialization contract:
+    exact proposal/evidence bytes travel in a self-contained ZIP passed as an
+    ordinary input. Selected reader-toolset preparation materializes them in the
+    current RunScope, with collision-free consumer refs and separate original scoped
+    provenance. A JSON reference never grants cross-Run access. Resolve this
+    handoff before V43-001 is complete. V43-002 owns publication of the ZIP;
+    V43-003 owns Runtime materialization through the existing ArtifactClient.
+scope:
+  in:
+    - "Specify a versioned immutable collection input with exact proposal/evidence refs and optional pinned review data."
+    - "Define list_findings filters, bounded previews, byte/item limits, cursor binding, empty/error semantics and full-document reads."
+    - "Distinguish Run proposals from Audit findings without inventing Audit IDs or confirmation states."
+    - "Specify deterministic consumer ref mapping, exact review snapshot semantics, limits and explicit completeness/errors for partial source selection."
+  out:
+    - "New global Hypothesis entity, mandatory annotation/reproduction fields, automatic dedup or a new findings database."
+deliverables:
+  - {path: docs/spec/27-findings-tools-and-collections.md, description: "Formal contract and compatibility rules."}
+  - {path: internal/auditdomain, description: "Collection codec and semantic fixtures beside existing proposal contracts."}
+requirements:
+  - {id: R1, text: "The same collection supports ordinary Run and Audit origins and grants no access merely by naming an artifact."}
+  - {id: R2, text: "Direct findings, hypotheses and arbitrary evidence artifacts remain valid according to their selected scenario contract."}
+acceptance_criteria:
+  - {id: A1, given: "Run and Audit proposals with different subject kinds", when: "Encoded and decoded", then: "One schema preserves exact provenance and optional assessment without OpenAPI or annotation requirements."}
+  - {id: A2, given: "Invalid refs, duplicate identities or unsupported schema", when: "Validated", then: "Explicit bounded errors replace guessed identities or silently incomplete collections."}
+  - {id: A3, given: "Two source Runs using identical namespace/name bindings", when: "Their package is validated and consumer destinations are derived", then: "Versionless destinations remain distinct, original scoped provenance and bytes survive, and the contract requires verified exact write receipts before reading. Actual materialization I/O is covered by V43-003 and the V43-005 process gate."}
+tests:
+  - command: "go test ./internal/auditdomain"
+    covers: ["A1", "A2", "A3"]

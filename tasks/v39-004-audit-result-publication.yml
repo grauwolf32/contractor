@@ -3,8 +3,8 @@ id: V39-004
 title: "Publish sealed Audit result sets as deterministic ZIP artifacts"
 milestone: audit-worker-completion
 priority: P1
-status: pending
-implementation_commit: null
+status: completed
+implementation_commit: 02bbd8bb97ac9912c26157b155e038e9b138c0e3
 depends_on: ["V39-001"]
 languages: ["python"]
 

@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V41-008
+title: "Gate portable eval readiness before any instruction quality runs"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 34fa2936ae37a95ddd1a98fec5124e9e894d4452
+implementation_repository: contractor
+playground_implementation_commit: 3e43620ee4a34ff4bb96597c2964cbcf5c8d19d9
+depends_on: ["V41-002","V41-004","V41-005","V41-006","V41-007"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Prove format, compatibility, portability and recovery using offline/recorded evidence before enabling V40 model evaluations."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  gate: "Validate every schema/example/negative fixture, legacy reader, adapter boundary, frozen-plan recovery, scorer/result separation, comparison arithmetic and owner-safe publication. Record exact schema/build/scorer digests in a readiness report."
+  scope: "No model/gateway evaluation, real benchmark target campaign, default catalog publication or running Audit change is permitted by this task. Deterministic API stubs and recorded responses are conformance verification, not quality runs."
+  parity: "One unchanged case and scorer work with Contractor and recorded providers. Existing v1 suites/results remain readable and ground-truth sentinels never enter execution/publication projections."
+  handoff: "Update usage/format docs in playground and Contractor navigation. State any unsupported capability or unavailable pin. The current new instruction files remain opt-in candidates, and their effectiveness remains unmeasured."
+  future: "Only a completed readiness gate unlocks V40 fixture-gap mapping, instruction bindings/plan preparation and the separate explicitly budgeted live decision task. Do not treat test skips or a schema-only pass as readiness."
+scope:
+  in:
+    - "Run the complete offline playground suite and Contractor config/instruction compatibility gates."
+    - "Audit all worked failure cases and retain reproducible transcripts/assertions, not just file-existence checks."
+    - "Produce readiness report with versions, known limits, command ownership and deferred live-eval boundary."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "docs/reviews/portable-eval-format-readiness.md", description: "Contractor: retain the dated readiness evidence and exact implementation pins."}
+  - {path: "../playground-v2/docs/portable-evals.md", description: "Playground usage, compatibility and CLI guide linking to the canonical contract."}
+  - {path: "tests/eval/agent_instructions/README.md", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "All v2 and legacy fixtures plus the 8-member fault example", when: "Required conformance commands run", then: "No required case skips, all arithmetic/fault behaviors pass, and readiness pins are recorded."}
+  - {id: A2, given: "Case/scorer portability and ground-truth sentinels", when: "Audited across adapters/publishers", then: "No Contractor internals leak into portable contracts and no hidden truth reaches provider or server."}
+  - {id: A3, given: "V40 handoff", when: "Reviewed", then: "Dependencies enforce format first; no model evaluation ran and no candidate is described as quality-proven."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest"
+    covers: ["A1","A2"]
+  - command: "go test ./tests/eval/agent_instructions ./internal/config ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'"
+    covers: ["A1","A3"]

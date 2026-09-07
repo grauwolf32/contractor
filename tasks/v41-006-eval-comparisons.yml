@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V41-006
+title: "Compare complete experiment membership with honest quality and cost coverage"
+milestone: portable-eval-format
+priority: P1
+status: completed
+implementation_commit: 1f06c199c70bfca4b38148134373715c391fb194
+implementation_repository: playground-v2
+depends_on: ["V41-004","V41-005"]
+languages: ["python", "json", "yaml", "go"]
+
+goal: "Produce reproducible comparisons over the frozen denominator, retaining failures, missing/duplicate members and metric uncertainty."
+context:
+  specification: docs/spec/26-portable-evaluation-format.md
+  repository: "Implementation belongs in sibling playground-v2 unless a deliverable explicitly names Contractor. Commands below start at the Contractor root; the sibling location is a development convention, not a runtime dependency."
+  pairing: "Pair by suite/case/sample with exact required-equal pins. Manifest plus receipts owns membership; eval labels only discover candidates. Select result/assessment refs explicitly; conflicts cannot be solved by best score or last write."
+  rates: "Report expected/eligible/unsupported/blocked/submitted/terminal/missing/conflicting/collection-complete/scored/passed counts. Execution and end-to-end rates use expected denominator; conditional quality states its scored denominator. pass@N is secondary."
+  usage: "Use only complete comparable scopes for paired cost deltas; retain partial observations separately and include measured execution failures. Cached tokens are not added twice. p50/p90 use nearest rank ceil(p*n), null when empty; sums state covered members."
+  example: "Freeze spec section 11: each arm expected=4, A end-to-end=3/4, B=2/4, conditional quality 3/3 vs 2/3, terminal pairs=3, quality pairs=2, complete-token pairs=2; B known total=130 over 2/4 and conclusion=inconclusive."
+scope:
+  in:
+    - "Add versioned comparison model/JSON/Markdown generation and CLI experiment compare."
+    - "Implement family denominators, pair eligibility, pin checks and deterministic metric arithmetic."
+    - "Exercise the full fault example and assert invariant results under record/page reordering."
+  out:
+    - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
+deliverables:
+  - {path: "evals/src/playground_evals/comparison.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/src/playground_evals/cli.py", description: "Implement the scoped contract above; create planned paths if absent."}
+  - {path: "evals/tests/test_comparison.py", description: "Implement the scoped contract above; create planned paths if absent."}
+requirements:
+  - {id: R1, text: "Implement the specified contract and preserve existing provider authority and v1 compatibility."}
+  - {id: R2, text: "Use offline fixtures and deterministic API conformance checks; do not run model evaluations in this task."}
+acceptance_criteria:
+  - {id: A1, given: "The worked example including a missing B, a failed A and unavailable usage", when: "Compared", then: "All specified counts/arithmetic match and no incomplete total claims a cost win."}
+  - {id: A2, given: "Duplicate receipts, stray labels, reordered pages or mixed scorer pins", when: "Compared", then: "Conflicts/unknowns remain explicit and pairing is stable or rejected for the correct reason."}
+  - {id: A3, given: "No scored/complete observations, N/A metrics or different measurement scopes", when: "Aggregated", then: "Values and exclusions are explicit, no NaN/zero filling or unsupported significance appears."}
+tests:
+  - command: "cd ../playground-v2/evals && uv run --extra dev pytest tests/test_comparison.py"
+    covers: ["A1","A2","A3"]

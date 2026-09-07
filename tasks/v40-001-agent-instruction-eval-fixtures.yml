@@ -5,7 +5,7 @@ milestone: agent-instruction-evaluation
 priority: P1
 status: pending
 implementation_commit: null
-depends_on: []
+depends_on: ["V41-008"]
 languages: ["go", "python", "yaml"]
 
 goal: >-
@@ -13,6 +13,12 @@ goal: >-
   and negative security cases, and real artifact contracts before comparing models.
 context:
   plan: tests/eval/agent_instructions/README.md
+  format: docs/spec/26-portable-evaluation-format.md
+  readiness: >-
+    V41 owns generic schemas, adapters, recovery, scoring/comparison contracts and
+    publication. Start only after its pre-live readiness gate. This task maps
+    instruction-specific coverage and missing fixtures onto that implemented format;
+    it does not create another format or runner and does not execute model evals.
   integration_proposal: docs/agent-evals-proposal.md
   implementation_repository: >-
     Dataset/scorer changes belong in sibling playground-v2. Reuse its projects,
