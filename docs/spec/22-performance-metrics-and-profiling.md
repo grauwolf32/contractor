@@ -1,6 +1,6 @@
 # 22 — Operations performance metrics and Go profiling
 
-Status: **Partially implemented — collection, history storage, Runtime sampling and Go profiling completed; API integration, UI and release verification remain**
+Status: **Implemented and verified (V32-001 through V32-008)**
 
 Depends on: [02](02-runtime-and-a2a.md),
 [04](04-execution-lifecycle-and-metrics.md),
@@ -14,12 +14,15 @@ As of 2026-09-06, the [task catalog](../../tasks/index.yml) records:
 - V32-001 through V32-004 completed: contracts/settings, Server collection,
   PostgreSQL history storage and Runtime allocation-resource sampling.
 - V32-007 completed: independent opt-in Go profiling.
-- V32-005 in progress: allocation policy/report integration and Operations APIs.
-- V32-006 and V32-008 pending: Operations UI and the combined release gate.
+- V32-005 and V32-006 completed: allocation policy/report integration,
+  Operations APIs, performance charts and completed-allocation history.
+- V32-008 completed: the branch release gate and measured overhead; see
+  [verification evidence](../reviews/2026-09-06-performance-v32-release.md).
 
-The sections below define the complete target contract, not a claim that every
-API or UI surface is already available. Implemented collectors and storage do
-not by themselves prove end-to-end allocation history or complete this feature.
+The implementation originated in the v32-performance-ui branch. Integration
+with main preserves the existing Run-resumption migration 000052 and applies
+allocation performance policy as migration 000053. Historical allocation
+resources cannot be reconstructed when they were not collected.
 
 ## Purpose and ownership
 
@@ -435,6 +438,16 @@ Required acceptance:
    RSS, throughput, p95 latency and DB query/write counts, with toolchain/hardware/
    workload/repetitions. Measure idle pprof and active profiling separately.
    Establish before/after evidence, not an unmeasured universal overhead percentage.
+
+The V32-008 release gate passed on 2026-09-06. Its exact executable acceptance
+matrix, five-repetition raw measurements, environment and interpretation are
+recorded in the [V32 release review](../reviews/2026-09-06-performance-v32-release.md).
+The focused gate includes race-enabled Go and PostgreSQL checks, Python Runtime
+checks, real cross-language mTLS finalize/abort resource reports and the built
+Node UI against the production browser stack. The recorded aggregate verification
+belongs to that branch snapshot; current-main integration and its follow-up
+checks are recorded separately in the
+[integration review](../reviews/2026-09-07-main-uncommitted-review.md).
 
 ## Reference behavior
 

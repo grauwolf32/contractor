@@ -264,13 +264,20 @@ func BenchmarkPerformanceCollect(b *testing.B) {
 	}
 }
 func BenchmarkHTTPInstrumentation(b *testing.B) {
-	h := newHTTPRecorder(time.Now).Wrap(Public, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))
-	r := httptest.NewRequest("GET", "/v1/runs", nil)
-	w := &discardWriter{header: http.Header{}}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		h.ServeHTTP(w, r)
+	for _, enabled := range []bool{false, true} {
+		b.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(b *testing.B) {
+			h := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))
+			if enabled {
+				h = newHTTPRecorder(time.Now).Wrap(Public, h)
+			}
+			r := httptest.NewRequest("GET", "/v1/runs", nil)
+			w := &discardWriter{header: http.Header{}}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				h.ServeHTTP(w, r)
+			}
+		})
 	}
 }
 

@@ -42,7 +42,9 @@ blob backend remain replaceable deployment adapters.
 - [Audit Worker completion contracts](spec/25-audit-worker-finalization.md) — agreed target design and V39 implementation tasks; not yet deployed.
 - [Workflow Scheduler concurrency control](spec/20-scheduler-concurrency-control.md)
 - [Allocation-scoped Podman execution](spec/21-podman-sandbox.md) — implemented, opt-in local/direct sandbox with verified cleanup.
-- [Operations performance metrics and Go profiling](spec/22-performance-metrics-and-profiling.md) — collection/history and profiling implemented; Operations API integration, UI and release gate remain.
+- [Operations performance and profiling](operations-performance.md) — startup
+  switches, retention, missing-data semantics, upgrade order and release evidence;
+  [specification](spec/22-performance-metrics-and-profiling.md).
 - [V8–V11 implementation decision log](implementation-decisions-v8-v11.md)
 
 ## Research drafts

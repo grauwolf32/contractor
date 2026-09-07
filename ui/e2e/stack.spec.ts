@@ -588,6 +588,49 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(streamlineAttempt).toHaveCount(1);
   await openDetails(streamlineAttempt);
   await expect(streamlineAttempt.getByText("Reports complete")).toBeVisible();
+  await expect(
+    streamlineAttempt.getByRole("heading", {
+      name: "Allocation resource observations",
+    }),
+  ).toBeVisible();
+  const runResource = streamlineAttempt.locator(
+    "article.allocation-resource-card",
+  );
+  await expect(runResource).toHaveCount(1);
+  await expect(
+    runResource.getByText("requested", { exact: true }),
+  ).toBeVisible();
+  await expect(runResource.getByText(/Runtime process scope/)).toBeVisible();
+
+  await page.goto("/operations/performance");
+  await expect(
+    page.getByRole("heading", { name: "Server performance" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Performance collection is disabled."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Server process" }),
+  ).toBeVisible();
+
+  await page.goto("/operations/allocations/completed");
+  await page.getByLabel("Exact Run ID (optional)").fill(streamlineRunID);
+  await page.getByRole("button", { name: "Apply filter" }).click();
+  const retainedResource = page
+    .locator("article.allocation-resource-card")
+    .filter({ has: page.getByRole("link", { name: streamlineRunID }) });
+  await expect(retainedResource).toHaveCount(1);
+  await expect(
+    retainedResource.getByText("available", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    retainedResource.getByText("requested", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    retainedResource.getByText(/Runtime process scope/),
+  ).toBeVisible();
+
+  await page.goto(`/runs/${streamlineRunID}`);
   const streamlineOutput = page
     .locator(".run-result-card")
     .filter({ hasText: "outputs/result@" });
@@ -602,7 +645,7 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   );
 
   await page.goto("/projects");
-  await page.getByRole("button", { name: "New Project" }).click();
+  await page.getByRole("button", { name: "New Project" }).first().click();
   const projectForm = page.locator("form.project-create-form");
   await projectForm
     .getByLabel("Name", { exact: true })
@@ -698,7 +741,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await expect(validationAttempt).toHaveCount(1);
   await openDetails(validationAttempt);
   await expect(
-    validationAttempt.getByText("openapi_validate", { exact: true }),
+    validationAttempt
+      .locator(":scope > summary")
+      .getByText("openapi_validate", { exact: true }),
   ).toBeVisible();
   const openAPIOutput = page
     .locator(".run-result-card")
@@ -824,7 +869,9 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   const workerTelemetry = page.getByRole("group", {
     name: /Worker telemetry/,
   });
-  await workerTelemetry.getByRole("checkbox").check();
+  await workerTelemetry
+    .getByRole("checkbox", { name: /^Worker telemetry/ })
+    .check();
   await workerTelemetry
     .getByLabel("OTLP traces endpoint")
     .fill("http://127.0.0.1:9/v1/traces");

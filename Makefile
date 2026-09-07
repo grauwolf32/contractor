@@ -19,9 +19,6 @@ test-go: test-hardening-matrices
 test-runtime:
 	cd runtime && uv run pytest
 
-test-runtime-hardening:
-	cd runtime && uv run pytest -W error tests
-
 .PHONY: test-podman-supervisor
 .PHONY: test-podman-prerequisites test-podman-matrix test-podman-unit test-podman-e2e test-podman-release
 test-podman-prerequisites:
@@ -58,6 +55,9 @@ test-podman-workflow:
 test-podman-supervisor:
 	@test -n "$$CONTRACTOR_TEST_PODMAN_IMAGE" || (echo "CONTRACTOR_TEST_PODMAN_IMAGE must name a preinstalled digest-pinned image" >&2; exit 1)
 	cd runtime && CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE=1 uv run pytest -W error tests/test_podman_supervisor_integration.py tests/test_podman_owner_integration.py tests/test_podman_execution_integration.py tests/test_podman_capabilities.py
+
+test-runtime-hardening:
+	cd runtime && uv run pytest -W error tests
 
 test-hardening-matrices:
 	go test -count=1 ./tests/e2e
@@ -403,6 +403,33 @@ test-scheduler-concurrency-browser: test-ui-stack
 
 test-scheduler-concurrency-e2e: test-scheduler-concurrency-hardening test-scheduler-concurrency-process test-scheduler-concurrency-browser
 
+.PHONY: test-performance-matrix test-performance-go test-performance-runtime test-performance-postgres test-performance-browser test-performance-metrics benchmark-performance
+
+test-performance-matrix:
+	go test -count=1 ./tests/e2e -run '^(TestPerformanceMetricsMatrixIsComplete|TestPerformanceReleaseEvidenceIsComplete)$$'
+
+test-performance-go: test-performance-matrix
+	go test -race -count=1 ./internal/performance ./internal/profiling ./internal/app ./internal/controlplane ./internal/httpapi/public ./tools/performancebench -run '^(Test.*Performance.*|Test.*Profiling.*|TestHTTP.*|TestDiagnostics.*|TestDatabaseRates.*|TestDiagnostic.*|TestMinuteValidation.*|TestObserveOwnsFrames|TestRecordBoundsAndHTTPDimensions|TestSampleRejectsUnsafeOrUnboundedRecords|TestHandler.*|TestTimedAndSnapshotCapacityDoesNotQueue|TestCPUAndTraceOutputIsReadableByGoTools|TestListenRejectsUnsafeAddressesAndOccupiedPort|TestServerServesLoopbackAndStopsWithItsContext|TestServerShutdownCancelsAnActiveCapture|TestNewWithListenerRejectsNonLoopbackSocket|TestRuntimeResourcesAreIsolatedFromLifecycleTruth|TestBenchmarkOptionsAndSummaryAreBounded|TestCollectionMeasurementReportsFixedStateAndLogicalIO)$$'
+
+test-performance-runtime:
+	cd runtime && uv sync --locked
+	cd runtime && uv run pytest -W error tests/test_resource_metrics.py tests/test_performance_contracts.py tests/test_allocation.py -k 'resource or performance'
+	go test -tags=integration -count=1 ./internal/controlplane -run '^TestCrossLanguageMTLSAllocationLifecycle$$'
+
+test-performance-postgres:
+	@test -n "$$CONTRACTOR_TEST_DATABASE_URL" || (echo "CONTRACTOR_TEST_DATABASE_URL is required" >&2; exit 1)
+	CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -race -count=1 ./internal/performance ./internal/telemetry ./internal/controlplane -run '^(TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges|TestPostgresDiagnosticBudgetsAndRecovery|TestPostgresDisabledStatisticsAndIndependentSizeFailure|TestPostgresHistoryIdempotencyTTLBoundsAndPlans|TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy|TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates)$$'
+
+# The production browser process proves the current metrics page and the same
+# terminal Runtime observation in Run detail and durable post-release history.
+test-performance-browser: test-ui-stack
+
+test-performance-metrics: test-performance-go test-performance-runtime test-performance-postgres test-performance-browser
+
+benchmark-performance:
+	go test -run '^$$' -bench '^(BenchmarkHTTPInstrumentation|BenchmarkPerformanceCollect|BenchmarkPerformanceMinute)$$' -benchmem -count=5 ./internal/performance
+	go run ./tools/performancebench -repetitions=5 -http-requests=50000 -collection-cycles=240 -profile-seconds=1
+
 # Backward-compatible name retained for local scripts.
 test-project-workflows: test-project-workspaces-e2e
 
@@ -472,7 +499,7 @@ build:
 
 verify: lint test build ui-verify
 
-release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audit-program-library-e2e
+release-verify: verify test-runtime-configuration-e2e test-run-metadata-labels-e2e test-shared-memory-hardening test-agent-skills-hardening test-http-caido-hardening test-code-analysis-e2e test-taint-annotations-e2e test-worker-observations-e2e test-worker-summarizer-e2e test-worker-session-modes-e2e test-project-workspaces-release test-lifecycle-controls-release test-scheduler-concurrency-e2e test-audit-program-library-e2e test-performance-metrics
 
 .PHONY: test-artifact-blob-backends
 .PHONY: test-git-artifacts

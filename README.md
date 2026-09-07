@@ -87,6 +87,17 @@ CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-postgres
 CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-e2e
 ```
 
+Built-in Operations performance collection defaults on; independent loopback
+Go profiling defaults off. Deployment settings, retention and truthful
+missing-data semantics are documented in
+[Operations performance](docs/operations-performance.md). The focused release
+gate and local measurement harness are:
+
+```shell
+CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-performance-metrics
+make benchmark-performance
+```
+
 For a local private mTLS deployment, generate the CA and both node identities
 without OpenSSL-specific shell scripts:
 

@@ -1,0 +1,84 @@
+schema_version: "1.0"
+environment:
+  recorded_at: "2026-09-06T16:50:49Z"
+  go: go1.25.6
+  os: Linux 7.1.9-arch1-2
+  arch: amd64
+  cpu: Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz
+  logical_cpu: 8
+  memory: 31 GiB total; 3.0 GiB available; 4.0 GiB swap in use during measurement
+harness:
+  command: make benchmark-performance
+  revision: cbf8871181e083eb36a067d17a58acd8caa99527
+  repetitions: 5
+scenarios:
+  - name: http_disabled
+    workload: 50000 authenticated GET /v1/runs requests returning a fixed bounded JSON page, without performance middleware
+    samples:
+      - {operations: 50000, wall_seconds: 0.007746823, cpu_seconds: 0.007982, rss_bytes: 11177984, allocations_per_op: 1.00004, throughput_per_second: 6454258.733, p95_nanoseconds: 149}
+      - {operations: 50000, wall_seconds: 0.007882769, cpu_seconds: 0.007961, rss_bytes: 11165696, allocations_per_op: 1.00004, throughput_per_second: 6342948.779, p95_nanoseconds: 134}
+      - {operations: 50000, wall_seconds: 0.007547995, cpu_seconds: 0.007613, rss_bytes: 11706368, allocations_per_op: 1.00004, throughput_per_second: 6624275.718, p95_nanoseconds: 133}
+      - {operations: 50000, wall_seconds: 0.007874924, cpu_seconds: 0.007947, rss_bytes: 11247616, allocations_per_op: 1.00004, throughput_per_second: 6349267.625, p95_nanoseconds: 142}
+      - {operations: 50000, wall_seconds: 0.008174504, cpu_seconds: 0.007891, rss_bytes: 11157504, allocations_per_op: 1.00004, throughput_per_second: 6116579.061, p95_nanoseconds: 134}
+    summary: {throughput_mean: 6377465.983, throughput_cv: 0.025942, p95_mean_nanoseconds: 138.4, p95_cv: 0.044914, cpu_mean_seconds: 0.0078788, rss_mean_bytes: 11291033.6, allocations_mean_per_op: 1.00004}
+  - name: http_enabled
+    workload: The identical authenticated bounded JSON request with fixed-dimension HTTP performance middleware enabled
+    samples:
+      - {operations: 50000, wall_seconds: 0.036062113, cpu_seconds: 0.038682, rss_bytes: 15486976, allocations_per_op: 16.0005, throughput_per_second: 1386496.681, p95_nanoseconds: 949}
+      - {operations: 50000, wall_seconds: 0.035642938, cpu_seconds: 0.038119, rss_bytes: 15745024, allocations_per_op: 16.00052, throughput_per_second: 1402802.429, p95_nanoseconds: 835}
+      - {operations: 50000, wall_seconds: 0.037216209, cpu_seconds: 0.037989, rss_bytes: 15659008, allocations_per_op: 16.00046, throughput_per_second: 1343500.624, p95_nanoseconds: 884}
+      - {operations: 50000, wall_seconds: 0.037041913, cpu_seconds: 0.039207, rss_bytes: 15704064, allocations_per_op: 16.00066, throughput_per_second: 1349822.295, p95_nanoseconds: 912}
+      - {operations: 50000, wall_seconds: 0.036845771, cpu_seconds: 0.039419, rss_bytes: 15474688, allocations_per_op: 16.00048, throughput_per_second: 1357007.837, p95_nanoseconds: 975}
+    summary: {throughput_mean: 1367925.973, throughput_cv: 0.016685, p95_mean_nanoseconds: 911, p95_cv: 0.053879, cpu_mean_seconds: 0.0386832, rss_mean_bytes: 15613952, allocations_mean_per_op: 16.000524}
+  - name: collection_disabled
+    workload: 240 simulated 15-second schedule advances with no collector, timer, history buffer, diagnostic backend or writer
+    samples:
+      - {operations: 240, wall_seconds: 0.000016793, cpu_seconds: 0.000041, rss_bytes: 9584640, allocations_per_op: 0.004167, throughput_per_second: 14291669.148, p95_nanoseconds: 43}
+      - {operations: 240, wall_seconds: 0.000015056, cpu_seconds: 0.000048, rss_bytes: 9633792, allocations_per_op: 0.004167, throughput_per_second: 15940488.842, p95_nanoseconds: 29}
+      - {operations: 240, wall_seconds: 0.000014944, cpu_seconds: 0.00005, rss_bytes: 9641984, allocations_per_op: 0.004167, throughput_per_second: 16059957.173, p95_nanoseconds: 29}
+      - {operations: 240, wall_seconds: 0.000014788, cpu_seconds: 0.000057, rss_bytes: 9633792, allocations_per_op: 0.004167, throughput_per_second: 16229375.169, p95_nanoseconds: 29}
+      - {operations: 240, wall_seconds: 0.000015658, cpu_seconds: 0.000048, rss_bytes: 9596928, allocations_per_op: 0.004167, throughput_per_second: 15327628.05, p95_nanoseconds: 32}
+    summary: {throughput_mean: 15569823.676, throughput_cv: 0.04546, p95_mean_nanoseconds: 32.4, p95_cv: 0.167465, cpu_mean_seconds: 0.0000488, rss_mean_bytes: 9618227.2, allocations_mean_per_op: 0.004167}
+  - name: collection_enabled
+    workload: 240 process/pool/HTTP frames, 60 database cycles, 12 size reads and 60 bounded history flush attempts using deterministic readers
+    samples:
+      - {operations: 240, wall_seconds: 0.09627641, cpu_seconds: 0.100345, rss_bytes: 15978496, allocations_per_op: 2626.529167, throughput_per_second: 2492.822, p95_nanoseconds: 893451, retained_frames: 240, retained_bytes: 625120, pending_minutes: 0, database_reads: 60, database_size_reads: 12, history_writes: 60}
+      - {operations: 240, wall_seconds: 0.094403957, cpu_seconds: 0.098121, rss_bytes: 15736832, allocations_per_op: 2626.229167, throughput_per_second: 2542.266, p95_nanoseconds: 853351, retained_frames: 240, retained_bytes: 625120, pending_minutes: 0, database_reads: 60, database_size_reads: 12, history_writes: 60}
+      - {operations: 240, wall_seconds: 0.094812582, cpu_seconds: 0.100251, rss_bytes: 16060416, allocations_per_op: 2626.770833, throughput_per_second: 2531.31, p95_nanoseconds: 874990, retained_frames: 240, retained_bytes: 625120, pending_minutes: 0, database_reads: 60, database_size_reads: 12, history_writes: 60}
+      - {operations: 240, wall_seconds: 0.093636528, cpu_seconds: 0.098594, rss_bytes: 15949824, allocations_per_op: 2626.620833, throughput_per_second: 2563.102, p95_nanoseconds: 884507, retained_frames: 240, retained_bytes: 625120, pending_minutes: 0, database_reads: 60, database_size_reads: 12, history_writes: 60}
+      - {operations: 240, wall_seconds: 0.098616581, cpu_seconds: 0.102824, rss_bytes: 16093184, allocations_per_op: 2626.4875, throughput_per_second: 2433.668, p95_nanoseconds: 896191, retained_frames: 240, retained_bytes: 625120, pending_minutes: 0, database_reads: 60, database_size_reads: 12, history_writes: 60}
+    summary: {throughput_mean: 2512.634, throughput_cv: 0.018153, p95_mean_nanoseconds: 880498, p95_cv: 0.017576, cpu_mean_seconds: 0.100027, rss_mean_bytes: 15963750.4, allocations_mean_per_op: 2626.5275}
+  - name: pprof_off
+    workload: One second of repeated SHA-256 work with no profiling listener
+    samples:
+      - {operations: 5458048, wall_seconds: 1.000006305, cpu_seconds: 0.994568, rss_bytes: 10768384, allocations_per_op: 0.00000055, throughput_per_second: 5458013.587, p95_nanoseconds: 283}
+      - {operations: 5725696, wall_seconds: 1.000005538, cpu_seconds: 0.99064, rss_bytes: 10735616, allocations_per_op: 0.000000524, throughput_per_second: 5725664.291, p95_nanoseconds: 199}
+      - {operations: 5692160, wall_seconds: 0.999933497, cpu_seconds: 0.996664, rss_bytes: 10772480, allocations_per_op: 0.000000527, throughput_per_second: 5692538.571, p95_nanoseconds: 208}
+      - {operations: 5775360, wall_seconds: 0.999912269, cpu_seconds: 0.998654, rss_bytes: 10706944, allocations_per_op: 0.000000519, throughput_per_second: 5775866.723, p95_nanoseconds: 200}
+      - {operations: 5559296, wall_seconds: 0.999998756, cpu_seconds: 0.994519, rss_bytes: 12156928, allocations_per_op: 0.00000054, throughput_per_second: 5559302.916, p95_nanoseconds: 257}
+    summary: {throughput_mean: 5642277.218, throughput_cv: 0.020694, p95_mean_nanoseconds: 229.4, p95_cv: 0.149505, cpu_mean_seconds: 0.995009, rss_mean_bytes: 11028070.4, allocations_mean_per_op: 0.000000532}
+  - name: pprof_idle
+    workload: The identical one-second SHA-256 workload with a reachable bounded loopback listener and no active recording
+    samples:
+      - {operations: 5679488, wall_seconds: 0.999939853, cpu_seconds: 0.983834, rss_bytes: 13729792, allocations_per_op: 0.000000528, throughput_per_second: 5679829.625, p95_nanoseconds: 202}
+      - {operations: 5712256, wall_seconds: 0.999998353, cpu_seconds: 0.997827, rss_bytes: 14323712, allocations_per_op: 0.000000525, throughput_per_second: 5712265.408, p95_nanoseconds: 206}
+      - {operations: 5671040, wall_seconds: 0.999985754, cpu_seconds: 0.978441, rss_bytes: 13365248, allocations_per_op: 0.000000529, throughput_per_second: 5671120.791, p95_nanoseconds: 201}
+      - {operations: 5629184, wall_seconds: 1.000003991, cpu_seconds: 0.993815, rss_bytes: 12242944, allocations_per_op: 0.000000533, throughput_per_second: 5629161.534, p95_nanoseconds: 241}
+      - {operations: 5765632, wall_seconds: 0.999925286, cpu_seconds: 0.99304, rss_bytes: 12488704, allocations_per_op: 0.00000052, throughput_per_second: 5766062.806, p95_nanoseconds: 193}
+    summary: {throughput_mean: 5691688.033, throughput_cv: 0.008024, p95_mean_nanoseconds: 208.6, p95_cv: 0.080251, cpu_mean_seconds: 0.9893914, rss_mean_bytes: 13230080, allocations_mean_per_op: 0.000000527}
+  - name: pprof_active
+    workload: The identical one-second SHA-256 workload while the bounded loopback CPU profile endpoint records for one second
+    samples:
+      - {operations: 5637504, wall_seconds: 1.000016329, cpu_seconds: 0.980552, rss_bytes: 12947456, allocations_per_op: 0.000002838, throughput_per_second: 5637411.947, p95_nanoseconds: 208, profile_response_bytes: 2374}
+      - {operations: 5747072, wall_seconds: 0.999919918, cpu_seconds: 0.999176, rss_bytes: 13107200, allocations_per_op: 0.000002784, throughput_per_second: 5747532.274, p95_nanoseconds: 210, profile_response_bytes: 2483}
+      - {operations: 5447296, wall_seconds: 0.999636421, cpu_seconds: 0.995796, rss_bytes: 13324288, allocations_per_op: 0.000003121, throughput_per_second: 5449277.243, p95_nanoseconds: 245, profile_response_bytes: 2542}
+      - {operations: 5517056, wall_seconds: 0.999613502, cpu_seconds: 0.992314, rss_bytes: 12931072, allocations_per_op: 0.000003081, throughput_per_second: 5519189.156, p95_nanoseconds: 235, profile_response_bytes: 2375}
+      - {operations: 5681152, wall_seconds: 1.000010237, cpu_seconds: 0.996596, rss_bytes: 13000704, allocations_per_op: 0.000002816, throughput_per_second: 5681093.843, p95_nanoseconds: 219, profile_response_bytes: 2493}
+    summary: {throughput_mean: 5606900.892, throughput_cv: 0.019333, p95_mean_nanoseconds: 223.4, p95_cv: 0.064471, cpu_mean_seconds: 0.9928868, rss_mean_bytes: 13062144, allocations_mean_per_op: 0.000002928}
+interpretation:
+  - Raw samples were captured before a history-only rebase at 7ec550a3153d6572f9f80a664ea8dcebc51a1690; the internal/performance and tools/performancebench trees are byte-identical at the recorded rebased revision.
+  - The authenticated JSON micro-workload deliberately isolates middleware cost. Enabled HTTP accounting added about 0.77 microseconds at p95 and 15 allocations per request on this host; network, JSON parsing and database work in a real request will change the relative percentage.
+  - One simulated hour retained exactly 240 frames and 625120 bytes, below the 8 MiB cap. It issued exactly 60 logical database-stat reads, 12 size reads and 60 flush attempts; the disabled path retained and issued none.
+  - Idle pprof throughput was 0.88 percent above the off sample mean and active capture was 0.63 percent below it. Both differences are within the observed run-to-run variation and are not an overhead guarantee.
+  - High-water RSS differed by roughly 2 MiB between the profiling variants, but the host was under memory pressure with swap fully used; treat this as environment evidence rather than a stable product bound.
+  - The standard Go benchmarks recorded separately by the same command are the lower-level regression baseline; the release gate intentionally has no noisy universal percentage threshold.

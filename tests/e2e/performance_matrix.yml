@@ -1,0 +1,247 @@
+schema_version: "1.0"
+
+policy:
+  switches: >-
+    Server performance collection defaults on and the independent loopback Go
+    profiling listener defaults off. Disabled components allocate no collector,
+    timer, queue, diagnostic pool or listener and preserve execution accounting.
+  sampling: >-
+    Process, HTTP and working-pool observations use 15-second windows, database
+    statistics use 60 seconds and database size uses 300 seconds. Retained state,
+    result counts, SQL work, deadlines and concurrency are finite and gaps remain gaps.
+  authority: >-
+    Performance observation never changes placement, execution, terminal outcome
+    or release authority. Allocation resources are optional terminal reports tied
+    to the pinned request policy and remain owner-scoped after release.
+  evidence: >-
+    Release evidence compares identical bounded workloads repeatedly and records
+    CPU time, RSS, allocations, throughput, p95, logical DB operations and
+    uncertainty. It makes no universal percentage promise.
+
+cases:
+  - id: all_startup_switch_combinations
+    group: startup_switches
+    acceptance: [A1, A4]
+    faults: [F01]
+    expected: All four metrics/pprof combinations construct only their enabled component and release an enabled listener cleanly.
+    test: {source: internal/app/performance_test.go, kind: go_test, name: TestPerformanceAndProfilingSwitchesRemainIndependent}
+  - id: metrics_disabled_is_allocation_free
+    group: startup_switches
+    acceptance: [A1, A4]
+    faults: [F02]
+    expected: The disabled branch preserves handler identity and never calls collector or diagnostic factories.
+    test: {source: internal/app/performance_test.go, kind: go_test, name: TestDisabledPerformanceDoesNotConstructAnything}
+  - id: profiling_disabled_has_no_listener
+    group: startup_switches
+    acceptance: [A1, A4]
+    faults: [F03]
+    expected: Disabled profiling cannot bind a port and remains independent from application listeners.
+    test: {source: internal/app/profiling_test.go, kind: go_test, name: TestConfigureProfilingDoesNotBindWhenDisabled}
+
+  - id: sampler_cadence_and_shutdown
+    group: cadence_history
+    acceptance: [A1, A2]
+    faults: [F04]
+    expected: Fake-clock 15-second collection skips missed ticks, never catches up and joins its timer at shutdown.
+    test: {source: internal/performance/collector_test.go, kind: go_test, name: TestPerformanceScheduleSkipsMissedTicksAndStops}
+  - id: volatile_history_bounds_and_outage
+    group: cadence_history
+    acceptance: [A1, A2]
+    faults: [F05]
+    expected: The one-hour ring and byte bounds hold, reads detach data and an outage remains an explicit missing observation.
+    test: {source: internal/performance/collector_test.go, kind: go_test, name: TestPerformanceHistoryBoundsDetachedReadsAndOutage}
+  - id: reset_zero_and_missing_semantics
+    group: cadence_history
+    acceptance: [A1, A2]
+    faults: [F06]
+    expected: Counter resets, unavailable fields, genuine zeroes and delayed intervals are never conflated.
+    test: {source: internal/performance/collector_test.go, kind: go_test, name: TestPerformanceUnknownBaselineResetAndMissingMeasurements}
+  - id: database_cadence_and_no_catchup
+    group: cadence_history
+    acceptance: [A1, A2]
+    faults: [F07]
+    expected: Fake-clock 60/300-second database schedules use real elapsed intervals and close the lazy backend once.
+    test: {source: internal/performance/diagnostics_test.go, kind: go_test, name: TestDiagnosticsCadenceNoCatchupAndShutdown}
+  - id: bounded_nonblocking_writer
+    group: cadence_history
+    acceptance: [A1, A2]
+    faults: [F08]
+    expected: A blocked writer cannot block sampling or HTTP and the queue drops oldest records at its exact fixed bound.
+    test: {source: internal/performance/diagnostics_test.go, kind: go_test, name: TestDiagnosticsBoundedQueueAndNonBlockingWriter}
+  - id: minute_generation_semantics
+    group: cadence_history
+    acceptance: [A1, A2]
+    faults: [F09]
+    expected: Minute aggregation uses actual coverage and never merges ambiguous or different process generations.
+    test: {source: internal/performance/aggregate_test.go, kind: go_test, name: TestPerformanceMinuteNeverSplitsAmbiguousOrMixedGenerationCounters}
+
+  - id: fixed_http_dimensions_and_exclusions
+    group: http_accounting
+    acceptance: [A1, A2, A4]
+    faults: [F10]
+    expected: HTTP accounting retains only fixed method/status/surface dimensions and excludes health, metrics and profiling observation traffic.
+    test: {source: internal/performance/http_test.go, kind: go_test, name: TestHTTPAccountingAndExclusions}
+  - id: concurrent_http_drain
+    group: http_accounting
+    acceptance: [A1, A2]
+    faults: [F11]
+    expected: Concurrent completion and interval drain preserve in-flight gauges and account each request exactly once.
+    test: {source: internal/performance/http_test.go, kind: go_test, name: TestHTTPConcurrentDrainRetainsInFlightExactlyOnce}
+  - id: streaming_interfaces
+    group: http_accounting
+    acceptance: [A1, A4]
+    faults: [F12]
+    expected: Instrumentation preserves only interfaces supplied by the underlying writer and neither breaks nor double-counts streaming.
+    test: {source: internal/performance/http_test.go, kind: go_test, name: TestHTTPPreservesInterfacesStreamingAndReadFrom}
+  - id: websocket_handshake_boundary
+    group: http_accounting
+    acceptance: [A1, A2, A4]
+    faults: [F13]
+    expected: A WebSocket is measured through its handshake rather than its unbounded socket lifetime.
+    test: {source: internal/performance/http_test.go, kind: go_test, name: TestHTTPWebSocketFinishesAtHandshakeNotSocketClose}
+  - id: bounded_histogram_quantiles
+    group: http_accounting
+    acceptance: [A1, A2]
+    faults: [F14]
+    expected: Fixed cumulative histograms merge as counts and derive bounded quantiles only at read time.
+    test: {source: internal/performance/aggregate_test.go, kind: go_test, name: TestPerformanceHistogramQuantilesAndMerging}
+
+  - id: restricted_postgres_visibility
+    group: postgres_diagnostics
+    acceptance: [A1, A2]
+    faults: [F15]
+    expected: A disposable limited role exposes hidden activity as partial without grants, SQL text or observer self-counting.
+    test: {source: internal/performance/database_integration_test.go, kind: go_test, name: TestPostgresDiagnosticsIsolationVisibilityAndOptionalPrivileges}
+  - id: postgres_lock_outage_and_budgets
+    group: postgres_diagnostics
+    acceptance: [A1, A2]
+    faults: [F16]
+    expected: Statement, acquisition, lock and caller deadlines are finite and a killed diagnostic connection recovers without poisoning the working pool.
+    test: {source: internal/performance/database_integration_test.go, kind: go_test, name: TestPostgresDiagnosticBudgetsAndRecovery}
+  - id: statistics_and_size_fail_independently
+    group: postgres_diagnostics
+    acceptance: [A1, A2]
+    faults: [F17]
+    expected: Disabled statistics and denied database size remain distinct partial observations and recover independently.
+    test: {source: internal/performance/database_integration_test.go, kind: go_test, name: TestPostgresDisabledStatisticsAndIndependentSizeFailure}
+  - id: durable_history_retention_restart_and_plans
+    group: postgres_diagnostics
+    acceptance: [A1, A2, A4]
+    faults: [F18]
+    expected: Disposable PostgreSQL proves idempotent generations, exact TTL and payload bounds, bounded cleanup and intended range/expiry indexes after repository recreation.
+    test: {source: internal/performance/database_integration_test.go, kind: go_test, name: TestPostgresHistoryIdempotencyTTLBoundsAndPlans}
+
+  - id: allocation_disabled_path
+    group: allocation_resources
+    acceptance: [A1, A2, A4]
+    faults: [F19]
+    expected: A disabled allocation never constructs or reads a Runtime resource sampler and emits no resource fields.
+    test: {source: runtime/tests/test_allocation.py, kind: pytest, name: test_resource_collection_disabled_never_constructs_sampler}
+  - id: allocation_terminal_paths_and_reuse
+    group: allocation_resources
+    acceptance: [A1, A2, A4]
+    faults: [F20]
+    expected: Finalize, abort, lease loss and drain freeze start/periodic/end measurements once, replay exact results, clean up and reset before sequential reuse.
+    test: {source: runtime/tests/test_allocation.py, kind: pytest, name: test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset}
+  - id: allocation_partial_and_failed_reads
+    group: allocation_resources
+    acceptance: [A1, A2, A4]
+    faults: [F21]
+    expected: Runtime read/factory failures produce bounded unavailable resources without changing Worker completeness or slot reuse.
+    test: {source: runtime/tests/test_allocation.py, kind: pytest, name: test_resource_failure_does_not_change_worker_completeness_or_slot_reuse}
+  - id: allocation_unconfirmed_stop
+    group: allocation_resources
+    acceptance: [A1, A2, A4]
+    faults: [F22]
+    expected: A failed, cancelled or expired terminal stop discards observations and cannot synthesize a replayable final report.
+    test: {source: runtime/tests/test_allocation.py, kind: pytest, name: test_unconfirmed_stop_discards_resources_without_recovered_final_report}
+  - id: allocation_contract_compatibility
+    group: allocation_resources
+    acceptance: [A1, A4]
+    faults: [F23]
+    expected: Old registrations and allocations remain valid while v1 capability and request negotiation are exact and forward-compatible.
+    test: {source: runtime/tests/test_performance_contracts.py, kind: pytest, name: test_performance_old_new_allocation_and_registration_contracts}
+  - id: allocation_report_authority_isolated
+    group: allocation_resources
+    acceptance: [A2, A4]
+    faults: [F24]
+    expected: Malformed or partial resource data cannot change terminal lifecycle truth and is reduced to an allowlisted resource diagnostic.
+    test: {source: internal/controlplane/runtime_client_test.go, kind: go_test, name: TestRuntimeResourcesAreIsolatedFromLifecycleTruth}
+  - id: cross_language_finalize_abort_and_reuse
+    group: allocation_resources
+    acceptance: [A1, A2, A4]
+    faults: [F35]
+    expected: Real mTLS Go clients and disposable Python Runtime processes negotiate resource v1, exercise finalize and abort, and prepare authoritative release after both exact reports.
+    test: {source: internal/controlplane/runtime_client_integration_test.go, kind: go_test, name: TestCrossLanguageMTLSAllocationLifecycle}
+
+  - id: authenticated_bounded_api
+    group: authenticated_operations
+    acceptance: [A1, A2, A4]
+    faults: [F25]
+    expected: Operations reads require capability, reject unknown/unbounded queries and use a filter-bound allocation cursor.
+    test: {source: internal/httpapi/public/performance_contract_test.go, kind: go_test, name: TestPerformanceReadHandlersAndAllocationHistoryCursor}
+  - id: released_history_owner_isolation
+    group: authenticated_operations
+    acceptance: [A1, A2, A4]
+    faults: [F26]
+    expected: Exact terminal resource and policy provenance survives release while foreign owners receive no rows.
+    test: {source: internal/telemetry/postgres_integration_test.go, kind: go_test, name: TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy}
+  - id: browser_disabled_stale_and_gaps
+    group: authenticated_operations
+    acceptance: [A1, A2, A4]
+    faults: [F27]
+    expected: The independently served browser renders disabled and stale states, unknown values and generation/sampling gaps without reading the registry snapshot or treating shell invalidations as measurements.
+    test: {source: ui/e2e/performance.spec.ts, kind: test_title, name: renders disabled stale and discontinuous performance observations truthfully}
+  - id: production_browser_released_allocation
+    group: authenticated_operations
+    acceptance: [A1, A2, A4]
+    faults: [F28]
+    expected: The production Server, PostgreSQL, Python Runtime and Node UI expose current metrics plus the same actual released allocation resource summary in history and Run detail.
+    test: {source: ui/e2e/stack.spec.ts, kind: test_title, name: operates the real single-VM stack without crossing secret boundaries}
+
+  - id: profiling_route_allowlist
+    group: profiling
+    acceptance: [A1, A2, A4]
+    faults: [F29]
+    expected: Only the explicit diagnostic allowlist is reachable and cmdline, block, mutex, malformed suffixes and unsafe methods fail closed.
+    test: {source: internal/profiling/handler_test.go, kind: go_test, name: TestHandlerExposesOnlyTheExplicitProfileAllowlist}
+  - id: profiling_duration_and_concurrency_bounds
+    group: profiling
+    acceptance: [A1, A2]
+    faults: [F30]
+    expected: Every duration/query is validated and both active slots reject contention without a waiting queue.
+    test: {source: internal/profiling/handler_test.go, kind: go_test, name: TestTimedAndSnapshotCapacityDoesNotQueue}
+  - id: profiling_readable_output
+    group: profiling
+    acceptance: [A1, A4]
+    faults: [F31]
+    expected: CPU and trace responses are non-empty and readable by the corresponding Go tools.
+    test: {source: internal/profiling/handler_test.go, kind: go_test, name: TestCPUAndTraceOutputIsReadableByGoTools}
+  - id: profiling_shutdown_cancels_capture
+    group: profiling
+    acceptance: [A2, A4]
+    faults: [F32]
+    expected: Server shutdown cancels active recording, unblocks the client and releases the bounded slot.
+    test: {source: internal/profiling/server_test.go, kind: go_test, name: TestServerShutdownCancelsAnActiveCapture}
+
+  - id: reproducible_overhead_evidence
+    group: overhead_evidence
+    acceptance: [A3, A4]
+    faults: [F33]
+    expected: Machine-readable release evidence names the environment, exact workloads, repetitions, raw samples, dispersion, CPU/RSS/allocations/throughput/p95 and logical query/write counts.
+    test: {source: tests/e2e/performance_matrix_test.go, kind: go_test, name: TestPerformanceReleaseEvidenceIsComplete}
+  - id: matrix_self_validation
+    group: overhead_evidence
+    acceptance: [A1, A2, A3, A4]
+    faults: [F34]
+    expected: Strict decoding rejects missing policy, acceptance, groups, faults, named owners and release commands.
+    test: {source: tests/e2e/performance_matrix_test.go, kind: go_test, name: TestPerformanceMetricsMatrixIsComplete}
+
+gates:
+  - {id: matrix, command: make test-performance-matrix}
+  - {id: go, command: make test-performance-go}
+  - {id: runtime, command: make test-performance-runtime}
+  - {id: postgres, command: make test-performance-postgres}
+  - {id: browser, command: make test-performance-browser}
+  - {id: benchmark, command: make benchmark-performance}
+  - {id: release, command: make test-performance-metrics}
