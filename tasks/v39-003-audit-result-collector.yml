@@ -3,8 +3,8 @@ id: V39-003
 title: "Collect and validate Audit results incrementally with revisioned updates"
 milestone: audit-worker-completion
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: "4344c034a64d85a3876e2d3db50e12085293891a"
 depends_on: ["V39-001","V39-004"]
 languages: ["python", "go"]
 
