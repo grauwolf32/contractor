@@ -3,8 +3,8 @@ id: V52-001
 title: Validate Caido tool response contracts against the live API
 milestone: live-workflow-baselines
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4bc6abc0c43b3e6d321a072c77d9525f0bf8f27b
 depends_on: []
 languages: [python, markdown]
 goal: >-
