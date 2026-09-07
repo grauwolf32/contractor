@@ -675,6 +675,16 @@ server_maintainability_planning:
     Performance benefits must be measured with bounded-query regressions rather
     than inferred solely from loop depth. Preserve unrelated in-progress work.
 
+review_followups_planning:
+  planned_on: "2026-09-07"
+  reviewed_range: "2c490bc8..d1fac206"
+  authority: User-requested tasks for four reproduced code-review findings.
+  task_ids: [V46-001, V46-002, V46-003, V46-004]
+  constraints: >-
+    Each task records its reproduction, acceptance criteria and regression
+    commands. These are pending bug fixes; recording them does not mark their
+    implementation complete or reorder existing in-progress work.
+
 active_delivery_order:
   prioritized_on: "2026-09-06"
   rationale: >-
@@ -2562,3 +2572,7 @@ tasks:
   - {id: V45-010, file: v45-010-audit-store-queries.yml}
   - {id: V45-011, file: v45-011-public-http-components.yml}
   - {id: V45-012, file: v45-012-shared-contract-limits.yml}
+  - {id: V46-001, file: v46-001-run-draft-submission-generation.yml}
+  - {id: V46-002, file: v46-002-performance-history-window-boundaries.yml}
+  - {id: V46-003, file: v46-003-project-run-static-route.yml}
+  - {id: V46-004, file: v46-004-catalog-previous-page.yml}

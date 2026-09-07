@@ -1,0 +1,72 @@
+schema_version: "1.0"
+id: "V46-002"
+title: "Accept valid aggregate intervals at Performance history window boundaries"
+milestone: "operations-performance-and-profiling"
+priority: "P2"
+status: "pending"
+depends_on: ["V32-006"]
+languages: ["typescript", "go"]
+goal: >-
+  Display retained Performance history for the 24-hour and 7-day selections when
+  the first aggregate interval overlaps the requested lower time boundary.
+context:
+  review_range: "2c490bc8..d1fac206"
+  reviewed_on: "2026-09-07"
+  code_locations:
+    - "ui/src/api/performance.ts: performanceHistoryWindow and safeHistory"
+    - "internal/performance/history.go: historyReadSQL and historyBuilder.add"
+    - "internal/performance/api.go: ReadService.History"
+  reproduction: >-
+    Select 24h or 7d at 12:01:30 UTC with retained data near the lower boundary.
+    For a lower boundary at 12:01:30, the first included minute can be 12:02:00.
+    Server aggregation truncates that minute to 12:00:00 for both 5m and 1h steps.
+    The UI rejects minuteStart < requestedFrom and fails the entire HTTP 200
+    response with invalid_api_response instead of displaying the graph.
+  verified_evidence: >-
+    Client regressions failed for both selections. A separate PostgreSQL test
+    inserted a valid retained minute and confirmed that ReadService.History
+    returned an aggregate beginning before from.
+  postgres_verification: >-
+    Set CONTRACTOR_TEST_DATABASE_URL to a disposable PostgreSQL database and run
+    the performance package separately so unrelated package connection churn
+    does not disturb its diagnostic connection-count assertions.
+scope:
+  in:
+    - Align client range validation with the server's aggregate interval semantics.
+    - Document the boundary rule and add client and server regression coverage.
+    - Verify the 24h and 7d chart states with partially covered first intervals.
+  out:
+    - Changing retention, metric dimensions, sampling cadence or aggregation values.
+requirements:
+  - id: "R1"
+    text: >-
+      Accept valid server aggregate intervals that overlap the requested range,
+      including a partial first interval. Preserve the selected duration and
+      bounded query behavior; do not hide the error by dropping retained samples.
+  - id: "R2"
+    text: >-
+      Retain rejection of wholly out-of-range intervals, malformed records,
+      mismatched step/kind and invalid ordering. Fine-history samples keep their
+      point-based bounds; interval overlap must not loosen unrelated validation.
+acceptance_criteria:
+  - id: "A1"
+    given: "A non-aligned lower boundary and retained minutes in its first 5m or 1h interval."
+    when: "The UI loads 24h or 7d history returned by the Server."
+    then: "The response is accepted and the graph displays valid data without invalid_api_response."
+  - id: "A2"
+    given: "Aligned boundaries, empty history, fine samples and malformed or wholly out-of-range aggregate intervals."
+    when: "History responses are validated."
+    then: "Valid boundary cases succeed, invalid responses remain rejected, and retention and point-count limits remain intact."
+tests:
+  - name: "client-and-chart-regressions"
+    command: "cd ui && corepack pnpm exec vitest run src/api/performance.test.ts src/routes/operations/performance"
+    covers: ["A1", "A2"]
+  - name: "server-history-regressions"
+    command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/performance'
+    covers: ["A1", "A2"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2"]
+  - name: "diff"
+    command: "git diff --check"
+    covers: ["A1", "A2"]

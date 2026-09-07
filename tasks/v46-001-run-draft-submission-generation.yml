@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: "V46-001"
+title: "Preserve replacement Run drafts when an earlier submission finishes"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+depends_on: ["V37-002"]
+languages: ["typescript"]
+goal: >-
+  Ensure a late Run-create response can clear only its own draft generation and
+  cannot interrupt editing a replacement draft for the same Workflow and scope.
+context:
+  review_range: "2c490bc8..d1fac206"
+  reviewed_on: "2026-09-07"
+  code_locations:
+    - "ui/src/run-drafts/memory.ts: RunDraftMemoryStore.discard"
+    - "ui/src/routes/workflows/run-form.tsx: Run creation mutation onSuccess"
+  reproduction: >-
+    Submit a standalone or Project Run while delaying the response, navigate away,
+    return to the form, discard the retained draft and edit a replacement with the
+    same identity. Resolve the first request successfully. Its onSuccess calls
+    discard with the old entry, but discard looks up only the key and deletes the
+    replacement; the callback also navigates to the old submission's Run.
+  verified_evidence: >-
+    A memory-store regression reproduced the deletion by acquiring a submitted
+    entry, discarding it, acquiring and editing its replacement, and calling
+    discard with the first entry. isCurrent(replacement) then returned false.
+scope:
+  in:
+    - Guard entry-based discard against stale object or generation identity.
+    - Keep late submission callbacks from clearing or navigating away from a replacement draft.
+    - Add store and form lifecycle regressions for standalone and Project submissions.
+  out:
+    - Server-side drafts, reload persistence, new Run-create APIs or automatic retries.
+requirements:
+  - id: "R1"
+    text: >-
+      An entry-based discard is a no-op when the stored entry is a different
+      generation. Preserve explicit key-based discard for the currently selected
+      retained draft and normal successful cleanup of the submitted current entry.
+  - id: "R2"
+    text: >-
+      A stale submission result preserves the replacement's fields, exact refs,
+      idempotency key state and ambiguous-submission state. Continue processing
+      the confirmed server result without letting its UI callback take over the
+      replacement form. Preserve owner and Project isolation.
+acceptance_criteria:
+  - id: "A1"
+    given: "A submitted draft has been explicitly replaced by an edited draft with the same key."
+    when: "The earlier createRun or createProjectRun request resolves successfully."
+    then: "The replacement remains current and editable with all state intact, and the route stays on its form."
+  - id: "A2"
+    given: "A current submitted draft, an explicit discard, or a lost-response retry."
+    when: "The normal success, discard or retry path runs without a replacement generation."
+    then: "Success and explicit discard clear the intended draft; unchanged retries retain their existing idempotency behavior."
+tests:
+  - name: "draft-and-form-regressions"
+    command: "cd ui && corepack pnpm exec vitest run src/run-drafts src/routes/workflows src/routes/projects"
+    covers: ["A1", "A2"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2"]
+  - name: "diff"
+    command: "git diff --check"
+    covers: ["A1", "A2"]

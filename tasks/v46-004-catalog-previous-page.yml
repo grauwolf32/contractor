@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: "V46-004"
+title: "Navigate to the previous Catalog result page independently of browser history"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+depends_on: ["V37-007"]
+languages: ["typescript"]
+goal: >-
+  Keep Previous pagination within the selected Catalog query after detail-page
+  navigation and when a paginated URL is opened directly.
+context:
+  review_range: "2c490bc8..d1fac206"
+  reviewed_on: "2026-09-07"
+  code_locations:
+    - "ui/src/routes/catalog/query-state.ts: useCatalogQueryState.previousPage"
+    - "ui/src/routes/catalog/agent-detail.tsx: return Link and usage pagination"
+    - "ui/src/routes/catalog/agents.tsx: Catalog cursor controls"
+    - "ui/src/routes/workflows: Workflow Catalog cursor controls"
+  reproduction: >-
+    Open Catalog page 1, advance to page 2, open an item, use the item's return
+    link to restore page 2, then click Previous. The return link pushes the list
+    URL onto browser history, so navigate(-1) returns to the detail page instead
+    of page 1. A directly opened paginated URL can similarly navigate outside the
+    Catalog because canGoBack only checks the cursor and page number.
+  verified_evidence: >-
+    A React memory-router regression using the real useCatalogQueryState hook
+    ended at /catalog/agents/example/1 instead of the preceding result page.
+scope:
+  in:
+    - Track available prior result cursors for the selected query independently of browser history.
+    - Preserve Catalog pagination context through item links and their explicit return links.
+    - Apply the same correction to Agent usage pagination where it uses navigate(-1).
+    - Define predictable Previous behavior for direct links with no known previous cursor.
+  out:
+    - New server pagination APIs, unbounded result prefetch or general navigation redesign.
+requirements:
+  - id: "R1"
+    text: >-
+      An enabled Previous control navigates to the actual preceding result page
+      for the same query and filters, never to an item detail or unrelated route.
+      Preserve URL query/cursor/page consistency and normal browser Back/Forward.
+  - id: "R2"
+    text: >-
+      Reset prior cursor state on query or Catalog context changes. When a direct
+      link has no known prior cursor, disable Previous and provide an explicit
+      route to the first result page for the same query; do not guess a cursor
+      or use browser history as a substitute.
+acceptance_criteria:
+  - id: "A1"
+    given: "Page 2 or later of Agents or Workflows, followed by an item visit and its explicit return link."
+    when: "The user clicks Previous."
+    then: "The preceding result page opens with its query and cursor intact; item details are not reopened."
+  - id: "A2"
+    given: "A directly opened paginated URL, changed query, or browser Back/Forward navigation."
+    when: "The user inspects pagination controls or navigates among result pages."
+    then: "Controls reflect available cursor history, unknown predecessors use the explicit first-page path, and stale cursors are not reused."
+  - id: "A3"
+    given: "An Agent usage list whose results have been paged and visited through linked Workflows."
+    when: "The user returns and requests the previous usage page."
+    then: "Pagination remains in the same Agent version's usage results with the correct cursor."
+tests:
+  - name: "catalog-navigation-regressions"
+    command: "cd ui && corepack pnpm exec vitest run src/routes/catalog src/routes/workflows"
+    covers: ["A1", "A2", "A3"]
+  - name: "typecheck"
+    command: "make ui-typecheck"
+    covers: ["A1", "A2", "A3"]
+  - name: "diff"
+    command: "git diff --check"
+    covers: ["A1", "A2", "A3"]

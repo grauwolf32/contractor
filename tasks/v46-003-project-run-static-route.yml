@@ -1,0 +1,65 @@
+schema_version: "1.0"
+id: "V46-003"
+title: "Serve Project Run setup when its URL is opened directly or refreshed"
+milestone: "ui-journey-usability"
+priority: "P2"
+status: "pending"
+depends_on: ["V37-008"]
+languages: ["javascript", "typescript"]
+goal: >-
+  Make the Project Workflow Run setup route available through the deployed Node
+  static server as well as through client-side navigation.
+context:
+  review_range: "2c490bc8..d1fac206"
+  reviewed_on: "2026-09-07"
+  code_locations:
+    - "ui/src/app/router.tsx: /projects/:projectId/workflows/:name/:version/run"
+    - "ui/src/run-drafts/repeat.ts: Project repeat destination"
+    - "ui/server/static-server.mjs: CLIENT_ROUTE_PATTERNS"
+  reproduction: >-
+    Follow Configure another Run for an ordinary Project Run, then refresh the
+    resulting /projects/:projectId/workflows/:name/:version/run page. Client-side
+    navigation works, but the static server returns 404 because the route is
+    missing from its explicit list of client routes. Opening the URL in a new tab
+    fails in the same way.
+  verified_evidence: >-
+    An HTTP probe against createStaticServer returned 200 for /projects/project-1
+    and 404 for /projects/project-1/workflows/artifact-copy/1/run using the same
+    temporary index.html fixture.
+scope:
+  in:
+    - Register the Project Workflow Run route in the static server's client route patterns.
+    - Add direct HTTP GET and HEAD regression cases to the static-server tests.
+    - Preserve the existing client route and its Project-aware Run form behavior.
+  out:
+    - Persisting in-memory draft contents across reload, automatic submission or generic SPA fallback for every path.
+requirements:
+  - id: "R1"
+    text: >-
+      Valid Project IDs and exact Workflow name/version segments follow the
+      existing route grammar and receive the application shell on GET or HEAD.
+      Loading the shell does not imply that a memory-only repeat draft survives
+      reload; the client still loads and validates the Project and Workflow.
+  - id: "R2"
+    text: >-
+      Preserve rejection of malformed paths, traversal and unknown routes, along
+      with existing API-prefix and asset handling. Extend only the intended route.
+acceptance_criteria:
+  - id: "A1"
+    given: "A valid /projects/project-1/workflows/artifact-copy/1/run path on the Node static server."
+    when: "The path is requested directly, refreshed or opened in a new tab."
+    then: "GET returns the HTML application shell with status 200; HEAD returns the corresponding headers without a body."
+  - id: "A2"
+    given: "Malformed Project/Workflow paths, unrelated routes, existing client routes, API paths and assets."
+    when: "The static server handles these requests."
+    then: "The new route follows the established grammar and all existing routing and rejection behavior remains intact."
+tests:
+  - name: "static-server-regressions"
+    command: "cd ui && corepack pnpm run test:server"
+    covers: ["A1", "A2"]
+  - name: "project-repeat-regressions"
+    command: "cd ui && corepack pnpm exec vitest run src/run-drafts src/routes/runs src/routes/projects"
+    covers: ["A1", "A2"]
+  - name: "diff"
+    command: "git diff --check"
+    covers: ["A1", "A2"]
