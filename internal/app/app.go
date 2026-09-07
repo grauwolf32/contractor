@@ -8,52 +8,21 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/auditcontroller"
-	"github.com/grauwolf32/contractor/internal/auditdomain"
-	"github.com/grauwolf32/contractor/internal/auditimport"
-	"github.com/grauwolf32/contractor/internal/auditservice"
-	"github.com/grauwolf32/contractor/internal/auditstandards"
-	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auth"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/credentials"
-	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
-	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gitimport"
-	privateartifacts "github.com/grauwolf32/contractor/internal/httpapi/privateartifacts"
-	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
-	plannermemory "github.com/grauwolf32/contractor/internal/memory"
-	"github.com/grauwolf32/contractor/internal/mtls"
-	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/persistence/configaudit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/planner"
-	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
-	plannerrouter "github.com/grauwolf32/contractor/internal/planner/router"
-	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
-	"github.com/grauwolf32/contractor/internal/planner/streamline"
-	"github.com/grauwolf32/contractor/internal/projectlifecycle"
-	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
-	"github.com/grauwolf32/contractor/internal/scheduler"
-	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/adk/model"
 )
 
 // Config contains process-level settings needed by the bootstrap server.
@@ -89,40 +58,6 @@ type Config struct {
 	PerformanceMetrics          bool
 	Pprof                       bool
 	PprofListen                 string
-}
-
-const (
-	developmentWorkerCredential  = "development-worker"
-	developmentPlannerCredential = "development-planner"
-)
-
-func developmentCredentials(
-	snapshot *workflowconfig.Snapshot,
-	cfg Config,
-) (*credentials.StaticProvider, error) {
-	entries := make([]credentials.StaticEntry, 0, 2)
-	if cfg.DevelopmentWorkerToken.Reveal() == "" && cfg.DevelopmentPlannerToken.Reveal() == "" {
-		return credentials.NewStaticProvider(entries)
-	}
-	gateway, err := snapshot.LLMGateway("local-litellm@1")
-	if err != nil {
-		return nil, errors.New("development tokens require LLMGatewayConfig local-litellm@1")
-	}
-	appendEntry := func(id string, token contracts.SecretString) {
-		if token.Reveal() == "" {
-			return
-		}
-		entries = append(entries, credentials.StaticEntry{
-			Metadata: workflowconfig.CredentialMetadata{
-				Ref: contracts.LLMCredentialRef{CredentialID: id}, LLMGateway: gateway.Ref,
-				Unrestricted: true,
-			},
-			Token: token,
-		})
-	}
-	appendEntry(developmentWorkerCredential, cfg.DevelopmentWorkerToken)
-	appendEntry(developmentPlannerCredential, cfg.DevelopmentPlannerToken)
-	return credentials.NewStaticProvider(entries)
 }
 
 // RunCLI parses process configuration and runs the Server until cancellation.
@@ -212,351 +147,30 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
-	snapshot := configurationManager.Snapshot()
-	credentialRepository := credentials.NewRepository(pool)
-	activeCredentialCount, err := credentialRepository.CountCredentials(ctx)
+	credentialSet, err := configureCredentials(ctx, pool, configurationManager, cfg)
 	if err != nil {
-		return fmt.Errorf("inspect encrypted LLM credentials: %w", err)
-	}
-	runtimeCredentialRepository := credentials.NewRuntimeCredentialRepository(pool)
-	storedRuntimeCredentialCount, err := runtimeCredentialRepository.CountStored(ctx)
-	if err != nil {
-		return fmt.Errorf("inspect encrypted Runtime credentials: %w", err)
-	}
-	if storedRuntimeCredentialCount > 0 && activeCredentialCount > math.MaxInt64-storedRuntimeCredentialCount {
-		return errors.New("encrypted credential count is invalid")
-	}
-	activeCredentialCount += storedRuntimeCredentialCount
-	gitKeyCount, err := credentials.NewGitKeys(pool, nil).Count(ctx)
-	if err != nil {
-		return errors.New("inspect encrypted Git keys")
-	}
-	if gitKeyCount > math.MaxInt64-activeCredentialCount {
-		return errors.New("encrypted credential count is invalid")
-	}
-	activeCredentialCount += gitKeyCount
-	tokenCipher, err := credentials.RequireTokenCipher(cfg.CredentialMasterKeyFile, activeCredentialCount)
-	if err != nil {
-		return fmt.Errorf("configure encrypted LLM credentials: %w", err)
-	}
-	if tokenCipher != nil {
-		if err := credentialRepository.VerifyActiveKey(ctx, tokenCipher.KeyID()); err != nil {
-			return fmt.Errorf("verify encrypted LLM credential key: %w", err)
-		}
-		if err := runtimeCredentialRepository.VerifyStoredKey(ctx, tokenCipher.KeyID()); err != nil {
-			return fmt.Errorf("verify encrypted Runtime credential key: %w", err)
-		}
-	}
-	gitKeys := credentials.NewGitKeys(pool, tokenCipher)
-	if err := gitKeys.Verify(ctx); err != nil {
-		return errors.New("verify encrypted Git keys")
-	}
-	encryptedCredentialProvider, err := credentials.NewEncryptedProvider(credentialRepository, tokenCipher)
-	if err != nil {
-		return fmt.Errorf("configure encrypted LLM credentials: %w", err)
-	}
-	developmentCredentialProvider, err := developmentCredentials(snapshot, cfg)
-	if err != nil {
-		return fmt.Errorf("configure development LLM credentials: %w", err)
-	}
-	transactionCredentialLookup, err := credentials.NewTransactionLookupFactory(developmentCredentialProvider)
-	if err != nil {
-		return fmt.Errorf("configure transaction-bound LLM credential lookup: %w", err)
-	}
-	credentialProvider, err := credentials.NewCompositeProvider(
-		developmentCredentialProvider, encryptedCredentialProvider,
-	)
-	if err != nil {
-		return fmt.Errorf("compose LLM credential providers: %w", err)
-	}
-	adminBindings, err := litellmcredentials.LoadAdminBindings(
-		cfg.LLMGatewayAdminBindingsFile, configurationManager,
-	)
-	if err != nil {
-		return fmt.Errorf("load LLM Gateway admin bindings: %w", err)
-	}
-	if adminBindings.Len() != 0 && tokenCipher == nil {
-		return errors.New("managed LLM Gateway credentials require --credential-master-key-file")
-	}
-	liteLLMManager, err := litellmcredentials.NewManager(
-		adminBindings, configurationManager, litellmcredentials.Options{},
-	)
-	if err != nil {
-		return fmt.Errorf("configure LiteLLM credential manager: %w", err)
-	}
-	credentialManagers, err := credentials.NewManagerRegistry(credentials.ManagerRegistration{
-		Implementation: contracts.LiteLLMVirtualKeysManager,
-		Manager:        liteLLMManager,
-	})
-	if err != nil {
-		return fmt.Errorf("configure Gateway credential managers: %w", err)
-	}
-	credentialBarrier := credentials.NewLifecycleBarrier()
-	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
-		Pool: pool, Gateways: configurationManager, Managers: credentialManagers,
-		Runs: runstore.NewPostgresStore(pool), Audits: auditstore.NewPostgresStore(pool),
-		Cipher: tokenCipher, Barrier: credentialBarrier,
-	})
-	if err != nil {
-		return fmt.Errorf("configure LLM credential lifecycle: %w", err)
-	}
-	if err := credentialLifecycle.Recover(ctx); err != nil {
-		return fmt.Errorf("recover LLM credential operations: %w", err)
-	}
-	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
-		credentials.RuntimeCredentialServiceOptions{
-			Pool: pool, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
-			Barrier: credentialBarrier,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("configure Runtime credential lifecycle: %w", err)
+		return err
 	}
 	plannerTelemetryRegistry, err := telemetry.NewBuiltinPlannerAdapterRegistry()
 	if err != nil {
 		return fmt.Errorf("configure Planner telemetry adapters: %w", err)
 	}
-	runtimeConfigPublisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
-		Pool: pool,
-		GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (contracts.ResolvedLLMGatewayConfig, error) {
-			return configurationManager.LLMGateway(selector)
-		}),
-		RuntimeCredentials:       runtimeCredentialLifecycle,
-		PlannerTelemetryAdapters: plannerTelemetryRegistry,
-	})
-	if err != nil {
-		return fmt.Errorf("configure RuntimeConfig publisher: %w", err)
-	}
-	runtimeBindingService, err := runtimeconfig.NewBindingService(pool, runtimeCredentialLifecycle)
-	if err != nil {
-		return fmt.Errorf("configure Runtime label bindings: %w", err)
-	}
-	runtimeConfigManagement, err := runtimeconfig.NewManagementService(
-		pool, runtimeConfigPublisher, runtimeBindingService,
+
+	control, err := configureControlPlane(
+		pool, configurationManager, cfg, credentialSet, plannerTelemetryRegistry,
 	)
-	if err != nil {
-		return fmt.Errorf("configure RuntimeConfig management: %w", err)
-	}
-	files := mtls.Files{
-		Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile,
-	}
-	privateTLS, err := mtls.ControlPlaneServerConfig(files)
-	if err != nil {
-		return fmt.Errorf("configure private mTLS server: %w", err)
-	}
-	registry, err := controlplane.NewRegistry(controlplane.RegistryOptions{})
-	if err != nil {
-		return fmt.Errorf("configure Control Plane registry: %w", err)
-	}
-	principalService, err := runtimeconfig.NewPrincipalService(runtimeconfig.PrincipalServiceOptions{
-		Pool: pool, DeletionGuard: registry,
-	})
-	if err != nil {
-		return fmt.Errorf("configure Runtime Agent principals: %w", err)
-	}
-	principalOperations, err := controlplane.NewPrincipalOperations(principalService, registry)
-	if err != nil {
-		return fmt.Errorf("configure Runtime Agent principal Operations: %w", err)
-	}
-	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
-		Pool: pool, Registry: registry, Gateways: configurationManager,
-		LLMCredentials: credentialProvider, RuntimeCredentials: runtimeCredentialLifecycle,
-		CredentialGuard: credentialLifecycle, PerformanceMetrics: cfg.PerformanceMetrics,
-	})
-	if err != nil {
-		return fmt.Errorf("configure candidate Runtime placement: %w", err)
-	}
-	runtimeClient, err := controlplane.NewMTLSRuntimeControlClient(files, cfg.RuntimeRequestTimeout)
-	if err != nil {
-		return fmt.Errorf("configure Runtime Agent client: %w", err)
-	}
-	workers, err := controlplane.NewRuntimeBatchController(
-		runtimeClient,
-		registry,
-		controlplane.RuntimeBatchOptions{CleanupTimeout: cfg.RuntimeRequestTimeout},
-	)
-	if err != nil {
-		return fmt.Errorf("configure Runtime Agent lifecycle: %w", err)
-	}
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
-	findingService, err := findingintake.New(pool)
-	if err != nil {
-		return fmt.Errorf("configure finding intake: %w", err)
-	}
-	skillCatalog, err := agentskills.NewCatalog(artifactService)
-	if err != nil {
-		return fmt.Errorf("configure SkillCatalog: %w", err)
-	}
-	skillSeedPlan, err := agentskills.DiscoverBundled(cfg.OperatorConfigRoot)
-	if err != nil {
-		return fmt.Errorf("discover bundled skills: %w", err)
-	}
-	skillSeedOutcomes, err := skillCatalog.Initialize(ctx, bootstrap.Principal.UserID, skillSeedPlan)
-	if err != nil {
-		return fmt.Errorf("initialize bundled skills: %w", err)
-	}
-	for _, outcome := range skillSeedOutcomes {
-		logger.Info(
-			"bundled skill initialization",
-			"skill", outcome.Name,
-			"outcome", outcome.Status,
-			"bundled_digest", outcome.BundledDigest,
-			"current_digest", outcome.CurrentDigest,
-		)
-	}
-	standardCatalog, err := auditstandards.NewCatalog(artifactService)
-	if err != nil {
-		return fmt.Errorf("configure Audit standard catalog: %w", err)
-	}
-	standardSeedPlan, err := auditstandards.DiscoverBundled(cfg.OperatorConfigRoot)
-	if err != nil {
-		return fmt.Errorf("discover bundled Audit standards: %w", err)
-	}
-	standardSeedOutcomes, err := standardCatalog.Initialize(
-		ctx, bootstrap.Principal.UserID, standardSeedPlan,
-	)
-	if err != nil {
-		return fmt.Errorf("initialize bundled Audit standards: %w", err)
-	}
-	for _, outcome := range standardSeedOutcomes {
-		logger.Info(
-			"bundled Audit standard initialization",
-			"scheme", outcome.Reference.Scheme,
-			"version", outcome.Reference.Version,
-			"outcome", outcome.Status,
-			"digest", outcome.Digest,
-		)
-	}
-	for _, profile := range configurationManager.AuditProfiles() {
-		for _, standard := range profile.Standards {
-			resolved, err := standardCatalog.Resolve(ctx, bootstrap.Principal.UserID, auditstandards.Reference{
-				Scheme: standard.Scheme, Version: standard.Version,
-			})
-			if err != nil {
-				return fmt.Errorf(
-					"resolve AuditProfile %s@%s standard %s@%s: %w",
-					profile.Ref.Name, profile.Ref.Version, standard.Scheme, standard.Version, err,
-				)
-			}
-			if profile.Inventory.Implementation == "standard-mappings@1" {
-				var selection *auditdomain.StandardSelection
-				if profile.Inventory.StandardSelection != nil {
-					selection = &auditdomain.StandardSelection{
-						Scope:    profile.Inventory.StandardSelection.Scope,
-						Levels:   append([]string{}, profile.Inventory.StandardSelection.Levels...),
-						EntryIDs: append([]string{}, profile.Inventory.StandardSelection.EntryIDs...),
-					}
-				}
-				if _, err := auditdomain.BuildStandardMappingInventory(
-					resolved.Package,
-					auditdomain.InventoryOptions{
-						Round: 1, WorkflowRole: profile.Inventory.ItemWorkflowRole,
-						SourceInputName: "standard", SourceRef: resolved.Source.Artifact,
-						ApprovalRequirement: auditdomain.ApprovalNone,
-						StandardSelection:   selection,
-					},
-				); err != nil {
-					return fmt.Errorf(
-						"validate AuditProfile %s@%s standard selection: %w",
-						profile.Ref.Name, profile.Ref.Version, err,
-					)
-				}
-			}
-		}
-	}
-	artifactInspector, err := planner.NewArtifactServiceInspector(artifactService)
 	if err != nil {
 		return err
 	}
-	plannerMemoryStore, err := plannermemory.NewPostgresStore(pool)
-	if err != nil {
-		return fmt.Errorf("configure Planner Memory store: %w", err)
-	}
-	plannerSessions, err := plannersession.New(runstore.NewPostgresStore(pool), plannersession.Options{})
-	if err != nil {
-		return fmt.Errorf("configure Planner sessions: %w", err)
-	}
-	a2aInvoker, err := plannera2a.NewMTLS(files, cfg.RuntimeRequestTimeout, plannera2a.Options{})
-	if err != nil {
-		return fmt.Errorf("configure A2A client: %w", err)
-	}
-	passthrough, err := planner.NewPassthroughFactory(plannerSessions, a2aInvoker, artifactInspector)
+	catalogs, err := configureCatalogs(ctx, pool, configurationManager, cfg, bootstrap.Principal.UserID, logger)
 	if err != nil {
 		return err
 	}
-	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
-		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
-			URL: access.LLMGateway.URL, Token: access.Token, Model: access.ModelPolicy.Model,
-			MaxOutputTokens: access.ModelPolicy.MaxOutputTokens, RequestTimeout: cfg.PlannerTimeout,
-		})
-	}
-	streamlineLimits := streamline.DefaultLimits()
-	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
-	streamlineFactory, err := streamline.NewConfiguredFactoryWithMemory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
-		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
+	workflows, err := configureWorkflows(
+		pool, cfg, catalogs, control, credentialSet, plannerTelemetryRegistry, logger,
 	)
-	if err != nil {
-		return fmt.Errorf("configure Streamline Planner: %w", err)
-	}
-	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
-		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
-	)
-	if err != nil {
-		return fmt.Errorf("configure Router Planner: %w", err)
-	}
-	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory)
 	if err != nil {
 		return err
-	}
-	artifactResolver, err := scheduler.NewArtifactServiceResolver(artifactService)
-	if err != nil {
-		return err
-	}
-	transactions, err := scheduler.NewPostgresPersistence(pool)
-	if err != nil {
-		return err
-	}
-	runtimeSettings := contracts.RuntimeSettings{
-		ArtifactAPIURL:        strings.TrimRight(cfg.PrivateURL, "/") + "/private/v1",
-		RequestTimeoutSeconds: int(cfg.WorkerRequestTimeout / time.Second),
-	}
-	schedulerSettings := settingsstore.NewPostgresStore(pool)
-	workflowScheduler, err := scheduler.New(
-		runstore.NewPostgresStore(pool),
-		transactions,
-		artifactResolver,
-		placementAllocator,
-		workers,
-		plannerRegistry,
-		scheduler.Options{
-			OperationTimeout:   cfg.RuntimeRequestTimeout,
-			PlannerTimeout:     cfg.PlannerTimeout,
-			RuntimeSettings:    runtimeSettings,
-			Credentials:        credentialProvider,
-			RuntimeCredentials: runtimeCredentialLifecycle,
-			PlannerTelemetry:   plannerTelemetryRegistry,
-			RunSkills:          &runSkillInitializer{pool: pool},
-			Settings:           schedulerSettings,
-			TelemetrySecrets: []string{
-				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
-				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
-			},
-			Logger: logger,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("configure Workflow Scheduler: %w", err)
-	}
-	projectDeletionController, err := projectlifecycle.New(
-		pool,
-		runstore.NewPostgresStore(pool),
-		workflowScheduler,
-		projectlifecycle.Options{OperationTimeout: cfg.RuntimeRequestTimeout, Logger: logger},
-	)
-	if err != nil {
-		return fmt.Errorf("configure Project deletion controller: %w", err)
 	}
 	eventListener, err := runstore.NewPostgresRunEventListener(pool)
 	if err != nil {
@@ -564,178 +178,25 @@ func RunCLI(
 	}
 	eventHub, err := publicevents.NewHub(publicevents.Options{
 		Context: ctx, Authentication: authentication, Origins: browserOrigins,
-		Runs: runstore.NewPostgresStore(pool), Operations: registry,
+		Runs: runstore.NewPostgresStore(pool), Operations: control.registry,
 		RunNotifications: eventListener, Logger: logger,
 	})
 	if err != nil {
 		return fmt.Errorf("configure public event WebSocket: %w", err)
 	}
 	defer eventHub.Close()
-	auditService, err := auditservice.New(auditservice.Options{
-		Pool: pool, Profiles: configurationManager,
-		TransactionLLMCredentials: transactionCredentialLookup,
-		CredentialGuard:           credentialLifecycle,
-	})
+	audits, err := configureAudits(pool, configurationManager, credentialSet, catalogs, workflows, logger)
 	if err != nil {
-		return fmt.Errorf("configure Audit service: %w", err)
+		return err
 	}
-	runCreationService, err := runservice.New(runservice.Options{
-		Runs: runstore.NewPostgresStore(pool), Workflows: configurationManager,
-		LLMCredentials: credentialProvider, CredentialGuard: credentialLifecycle,
-		RuntimeCredentials: runtimeCredentialLifecycle, Projects: projectstore.NewPostgresStore(pool),
-		SkillInitializationAvailable: true,
-		PublicTransaction: func(
-			transactionContext context.Context,
-			fn func(runservice.PublicRunWriter, *artifacts.Service) error,
-		) error {
-			return persistencepostgres.InTx(
-				transactionContext, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead},
-				func(tx pgx.Tx) error {
-					txLookup, bindErr := runtimeconfig.BindTransactionLLMCredentialLookup(
-						tx, transactionCredentialLookup,
-					)
-					if bindErr != nil {
-						return bindErr
-					}
-					return fn(
-						runstore.NewRunCreationPostgresStore(tx, txLookup),
-						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-					)
-				},
-			)
-		},
-		AuditTransaction: func(
-			transactionContext context.Context,
-			fn func(runservice.AuditRunWriter, *artifacts.Service, runservice.AuditExecutionWriter) error,
-		) error {
-			return persistencepostgres.InTx(
-				transactionContext, pool, pgx.TxOptions{},
-				func(tx pgx.Tx) error {
-					return fn(
-						runstore.NewPostgresStore(tx),
-						artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-						auditstore.NewPostgresStore(tx),
-					)
-				},
-			)
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("configure trusted Run service: %w", err)
-	}
-	auditArtifactAccess, err := auditcontroller.NewProjectArtifactAccess(artifactService)
-	if err != nil {
-		return fmt.Errorf("configure Audit Controller artifacts: %w", err)
-	}
-	auditSubmissionStore := auditstore.NewPostgresStore(pool)
-	auditSubmissionBuilder, err := auditcontroller.NewPinnedSubmissionBuilder(
-		auditArtifactAccess, auditSubmissionStore,
+	handlers, err := configureHTTP(
+		pool, configurationManager, cfg, authentication, browserOrigins, eventHub,
+		credentialSet, control, catalogs, workflows, audits, logger,
 	)
 	if err != nil {
-		return fmt.Errorf("configure Audit Controller submissions: %w", err)
+		return err
 	}
-	auditImportArtifacts, err := auditimport.NewArtifactAccess(artifactService)
-	if err != nil {
-		return fmt.Errorf("configure Audit import artifacts: %w", err)
-	}
-	auditImporter, err := auditimport.New(
-		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool), auditImportArtifacts,
-		findingService,
-	)
-	if err != nil {
-		return fmt.Errorf("configure Audit importer: %w", err)
-	}
-	auditController, err := auditcontroller.New(
-		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool),
-		runCreationService, auditSubmissionBuilder, workflowScheduler,
-		auditcontroller.Options{
-			Logger: logger, Collector: auditImporter, RoundBuilder: auditService,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("configure Audit Controller: %w", err)
-	}
-	gitClient, err := gitimport.NewClient(cfg.GitImport)
-	if err != nil {
-		return fmt.Errorf("configure Git reader: %w", err)
-	}
-	gitImporter, err := gitimport.NewImporter(pool, gitClient, gitKeys)
-	if err != nil {
-		return fmt.Errorf("configure Git importer: %w", err)
-	}
-	performanceDiagnostics := newPerformanceDiagnostics(cfg.PerformanceMetrics, cfg.DatabaseURL)
-	var performanceCollector *performance.Collector
-	if cfg.PerformanceMetrics {
-		performanceCollector = performance.New(performance.Options{
-			ReadPool: performance.WorkingPoolReader(pool), Diagnostics: performanceDiagnostics,
-		})
-	}
-	performanceReader := performance.NewReadService(
-		cfg.PerformanceMetrics, performanceCollector, performanceDiagnostics,
-		performance.NewHistoryRepository(pool, time.Now), time.Now,
-	)
-	collectionPublisher, err := findingintake.NewCollectionPublisher(pool, auditService)
-	if err != nil {
-		return fmt.Errorf("configure finding collection publisher: %w", err)
-	}
-	publicHandler, err := publicapi.NewHandler(publicapi.Dependencies{
-		Authentication: authentication, BrowserOrigins: browserOrigins,
-		InsecureLoopbackCookie: cfg.InsecureLoopbackCookie,
-		Config:                 configurationManager, ConfigurationPublisher: configurationManager,
-		Runs: runstore.NewPostgresStore(pool), RunCreator: runCreationService, Artifacts: artifactService,
-		Credentials: credentialProvider, ManagedCredentials: credentialLifecycle,
-		RuntimeConfigs: runtimeConfigManagement, RuntimeCredentials: runtimeCredentialLifecycle,
-		GitKeys:                gitKeys,
-		GitImports:             gitImporter,
-		RuntimeAgentPrincipals: principalOperations,
-		Projects:               projectstore.NewPostgresStore(pool),
-		Audits:                 auditService,
-		FindingProposals:       findingService,
-		FindingCollections:     collectionPublisher,
-		Metrics:                telemetry.NewRepository(pool),
-		PlannerPlans:           plannerSessions,
-		Operations:             registry,
-		Performance:            performanceReader,
-		AllocationResources:    telemetry.NewRepository(pool),
-		OperationsInvalidator:  registry,
-		SchedulerSettings:      schedulerSettings,
-		Events:                 eventHub,
-		Transactions: postgresPublicUnitOfWork{
-			pool: pool, transactionLLMCredentials: transactionCredentialLookup,
-		},
-		BearerToken: cfg.PublicBearerToken,
-		RunNotifier: workflowScheduler, Logger: logger,
-		ProjectDeletionNotifier: projectDeletionController,
-		RunSkills:               &runSkillInitializer{pool: pool},
-	})
-	if err != nil {
-		return fmt.Errorf("configure public API: %w", err)
-	}
-
-	controlHandler, err := controlplane.NewHTTPHandler(
-		registry, controlplane.HTTPOptions{Logger: logger, Principals: principalService},
-	)
-	if err != nil {
-		return fmt.Errorf("configure private Control Plane API: %w", err)
-	}
-	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
-		Registry: registry, Artifacts: artifactService, Findings: findingService, Logger: logger,
-	})
-	if err != nil {
-		return fmt.Errorf("configure private Artifact API: %w", err)
-	}
-	privateHandler := newPrivateHandler(controlHandler, artifactHandler)
-	processHandler, instrumentedPrivate, _ := instrumentPerformance(
-		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
-		func() *performance.Collector { return performanceCollector },
-	)
-	runners := backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController}
-	if performanceCollector != nil {
-		runners = append(runners, performanceCollector)
-	}
-	if performanceDiagnostics != nil {
-		runners = append(runners, performanceDiagnostics)
-	}
+	runners := handlers.runners
 	if profilingServer != nil {
 		runners = append(runners, profilingServer)
 	}
@@ -749,15 +210,15 @@ func RunCLI(
 		_ = publicListener.Close()
 		return fmt.Errorf("listen privately on %q: %w", cfg.PrivateListenAddress, err)
 	}
-	privateListener := tls.NewListener(privateTCPListener, privateTLS)
+	privateListener := tls.NewListener(privateTCPListener, control.tls)
 	return ServeSystem(
 		ctx,
 		publicListener,
 		privateListener,
 		cfg.ShutdownTimeout,
 		logger,
-		processHandler,
-		instrumentedPrivate,
+		handlers.public,
+		handlers.private,
 		runners,
 	)
 }
@@ -838,29 +299,6 @@ func newPrivateHandler(controlHandler http.Handler, artifactHandler http.Handler
 	mux.Handle("/private/v1/agents/", controlHandler)
 	mux.Handle("/private/v1/allocations/", artifactHandler)
 	return mux
-}
-
-type postgresPublicUnitOfWork struct {
-	pool                      *pgxpool.Pool
-	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory
-}
-
-func (u postgresPublicUnitOfWork) Do(
-	ctx context.Context,
-	fn func(publicapi.RunWriter, *artifacts.Service) error,
-) error {
-	return persistencepostgres.InTxWithRetry(ctx, u.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
-		txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
-			tx, u.transactionLLMCredentials,
-		)
-		if err != nil {
-			return err
-		}
-		return fn(
-			runstore.NewRunCreationPostgresStore(tx, txLookup),
-			artifacts.NewService(artifacts.NewPostgresRepository(tx)),
-		)
-	})
 }
 
 func writeHealthy(w http.ResponseWriter, _ *http.Request) {

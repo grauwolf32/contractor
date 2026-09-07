@@ -3,7 +3,7 @@ id: V45-001
 title: Separate Server composition from process lifecycle
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -45,7 +45,7 @@ tests:
   - A1
   - A2
 - name: server-build
-  command: go build ./cmd/contractor-server
+  command: go build -o /tmp/contractor-server-v45 ./cmd/contractor-server
   covers:
   - A1
   - A2
