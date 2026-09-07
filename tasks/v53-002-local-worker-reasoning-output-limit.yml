@@ -3,7 +3,8 @@ id: V53-002
 title: Diagnose local Worker reasoning-only output-limit failures
 milestone: real-project-audit-stability
 priority: P1
-status: pending
+status: in_progress
+implementation_commit: null
 depends_on: []
 languages: [python, yaml, markdown]
 goal: >-
@@ -40,6 +41,14 @@ context:
       limit. Their original closures did not enable model-content capture;
       reasoning-only output is not inferred for those Runs without evidence.
   related_tasks: [V53-001, V52-001, V52-002, V52-003]
+  selected_experiment:
+    policy: worker-qwen38-eval@1
+    policy_digest: sha256:f616cf88e333913b8ef17ad4e23a1b2a2a28c18397886d1483b469b9a8ba5419
+    changed_field: temperature 0.1 to 1.0; all model budgets and instructions unchanged
+    rationale: https://huggingface.co/Qwen/Qwen3.8-27B recommends temperature 1.0 for thinking mode; causality remains a hypothesis.
+    harness_repository: /home/ruslan/src/playground-v2
+    harness_commit: bd2a557
+    run_id: run_e6d98695fb802f235c426c99a2275638
 scope:
   in:
     - Reproduce the terminal reasoning-only limit with a bounded diagnostic execution.
@@ -57,8 +66,12 @@ acceptance_criteria:
   - id: A3
     text: A bounded fresh execution reaches its required semantic result, or records a precise remaining model limitation.
 tests:
+  - command: cd /home/ruslan/src/playground-v2 && uv run --project evals --extra dev pytest evals/tests/test_contractor_v2.py evals/tests/test_xbow.py
+    covers: [A2]
   - command: git diff --check
     covers: [A1]
 verification:
   - A1 is supported by the exact terminal Langfuse observation and the Run failure classification.
-  - A2 and A3 require the selected experiment and its focused checks before this task can be completed.
+  - The optional public executionConfig worker override and result provenance passed focused tests; playground complete suite passed 310 tests.
+  - Public policy comparison confirms temperature is the only changed field; original worker@2 is unchanged.
+  - A3 awaits the bounded live experiment; no truncated response is accepted.
