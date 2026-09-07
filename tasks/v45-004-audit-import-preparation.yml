@@ -3,7 +3,7 @@ id: V45-004
 title: Separate Audit result preparation and index pinned standards
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -58,3 +58,16 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 24dea7a68f77f874709990368042820f34bfb135
+verification:
+  verified_on: '2026-09-07'
+  results:
+  - Import, domain and standards race suites passed; PostgreSQL integration race suites passed for
+    auditcontroller, auditservice and app in an isolated temporary PostgreSQL 16 container.
+  - Regression verifies one pinned-standard read per collection attempt across receipt retention and
+    multiple proposals, and fresh exact validation after the retained payload changes between attempts.
+  - Existing tests preserve result dispositions, proposal and evidence membership, exact standard
+    mappings and replay behavior.
+  - collectSucceeded decreased from 233 to 76 lines; preparation, proposal resolution and retention
+    now have separate functions, and standard matching uses indexed lookups.
+  - go vet for import, domain and standards packages and git diff --check passed.
