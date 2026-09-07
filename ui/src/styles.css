@@ -2588,6 +2588,57 @@ code {
   margin-top: 1rem;
 }
 
+.run-next-action {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 1rem;
+  border-left: 3px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+  padding: 0.75rem 0.9rem;
+}
+
+.run-next-action > span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.run-next-action > p {
+  max-width: 58rem;
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.5;
+}
+
+.run-next-action.is-scheduled-retry,
+.run-next-action.is-placement-wait {
+  border-left-color: var(--warning);
+}
+
+.run-next-action.is-gateway-configuration {
+  border-left-color: var(--danger);
+}
+
+.run-repeat-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.run-repeat-control h3,
+.run-repeat-control p {
+  margin-bottom: 0;
+}
+
+.run-repeat-control > .notice,
+.run-repeat-control > .error-notice {
+  grid-column: 1 / -1;
+}
+
 .triage-action {
   display: inline-flex;
   min-height: 2.35rem;
@@ -4848,6 +4899,14 @@ code {
   }
 
   .run-submit-row > button {
+    width: 100%;
+  }
+
+  .run-repeat-control {
+    grid-template-columns: 1fr;
+  }
+
+  .run-repeat-control > button {
     width: 100%;
   }
 

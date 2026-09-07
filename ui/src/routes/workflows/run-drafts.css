@@ -46,6 +46,126 @@
   width: min(100%, 42rem);
 }
 
+.run-repeat-review {
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 62%, var(--line));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised));
+  padding: 1rem;
+}
+
+.run-repeat-review.is-reviewed {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--line));
+  background: color-mix(in srgb, var(--success) 6%, var(--surface-raised));
+}
+
+.run-repeat-review-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.run-repeat-review-heading h4,
+.run-repeat-review p,
+.run-repeat-notice p {
+  margin: 0;
+}
+
+.run-repeat-notices {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-repeat-notice {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  padding: 0.7rem;
+}
+
+.run-repeat-notice > span {
+  align-self: start;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--muted-strong);
+  padding: 0.2rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.run-repeat-notice.is-blocking {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+}
+
+.run-repeat-notice.is-blocking > span {
+  color: var(--danger);
+}
+
+.run-repeat-notice > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.run-repeat-notice code,
+.run-repeat-notice small {
+  overflow-wrap: anywhere;
+}
+
+.run-repeat-notice small {
+  color: var(--muted);
+}
+
+.run-repeat-confirmation {
+  align-items: flex-start;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+  font-weight: 700;
+}
+
+.runtime-label-option.retained-selection {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--line));
+}
+
+.runtime-label-option.retained-selection small {
+  color: var(--warning);
+}
+
+.retained-stage-overrides {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line));
+  border-radius: 0.65rem;
+  background: var(--surface);
+  padding: 0.85rem;
+}
+
+.retained-stage-overrides h4 {
+  margin: 0;
+}
+
+.retained-stage-overrides pre {
+  overflow: auto;
+  max-height: 18rem;
+  margin: 0;
+  border-radius: 0.5rem;
+  background: #080b10;
+  padding: 0.75rem;
+  font-size: 0.75rem;
+}
+
 .run-input-review {
   display: grid;
   gap: 0.7rem;
@@ -127,5 +247,9 @@
 
   .run-input-review-actions > * {
     width: 100%;
+  }
+
+  .run-repeat-notice {
+    grid-template-columns: 1fr;
   }
 }

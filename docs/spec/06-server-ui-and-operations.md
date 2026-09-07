@@ -232,6 +232,8 @@ The first useful user surface supports:
 - creating an idempotent WorkflowRun and cancelling a non-terminal Run;
 - explicitly continuing an eligible failed Run from its failed stage, preserving
   successful stages and pinned inputs/configuration;
+- opening a separately reviewed draft for another Run from a terminal ordinary
+  Run, using available exact original source refs without changing history;
 - listing Runs and showing their durable lifecycle;
 - showing ordered Stages, attempts, retry/escalation decisions, effective
   executionConfig refs, termination reasons and the currently active
@@ -259,6 +261,42 @@ on `state`. `POST /v1/runs/{runId}/resume` takes that expected
 identifies the original and new attempts. The UI refreshes Run, Queue and Project
 queries without optimistically changing lifecycle state. The execution and
 cleanup rules are defined in [04](04-execution-lifecycle-and-metrics.md).
+
+For every terminal Run, the detail page may also offer **Configure another
+Run**. This is not continuation, Scheduler retry or mutation of execution
+history. `GET /v1/runs/{run_id}/repeat-draft` is an owner-only, read-only
+projection. For an ordinary Run it returns the exact Workflow ref, Project
+membership, string parameters, requested Runtime labels, user metadata labels,
+requested executionConfig patch and each verified original UserScope or
+ProjectScope input ref. It never returns the frozen RunScope input fork as a
+reusable source and never resolves a missing revision to the current binding.
+
+Run creation retains the bounded non-secret request fragment needed by that
+projection in the same transaction as input forks and Run admission. It stores
+exact original source refs and requested execution selections; credential
+identities may be retained, credential values and resolved RuntimeSettings may
+not. Existing durable Run fields remain authoritative for parameters, labels
+and Runtime-label selection. Historical Runs without this fragment may recover
+unambiguous exact input sources from lineage, but their execution override is
+reported unavailable rather than guessed from effective configuration.
+
+The projection validates that the exact Workflow, Project, source revisions,
+selected configurations, credential identities and Runtime-label bindings are
+still usable. Missing values and changed bindings are explicit stable notices.
+An Audit-managed Run returns only its owning Project/Audit context and no
+ordinary draft. Evaluation labels are copied only into a visible review state;
+the browser neither strips them silently nor creates reserved Audit labels.
+
+The UI seeds a separate in-memory draft without replacing a mounted or edited
+draft for the same Workflow and scope. All retained values require explicit
+review, and every exact Artifact selection still requires the ordinary
+per-slot confirmation. Submission uses the normal create endpoint and a fresh
+draft idempotency identity; lost-response replay of the unchanged new request
+uses that same identity. A configured Scheduler retry is instead shown as an
+attempt within the existing Run, while a terminal failure has no implied retry.
+Known placement and Gateway states link only to diagnostics the current user is
+authorized to read; unknown causes recommend inspecting the durable attempt
+without inventing a capacity or recovery claim.
 
 ### Artifact library interaction
 

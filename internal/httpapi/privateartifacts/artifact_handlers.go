@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -39,6 +40,13 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	visible := refs[:0]
+	for _, ref := range refs {
+		if !artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
+			visible = append(visible, ref)
+		}
+	}
+	refs = visible
 	response := contracts.ArtifactListResult{APIVersion: contracts.APIVersion, Artifacts: refs}
 	if err := response.Validate(); err != nil {
 		h.handleError(w, err)
@@ -71,6 +79,10 @@ func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
 	store, err := h.runStore(r, false)
 	if err != nil {
 		h.handleError(w, err)
+		return
+	}
+	if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
+		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
 	result, err := store.Read(r.Context(), ref)
@@ -114,6 +126,10 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 	// catches a fence established while the request body was arriving.
 	if _, err := h.runStore(r, true); err != nil {
 		h.handleError(w, err)
+		return
+	}
+	if artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
+		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
 	payload, err := readArtifactBody(w, r)

@@ -1,16 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
 import { usePublicAPI } from "../../api/context";
 import { queryKeys } from "../../api/query-keys";
 import {
   cancelRun,
   getRun,
+  getRunRepeatDraft,
   isTerminalRunState,
   RUN_ID_PATTERN,
   type RunStatus,
 } from "../../api/runs";
+import { useSession } from "../../auth/session";
+import { useRunDraftStore } from "../../run-drafts/context";
+import { auditDestination, prepareRepeatDraft } from "../../run-drafts/repeat";
 import { ErrorNotice, formatTimestamp } from "../artifacts/common";
 import {
   DefinitionList,
@@ -83,6 +87,9 @@ function RunTriageSummary({
   run: RunStatus;
   triage: RunTriage;
 }) {
+  const { session } = useSession();
+  const canOperate =
+    session?.principal.capabilities.includes("operations") === true;
   const attemptAnchor =
     triage.stageExecutionId === undefined
       ? undefined
@@ -133,6 +140,16 @@ function RunTriageSummary({
           )}
         </div>
       )}
+      <div className={`run-next-action is-${triage.guidance.kind}`}>
+        <span>Next valid action</span>
+        <strong>{triage.guidance.title}</strong>
+        <p>{triage.guidance.message}</p>
+        {triage.guidance.operationsPath === undefined || !canOperate ? null : (
+          <Link to={triage.guidance.operationsPath}>
+            Open Operations diagnostics →
+          </Link>
+        )}
+      </div>
       <dl className="run-triage-facts">
         <div>
           <dt>Duration</dt>
@@ -188,6 +205,126 @@ function RunTriageSummary({
             </a>
           )}
         </nav>
+      )}
+    </section>
+  );
+}
+
+type RepeatControlOutcome =
+  | {
+      kind: "conflict" | "capacity" | "blocked" | "audit-unavailable";
+      message: string;
+      destination?: string;
+    }
+  | undefined;
+
+function RunRepeatControl({ run }: { run: RunStatus }) {
+  const api = usePublicAPI();
+  const navigate = useNavigate();
+  const drafts = useRunDraftStore();
+  const [outcome, setOutcome] = useState<RepeatControlOutcome>();
+  const mutation = useMutation({
+    mutationFn: () => getRunRepeatDraft(api, run.runId),
+  });
+
+  if (!isTerminalRunState(run.state)) return null;
+
+  async function configureAnotherRun(): Promise<void> {
+    mutation.reset();
+    setOutcome(undefined);
+    try {
+      const response = await mutation.mutateAsync();
+      if (response.authority === "audit-managed") {
+        const destination = auditDestination(response);
+        if (destination === undefined) {
+          setOutcome({
+            kind: "audit-unavailable",
+            message:
+              response.notices[0]?.message ??
+              "This Run is Audit-managed, but its owning Audit route is unavailable.",
+          });
+          return;
+        }
+        await navigate(destination);
+        return;
+      }
+      const routeBlock = response.notices.find(
+        (notice) =>
+          notice.code === "workflow_unavailable" ||
+          notice.code === "project_unavailable" ||
+          notice.code === "project_deleting",
+      );
+      if (routeBlock !== undefined) {
+        setOutcome({ kind: "blocked", message: routeBlock.message });
+        return;
+      }
+      const prepared = prepareRepeatDraft(response);
+      if (prepared === undefined) {
+        setOutcome({
+          kind: "blocked",
+          message: "The Server did not provide an ordinary repeat draft.",
+        });
+        return;
+      }
+      const seeded = drafts.seed(prepared.identity, prepared.state);
+      if (seeded.kind === "conflict") {
+        setOutcome({
+          kind: "conflict",
+          message:
+            "An edited draft already exists for this exact Workflow and scope. It was not overwritten.",
+          destination: prepared.destination,
+        });
+        return;
+      }
+      if (seeded.kind === "capacity") {
+        setOutcome({
+          kind: "capacity",
+          message: `The in-memory draft limit is reached (${seeded.drafts.length} retained). Open a draft and discard it before importing this request.`,
+        });
+        return;
+      }
+      await navigate(prepared.destination);
+    } catch {
+      // The mutation owns and renders the normalized API failure.
+    }
+  }
+
+  return (
+    <section className="panel run-repeat-control">
+      <div>
+        <p className="eyebrow">New execution</p>
+        <h3>Configure another Run</h3>
+        <p className="muted-copy">
+          Recover caller-controlled values into a reviewed draft. This never
+          retries an attempt in place or changes this Run's history.
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={mutation.isPending}
+        onClick={() => void configureAnotherRun()}
+      >
+        {mutation.isPending
+          ? "Loading retained request…"
+          : "Configure another Run"}
+      </button>
+      {mutation.error === null ? null : <ErrorNotice error={mutation.error} />}
+      {outcome === undefined ? null : (
+        <div className="notice notice-warning" role="alert">
+          <strong>
+            {outcome.kind === "conflict"
+              ? "Existing draft preserved"
+              : outcome.kind === "capacity"
+                ? "Draft limit reached"
+                : outcome.kind === "audit-unavailable"
+                  ? "Continue from Audit"
+                  : "Repeat draft unavailable"}
+          </strong>
+          <p>{outcome.message}</p>
+          {outcome.destination === undefined ? null : (
+            <Link to={outcome.destination}>Open the existing draft →</Link>
+          )}
+        </div>
       )}
     </section>
   );
@@ -598,6 +735,7 @@ function LoadedRunDetail({
         key={`${run.runId}:${run.resumeStageExecutionId ?? "none"}`}
         run={run}
       />
+      <RunRepeatControl run={run} />
       {run.cancellation === undefined ? null : (
         <div className="notice notice-warning cancellation-record">
           <strong>Cancellation requested</strong>

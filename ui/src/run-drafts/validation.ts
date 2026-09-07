@@ -19,6 +19,7 @@ export interface ConsumerOverrideDraft {
 export interface ExecutionOverrideDraft {
   planner: ConsumerOverrideDraft;
   workers: ConsumerOverrideDraft;
+  stages?: components["schemas"]["ExecutionConfigPatch"]["stages"];
 }
 
 export interface RunDraftValues {
@@ -168,6 +169,10 @@ export function validateRunDraft(
   const executionConfig = {
     ...(planner === undefined ? {} : { planner }),
     ...(workers === undefined ? {} : { workers }),
+    ...(values.overrides.stages === undefined ||
+    Object.keys(values.overrides.stages).length === 0
+      ? {}
+      : { stages: structuredClone(values.overrides.stages) }),
   };
   if (Object.keys(errors).length > 0) {
     return { errors };

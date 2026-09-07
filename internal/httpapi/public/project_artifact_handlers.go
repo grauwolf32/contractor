@@ -19,7 +19,7 @@ func (h *handler) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.listArtifactBindings(
-		w, r, store, "project-artifacts:"+projectID, false,
+		w, r, store, "project-artifacts:"+projectID, false, "",
 		artifactpolicy.AuditManagedProjectNamespacePrefix,
 	)
 }

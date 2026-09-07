@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
@@ -129,6 +130,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 						return err
 					}
 				}
+				exactSources := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 				for _, slot := range sortedInputSlots(normalized.Inputs) {
 					var fork artifacts.ForkResult
 					var forkErr error
@@ -147,6 +149,17 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if !acceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)
 					}
+					exactSources[slot] = fork.SourceRef
+				}
+				repeatRequest, encodeErr := runrepeat.Encode(runrepeat.Snapshot{
+					Workflow: workflow.Ref, ProjectID: normalized.ProjectID,
+					Inputs: exactSources, ExecutionConfig: normalized.ExecutionConfig,
+				})
+				if encodeErr != nil {
+					return encodeErr
+				}
+				if _, err := artifactService.WriteRunRepeatRequest(ctx, runID, repeatRequest); err != nil {
+					return err
 				}
 				if len(selectedSkills) == 0 {
 					stored, err = runs.TransitionRun(

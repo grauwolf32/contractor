@@ -20,7 +20,7 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.listArtifactBindings(
-		w, r, store, "user-artifacts", true,
+		w, r, store, "user-artifacts", true, "",
 		artifactpolicy.AuditStandardCatalogNamespace,
 	)
 }
@@ -82,7 +82,10 @@ func (h *handler) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	h.listArtifactBindings(w, r, store, "run-artifacts:"+runID, false, "")
+	h.listArtifactBindings(
+		w, r, store, "run-artifacts:"+runID, false,
+		artifactpolicy.RunSystemNamespace, "",
+	)
 }
 
 func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +103,9 @@ func (h *handler) getRunArtifact(w http.ResponseWriter, r *http.Request) {
 	store, _, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		h.handleError(w, err)
+		return
+	}
+	if h.rejectRunSystemArtifactRoute(w, r) {
 		return
 	}
 	ref, err := artifactRouteRef(r)
@@ -124,6 +130,9 @@ func (h *handler) getRunArtifactMetadata(w http.ResponseWriter, r *http.Request)
 		h.handleError(w, err)
 		return
 	}
+	if h.rejectRunSystemArtifactRoute(w, r) {
+		return
+	}
 	h.getArtifactMetadataFromStore(w, r, store)
 }
 
@@ -134,6 +143,9 @@ func (h *handler) listRunArtifactVersions(w http.ResponseWriter, r *http.Request
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		h.handleError(w, err)
+		return
+	}
+	if h.rejectRunSystemArtifactRoute(w, r) {
 		return
 	}
 	h.listArtifactVersionsFromStore(w, r, store, "run-artifact-versions:"+runID)
@@ -148,7 +160,20 @@ func (h *handler) listRunArtifactLineage(w http.ResponseWriter, r *http.Request)
 		h.handleError(w, err)
 		return
 	}
+	if h.rejectRunSystemArtifactRoute(w, r) {
+		return
+	}
 	h.listArtifactLineageFromStore(w, r, store, "run-artifact-lineage:"+runID)
+}
+
+func (h *handler) rejectRunSystemArtifactRoute(w http.ResponseWriter, r *http.Request) bool {
+	if !artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
+		return false
+	}
+	// The owner-facing repeat projection exposes a validated, sanitized view;
+	// raw system bindings remain indistinguishable from absent Artifacts.
+	h.handleError(w, artifacts.ErrArtifactNotFound)
+	return true
 }
 
 func (h *handler) ownedRunArtifactStore(r *http.Request) (artifacts.ScopedStore, string, error) {
@@ -166,6 +191,7 @@ func (h *handler) listArtifactBindings(
 	store artifacts.ScopedStore,
 	cursorPrefix string,
 	allowNamespaceExclusion bool,
+	hardExcludeNamespace string,
 	excludeNamespacePrefix string,
 ) {
 	allowedQuery := []string{"namespace"}
@@ -199,6 +225,11 @@ func (h *handler) listArtifactBindings(
 		}
 		excludeNamespace = &value
 		cursorKind += ":exclude:" + value
+	}
+	if hardExcludeNamespace != "" {
+		value := hardExcludeNamespace
+		excludeNamespace = &value
+		cursorKind += ":hidden:" + value
 	}
 	cursor, err := h.decodePageCursor(encodedCursor, cursorKind, 2)
 	if err != nil {

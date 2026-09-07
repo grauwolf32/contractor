@@ -197,12 +197,12 @@ export function RunOutputGallery({
       if (identity === undefined) {
         throw new Error("Run has an invalid exact Workflow selector");
       }
-      const workflow = await getWorkflow(
-        api,
-        identity.name,
-        identity.version,
-        signal,
-      );
+      return getWorkflow(api, identity.name, identity.version, signal);
+    },
+    select: (workflow) => {
+      if (identity === undefined) {
+        throw new Error("Run has an invalid exact Workflow selector");
+      }
       return requireWorkflowOutputs(workflow, identity);
     },
     enabled: identity !== undefined,

@@ -497,6 +497,45 @@ type runStatusResponse struct {
 	FinishedAt             *time.Time                        `json:"finishedAt,omitempty"`
 }
 
+type runRepeatDraftResponse struct {
+	SourceRunID string                 `json:"sourceRunId"`
+	Authority   string                 `json:"authority"`
+	Workflow    config.WorkflowRef     `json:"workflow"`
+	ProjectID   *string                `json:"projectId,omitempty"`
+	AuditID     *string                `json:"auditId,omitempty"`
+	Draft       *runRepeatDraft        `json:"draft,omitempty"`
+	Notices     []runRepeatDraftNotice `json:"notices"`
+}
+
+type runRepeatDraft struct {
+	Parameters      map[string]string                  `json:"parameters"`
+	RuntimeLabels   []string                           `json:"runtimeLabels"`
+	Labels          runstore.RunMetadataLabels         `json:"labels"`
+	ExecutionConfig runRepeatExecutionConfig           `json:"executionConfig"`
+	Inputs          map[string]runRepeatInputSelection `json:"inputs"`
+}
+
+type runRepeatExecutionConfig struct {
+	Status string                       `json:"status"`
+	Value  *config.ExecutionConfigPatch `json:"value,omitempty"`
+}
+
+type runRepeatInputSelection struct {
+	Status      string                 `json:"status"`
+	SourceScope artifacts.ScopeKind    `json:"sourceScope,omitempty"`
+	Artifact    *contracts.ArtifactRef `json:"artifact,omitempty"`
+	Metadata    *artifacts.Metadata    `json:"metadata,omitempty"`
+	Code        string                 `json:"code,omitempty"`
+	Message     string                 `json:"message,omitempty"`
+}
+
+type runRepeatDraftNotice struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	Field    string `json:"field,omitempty"`
+	Message  string `json:"message"`
+}
+
 type outputPublicationResponse struct {
 	Output       string                           `json:"output"`
 	Status       runstore.OutputPublicationStatus `json:"status"`

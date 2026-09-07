@@ -3,6 +3,19 @@ import type { RunStatus, StageAttempt } from "../../api/runs";
 
 type AttemptDiagnostic = components["schemas"]["AttemptDiagnostic"];
 
+const MODEL_INFRASTRUCTURE_ISSUE_CODES = new Set([
+  "credential_crypto_failed",
+  "credential_key_unavailable",
+  "gateway_unavailable",
+  "planner_execution_config_unavailable",
+  "planner_gateway_invalid_response",
+  "planner_gateway_unavailable",
+  "runtime_config_gateway_mismatch",
+  "runtime_credential_kind_mismatch",
+  "worker_execution_config_unavailable",
+  "worker_gateway_unavailable",
+]);
+
 export interface RunTriageIssue {
   code: string;
   message: string;
@@ -28,6 +41,19 @@ export interface RunTriage {
   outputCount: number;
   issue?: RunTriageIssue;
   metrics?: RunTriageMetrics;
+  guidance: RunTriageGuidance;
+}
+
+export interface RunTriageGuidance {
+  kind:
+    | "scheduled-retry"
+    | "placement-wait"
+    | "gateway-configuration"
+    | "manual-repeat"
+    | "inspect";
+  title: string;
+  message: string;
+  operationsPath?: string;
 }
 
 function latestAttempt(run: RunStatus): StageAttempt | undefined {
@@ -147,6 +173,85 @@ function aggregateMetrics(run: RunStatus): RunTriageMetrics | undefined {
   };
 }
 
+function activeSchedulerRetry(run: RunStatus): boolean {
+  if (run.activeStageExecutionId === undefined) return false;
+  return run.transitions.some(
+    (transition) =>
+      (transition.action === "retry" || transition.action === "escalate") &&
+      transition.targetExecutionId === run.activeStageExecutionId,
+  );
+}
+
+function hasKnownModelInfrastructureIssue(
+  attempt: StageAttempt | undefined,
+  issue: RunTriageIssue | undefined,
+): boolean {
+  if (issue !== undefined && MODEL_INFRASTRUCTURE_ISSUE_CODES.has(issue.code)) {
+    return true;
+  }
+  return (
+    attempt?.diagnostics?.items.some((diagnostic) =>
+      MODEL_INFRASTRUCTURE_ISSUE_CODES.has(diagnostic.code),
+    ) === true
+  );
+}
+
+function guidance(
+  run: RunStatus,
+  attempt: StageAttempt | undefined,
+  issue: RunTriageIssue | undefined,
+): RunTriageGuidance {
+  if (activeSchedulerRetry(run)) {
+    return {
+      kind: "scheduled-retry",
+      title: "Scheduler retry is already active",
+      message:
+        "This is another attempt inside the same Run. Do not create a separate Run to make this configured retry happen.",
+    };
+  }
+  if (
+    !isTerminalState(run.state) &&
+    (attempt === undefined || attempt.state === "preparing")
+  ) {
+    return {
+      kind: "placement-wait",
+      title: "Scheduler is preparing placement",
+      message:
+        "The Run may be resolving configuration or waiting for a compatible Runtime slot. This snapshot does not prove a capacity shortage or promise a start time.",
+      operationsPath: "/operations/runtime-agents",
+    };
+  }
+  if (hasKnownModelInfrastructureIssue(attempt, issue)) {
+    return {
+      kind: "gateway-configuration",
+      title: "Review the selected model infrastructure",
+      message:
+        "Inspect the failed attempt first. An operator can then verify the referenced Gateway, ModelPolicy and credential before you configure a new Run.",
+      operationsPath: "/operations/configurations",
+    };
+  }
+  if (isTerminalState(run.state) && run.state === "failed") {
+    return {
+      kind: "manual-repeat",
+      title: "A new Run is a separate decision",
+      message:
+        issue?.retryable === true
+          ? "The failure is marked retryable, but no retry is scheduled for this terminal Run. Use Configure another Run only after reviewing its retained request."
+          : "No retry is scheduled for this terminal Run. Inspect the attempt before deciding whether a separately configured Run is appropriate.",
+    };
+  }
+  return {
+    kind: "inspect",
+    title: "Use the durable Run record",
+    message:
+      "Inspect the focused attempt and recorded diagnostics. Contractor does not infer an operator action from an unknown or incomplete cause.",
+  };
+}
+
+function isTerminalState(state: RunStatus["state"]): boolean {
+  return state === "succeeded" || state === "failed" || state === "cancelled";
+}
+
 export function deriveRunTriage(run: RunStatus): RunTriage {
   const context = issueContext(run);
   const duration = durationMs(run);
@@ -163,6 +268,7 @@ export function deriveRunTriage(run: RunStatus): RunTriage {
     outputCount: Object.keys(run.outputs).length,
     ...(context.issue === undefined ? {} : { issue: context.issue }),
     ...(metrics === undefined ? {} : { metrics }),
+    guidance: guidance(run, context.attempt, context.issue),
   };
 }
 

@@ -146,6 +146,7 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 		"GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions",
 		"GET /v1/runs/{runId}/finding-proposals",
 		"GET /v1/runs/{runId}/outputs/{slot}",
+		"GET /v1/runs/{runId}/repeat-draft",
 		"GET /v1/workflows",
 		"GET /v1/workflows/{name}/versions/{version}",
 		"PATCH /v1/projects/{projectId}",

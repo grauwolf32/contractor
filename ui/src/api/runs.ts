@@ -49,6 +49,8 @@ export type StageTransition = components["schemas"]["StageTransition"];
 export type PlannerPlan = components["schemas"]["PlannerPlan"];
 export type CancelRunResponse = components["schemas"]["CancelRunResponse"];
 export type ArtifactLineagePage = components["schemas"]["ArtifactLineagePage"];
+export type RunRepeatDraftResponse =
+  components["schemas"]["RunRepeatDraftResponse"];
 
 export interface RunPageRequest {
   state?: WorkflowRunState;
@@ -256,6 +258,87 @@ export async function getRun(
     ...(run.updatedAt === undefined ? {} : { updatedAt: run.updatedAt }),
     ...(run.startedAt === undefined ? {} : { startedAt: run.startedAt }),
     ...(run.finishedAt === undefined ? {} : { finishedAt: run.finishedAt }),
+  };
+}
+
+export async function getRunRepeatDraft(
+  api: PublicAPI,
+  runId: string,
+): Promise<RunRepeatDraftResponse> {
+  requireRunID(runId);
+  const result = await api.request((client) =>
+    client.GET("/v1/runs/{runId}/repeat-draft", {
+      params: { path: { runId } },
+    }),
+  );
+  const repeat = requireData(result);
+  if (
+    repeat.sourceRunId !== runId ||
+    (repeat.authority !== "ordinary" && repeat.authority !== "audit-managed") ||
+    !RUN_ID_PATTERN.test(repeat.workflow.name) ||
+    typeof repeat.workflow.version !== "string" ||
+    repeat.workflow.version.length === 0 ||
+    !Array.isArray(repeat.notices) ||
+    (repeat.authority === "audit-managed" && repeat.draft !== undefined) ||
+    (repeat.authority === "ordinary" && repeat.draft === undefined)
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+  if (repeat.draft === undefined) {
+    return {
+      ...repeat,
+      notices: repeat.notices.map((notice) => ({ ...notice })),
+    };
+  }
+  if (
+    !Array.isArray(repeat.draft.runtimeLabels) ||
+    repeat.draft.runtimeLabels.some(
+      (label, index) =>
+        typeof label !== "string" ||
+        label === "default" ||
+        (index > 0 && repeat.draft!.runtimeLabels[index - 1]! >= label),
+    ) ||
+    (repeat.draft.executionConfig.status === "available") !==
+      (repeat.draft.executionConfig.value !== undefined)
+  ) {
+    throw invalidRunResponse(result.response.status);
+  }
+  for (const input of Object.values(repeat.draft.inputs)) {
+    if (
+      (input.status !== "available" && input.status !== "unavailable") ||
+      (input.status === "available" &&
+        (input.artifact === undefined ||
+          input.metadata === undefined ||
+          input.sourceScope === undefined ||
+          input.artifact.namespace !== input.metadata.artifact.namespace ||
+          input.artifact.name !== input.metadata.artifact.name ||
+          input.artifact.revision !== input.metadata.artifact.revision))
+    ) {
+      throw invalidRunResponse(result.response.status);
+    }
+  }
+  return {
+    ...repeat,
+    notices: repeat.notices.map((notice) => ({ ...notice })),
+    draft: {
+      parameters: { ...repeat.draft.parameters },
+      runtimeLabels: [...repeat.draft.runtimeLabels],
+      labels: safeRunMetadataLabels(repeat.draft.labels),
+      executionConfig: {
+        ...repeat.draft.executionConfig,
+        ...(repeat.draft.executionConfig.value === undefined
+          ? {}
+          : {
+              value: structuredClone(repeat.draft.executionConfig.value),
+            }),
+      },
+      inputs: Object.fromEntries(
+        Object.entries(repeat.draft.inputs).map(([slot, input]) => [
+          slot,
+          structuredClone(input),
+        ]),
+      ),
+    },
   };
 }
 

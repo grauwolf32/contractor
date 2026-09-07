@@ -228,6 +228,8 @@ export const queryKeys = {
         cursor ?? null,
       ] as const,
     detail: (runId: string) => ["runs", "detail", runId] as const,
+    repeatDraft: (runId: string) =>
+      ["runs", "detail", runId, "repeat-draft"] as const,
     artifacts: (
       runId: string,
       namespace: string | undefined,

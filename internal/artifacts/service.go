@@ -43,6 +43,55 @@ func (s *Service) Run(runID string) (ScopedStore, error) {
 	return ScopedStore{service: s, scope: scope}, nil
 }
 
+// WriteRunRepeatRequest is the trusted Run-creation path for the immutable,
+// non-secret request fragment used by the repeat-draft projection. Generic
+// RunScope writes and Runtime Artifact APIs cannot access this namespace.
+func (s *Service) WriteRunRepeatRequest(
+	ctx context.Context,
+	runID string,
+	data []byte,
+) (WriteResult, error) {
+	scope, err := RunScope(runID)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	target := ArtifactRef{
+		Namespace: artifactpolicy.RunSystemNamespace,
+		Name:      artifactpolicy.RunRepeatRequestName,
+	}
+	payload := Payload{
+		MediaType: artifactpolicy.RunRepeatRequestMediaType,
+		Data:      append([]byte(nil), data...),
+	}
+	if err := validatePayload(payload); err != nil {
+		return WriteResult{}, err
+	}
+	return s.repository.Write(ctx, scope, target, payload, nil)
+}
+
+// ReadRunRepeatRequest is intentionally purpose-specific so callers cannot
+// turn the internal namespace into a general bypass around Artifact policy.
+func (s *Service) ReadRunRepeatRequest(
+	ctx context.Context,
+	runID string,
+) (ReadResult, error) {
+	scope, err := RunScope(runID)
+	if err != nil {
+		return ReadResult{}, err
+	}
+	result, err := s.repository.Read(ctx, scope, ArtifactRef{
+		Namespace: artifactpolicy.RunSystemNamespace,
+		Name:      artifactpolicy.RunRepeatRequestName,
+	})
+	if err != nil {
+		return ReadResult{}, err
+	}
+	if result.Payload.MediaType != artifactpolicy.RunRepeatRequestMediaType {
+		return ReadResult{}, ErrArtifactIntegrity
+	}
+	return result, nil
+}
+
 // WriteFindingProposal is the trusted finding-intake write path. The
 // namespace is deliberately unavailable through generic allocation Artifact
 // writes, while the resulting exact revision remains readable in its RunScope.
@@ -90,7 +139,8 @@ func (s ScopedStore) Write(
 		return WriteResult{}, ErrReservedNamespace
 	}
 	if s.scope.kind == ScopeRun && (target.Namespace == "outputs" || target.Namespace == "skills" ||
-		target.Namespace == artifactpolicy.FindingProposalNamespace) {
+		target.Namespace == artifactpolicy.FindingProposalNamespace ||
+		artifactpolicy.IsRunSystemNamespace(target.Namespace)) {
 		return WriteResult{}, ErrReservedNamespace
 	}
 	if err := validatePayload(payload); err != nil {

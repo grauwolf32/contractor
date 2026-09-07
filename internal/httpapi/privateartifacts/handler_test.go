@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
@@ -83,6 +84,10 @@ func TestPrivateArtifactSkillReadRequiresTheLiveAllocationGrant(t *testing.T) {
 
 func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	repository := newMemoryRepository()
+	repository.seed(
+		"run-a", artifactpolicy.RunSystemNamespace, artifactpolicy.RunRepeatRequestName,
+		"revision-system", []byte("internal request"),
+	)
 	registry := &fakeRegistry{grant: testGrant("run-a")}
 	handler := newTestHandler(t, registry, repository)
 
@@ -142,6 +147,30 @@ func TestPrivateArtifactWriteEnforcesCASAndReservedOutputs(t *testing.T) {
 	}
 	if _, exists := repository.current("run-a", "finding-proposals", "forged"); exists {
 		t.Fatal("reserved finding proposal write reached the repository")
+	}
+
+	systemWrite := putArtifact(
+		t, handler, artifactpolicy.RunSystemNamespace,
+		artifactpolicy.RunRepeatRequestName, "*", []byte("forged request"),
+	)
+	if systemWrite.Code != http.StatusForbidden {
+		t.Fatalf("system write = %d %s", systemWrite.Code, systemWrite.Body.String())
+	}
+	systemRead := httptest.NewRecorder()
+	handler.ServeHTTP(systemRead, trustedRequest(
+		http.MethodGet,
+		"/private/v1/allocations/allocation-1/artifacts/"+artifactpolicy.RunSystemNamespace+"/"+artifactpolicy.RunRepeatRequestName,
+		nil,
+	))
+	if systemRead.Code != http.StatusForbidden || bytes.Contains(systemRead.Body.Bytes(), []byte("internal request")) {
+		t.Fatalf("system read = %d %s", systemRead.Code, systemRead.Body.String())
+	}
+	list := httptest.NewRecorder()
+	handler.ServeHTTP(list, trustedRequest(
+		http.MethodGet, "/private/v1/allocations/allocation-1/artifacts", nil,
+	))
+	if list.Code != http.StatusOK || bytes.Contains(list.Body.Bytes(), []byte(artifactpolicy.RunSystemNamespace)) {
+		t.Fatalf("system list visibility = %d %s", list.Code, list.Body.String())
 	}
 }
 

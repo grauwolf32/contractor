@@ -246,4 +246,45 @@ describe("RunDraftMemoryStore", () => {
       right: "reports/b@r1",
     });
   });
+
+  it("seeds a repeat draft without replacing edited or mounted state", () => {
+    const store = new RunDraftMemoryStore("owner-a");
+    const identity = { workflowName: "inspect", workflowVersion: "1" };
+    const repeat = initialRunDraftState({ source: "sources/old@r1" });
+    repeat.repeat = {
+      sourceRunId: "run-old",
+      notices: [],
+      reviewed: false,
+    };
+    const seeded = store.seed(identity, repeat);
+    expect(seeded.kind).toBe("seeded");
+    if (seeded.kind !== "seeded") return;
+
+    const refreshed = store.acquire(
+      identity,
+      initialRunDraftState({ source: "sources/current@r2" }),
+    );
+    expect(refreshed.kind).toBe("acquired");
+    if (refreshed.kind !== "acquired") return;
+    expect(refreshed.entry.state.artifactSelections.source).toBe(
+      "sources/old@r1",
+    );
+
+    const replacement = initialRunDraftState();
+    replacement.repeat = {
+      sourceRunId: "run-new",
+      notices: [],
+      reviewed: false,
+    };
+    expect(store.seed(identity, replacement)).toMatchObject({
+      kind: "conflict",
+    });
+
+    store.discard(seeded.entry);
+    const mounted = acquired(store, "inspect");
+    store.retain(mounted);
+    expect(store.seed(identity, replacement)).toMatchObject({
+      kind: "conflict",
+    });
+  });
 });

@@ -15,6 +15,19 @@ export interface RunDraftIdentity {
   projectId?: string;
 }
 
+export interface RepeatDraftNotice {
+  code: string;
+  severity: "warning" | "blocking";
+  field?: string;
+  message: string;
+}
+
+export interface RepeatDraftContext {
+  sourceRunId: string;
+  notices: RepeatDraftNotice[];
+  reviewed: boolean;
+}
+
 export interface RunDraftState {
   parameters: Record<string, string | undefined>;
   runtimeLabels: string[];
@@ -25,6 +38,7 @@ export interface RunDraftState {
   artifactReviews: Record<string, string>;
   knownArtifacts: ArtifactMetadata[];
   overrides: ExecutionOverrideDraft;
+  repeat?: RepeatDraftContext;
 }
 
 export interface RunDraftSummary extends RunDraftIdentity {
@@ -48,6 +62,11 @@ export interface RunDraftEntry {
 
 export type RunDraftAcquisition =
   | { kind: "acquired"; entry: RunDraftEntry }
+  | { kind: "capacity"; drafts: RunDraftSummary[] };
+
+export type RunDraftSeedResult =
+  | { kind: "seeded"; entry: RunDraftEntry }
+  | { kind: "conflict"; draft: RunDraftSummary }
   | { kind: "capacity"; drafts: RunDraftSummary[] };
 
 function identityKey(identity: RunDraftIdentity): string {
@@ -101,6 +120,15 @@ function cloneState(state: RunDraftState): RunDraftState {
   return structuredClone(state);
 }
 
+function summary(entry: RunDraftEntry): RunDraftSummary {
+  return {
+    key: entry.key,
+    ...entry.identity,
+    updatedAt: entry.updatedAt,
+    ambiguousSubmission: entry.ambiguousSubmission,
+  };
+}
+
 interface InternalRunDraftEntry extends RunDraftEntry {
   initialState: RunDraftState;
 }
@@ -110,7 +138,10 @@ function mergeKnownArtifacts(
   incoming: readonly ArtifactMetadata[],
 ): ArtifactMetadata[] {
   const byExactRef = new Map(
-    retained.map((metadata) => [artifactOptionKey(metadata.artifact), metadata]),
+    retained.map((metadata) => [
+      artifactOptionKey(metadata.artifact),
+      metadata,
+    ]),
   );
   for (const metadata of incoming) {
     byExactRef.set(artifactOptionKey(metadata.artifact), metadata);
@@ -123,6 +154,17 @@ function reconcileSuggestions(
   incoming: RunDraftState,
 ): void {
   const state = cloneState(entry.state);
+  if (state.repeat !== undefined) {
+    // A repeat draft is based on exact source revisions selected by a prior
+    // request. Project recommendations are only current-head suggestions and
+    // must never replace those retained selections while the form mounts.
+    state.knownArtifacts = mergeKnownArtifacts(
+      state.knownArtifacts,
+      incoming.knownArtifacts,
+    );
+    entry.state = state;
+    return;
+  }
   const slots = new Set([
     ...Object.keys(state.artifactSuggestions),
     ...Object.keys(incoming.artifactSuggestions),
@@ -203,6 +245,24 @@ export class RunDraftMemoryStore {
     return { kind: "acquired", entry };
   }
 
+  seed(identity: RunDraftIdentity, state: RunDraftState): RunDraftSeedResult {
+    const key = identityKey(identity);
+    const existing = this.#entries.get(key);
+    if (existing !== undefined) {
+      if (existing.meaningful || existing.activeConsumers > 0) {
+        return { kind: "conflict", draft: summary(existing) };
+      }
+      this.discard(existing);
+    }
+    const acquisition = this.acquire(identity, state);
+    if (acquisition.kind === "capacity") {
+      return acquisition;
+    }
+    acquisition.entry.meaningful = true;
+    acquisition.entry.updatedAt = new Date().toISOString();
+    return { kind: "seeded", entry: acquisition.entry };
+  }
+
   retain(entry: RunDraftEntry): void {
     if (!this.isCurrent(entry)) return;
     entry.activeConsumers += 1;
@@ -270,11 +330,6 @@ export class RunDraftMemoryStore {
     return Array.from(this.#entries.values())
       .filter((entry) => entry.meaningful)
       .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-      .map((entry) => ({
-        key: entry.key,
-        ...entry.identity,
-        updatedAt: entry.updatedAt,
-        ambiguousSubmission: entry.ambiguousSubmission,
-      }));
+      .map((entry) => summary(entry));
   }
 }

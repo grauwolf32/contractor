@@ -969,6 +969,188 @@ describe("Run routes", () => {
     ).toBe(false);
   });
 
+  it("opens a reviewed new-Run draft without mutating the terminal source", async () => {
+    const terminal = runFixture({
+      state: "failed",
+      labels: {},
+      eventCursor: undefined,
+      activeStageExecutionId: undefined,
+      attempts: [
+        {
+          ...runFixture().attempts[0]!,
+          state: "failed",
+          result: {
+            apiVersion: "contractor/v1alpha1",
+            outcome: "failed",
+            summary: "Gateway unavailable.",
+            artifacts: {},
+            error: {
+              code: "planner_gateway_unavailable",
+              message: "Gateway unavailable.",
+              retryable: true,
+            },
+          },
+        },
+      ],
+      finishedAt: "2026-08-31T12:02:00Z",
+    });
+    const workflow = {
+      ref: { name: "router-analysis", version: "1" },
+      entryStage: "analysis",
+      parameters: { objective: { required: true } },
+      inputs: {},
+      outputs: {},
+      stages: {},
+    };
+    const createRequests: Request[] = [];
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/runs/run-router/repeat-draft") {
+        return apiResponse({
+          sourceRunId: "run-router",
+          authority: "ordinary",
+          workflow: { name: "router-analysis", version: "1" },
+          notices: [
+            {
+              code: "runtime_binding_changed",
+              severity: "warning",
+              field: "runtimeLabels.default",
+              message: "The default Runtime binding changed.",
+            },
+          ],
+          draft: {
+            parameters: { objective: "Review the original project" },
+            runtimeLabels: [],
+            labels: {},
+            executionConfig: { status: "available", value: {} },
+            inputs: {},
+          },
+        });
+      }
+      if (path === "/v1/workflows/router-analysis/versions/1") {
+        return apiResponse(workflow);
+      }
+      if (path === "/v1/artifacts") {
+        return apiResponse({ items: [], page: { hasMore: false } });
+      }
+      if (path === "/v1/runs" && request.method === "POST") {
+        createRequests.push(request.clone());
+        return apiResponse(
+          {
+            runId: "run-repeat-new",
+            state: "initializing",
+            runtimeLabels: [],
+            labels: {},
+            runtimeConfiguration: terminal.runtimeConfiguration,
+          },
+          { status: 202 },
+        );
+      }
+      if (path === "/v1/runs/run-repeat-new") {
+        return apiResponse({
+          ...terminal,
+          runId: "run-repeat-new",
+          state: "initializing",
+          attempts: [],
+          finishedAt: undefined,
+        });
+      }
+      if (path === "/v1/runs/run-router") return apiResponse(terminal);
+      throw new Error(`unexpected ${request.method} ${path}`);
+    });
+    const view = renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Configure another Run" }),
+    );
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe(
+        "/catalog/workflows/router-analysis/1",
+      ),
+    );
+    const review = await screen.findByLabelText(
+      /I reviewed the retained inputs/,
+    );
+    expect(review).not.toBeChecked();
+    expect(
+      await screen.findByRole("button", { name: "Start Workflow Run" }),
+    ).toBeDisabled();
+    expect(
+      await screen.findByDisplayValue("Review the original project"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("runtime_binding_changed")).toBeInTheDocument();
+    expect(createRequests).toHaveLength(0);
+
+    await user.click(review);
+    await user.click(
+      screen.getByRole("button", { name: "Start Workflow Run" }),
+    );
+    await waitFor(() => expect(createRequests).toHaveLength(1));
+    expect(await createRequests[0]!.json()).toEqual({
+      workflow: "router-analysis@1",
+      runtimeLabels: [],
+      parameters: { objective: "Review the original project" },
+      artifacts: {},
+    });
+    expect(terminal.state).toBe("failed");
+  });
+
+  it("routes an Audit-managed terminal Run back to its owning Audit", async () => {
+    const terminal = runFixture({
+      state: "failed",
+      projectId: "project-audit",
+      eventCursor: undefined,
+      activeStageExecutionId: undefined,
+      finishedAt: "2026-08-31T12:02:00Z",
+    });
+    const api = new PublicAPI(runtimeConfig, async (input, init) => {
+      const request = new Request(input, init);
+      const common = sessionOrArtifacts(request);
+      if (common !== undefined) return common;
+      const path = new URL(request.url).pathname;
+      if (path === "/v1/runs/run-router") return apiResponse(terminal);
+      if (path === "/v1/runs/run-router/repeat-draft") {
+        return apiResponse({
+          sourceRunId: "run-router",
+          authority: "audit-managed",
+          workflow: { name: "router-analysis", version: "1" },
+          projectId: "project-audit",
+          auditId: "audit-one",
+          notices: [
+            {
+              code: "audit_managed_run",
+              severity: "blocking",
+              field: "authority",
+              message: "Continue from Audit.",
+            },
+          ],
+        });
+      }
+      return apiResponse(
+        {
+          code: "not_found",
+          message: "Fixture stops after navigation",
+          retryable: false,
+          requestId: "request-audit-navigation",
+        },
+        { status: 404 },
+      );
+    });
+    const view = renderRunApplication(api, "/runs/run-router");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Configure another Run" }),
+    );
+    await waitFor(() =>
+      expect(view.router.state.location.pathname).toBe(
+        "/projects/project-audit/audits/audit-one",
+      ),
+    );
+  });
+
   it("renders terminal attempts, escalation, safe metrics, and frozen outputs", async () => {
     const output = {
       namespace: "outputs",

@@ -440,10 +440,14 @@ func (f *fakeArtifactRepository) ForkInput(
 	f.historical[targetKey] = map[string]artifacts.ReadResult{revision: targetRead}
 	f.created[targetKey] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
 	f.lineage = append(f.lineage, artifacts.LineageEdge{
-		Kind:        artifacts.LineageInputFork,
-		SourceScope: sourceScope.Kind(), Source: read.Ref,
-		TargetScope: targetScope.Kind(), Target: target,
-		CreatedAt: time.Unix(int64(f.next), 0).UTC(),
+		Kind:          artifacts.LineageInputFork,
+		SourceScope:   sourceScope.Kind(),
+		SourceScopeID: sourceScope.ID(),
+		Source:        read.Ref,
+		TargetScope:   targetScope.Kind(),
+		TargetScopeID: targetScope.ID(),
+		Target:        target,
+		CreatedAt:     time.Unix(int64(f.next), 0).UTC(),
 	})
 	return artifacts.ForkResult{
 		SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data)),
@@ -472,10 +476,14 @@ func (f *fakeArtifactRepository) BindOutputExact(
 	f.historical[key] = map[string]artifacts.ReadResult{revision: stored}
 	f.created[key] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
 	f.lineage = append(f.lineage, artifacts.LineageEdge{
-		Kind:        artifacts.LineageOutputBind,
-		SourceScope: scope.Kind(), Source: read.Ref,
-		TargetScope: scope.Kind(), Target: target,
-		CreatedAt: time.Unix(int64(f.next), 0).UTC(),
+		Kind:          artifacts.LineageOutputBind,
+		SourceScope:   scope.Kind(),
+		SourceScopeID: scope.ID(),
+		Source:        read.Ref,
+		TargetScope:   scope.Kind(),
+		TargetScopeID: scope.ID(),
+		Target:        target,
+		CreatedAt:     time.Unix(int64(f.next), 0).UTC(),
 	})
 	return artifacts.ForkResult{SourceRef: read.Ref, TargetRef: target, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}, nil
 }
@@ -579,8 +587,10 @@ func (f *fakeArtifactRepository) ListLineage(
 	f.queryReads++
 	result := make([]artifacts.LineageEdge, 0)
 	for _, edge := range f.lineage {
-		matchesSource := edge.SourceScope == scope.Kind() && sameExactArtifact(edge.Source, ref)
-		matchesTarget := edge.TargetScope == scope.Kind() && sameExactArtifact(edge.Target, ref)
+		matchesSource := edge.SourceScope == scope.Kind() && edge.SourceScopeID == scope.ID() &&
+			sameExactArtifact(edge.Source, ref)
+		matchesTarget := edge.TargetScope == scope.Kind() && edge.TargetScopeID == scope.ID() &&
+			sameExactArtifact(edge.Target, ref)
 		if !matchesSource && !matchesTarget || edge.Kind == query.ExcludeKind || !fakeLineageBefore(edge, query) {
 			continue
 		}

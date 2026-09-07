@@ -215,6 +215,20 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		downloadResponse.Header().Get("Content-Type") != "text/plain" {
 		t.Fatalf("download = status %d, headers %v, body %q", downloadResponse.Code, downloadResponse.Header(), downloadResponse.Body.String())
 	}
+	repeatRequest := authenticatedRequest(
+		http.MethodGet, "/v1/runs/run-public/repeat-draft", bytes.NewReader(nil),
+	)
+	repeatResponse := httptest.NewRecorder()
+	handler.ServeHTTP(repeatResponse, repeatRequest)
+	var repeat runRepeatDraftResponse
+	if repeatResponse.Code != http.StatusOK || json.Unmarshal(repeatResponse.Body.Bytes(), &repeat) != nil ||
+		repeat.Draft == nil || repeat.Draft.ExecutionConfig.Status != repeatStatusAvailable ||
+		repeat.Draft.Inputs["source"].Status != repeatStatusAvailable ||
+		repeat.Draft.Inputs["source"].Artifact == nil ||
+		!sameArtifactRef(*repeat.Draft.Inputs["source"].Artifact, current.Ref) ||
+		repeat.Draft.Inputs["source"].Metadata == nil || repeat.Draft.Inputs["source"].Metadata.Current {
+		t.Fatalf("PostgreSQL repeat draft = %d %s", repeatResponse.Code, repeatResponse.Body.String())
+	}
 	if _, err := runs.CreateRun(ctx, runstore.CreateRunParams{
 		RunID: "run-lineage-two", OwnerID: "user-1", WorkflowName: "artifact-copy", WorkflowVersion: "1",
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: json.RawMessage(`{}`),

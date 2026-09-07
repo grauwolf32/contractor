@@ -60,7 +60,7 @@ The space contains Namespaces. A Namespace is:
 - unique only within its UserScope, ProjectScope or RunScope;
 - not a security boundary against explicitly granted current-Run tools.
 
-RunScope reserves three Namespaces:
+RunScope reserves three model/data Namespaces:
 
 - `inputs` contains mutable working copies of declared Workflow inputs;
 - `outputs` contains declared Workflow results and is managed by Workflow
@@ -82,6 +82,17 @@ outputs/openapi               ArtifactRef(namespace="outputs", name="openapi")
 `inputs`, `outputs` and `skills` cannot be selected as Stage Agent Namespaces.
 Their names are Workflow slot or trusted runtime-resource names rather than
 arbitrary Worker-selected paths.
+
+The physical store may additionally contain the exact hidden
+`contractor-system` Namespace for bounded Control Plane records coupled to a
+Run. In the first slice its `repeat-request` binding retains the non-secret
+request fragment defined by [06](06-server-ui-and-operations.md). It is written
+only through a purpose-specific trusted service operation, is hidden from every
+public Artifact list/read/metadata/version/lineage route and from every private
+allocation Artifact operation, and is removed with the containing RunScope.
+It is not an Agent Namespace, Workflow input/output, collaboration channel or
+general internal key/value store. Owner access is only through the validated
+repeat-draft projection, which rechecks authorization and source scopes.
 
 ## Stage Namespace binding
 

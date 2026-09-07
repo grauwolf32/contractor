@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 )
 
 func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
@@ -58,6 +60,15 @@ func TestWriteRejectsDistinctInvalidInputsBeforeRepository(t *testing.T) {
 			name: "reserved finding proposal", scope: "run",
 			ref:     ArtifactRef{Namespace: "finding-proposals", Name: "forged"},
 			payload: Payload{MediaType: "application/json"}, want: ErrReservedNamespace,
+		},
+		{
+			name: "reserved Run system record", scope: "run",
+			ref: ArtifactRef{
+				Namespace: artifactpolicy.RunSystemNamespace,
+				Name:      artifactpolicy.RunRepeatRequestName,
+			},
+			payload: Payload{MediaType: artifactpolicy.RunRepeatRequestMediaType},
+			want:    ErrReservedNamespace,
 		},
 	}
 

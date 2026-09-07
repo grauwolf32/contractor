@@ -2811,6 +2811,50 @@ type RunQueueProject struct {
 	ProjectId ResourceId  `json:"projectId"`
 }
 
+// RunRepeatDraft defines model for RunRepeatDraft.
+type RunRepeatDraft struct {
+	ExecutionConfig RunRepeatExecutionConfig  `json:"executionConfig"`
+	Inputs          map[string]RunRepeatInput `json:"inputs"`
+	Labels          RunMetadataLabels         `json:"labels"`
+	Parameters      map[string]string         `json:"parameters"`
+	RuntimeLabels   []ConfigId                `json:"runtimeLabels"`
+}
+
+// RunRepeatDraftNotice defines model for RunRepeatDraftNotice.
+type RunRepeatDraftNotice struct {
+	Code     string      `json:"code"`
+	Field    *string     `json:"field,omitempty"`
+	Message  string      `json:"message"`
+	Severity interface{} `json:"severity"`
+}
+
+// RunRepeatDraftResponse defines model for RunRepeatDraftResponse.
+type RunRepeatDraftResponse struct {
+	AuditId     *ResourceId            `json:"auditId,omitempty"`
+	Authority   interface{}            `json:"authority"`
+	Draft       *RunRepeatDraft        `json:"draft,omitempty"`
+	Notices     []RunRepeatDraftNotice `json:"notices"`
+	ProjectId   *ResourceId            `json:"projectId,omitempty"`
+	SourceRunId ResourceId             `json:"sourceRunId"`
+	Workflow    WorkflowRef            `json:"workflow"`
+}
+
+// RunRepeatExecutionConfig defines model for RunRepeatExecutionConfig.
+type RunRepeatExecutionConfig struct {
+	Status interface{}           `json:"status"`
+	Value  *ExecutionConfigPatch `json:"value,omitempty"`
+}
+
+// RunRepeatInput defines model for RunRepeatInput.
+type RunRepeatInput struct {
+	Artifact    *ExactArtifactRef `json:"artifact,omitempty"`
+	Code        *string           `json:"code,omitempty"`
+	Message     *string           `json:"message,omitempty"`
+	Metadata    *ArtifactMetadata `json:"metadata,omitempty"`
+	SourceScope interface{}       `json:"sourceScope,omitempty"`
+	Status      interface{}       `json:"status"`
+}
+
 // RunRuntimeConfiguration defines model for RunRuntimeConfiguration.
 type RunRuntimeConfiguration struct {
 	Default PinnedRuntimeConfig   `json:"default"`
@@ -6655,6 +6699,13 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/runs/{runId}/outputs/{slot} (the `DownloadRunOutput` operationId).
 	DownloadRunOutput(ctx context.Context, runId RunId, slot ArtifactSlotParameter, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
+	//
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+	//
+	// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
+	GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ResumeRunWithBody Continue a failed Run with a new attempt of its failed stage
 	//
 	// Preserves successful stages, exact failed-stage inputs and pinned configuration. Requires completed allocation release. Audit-managed and evaluation Runs are excluded. stageExecutionId is both the expected failed attempt and the idempotency identity; repeating it returns the original continuation attempt, never another retry.
@@ -8616,6 +8667,23 @@ func (c *Client) ListRunFindingProposals(ctx context.Context, runId RunId, param
 // Corresponds with GET /v1/runs/{runId}/outputs/{slot} (the `DownloadRunOutput` operationId).
 func (c *Client) DownloadRunOutput(ctx context.Context, runId RunId, slot ArtifactSlotParameter, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDownloadRunOutputRequest(c.Server, runId, slot)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRunRepeatDraft Project a terminal Run into a reviewed new-Run draft
+//
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+//
+// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
+func (c *Client) GetRunRepeatDraft(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRunRepeatDraftRequest(c.Server, runId)
 	if err != nil {
 		return nil, err
 	}
@@ -15475,6 +15543,40 @@ func NewDownloadRunOutputRequest(server string, runId RunId, slot ArtifactSlotPa
 	return req, nil
 }
 
+// NewGetRunRepeatDraftRequest constructs an http.Request for the GetRunRepeatDraft method
+func NewGetRunRepeatDraftRequest(server string, runId RunId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/runs/%s/repeat-draft", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewResumeRunRequest calls the generic ResumeRun builder with application/json body
 func NewResumeRunRequest(server string, runId RunId, params *ResumeRunParams, body ResumeRunJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -16710,6 +16812,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/runs/{runId}/outputs/{slot} (the `DownloadRunOutput` operationId).
 	DownloadRunOutputWithResponse(ctx context.Context, runId RunId, slot ArtifactSlotParameter, reqEditors ...RequestEditorFn) (*DownloadRunOutputResponse, error)
+
+	// GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
+	//
+	// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
+	GetRunRepeatDraftWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetRunRepeatDraftResponse, error)
 
 	// ResumeRunWithBodyWithResponse Continue a failed Run with a new attempt of its failed stage
 	//
@@ -28254,6 +28365,127 @@ func (r DownloadRunOutputResponse) ContentType() string {
 	return ""
 }
 
+// GetRunRepeatDraftResponse200Headers the declared response headers of an HTTP 200 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetRunRepeatDraftResponse400Headers the declared response headers of an HTTP 400 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunRepeatDraftResponse401Headers the declared response headers of an HTTP 401 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetRunRepeatDraftResponse404Headers the declared response headers of an HTTP 404 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunRepeatDraftResponse409Headers the declared response headers of an HTTP 409 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunRepeatDraftResponse500Headers the declared response headers of an HTTP 500 response for GetRunRepeatDraft
+type GetRunRepeatDraftResponse500Headers struct {
+	XRequestID RequestId
+}
+
+type GetRunRepeatDraftResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *RunRepeatDraftResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetRunRepeatDraftResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetRunRepeatDraftResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetRunRepeatDraftResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetRunRepeatDraftResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetRunRepeatDraftResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetRunRepeatDraftResponse500Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON200() *RunRepeatDraftResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetRunRepeatDraftResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRunRepeatDraftResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRunRepeatDraftResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRunRepeatDraftResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRunRepeatDraftResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ResumeRunResponse400Headers the declared response headers of an HTTP 400 response for ResumeRun
 type ResumeRunResponse400Headers struct {
 	XRequestID RequestId
@@ -30520,6 +30752,21 @@ func (c *ClientWithResponses) DownloadRunOutputWithResponse(ctx context.Context,
 		return nil, err
 	}
 	return ParseDownloadRunOutputResponse(rsp)
+}
+
+// GetRunRepeatDraftWithResponse Project a terminal Run into a reviewed new-Run draft
+//
+// Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/runs/{runId}/repeat-draft (the `GetRunRepeatDraft` operationId).
+func (c *ClientWithResponses) GetRunRepeatDraftWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetRunRepeatDraftResponse, error) {
+	rsp, err := c.GetRunRepeatDraft(ctx, runId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRunRepeatDraftResponse(rsp)
 }
 
 // ResumeRunWithBodyWithResponse Continue a failed Run with a new attempt of its failed stage
@@ -44570,6 +44817,151 @@ func ParseDownloadRunOutputResponse(rsp *http.Response) (*DownloadRunOutputRespo
 			headers.XRequestID = value
 		}
 		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetRunRepeatDraftResponse parses an HTTP response from a GetRunRepeatDraftWithResponse call
+func ParseGetRunRepeatDraftResponse(rsp *http.Response) (*GetRunRepeatDraftResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRunRepeatDraftResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RunRepeatDraftResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetRunRepeatDraftResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetRunRepeatDraftResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetRunRepeatDraftResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetRunRepeatDraftResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetRunRepeatDraftResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetRunRepeatDraftResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
 	}
 
 	return response, nil

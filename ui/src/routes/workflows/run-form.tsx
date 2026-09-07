@@ -400,6 +400,22 @@ function ConsumerOverrides({
   disabled?: boolean;
   onChange: (field: keyof ConsumerOverrideDraft, value: string) => void;
 }) {
+  const selectedModelKnown =
+    value.modelPolicy === "" ||
+    modelPolicies.some(
+      (resource) => configurationSelector(resource) === value.modelPolicy,
+    );
+  const selectedGatewayKnown =
+    value.llmGateway === "" ||
+    gateways.some(
+      (resource) => configurationSelector(resource) === value.llmGateway,
+    );
+  const selectedCredentialKnown =
+    value.credential === "" ||
+    value.credential === NO_CREDENTIAL_OVERRIDE ||
+    credentials.some(
+      (credential) => credential.credentialId === value.credential,
+    );
   return (
     <fieldset className="override-consumer" disabled={disabled}>
       <legend>{role}</legend>
@@ -415,6 +431,11 @@ function ConsumerOverrides({
           onChange={(event) => onChange("modelPolicy", event.target.value)}
         >
           <option value="">Use Workflow default</option>
+          {selectedModelKnown ? null : (
+            <option value={value.modelPolicy}>
+              {value.modelPolicy} · retained selection not in loaded catalog
+            </option>
+          )}
           {modelPolicies.map((resource) => (
             <option
               key={`${resource.ref.digest}-${configurationSelector(resource)}`}
@@ -432,6 +453,11 @@ function ConsumerOverrides({
           onChange={(event) => onChange("llmGateway", event.target.value)}
         >
           <option value="">Use Workflow default</option>
+          {selectedGatewayKnown ? null : (
+            <option value={value.llmGateway}>
+              {value.llmGateway} · retained selection not in loaded catalog
+            </option>
+          )}
           {gateways.map((resource) => (
             <option
               key={`${resource.ref.digest}-${configurationSelector(resource)}`}
@@ -452,6 +478,11 @@ function ConsumerOverrides({
           <option value={NO_CREDENTIAL_OVERRIDE}>
             Explicitly use no credential
           </option>
+          {selectedCredentialKnown ? null : (
+            <option value={value.credential}>
+              {value.credential} · retained credential unavailable or not loaded
+            </option>
+          )}
           {credentials.map((credential) => (
             <option
               key={credential.credentialId}
@@ -467,6 +498,74 @@ function ConsumerOverrides({
         </select>
       </label>
     </fieldset>
+  );
+}
+
+function RepeatRunReview({
+  repeat,
+  error,
+  onReviewed,
+}: {
+  repeat: NonNullable<RunDraftState["repeat"]>;
+  error?: string;
+  onReviewed: (reviewed: boolean) => void;
+}) {
+  return (
+    <section
+      className={`run-repeat-review${repeat.reviewed ? " is-reviewed" : " needs-review"}`}
+      aria-labelledby="run-repeat-review-title"
+    >
+      <div className="run-repeat-review-heading">
+        <div>
+          <p className="eyebrow">Configure another Run</p>
+          <h4 id="run-repeat-review-title">Review retained request values</h4>
+        </div>
+        <Link to={`/runs/${encodeURIComponent(repeat.sourceRunId)}`}>
+          Source Run
+        </Link>
+      </div>
+      <p>
+        This draft creates a new Run after you submit it. It does not retry an
+        attempt, mutate the source Run or promise identical placement.
+      </p>
+      {repeat.notices.length === 0 ? (
+        <p className="compact-empty">
+          Exact source revisions and caller-controlled settings were retained.
+        </p>
+      ) : (
+        <ul className="run-repeat-notices">
+          {repeat.notices.map((notice, index) => (
+            <li
+              className={`run-repeat-notice is-${notice.severity}`}
+              key={`${notice.code}:${notice.field ?? "none"}:${index}`}
+            >
+              <span>{notice.severity}</span>
+              <div>
+                <code>{notice.code}</code>
+                <p>{notice.message}</p>
+                {notice.field === undefined ? null : (
+                  <small>Retained field: {notice.field}</small>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <label className="checkbox-label run-repeat-confirmation">
+        <input
+          type="checkbox"
+          checked={repeat.reviewed}
+          onChange={(event) => onReviewed(event.target.checked)}
+        />
+        I reviewed the retained inputs, labels and execution settings for this
+        new Run.
+      </label>
+      {error === undefined ? null : (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -664,9 +763,29 @@ function WorkflowRunFormBody({
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
-  const [runtimeOptionsOpen, setRuntimeOptionsOpen] = useState(false);
-  const [metadataOptionsOpen, setMetadataOptionsOpen] = useState(false);
-  const [executionOptionsOpen, setExecutionOptionsOpen] = useState(false);
+  const [runtimeOptionsOpen, setRuntimeOptionsOpen] = useState(
+    () =>
+      draft.runtimeLabels.length > 0 ||
+      draft.repeat?.notices.some((notice) =>
+        notice.field?.startsWith("runtimeLabels"),
+      ) === true,
+  );
+  const [metadataOptionsOpen, setMetadataOptionsOpen] = useState(
+    () => draft.metadataLabels.length > 0,
+  );
+  const [executionOptionsOpen, setExecutionOptionsOpen] = useState(
+    () =>
+      draft.overrides.planner.modelPolicy !== "" ||
+      draft.overrides.planner.llmGateway !== "" ||
+      draft.overrides.planner.credential !== "" ||
+      draft.overrides.workers.modelPolicy !== "" ||
+      draft.overrides.workers.llmGateway !== "" ||
+      draft.overrides.workers.credential !== "" ||
+      Object.keys(draft.overrides.stages ?? {}).length > 0 ||
+      draft.repeat?.notices.some(
+        (notice) => notice.field === "executionConfig",
+      ) === true,
+  );
   const {
     parameters,
     runtimeLabels: selectedRuntimeLabels,
@@ -738,6 +857,16 @@ function WorkflowRunFormBody({
       ...current,
       overrides: update(current.overrides),
     }));
+  }
+
+  function setRepeatReviewed(reviewed: boolean): void {
+    updateDraft((current) => ({
+      ...current,
+      ...(current.repeat === undefined
+        ? {}
+        : { repeat: { ...current.repeat, reviewed } }),
+    }));
+    if (reviewed) clearError("repeatReview");
   }
 
   function selectArtifact(
@@ -879,6 +1008,10 @@ function WorkflowRunFormBody({
         .sort((left, right) => left.label.localeCompare(right.label)),
     [runtimeLabelInventory.data],
   );
+  const retainedRuntimeLabels = useMemo(() => {
+    const visible = new Set(runtimeLabels.map((binding) => binding.label));
+    return selectedRuntimeLabels.filter((label) => !visible.has(label));
+  }, [runtimeLabels, selectedRuntimeLabels]);
   const defaultRuntimeConfig = useMemo(
     () =>
       runtimeLabelInventory.data?.pages
@@ -1014,7 +1147,7 @@ function WorkflowRunFormBody({
   }
 
   function updateOverride(
-    role: keyof ExecutionOverrideDraft,
+    role: "planner" | "workers",
     field: keyof ConsumerOverrideDraft,
     value: string,
   ): void {
@@ -1027,6 +1160,14 @@ function WorkflowRunFormBody({
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     mutation.reset();
+    if (draft.repeat !== undefined && !draft.repeat.reviewed) {
+      setValidationErrors((current) => ({
+        ...current,
+        repeatReview:
+          "Review and confirm the retained values before creating another Run.",
+      }));
+      return;
+    }
     const validation = validateRunDraft(
       workflow,
       {
@@ -1106,13 +1247,19 @@ function WorkflowRunFormBody({
     const selected = artifactSelections[name] ?? "";
     return selected !== "" && artifactReviews[name] !== selected;
   });
+  const repeatReviewPending =
+    draft.repeat !== undefined && !draft.repeat.reviewed;
   const draftReady =
-    currentValidation.request !== undefined && !artifactInventory.isPending;
-  const overrideCount = Object.values(overrides).reduce(
-    (count, selection) =>
-      count + Object.values(selection).filter((value) => value !== "").length,
-    0,
-  );
+    currentValidation.request !== undefined &&
+    !artifactInventory.isPending &&
+    !repeatReviewPending;
+  const consumerOverrideCount = (selection: ConsumerOverrideDraft): number =>
+    Object.values(selection).filter((value) => value !== "").length;
+  const stageOverrideCount = Object.keys(overrides.stages ?? {}).length;
+  const overrideCount =
+    consumerOverrideCount(overrides.planner) +
+    consumerOverrideCount(overrides.workers) +
+    stageOverrideCount;
   const readinessValue = draftReady
     ? "Ready"
     : remainingRequiredFieldCount === 0 && reviewRequiredNames.length > 0
@@ -1122,13 +1269,15 @@ function WorkflowRunFormBody({
         : `${completedRequiredFieldCount}/${requiredFieldCount}`;
   const readinessCopy = draftReady
     ? "Fields complete · exact inputs reviewed"
-    : artifactInventory.isPending && requiredArtifactNames.length > 0
-      ? "Loading Artifact choices…"
-      : remainingRequiredFieldCount > 0
-        ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
-        : reviewRequiredNames.length > 0
-          ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
-          : "Review highlighted settings";
+    : repeatReviewPending
+      ? "Review retained values for this new Run"
+      : artifactInventory.isPending && requiredArtifactNames.length > 0
+        ? "Loading Artifact choices…"
+        : remainingRequiredFieldCount > 0
+          ? `${remainingRequiredFieldCount} required ${remainingRequiredFieldCount === 1 ? "field" : "fields"} remaining`
+          : reviewRequiredNames.length > 0
+            ? `Fields complete · ${reviewRequiredNames.length} input ${reviewRequiredNames.length === 1 ? "review" : "reviews"} needed`
+            : "Review highlighted settings";
 
   return (
     <form
@@ -1217,6 +1366,16 @@ function WorkflowRunFormBody({
           <small>{readinessCopy}</small>
         </span>
       </div>
+
+      {draft.repeat === undefined ? null : (
+        <RepeatRunReview
+          repeat={draft.repeat}
+          {...(validationErrors.repeatReview === undefined
+            ? {}
+            : { error: validationErrors.repeatReview })}
+          onReviewed={setRepeatReviewed}
+        />
+      )}
 
       <fieldset className="run-draft-section">
         <legend>String parameters</legend>
@@ -1579,12 +1738,37 @@ function WorkflowRunFormBody({
               <RuntimeLabelPreview binding={defaultRuntimeConfig} />
             )}
           </div>
-          {runtimeLabels.length === 0 && !runtimeLabelInventory.isPending ? (
+          {runtimeLabels.length === 0 &&
+          retainedRuntimeLabels.length === 0 &&
+          !runtimeLabelInventory.isPending ? (
             <p className="compact-empty">
               No explicit Runtime labels are bound.
             </p>
           ) : (
             <div className="runtime-label-options">
+              {retainedRuntimeLabels.map((label) => (
+                <label
+                  className="runtime-label-option retained-selection"
+                  key={`retained:${label}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked
+                    onChange={() => {
+                      setSelectedRuntimeLabels((current) =>
+                        current.filter((candidate) => candidate !== label),
+                      );
+                      clearError("runtimeLabels");
+                    }}
+                  />
+                  <span>
+                    <strong>{label}</strong>
+                    <small>
+                      Retained label · current binding unavailable or not loaded
+                    </small>
+                  </span>
+                </label>
+              ))}
               {runtimeLabels.map((binding) => (
                 <label className="runtime-label-option" key={binding.label}>
                   <input
@@ -1721,6 +1905,40 @@ function WorkflowRunFormBody({
               }
             />
           </div>
+          {stageOverrideCount === 0 ? null : (
+            <section
+              className="retained-stage-overrides"
+              aria-labelledby="retained-stage-overrides-title"
+            >
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Retained exact patch</p>
+                  <h4 id="retained-stage-overrides-title">
+                    Stage-specific overrides
+                  </h4>
+                </div>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() =>
+                    setOverrides((current) => {
+                      const next = { ...current };
+                      delete next.stages;
+                      return next;
+                    })
+                  }
+                >
+                  Remove all Stage overrides
+                </button>
+              </div>
+              <p className="muted-copy">
+                The current form cannot edit per-Stage selections. It preserves
+                the original request exactly or removes this patch as one
+                explicit action.
+              </p>
+              <pre>{JSON.stringify(overrides.stages, null, 2)}</pre>
+            </section>
+          )}
           <div className="load-more-row">
             {modelPolicyInventory.hasNextPage ? (
               <button
@@ -1794,6 +2012,7 @@ function WorkflowRunFormBody({
             type="submit"
             disabled={
               mutation.isPending ||
+              repeatReviewPending ||
               (Object.keys(workflow.inputs).length > 0 &&
                 artifactInventory.isPending)
             }

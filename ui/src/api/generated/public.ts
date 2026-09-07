@@ -851,6 +851,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/repeat-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Project a terminal Run into a reviewed new-Run draft
+         * @description Reads immutable Run request provenance without creating or changing a Run. Original UserScope or ProjectScope revisions are returned only after owner and source-scope verification; frozen RunScope inputs are never presented as reusable sources. Audit-managed Runs return their owning Audit context without a draft. Historical requests that predate executionConfig retention remain explicitly unavailable instead of inheriting current defaults silently.
+         */
+        get: operations["getRunRepeatDraft"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{runId}/resume": {
         parameters: {
             query?: never;
@@ -2959,6 +2981,49 @@ export interface components {
             startedAt?: string;
             /** Format: date-time */
             finishedAt?: string;
+        };
+        RunRepeatDraftNotice: {
+            code: string;
+            /** @enum {unknown} */
+            severity: "warning" | "blocking";
+            field?: string;
+            message: string;
+        };
+        RunRepeatExecutionConfig: {
+            /** @enum {unknown} */
+            status: "available" | "unavailable";
+            value?: components["schemas"]["ExecutionConfigPatch"];
+        };
+        RunRepeatInput: {
+            /** @enum {unknown} */
+            status: "available" | "unavailable";
+            /** @enum {unknown} */
+            sourceScope?: "user" | "project";
+            artifact?: components["schemas"]["ExactArtifactRef"];
+            metadata?: components["schemas"]["ArtifactMetadata"];
+            code?: string;
+            message?: string;
+        };
+        RunRepeatDraft: {
+            parameters: {
+                [key: string]: string;
+            };
+            runtimeLabels: components["schemas"]["ConfigId"][];
+            labels: components["schemas"]["RunMetadataLabels"];
+            executionConfig: components["schemas"]["RunRepeatExecutionConfig"];
+            inputs: {
+                [key: string]: components["schemas"]["RunRepeatInput"];
+            };
+        };
+        RunRepeatDraftResponse: {
+            sourceRunId: components["schemas"]["ResourceId"];
+            /** @enum {unknown} */
+            authority: "ordinary" | "audit-managed";
+            workflow: components["schemas"]["WorkflowRef"];
+            projectId?: components["schemas"]["ResourceId"];
+            auditId?: components["schemas"]["ResourceId"];
+            draft?: components["schemas"]["RunRepeatDraft"];
+            notices: components["schemas"]["RunRepeatDraftNotice"][];
         };
         RunSummary: {
             runId: components["schemas"]["ResourceId"];
@@ -6023,6 +6088,35 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getRunRepeatDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sanitized repeat context and any required reviews */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunRepeatDraftResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];

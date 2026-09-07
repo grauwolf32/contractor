@@ -116,6 +116,13 @@ describe("Run triage", () => {
         errorCount: 3,
         incomplete: true,
       },
+      guidance: {
+        kind: "gateway-configuration",
+        title: "Review the selected model infrastructure",
+        message:
+          "Inspect the failed attempt first. An operator can then verify the referenced Gateway, ModelPolicy and credential before you configure a new Run.",
+        operationsPath: "/operations/configurations",
+      },
     });
   });
 
@@ -158,5 +165,68 @@ describe("Run triage", () => {
     expect(formatRunDuration(34_000)).toBe("34s");
     expect(formatRunDuration(254_000)).toBe("4m 14s");
     expect(formatRunDuration(7_440_000)).toBe("2h 4m");
+  });
+
+  it("distinguishes an active configured retry from a manual new Run", () => {
+    const source = attempt("stage-1", "analysis", 1);
+    source.state = "interrupted";
+    const retry = attempt("stage-2", "analysis", 2);
+    retry.previousExecutionId = source.stageExecutionId;
+    retry.state = "preparing";
+    const run = runFixture();
+    run.attempts = [source, retry];
+    run.activeStageExecutionId = retry.stageExecutionId;
+    run.transitions = [
+      {
+        sourceExecutionId: source.stageExecutionId,
+        action: "retry",
+        targetStage: "analysis",
+        targetExecutionId: retry.stageExecutionId,
+        escalationExhausted: false,
+        decidedAt: "2026-09-02T10:00:14Z",
+      },
+    ];
+
+    expect(deriveRunTriage(run).guidance).toMatchObject({
+      kind: "scheduled-retry",
+      title: "Scheduler retry is already active",
+    });
+  });
+
+  it("describes preparation as a bounded placement wait without inferring capacity", () => {
+    const run = runFixture();
+    run.attempts = [attempt("stage-1", "analysis", 1)];
+    run.attempts[0]!.state = "preparing";
+    run.activeStageExecutionId = "stage-1";
+    expect(deriveRunTriage(run).guidance).toEqual({
+      kind: "placement-wait",
+      title: "Scheduler is preparing placement",
+      message:
+        "The Run may be resolving configuration or waiting for a compatible Runtime slot. This snapshot does not prove a capacity shortage or promise a start time.",
+      operationsPath: "/operations/runtime-agents",
+    });
+  });
+
+  it("does not infer an operator action from an unknown lookalike code", () => {
+    const run = runFixture();
+    run.state = "failed";
+    delete run.activeStageExecutionId;
+    run.attempts = [attempt("stage-1", "analysis", 1)];
+    run.attempts[0]!.state = "failed";
+    run.attempts[0]!.termination = {
+      outcome: "interrupted",
+      code: "unverified_credential_probe",
+      message: "An unknown component reported a credential-like code.",
+      retryable: false,
+      phase: "running",
+      occurredAt: "2026-09-02T10:00:14Z",
+    };
+
+    const guidance = deriveRunTriage(run).guidance;
+    expect(guidance).toMatchObject({
+      kind: "manual-repeat",
+      title: "A new Run is a separate decision",
+    });
+    expect(guidance).not.toHaveProperty("operationsPath");
   });
 });

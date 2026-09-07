@@ -1143,7 +1143,7 @@ func TestCreateRunResponseLossRetryReturnsExistingRun(t *testing.T) {
 		retryResponse.Body.String() != firstResponse.Body.String() {
 		t.Fatalf("retry create = %d headers=%v body=%s", retryResponse.Code, retryResponse.Header(), retryResponse.Body.String())
 	}
-	if len(fixture.runs.runs) != 1 || fixture.notifier.calls != 1 || fixture.repository.writes != 1 {
+	if len(fixture.runs.runs) != 1 || fixture.notifier.calls != 1 || fixture.repository.writes != 2 {
 		t.Fatalf("retry side effects = runs:%d wakes:%d artifact writes:%d",
 			len(fixture.runs.runs), fixture.notifier.calls, fixture.repository.writes)
 	}
@@ -1328,7 +1328,7 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 	)
 	conflictResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(conflictResponse, conflict)
-	if conflictResponse.Code != http.StatusConflict || len(fixture.runs.runs) != 1 || fixture.repository.writes != 1 {
+	if conflictResponse.Code != http.StatusConflict || len(fixture.runs.runs) != 1 || fixture.repository.writes != 2 {
 		t.Fatalf(
 			"selector conflict = status:%d runs:%d writes:%d body:%s",
 			conflictResponse.Code, len(fixture.runs.runs), fixture.repository.writes,

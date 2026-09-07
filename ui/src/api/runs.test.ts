@@ -7,6 +7,7 @@ import {
   deleteRun,
   downloadRunArtifact,
   getRun,
+  getRunRepeatDraft,
   getRunArtifactLineage,
   getRunArtifactMetadata,
   listRunArtifacts,
@@ -233,5 +234,78 @@ describe("Run API", () => {
       "http://127.0.0.1:8080/v1/runs/run-1/artifacts/outputs/result?revision=r2",
     );
     expect(await downloaded.blob.text()).toBe("ok");
+  });
+
+  it("reads and validates the owner-only repeat draft projection", async () => {
+    const requests: Request[] = [];
+    const exact = {
+      namespace: "sources",
+      name: "service",
+      revision: "source-r1",
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        requests.push(request);
+        return response({
+          sourceRunId: "run-1",
+          authority: "ordinary",
+          workflow: { name: "inspect", version: "1" },
+          notices: [],
+          draft: {
+            parameters: { objective: "inspect" },
+            runtimeLabels: ["debug"],
+            labels: {},
+            executionConfig: { status: "available", value: {} },
+            inputs: {
+              source: {
+                status: "available",
+                sourceScope: "user",
+                artifact: exact,
+                metadata: {
+                  artifact: exact,
+                  mediaType: "application/zip",
+                  size: 3,
+                  current: false,
+                  frozen: false,
+                  createdAt: "2026-09-07T10:00:00Z",
+                },
+              },
+            },
+          },
+        });
+      }),
+    );
+
+    await expect(getRunRepeatDraft(api, "run-1")).resolves.toMatchObject({
+      sourceRunId: "run-1",
+      draft: { runtimeLabels: ["debug"] },
+    });
+    expect(requests[0]?.url).toBe(
+      "http://127.0.0.1:8080/v1/runs/run-1/repeat-draft",
+    );
+
+    const invalid = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response({
+          sourceRunId: "run-1",
+          authority: "ordinary",
+          workflow: { name: "inspect", version: "1" },
+          notices: [],
+          draft: {
+            parameters: {},
+            runtimeLabels: ["debug", "debug"],
+            labels: {},
+            executionConfig: { status: "unavailable" },
+            inputs: {},
+          },
+        }),
+      ),
+    );
+    await expect(getRunRepeatDraft(invalid, "run-1")).rejects.toMatchObject({
+      code: "invalid_api_response",
+    });
   });
 });

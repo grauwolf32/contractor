@@ -8,6 +8,11 @@ const (
 	AuditManagedProjectNamespacePrefix = "audit-"
 	AuditStandardCatalogNamespace      = "audit-standards"
 	FindingProposalNamespace           = "finding-proposals"
+	// RunSystemNamespace is owned by trusted Control Plane services. Its
+	// bindings are not part of the Worker or owner-facing Artifact library.
+	RunSystemNamespace        = "contractor-system"
+	RunRepeatRequestName      = "repeat-request"
+	RunRepeatRequestMediaType = "application/vnd.contractor.run-repeat-request+json"
 )
 
 func IsAuditManagedProjectNamespace(namespace string) bool {
@@ -22,11 +27,15 @@ func IsAuditStandardCatalogNamespace(namespace string) bool {
 // trusted purpose-specific flow rather than by a Stage Agent binding.
 func IsPurposeReservedNamespace(namespace string) bool {
 	switch namespace {
-	case "inputs", "outputs", "skills", FindingProposalNamespace:
+	case "inputs", "outputs", "skills", FindingProposalNamespace, RunSystemNamespace:
 		return true
 	default:
 		return false
 	}
+}
+
+func IsRunSystemNamespace(namespace string) bool {
+	return namespace == RunSystemNamespace
 }
 
 // IsReservedMemoryBinding reports whether a RunScope binding belongs only to
