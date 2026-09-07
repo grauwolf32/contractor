@@ -388,6 +388,11 @@ milestones:
       logical Workers through explicitly selected bounded Run-scoped notes over
       the existing ArtifactStore, with hidden revisions, safe response-loss
       reconciliation, exact routing schemas and content-free telemetry.
+  - id: runtime-otlp-delivery
+    exit_task: V51-001
+    outcome: >-
+      Runtime OTLP retries classify failures, respect Retry-After and shared
+      deadlines, and report bounded counters for discarded spans.
   - id: operational-timeout-configuration
     exit_task: V49-001
     outcome: >-
@@ -2632,3 +2637,4 @@ tasks:
   - {id: V48-003, file: v48-003-memory-empty-tags-parity.yml}
   - {id: V48-004, file: v48-004-production-memory-selection.yml}
   - {id: V49-001, file: v49-001-operational-timeout-configuration.yml}
+  - {id: V51-001, file: v51-001-runtime-otlp-retries.yml}

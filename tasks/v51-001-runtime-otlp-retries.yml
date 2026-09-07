@@ -1,0 +1,45 @@
+schema_version: "1.0"
+id: V51-001
+title: Bound Runtime OTLP retries and expose discarded-span diagnostics
+milestone: runtime-otlp-delivery
+priority: P2
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python, go, json, markdown]
+goal: >-
+  Make Worker OTLP delivery honor retryability, collector throttling and one
+  bounded delivery deadline while retaining exact payload identity and recording
+  discarded spans without affecting semantic results or allocation cleanup.
+context:
+  authority: User explicitly accepted implementing OTLP retry and diagnostic improvements.
+  specification: https://opentelemetry.io/docs/specs/otlp/
+  parallel_work: Preserve the concurrent V50 private-contract consolidation and its uncommitted files.
+scope:
+  in:
+    - Retry transient transport failures and HTTP 429/502/503/504 only; do not retry partial success or malformed/oversized acknowledgements.
+    - Parse bounded Retry-After seconds and HTTP dates; otherwise use configurable exponential backoff with jitter.
+    - Bound batch attempts and waits by one absolute deadline and final draining by its enclosing lifecycle deadline; cancel without replaying or releasing ownership early.
+    - Keep the same encoded batch and span IDs during retries and preserve spans appended while delivery is in flight.
+    - Expose saturating discarded-span counters in the Python and Go Runtime report contracts and schemas, including queue overflow, collector rejection, terminal delivery failure, expiry/cancellation and close.
+    - Keep legacy immutable RuntimeConfig digests intact while adding optional typed retry settings.
+    - Document counter semantics, defaults, retry behavior and targeted regression checks.
+  out:
+    - Change Planner exporter behavior, introduce persistent queues, periodic export, new adapters, deployment or automatic service restart.
+    - Add provider response bodies, endpoint URLs, credentials or captured content to diagnostics.
+acceptance_criteria:
+  - id: A1
+    text: Retry classification and both Retry-After formats are verified through actual exporter requests; permanent failures and partial success never replay a batch.
+  - id: A2
+    text: Backoff, HTTP attempts and final drain respect shared deadlines; cancellation, queue capacity and single-sender ownership remain bounded.
+  - id: A3
+    text: Every discarded queued span is counted once by its disposition; collector partial rejection counts only rejected spans; diagnostics validate and survive close through the Runtime report.
+  - id: A4
+    text: Optional retry settings propagate from RuntimeConfig to the exporter without rewriting stored configurations; unrelated concurrent edits remain uncommitted by this task.
+tests:
+  - command: cd runtime && uv run pytest -W error tests/test_otlp_adapter.py tests/test_otlp_streaming.py tests/test_otlp_retries.py tests/test_adapter_host.py tests/test_telemetry_content.py tests/test_contracts.py tests/test_allocation.py
+    covers: [A1, A2, A3, A4]
+  - command: go test -race -count=1 ./internal/contracts ./internal/runtimeconfig ./internal/controlplane ./internal/telemetry
+    covers: [A3, A4]
+  - command: git diff --check
+    covers: [A4]
