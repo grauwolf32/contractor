@@ -2647,3 +2647,4 @@ tasks:
   - {id: V52-002, file: v52-002-xbow-runtime-target-preflight.yml}
   - {id: V52-003, file: v52-003-local-model-gpu-watchdog.yml}
   - {id: V53-001, file: v53-001-large-source-audit-completion.yml}
+  - {id: V53-002, file: v53-002-local-worker-reasoning-output-limit.yml}

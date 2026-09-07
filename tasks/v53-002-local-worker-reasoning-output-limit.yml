@@ -1,0 +1,64 @@
+schema_version: "1.0"
+id: V53-002
+title: Diagnose local Worker reasoning-only output-limit failures
+milestone: real-project-audit-stability
+priority: P1
+status: pending
+depends_on: []
+languages: [python, yaml, markdown]
+goal: >-
+  Establish a bounded local Worker configuration that reaches a semantic result
+  after useful tool work, without accepting truncated output as success.
+context:
+  authority: >-
+    User requested watching the execution queue, investigating failed Runs,
+    creating tasks and correcting demonstrated serious bugs.
+  incident:
+    run_id: run_e2087df7da1f3f4d1dbdff02d8c1a513
+    workflow: security-analysis@2
+    model_policy: worker@2
+    gateway: local-litellm@1
+    upstream_model: qwen/qwen3.8-27b
+    error: worker_output_limit_exceeded
+    observed_model_calls: 17
+    observed_tool_calls: 25
+    observed_total_tokens: 275336
+    per_response_output_limit: 16384
+    worker_trace_id: e5bfe0d6aba0933ac3c9b32e2309c0e4
+    terminal_generation_id: c4e277e7c51f0edf
+  evidence: >-
+    The production Caido and HTTP tools succeeded after the V52 fixes.
+    Langfuse's terminal model observation contains a single thought part
+    (61282 characters), no semantic text or tool call, and the typed
+    OutputTokenLimitExceeded error. Runtime correctly rejected that incomplete
+    response. The safe content-free summary is retained in
+    .local/demo/nextcloud-audits-20260908/xbow-output-limit-summary.json.
+  related_incidents:
+    - >-
+      Nextcloud ASVS run_f9a560a9631e77cb0dd079ac9ae4af8a and
+      run_0e87ed8b61355b8ea98e4515c3ba01a1 also hit the per-response output
+      limit. Their original closures did not enable model-content capture;
+      reasoning-only output is not inferred for those Runs without evidence.
+  related_tasks: [V53-001, V52-001, V52-002, V52-003]
+scope:
+  in:
+    - Reproduce the terminal reasoning-only limit with a bounded diagnostic execution.
+    - Compare versioned stopping instructions or supported model reasoning controls while retaining the original baseline.
+    - Verify canonical result publication and report remaining limitations of the local model.
+  out:
+    - Raise shared output or token budgets without a demonstrated need.
+    - Execute truncated tool calls, expose private model reasoning, or use partial output as a successful result.
+    - Change active Run closures, benchmark flags, scoring, target truth, or unrelated provider settings.
+acceptance_criteria:
+  - id: A1
+    text: The failure is reproduced or diagnosed from exact provider observations without retaining reasoning text in the task.
+  - id: A2
+    text: A proposed correction has appropriate configuration or Runtime contract checks and is isolated from the original baseline.
+  - id: A3
+    text: A bounded fresh execution reaches its required semantic result, or records a precise remaining model limitation.
+tests:
+  - command: git diff --check
+    covers: [A1]
+verification:
+  - A1 is supported by the exact terminal Langfuse observation and the Run failure classification.
+  - A2 and A3 require the selected experiment and its focused checks before this task can be completed.

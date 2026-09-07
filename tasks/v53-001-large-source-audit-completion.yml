@@ -72,6 +72,12 @@ context:
       observed_model_calls: 13
       observed_tool_calls: 25
       observed_total_tokens: 374865
+    - run_id: run_0e87ed8b61355b8ea98e4515c3ba01a1
+      workflow: audit-asvs-source-verification@3
+      error: worker_output_limit_exceeded
+      observed_model_calls: 13
+      observed_tool_calls: 25
+      observed_total_tokens: 214935
   diagnostic_results:
     - >-
       Rebuilt the graph from the exact Nextcloud ZIP locally: 4877 analyzed
