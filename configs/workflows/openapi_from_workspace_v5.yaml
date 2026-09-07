@@ -35,7 +35,7 @@ spec:
 
   executionConfig:
     workers:
-      modelPolicy: domain_worker@2
+      modelPolicy: worker@2
       llmGateway: local-litellm@1
       credential: development-worker
 
@@ -282,10 +282,8 @@ spec:
         succeeded:
           succeed: {}
         failed:
-          escalate:
-            maxAttempts: 1
-            executionConfig:
-              ref: strong-oas-review@1
+          retry:
+            maxAttempts: 2
             then:
               fail: {}
         interrupted:

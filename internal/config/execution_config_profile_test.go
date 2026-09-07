@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/configtest"
 )
 
 const openAPIValidationEscalationYAML = `        failed:
@@ -19,7 +21,7 @@ const openAPIValidationEscalationYAML = `        failed:
 func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyEscalationConfigTree(t), MVPDescriptors())
 	profile, err := snapshot.ExecutionConfig("strong-oas-review@1")
 	if err != nil {
 		t.Fatal(err)
@@ -27,7 +29,7 @@ func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 	assertDigest(t, profile.Ref.Digest)
 	validatorOverride, ok := profile.Override.Agents["validator"]
 	if !ok || validatorOverride.ModelPolicy == nil ||
-		validatorOverride.ModelPolicy.Ref.PolicyID != "strong_domain_worker" {
+		validatorOverride.ModelPolicy.Ref.PolicyID != "test-strong-worker" {
 		t.Fatalf("resolved profile = %+v", profile)
 	}
 
@@ -40,7 +42,7 @@ func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 	patch := decodeExecutionConfigPatch(t, `{
   "stages": {
     "openapi_validate": {
-      "agents": {"validator": {"modelPolicy": "worker@1"}}
+      "agents": {"validator": {"modelPolicy": "test-worker@1"}}
     }
   }
 }`)
@@ -51,11 +53,11 @@ func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage := runWorkflow.Stages["openapi_validate"]
-	if got := stage.ExecutionConfig.Agents["validator"].ModelPolicy.Ref.PolicyID; got != "worker" {
+	if got := stage.ExecutionConfig.Agents["validator"].ModelPolicy.Ref.PolicyID; got != "test-worker" {
 		t.Fatalf("Run base validator policy = %q, want worker", got)
 	}
-	if got := stage.On.Failed.Escalate.ExecutionConfig.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID; got != "strong_domain_worker" {
-		t.Fatalf("Run escalation policy = %q, want strong_domain_worker", got)
+	if got := stage.On.Failed.Escalate.ExecutionConfig.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID; got != "test-strong-worker" {
+		t.Fatalf("Run escalation policy = %q, want test-strong-worker", got)
 	}
 	if got := stage.On.Failed.Escalate.ExecutionConfig.Effective.Agents["validator"].Origins.ModelPolicy; got != "executionConfig.strong-oas-review@1.agents.validator" {
 		t.Fatalf("Run escalation origin = %q", got)
@@ -70,7 +72,7 @@ func TestExecutionConfigProfilePinsResolvedStageVariant(t *testing.T) {
 }
 
 func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyEscalationConfigTree(t)
 	first := mustLoad(t, root, MVPDescriptors())
 	stored, err := first.ResolveRunWorkflow(
 		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, first),
@@ -81,7 +83,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 	oldDigest := stored.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig.Ref.Digest
 
 	profilePath := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
-	replaceFile(t, profilePath, "modelPolicy: strong_domain_worker@1", "modelPolicy: domain_worker@1")
+	replaceFile(t, profilePath, "modelPolicy: test-strong-worker@1", "modelPolicy: test-domain-worker@1")
 	second := mustLoad(t, root, MVPDescriptors())
 	newWorkflow, err := second.ResolveRunWorkflow(
 		t.Context(), "openapi-from-workspace@5", ExecutionConfigPatch{}, developmentCredentialLookup(t, second),
@@ -93,7 +95,7 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 	if oldDigest == newVariant.Ref.Digest {
 		t.Fatal("semantic profile change did not alter its digest")
 	}
-	if got := newVariant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID; got != "domain_worker" {
+	if got := newVariant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID; got != "test-domain-worker" {
 		t.Fatalf("new variant policy = %q", got)
 	}
 
@@ -109,17 +111,17 @@ func TestExecutionConfigProfileAndRunSnapshotSurviveCatalogChange(t *testing.T) 
 }
 
 func TestExecutionConfigDigestNormalizesPresentation(t *testing.T) {
-	baselineRoot := copyConfigTree(t)
+	baselineRoot := copyEscalationConfigTree(t)
 	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
 	baselineProfile, _ := baseline.ExecutionConfig("strong-oas-review@1")
 
-	variantRoot := copyConfigTree(t)
+	variantRoot := copyEscalationConfigTree(t)
 	writeFile(t, filepath.Join(variantRoot, "execution-configs/strong_oas_review.yaml"), []byte(`kind: ExecutionConfig
 apiVersion: contractor/v1alpha1
 metadata: {version: '1', name: strong-oas-review}
 spec:
   agents:
-    validator: {modelPolicy: 'strong_domain_worker@1'}
+    validator: {modelPolicy: 'test-strong-worker@1'}
 `))
 	variant := mustLoad(t, variantRoot, MVPDescriptors())
 	variantProfile, _ := variant.ExecutionConfig("strong-oas-review@1")
@@ -129,12 +131,12 @@ spec:
 }
 
 func TestExecutionConfigProfileSupportsCredentialClear(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyEscalationConfigTree(t)
 	profilePath := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
 	replaceFile(
 		t, profilePath,
-		"      modelPolicy: strong_domain_worker@1",
-		"      modelPolicy: strong_domain_worker@1\n      credential: null",
+		"      modelPolicy: test-strong-worker@1",
+		"      modelPolicy: test-strong-worker@1\n      credential: null",
 	)
 	snapshot := mustLoad(t, root, MVPDescriptors())
 	profile, _ := snapshot.ExecutionConfig("strong-oas-review@1")
@@ -145,11 +147,11 @@ func TestExecutionConfigProfileSupportsCredentialClear(t *testing.T) {
 }
 
 func TestInlineEscalationResolvesWithoutProfileRef(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyEscalationConfigTree(t)
 	inline := strings.Replace(
 		openAPIValidationEscalationYAML,
 		"            executionConfig:\n              ref: strong-oas-review@1",
-		"            executionConfig:\n              agents:\n                validator: {modelPolicy: worker@1}", 1,
+		"            executionConfig:\n              agents:\n                validator: {modelPolicy: test-worker@1}", 1,
 	)
 	replaceEscalation(t, root, inline)
 	snapshot := mustLoad(t, root, MVPDescriptors())
@@ -160,7 +162,7 @@ func TestInlineEscalationResolvesWithoutProfileRef(t *testing.T) {
 		t.Fatal(err)
 	}
 	variant := workflow.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig
-	if variant.Ref != nil || variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "worker" {
+	if variant.Ref != nil || variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-worker" {
 		t.Fatalf("inline variant = %+v", variant)
 	}
 	if got := variant.Effective.Agents["validator"].Origins.ModelPolicy; got !=
@@ -170,12 +172,12 @@ func TestInlineEscalationResolvesWithoutProfileRef(t *testing.T) {
 }
 
 func TestRunCreationValidatesCredentialsInEveryEscalationVariant(t *testing.T) {
-	root := copyConfigTree(t)
+	root := copyEscalationConfigTree(t)
 	profilePath := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
 	replaceFile(
 		t, profilePath,
-		"      modelPolicy: strong_domain_worker@1",
-		"      modelPolicy: strong_domain_worker@1\n      credential: escalation-credential",
+		"      modelPolicy: test-strong-worker@1",
+		"      modelPolicy: test-strong-worker@1\n      credential: escalation-credential",
 	)
 	snapshot := mustLoad(t, root, MVPDescriptors())
 	lookup := developmentCredentialLookup(t, snapshot)
@@ -207,7 +209,7 @@ func TestExecutionConfigEscalationRejectsInvalidShapesAndConsumers(t *testing.T)
 				replaceEscalation(t, root, strings.Replace(
 					openAPIValidationEscalationYAML,
 					"              ref: strong-oas-review@1",
-					"              ref: strong-oas-review@1\n              agents:\n                validator: {modelPolicy: domain_worker@1}", 1,
+					"              ref: strong-oas-review@1\n              agents:\n                validator: {modelPolicy: test-domain-worker@1}", 1,
 				))
 			},
 			want: "exactly ref or inline planner/agents",
@@ -268,7 +270,7 @@ spec:
 			name: "empty selection leaf",
 			mutate: func(t *testing.T, root string) {
 				path := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
-				replaceFile(t, path, "      modelPolicy: strong_domain_worker@1", "      {}")
+				replaceFile(t, path, "      modelPolicy: test-strong-worker@1", "      {}")
 			},
 			want: "must select at least one field",
 		},
@@ -276,7 +278,7 @@ spec:
 			name: "unknown model policy",
 			mutate: func(t *testing.T, root string) {
 				path := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
-				replaceFile(t, path, "strong_domain_worker@1", "absent@1")
+				replaceFile(t, path, "test-strong-worker@1", "absent@1")
 			},
 			want: "unknown ModelPolicy",
 		},
@@ -284,7 +286,7 @@ spec:
 			name: "incompatible Worker policy",
 			mutate: func(t *testing.T, root string) {
 				path := filepath.Join(root, "execution-configs/strong_oas_review.yaml")
-				replaceFile(t, path, "strong_domain_worker@1", "planner@1")
+				replaceFile(t, path, "test-strong-worker@1", "test-planner@1")
 			},
 			want: "tool-using Worker modelPolicy requires maxToolCalls",
 		},
@@ -294,7 +296,7 @@ spec:
 				inline := strings.Replace(
 					openAPIValidationEscalationYAML,
 					"            executionConfig:\n              ref: strong-oas-review@1",
-					"            executionConfig:\n              planner: {modelPolicy: planner@1}", 1,
+					"            executionConfig:\n              planner: {modelPolicy: test-planner@1}", 1,
 				)
 				replaceEscalation(t, root, inline)
 			},
@@ -321,7 +323,7 @@ spec:
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := copyConfigTree(t)
+			root := copyEscalationConfigTree(t)
 			test.mutate(t, root)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
@@ -334,7 +336,7 @@ spec:
 func TestValidateWorkflowGraphRejectsTamperedEscalationVariant(t *testing.T) {
 	t.Parallel()
 
-	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	snapshot := mustLoad(t, copyEscalationConfigTree(t), MVPDescriptors())
 	workflow, err := snapshot.Workflow("openapi-from-workspace@5")
 	if err != nil {
 		t.Fatal(err)
@@ -367,8 +369,13 @@ func assertPinnedStrongValidationVariant(t *testing.T, workflow ResolvedWorkflow
 		t.Fatalf("pinned ExecutionConfig ref = %+v", variant.Ref)
 	}
 	selection := variant.Effective.Agents["validator"]
-	if selection.ModelPolicy.Ref.PolicyID != "strong_domain_worker" ||
+	if selection.ModelPolicy.Ref.PolicyID != "test-strong-worker" ||
 		selection.ModelPolicy.Model != "worker-strong-model" {
 		t.Fatalf("pinned effective validator = %+v", selection)
 	}
+}
+
+func copyEscalationConfigTree(t *testing.T) string {
+	t.Helper()
+	return configtest.CopyWithEscalation(t, "../../testdata/configs")
 }

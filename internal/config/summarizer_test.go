@@ -9,6 +9,41 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
+func TestRepositoryOrdinaryWorkersUseTerminalSummarizer(t *testing.T) {
+	t.Parallel()
+	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	policy, err := snapshot.ModelPolicy("summarizer@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := policy.ValidateForWorkerSummarizer(); err != nil {
+		t.Fatal(err)
+	}
+	if policy.Model != "worker-model" || policy.ContextWindowTokens != 118000 || policy.MaxOutputTokens != 8192 {
+		t.Fatalf("terminal summarizer policy = %+v", policy)
+	}
+	enabled, audit := 0, 0
+	for name, template := range snapshot.templates {
+		if strings.HasPrefix(name, "audit_") {
+			audit++
+			if template.Summarizer != nil {
+				t.Fatalf("Audit Worker %s must complete through audit-results tools", name)
+			}
+			continue
+		}
+		enabled++
+		if template.Summarizer == nil || template.Summarizer.ModelPolicy.Ref != policy.Ref ||
+			template.Summarizer.Instructions == nil || template.Summarizer.Instructions.Ref != "instructions/terminal-summarizer.md" ||
+			template.Summarizer.ContextWindowRatio != 0.8 || template.Summarizer.CumulativeBudget != nil ||
+			template.ModelPolicy.ContextWindowTokens != 118000 {
+			t.Fatalf("Worker %s summarizer configuration = %+v", name, template.Summarizer)
+		}
+	}
+	if enabled != 30 || audit != 11 {
+		t.Fatalf("summarized/audit Workers = %d/%d, want 30/11", enabled, audit)
+	}
+}
+
 func TestWorkerSummarizerGoldenDigestMatchesGoCanonicalization(t *testing.T) {
 	t.Parallel()
 
@@ -117,7 +152,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 	installWorkerSummarizer(t, baselineRoot)
 	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
-	baselineWorker, _ := baseline.ModelPolicy("worker@1")
+	baselineWorker, _ := baseline.ModelPolicy("test-worker@1")
 	baselineSummary, _ := baseline.ModelPolicy("terminal_summarizer@1")
 
 	thresholdRoot := copyConfigTree(t)
@@ -145,7 +180,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 	policyVariant := mustLoad(t, policyRoot, MVPDescriptors())
 	policyTemplate, _ := policyVariant.AgentTemplate("artifact_builder@1")
 	policySummary, _ := policyVariant.ModelPolicy("terminal_summarizer@1")
-	policyWorker, _ := policyVariant.ModelPolicy("worker@1")
+	policyWorker, _ := policyVariant.ModelPolicy("test-worker@1")
 	if policySummary.Ref.Digest == baselineSummary.Ref.Digest ||
 		policyTemplate.Ref.Digest == baselineTemplate.Ref.Digest {
 		t.Fatal("resolved summarizer policy change did not alter both policy and template digests")
@@ -158,7 +193,7 @@ func TestWorkerSummarizerDigestCoversExactPolicyAndThresholds(t *testing.T) {
 	writeWorkerSummarizerPolicy(t, omittedRoot)
 	omitted := mustLoad(t, omittedRoot, MVPDescriptors())
 	omittedTemplate, _ := omitted.AgentTemplate("artifact_builder@1")
-	original := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	original := mustLoad(t, copyConfigTree(t), MVPDescriptors())
 	originalTemplate, _ := original.AgentTemplate("artifact_builder@1")
 	if omittedTemplate.Summarizer != nil || omittedTemplate.Ref.Digest != originalTemplate.Ref.Digest {
 		t.Fatalf("unreferenced summarizer changed omitted template: %+v", omittedTemplate.Summarizer)
@@ -297,9 +332,9 @@ func TestWorkerSummarizerRejectsEffectiveRunPolicyBelowSoftThreshold(t *testing.
 
 	root := copyConfigTree(t)
 	installWorkerSummarizer(t, root)
-	writeFile(t, filepath.Join(root, "model-policies/low_worker.yaml"), []byte(lowWorkerPolicyYAML))
+	writeFile(t, filepath.Join(root, "model-policies/test-low-worker.yaml"), []byte(lowWorkerPolicyYAML))
 	snapshot := mustLoad(t, root, MVPDescriptors())
-	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"low_worker@1"}}`)
+	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-low-worker@1"}}`)
 	resolved, err := snapshot.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", patch, developmentCredentialLookup(t, snapshot),
 	)
@@ -332,8 +367,8 @@ func installWorkerSummarizer(t *testing.T, root string) {
 	)
 	replaceFile(
 		t, templatePath(root),
-		"  modelPolicy: worker@1\n  toolsets:",
-		"  modelPolicy: worker@1\n"+workerSummarizerBlock+"  toolsets:",
+		"  modelPolicy: test-worker@1\n  toolsets:",
+		"  modelPolicy: test-worker@1\n"+workerSummarizerBlock+"  toolsets:",
 	)
 }
 
@@ -351,7 +386,7 @@ func summaryPolicyPath(root string) string {
 }
 
 func workerPolicyPath(root string) string {
-	return filepath.Join(root, "model-policies/worker.yaml")
+	return filepath.Join(root, "model-policies/test-worker.yaml")
 }
 
 const workerSummarizerBlock = `  summarizer:
@@ -376,7 +411,7 @@ spec:
 const lowWorkerPolicyYAML = `apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 metadata:
-  name: low_worker
+  name: test-low-worker
   version: "1"
 spec:
   model: worker-model

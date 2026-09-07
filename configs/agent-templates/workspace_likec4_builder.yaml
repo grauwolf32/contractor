@@ -10,7 +10,12 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/workspace-likec4-builder-worker.md
-  modelPolicy: domain_worker@1
+  modelPolicy: worker@2
+  summarizer:
+    instructions:
+      ref: instructions/terminal-summarizer.md
+    modelPolicy: summarizer@1
+    contextWindowRatio: 0.8
   toolsets:
     - ref: filesystem@1
       tools: [ls, glob, read_file, grep]

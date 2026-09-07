@@ -3,12 +3,13 @@ kind: ModelPolicy
 
 metadata:
   name: planner
-  version: "1"
+  version: "2"
 
 spec:
   model: planner-model
-  maxOutputTokens: 4096
-  maxModelCalls: 16
-  maxWorkerCalls: 32
-  maxTotalTokens: 65536
+  contextWindowTokens: 118000
+  maxOutputTokens: 16384
+  maxModelCalls: 200
+  maxWorkerCalls: 200
+  maxTotalTokens: 2500000
   temperature: 0.1

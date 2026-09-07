@@ -8,4 +8,4 @@ metadata:
 spec:
   agents:
     validator:
-      modelPolicy: strong_domain_worker@1
+      modelPolicy: test-strong-worker@1

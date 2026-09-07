@@ -10,7 +10,12 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/likec4-validator-worker-v2-memory.md
-  modelPolicy: domain_worker@1
+  modelPolicy: worker@2
+  summarizer:
+    instructions:
+      ref: instructions/terminal-summarizer.md
+    modelPolicy: summarizer@1
+    contextWindowRatio: 0.8
   toolsets:
     - ref: memory-tools@1
       tools:

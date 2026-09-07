@@ -3,12 +3,13 @@ kind: ModelPolicy
 
 metadata:
   name: worker
-  version: "1"
+  version: "2"
 
 spec:
   model: worker-model
-  maxOutputTokens: 4096
-  maxModelCalls: 8
-  maxToolCalls: 16
-  maxTotalTokens: 32768
+  contextWindowTokens: 118000
+  maxOutputTokens: 16384
+  maxModelCalls: 200
+  maxToolCalls: 200
+  maxTotalTokens: 2500000
   temperature: 0.1

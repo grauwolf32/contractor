@@ -20,7 +20,7 @@ func TestRepositoryTraceAnnotationTemplateIsExactAndImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if template.Ref.Digest != "sha256:57fb3f1809d7a87272ab8de7b8a1281d0743a4bbd45f2ebf2446549b916a6563" ||
+	if template.Ref.Digest != "sha256:ffcec4a7b2f921e71def4e21b75c6837a2828c333d84a2da616b26c9c41429ff" ||
 		template.Instructions.Digest != "sha256:dda89b2bace334ce4cf08f99bb2a2ba428d62d61ad9f51ac78ee43b358f1f0bf" {
 		t.Fatalf(
 			"immutable trace template snapshot = template %s instructions %s",

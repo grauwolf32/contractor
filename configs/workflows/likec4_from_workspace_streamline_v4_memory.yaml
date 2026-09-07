@@ -35,11 +35,11 @@ spec:
 
   executionConfig:
     planner:
-      modelPolicy: project_planner@1
+      modelPolicy: planner@2
       llmGateway: local-litellm@1
       credential: development-planner
     workers:
-      modelPolicy: project_worker@1
+      modelPolicy: worker@2
       llmGateway: local-litellm@1
       credential: development-worker
 

@@ -2,7 +2,7 @@ apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 
 metadata:
-  name: strong_domain_worker
+  name: test-strong-worker
   version: "1"
 
 spec:

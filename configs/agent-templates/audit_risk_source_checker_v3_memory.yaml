@@ -10,7 +10,7 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/audit-risk-source-checker-worker-memory.md
-  modelPolicy: domain_worker@2
+  modelPolicy: worker@2
   toolsets:
     - ref: memory-tools@1
       tools:

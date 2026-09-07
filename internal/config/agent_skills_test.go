@@ -14,9 +14,9 @@ import (
 func TestAgentTemplateSkillsNormalizeAndPreserveEmptyDigest(t *testing.T) {
 	baseline := mustLoad(t, copyConfigTree(t), MVPDescriptors())
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
-	const preSkillDigest = "sha256:90f01f802ac41a79fc31b326f611e9d932c1323789e29e03eab97062a9e45b7f"
-	if baselineTemplate.Ref.Digest != preSkillDigest {
-		t.Fatalf("pre-Skill AgentTemplate digest changed: %s", baselineTemplate.Ref.Digest)
+	const fixtureWithoutSkillsDigest = "sha256:76879d45aef4c7b7900341ed7ff0b9de5ea9d7a41c6921d304a1c80a2bd2e9d0"
+	if baselineTemplate.Ref.Digest != fixtureWithoutSkillsDigest {
+		t.Fatalf("test fixture AgentTemplate digest changed: %s", baselineTemplate.Ref.Digest)
 	}
 
 	emptyRoot := copyConfigTree(t)
@@ -119,9 +119,9 @@ func TestAgentTemplateSkillsReserveNativeToolsAndRequireToolBudget(t *testing.T)
 
 	t.Run("Skill-only Worker", func(t *testing.T) {
 		root := copyConfigTree(t)
-		writeFile(t, filepath.Join(root, "model-policies/skill-worker.yaml"), []byte(`apiVersion: contractor/v1alpha1
+		writeFile(t, filepath.Join(root, "model-policies/test-skill-worker.yaml"), []byte(`apiVersion: contractor/v1alpha1
 kind: ModelPolicy
-metadata: {name: skill-worker, version: "1"}
+metadata: {name: test-skill-worker, version: "1"}
 spec:
   model: worker-model
   maxOutputTokens: 4096
@@ -129,7 +129,7 @@ spec:
   maxTotalTokens: 32768
 `))
 		path := filepath.Join(root, "agent-templates/artifact_builder.yaml")
-		replaceFile(t, path, "  modelPolicy: worker@1", "  modelPolicy: skill-worker@1")
+		replaceFile(t, path, "  modelPolicy: test-worker@1", "  modelPolicy: test-skill-worker@1")
 		replaceFile(t, path, `  toolsets:
     - ref: run-artifacts@1
       tools:

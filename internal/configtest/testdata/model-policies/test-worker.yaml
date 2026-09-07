@@ -2,13 +2,13 @@ apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 
 metadata:
-  name: local_project_worker
+  name: test-worker
   version: "1"
 
 spec:
   model: worker-model
-  maxOutputTokens: 32768
-  maxModelCalls: 128
-  maxToolCalls: 512
-  maxTotalTokens: 8000000
+  maxOutputTokens: 4096
+  maxModelCalls: 8
+  maxToolCalls: 16
+  maxTotalTokens: 32768
   temperature: 0.1

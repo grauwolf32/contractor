@@ -7,9 +7,9 @@ func TestSnapshotAccessorsReturnDeepCopies(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 
-	policy, _ := snapshot.ModelPolicy("worker@1")
+	policy, _ := snapshot.ModelPolicy("worker@2")
 	*policy.Temperature = 99
-	policyAgain, _ := snapshot.ModelPolicy("worker@1")
+	policyAgain, _ := snapshot.ModelPolicy("worker@2")
 	if policyAgain.Temperature == nil || *policyAgain.Temperature != 0.1 {
 		t.Fatalf("ModelPolicy mutation leaked into Snapshot: %+v", policyAgain)
 	}

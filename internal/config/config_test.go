@@ -1,13 +1,13 @@
 package config
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"go.yaml.in/yaml/v4"
 )
@@ -19,13 +19,27 @@ func TestLoadRepositoryConfig(t *testing.T) {
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
 
-	policy, err := snapshot.ModelPolicy("worker@1")
+	if got := snapshot.Counts().ModelPolicies; got != 4 {
+		t.Fatalf("default catalog ModelPolicies = %d, want planner, worker, terminal summarizer and Audit completion", got)
+	}
+	plannerPolicy, err := snapshot.ModelPolicy("planner@2")
+	if err != nil {
+		t.Fatalf("resolve Planner ModelPolicy: %v", err)
+	}
+	if plannerPolicy.ContextWindowTokens != 118000 || plannerPolicy.Model != "planner-model" || plannerPolicy.MaxOutputTokens != 16384 ||
+		plannerPolicy.MaxModelCalls != 200 || plannerPolicy.MaxWorkerCalls != 200 ||
+		plannerPolicy.MaxTotalTokens != 2500000 || plannerPolicy.MaxToolCalls != 0 ||
+		plannerPolicy.Temperature == nil || *plannerPolicy.Temperature != 0.1 {
+		t.Fatalf("unexpected Planner ModelPolicy: %+v", plannerPolicy)
+	}
+
+	policy, err := snapshot.ModelPolicy("worker@2")
 	if err != nil {
 		t.Fatalf("resolve ModelPolicy: %v", err)
 	}
 	assertDigest(t, policy.Ref.Digest)
-	if policy.Model != "worker-model" || policy.MaxOutputTokens != 4096 ||
-		policy.MaxModelCalls != 8 || policy.MaxToolCalls != 16 || policy.MaxTotalTokens != 32768 ||
+	if policy.ContextWindowTokens != 118000 || policy.Model != "worker-model" || policy.MaxOutputTokens != 16384 ||
+		policy.MaxModelCalls != 200 || policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 2500000 ||
 		policy.Temperature == nil || *policy.Temperature != 0.1 {
 		t.Fatalf("unexpected resolved ModelPolicy: %+v", policy)
 	}
@@ -659,7 +673,7 @@ func TestStoredFixtures(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			root := copyConfigTree(t)
 			fixture := readFile(t, filepath.Join("testdata/invalid", name))
-			writeFile(t, filepath.Join(root, "model-policies/worker.yaml"), fixture)
+			writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), fixture)
 			snapshot, err := Load(root, MVPDescriptors())
 			if err == nil || snapshot != nil {
 				t.Fatalf("Load() = (%v, %v), want (nil, error)", snapshot, err)
@@ -690,7 +704,7 @@ func TestModelPolicyWorkerBudgetsAreRequiredAndBounded(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			root := copyConfigTree(t)
-			replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), test.old, test.replacement)
+			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.old, test.replacement)
 			if snapshot, err := Load(root, MVPDescriptors()); err == nil || snapshot != nil ||
 				!strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
@@ -710,50 +724,50 @@ func TestStrictManifestFailuresReturnNoSnapshot(t *testing.T) {
 		{
 			name: "unknown field",
 			mutate: func(t *testing.T, root string) {
-				appendFile(t, filepath.Join(root, "model-policies/worker.yaml"), "unknownField: true\n")
+				appendFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), "unknownField: true\n")
 			},
-			want: []string{"model-policies/worker.yaml", "unknownField"},
+			want: []string{"model-policies/test-worker.yaml", "unknownField"},
 		},
 		{
 			name: "duplicate mapping key",
 			mutate: func(t *testing.T, root string) {
-				appendFile(t, filepath.Join(root, "model-policies/worker.yaml"), "kind: ModelPolicy\n")
+				appendFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), "kind: ModelPolicy\n")
 			},
-			want: []string{"model-policies/worker.yaml", "already defined"},
+			want: []string{"model-policies/test-worker.yaml", "already defined"},
 		},
 		{
 			name: "multiple documents",
 			mutate: func(t *testing.T, root string) {
-				appendFile(t, filepath.Join(root, "model-policies/worker.yaml"), `---
+				appendFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), `---
 apiVersion: contractor/v1alpha1
 kind: ModelPolicy
 metadata: {name: other, version: "1"}
 spec: {model: other, maxOutputTokens: 1}
 `)
 			},
-			want: []string{"model-policies/worker.yaml", "exactly one"},
+			want: []string{"model-policies/test-worker.yaml", "exactly one"},
 		},
 		{
 			name: "empty document",
 			mutate: func(t *testing.T, root string) {
-				writeFile(t, filepath.Join(root, "model-policies/worker.yaml"), nil)
+				writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), nil)
 			},
-			want: []string{"model-policies/worker.yaml", "exactly one"},
+			want: []string{"model-policies/test-worker.yaml", "exactly one"},
 		},
 		{
 			name: "wrong subtree kind",
 			mutate: func(t *testing.T, root string) {
-				replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), "kind: ModelPolicy", "kind: Workflow")
+				replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), "kind: ModelPolicy", "kind: Workflow")
 			},
-			want: []string{"model-policies/worker.yaml", "does not match ModelPolicy subtree"},
+			want: []string{"model-policies/test-worker.yaml", "does not match ModelPolicy subtree"},
 		},
 		{
 			name: "duplicate identity",
 			mutate: func(t *testing.T, root string) {
-				source := readFile(t, filepath.Join(root, "model-policies/worker.yaml"))
+				source := readFile(t, filepath.Join(root, "model-policies/test-worker.yaml"))
 				writeFile(t, filepath.Join(root, "model-policies/z/duplicate.yaml"), source)
 			},
-			want: []string{"model-policies/z/duplicate.yaml", "duplicate ModelPolicy identity worker@1"},
+			want: []string{"model-policies/z/duplicate.yaml", "duplicate ModelPolicy identity test-worker@1"},
 		},
 		{
 			name: "unknown runtime",
@@ -858,7 +872,7 @@ func TestManifestDiscoveryIgnoresSymlinks(t *testing.T) {
 
 	root := copyConfigTree(t)
 	before := mustLoad(t, root, MVPDescriptors()).Counts().ModelPolicies
-	if err := os.Symlink("worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
+	if err := os.Symlink("test-worker.yaml", filepath.Join(root, "model-policies/link.yaml")); err != nil {
 		t.Fatal(err)
 	}
 	snapshot := mustLoad(t, root, MVPDescriptors())
@@ -1147,29 +1161,7 @@ func equalStrings(left, right []string) bool {
 
 func copyConfigTree(t *testing.T) string {
 	t.Helper()
-	destination := filepath.Join(t.TempDir(), "configs")
-	err := filepath.WalkDir(repositoryConfigRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		relative, err := filepath.Rel(repositoryConfigRoot, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(destination, relative)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, 0o644)
-	})
-	if err != nil {
-		t.Fatalf("copy config tree: %v", err)
-	}
-	return destination
+	return configtest.CopyWithPolicies(t, repositoryConfigRoot)
 }
 
 func readFile(t *testing.T, path string) []byte {

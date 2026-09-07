@@ -123,7 +123,7 @@ func TestRepositoryLikeC4WorkspaceAgentToolAllowlists(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	policy, err := snapshot.ModelPolicy("domain_worker@1")
+	policy, err := snapshot.ModelPolicy("worker@2")
 	if err != nil {
 		t.Fatal(err)
 	}

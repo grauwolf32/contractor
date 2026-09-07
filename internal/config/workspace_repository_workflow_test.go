@@ -107,12 +107,12 @@ func TestRepositoryPassthroughWorkspaceWorkflowsUseExpandedWorkerBudget(t *testi
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	policy, err := snapshot.ModelPolicy("domain_worker@2")
+	policy, err := snapshot.ModelPolicy("worker@2")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy.MaxOutputTokens != 16384 || policy.MaxModelCalls != 24 ||
-		policy.MaxToolCalls != 96 || policy.MaxTotalTokens != 500000 {
+	if policy.MaxOutputTokens != 16384 || policy.MaxModelCalls != 200 ||
+		policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 2500000 {
 		t.Fatalf("expanded domain Worker policy = %+v", policy)
 	}
 

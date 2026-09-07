@@ -1,0 +1,1 @@
+Return the best final result for the supplied subtask using only the bounded task data, observations, and transcript. Preserve the exact subtask ID. Do not claim unreported artifacts. Return only the required structured result.

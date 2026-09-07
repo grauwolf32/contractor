@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithPolicies(t, "../../../testdata/configs"))
 	user, _ := fixture.artifacts.User("user-1")
 	source, err := user.Write(
 		t.Context(), contracts.ArtifactRef{Namespace: "sources", Name: "service"},
@@ -26,7 +27,7 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"sample-1"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}},"executionConfig":{"workers":{"modelPolicy":"worker@1","credential":null}}}`)
+	body := []byte(`{"workflow":"artifact-copy@1","labels":{"purpose":"eval","eval.id":"sample-1"},"parameters":{"objective":"copy"},"artifacts":{"source":{"namespace":"sources","name":"service"}},"executionConfig":{"workers":{"modelPolicy":"test-worker@1","credential":null}}}`)
 	request := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(body))
 	created := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(created, request)
@@ -51,7 +52,7 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 		t.Fatalf("repeat input = %+v, source = %+v", input, source.Ref)
 	}
 	encodedPatch, err := json.Marshal(repeat.Draft.ExecutionConfig.Value)
-	if err != nil || string(encodedPatch) != `{"workers":{"credential":null,"modelPolicy":"worker@1"}}` {
+	if err != nil || string(encodedPatch) != `{"workers":{"credential":null,"modelPolicy":"test-worker@1"}}` {
 		t.Fatalf("retained executionConfig = %s (%v)", encodedPatch, err)
 	}
 	if !hasRepeatNotice(repeat.Notices, "evaluation_labels_require_review") {

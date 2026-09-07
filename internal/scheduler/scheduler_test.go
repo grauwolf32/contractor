@@ -19,6 +19,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/credentials"
@@ -30,7 +31,7 @@ import (
 )
 
 func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 	reviewer.Namespace = "reviewer"
 	stage.Agents["reviewer"] = reviewer
 	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
-	plannerPolicy, err := snapshot.ModelPolicy("planner@1")
+	plannerPolicy, err := snapshot.ModelPolicy("test-planner@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +92,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 }
 
 func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *
 }
 
 func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,7 @@ func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing
 func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +204,7 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,12 +377,12 @@ func TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing(t *testing.T) {
 
 func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
 	harness := newSchedulerHarness(t)
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
-	plannerPolicy, _ := snapshot.ModelPolicy("planner@1")
-	workerPolicy, _ := snapshot.ModelPolicy("domain_worker@1")
+	plannerPolicy, _ := snapshot.ModelPolicy("test-planner@1")
+	workerPolicy, _ := snapshot.ModelPolicy("test-domain-worker@1")
 	workerGateway, _ := snapshot.LLMGateway("local-litellm@1")
 	plannerGateway := contracts.ResolvedLLMGatewayConfig{
 		Ref: contracts.LLMGatewayConfigRef{
@@ -1636,11 +1637,11 @@ func configureEscalationWorkflow(
 	maxAttempts int,
 ) contracts.ResolvedModelPolicy {
 	t.Helper()
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
-	strongPolicy, err := snapshot.ModelPolicy("strong_domain_worker@1")
+	strongPolicy, err := snapshot.ModelPolicy("test-strong-worker@1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1751,7 +1752,7 @@ type schedulerHarness struct {
 
 func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	t.Helper()
-	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load(configtest.CopyWithPolicies(t, "../../testdata/configs"), workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

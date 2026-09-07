@@ -30,11 +30,11 @@ func TestRepositoryWorkspaceStreamlinePreservesCurrentContract(t *testing.T) {
 				t.Fatal("workspace Streamline Workflow drifted from the current passthrough contract")
 			}
 
-			plannerPolicy, err := snapshot.ModelPolicy("project_planner@1")
+			plannerPolicy, err := snapshot.ModelPolicy("planner@2")
 			if err != nil {
 				t.Fatal(err)
 			}
-			workerPolicy, err := snapshot.ModelPolicy("project_worker@1")
+			workerPolicy, err := snapshot.ModelPolicy("worker@2")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,15 +59,6 @@ func TestRepositoryWorkspaceStreamlinePreservesCurrentContract(t *testing.T) {
 				actual := cloneStage(stage)
 				actual.Planner = baselineStage.Planner
 				actual.ExecutionConfig = baselineStage.ExecutionConfig
-				if baselineStage.On.Failed.Escalate != nil && actual.On.Failed.Escalate != nil {
-					// OpenAPI escalation still selects the strong validator while
-					// retaining the Streamline planner for that invocation.
-					effective := &actual.On.Failed.Escalate.ExecutionConfig.Effective
-					if !reflect.DeepEqual(effective.Planner, stage.ExecutionConfig.Planner) {
-						t.Fatalf("Stage %q escalation lost the Streamline planner", name)
-					}
-					effective.Planner = baselineStage.On.Failed.Escalate.ExecutionConfig.Effective.Planner
-				}
 				if !reflect.DeepEqual(actual, baselineStage) {
 					t.Fatalf("Stage %q changed outside Planner and execution policy", name)
 				}

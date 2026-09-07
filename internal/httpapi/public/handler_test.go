@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -1302,7 +1303,7 @@ func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
 }
 
 func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithEscalation(t, "../../../testdata/configs"))
 	user, _ := fixture.artifacts.User("user-1")
 	if _, err := user.Write(
 		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source"},
@@ -1314,7 +1315,7 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 		return []byte(`{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}},"executionConfig":{"workers":{"modelPolicy":"` + policy + `"}}}`)
 	}
 
-	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("worker@1")))
+	first := authenticatedRequest(http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("test-worker@1")))
 	firstResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(firstResponse, first)
 	if firstResponse.Code != http.StatusAccepted {
@@ -1326,13 +1327,13 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 		t.Fatal(err)
 	}
 	selection := workflow.Stages["copy"].ExecutionConfig.Agents["builder"]
-	if selection.ModelPolicy.Ref.PolicyID != "worker" ||
+	if selection.ModelPolicy.Ref.PolicyID != "test-worker" ||
 		selection.Origins.ModelPolicy != "run.executionConfig.workers" {
 		t.Fatalf("stored resolved executionConfig = %+v", selection)
 	}
 
 	conflict := authenticatedRequest(
-		http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("domain_worker@1")),
+		http.MethodPost, "/v1/runs", bytes.NewReader(requestBody("test-domain-worker@1")),
 	)
 	conflictResponse := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(conflictResponse, conflict)
@@ -1346,7 +1347,7 @@ func TestCreateRunPinsExecutionConfigAndDetectsSelectorIdempotencyConflict(t *te
 }
 
 func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
-	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
+	fixture := newHandlerFixtureWithConfig(t, configtest.CopyWithEscalation(t, "../../../testdata/configs"))
 	user, _ := fixture.artifacts.User("user-1")
 	if _, err := user.Write(
 		t.Context(), contracts.ArtifactRef{Namespace: "projects", Name: "source-archive"},
@@ -1368,7 +1369,7 @@ func TestCreateRunPinsNamedEscalationVariant(t *testing.T) {
 	}
 	variant := workflow.Stages["openapi_validate"].On.Failed.Escalate.ExecutionConfig
 	if variant.Ref == nil || variant.Ref.ConfigID != "strong-oas-review" ||
-		variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "strong_domain_worker" {
+		variant.Effective.Agents["validator"].ModelPolicy.Ref.PolicyID != "test-strong-worker" {
 		t.Fatalf("stored escalation variant = %+v", variant)
 	}
 }
@@ -1726,7 +1727,7 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 
 func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 	fixture := newHandlerFixture(t)
-	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
+	snapshot, err := config.Load(configtest.CopyWithEscalation(t, "../../../testdata/configs"), config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1795,7 +1796,7 @@ func TestRunStatusExposesEscalationLineageAndSafeEffectiveRefs(t *testing.T) {
 		result.Attempts[1].PreviousExecutionID == nil || *result.Attempts[1].PreviousExecutionID != "stage-base" ||
 		result.Attempts[1].ExecutionConfig.Ref == nil ||
 		result.Attempts[1].ExecutionConfig.Ref.ConfigID != "strong-oas-review" ||
-		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "strong_domain_worker" ||
+		result.Attempts[1].ExecutionConfig.Agents["validator"].ModelPolicy.PolicyID != "test-strong-worker" ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential == nil ||
 		result.Attempts[1].ExecutionConfig.Agents["validator"].Credential.CredentialID != "development-worker" ||
 		result.Transitions[0].Action != runstore.StageTransitionEscalate ||

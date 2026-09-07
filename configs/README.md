@@ -99,36 +99,59 @@ eleven bounded structural operations. They wait for a Runtime Agent whose
 positive capability includes the complete local Trailmark graph surface; there
 is no automatic downgrade to shallow analysis.
 
-The passthrough workspace Workflows pin `domain_worker@2`. It retains the
-24-model-call, 96-tool-call, and 16,384-token per-response bounds from
-`domain_worker@1`, while raising the cumulative provider-reported token budget
-from 250,000 to 500,000 so a completed artifact still has room for terminal
-result finalization.
+The default catalog uses `planner@2` and `worker@2` for normal execution,
+plus `summarizer@1` for terminal Worker summaries. The separately versioned
+Audit completion example retains its `audit_completion_worker@1` policy.
+The Planner and Worker policies both permit 200 model calls, 2,500,000 cumulative provider-reported tokens and
+16,384 output tokens per response, with temperature 0.1. The Planner permits
+200 Worker calls; the Worker permits 200 tool calls. They select `planner-model`
+and `worker-model`, respectively. The local LiteLLM configuration maps both
+aliases to the same Qwen model; each role can be routed independently later.
 
+The passthrough workspace Workflows pin `worker@2`.
 `openapi-from-workspace-streamline@2` and `likec4-from-workspace-streamline@4`
 retain the exact graph-backed workspace, artifact handoffs, cumulative state/diff
 and output contracts of their respective `*-from-workspace@5` variants, with
-`streamline@1` in every Stage. Their modeled Planners use `project_planner@1`;
-their Workers use `project_worker@1`. OpenAPI retains the `strong-oas-review@1`
-validator escalation, including the modeled Planner in its effective policy. Choose these
-when each semantic Stage benefits from explicit ordered subtask decomposition;
-the passthrough variant remains the simpler default when one Worker invocation
-can own the complete Stage objective.
+`streamline@1` in every Stage. Their modeled Planners use `planner@2`;
+their Workers use `worker@2`. The three OpenAPI workflow families, including their Memory variants, retry validation
+with `maxAttempts: 2`: the initial attempt and at most one retry for a retryable
+failure. The retry preserves the effective Run policy; no production escalation
+profile is published. Escalation fixtures remain under testdata.
+Choose these when each semantic Stage benefits from explicit
+ordered subtask decomposition; the passthrough variant remains the simpler
+default when one Worker invocation can own the complete Stage objective.
 
-For larger local runs, the opt-in `local_project_worker@1` policy permits
-128 model calls, 512 tool calls, 8,000,000 cumulative tokens and 32,768 output
-tokens per response. `local_project_planner@1` permits 96 model calls, 64 Worker
-calls, 2,000,000 cumulative tokens and 8,192 output tokens per response. Select
-these through Run execution overrides; they do not replace shared Workflow
-defaults. Passthrough has no modeled Planner and accepts only the Worker
-override. These budgets assume a local deployment; they are not cost-safe
-defaults for a metered provider. Model context capacity, individual request
-timeouts and Stage deadlines remain separate bounds. See the
-[local stability run ledger](../docs/reviews/2026-09-07-local-workflow-stability.md)
-for the tested model configuration and actual outcomes.
-Version 2 of both local policies retains those budgets and uses temperature
-1.0 for Qwen3.8 thinking-mode sampling; version 1 retains the diagnostic 0.1
-setting. Sampling parameters are model-specific, not universal defaults.
+The three shared policies declare a context window of 118,000 tokens. The 30 ordinary
+Worker templates (including Memory variants) enable a one-shot, tool-free terminal summarizer at
+`contextWindowRatio: 0.8` (94,400 provider-reported prompt tokens). It uses the
+existing `worker-model` alias with up to 8,192 output tokens. No cumulative
+summary threshold is configured. The summarizer completes the invocation; it
+does not compact history and resume the tool loop. Required output artifacts
+must already exist, and an invalid or incomplete summary still fails the task.
+The 11 Audit Worker templates (including Memory and completion variants) retain mandatory `audit-results` submission and
+omit terminal summarization; `audit-check-results@1` completion prohibits it.
+Planner context metadata does not enable a Planner summarizer.
+
+Terminal summarizer instructions live in `instructions/terminal-summarizer.md`.
+Templates select the file through `spec.summarizer.instructions.ref`; resolution
+pins its exact text and digest into the Run snapshot. The file may contain at
+most 8,000 Unicode characters (including whitespace and newlines); blank text
+is invalid. Roughly 2,000 tokens is a planning estimate, not a guaranteed bound
+for arbitrary text or tokenizers. Literal braces are preserved. Legacy templates
+that omit this field retain the built-in instruction for compatibility.
+
+V47-003 context admission has been removed: summarizer no longer charges one
+token per byte or trims its request against that estimate. Context errors come
+from the gateway. The earlier 512 KiB document projection remains in place;
+compactification is not an implemented strategy.
+
+The local LiteLLM model and request timeouts are 240 seconds; the Worker client
+timeout is 300 seconds. Planner execution retains its 30-minute timeout;
+Stage preparation uses the separate scheduler operation budget. See
+[timeout configuration](../docs/operations/timeout-configuration.md). Model context capacity, individual request timeouts and Stage
+deadlines remain separate bounds. No aggregate Workflow/Run/Audit token budget
+is introduced. Process-only policies under `configs/e2e` are independent of
+these defaults.
 
 Both current LikeC4 template families select the versionless logical
 `skills/likec4` artifact for detailed DSL guidance while retaining mandatory

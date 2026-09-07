@@ -24,7 +24,7 @@ spec:
 
   executionConfig:
     planner:
-      modelPolicy: planner@1
+      modelPolicy: planner@2
       llmGateway: local-litellm@1
       credential: development-planner
     workers:

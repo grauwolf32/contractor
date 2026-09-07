@@ -1,0 +1,53 @@
+# Minimal escalation fixture; intentionally independent of the production graph.
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: openapi-from-workspace
+  version: "5"
+spec:
+  parameters: {}
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+  outputs:
+    result:
+      required: true
+      primary: true
+      mediaTypes: [text/plain]
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+  entryStage: openapi_validate
+  stages:
+    openapi_validate:
+      objective: Exercise a named validation escalation
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: passthrough@1
+      agents:
+        validator:
+          template: artifact_builder@1
+          namespace: validator
+      context:
+        artifacts:
+          source: {namespace: inputs, name: source, required: true}
+      result:
+        artifacts:
+          result:
+            required: true
+            mediaTypes: [text/plain]
+            from: {namespace: validator, name: result}
+      workflowOutputs:
+        result: result
+      on:
+        succeeded: {succeed: {}}
+        failed:
+          escalate:
+            maxAttempts: 1
+            executionConfig:
+              ref: strong-oas-review@1
+            then:
+              fail: {}
+        interrupted: {fail: {}}

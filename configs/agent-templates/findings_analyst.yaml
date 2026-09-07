@@ -8,7 +8,12 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/findings-analyst-worker.md
-  modelPolicy: domain_worker@2
+  modelPolicy: worker@2
+  summarizer:
+    instructions:
+      ref: instructions/terminal-summarizer.md
+    modelPolicy: summarizer@1
+    contextWindowRatio: 0.8
   toolsets:
     - ref: security-findings@2
       tools: [list_findings]

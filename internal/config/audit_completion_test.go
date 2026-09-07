@@ -190,7 +190,7 @@ func TestAuditCompletionLoadsAuthoredEscalationWithoutChangingOwnership(t *testi
             executionConfig:
               agents:
                 checker:
-                  modelPolicy: domain_worker@2
+                  modelPolicy: worker@2
             then:
               fail: {}`
 	writeFile(t, path, []byte(strings.Replace(string(raw), "        failed:\n          fail: {}", replacement, 1)))

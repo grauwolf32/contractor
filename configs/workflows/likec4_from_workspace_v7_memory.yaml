@@ -35,7 +35,7 @@ spec:
 
   executionConfig:
     workers:
-      modelPolicy: domain_worker@2
+      modelPolicy: worker@2
       llmGateway: local-litellm@1
       credential: development-worker
 

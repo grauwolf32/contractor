@@ -10,7 +10,7 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/audit-openapi-operation-tracer-worker-v2.md
-  modelPolicy: domain_worker@2
+  modelPolicy: worker@2
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact]

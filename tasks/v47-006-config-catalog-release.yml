@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V47-006
+title: "Finalize model-policy catalog and verify the live gateway"
+milestone: model-policy-runtime-correctness
+priority: P1
+status: in_progress
+depends_on: ["V47-004", "V47-005"]
+languages: ["go", "python"]
+goal: >-
+  Commit the approved planner/worker catalog simplification, isolated test data,
+  configured summarizer and LiteLLM timeouts; synchronize documentation and
+  verify real requests through LiteLLM to the user's LM Studio endpoint.
+context:
+  authority: >-
+    User approved completing the remaining config commits, documentation and
+    live verification. LM Studio is http://192.168.1.217:1234. Preserve e2e and
+    unrelated concurrent Runtime refactoring and telemetry changes.
+scope:
+  in:
+    - "Approved production configuration and isolated test fixture changes already in the working tree."
+    - "Documentation with current Memory-inclusive catalog counts and actual validation outcomes."
+    - "Ephemeral pinned LiteLLM proxy, planner/worker requests and configured terminal summarizer smoke."
+  out:
+    - "Persistent deployment changes, quality benchmarking, e2e edits and unrelated Runtime work."
+acceptance_criteria:
+  - id: A1
+    given: "The ordinary and e2e catalogs"
+    when: "Configuration validation and focused tests run"
+    then: "Catalogs validate, focused tests pass, and all e2e manifests remain byte-identical."
+  - id: A2
+    given: "The approved policies, fixture isolation and summarizer instructions"
+    when: "The change is committed"
+    then: "All intended files are tracked, documentation reflects the 33-workflow/41-template catalog (including the separate Audit completion example), and unrelated changes are excluded."
+  - id: A3
+    given: "An ephemeral LiteLLM proxy using the checked-in config and the user's LM Studio endpoint"
+    when: "Planner, Worker and terminal summarizer issue small real requests"
+    then: "Both aliases return content and usage; summarizer returns a valid structured result; the test proxy is removed."
+tests:
+  - command: "go test ./internal/config ./internal/scheduler ./internal/httpapi/public ./internal/app"
+    covers: ["A1", "A2"]
+  - command: "go run ./cmd/contractor-server config validate --root ./configs"
+    covers: ["A1", "A2"]
+  - command: "go run ./cmd/contractor-server config validate --root ./configs/e2e"
+    covers: ["A1"]
+  - command: "Ephemeral live probe recorded in docs/reviews/2026-09-07-config-policy-review.md"
+    covers: ["A3"]

@@ -14,8 +14,8 @@ func TestSemanticDigestsIgnoreYAMLPresentationAndToolOrder(t *testing.T) {
 
 	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
 	variant := mustLoad(t, variantRoot, MVPDescriptors())
-	baselinePolicy, _ := baseline.ModelPolicy("worker@1")
-	variantPolicy, _ := variant.ModelPolicy("worker@1")
+	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
+	variantPolicy, _ := variant.ModelPolicy("test-worker@1")
 	if baselinePolicy.Ref.Digest != variantPolicy.Ref.Digest {
 		t.Fatalf("presentation changed ModelPolicy digest: %s != %s", baselinePolicy.Ref.Digest, variantPolicy.Ref.Digest)
 	}
@@ -33,7 +33,7 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	writePresentationVariant(t, baselineRoot)
 	semanticRoot := copyConfigTree(t)
 	writePresentationVariant(t, semanticRoot)
-	replaceFile(t, filepath.Join(semanticRoot, "model-policies/worker.yaml"), "maxOutputTokens: 4096", "maxOutputTokens: 4097")
+	replaceFile(t, filepath.Join(semanticRoot, "model-policies/test-worker.yaml"), "maxOutputTokens: 4096", "maxOutputTokens: 4097")
 	instructionRoot := copyConfigTree(t)
 	writePresentationVariant(t, instructionRoot)
 	appendFile(t, filepath.Join(instructionRoot, "instructions/artifact-builder.md"), "\n")
@@ -41,9 +41,9 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 	baseline := mustLoad(t, baselineRoot, MVPDescriptors())
 	semantic := mustLoad(t, semanticRoot, MVPDescriptors())
 	instruction := mustLoad(t, instructionRoot, MVPDescriptors())
-	baselinePolicy, _ := baseline.ModelPolicy("worker@1")
-	semanticPolicy, _ := semantic.ModelPolicy("worker@1")
-	instructionPolicy, _ := instruction.ModelPolicy("worker@1")
+	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
+	semanticPolicy, _ := semantic.ModelPolicy("test-worker@1")
+	instructionPolicy, _ := instruction.ModelPolicy("test-worker@1")
 	if baselinePolicy.Ref.Digest == semanticPolicy.Ref.Digest {
 		t.Fatal("semantic ModelPolicy change did not alter its digest")
 	}
@@ -68,8 +68,8 @@ func TestSemanticAndInstructionChangesAlterDigests(t *testing.T) {
 func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 	t.Parallel()
 
-	baseline := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	baselinePolicy, _ := baseline.ModelPolicy("worker@1")
+	baseline := mustLoad(t, copyConfigTree(t), MVPDescriptors())
+	baselinePolicy, _ := baseline.ModelPolicy("test-worker@1")
 	baselineTemplate, _ := baseline.AgentTemplate("artifact_builder@1")
 	for _, test := range []struct{ field, from, to string }{
 		{"maxModelCalls", "maxModelCalls: 8", "maxModelCalls: 9"},
@@ -78,9 +78,9 @@ func TestEachWorkerBudgetChangesPolicyAndTemplateDigests(t *testing.T) {
 	} {
 		t.Run(test.field, func(t *testing.T) {
 			root := copyConfigTree(t)
-			replaceFile(t, filepath.Join(root, "model-policies/worker.yaml"), test.from, test.to)
+			replaceFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), test.from, test.to)
 			variant := mustLoad(t, root, MVPDescriptors())
-			policy, _ := variant.ModelPolicy("worker@1")
+			policy, _ := variant.ModelPolicy("test-worker@1")
 			template, _ := variant.AgentTemplate("artifact_builder@1")
 			if policy.Ref.Digest == baselinePolicy.Ref.Digest ||
 				template.Ref.Digest == baselineTemplate.Ref.Digest {
@@ -102,7 +102,7 @@ func TestInstructionDigestUsesExactBytes(t *testing.T) {
 
 func writePresentationVariant(t *testing.T, root string) {
 	t.Helper()
-	writeFile(t, filepath.Join(root, "model-policies/worker.yaml"), []byte(`# key order and scalar spelling are intentionally different
+	writeFile(t, filepath.Join(root, "model-policies/test-worker.yaml"), []byte(`# key order and scalar spelling are intentionally different
 kind: ModelPolicy
 apiVersion: contractor/v1alpha1
 spec:
@@ -112,7 +112,7 @@ spec:
   maxToolCalls: 16
   maxTotalTokens: 32768
   model: worker-model
-metadata: {version: "1", name: worker}
+metadata: {version: "1", name: test-worker}
 `))
 	writeFile(t, filepath.Join(root, "agent-templates/artifact_builder.yaml"), []byte(`# Toolset/tool ordering is semantically unordered.
 kind: AgentTemplate
@@ -123,7 +123,7 @@ spec:
   toolsets:
     - tools: [write_artifact, read_artifact, list_artifacts]
       ref: run-artifacts@1
-  modelPolicy: worker@1
+  modelPolicy: test-worker@1
   instructions: {ref: instructions/artifact-builder.md}
   runtime: adk@1
   description: "Reads a declared input and writes the requested result"

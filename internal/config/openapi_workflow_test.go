@@ -1,12 +1,39 @@
 package config
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
+
+func TestRepositoryOpenAPIRetriesPreserveRunPolicy(t *testing.T) {
+	t.Parallel()
+	production := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
+	if production.Counts().ExecutionConfigs != 0 {
+		t.Fatal("default catalog still publishes an escalation profile")
+	}
+	root := copyConfigTree(t)
+	raw := string(readFile(t, filepath.Join(root, "model-policies/worker.yaml")))
+	raw = strings.Replace(raw, "name: worker", "name: test-retry-worker", 1)
+	writeFile(t, filepath.Join(root, "model-policies/test-retry-worker.yaml"), []byte(raw))
+	snapshot := mustLoad(t, root, MVPDescriptors())
+	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-retry-worker@2"}}`)
+	for _, selector := range []string{"openapi-from-analysis@2", "openapi-from-workspace@5", "openapi-from-workspace-streamline@1"} {
+		workflow, err := snapshot.ResolveRunWorkflow(t.Context(), selector, patch, developmentCredentialLookup(t, snapshot))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stage := workflow.Stages["openapi_validate"]
+		assertBoundedRetry(t, stage.On.Failed, 2)
+		selection := stage.ExecutionConfig.Agents["validator"]
+		if selection.ModelPolicy.Ref.PolicyID != "test-retry-worker" || selection.Origins.ModelPolicy != "run.executionConfig.workers" {
+			t.Fatalf("%s lost the Run policy: %+v", selector, selection)
+		}
+	}
+}
 
 func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	t.Parallel()
@@ -90,7 +117,7 @@ func TestRepositoryOpenAPIWorkflowTopology(t *testing.T) {
 	if validate.On.Succeeded.Kind != TransitionSucceed {
 		t.Fatalf("validation success transition = %+v", validate.On.Succeeded)
 	}
-	assertEscalation(t, validate.On.Failed, 1, "strong-oas-review")
+	assertBoundedRetry(t, validate.On.Failed, 2)
 	assertBoundedRetry(t, validate.On.Interrupted, 2)
 
 	for name, stage := range workflow.Stages {
@@ -110,7 +137,7 @@ func TestRepositoryOpenAPIAgentToolAllowlists(t *testing.T) {
 	t.Parallel()
 
 	snapshot := mustLoad(t, repositoryConfigRoot, MVPDescriptors())
-	policy, err := snapshot.ModelPolicy("domain_worker@1")
+	policy, err := snapshot.ModelPolicy("worker@2")
 	if err != nil {
 		t.Fatalf("resolve domain Worker policy: %v", err)
 	}
