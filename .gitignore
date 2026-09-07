@@ -220,7 +220,7 @@ cython_debug/
 
 # Independently built browser UI
 /ui/node_modules/
-/ui/dist/
+/ui/dist
 /ui/coverage/
 /ui/playwright-report/
 /ui/test-results/
