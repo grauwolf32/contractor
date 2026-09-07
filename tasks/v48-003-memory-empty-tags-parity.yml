@@ -3,7 +3,7 @@ id: V48-003
 title: "Return empty Memory tags as arrays in Planner and Worker projections"
 milestone: shared-memory-production-correctness
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V9-005]
 languages: [go, python]
@@ -43,3 +43,8 @@ tests:
     covers: [A1, A2]
   - command: "make test-memory-contracts"
     covers: [A1, A2]
+
+verification:
+  - "Go Memory and Streamline/Router suites passed, including serialized empty-tag results after create, replacement, append and read."
+  - "70 Python Memory tests passed with warnings treated as errors."
+  - "make test-memory-contracts passed; both adapters consume testdata/memory/projections.json for full and preview JSON expectations."

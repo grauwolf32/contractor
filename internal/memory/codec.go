@@ -104,7 +104,7 @@ type Preview struct {
 func FullProjection(note StoredNote, createdAt, updatedAt time.Time) Note {
 	return Note{
 		Name: note.Name, Content: note.Content, Description: note.Description,
-		Tags: append([]string(nil), note.Tags...), Ordinal: note.Ordinal,
+		Tags: append([]string{}, note.Tags...), Ordinal: note.Ordinal,
 		CreatedAt: createdAt.UTC(), UpdatedAt: updatedAt.UTC(),
 	}
 }
@@ -112,7 +112,7 @@ func FullProjection(note StoredNote, createdAt, updatedAt time.Time) Note {
 func PreviewProjection(note StoredNote, createdAt, updatedAt time.Time) Preview {
 	return Preview{
 		Name: note.Name, Description: note.Description,
-		Tags: append([]string(nil), note.Tags...), Ordinal: note.Ordinal,
+		Tags: append([]string{}, note.Tags...), Ordinal: note.Ordinal,
 		CreatedAt: createdAt.UTC(), UpdatedAt: updatedAt.UTC(),
 	}
 }

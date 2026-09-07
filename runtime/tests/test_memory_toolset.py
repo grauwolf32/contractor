@@ -178,6 +178,45 @@ def test_write_replace_append_list_search_and_tag_semantics() -> None:
     asyncio.run(scenario())
 
 
+def test_shared_memory_projection_json() -> None:
+    fixtures = json.loads(
+        (Path(__file__).parents[2] / "testdata/memory/projections.json").read_text()
+    )
+    for fixture in fixtures:
+        raw = fixture["note"]
+        note = StoredMemoryNote(
+            schema_version=raw["schemaVersion"],
+            name=raw["name"],
+            content=raw["content"],
+            description=raw["description"],
+            tags=tuple(raw["tags"]),
+            ordinal=raw["ordinal"],
+        )
+        loaded = _LoadedNote(note, EPOCH, EPOCH + timedelta(seconds=1), "hidden", encode_note(note))
+        assert _full(loaded) == fixture["full"]
+        assert _preview(loaded) == fixture["preview"]
+
+
+def test_untagged_tool_results_and_replacement_clear_tags() -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda *_: client),
+            WorkerState(),
+            ["write_memory", "append_memory", "read_memory", "list_memories"],
+        )
+        created = await tools["write_memory"]("untagged", "body")
+        await tools["write_memory"]("previously_tagged", "body", tags=["old"])
+        replaced = await tools["write_memory"]("previously_tagged", "new body")
+        appended = await tools["append_memory"]("previously_tagged", "fragment")
+        read = await tools["read_memory"]("previously_tagged")
+        listed = await tools["list_memories"]()
+        for response in [created, replaced, appended, read, *listed]:
+            assert json.loads(json.dumps(response))["tags"] == []
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("fault", ["before", "after"])
 def test_response_loss_replays_exact_create_bytes_and_precondition(fault: str) -> None:
     async def scenario() -> None:
