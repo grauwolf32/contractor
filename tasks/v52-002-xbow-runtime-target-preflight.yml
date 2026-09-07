@@ -1,0 +1,43 @@
+schema_version: "1.0"
+id: V52-002
+title: Align local XBOW target publication with Runtime HTTP policy
+milestone: live-workflow-baselines
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Publish evaluator-owned targets at an explicitly configured reachable address
+  accepted by the existing Runtime target policy, and reject a mismatched
+  setup before consuming a model run.
+context:
+  authority: User requested autonomous local XBOW smoke runs and tasks for serious findings.
+  specification: docs/spec/11-http-and-caido-tools.md
+  implementation_repository: /home/ruslan/src/playground-v2
+  evidence: >-
+    XbowComposeTarget always advertised 127.0.0.1; Runtime correctly rejects
+    loopback target literals. Target-only readiness passed but Run
+    run_61b5fd9b903532fa1dd31bce66c964c5 could not issue an HTTP request.
+scope:
+  in:
+    - Explicit operator-selected target bind/publication address in the XBOW harness and CLI.
+    - Keep target ports and cleanup scoped to the generated Compose project.
+    - Check target-policy compatibility before model execution and verify the live Runtime/proxy path.
+    - Preserve fresh flag injection, hidden oracle data, and unchanged scoring thresholds.
+  out:
+    - Disable Runtime loopback/infrastructure-origin protection or bind every host interface by default.
+    - Change benchmark application logic or model instructions to expose expected answers.
+acceptance_criteria:
+  - id: A1
+    text: Configured bind address determines the exact published target URL and reserved port.
+  - id: A2
+    text: The Contractor runner rejects its known loopback-policy mismatch before creating a model Run.
+  - id: A3
+    text: The selected local target passes a real request through the Runtime tool/proxy path and is cleaned up.
+tests:
+  - command: cd /home/ruslan/src/playground-v2 && uv run --project evals --extra dev pytest evals/tests/test_xbow.py evals/tests/test_runner.py
+    covers: [A1, A2, A3]
+  - command: cd /home/ruslan/src/playground-v2 && uv run --project evals playground-eval validate
+    covers: [A1, A2]
+verification: []

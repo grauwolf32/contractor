@@ -2644,3 +2644,4 @@ tasks:
   - {id: V50-001, file: v50-001-unified-private-contracts.yml}
   - {id: V51-001, file: v51-001-runtime-otlp-retries.yml}
   - {id: V52-001, file: v52-001-caido-live-response-contracts.yml}
+  - {id: V52-002, file: v52-002-xbow-runtime-target-preflight.yml}
