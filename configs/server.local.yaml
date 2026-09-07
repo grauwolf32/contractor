@@ -17,6 +17,8 @@ spec:
   plannerTimeout: 30m
 
   artifactBlobBackend: postgresql
+  gitAllowedRemotes:
+    - github.com:443
 
   localAuthFile: ../.local/secrets/local-auth.yaml
   browserOrigins:
