@@ -455,7 +455,9 @@ func (r *InMemoryRegistry) reserveAll(
 			ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
 		}
 		reservation := Reservation{
-			Grant: grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
+			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
+			CompletionCapabilities: contracts.NormalizeAgentRegistrationV2(entry.registration).Capabilities,
+			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
 			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
 			WorkerSessionMode:         binding.WorkerSessionMode,
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
@@ -625,7 +627,7 @@ func completeCapabilityAssignmentWithEdges(
 	candidates := make([][]int, len(bindings))
 	for bindingIndex, binding := range bindings {
 		for agentIndex, entry := range available {
-			if !isCompatible(entry.registration, binding.AgentTemplate, binding.Workspace) {
+			if !isBindingCompatible(entry.registration, binding) {
 				continue
 			}
 			if edges != nil {
@@ -1096,6 +1098,12 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 		entry.confirmedLeaseDeadline > monotonicNow
 }
 
+func isBindingCompatible(registration contracts.AgentRegistrationV2, binding BindingRequirement) bool {
+	return contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
+		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
+		isCompatible(registration, binding.AgentTemplate, binding.Workspace)
+}
+
 func isCompatible(
 	registration contracts.AgentRegistrationV2,
 	template contracts.ResolvedAgentTemplate,
@@ -1175,6 +1183,9 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if binding.Namespace == "inputs" || binding.Namespace == "outputs" {
 			return "", nil, fmt.Errorf("%w: Agent binding cannot use a Run-reserved namespace", ErrInvalidRequest)
 		}
+		if err := contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate); err != nil {
+			return "", nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		}
 		if err := binding.AgentTemplate.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid AgentTemplate for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
 		}
@@ -1209,7 +1220,8 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		}
 		seen[binding.LogicalAgentName] = struct{}{}
 		bindings[index] = BindingRequirement{
-			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
+			CompletionContract: contracts.CloneWorkerCompletionContract(binding.CompletionContract),
+			LogicalAgentName:   binding.LogicalAgentName, Namespace: binding.Namespace,
 			WorkerSessionMode: binding.WorkerSessionMode,
 			AgentTemplate:     cloneAgentTemplate(binding.AgentTemplate),
 			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
@@ -1528,6 +1540,12 @@ func cloneHeartbeatResponse(source contracts.HeartbeatResponse) contracts.Heartb
 
 func cloneReservation(source Reservation) Reservation {
 	result := source
+	result.CompletionContract = contracts.CloneWorkerCompletionContract(source.CompletionContract)
+	if source.CompletionCapabilities != nil {
+		value := *source.CompletionCapabilities
+		value.CompletionContracts = append([]string{}, value.CompletionContracts...)
+		result.CompletionCapabilities = &value
+	}
 	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)

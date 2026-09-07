@@ -30,7 +30,7 @@ import (
 )
 
 func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestDecodeExecutableWorkflowAllowsMultiWorkerRouterOnly(t *testing.T) {
 }
 
 func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestDecodeExecutableWorkflowRejectsLegacySnapshotWithoutExecutionConfig(t *
 }
 
 func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestDecodeExecutableWorkflowRejectsPurposeReservedAgentNamespace(t *testing
 func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestBindingRequirementsProjectOnlyEachTemplatesPinnedRunSkills(t *testing.T
 func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T) {
 	t.Parallel()
 
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestSchedulerFencesEveryRecordedAllocationBeforeFinalizing(t *testing.T) {
 
 func TestSchedulerBuildsIndependentPinnedPlannerAndWorkerModelAccess(t *testing.T) {
 	harness := newSchedulerHarness(t)
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1636,7 +1636,7 @@ func configureEscalationWorkflow(
 	maxAttempts int,
 ) contracts.ResolvedModelPolicy {
 	t.Helper()
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1751,7 +1751,7 @@ type schedulerHarness struct {
 
 func newSchedulerHarness(t *testing.T) *schedulerHarness {
 	t.Helper()
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}

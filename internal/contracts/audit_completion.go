@@ -69,6 +69,50 @@ func ValidateAuditCompletionTemplate(template ResolvedAgentTemplate) error {
 	return nil
 }
 
+func CloneWorkerCompletionContract(source *WorkerCompletionContract) *WorkerCompletionContract {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	if source.Task.Revision != nil {
+		revision := *source.Task.Revision
+		result.Task.Revision = &revision
+	}
+	if source.ExecutionManifest.Revision != nil {
+		revision := *source.ExecutionManifest.Revision
+		result.ExecutionManifest.Revision = &revision
+	}
+	return &result
+}
+
+// ValidateWorkerCompletionSelection rejects an untrusted v2 tool selection too.
+func ValidateWorkerCompletionSelection(c *WorkerCompletionContract, namespace string, template ResolvedAgentTemplate) error {
+	if c != nil {
+		return c.ValidateAllocation(namespace, template)
+	}
+	for _, toolset := range template.Toolsets {
+		if toolset.Ref.ToolsetID == "audit-results" && toolset.Ref.Version == "2" {
+			return invalidf("audit-results@2 requires a trusted completion contract")
+		}
+	}
+	return nil
+}
+
+func SupportsWorkerCompletion(capabilities *RuntimeCompletionCapabilities, c *WorkerCompletionContract) bool {
+	if c == nil {
+		return true
+	}
+	if capabilities == nil {
+		return false
+	}
+	for _, kind := range capabilities.CompletionContracts {
+		if kind == c.Kind {
+			return true
+		}
+	}
+	return false
+}
+
 type RuntimeCompletionCapabilities struct {
 	CompletionContracts []string `json:"completionContracts"`
 }

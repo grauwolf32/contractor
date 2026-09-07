@@ -13,7 +13,7 @@ const workflowRunColumns = `
 run_id, owner_id, project_id, workflow_name, workflow_version,
 workflow_schema_version, workflow_snapshot, parameters,
 runtime_labels, runtime_config_snapshot, project_http_target_snapshot, skill_snapshot,
-publication_mode, audit_execution_id, audit_submission_key,
+publication_mode, audit_execution_id, audit_submission_key, audit_completion,
 state, state_reason_code, state_reason_message,
 cancellation_schema_version, run_cancellation,
 scheduler_claim_id, scheduler_claimed_at, scheduler_claim_expires_at,
@@ -30,6 +30,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	var runtimeConfig []byte
 	var projectHTTPTarget []byte
 	var skillSnapshot []byte
+	var auditCompletion []byte
 	var state string
 	var cancellation []byte
 	var claimID *string
@@ -39,13 +40,21 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		&result.RunID, &result.OwnerID, &result.ProjectID, &result.WorkflowName, &result.WorkflowVersion,
 		&result.WorkflowSchemaVersion, &snapshot, &parameters,
 		&result.RuntimeLabels, &runtimeConfig, &projectHTTPTarget, &skillSnapshot,
-		&result.PublicationMode, &result.AuditExecutionID, &result.AuditSubmissionKey,
+		&result.PublicationMode, &result.AuditExecutionID, &result.AuditSubmissionKey, &auditCompletion,
 		&state, &result.StateReason.Code, &result.StateReason.Message,
 		&result.CancellationSchemaVersion, &cancellation,
 		&claimID, &claimedAt, &claimExpiresAt,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
 	); err != nil {
 		return WorkflowRun{}, err
+	}
+	if auditCompletion != nil {
+		if err := json.Unmarshal(auditCompletion, &result.AuditCompletion); err != nil {
+			return WorkflowRun{}, fmt.Errorf("decode Audit completion: %w", err)
+		}
+		if result.AuditCompletion == nil || result.AuditCompletion.Validate() != nil || result.PublicationMode != PublicationAuditManaged {
+			return WorkflowRun{}, fmt.Errorf("invalid stored Audit completion authority")
+		}
 	}
 	result.State = WorkflowRunState(state)
 	if !result.PublicationMode.Valid() {

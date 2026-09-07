@@ -99,7 +99,7 @@ func (a *PlacementAllocator) ReserveAllContext(
 			return nil, fmt.Errorf("%w: AgentTemplate infrastructure requirements are invalid", ErrInvalidRequest)
 		}
 		for _, candidate := range candidates {
-			if !isCompatible(candidate.Registration, binding.AgentTemplate, binding.Workspace) {
+			if !isBindingCompatible(candidate.Registration, binding) {
 				continue
 			}
 			resolved, err := a.resolveCandidate(ctx, a.pool, request, binding, candidate.Principal)
@@ -245,7 +245,7 @@ func (a *PlacementAllocator) pinReservations(
 			reservation.Grant.LogicalAgentName, reservation.Grant.RuntimeInstanceID,
 		)]
 		if !ok || !sameResolvedRuntimeConfig(observed, resolved) ||
-			!isCompatible(candidate.Registration, binding.AgentTemplate, binding.Workspace) ||
+			!isBindingCompatible(candidate.Registration, binding) ||
 			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
 			return errPlacementRevisionChanged
 		}
@@ -276,7 +276,8 @@ FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
 			Provenance:  resolved.Provenance,
 		}
 		if err := store.RecordStageAllocation(ctx, runstore.StageAllocation{
-			AllocationID: reservation.Grant.AllocationID, StageExecutionID: request.StageExecutionID,
+			CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
+			AllocationID:       reservation.Grant.AllocationID, StageExecutionID: request.StageExecutionID,
 			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 			AgentTemplateRef: reservation.AgentTemplate.Ref, WorkerRuntimeRef: reservation.AgentTemplate.Runtime,
 			RuntimeAgentID:                    reservation.Grant.RuntimeAgentID,

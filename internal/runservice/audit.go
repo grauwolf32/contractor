@@ -59,6 +59,10 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			if idErr != nil {
 				return fmt.Errorf("generate Audit WorkflowRun identity: %w", idErr)
 			}
+			completion, completionErr := prepareAuditCompletion(ctx, artifactService, intent, normalized)
+			if completionErr != nil {
+				return completionErr
+			}
 			labels, labelErr := auditRunLabels(intent)
 			if labelErr != nil {
 				return labelErr
@@ -113,6 +117,7 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			); pinErr != nil {
 				return pinErr
 			}
+			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 			for _, slot := range sortedInputSlots(normalized.Inputs) {
 				descriptor := normalized.Inputs[slot]
 				if _, metadataErr := verifyExactProjectArtifact(
@@ -126,9 +131,18 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				if forkErr != nil {
 					return forkErr
 				}
+				forks[slot] = fork.TargetRef
 				if !acceptsMediaType(normalized.Workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 					return fmt.Errorf("%w: Audit input %q has unsupported media type", ErrInvalid, slot)
 				}
+			}
+			if completion != nil {
+				completion.Contract.Task = forks[completion.Contract.Task.Name]
+				completion.Contract.ExecutionManifest = forks[completion.Contract.ExecutionManifest.Name]
+				if err := runs.SetAuditCompletion(ctx, runID, *completion); err != nil {
+					return err
+				}
+				run.AuditCompletion = completion
 			}
 			if len(normalized.Skills) == 0 {
 				run, err = runs.TransitionRun(

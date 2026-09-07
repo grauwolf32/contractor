@@ -1,10 +1,12 @@
 # Audit Worker completion contracts
 
 Status: V39-001 implements inert contracts/interfaces and proves real-ADK
-continuation. V39-004 implements deterministic encoding/publication; Server
-propagation, collection, activation and the release gate remain V39-002/003/005–007.
+continuation. V39-002 implements trusted Server pinning, allocation persistence
+and capability-aware placement. V39-004 implements deterministic encoding/publication;
+collection, Runtime activation and the release gate remain V39-003/005–007.
 See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md) and
-[publication validation](../reviews/2026-09-07-audit-result-publication.md).
+[publication validation](../reviews/2026-09-07-audit-result-publication.md), and
+[Server pinning validation](../reviews/2026-09-07-audit-completion-pinning.md).
 Existing deployed Runs and immutable snapshots keep their current behavior until
 an explicitly versioned configuration selects this contract.
 

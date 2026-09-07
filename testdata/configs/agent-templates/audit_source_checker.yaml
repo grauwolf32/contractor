@@ -1,0 +1,24 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: audit_source_checker
+  version: "1"
+
+spec:
+  description: Evaluates a bounded pinned checklist or OpenAPI task set against source code and publishes one complete canonical result set
+  runtime: adk@1
+  instructions:
+    ref: instructions/audit-source-checker-worker.md
+  modelPolicy: domain_worker@2
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: source-analysis@1
+      tools: [open_source_archive, list_source_files, read_source, search_source]
+    - ref: audit-results@1
+      tools: [read_audit_task, submit_check_result]
+  skills:
+    - namespace: skills
+      name: trace
+  sandboxProfile: local-workdir@1

@@ -3,7 +3,7 @@ id: V39-002
 title: "Pin Audit completion authority through Run creation and Runtime placement"
 milestone: audit-worker-completion
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: ["V39-001"]
 languages: ["go"]
@@ -33,9 +33,13 @@ scope:
     - "Implementing Python collector/publisher, model reminders, accepting Audit evidence or altering ordinary scheduling limits."
 
 deliverables:
-  - path: internal/auditservice
+  - path: internal/runservice
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
-  - path: internal/runstore/audit_run.go
+  - path: internal/auditstore
+    description: "Read the selected binding from the claim-locked immutable Audit profile."
+  - path: testdata/configs
+    description: "Stable configuration fixtures independent of the operator catalog."
+  - path: internal/runstore/audit_completion.go
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: internal/persistence/migrations
     description: "Persist immutable Run/allocation completion authority with backward-compatible omission and ownership constraints."
@@ -73,9 +77,9 @@ acceptance_criteria:
     then: "No orphan authority survives rollback; old Runs stay ordinary and opted-in Runs recover the original owned contract without downgrade."
 
 tests:
-  - command: "go test ./internal/auditservice ./internal/runstore ./internal/scheduler ./internal/controlplane"
+  - command: "go test ./internal/auditservice ./internal/auditstore ./internal/runservice ./internal/runstore ./internal/scheduler ./internal/controlplane ./internal/contracts ./internal/auditcontroller"
     covers: ["A1","A2","A3"]
   - command: "go test -race ./internal/scheduler ./internal/controlplane"
     covers: ["A2","A3"]
-  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/auditservice ./internal/runstore ./internal/scheduler -run AuditCompletion'
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -count=1 ./internal/runservice ./internal/runstore ./internal/scheduler ./internal/controlplane -run AuditCompletion'
     covers: ["A2","A4"]

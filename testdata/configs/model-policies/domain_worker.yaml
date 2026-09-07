@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: domain_worker
+  version: "1"
+
+spec:
+  model: worker-model
+  maxOutputTokens: 16384
+  maxModelCalls: 24
+  maxToolCalls: 96
+  maxTotalTokens: 250000
+  temperature: 0.1

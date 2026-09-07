@@ -92,12 +92,19 @@ func (c *RuntimeControlClient) Prepare(
 	reservation Reservation,
 	settings contracts.WorkerExecutionSettingsV2,
 ) (contracts.WorkerHandle, error) {
+	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
+		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
+	}
+	if err := contracts.ValidateWorkerCompletionSelection(reservation.CompletionContract, reservation.Grant.Namespace, reservation.AgentTemplate); err != nil {
+		return contracts.WorkerHandle{}, err
+	}
 	resolvedSkills := reservation.ResolvedSkills
 	if resolvedSkills == nil && len(reservation.AgentTemplate.Skills) == 0 {
 		resolvedSkills = []contracts.ResolvedSkill{}
 	}
 	spec := contracts.AllocationSpecV2{
-		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
+		CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
+		APIVersion:         contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 		WorkerSessionMode: reservation.WorkerSessionMode,

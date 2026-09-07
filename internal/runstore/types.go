@@ -101,6 +101,7 @@ type WorkflowRun struct {
 	PublicationMode           OutputPublicationMode
 	AuditExecutionID          *string
 	AuditSubmissionKey        *string
+	AuditCompletion           *AuditCompletionSnapshot
 	State                     WorkflowRunState
 	StateReason               Reason
 	CancellationSchemaVersion *string
@@ -538,6 +539,7 @@ type WorkflowRunEventCursor struct {
 }
 
 type StageAllocation struct {
+	CompletionContract                *contracts.WorkerCompletionContract
 	AllocationID                      string
 	StageExecutionID                  string
 	LogicalAgentName                  string

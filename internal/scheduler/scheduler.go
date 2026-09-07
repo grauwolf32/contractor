@@ -745,7 +745,7 @@ func (s *Scheduler) buildStageCreation(
 	sort.Strings(names)
 	for _, name := range names {
 		declaration := workflow.stage.Context.Artifacts[name]
-		current := contracts.ArtifactRef{Namespace: declaration.Namespace, Name: declaration.Name}
+		current := auditPinnedContextRef(run, contracts.ArtifactRef{Namespace: declaration.Namespace, Name: declaration.Name})
 		resolved, resolveErr := s.artifacts.Resolve(ctx, run.RunID, current)
 		if errors.Is(resolveErr, artifacts.ErrArtifactNotFound) {
 			contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{Required: declaration.Required}
@@ -754,7 +754,7 @@ func (s *Scheduler) buildStageCreation(
 		if resolveErr != nil {
 			return NextStageCreation{}, fmt.Errorf("resolve StageContext artifact %q: %w", name, resolveErr)
 		}
-		if resolved.Ref.Namespace != declaration.Namespace || resolved.Ref.Name != declaration.Name {
+		if resolved.Ref.Namespace != declaration.Namespace || resolved.Ref.Name != declaration.Name || (current.Revision != nil && !reflect.DeepEqual(current, resolved.Ref)) {
 			return NextStageCreation{}, fmt.Errorf("ArtifactStore resolved StageContext artifact %q to another binding", name)
 		}
 		exact := cloneArtifactRef(resolved.Ref)
@@ -1017,7 +1017,7 @@ func (s *Scheduler) liveOrNewReservations(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) ([]controlplane.Reservation, bool, error) {
-	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot, execution.StageContext)
+	requirements, err := auditBindingRequirements(run, workflow, execution.StageContext)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1080,7 +1080,8 @@ func (s *Scheduler) recordReservations(
 			collectionPolicy = contracts.PerformanceCollectionDisabled
 		}
 		allocation := runstore.StageAllocation{
-			AllocationID: reservation.Grant.AllocationID, StageExecutionID: stageExecutionID,
+			CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
+			AllocationID:       reservation.Grant.AllocationID, StageExecutionID: stageExecutionID,
 			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
 			AgentTemplateRef:            reservation.AgentTemplate.Ref,
 			WorkerRuntimeRef:            reservation.AgentTemplate.Runtime,
@@ -1123,6 +1124,14 @@ func verifyReservations(
 	recorded []runstore.StageAllocation,
 	reservations []controlplane.Reservation,
 ) error {
+	expectedBindings, err := auditBindingRequirements(run, workflow, execution.StageContext)
+	if err != nil {
+		return err
+	}
+	expectedContracts := make(map[string]*contracts.WorkerCompletionContract, len(expectedBindings))
+	for _, binding := range expectedBindings {
+		expectedContracts[binding.LogicalAgentName] = binding.CompletionContract
+	}
 	expectedWorkspace, err := projectAllocationWorkspace(workflow.stage.Context.Workspace, execution.StageContext)
 	if err != nil {
 		return err
@@ -1143,7 +1152,8 @@ func verifyReservations(
 			reservation.WorkerSessionMode != workflow.stage.Session ||
 			reservation.AgentTemplate.Runtime != binding.Template.Runtime || reservation.LeaseExpiresAt.IsZero() ||
 			!reflect.DeepEqual(reservation.Workspace, expectedWorkspace) ||
-			!equalRunMetadataLabels(reservation.RunMetadataLabels, run.MetadataLabels) {
+			!equalRunMetadataLabels(reservation.RunMetadataLabels, run.MetadataLabels) ||
+			!reflect.DeepEqual(reservation.CompletionContract, expectedContracts[grant.LogicalAgentName]) {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}
 		if reservation.ResolvedRuntimeConfig == nil {
@@ -1174,7 +1184,7 @@ func verifyReservations(
 		}
 		seen[grant.LogicalAgentName] = struct{}{}
 		if persisted, exists := recordedByName[grant.LogicalAgentName]; exists &&
-			(persisted.AllocationID != grant.AllocationID ||
+			(!reflect.DeepEqual(persisted.CompletionContract, reservation.CompletionContract) || persisted.AllocationID != grant.AllocationID ||
 				persisted.RuntimeAgentInstanceID != grant.RuntimeInstanceID ||
 				persisted.Namespace != grant.Namespace || persisted.AgentTemplateRef != binding.Template.Ref ||
 				persisted.WorkerRuntimeRef != binding.Template.Runtime ||
@@ -1946,7 +1956,7 @@ func (s *Scheduler) existingLiveReservations(
 	workflow executableWorkflow,
 	execution runstore.StageExecution,
 ) []controlplane.Reservation {
-	requirements, err := bindingRequirements(workflow.stage, run.SkillSnapshot, execution.StageContext)
+	requirements, err := auditBindingRequirements(run, workflow, execution.StageContext)
 	if err != nil {
 		return nil
 	}

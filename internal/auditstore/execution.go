@@ -403,7 +403,7 @@ func (s *PostgresStore) GetRunCreationIntent(
 	}
 	var result RunCreationIntent
 	execution, err := scanExecutionWithOwner(s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, `+prefixedExecutionColumns("execution")+`
+SELECT audit.owner_id, audit.project_id, audit.profile_snapshot #> ARRAY['workflows', execution.workflow_role], `+prefixedExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -412,7 +412,7 @@ SELECT audit.owner_id, audit.project_id, `+prefixedExecutionColumns("execution")
    AND claim.expires_at > clock_timestamp()
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
-	), &result.OwnerID, &result.ProjectID)
+	), &result.OwnerID, &result.ProjectID, &result.WorkflowBinding)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
 			return RunCreationIntent{}, liveErr
@@ -432,7 +432,7 @@ SELECT audit.owner_id, audit.project_id, `+prefixedExecutionColumns("execution")
 	return result, nil
 }
 
-func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution, error) {
+func scanExecutionWithOwner(row scanner, ownerID, projectID *string, binding *json.RawMessage) (Execution, error) {
 	var execution Execution
 	var encodedRef []byte
 	var state string
@@ -442,7 +442,7 @@ func scanExecutionWithOwner(row scanner, ownerID, projectID *string) (Execution,
 	var terminalSequence *int64
 	var encodedProvenance []byte
 	if err := row.Scan(
-		ownerID, projectID,
+		ownerID, projectID, binding,
 		&execution.ExecutionID, &execution.AuditID, &execution.RoundID,
 		&role, &execution.WorkflowRole, &roleAttempt, &encodedRef,
 		&execution.Manifest.Digest, &execution.SubmissionKey, &execution.RequestDigest,

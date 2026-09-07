@@ -34,6 +34,7 @@ type PublicRunWriter interface {
 }
 
 type AuditRunWriter interface {
+	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 	CreateAuditRun(context.Context, runstore.CreateAuditRunParams) (runstore.WorkflowRun, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
 	SetRunSkillSelections(context.Context, string, []contracts.RunSkillSnapshot) error

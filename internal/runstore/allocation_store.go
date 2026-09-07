@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 
@@ -71,6 +72,16 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	if err != nil {
 		return fmt.Errorf("record Stage allocation: encode Runtime configuration: %w", err)
 	}
+	var completion []byte
+	if allocation.CompletionContract != nil {
+		if err := allocation.CompletionContract.Validate(); err != nil || allocation.CompletionContract.ResultArtifact.Namespace != allocation.Namespace {
+			return invalidf("invalid allocation completion contract")
+		}
+		completion, err = json.Marshal(allocation.CompletionContract)
+		if err != nil {
+			return err
+		}
+	}
 	var insertedID string
 	err = s.db.QueryRow(ctx, `
 INSERT INTO stage_allocations (
@@ -78,8 +89,8 @@ INSERT INTO stage_allocations (
     agent_template_ref, worker_runtime_ref,
     runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision,
     runtime_configuration_schema_version, runtime_configuration,
-    performance_collection_policy
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11::jsonb, $12)
+    performance_collection_policy, completion_contract
+) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11::jsonb, $12, $13::jsonb)
 ON CONFLICT DO NOTHING
 RETURNING allocation_id`,
 		allocation.AllocationID, allocation.StageExecutionID, allocation.LogicalAgentName,
@@ -87,7 +98,7 @@ RETURNING allocation_id`,
 		allocation.RuntimeAgentID, allocation.RuntimeAgentInstanceID,
 		strconv.FormatUint(allocation.RuntimeAgentLabelRevision, 10),
 		allocation.RuntimeConfigurationSchemaVersion, runtimeConfiguration,
-		allocation.PerformanceCollectionPolicy,
+		allocation.PerformanceCollectionPolicy, completion,
 	).Scan(&insertedID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, loadErr := s.ListStageAllocations(ctx, allocation.StageExecutionID)
@@ -120,7 +131,7 @@ RETURNING allocation_id`,
 }
 
 func sameStageAllocation(left, right StageAllocation) bool {
-	return left.AllocationID == right.AllocationID &&
+	return reflect.DeepEqual(left.CompletionContract, right.CompletionContract) && left.AllocationID == right.AllocationID &&
 		left.StageExecutionID == right.StageExecutionID &&
 		left.LogicalAgentName == right.LogicalAgentName &&
 		left.Namespace == right.Namespace &&
@@ -183,7 +194,7 @@ SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
        agent_template_ref, worker_runtime_ref,
        runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision::text,
        runtime_configuration_schema_version, runtime_configuration,
-       performance_collection_policy, created_at,
+       performance_collection_policy, completion_contract, created_at,
        release_attempted_at, release_completed_at
 FROM stage_allocations
 WHERE stage_execution_id = ANY($1::text[])
@@ -200,16 +211,25 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 		var runtimeAgentID, runtimeAgentLabelRevision, runtimeConfigurationVersion *string
 		var performanceCollectionPolicy *string
 		var runtimeConfiguration []byte
+		var completion []byte
 		if err := rows.Scan(
 			&allocation.AllocationID, &allocation.StageExecutionID,
 			&allocation.LogicalAgentName, &allocation.Namespace,
 			&templateRef, &runtimeRef,
 			&runtimeAgentID, &allocation.RuntimeAgentInstanceID, &runtimeAgentLabelRevision,
-			&runtimeConfigurationVersion, &runtimeConfiguration, &performanceCollectionPolicy,
+			&runtimeConfigurationVersion, &runtimeConfiguration, &performanceCollectionPolicy, &completion,
 			&allocation.CreatedAt,
 			&allocation.ReleaseAttemptedAt, &allocation.ReleaseCompletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan StageExecution allocation: %w", err)
+		}
+		if completion != nil {
+			if err := json.Unmarshal(completion, &allocation.CompletionContract); err != nil {
+				return nil, err
+			}
+			if allocation.CompletionContract == nil || allocation.CompletionContract.Validate() != nil {
+				return nil, invalidf("invalid persisted completion contract")
+			}
 		}
 		if err := json.Unmarshal(templateRef, &allocation.AgentTemplateRef); err != nil {
 			return nil, fmt.Errorf("decode persisted AgentTemplate ref: %w", err)

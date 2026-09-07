@@ -9,7 +9,7 @@ import (
 )
 
 func TestPodmanWorkspaceRequirementsStayBindingSpecific(t *testing.T) {
-	snapshot, err := workflowconfig.Load("../../configs", workflowconfig.MVPDescriptors())
+	snapshot, err := workflowconfig.Load("../../testdata/configs", workflowconfig.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
