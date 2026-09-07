@@ -3,8 +3,8 @@ id: V39-006
 title: "Expose bounded completion diagnostics and versioned Audit examples"
 milestone: audit-worker-completion
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: c4e934e8c4925b21d77f866ea2e09eebf5e3f419
 depends_on: ["V39-005"]
 languages: ["go","python","yaml"]
 
