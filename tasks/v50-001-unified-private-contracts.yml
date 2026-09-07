@@ -3,8 +3,8 @@ id: V50-001
 title: Replace legacy private contracts with the current models under v1alpha1
 milestone: unified-private-contracts
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 25788c210dbfa9c76cd8767419fb03535d09757d
 depends_on: []
 languages: [go, python, json, markdown]
 goal: >-
