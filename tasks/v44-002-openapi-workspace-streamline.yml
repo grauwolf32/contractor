@@ -3,7 +3,8 @@ id: V44-002
 title: Integrate the workspace-backed OpenAPI Streamline variant
 milestone: openapi-workflow-variants
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e8d4b20328eee9d9ffaf16c7aaa86e16b2566f3d
 depends_on: [V22-002, V22-003]
 languages: [yaml, go, markdown]
 

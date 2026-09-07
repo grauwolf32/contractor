@@ -3,7 +3,8 @@ id: V44-001
 title: Integrate the limited OpenAPI graph comparison profile
 milestone: openapi-workflow-variants
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0eb47803f4b458aea6e27297d6e7ce867f97fd96
 depends_on: [V25-008A, V15-007, V43-004]
 languages: [yaml, go, markdown]
 
