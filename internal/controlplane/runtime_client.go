@@ -107,6 +107,7 @@ func (c *RuntimeControlClient) Prepare(
 		ModelPolicy:    cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
 		Workspace:                       contracts.CloneAllocationWorkspaceSpecV2(reservation.Workspace),
+		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
 	request := contracts.PrepareAllocationRequestV2{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
@@ -147,6 +148,7 @@ func (c *RuntimeControlClient) Finalize(
 		return contracts.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
+	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
 	if err := response.Validate(); err != nil {
 		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
@@ -178,6 +180,7 @@ func (c *RuntimeControlClient) Abort(
 		return contracts.AllocationFinalReport{}, err
 	}
 	sanitizeRuntimeAdapterMetrics(&response.Report.Runtime, reservation)
+	sanitizeRuntimeResources(&response.Report.Runtime, reservation)
 	if err := response.Validate(); err != nil {
 		return contracts.AllocationFinalReport{}, errors.New("Runtime Agent returned a lifecycle response that violates the contract")
 	}
@@ -389,6 +392,34 @@ func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation 
 		if _, reported := report.Adapters[ref]; !reported {
 			report.Complete = false
 		}
+	}
+}
+
+func clonePerformanceMetricsRequest(source *contracts.PerformanceMetricsRequest) *contracts.PerformanceMetricsRequest {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	return &result
+}
+
+// Resource telemetry is optional and must never poison Worker truth. Only a
+// Server-pinned request may contribute measurements. A malformed requested
+// block is retained as one bounded diagnostic sentinel, not raw input.
+func sanitizeRuntimeResources(report *contracts.RuntimeReport, reservation Reservation) {
+	if reservation.PerformanceCollectionPolicy != contracts.PerformanceCollectionRequested {
+		report.Resources = nil
+		report.ResourcesError = nil
+		return
+	}
+	if report.ResourcesError != nil ||
+		(report.Resources != nil && report.Resources.Validate() != nil) {
+		reason := contracts.ResourceInvalidReport
+		report.Resources = &contracts.RuntimeResources{
+			Version: contracts.PerformanceMetricsVersion, Scope: "runtime_process",
+			Status: contracts.ResourceUnavailable, Reason: &reason,
+		}
+		report.ResourcesError = nil
 	}
 }
 

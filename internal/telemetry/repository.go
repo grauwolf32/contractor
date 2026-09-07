@@ -21,13 +21,14 @@ var (
 )
 
 type AllocationReportEnvelope struct {
-	StageExecutionID    string
-	AllocationID        string
-	LogicalAgentName    string
-	ReportSchemaVersion string
-	Report              contracts.AllocationFinalReport
-	Secrets             []string
-	ReceivedAt          time.Time
+	StageExecutionID            string
+	AllocationID                string
+	LogicalAgentName            string
+	ReportSchemaVersion         string
+	Report                      contracts.AllocationFinalReport
+	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	Secrets                     []string
+	ReceivedAt                  time.Time
 }
 
 type PlannerReportEnvelope struct {
@@ -76,6 +77,7 @@ func (r *Repository) RecordAllocationReport(
 	if err := validateAllocationEnvelope(envelope); err != nil {
 		return err
 	}
+	normalizeAllocationResources(&envelope.Report.Runtime, envelope.PerformanceCollectionPolicy)
 	report, err := NewPolicy(envelope.Secrets...).NormalizeAllocationReport(envelope.Report)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalid, err)
@@ -134,6 +136,25 @@ ON CONFLICT DO NOTHING`,
 		return fmt.Errorf("record allocation report: %w", ErrConflict)
 	}
 	return nil
+}
+
+func normalizeAllocationResources(
+	report *contracts.RuntimeReport,
+	policy contracts.PerformanceCollectionPolicy,
+) {
+	if policy != contracts.PerformanceCollectionRequested {
+		report.Resources = nil
+		report.ResourcesError = nil
+		return
+	}
+	if report.ResourcesError != nil || (report.Resources != nil && report.Resources.Validate() != nil) {
+		reason := contracts.ResourceInvalidReport
+		report.Resources = &contracts.RuntimeResources{
+			Version: contracts.PerformanceMetricsVersion, Scope: "runtime_process",
+			Status: contracts.ResourceUnavailable, Reason: &reason,
+		}
+		report.ResourcesError = nil
+	}
 }
 
 func (r *Repository) ListAllocationReports(
@@ -522,6 +543,15 @@ func validateAllocationEnvelope(value AllocationReportEnvelope) error {
 	} {
 		if err := requireText(field, current); err != nil {
 			return err
+		}
+	}
+	switch value.PerformanceCollectionPolicy {
+	case "", contracts.PerformanceCollectionLegacy:
+		// Empty/legacy is accepted only for reports belonging to allocations
+		// created before collection policy became durable provenance.
+	default:
+		if err := value.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
+			return fmt.Errorf("%w: performance collection policy is invalid", ErrInvalid)
 		}
 	}
 	return nil

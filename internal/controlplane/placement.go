@@ -40,6 +40,7 @@ type PlacementAllocatorOptions struct {
 	LLMCredentials     workflowconfig.CredentialLookup
 	RuntimeCredentials PlacementRuntimeCredentialLookup
 	CredentialGuard    PlacementCredentialGuard
+	PerformanceMetrics bool
 }
 
 // PlacementAllocator composes immutable SQL catalogs with the process-local
@@ -52,6 +53,7 @@ type PlacementAllocator struct {
 	llmCredentials     workflowconfig.CredentialLookup
 	runtimeCredentials PlacementRuntimeCredentialLookup
 	credentialGuard    PlacementCredentialGuard
+	performanceMetrics bool
 }
 
 func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocator, error) {
@@ -62,7 +64,7 @@ func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocat
 	return &PlacementAllocator{
 		pool: options.Pool, registry: options.Registry, gateways: options.Gateways,
 		llmCredentials: options.LLMCredentials, runtimeCredentials: options.RuntimeCredentials,
-		credentialGuard: options.CredentialGuard,
+		credentialGuard: options.CredentialGuard, performanceMetrics: options.PerformanceMetrics,
 	}, nil
 }
 
@@ -145,10 +147,12 @@ func (a *PlacementAllocator) ReserveAllContext(
 		selectedCandidates[candidate.Registration.InstanceID] = candidate
 	}
 	resolvedByAllocation := make(map[string]runtimeconfig.ResolvedRuntimeConfig, len(reservations))
+	policyByAllocation := make(map[string]contracts.PerformanceCollectionPolicy, len(reservations))
 	err = a.credentialGuard.WithAllocationReferences(ctx, func() error {
 		return persistencepostgres.InTx(ctx, a.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			return a.pinReservations(
-				ctx, tx, request, reservations, selectedCandidates, optimistic, resolvedByAllocation,
+				ctx, tx, request, reservations, selectedCandidates, optimistic,
+				resolvedByAllocation, policyByAllocation,
 			)
 		})
 	})
@@ -165,8 +169,10 @@ func (a *PlacementAllocator) ReserveAllContext(
 			return nil, errors.New("durable placement omitted a selected allocation")
 		}
 		pinned[reservation.Grant.AllocationID] = PinnedReservationConfig{
-			RuntimeAgentLabelRevision: reservation.RuntimeAgentLabelRevision,
-			Resolved:                  resolved,
+			RuntimeAgentLabelRevision:   reservation.RuntimeAgentLabelRevision,
+			Resolved:                    resolved,
+			PerformanceCollectionPolicy: policyByAllocation[reservation.Grant.AllocationID],
+			PerformanceMetrics:          policyByAllocation[reservation.Grant.AllocationID].Request(),
 		}
 	}
 	result, err := a.registry.CommitCandidateReservations(request.StageExecutionID, pinned)
@@ -185,6 +191,7 @@ func (a *PlacementAllocator) pinReservations(
 	candidates map[string]AgentSnapshot,
 	optimistic map[string]runtimeconfig.ResolvedRuntimeConfig,
 	result map[string]runtimeconfig.ResolvedRuntimeConfig,
+	policies map[string]contracts.PerformanceCollectionPolicy,
 ) error {
 	labels := make(map[string]struct{})
 	principalIDs := make([]string, 0, len(reservations))
@@ -243,6 +250,7 @@ func (a *PlacementAllocator) pinReservations(
 			return errPlacementRevisionChanged
 		}
 		result[reservation.Grant.AllocationID] = resolved
+		policies[reservation.Grant.AllocationID] = a.collectionPolicy(candidate.Registration)
 	}
 
 	var state, runID string
@@ -276,11 +284,24 @@ FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
 			RuntimeAgentLabelRevision:         reservation.RuntimeAgentLabelRevision,
 			RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 			RuntimeConfiguration:              configuration,
+			PerformanceCollectionPolicy:       policies[reservation.Grant.AllocationID],
 		}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (a *PlacementAllocator) collectionPolicy(registration contracts.AgentRegistrationV2) contracts.PerformanceCollectionPolicy {
+	if !a.performanceMetrics {
+		return contracts.PerformanceCollectionDisabled
+	}
+	for _, version := range registration.SupportedPerformanceMetricsVersions {
+		if version == contracts.PerformanceMetricsVersion {
+			return contracts.PerformanceCollectionRequested
+		}
+	}
+	return contracts.PerformanceCollectionUnsupported
 }
 
 func (a *PlacementAllocator) resolveCandidate(

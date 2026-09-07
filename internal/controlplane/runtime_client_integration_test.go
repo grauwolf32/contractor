@@ -21,6 +21,14 @@ import (
 )
 
 func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
+	for _, terminal := range []string{"finalize", "abort"} {
+		t.Run(terminal, func(t *testing.T) {
+			testCrossLanguageMTLSAllocationLifecycle(t, terminal)
+		})
+	}
+}
+
+func testCrossLanguageMTLSAllocationLifecycle(t *testing.T, terminal string) {
 	repositoryRoot, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
@@ -115,6 +123,8 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	reservation.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
 	settings := contracts.WorkerExecutionSettingsV2{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(),
 		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
@@ -149,9 +159,21 @@ func TestCrossLanguageMTLSAllocationLifecycle(t *testing.T) {
 		unchanged.ETag != stateRead.ETag {
 		t.Fatalf("cross-language Worker State revalidation = (%+v, %v)", unchanged, err)
 	}
-	report, err := client.Finalize(ctx, reservation, "finalization_integration", time.Now().Add(10*time.Second))
-	if err != nil || !report.Worker.Complete || !report.Runtime.Complete {
-		t.Fatalf("cross-language finalize = (%+v, %v)", report, err)
+	var report contracts.AllocationFinalReport
+	if terminal == "abort" {
+		report, err = client.Abort(
+			ctx,
+			reservation,
+			"abort_integration",
+			contracts.TerminationError{Code: "run_cancelled", Message: "cancelled by integration fixture", Retryable: false},
+			time.Now().Add(10*time.Second),
+		)
+	} else {
+		report, err = client.Finalize(ctx, reservation, "finalization_integration", time.Now().Add(10*time.Second))
+	}
+	if err != nil || !report.Worker.Complete || !report.Runtime.Complete ||
+		report.Runtime.Resources == nil || report.Runtime.Resources.Status != contracts.ResourceComplete {
+		t.Fatalf("cross-language %s = (%+v, %v)", terminal, report, err)
 	}
 	if _, err := client.ReadWorkerState(ctx, handle, ""); err == nil {
 		t.Fatal("terminal Runtime exposed destroyed Worker State")

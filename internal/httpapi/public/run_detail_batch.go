@@ -22,17 +22,19 @@ type runDetailRelated struct {
 	allocations map[string][]runstore.StageAllocation
 	metrics     map[string]telemetry.StageMetricsRecord
 	plans       map[string]planner.PlannerPlanProjection
+	resources   map[string][]telemetry.AllocationResourceSummary
 }
 
 // Call only with executions of an already owner-authorized Run. Production
 // PostgreSQL dependencies issue at most one query per collection, including
 // stages with no allocations or optional metrics. Compatibility fallbacks are
 // for non-PostgreSQL implementations, not concurrent per-stage query fan-out.
-func (h *handler) loadRunDetailRelated(ctx context.Context, executions []runstore.StageExecution) (runDetailRelated, error) {
+func (h *handler) loadRunDetailRelated(ctx context.Context, ownerID string, executions []runstore.StageExecution) (runDetailRelated, error) {
 	result := runDetailRelated{
 		allocations: make(map[string][]runstore.StageAllocation),
 		metrics:     make(map[string]telemetry.StageMetricsRecord),
 		plans:       make(map[string]planner.PlannerPlanProjection),
+		resources:   make(map[string][]telemetry.AllocationResourceSummary),
 	}
 	ids := make([]string, len(executions))
 	var identities []planner.SessionIdentity
@@ -84,6 +86,10 @@ func (h *handler) loadRunDetailRelated(ctx context.Context, executions []runstor
 				result.plans[identity.StageExecutionID] = plan
 			}
 		}
+	}
+	result.resources, err = h.dependencies.AllocationResources.ListStageAllocationResources(ctx, ownerID, ids)
+	if err != nil {
+		return result, err
 	}
 	return result, nil
 }

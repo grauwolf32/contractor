@@ -361,7 +361,7 @@ func RunCLI(
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
 		Pool: pool, Registry: registry, Gateways: configurationManager,
 		LLMCredentials: credentialProvider, RuntimeCredentials: runtimeCredentialLifecycle,
-		CredentialGuard: credentialLifecycle,
+		CredentialGuard: credentialLifecycle, PerformanceMetrics: cfg.PerformanceMetrics,
 	})
 	if err != nil {
 		return fmt.Errorf("configure candidate Runtime placement: %w", err)
@@ -663,6 +663,17 @@ func RunCLI(
 	if err != nil {
 		return fmt.Errorf("configure Git importer: %w", err)
 	}
+	performanceDiagnostics := newPerformanceDiagnostics(cfg.PerformanceMetrics, cfg.DatabaseURL)
+	var performanceCollector *performance.Collector
+	if cfg.PerformanceMetrics {
+		performanceCollector = performance.New(performance.Options{
+			ReadPool: performance.WorkingPoolReader(pool), Diagnostics: performanceDiagnostics,
+		})
+	}
+	performanceReader := performance.NewReadService(
+		cfg.PerformanceMetrics, performanceCollector, performanceDiagnostics,
+		performance.NewHistoryRepository(pool, time.Now), time.Now,
+	)
 	collectionPublisher, err := findingintake.NewCollectionPublisher(pool, auditService)
 	if err != nil {
 		return fmt.Errorf("configure finding collection publisher: %w", err)
@@ -684,6 +695,8 @@ func RunCLI(
 		Metrics:                telemetry.NewRepository(pool),
 		PlannerPlans:           plannerSessions,
 		Operations:             registry,
+		Performance:            performanceReader,
+		AllocationResources:    telemetry.NewRepository(pool),
 		OperationsInvalidator:  registry,
 		SchedulerSettings:      schedulerSettings,
 		Events:                 eventHub,
@@ -712,12 +725,9 @@ func RunCLI(
 		return fmt.Errorf("configure private Artifact API: %w", err)
 	}
 	privateHandler := newPrivateHandler(controlHandler, artifactHandler)
-	performanceDiagnostics := newPerformanceDiagnostics(cfg.PerformanceMetrics, cfg.DatabaseURL)
-	processHandler, instrumentedPrivate, performanceCollector := instrumentPerformance(
+	processHandler, instrumentedPrivate, _ := instrumentPerformance(
 		cfg.PerformanceMetrics, NewReadyHandler(pool.Ping, publicHandler), privateHandler,
-		func() *performance.Collector {
-			return performance.New(performance.Options{ReadPool: performance.WorkingPoolReader(pool), Diagnostics: performanceDiagnostics})
-		},
+		func() *performance.Collector { return performanceCollector },
 	)
 	runners := backgroundRunnerGroup{workflowScheduler, auditController, projectDeletionController}
 	if performanceCollector != nil {

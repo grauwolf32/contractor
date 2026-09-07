@@ -519,7 +519,8 @@ func (r *InMemoryRegistry) CommitCandidateReservations(
 		configuration, configured := configurations[allocationID]
 		if !present || !configured || configuration.RuntimeAgentLabelRevision == 0 ||
 			configuration.RuntimeAgentLabelRevision != stored.reservation.RuntimeAgentLabelRevision ||
-			configuration.Resolved.Validate() != nil {
+			configuration.Resolved.Validate() != nil ||
+			validatePinnedPerformanceCollection(configuration) != nil {
 			return nil, ErrReservationConflict
 		}
 	}
@@ -532,11 +533,32 @@ func (r *InMemoryRegistry) CommitCandidateReservations(
 			Credential:  cloneCredentialRef(resolved.LLMCredential),
 		}
 		stored.reservation.ResolvedRuntimeConfig = &resolved
+		stored.reservation.PerformanceCollectionPolicy = configurations[allocationID].PerformanceCollectionPolicy
+		if configurations[allocationID].PerformanceMetrics != nil {
+			request := *configurations[allocationID].PerformanceMetrics
+			stored.reservation.PerformanceMetrics = &request
+		}
 		r.allocations[allocationID] = stored
 	}
 	existing.committed = true
 	r.stageReservations[stageExecutionID] = existing
 	return r.existingReservations(existing)
+}
+
+func validatePinnedPerformanceCollection(configuration PinnedReservationConfig) error {
+	if err := configuration.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
+		return err
+	}
+	if configuration.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested {
+		if configuration.PerformanceMetrics == nil {
+			return ErrInvalidRequest
+		}
+		return configuration.PerformanceMetrics.Validate()
+	}
+	if configuration.PerformanceMetrics != nil {
+		return ErrInvalidRequest
+	}
+	return nil
 }
 
 // DiscardCandidateReservations releases a batch that was never exposed to a
@@ -1445,6 +1467,9 @@ func cloneRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegi
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)
 	result.SupportedRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, source.SupportedRuntimeAdapters...)
+	result.SupportedPerformanceMetricsVersions = append(
+		contracts.PerformanceMetricsVersions{}, source.SupportedPerformanceMetricsVersions...,
+	)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
 		capabilities.Modes = append([]contracts.WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
@@ -1508,6 +1533,10 @@ func cloneReservation(source Reservation) Reservation {
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	result.Workspace = contracts.CloneAllocationWorkspaceSpecV2(source.Workspace)
 	result.RunMetadataLabels = source.RunMetadataLabels.Clone()
+	if source.PerformanceMetrics != nil {
+		request := *source.PerformanceMetrics
+		result.PerformanceMetrics = &request
+	}
 	if source.ResolvedRuntimeConfig != nil {
 		resolved := source.ResolvedRuntimeConfig.Clone()
 		result.ResolvedRuntimeConfig = &resolved

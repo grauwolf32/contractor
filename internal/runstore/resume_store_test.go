@@ -213,7 +213,8 @@ func TestPostgresResumeWaitsForAllocationRelease(t *testing.T) {
 	pool := isolatedRunStorePool(t, ctx)
 	store, previous := failedResumeFixture(t, ctx, pool, "run-release-resume")
 	allocation := StageAllocation{
-		AllocationID: "pending-release", StageExecutionID: previous.StageExecutionID, LogicalAgentName: "builder", Namespace: "builder",
+		PerformanceCollectionPolicy: contracts.PerformanceCollectionUnsupported,
+		AllocationID:                "pending-release", StageExecutionID: previous.StageExecutionID, LogicalAgentName: "builder", Namespace: "builder",
 		AgentTemplateRef: contracts.AgentTemplateRef{TemplateID: "builder", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64)},
 		WorkerRuntimeRef: contracts.WorkerRuntimeRef{RuntimeID: "adk", Version: "1"},
 		RuntimeAgentID:   strings.Repeat("1", 64), RuntimeAgentInstanceID: "runtime-1", RuntimeAgentLabelRevision: 1,

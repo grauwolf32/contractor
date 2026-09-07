@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -40,23 +41,24 @@ var (
 )
 
 type handlerFixture struct {
-	handler            http.Handler
-	configs            *config.Manager
-	repository         *fakeArtifactRepository
-	artifacts          *artifacts.Service
-	runs               *fakeRunStore
-	unit               *fakeUnitOfWork
-	notifier           *recordingRunNotifier
-	runSkills          *fakeRunSkillInitializer
-	metrics            *fakeMetricsReader
-	plans              *fakePlannerPlanReader
-	credentials        *fakeManagedCredentials
-	runtimeConfigs     *fakeRuntimeConfigManagement
-	runtimeCredentials *fakeRuntimeCredentialManagement
-	runtimePrincipals  *fakeRuntimeAgentPrincipalManagement
-	projects           *fakeProjectStore
-	operations         *fakeOperationsReader
-	settings           *fakeSchedulerSettings
+	handler             http.Handler
+	configs             *config.Manager
+	repository          *fakeArtifactRepository
+	artifacts           *artifacts.Service
+	runs                *fakeRunStore
+	unit                *fakeUnitOfWork
+	notifier            *recordingRunNotifier
+	runSkills           *fakeRunSkillInitializer
+	metrics             *fakeMetricsReader
+	plans               *fakePlannerPlanReader
+	allocationResources *fakeAllocationResourceReader
+	credentials         *fakeManagedCredentials
+	runtimeConfigs      *fakeRuntimeConfigManagement
+	runtimeCredentials  *fakeRuntimeCredentialManagement
+	runtimePrincipals   *fakeRuntimeAgentPrincipalManagement
+	projects            *fakeProjectStore
+	operations          *fakeOperationsReader
+	settings            *fakeSchedulerSettings
 }
 
 func newHandlerFixture(t *testing.T) handlerFixture {
@@ -563,6 +565,7 @@ func newHandlerFixtureWithAuth(
 	runSkills := &fakeRunSkillInitializer{runs: runs, err: errors.New("injected transient Skill initialization failure")}
 	metrics := &fakeMetricsReader{records: map[string]telemetry.StageMetricsRecord{}}
 	plans := &fakePlannerPlanReader{plans: map[string]planner.PlannerPlanProjection{}}
+	allocationResources := &fakeAllocationResourceReader{byStage: map[string][]telemetry.AllocationResourceSummary{}}
 	managedCredentials := newFakeManagedCredentials()
 	if gateway, gatewayErr := manager.LLMGateway("local-litellm@1"); gatewayErr == nil {
 		for _, id := range []string{"development-worker", "development-planner"} {
@@ -601,6 +604,10 @@ func newHandlerFixtureWithAuth(
 		Audits:                 &fakeAuditManagement{},
 		Runs:                   runs, Artifacts: service, Transactions: unit,
 		Operations: operations, OperationsInvalidator: operations, SchedulerSettings: settings, Events: eventHub,
+		Performance: performance.NewReadService(false, nil, nil, nil, func() time.Time {
+			return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+		}),
+		AllocationResources:     allocationResources,
 		Metrics:                 metrics,
 		PlannerPlans:            plans,
 		BearerToken:             contracts.NewSecretString(testBearerToken),
@@ -624,8 +631,9 @@ func newHandlerFixtureWithAuth(
 	return handlerFixture{
 		handler: handler, configs: manager, repository: repository, artifacts: service,
 		runs: runs, unit: unit, notifier: notifier, runSkills: runSkills, metrics: metrics, plans: plans,
-		credentials:    managedCredentials,
-		runtimeConfigs: runtimeConfigs, runtimeCredentials: runtimeCredentials,
+		allocationResources: allocationResources,
+		credentials:         managedCredentials,
+		runtimeConfigs:      runtimeConfigs, runtimeCredentials: runtimeCredentials,
 		runtimePrincipals: runtimePrincipals,
 		projects:          projects,
 		operations:        operations,
@@ -1668,6 +1676,13 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 			ReportsComplete: true, ModelCalls: 2, ToolCalls: 1, ErrorCount: 2,
 		},
 	}
+	fixture.allocationResources.byStage["stage-metrics"] = []telemetry.AllocationResourceSummary{{
+		AllocationID: "allocation-metrics", RunID: "run-metrics", StageExecutionID: "stage-metrics",
+		Stage: "copy", LogicalAgent: "builder", Outcome: "succeeded",
+		FinishedAt:       time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
+		CollectionPolicy: contracts.PerformanceCollectionUnsupported,
+		Status:           telemetry.AllocationResourceUnsupported,
+	}}
 
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, authenticatedRequest(
@@ -1702,6 +1717,10 @@ func TestRunStatusExposesSafeMetricsAndAttemptDiagnostics(t *testing.T) {
 	if result.Attempts[0].ExecutionConfig.Variant != runstore.StageExecutionConfigBase ||
 		result.Attempts[0].ExecutionConfig.Agents["builder"].ModelPolicy.PolicyID != "worker" {
 		t.Fatalf("public effective executionConfig refs = %+v", result.Attempts[0].ExecutionConfig)
+	}
+	if len(result.Attempts[0].Resources) != 1 ||
+		result.Attempts[0].Resources[0].AllocationID != "allocation-metrics" {
+		t.Fatalf("public allocation resources = %+v", result.Attempts[0].Resources)
 	}
 }
 

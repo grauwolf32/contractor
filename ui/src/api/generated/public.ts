@@ -2910,6 +2910,7 @@ export interface components {
             diagnostics?: components["schemas"]["AttemptDiagnostics"];
             plan?: components["schemas"]["PlannerPlan"];
             runtimeConfiguration?: components["schemas"]["StageRuntimeConfiguration"];
+            resources?: components["schemas"]["AllocationResourceSummary"][];
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
@@ -3715,6 +3716,27 @@ export interface components {
             longestIdleTransactionSeconds?: components["schemas"]["PerformanceNumber"];
             estimatedLiveTuples?: components["schemas"]["PerformanceInteger"];
             estimatedDeadTuples?: components["schemas"]["PerformanceInteger"];
+            clientConnections?: components["schemas"]["PerformanceInteger"];
+            hiddenConnections?: components["schemas"]["PerformanceInteger"];
+            autovacuumWorkers?: components["schemas"]["PerformanceInteger"];
+            vacuumCount?: components["schemas"]["PerformanceInteger"];
+            autovacuumCount?: components["schemas"]["PerformanceInteger"];
+            /** Format: date-time */
+            lastVacuumAt?: string;
+            /** Format: date-time */
+            lastAutovacuumAt?: string;
+            rates?: components["schemas"]["PerformanceDatabaseRates"];
+        };
+        PerformanceDatabaseRates: {
+            intervalSeconds: components["schemas"]["PerformanceNumber"];
+            commitsPerSecond: components["schemas"]["PerformanceNumber"];
+            rollbacksPerSecond: components["schemas"]["PerformanceNumber"];
+            deadlocksPerSecond: components["schemas"]["PerformanceNumber"];
+            tempFilesPerSecond: components["schemas"]["PerformanceNumber"];
+            tempBytesPerSecond: components["schemas"]["PerformanceNumber"];
+            blocksReadPerSecond: components["schemas"]["PerformanceNumber"];
+            blocksHitPerSecond: components["schemas"]["PerformanceNumber"];
+            bufferHitRatio?: number;
         };
         PerformanceDatabaseSize: {
             freshness: components["schemas"]["PerformanceFreshness"];
@@ -3735,6 +3757,8 @@ export interface components {
         };
         PerformanceDiagnostics: {
             skippedSamples: components["schemas"]["PerformanceInteger"];
+            rejectedSamples: components["schemas"]["PerformanceInteger"];
+            skippedMinutes: components["schemas"]["PerformanceInteger"];
             droppedMinutes: components["schemas"]["PerformanceInteger"];
             pendingMinutes: number;
             collectorReason?: components["schemas"]["PerformanceReason"];
@@ -3750,6 +3774,8 @@ export interface components {
          *       "databaseSizeIntervalSeconds": 300,
          *       "diagnostics": {
          *         "skippedSamples": 0,
+         *         "rejectedSamples": 0,
+         *         "skippedMinutes": 0,
          *         "droppedMinutes": 0,
          *         "pendingMinutes": 0
          *       }
@@ -3775,6 +3801,71 @@ export interface components {
             /** @constant */
             enabled?: true;
         });
+        PerformanceFineHistoryPoint: {
+            /** @constant */
+            kind: "sample";
+            /** @constant */
+            version: 1;
+            generation: string;
+            /** Format: date-time */
+            observedAt: string;
+            http?: components["schemas"]["PerformanceHTTP"];
+            process?: components["schemas"]["PerformanceProcess"];
+            pool?: components["schemas"]["PerformancePool"];
+            database?: components["schemas"]["PerformanceDatabase"];
+            databaseSize?: components["schemas"]["PerformanceDatabaseSize"];
+        };
+        PerformanceGaugeSummary: {
+            last: components["schemas"]["PerformanceNumber"];
+            min: components["schemas"]["PerformanceNumber"];
+            max: components["schemas"]["PerformanceNumber"];
+            samples: components["schemas"]["PerformanceInteger"];
+            /** Format: date-time */
+            observedAt: string;
+        };
+        PerformanceProcessGauges: {
+            rssBytes?: components["schemas"]["PerformanceGaugeSummary"];
+            heapLiveBytes?: components["schemas"]["PerformanceGaugeSummary"];
+            goroutines?: components["schemas"]["PerformanceGaugeSummary"];
+        };
+        PerformancePoolGauges: {
+            acquired?: components["schemas"]["PerformanceGaugeSummary"];
+            idle?: components["schemas"]["PerformanceGaugeSummary"];
+            total?: components["schemas"]["PerformanceGaugeSummary"];
+            max?: components["schemas"]["PerformanceGaugeSummary"];
+        };
+        PerformanceCPUAggregate: {
+            userSeconds: components["schemas"]["PerformanceNumber"];
+            systemSeconds: components["schemas"]["PerformanceNumber"];
+            durationSeconds: components["schemas"]["PerformanceNumber"];
+            cores: components["schemas"]["PerformanceNumber"];
+        };
+        PerformanceAggregateHistoryPoint: {
+            /** @constant */
+            kind: "aggregate";
+            /** @constant */
+            version: 1;
+            generation: string;
+            /** Format: date-time */
+            minuteStart: string;
+            /** @enum {unknown} */
+            status: "ok" | "partial" | "unavailable";
+            omittedWindows: components["schemas"]["PerformanceInteger"];
+            coverageSeconds: components["schemas"]["PerformanceNumber"];
+            http?: components["schemas"]["PerformanceHTTPSurface"][];
+            cpu?: components["schemas"]["PerformanceCPUAggregate"];
+            process: components["schemas"]["PerformanceProcessGauges"];
+            pool: components["schemas"]["PerformancePoolGauges"];
+            poolLast?: components["schemas"]["PerformancePool"];
+            gcPausesLast?: components["schemas"]["PerformanceGCPauseHistogram"];
+            database?: components["schemas"]["PerformanceDatabase"];
+            databaseSize?: components["schemas"]["PerformanceDatabaseSize"];
+            droppedMinutes: components["schemas"]["PerformanceInteger"];
+            /** @enum {integer} */
+            stepSeconds: 60 | 300 | 3600;
+            observedMinutes: components["schemas"]["PerformanceInteger"];
+            expectedMinutes: components["schemas"]["PerformanceInteger"];
+        };
         /**
          * @example {
          *       "from": "2026-09-06T09:00:00Z",
@@ -3790,7 +3881,7 @@ export interface components {
             to: string;
             /** @enum {unknown} */
             step: "15s" | "1m" | "5m" | "1h";
-            points: components["schemas"]["PerformanceSample"][];
+            points: (components["schemas"]["PerformanceFineHistoryPoint"] | components["schemas"]["PerformanceAggregateHistoryPoint"])[];
         };
         /** @description Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency. */
         RuntimeResourceSummary: {
@@ -3824,6 +3915,9 @@ export interface components {
          *       "allocationId": "allocation-example",
          *       "runId": "run-example",
          *       "stageExecutionId": "stage-example",
+         *       "stage": "analyze",
+         *       "logicalAgent": "builder",
+         *       "outcome": "succeeded",
          *       "finishedAt": "2026-09-06T10:00:00Z",
          *       "collectionPolicy": "legacy",
          *       "status": "unavailable",
@@ -3834,6 +3928,9 @@ export interface components {
             allocationId: components["schemas"]["ResourceId"];
             runId: components["schemas"]["ResourceId"];
             stageExecutionId: components["schemas"]["ResourceId"];
+            stage: components["schemas"]["ConfigId"];
+            logicalAgent: components["schemas"]["ConfigId"];
+            outcome: components["schemas"]["StageExecutionState"];
             /** Format: date-time */
             finishedAt: string;
             /** @enum {unknown} */
@@ -7484,6 +7581,7 @@ export interface operations {
                     "application/json": components["schemas"]["PerformanceSnapshot"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];

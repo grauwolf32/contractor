@@ -12,6 +12,32 @@ import (
 
 const recognizableSecret = "telemetry-secret-that-must-not-survive"
 
+func TestNormalizeAllocationResourcesHonorsPinnedPolicy(t *testing.T) {
+	invalid := contracts.ResourceInvalidReport
+	for _, test := range []struct {
+		name   string
+		policy contracts.PerformanceCollectionPolicy
+		report contracts.RuntimeReport
+		want   *contracts.ResourceReason
+	}{
+		{name: "unrequested", policy: contracts.PerformanceCollectionUnsupported, report: contracts.RuntimeReport{Resources: &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial}}},
+		{name: "malformed", policy: contracts.PerformanceCollectionRequested, report: contracts.RuntimeReport{ResourcesError: &invalid}, want: &invalid},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			normalizeAllocationResources(&test.report, test.policy)
+			if test.want == nil {
+				if test.report.Resources != nil || test.report.ResourcesError != nil {
+					t.Fatalf("unrequested resources survived: %+v", test.report)
+				}
+				return
+			}
+			if test.report.Resources == nil || test.report.Resources.Reason == nil || *test.report.Resources.Reason != *test.want || test.report.ResourcesError != nil {
+				t.Fatalf("malformed resource projection = %+v", test.report)
+			}
+		})
+	}
+}
+
 func TestMetricsPolicyBoundsDetailPreservesAggregatesAndRedactsSecrets(t *testing.T) {
 	calls, succeeded, failed := int64(1005), int64(804), int64(201)
 	report := contracts.ExecutionReport{

@@ -549,6 +549,7 @@ type StageAllocation struct {
 	RuntimeAgentLabelRevision         uint64
 	RuntimeConfigurationSchemaVersion string
 	RuntimeConfiguration              *AllocationRuntimeConfiguration
+	PerformanceCollectionPolicy       contracts.PerformanceCollectionPolicy
 	CreatedAt                         time.Time
 	ReleaseAttemptedAt                *time.Time
 	ReleaseCompletedAt                *time.Time
@@ -580,12 +581,13 @@ type StageExecutionReport struct {
 }
 
 type RecordStageExecutionReportParams struct {
-	StageExecutionID    string
-	AllocationID        string
-	LogicalAgentName    string
-	ReportSchemaVersion string
-	Report              contracts.AllocationFinalReport
-	Secrets             []string
+	StageExecutionID            string
+	AllocationID                string
+	LogicalAgentName            string
+	ReportSchemaVersion         string
+	Report                      contracts.AllocationFinalReport
+	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	Secrets                     []string
 }
 
 type PlannerExecutionReport struct {

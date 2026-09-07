@@ -16,12 +16,13 @@ func (s *PostgresStore) RecordStageExecutionReport(
 	err := telemetry.NewRepository(s.db).RecordAllocationReport(
 		ctx,
 		telemetry.AllocationReportEnvelope{
-			StageExecutionID:    params.StageExecutionID,
-			AllocationID:        params.AllocationID,
-			LogicalAgentName:    params.LogicalAgentName,
-			ReportSchemaVersion: params.ReportSchemaVersion,
-			Report:              params.Report,
-			Secrets:             params.Secrets,
+			StageExecutionID:            params.StageExecutionID,
+			AllocationID:                params.AllocationID,
+			LogicalAgentName:            params.LogicalAgentName,
+			ReportSchemaVersion:         params.ReportSchemaVersion,
+			Report:                      params.Report,
+			PerformanceCollectionPolicy: params.PerformanceCollectionPolicy,
+			Secrets:                     params.Secrets,
 		},
 	)
 	return mapTelemetryError("record StageExecution report", err)

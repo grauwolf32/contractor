@@ -18,7 +18,47 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 )
+
+type fakeAllocationResourceReader struct {
+	items   []telemetry.AllocationResourceSummary
+	byStage map[string][]telemetry.AllocationResourceSummary
+}
+
+func (f *fakeAllocationResourceReader) ListAllocationResourceHistory(
+	_ context.Context, params telemetry.AllocationResourceHistoryParams,
+) ([]telemetry.AllocationResourceSummary, error) {
+	result := make([]telemetry.AllocationResourceSummary, 0, min(params.Limit, len(f.items)))
+	for _, item := range f.items {
+		if params.RunID != "" && item.RunID != params.RunID {
+			continue
+		}
+		if params.UpperFinishedAt != nil && (item.FinishedAt.After(*params.UpperFinishedAt) ||
+			item.FinishedAt.Equal(*params.UpperFinishedAt) && item.AllocationID > params.UpperAllocationID) {
+			continue
+		}
+		if params.AfterFinishedAt != nil && (item.FinishedAt.After(*params.AfterFinishedAt) ||
+			item.FinishedAt.Equal(*params.AfterFinishedAt) && item.AllocationID >= params.AfterAllocationID) {
+			continue
+		}
+		result = append(result, item)
+		if len(result) == params.Limit {
+			break
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeAllocationResourceReader) ListStageAllocationResources(
+	_ context.Context, _ string, ids []string,
+) (map[string][]telemetry.AllocationResourceSummary, error) {
+	result := make(map[string][]telemetry.AllocationResourceSummary)
+	for _, id := range ids {
+		result[id] = append([]telemetry.AllocationResourceSummary(nil), f.byStage[id]...)
+	}
+	return result, nil
+}
 
 type fakeProjectClaim struct {
 	projectID string

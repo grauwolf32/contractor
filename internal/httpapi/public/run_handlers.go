@@ -554,7 +554,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	related, err := h.loadRunDetailRelated(r.Context(), executions)
+	related, err := h.loadRunDetailRelated(r.Context(), run.OwnerID, executions)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -594,6 +594,10 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			plan = &loaded
 		}
 		runtimeConfiguration := stageRuntimeConfigurationReadModel(related.allocations[execution.StageExecutionID])
+		resources := related.resources[execution.StageExecutionID]
+		if resources == nil {
+			resources = []telemetry.AllocationResourceSummary{}
+		}
 		if !terminalStageState(execution.State) {
 			value := execution.StageExecutionID
 			activeExecutionID = &value
@@ -612,6 +616,7 @@ func (h *handler) getRun(w http.ResponseWriter, r *http.Request) {
 			Diagnostics:          diagnostics,
 			Plan:                 plan,
 			RuntimeConfiguration: runtimeConfiguration,
+			Resources:            resources,
 			CreatedAt:            execution.CreatedAt,
 			UpdatedAt:            execution.UpdatedAt,
 			PlannerStartedAt:     execution.PlannerStartedAt,

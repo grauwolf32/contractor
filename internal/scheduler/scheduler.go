@@ -1074,14 +1074,20 @@ func (s *Scheduler) recordReservations(
 	reservations []controlplane.Reservation,
 ) error {
 	for _, reservation := range reservations {
+		collectionPolicy := reservation.PerformanceCollectionPolicy
+		if collectionPolicy.ValidatePinned() != nil {
+			// Legacy in-process allocators predate optional resource collection.
+			collectionPolicy = contracts.PerformanceCollectionDisabled
+		}
 		allocation := runstore.StageAllocation{
 			AllocationID: reservation.Grant.AllocationID, StageExecutionID: stageExecutionID,
 			LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
-			AgentTemplateRef:          reservation.AgentTemplate.Ref,
-			WorkerRuntimeRef:          reservation.AgentTemplate.Runtime,
-			RuntimeAgentID:            reservation.Grant.RuntimeAgentID,
-			RuntimeAgentInstanceID:    reservation.Grant.RuntimeInstanceID,
-			RuntimeAgentLabelRevision: reservation.RuntimeAgentLabelRevision,
+			AgentTemplateRef:            reservation.AgentTemplate.Ref,
+			WorkerRuntimeRef:            reservation.AgentTemplate.Runtime,
+			RuntimeAgentID:              reservation.Grant.RuntimeAgentID,
+			RuntimeAgentInstanceID:      reservation.Grant.RuntimeInstanceID,
+			RuntimeAgentLabelRevision:   reservation.RuntimeAgentLabelRevision,
+			PerformanceCollectionPolicy: collectionPolicy,
 		}
 		if reservation.ResolvedRuntimeConfig != nil {
 			resolved := reservation.ResolvedRuntimeConfig
@@ -1152,6 +1158,10 @@ func verifyReservations(
 			selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
 			if resolved.Validate() != nil || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
 				reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
+				reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
+				(reservation.PerformanceCollectionPolicy == contracts.PerformanceCollectionRequested) !=
+					(reservation.PerformanceMetrics != nil) ||
+				(reservation.PerformanceMetrics != nil && reservation.PerformanceMetrics.Validate() != nil) ||
 				!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{
 					ModelPolicy: resolved.ModelPolicy.Ref, LLMGateway: resolved.LLMGateway.Ref,
 					Credential: resolved.LLMCredential,
@@ -1171,6 +1181,7 @@ func verifyReservations(
 				reservation.ResolvedRuntimeConfig != nil &&
 					(persisted.RuntimeAgentID != grant.RuntimeAgentID ||
 						persisted.RuntimeAgentLabelRevision != reservation.RuntimeAgentLabelRevision ||
+						persisted.PerformanceCollectionPolicy != reservation.PerformanceCollectionPolicy ||
 						persisted.RuntimeConfigurationSchemaVersion != runstore.AllocationRuntimeConfigurationSchemaVersion ||
 						!samePersistedRuntimeConfiguration(persisted.RuntimeConfiguration, reservation.ResolvedRuntimeConfig))) {
 			return fmt.Errorf("live Control Plane allocation differs from durable provenance")
@@ -1810,7 +1821,8 @@ func (s *Scheduler) persistReports(
 		err := s.store.RecordStageExecutionReport(ctx, runstore.RecordStageExecutionReportParams{
 			StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 			LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
-			Report: report, Secrets: s.telemetrySecrets(),
+			Report: report, PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
+			Secrets: s.telemetrySecrets(),
 		})
 		cancel()
 		if err != nil {

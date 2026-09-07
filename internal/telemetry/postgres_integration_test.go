@@ -137,6 +137,77 @@ WHERE stage_execution_id = $1`, activeStage); err != nil {
 	assertTelemetryCount(t, ctx, pool, "stage_metrics", newStage, 1)
 }
 
+func TestAllocationResourceHistoryUsesTerminalIdentityAndPinnedPolicy(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	reports := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+
+	requestedStage := createTelemetryStageWithPolicy(
+		t, ctx, runs, "stage-requested", "allocation-requested", "session-requested",
+		contracts.PerformanceCollectionRequested,
+	)
+	finishTelemetryStage(t, ctx, runs, requestedStage)
+	duration, cpuUser, cpuSystem, gap := 31.0, 2.0, 1.0, 15.0
+	rssStart, rssEnd, rssPeak, samples := uint64(100), uint64(125), uint64(150), uint64(4)
+	envelope := allocationEnvelope(requestedStage, "allocation-requested", time.Now().UTC(), true)
+	envelope.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	envelope.Report.Runtime.Resources = &contracts.RuntimeResources{
+		Version: 1, Scope: "runtime_process", Status: contracts.ResourceComplete,
+		DurationSeconds: &duration, CPUUserSeconds: &cpuUser, CPUSystemSeconds: &cpuSystem,
+		RSSStartBytes: &rssStart, RSSEndBytes: &rssEnd, RSSPeakObservedBytes: &rssPeak,
+		RSSSampleCount: &samples, MaxSampleGapSeconds: &gap,
+	}
+	if err := reports.RecordAllocationReport(ctx, envelope); err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.MarkStageAllocationReleased(ctx, "allocation-requested"); err != nil {
+		t.Fatal(err)
+	}
+
+	unsupportedStage := createTelemetryStageWithPolicy(
+		t, ctx, runs, "stage-unsupported", "allocation-unsupported", "session-unsupported",
+		contracts.PerformanceCollectionUnsupported,
+	)
+	finishTelemetryStage(t, ctx, runs, unsupportedStage)
+	if err := runs.MarkStageAllocationReleased(ctx, "allocation-unsupported"); err != nil {
+		t.Fatal(err)
+	}
+
+	items, err := reports.ListAllocationResourceHistory(ctx, telemetry.AllocationResourceHistoryParams{
+		OwnerID: "user", Limit: 10,
+	})
+	if err != nil || len(items) != 2 {
+		t.Fatalf("allocation history = (%+v, %v)", items, err)
+	}
+	byID := map[string]telemetry.AllocationResourceSummary{}
+	for _, item := range items {
+		byID[item.AllocationID] = item
+	}
+	requested := byID["allocation-requested"]
+	if requested.Status != telemetry.AllocationResourceAvailable || requested.Resources == nil ||
+		requested.Resources.RSSPeakObservedBytes == nil || *requested.Resources.RSSPeakObservedBytes != rssPeak ||
+		requested.FinishedAt.IsZero() || requested.Outcome != "succeeded" {
+		t.Fatalf("requested resource summary = %+v", requested)
+	}
+	unsupported := byID["allocation-unsupported"]
+	if unsupported.Status != telemetry.AllocationResourceUnsupported || unsupported.Resources != nil {
+		t.Fatalf("unsupported resource summary = %+v", unsupported)
+	}
+	foreign, err := reports.ListAllocationResourceHistory(ctx, telemetry.AllocationResourceHistoryParams{
+		OwnerID: "another-owner", RunID: "run-telemetry", Limit: 10,
+	})
+	if err != nil || len(foreign) != 0 {
+		t.Fatalf("foreign history = (%+v, %v)", foreign, err)
+	}
+	batch, err := reports.ListStageAllocationResources(ctx, "user", []string{requestedStage, unsupportedStage})
+	if err != nil || len(batch[requestedStage]) != 1 || len(batch[unsupportedStage]) != 1 {
+		t.Fatalf("stage resource batch = (%+v, %v)", batch, err)
+	}
+}
+
 func allocationEnvelope(
 	stageExecutionID string,
 	allocationID string,
@@ -230,6 +301,21 @@ func createTelemetryStage(
 	allocationID string,
 	sessionID string,
 ) string {
+	return createTelemetryStageWithPolicy(
+		t, ctx, store, stageExecutionID, allocationID, sessionID,
+		contracts.PerformanceCollectionDisabled,
+	)
+}
+
+func createTelemetryStageWithPolicy(
+	t *testing.T,
+	ctx context.Context,
+	store *runstore.PostgresStore,
+	stageExecutionID string,
+	allocationID string,
+	sessionID string,
+	collectionPolicy contracts.PerformanceCollectionPolicy,
+) string {
 	t.Helper()
 	_, err := store.CreateStageExecution(ctx, runstore.CreateStageExecutionParams{
 		StageExecutionID: stageExecutionID, RunID: "run-telemetry", StageName: stageExecutionID,
@@ -253,6 +339,7 @@ func createTelemetryStage(
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              telemetryAllocationRuntimeConfiguration(),
+		PerformanceCollectionPolicy:       collectionPolicy,
 	}); err != nil {
 		t.Fatal(err)
 	}

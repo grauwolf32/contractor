@@ -2701,7 +2701,7 @@ paths:
       tags: [Operations]
       summary: Read bounded in-memory Server performance
       description: Independent of registry revisions; no SQL or sampling is triggered by this read. Disabled collection returns enabled false without current measurements.
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       responses:
         '200':
           description: Current collection policy, freshness and bounded diagnostics
@@ -2710,6 +2710,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/PerformanceSnapshot'}
+        '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '500': {$ref: '#/components/responses/InternalError'}
@@ -2720,7 +2721,7 @@ paths:
       tags: [Operations]
       summary: Read bounded performance history with generation boundaries
       description: Requires from before to. The 15s step covers at most the current process's last hour; durable steps cover at most seven days. Ranges yielding more than 1000 points are rejected, not silently truncated. Retained history remains readable when collection is disabled.
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: from
           in: query
@@ -2753,7 +2754,7 @@ paths:
       tags: [Operations]
       summary: Read terminal allocation resource summaries
       description: Owner-authorized history, including missing reports. Descending finishedAt and allocationId keyset pagination pins an upper boundary. finishedAt is the StageExecution terminal timestamp, not a late report arrival time. Historical collection policy is independent of current switches.
-      x-contractor-implementation: planned
+      x-contractor-implementation: implemented
       parameters:
         - name: runId
           in: query
@@ -5159,6 +5160,10 @@ components:
         diagnostics: {$ref: '#/components/schemas/AttemptDiagnostics'}
         plan: {$ref: '#/components/schemas/PlannerPlan'}
         runtimeConfiguration: {$ref: '#/components/schemas/StageRuntimeConfiguration'}
+        resources:
+          type: array
+          maxItems: 64
+          items: {$ref: '#/components/schemas/AllocationResourceSummary'}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
         plannerStartedAt: {type: string, format: date-time}
@@ -6258,6 +6263,28 @@ components:
         longestIdleTransactionSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
         estimatedLiveTuples: {$ref: '#/components/schemas/PerformanceInteger'}
         estimatedDeadTuples: {$ref: '#/components/schemas/PerformanceInteger'}
+        clientConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        hiddenConnections: {$ref: '#/components/schemas/PerformanceInteger'}
+        autovacuumWorkers: {$ref: '#/components/schemas/PerformanceInteger'}
+        vacuumCount: {$ref: '#/components/schemas/PerformanceInteger'}
+        autovacuumCount: {$ref: '#/components/schemas/PerformanceInteger'}
+        lastVacuumAt: {type: string, format: date-time}
+        lastAutovacuumAt: {type: string, format: date-time}
+        rates: {$ref: '#/components/schemas/PerformanceDatabaseRates'}
+    PerformanceDatabaseRates:
+      type: object
+      additionalProperties: false
+      required: [intervalSeconds, commitsPerSecond, rollbacksPerSecond, deadlocksPerSecond, tempFilesPerSecond, tempBytesPerSecond, blocksReadPerSecond, blocksHitPerSecond]
+      properties:
+        intervalSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        commitsPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        rollbacksPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        deadlocksPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        tempFilesPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        tempBytesPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        blocksReadPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        blocksHitPerSecond: {$ref: '#/components/schemas/PerformanceNumber'}
+        bufferHitRatio: {type: number, minimum: 0, maximum: 1}
     PerformanceDatabaseSize:
       type: object
       additionalProperties: false
@@ -6282,9 +6309,11 @@ components:
     PerformanceDiagnostics:
       type: object
       additionalProperties: false
-      required: [skippedSamples, droppedMinutes, pendingMinutes]
+      required: [skippedSamples, rejectedSamples, skippedMinutes, droppedMinutes, pendingMinutes]
       properties:
         skippedSamples: {$ref: '#/components/schemas/PerformanceInteger'}
+        rejectedSamples: {$ref: '#/components/schemas/PerformanceInteger'}
+        skippedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
         droppedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
         pendingMinutes: {type: integer, minimum: 0, maximum: 10}
         collectorReason: {$ref: '#/components/schemas/PerformanceReason'}
@@ -6313,7 +6342,83 @@ components:
         sampleIntervalSeconds: 15
         databaseIntervalSeconds: 60
         databaseSizeIntervalSeconds: 300
-        diagnostics: {skippedSamples: 0, droppedMinutes: 0, pendingMinutes: 0}
+        diagnostics: {skippedSamples: 0, rejectedSamples: 0, skippedMinutes: 0, droppedMinutes: 0, pendingMinutes: 0}
+    PerformanceFineHistoryPoint:
+      type: object
+      additionalProperties: false
+      required: [kind, version, generation, observedAt]
+      properties:
+        kind: {const: sample}
+        version: {type: integer, const: 1}
+        generation: {type: string, minLength: 1, maxLength: 128}
+        observedAt: {type: string, format: date-time}
+        http: {$ref: '#/components/schemas/PerformanceHTTP'}
+        process: {$ref: '#/components/schemas/PerformanceProcess'}
+        pool: {$ref: '#/components/schemas/PerformancePool'}
+        database: {$ref: '#/components/schemas/PerformanceDatabase'}
+        databaseSize: {$ref: '#/components/schemas/PerformanceDatabaseSize'}
+    PerformanceGaugeSummary:
+      type: object
+      additionalProperties: false
+      required: [last, min, max, samples, observedAt]
+      properties:
+        last: {$ref: '#/components/schemas/PerformanceNumber'}
+        min: {$ref: '#/components/schemas/PerformanceNumber'}
+        max: {$ref: '#/components/schemas/PerformanceNumber'}
+        samples: {$ref: '#/components/schemas/PerformanceInteger'}
+        observedAt: {type: string, format: date-time}
+    PerformanceProcessGauges:
+      type: object
+      additionalProperties: false
+      properties:
+        rssBytes: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        heapLiveBytes: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        goroutines: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+    PerformancePoolGauges:
+      type: object
+      additionalProperties: false
+      properties:
+        acquired: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        idle: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        total: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+        max: {$ref: '#/components/schemas/PerformanceGaugeSummary'}
+    PerformanceCPUAggregate:
+      type: object
+      additionalProperties: false
+      required: [userSeconds, systemSeconds, durationSeconds, cores]
+      properties:
+        userSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        systemSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        durationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        cores: {$ref: '#/components/schemas/PerformanceNumber'}
+    PerformanceAggregateHistoryPoint:
+      type: object
+      additionalProperties: false
+      required: [kind, version, generation, minuteStart, status, omittedWindows, coverageSeconds, process, pool, droppedMinutes, stepSeconds, observedMinutes, expectedMinutes]
+      properties:
+        kind: {const: aggregate}
+        version: {type: integer, const: 1}
+        generation: {type: string, minLength: 1, maxLength: 128}
+        minuteStart: {type: string, format: date-time}
+        status: {enum: [ok, partial, unavailable]}
+        omittedWindows: {$ref: '#/components/schemas/PerformanceInteger'}
+        coverageSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
+        http:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: {$ref: '#/components/schemas/PerformanceHTTPSurface'}
+        cpu: {$ref: '#/components/schemas/PerformanceCPUAggregate'}
+        process: {$ref: '#/components/schemas/PerformanceProcessGauges'}
+        pool: {$ref: '#/components/schemas/PerformancePoolGauges'}
+        poolLast: {$ref: '#/components/schemas/PerformancePool'}
+        gcPausesLast: {$ref: '#/components/schemas/PerformanceGCPauseHistogram'}
+        database: {$ref: '#/components/schemas/PerformanceDatabase'}
+        databaseSize: {$ref: '#/components/schemas/PerformanceDatabaseSize'}
+        droppedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
+        stepSeconds: {type: integer, enum: [60, 300, 3600]}
+        observedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
+        expectedMinutes: {$ref: '#/components/schemas/PerformanceInteger'}
     PerformanceHistory:
       type: object
       additionalProperties: false
@@ -6325,7 +6430,10 @@ components:
         points:
           type: array
           maxItems: 1000
-          items: {$ref: '#/components/schemas/PerformanceSample'}
+          items:
+            oneOf:
+              - {$ref: '#/components/schemas/PerformanceFineHistoryPoint'}
+              - {$ref: '#/components/schemas/PerformanceAggregateHistoryPoint'}
       example:
         from: '2026-09-06T09:00:00Z'
         to: '2026-09-06T10:00:00Z'
@@ -6361,11 +6469,14 @@ components:
     AllocationResourceSummary:
       type: object
       additionalProperties: false
-      required: [allocationId, runId, stageExecutionId, finishedAt, collectionPolicy, status]
+      required: [allocationId, runId, stageExecutionId, stage, logicalAgent, outcome, finishedAt, collectionPolicy, status]
       properties:
         allocationId: {$ref: '#/components/schemas/ResourceId'}
         runId: {$ref: '#/components/schemas/ResourceId'}
         stageExecutionId: {$ref: '#/components/schemas/ResourceId'}
+        stage: {$ref: '#/components/schemas/ConfigId'}
+        logicalAgent: {$ref: '#/components/schemas/ConfigId'}
+        outcome: {$ref: '#/components/schemas/StageExecutionState'}
         finishedAt: {type: string, format: date-time}
         collectionPolicy: {enum: [requested, disabled, unsupported, legacy]}
         status: {enum: [disabled, unsupported, pending, available, partial, unavailable]}
@@ -6375,6 +6486,9 @@ components:
         allocationId: allocation-example
         runId: run-example
         stageExecutionId: stage-example
+        stage: analyze
+        logicalAgent: builder
+        outcome: succeeded
         finishedAt: '2026-09-06T10:00:00Z'
         collectionPolicy: legacy
         status: unavailable

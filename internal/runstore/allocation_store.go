@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -39,6 +40,9 @@ func (s *PostgresStore) RecordStageAllocation(ctx context.Context, allocation St
 	}
 	if err := allocation.RuntimeConfiguration.Validate(); err != nil {
 		return invalidf("allocation Runtime configuration is invalid: %v", err)
+	}
+	if err := allocation.PerformanceCollectionPolicy.ValidatePinned(); err != nil {
+		return invalidf("allocation performance collection policy is invalid")
 	}
 	if err := validateOpaque("AgentTemplate templateID", allocation.AgentTemplateRef.TemplateID); err != nil {
 		return err
@@ -73,8 +77,9 @@ INSERT INTO stage_allocations (
     allocation_id, stage_execution_id, logical_agent_name, namespace,
     agent_template_ref, worker_runtime_ref,
     runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision,
-    runtime_configuration_schema_version, runtime_configuration
-) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11::jsonb)
+    runtime_configuration_schema_version, runtime_configuration,
+    performance_collection_policy
+) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11::jsonb, $12)
 ON CONFLICT DO NOTHING
 RETURNING allocation_id`,
 		allocation.AllocationID, allocation.StageExecutionID, allocation.LogicalAgentName,
@@ -82,6 +87,7 @@ RETURNING allocation_id`,
 		allocation.RuntimeAgentID, allocation.RuntimeAgentInstanceID,
 		strconv.FormatUint(allocation.RuntimeAgentLabelRevision, 10),
 		allocation.RuntimeConfigurationSchemaVersion, runtimeConfiguration,
+		allocation.PerformanceCollectionPolicy,
 	).Scan(&insertedID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, loadErr := s.ListStageAllocations(ctx, allocation.StageExecutionID)
@@ -124,6 +130,7 @@ func sameStageAllocation(left, right StageAllocation) bool {
 		left.RuntimeAgentInstanceID == right.RuntimeAgentInstanceID &&
 		left.RuntimeAgentLabelRevision == right.RuntimeAgentLabelRevision &&
 		left.RuntimeConfigurationSchemaVersion == right.RuntimeConfigurationSchemaVersion &&
+		left.PerformanceCollectionPolicy == right.PerformanceCollectionPolicy &&
 		sameAllocationRuntimeConfiguration(left.RuntimeConfiguration, right.RuntimeConfiguration)
 }
 
@@ -175,7 +182,8 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
        agent_template_ref, worker_runtime_ref,
        runtime_agent_id, runtime_agent_instance_id, runtime_agent_label_revision::text,
-       runtime_configuration_schema_version, runtime_configuration, created_at,
+       runtime_configuration_schema_version, runtime_configuration,
+       performance_collection_policy, created_at,
        release_attempted_at, release_completed_at
 FROM stage_allocations
 WHERE stage_execution_id = ANY($1::text[])
@@ -190,13 +198,15 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 		var templateRef []byte
 		var runtimeRef []byte
 		var runtimeAgentID, runtimeAgentLabelRevision, runtimeConfigurationVersion *string
+		var performanceCollectionPolicy *string
 		var runtimeConfiguration []byte
 		if err := rows.Scan(
 			&allocation.AllocationID, &allocation.StageExecutionID,
 			&allocation.LogicalAgentName, &allocation.Namespace,
 			&templateRef, &runtimeRef,
 			&runtimeAgentID, &allocation.RuntimeAgentInstanceID, &runtimeAgentLabelRevision,
-			&runtimeConfigurationVersion, &runtimeConfiguration, &allocation.CreatedAt,
+			&runtimeConfigurationVersion, &runtimeConfiguration, &performanceCollectionPolicy,
+			&allocation.CreatedAt,
 			&allocation.ReleaseAttemptedAt, &allocation.ReleaseCompletedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan StageExecution allocation: %w", err)
@@ -223,6 +233,12 @@ ORDER BY stage_execution_id, logical_agent_name`, stageExecutionIDs)
 			allocation.RuntimeAgentLabelRevision = revision
 			allocation.RuntimeConfigurationSchemaVersion = *runtimeConfigurationVersion
 			allocation.RuntimeConfiguration = &configuration
+		}
+		if performanceCollectionPolicy != nil {
+			allocation.PerformanceCollectionPolicy = contracts.PerformanceCollectionPolicy(*performanceCollectionPolicy)
+			if allocation.PerformanceCollectionPolicy.ValidatePinned() != nil {
+				return nil, fmt.Errorf("decode persisted allocation performance collection policy")
+			}
 		}
 		result = append(result, allocation)
 	}

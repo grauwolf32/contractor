@@ -344,6 +344,57 @@ func (e MediaType0) Valid() bool {
 	}
 }
 
+// Defines values for PerformanceAggregateHistoryPointStepSeconds.
+const (
+	PerformanceAggregateHistoryPointStepSecondsN300  PerformanceAggregateHistoryPointStepSeconds = 300
+	PerformanceAggregateHistoryPointStepSecondsN3600 PerformanceAggregateHistoryPointStepSeconds = 3600
+	PerformanceAggregateHistoryPointStepSecondsN60   PerformanceAggregateHistoryPointStepSeconds = 60
+)
+
+// Valid indicates whether the value is a known member of the PerformanceAggregateHistoryPointStepSeconds enum.
+func (e PerformanceAggregateHistoryPointStepSeconds) Valid() bool {
+	switch e {
+	case PerformanceAggregateHistoryPointStepSecondsN300:
+		return true
+	case PerformanceAggregateHistoryPointStepSecondsN3600:
+		return true
+	case PerformanceAggregateHistoryPointStepSecondsN60:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceAggregateHistoryPointVersion.
+const (
+	PerformanceAggregateHistoryPointVersionN1 PerformanceAggregateHistoryPointVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the PerformanceAggregateHistoryPointVersion enum.
+func (e PerformanceAggregateHistoryPointVersion) Valid() bool {
+	switch e {
+	case PerformanceAggregateHistoryPointVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceFineHistoryPointVersion.
+const (
+	PerformanceFineHistoryPointVersionN1 PerformanceFineHistoryPointVersion = 1
+)
+
+// Valid indicates whether the value is a known member of the PerformanceFineHistoryPointVersion enum.
+func (e PerformanceFineHistoryPointVersion) Valid() bool {
+	switch e {
+	case PerformanceFineHistoryPointVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PerformanceFreshnessIntervalSeconds.
 const (
 	PerformanceFreshnessIntervalSecondsN15  PerformanceFreshnessIntervalSeconds = 15
@@ -938,14 +989,17 @@ type AllocationResourcePage struct {
 
 // AllocationResourceSummary defines model for AllocationResourceSummary.
 type AllocationResourceSummary struct {
-	AllocationId     ResourceId  `json:"allocationId"`
-	CollectionPolicy interface{} `json:"collectionPolicy"`
-	FinishedAt       time.Time   `json:"finishedAt"`
-	Reason           interface{} `json:"reason,omitempty"`
+	AllocationId     ResourceId          `json:"allocationId"`
+	CollectionPolicy interface{}         `json:"collectionPolicy"`
+	FinishedAt       time.Time           `json:"finishedAt"`
+	LogicalAgent     ConfigId            `json:"logicalAgent"`
+	Outcome          StageExecutionState `json:"outcome"`
+	Reason           interface{}         `json:"reason,omitempty"`
 
 	// Resources Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
 	Resources        *RuntimeResourceSummary `json:"resources,omitempty"`
 	RunId            ResourceId              `json:"runId"`
+	Stage            ConfigId                `json:"stage"`
 	StageExecutionId ResourceId              `json:"stageExecutionId"`
 	Status           interface{}             `json:"status"`
 }
@@ -2424,6 +2478,57 @@ type ParameterSlot struct {
 	Required bool `json:"required"`
 }
 
+// PerformanceAggregateHistoryPoint defines model for PerformanceAggregateHistoryPoint.
+type PerformanceAggregateHistoryPoint struct {
+	// CoverageSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	CoverageSeconds PerformanceNumber        `json:"coverageSeconds"`
+	Cpu             *PerformanceCPUAggregate `json:"cpu,omitempty"`
+
+	// Database Aggregates for the current database only. Restricted visibility produces partial or unavailable data; resets invalidate deltas. No SQL text or per-backend records.
+	Database        *PerformanceDatabase     `json:"database,omitempty"`
+	DatabaseSize    *PerformanceDatabaseSize `json:"databaseSize,omitempty"`
+	DroppedMinutes  PerformanceInteger       `json:"droppedMinutes"`
+	ExpectedMinutes PerformanceInteger       `json:"expectedMinutes"`
+
+	// GcPausesLast Cumulative process-lifetime GC pause histogram with non-cumulative bucket populations. Bounds are finite upper edges; counts has one additional overflow bucket for positive infinity. Unknown/reset deltas are not zero.
+	GcPausesLast    *PerformanceGCPauseHistogram `json:"gcPausesLast,omitempty"`
+	Generation      string                       `json:"generation"`
+	Http            *[]PerformanceHTTPSurface    `json:"http,omitempty"`
+	Kind            interface{}                  `json:"kind"`
+	MinuteStart     time.Time                    `json:"minuteStart"`
+	ObservedMinutes PerformanceInteger           `json:"observedMinutes"`
+	OmittedWindows  PerformanceInteger           `json:"omittedWindows"`
+	Pool            PerformancePoolGauges        `json:"pool"`
+
+	// PoolLast Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency.
+	PoolLast    *PerformancePool                            `json:"poolLast,omitempty"`
+	Process     PerformanceProcessGauges                    `json:"process"`
+	Status      interface{}                                 `json:"status"`
+	StepSeconds PerformanceAggregateHistoryPointStepSeconds `json:"stepSeconds"`
+	Version     PerformanceAggregateHistoryPointVersion     `json:"version"`
+}
+
+// PerformanceAggregateHistoryPointStepSeconds defines model for PerformanceAggregateHistoryPoint.StepSeconds.
+type PerformanceAggregateHistoryPointStepSeconds int
+
+// PerformanceAggregateHistoryPointVersion defines model for PerformanceAggregateHistoryPoint.Version.
+type PerformanceAggregateHistoryPointVersion int
+
+// PerformanceCPUAggregate defines model for PerformanceCPUAggregate.
+type PerformanceCPUAggregate struct {
+	// Cores Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	Cores PerformanceNumber `json:"cores"`
+
+	// DurationSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	DurationSeconds PerformanceNumber `json:"durationSeconds"`
+
+	// SystemSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	SystemSeconds PerformanceNumber `json:"systemSeconds"`
+
+	// UserSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	UserSeconds PerformanceNumber `json:"userSeconds"`
+}
+
 // PerformanceCoverage defines model for PerformanceCoverage.
 type PerformanceCoverage struct {
 	// DurationSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
@@ -2437,8 +2542,11 @@ type PerformanceCoverage struct {
 // PerformanceDatabase Aggregates for the current database only. Restricted visibility produces partial or unavailable data; resets invalidate deltas. No SQL text or per-backend records.
 type PerformanceDatabase struct {
 	ActiveConnections   *PerformanceInteger `json:"activeConnections,omitempty"`
+	AutovacuumCount     *PerformanceInteger `json:"autovacuumCount,omitempty"`
+	AutovacuumWorkers   *PerformanceInteger `json:"autovacuumWorkers,omitempty"`
 	BlocksHit           *PerformanceInteger `json:"blocksHit,omitempty"`
 	BlocksRead          *PerformanceInteger `json:"blocksRead,omitempty"`
+	ClientConnections   *PerformanceInteger `json:"clientConnections,omitempty"`
 	Commits             *PerformanceInteger `json:"commits,omitempty"`
 	Deadlocks           *PerformanceInteger `json:"deadlocks,omitempty"`
 	EstimatedDeadTuples *PerformanceInteger `json:"estimatedDeadTuples,omitempty"`
@@ -2446,19 +2554,52 @@ type PerformanceDatabase struct {
 
 	// Freshness observedAt is the last successful observation, not the read time. Two missed intervals make the group stale; unavailable or never observed groups omit measurements.
 	Freshness                    PerformanceFreshness `json:"freshness"`
+	HiddenConnections            *PerformanceInteger  `json:"hiddenConnections,omitempty"`
 	IdleConnections              *PerformanceInteger  `json:"idleConnections,omitempty"`
 	IdleInTransactionConnections *PerformanceInteger  `json:"idleInTransactionConnections,omitempty"`
+	LastAutovacuumAt             *time.Time           `json:"lastAutovacuumAt,omitempty"`
+	LastVacuumAt                 *time.Time           `json:"lastVacuumAt,omitempty"`
 	LockWaitingConnections       *PerformanceInteger  `json:"lockWaitingConnections,omitempty"`
 
 	// LongestIdleTransactionSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
 	LongestIdleTransactionSeconds *PerformanceNumber `json:"longestIdleTransactionSeconds,omitempty"`
 
 	// LongestTransactionSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
-	LongestTransactionSeconds *PerformanceNumber  `json:"longestTransactionSeconds,omitempty"`
-	Rollbacks                 *PerformanceInteger `json:"rollbacks,omitempty"`
-	StatsReset                *time.Time          `json:"statsReset,omitempty"`
-	TempBytes                 *PerformanceInteger `json:"tempBytes,omitempty"`
-	TempFiles                 *PerformanceInteger `json:"tempFiles,omitempty"`
+	LongestTransactionSeconds *PerformanceNumber        `json:"longestTransactionSeconds,omitempty"`
+	Rates                     *PerformanceDatabaseRates `json:"rates,omitempty"`
+	Rollbacks                 *PerformanceInteger       `json:"rollbacks,omitempty"`
+	StatsReset                *time.Time                `json:"statsReset,omitempty"`
+	TempBytes                 *PerformanceInteger       `json:"tempBytes,omitempty"`
+	TempFiles                 *PerformanceInteger       `json:"tempFiles,omitempty"`
+	VacuumCount               *PerformanceInteger       `json:"vacuumCount,omitempty"`
+}
+
+// PerformanceDatabaseRates defines model for PerformanceDatabaseRates.
+type PerformanceDatabaseRates struct {
+	// BlocksHitPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	BlocksHitPerSecond PerformanceNumber `json:"blocksHitPerSecond"`
+
+	// BlocksReadPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	BlocksReadPerSecond PerformanceNumber `json:"blocksReadPerSecond"`
+	BufferHitRatio      *float32          `json:"bufferHitRatio,omitempty"`
+
+	// CommitsPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	CommitsPerSecond PerformanceNumber `json:"commitsPerSecond"`
+
+	// DeadlocksPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	DeadlocksPerSecond PerformanceNumber `json:"deadlocksPerSecond"`
+
+	// IntervalSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	IntervalSeconds PerformanceNumber `json:"intervalSeconds"`
+
+	// RollbacksPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	RollbacksPerSecond PerformanceNumber `json:"rollbacksPerSecond"`
+
+	// TempBytesPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	TempBytesPerSecond PerformanceNumber `json:"tempBytesPerSecond"`
+
+	// TempFilesPerSecond Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	TempFilesPerSecond PerformanceNumber `json:"tempFilesPerSecond"`
 }
 
 // PerformanceDatabaseSize defines model for PerformanceDatabaseSize.
@@ -2473,9 +2614,30 @@ type PerformanceDiagnostics struct {
 	CollectorReason *PerformanceReason `json:"collectorReason,omitempty"`
 	DroppedMinutes  PerformanceInteger `json:"droppedMinutes"`
 	PendingMinutes  int                `json:"pendingMinutes"`
+	RejectedSamples PerformanceInteger `json:"rejectedSamples"`
+	SkippedMinutes  PerformanceInteger `json:"skippedMinutes"`
 	SkippedSamples  PerformanceInteger `json:"skippedSamples"`
 	WriterReason    *PerformanceReason `json:"writerReason,omitempty"`
 }
+
+// PerformanceFineHistoryPoint defines model for PerformanceFineHistoryPoint.
+type PerformanceFineHistoryPoint struct {
+	// Database Aggregates for the current database only. Restricted visibility produces partial or unavailable data; resets invalidate deltas. No SQL text or per-backend records.
+	Database     *PerformanceDatabase     `json:"database,omitempty"`
+	DatabaseSize *PerformanceDatabaseSize `json:"databaseSize,omitempty"`
+	Generation   string                   `json:"generation"`
+	Http         *PerformanceHTTP         `json:"http,omitempty"`
+	Kind         interface{}              `json:"kind"`
+	ObservedAt   time.Time                `json:"observedAt"`
+
+	// Pool Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency.
+	Pool    *PerformancePool                   `json:"pool,omitempty"`
+	Process *PerformanceProcess                `json:"process,omitempty"`
+	Version PerformanceFineHistoryPointVersion `json:"version"`
+}
+
+// PerformanceFineHistoryPointVersion defines model for PerformanceFineHistoryPoint.Version.
+type PerformanceFineHistoryPointVersion int
 
 // PerformanceFreshness observedAt is the last successful observation, not the read time. Two missed intervals make the group stale; unavailable or never observed groups omit measurements.
 type PerformanceFreshness struct {
@@ -2494,6 +2656,20 @@ type PerformanceFreshnessIntervalSeconds int
 type PerformanceGCPauseHistogram struct {
 	BoundsSeconds []PerformanceNumber  `json:"boundsSeconds"`
 	Counts        []PerformanceInteger `json:"counts"`
+}
+
+// PerformanceGaugeSummary defines model for PerformanceGaugeSummary.
+type PerformanceGaugeSummary struct {
+	// Last Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	Last PerformanceNumber `json:"last"`
+
+	// Max Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	Max PerformanceNumber `json:"max"`
+
+	// Min Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
+	Min        PerformanceNumber  `json:"min"`
+	ObservedAt time.Time          `json:"observedAt"`
+	Samples    PerformanceInteger `json:"samples"`
 }
 
 // PerformanceHTTP defines model for PerformanceHTTP.
@@ -2527,10 +2703,15 @@ type PerformanceHistogram struct {
 
 // PerformanceHistory defines model for PerformanceHistory.
 type PerformanceHistory struct {
-	From   time.Time           `json:"from"`
-	Points []PerformanceSample `json:"points"`
-	Step   interface{}         `json:"step"`
-	To     time.Time           `json:"to"`
+	From   time.Time                        `json:"from"`
+	Points []PerformanceHistory_Points_Item `json:"points"`
+	Step   interface{}                      `json:"step"`
+	To     time.Time                        `json:"to"`
+}
+
+// PerformanceHistory_Points_Item defines model for PerformanceHistory.points.Item.
+type PerformanceHistory_Points_Item struct {
+	union json.RawMessage
 }
 
 // PerformanceInteger defines model for PerformanceInteger.
@@ -2559,6 +2740,14 @@ type PerformancePool struct {
 	TotalConnections *PerformanceInteger  `json:"totalConnections,omitempty"`
 }
 
+// PerformancePoolGauges defines model for PerformancePoolGauges.
+type PerformancePoolGauges struct {
+	Acquired *PerformanceGaugeSummary `json:"acquired,omitempty"`
+	Idle     *PerformanceGaugeSummary `json:"idle,omitempty"`
+	Max      *PerformanceGaugeSummary `json:"max,omitempty"`
+	Total    *PerformanceGaugeSummary `json:"total,omitempty"`
+}
+
 // PerformanceProcess defines model for PerformanceProcess.
 type PerformanceProcess struct {
 	// CpuCores Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
@@ -2582,6 +2771,13 @@ type PerformanceProcess struct {
 	Goroutines    *PerformanceInteger          `json:"goroutines,omitempty"`
 	HeapLiveBytes *PerformanceInteger          `json:"heapLiveBytes,omitempty"`
 	RssBytes      *PerformanceInteger          `json:"rssBytes,omitempty"`
+}
+
+// PerformanceProcessGauges defines model for PerformanceProcessGauges.
+type PerformanceProcessGauges struct {
+	Goroutines    *PerformanceGaugeSummary `json:"goroutines,omitempty"`
+	HeapLiveBytes *PerformanceGaugeSummary `json:"heapLiveBytes,omitempty"`
+	RssBytes      *PerformanceGaugeSummary `json:"rssBytes,omitempty"`
 }
 
 // PerformanceReason defines model for PerformanceReason.
@@ -3219,23 +3415,24 @@ type SnapshotCursor struct {
 
 // StageAttempt defines model for StageAttempt.
 type StageAttempt struct {
-	Attempt              int                        `json:"attempt"`
-	CreatedAt            *time.Time                 `json:"createdAt,omitempty"`
-	Diagnostics          *AttemptDiagnostics        `json:"diagnostics,omitempty"`
-	ExecutionConfig      StageExecutionConfig       `json:"executionConfig"`
-	Metrics              *MetricsSummary            `json:"metrics,omitempty"`
-	Objective            *string                    `json:"objective,omitempty"`
-	Plan                 *PlannerPlan               `json:"plan,omitempty"`
-	PlannerStartedAt     *time.Time                 `json:"plannerStartedAt,omitempty"`
-	PreviousExecutionId  *ResourceId                `json:"previousExecutionId,omitempty"`
-	Result               *StageContentResult        `json:"result,omitempty"`
-	RuntimeConfiguration *StageRuntimeConfiguration `json:"runtimeConfiguration,omitempty"`
-	Stage                ConfigId                   `json:"stage"`
-	StageExecutionId     ResourceId                 `json:"stageExecutionId"`
-	State                StageExecutionState        `json:"state"`
-	TerminalAt           *time.Time                 `json:"terminalAt,omitempty"`
-	Termination          *StageTermination          `json:"termination,omitempty"`
-	UpdatedAt            *time.Time                 `json:"updatedAt,omitempty"`
+	Attempt              int                          `json:"attempt"`
+	CreatedAt            *time.Time                   `json:"createdAt,omitempty"`
+	Diagnostics          *AttemptDiagnostics          `json:"diagnostics,omitempty"`
+	ExecutionConfig      StageExecutionConfig         `json:"executionConfig"`
+	Metrics              *MetricsSummary              `json:"metrics,omitempty"`
+	Objective            *string                      `json:"objective,omitempty"`
+	Plan                 *PlannerPlan                 `json:"plan,omitempty"`
+	PlannerStartedAt     *time.Time                   `json:"plannerStartedAt,omitempty"`
+	PreviousExecutionId  *ResourceId                  `json:"previousExecutionId,omitempty"`
+	Resources            *[]AllocationResourceSummary `json:"resources,omitempty"`
+	Result               *StageContentResult          `json:"result,omitempty"`
+	RuntimeConfiguration *StageRuntimeConfiguration   `json:"runtimeConfiguration,omitempty"`
+	Stage                ConfigId                     `json:"stage"`
+	StageExecutionId     ResourceId                   `json:"stageExecutionId"`
+	State                StageExecutionState          `json:"state"`
+	TerminalAt           *time.Time                   `json:"terminalAt,omitempty"`
+	Termination          *StageTermination            `json:"termination,omitempty"`
+	UpdatedAt            *time.Time                   `json:"updatedAt,omitempty"`
 }
 
 // StageContentResult defines model for StageContentResult.
@@ -5087,6 +5284,68 @@ func (t MediaType) MarshalJSON() ([]byte, error) {
 }
 
 func (t *MediaType) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPerformanceFineHistoryPoint returns the union data inside the PerformanceHistory_Points_Item as a PerformanceFineHistoryPoint
+func (t PerformanceHistory_Points_Item) AsPerformanceFineHistoryPoint() (PerformanceFineHistoryPoint, error) {
+	var body PerformanceFineHistoryPoint
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPerformanceFineHistoryPoint overwrites any union data inside the PerformanceHistory_Points_Item as the provided PerformanceFineHistoryPoint
+func (t *PerformanceHistory_Points_Item) FromPerformanceFineHistoryPoint(v PerformanceFineHistoryPoint) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePerformanceFineHistoryPoint performs a merge with any union data inside the PerformanceHistory_Points_Item, using the provided PerformanceFineHistoryPoint
+func (t *PerformanceHistory_Points_Item) MergePerformanceFineHistoryPoint(v PerformanceFineHistoryPoint) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPerformanceAggregateHistoryPoint returns the union data inside the PerformanceHistory_Points_Item as a PerformanceAggregateHistoryPoint
+func (t PerformanceHistory_Points_Item) AsPerformanceAggregateHistoryPoint() (PerformanceAggregateHistoryPoint, error) {
+	var body PerformanceAggregateHistoryPoint
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPerformanceAggregateHistoryPoint overwrites any union data inside the PerformanceHistory_Points_Item as the provided PerformanceAggregateHistoryPoint
+func (t *PerformanceHistory_Points_Item) FromPerformanceAggregateHistoryPoint(v PerformanceAggregateHistoryPoint) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePerformanceAggregateHistoryPoint performs a merge with any union data inside the PerformanceHistory_Points_Item, using the provided PerformanceAggregateHistoryPoint
+func (t *PerformanceHistory_Points_Item) MergePerformanceAggregateHistoryPoint(v PerformanceAggregateHistoryPoint) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PerformanceHistory_Points_Item) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PerformanceHistory_Points_Item) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -22243,6 +22502,11 @@ type GetPerformanceResponse200Headers struct {
 	XRequestID RequestId
 }
 
+// GetPerformanceResponse400Headers the declared response headers of an HTTP 400 response for GetPerformance
+type GetPerformanceResponse400Headers struct {
+	XRequestID RequestId
+}
+
 // GetPerformanceResponse401Headers the declared response headers of an HTTP 401 response for GetPerformance
 type GetPerformanceResponse401Headers struct {
 	WWWAuthenticate       *string
@@ -22265,6 +22529,8 @@ type GetPerformanceResponse struct {
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
 	JSON200 *PerformanceSnapshot
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Unauthorized
 	// JSON403 the response for an HTTP 403 `application/json` response
@@ -22273,6 +22539,8 @@ type GetPerformanceResponse struct {
 	JSON500 *InternalError
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *GetPerformanceResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetPerformanceResponse400Headers
 	// Headers401 the parsed response headers for an HTTP 401 response
 	Headers401 *GetPerformanceResponse401Headers
 	// Headers403 the parsed response headers for an HTTP 403 response
@@ -22284,6 +22552,11 @@ type GetPerformanceResponse struct {
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
 func (r GetPerformanceResponse) GetJSON200() *PerformanceSnapshot {
 	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetPerformanceResponse) GetJSON400() *BadRequest {
+	return r.JSON400
 }
 
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
@@ -37426,6 +37699,13 @@ func ParseGetPerformanceResponse(rsp *http.Response) (*GetPerformanceResponse, e
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -37460,6 +37740,16 @@ func ParseGetPerformanceResponse(rsp *http.Response) (*GetPerformanceResponse, e
 			headers.XRequestID = value
 		}
 		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetPerformanceResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
 	case rsp.StatusCode == 401:
 		var headers GetPerformanceResponse401Headers
 		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {

@@ -54,8 +54,10 @@ type CandidateEdge struct {
 // PinnedReservationConfig is attached only after durable allocation
 // provenance commits. It never contains RuntimeSettings or secret material.
 type PinnedReservationConfig struct {
-	RuntimeAgentLabelRevision uint64
-	Resolved                  runtimeconfig.ResolvedRuntimeConfig
+	RuntimeAgentLabelRevision   uint64
+	Resolved                    runtimeconfig.ResolvedRuntimeConfig
+	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	PerformanceMetrics          *contracts.PerformanceMetricsRequest
 }
 
 type AllocationGrant struct {
@@ -93,16 +95,18 @@ type AllocationLoss struct {
 }
 
 type Reservation struct {
-	Grant                     AllocationGrant
-	ControlURL                string
-	A2AURL                    string
-	AgentTemplate             contracts.ResolvedAgentTemplate
-	WorkerSessionMode         contracts.WorkerSessionMode
-	ResolvedSkills            []contracts.ResolvedSkill
-	ExecutionConfig           AllocationExecutionConfig
-	Workspace                 *contracts.AllocationWorkspaceSpecV2
-	RunMetadataLabels         contracts.RunMetadataLabels
-	RuntimeAgentLabelRevision uint64
-	ResolvedRuntimeConfig     *runtimeconfig.ResolvedRuntimeConfig
-	LeaseExpiresAt            time.Time
+	Grant                       AllocationGrant
+	ControlURL                  string
+	A2AURL                      string
+	AgentTemplate               contracts.ResolvedAgentTemplate
+	WorkerSessionMode           contracts.WorkerSessionMode
+	ResolvedSkills              []contracts.ResolvedSkill
+	ExecutionConfig             AllocationExecutionConfig
+	Workspace                   *contracts.AllocationWorkspaceSpecV2
+	RunMetadataLabels           contracts.RunMetadataLabels
+	RuntimeAgentLabelRevision   uint64
+	ResolvedRuntimeConfig       *runtimeconfig.ResolvedRuntimeConfig
+	PerformanceCollectionPolicy contracts.PerformanceCollectionPolicy
+	PerformanceMetrics          *contracts.PerformanceMetricsRequest
+	LeaseExpiresAt              time.Time
 }

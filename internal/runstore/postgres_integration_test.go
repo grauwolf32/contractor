@@ -77,6 +77,7 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              testAllocationRuntimeConfiguration(),
+		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
 	}
 	err = store.RecordStageAllocation(ctx, allocation)
 	if err != nil {
@@ -91,8 +92,14 @@ func TestPostgresIntegrationStageLifecycleAndSessions(t *testing.T) {
 		t.Fatalf("mismatched allocation record error = %v, want conflict", err)
 	}
 	allocations, err := store.ListStageAllocations(ctx, execution.StageExecutionID)
-	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" {
+	if err != nil || len(allocations) != 1 || allocations[0].AllocationID != "allocation-1" ||
+		allocations[0].PerformanceCollectionPolicy != contracts.PerformanceCollectionDisabled {
 		t.Fatalf("allocations = (%+v, %v)", allocations, err)
+	}
+	differentPolicy := allocation
+	differentPolicy.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	if err := store.RecordStageAllocation(ctx, differentPolicy); !errors.Is(err, ErrConflict) {
+		t.Fatalf("mismatched allocation policy error = %v, want conflict", err)
 	}
 	_, err = pool.Exec(ctx, `
 UPDATE stage_allocations
@@ -100,6 +107,13 @@ SET runtime_agent_label_revision = runtime_agent_label_revision + 1
 WHERE allocation_id = 'allocation-1'`)
 	if persistencepostgres.SQLState(err) != "23514" {
 		t.Fatalf("allocation Runtime provenance rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
+	}
+	_, err = pool.Exec(ctx, `
+UPDATE stage_allocations
+SET performance_collection_policy = 'requested'
+WHERE allocation_id = 'allocation-1'`)
+	if persistencepostgres.SQLState(err) != "23514" {
+		t.Fatalf("allocation performance policy rewrite SQLSTATE = %q, error = %v", persistencepostgres.SQLState(err), err)
 	}
 	reportFinished := time.Now().UTC()
 	modelCalls := int64(3)
@@ -1427,6 +1441,7 @@ func TestPostgresCredentialUsageIncludesLiveAllocationProvenance(t *testing.T) {
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              configuration,
+		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

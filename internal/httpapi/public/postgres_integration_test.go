@@ -19,11 +19,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/performance"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -74,7 +76,11 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Runs:                   runs, Artifacts: service,
 		Transactions: integrationUnitOfWork{pool: pool, credentials: managedCredentials},
 		Operations:   operations, OperationsInvalidator: operations,
-		SchedulerSettings: schedulerSettings, Events: eventHub,
+		Performance: performance.NewReadService(
+			false, nil, nil, performance.NewHistoryRepository(pool, time.Now), time.Now,
+		),
+		AllocationResources: telemetry.NewRepository(pool),
+		SchedulerSettings:   schedulerSettings, Events: eventHub,
 		BearerToken:  contracts.NewSecretString(testBearerToken),
 		NewID:        func(string) (string, error) { return nextRunID, nil },
 		NewRequestID: func() (string, error) { return "request-integration", nil },

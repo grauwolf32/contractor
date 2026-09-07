@@ -85,7 +85,11 @@ func TestPostgresRunDetailFixedBatchQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	batch := &handler{dependencies: Dependencies{Runs: tracedRuns, Metrics: telemetry.NewRepository(traced), PlannerPlans: tracedPlans, Artifacts: artifacts.NewService(artifacts.NewPostgresRepository(traced))}}
+	batch := &handler{dependencies: Dependencies{
+		Runs: tracedRuns, Metrics: telemetry.NewRepository(traced), PlannerPlans: tracedPlans,
+		AllocationResources: telemetry.NewRepository(traced),
+		Artifacts:           artifacts.NewService(artifacts.NewPostgresRepository(traced)),
+	}}
 	single := &handler{dependencies: batch.dependencies}
 	single.dependencies.Runs = singleRunReader{batch.dependencies.Runs}
 	single.dependencies.Metrics = singleMetricsReader{batch.dependencies.Metrics}
@@ -189,9 +193,18 @@ VALUES ($1,$2,'builder','builder','{}','{}','private-physical-instance')`, "allo
 					t.Errorf("%s queries = %d, want 1", table, count)
 				}
 			}
+			resourceQueries := 0
+			for _, query := range queries {
+				if strings.Contains(query, "LEFT JOIN LATERAL") && strings.Contains(query, "allocation_execution_reports") {
+					resourceQueries++
+				}
+			}
+			if resourceQueries != 1 {
+				t.Errorf("allocation resource queries = %d, want 1", resourceQueries)
+			}
 			baseline := get(single, runID, "user-1")
 			baselineQueries := trace.take()
-			t.Logf("stages=%d total queries: per-stage=%d batched=%d; related batches=3", n, len(baselineQueries), len(queries))
+			t.Logf("stages=%d total queries: per-stage=%d batched=%d; related batches=4", n, len(baselineQueries), len(queries))
 			if baseline.Code != http.StatusOK || baseline.Body.String() != response.Body.String() {
 				t.Fatalf("batch changed response\nbatch: %s\nsingle: %s", response.Body.String(), baseline.Body.String())
 			}

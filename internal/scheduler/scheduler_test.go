@@ -2448,6 +2448,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
+		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
 	}
 	if binding.RuntimeSelection != nil && request.RuntimeConfig != nil {
 		resolved, err := fallbackResolvedWorkerConfig(*binding.RuntimeSelection)

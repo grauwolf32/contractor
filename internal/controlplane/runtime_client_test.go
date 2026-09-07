@@ -156,6 +156,8 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	}))
 	defer server.Close()
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
+	reservation.PerformanceCollectionPolicy = contracts.PerformanceCollectionRequested
+	reservation.PerformanceMetrics = reservation.PerformanceCollectionPolicy.Request()
 	reservation.RunMetadataLabels = contracts.RunMetadataLabels{
 		"purpose": "eval", "eval.id": "eval_01", "eval.leg": "a",
 	}
@@ -213,6 +215,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		received.Spec.Workspace == nil || len(received.Spec.Workspace.Sources) != 1 ||
 		received.Spec.Workspace.Sources[0].Artifact.Revision == nil ||
 		*received.Spec.Workspace.Sources[0].Artifact.Revision != workspaceRevision ||
+		received.Spec.PerformanceMetrics == nil ||
+		received.Spec.PerformanceMetrics.Version != contracts.PerformanceMetricsVersion ||
+		received.Spec.PerformanceMetrics.IntervalSeconds != contracts.PerformanceMetricsIntervalSeconds ||
 		received.Spec.RuntimeSettings.LLMGatewayToken.Reveal() != settings.LLMGatewayToken.Reveal() {
 		t.Fatalf("prepare request lost resolved inputs: %+v", received.Spec)
 	}
@@ -784,6 +789,34 @@ func testReservation(
 		},
 		ControlURL: controlURL, A2AURL: a2aURL, WorkerSessionMode: contracts.WorkerSessionIsolated,
 		AgentTemplate: template, LeaseExpiresAt: lease,
+		PerformanceCollectionPolicy: contracts.PerformanceCollectionDisabled,
+	}
+}
+
+func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
+	reason := contracts.ResourceInvalidReport
+	for _, test := range []struct {
+		name        string
+		policy      contracts.PerformanceCollectionPolicy
+		resources   *contracts.RuntimeResources
+		resourceErr *contracts.ResourceReason
+		want        bool
+		wantReason  *contracts.ResourceReason
+	}{
+		{name: "unrequested", policy: contracts.PerformanceCollectionDisabled, resources: &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial}},
+		{name: "malformed", policy: contracts.PerformanceCollectionRequested, resourceErr: &reason, want: true, wantReason: &reason},
+		{name: "valid", policy: contracts.PerformanceCollectionRequested, resources: &contracts.RuntimeResources{Version: 1, Scope: "runtime_process", Status: contracts.ResourcePartial}, want: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := contracts.RuntimeReport{Complete: true, Resources: test.resources, ResourcesError: test.resourceErr}
+			sanitizeRuntimeResources(&report, Reservation{PerformanceCollectionPolicy: test.policy})
+			if (report.Resources != nil) != test.want || report.ResourcesError != nil {
+				t.Fatalf("sanitized resources = %+v, error=%v", report.Resources, report.ResourcesError)
+			}
+			if test.wantReason != nil && (report.Resources.Reason == nil || *report.Resources.Reason != *test.wantReason) {
+				t.Fatalf("sanitized reason = %+v", report.Resources)
+			}
+		})
 	}
 }
 

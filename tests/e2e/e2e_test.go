@@ -90,23 +90,24 @@ type runOutputPublication struct {
 }
 
 type runAttempt struct {
-	StageExecutionID     string             `json:"stageExecutionId"`
-	Stage                string             `json:"stage"`
-	Objective            string             `json:"objective,omitempty"`
-	Attempt              int                `json:"attempt"`
-	PreviousExecutionID  *string            `json:"previousExecutionId,omitempty"`
-	ExecutionConfig      json.RawMessage    `json:"executionConfig"`
-	RuntimeConfiguration json.RawMessage    `json:"runtimeConfiguration,omitempty"`
-	State                string             `json:"state"`
-	Result               json.RawMessage    `json:"result,omitempty"`
-	Termination          json.RawMessage    `json:"termination,omitempty"`
-	Metrics              *telemetry.Summary `json:"metrics,omitempty"`
-	Diagnostics          json.RawMessage    `json:"diagnostics,omitempty"`
-	Plan                 json.RawMessage    `json:"plan,omitempty"`
-	CreatedAt            time.Time          `json:"createdAt,omitempty"`
-	UpdatedAt            time.Time          `json:"updatedAt,omitempty"`
-	PlannerStartedAt     *time.Time         `json:"plannerStartedAt,omitempty"`
-	TerminalAt           *time.Time         `json:"terminalAt,omitempty"`
+	StageExecutionID     string                                `json:"stageExecutionId"`
+	Stage                string                                `json:"stage"`
+	Objective            string                                `json:"objective,omitempty"`
+	Attempt              int                                   `json:"attempt"`
+	PreviousExecutionID  *string                               `json:"previousExecutionId,omitempty"`
+	ExecutionConfig      json.RawMessage                       `json:"executionConfig"`
+	RuntimeConfiguration json.RawMessage                       `json:"runtimeConfiguration,omitempty"`
+	State                string                                `json:"state"`
+	Result               json.RawMessage                       `json:"result,omitempty"`
+	Termination          json.RawMessage                       `json:"termination,omitempty"`
+	Metrics              *telemetry.Summary                    `json:"metrics,omitempty"`
+	Resources            []telemetry.AllocationResourceSummary `json:"resources,omitempty"`
+	Diagnostics          json.RawMessage                       `json:"diagnostics,omitempty"`
+	Plan                 json.RawMessage                       `json:"plan,omitempty"`
+	CreatedAt            time.Time                             `json:"createdAt,omitempty"`
+	UpdatedAt            time.Time                             `json:"updatedAt,omitempty"`
+	PlannerStartedAt     *time.Time                            `json:"plannerStartedAt,omitempty"`
+	TerminalAt           *time.Time                            `json:"terminalAt,omitempty"`
 }
 
 func TestLocalGoToPythonArtifactCopy(t *testing.T) {

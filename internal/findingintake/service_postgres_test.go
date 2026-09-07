@@ -130,6 +130,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              findingRuntimeConfiguration(),
+		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

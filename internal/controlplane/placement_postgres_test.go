@@ -54,6 +54,28 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 	}
 }
 
+func TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates(t *testing.T) {
+	unsupported := contracts.AgentRegistrationV2{}
+	supported := contracts.AgentRegistrationV2{
+		SupportedPerformanceMetricsVersions: contracts.PerformanceMetricsVersions{1},
+	}
+	for _, test := range []struct {
+		enabled      bool
+		registration contracts.AgentRegistrationV2
+		want         contracts.PerformanceCollectionPolicy
+	}{
+		{false, unsupported, contracts.PerformanceCollectionDisabled},
+		{false, supported, contracts.PerformanceCollectionDisabled},
+		{true, unsupported, contracts.PerformanceCollectionUnsupported},
+		{true, supported, contracts.PerformanceCollectionRequested},
+	} {
+		allocator := &PlacementAllocator{performanceMetrics: test.enabled}
+		if got := allocator.collectionPolicy(test.registration); got != test.want {
+			t.Fatalf("collection policy enabled=%v supported=%v = %q, want %q", test.enabled, len(test.registration.SupportedPerformanceMetricsVersions) != 0, got, test.want)
+		}
+	}
+}
+
 func TestPlacementPostgresDiscardsProvisionalBatchOnPrincipalRevisionChange(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()

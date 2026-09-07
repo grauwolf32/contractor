@@ -36,6 +36,7 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 		dependencies.RuntimeAgentPrincipals == nil ||
 		dependencies.Projects == nil || dependencies.Audits == nil ||
 		dependencies.Artifacts == nil || dependencies.Transactions == nil || dependencies.Operations == nil ||
+		dependencies.Performance == nil || dependencies.AllocationResources == nil ||
 		dependencies.OperationsInvalidator == nil || dependencies.SchedulerSettings == nil || dependencies.Events == nil ||
 		dependencies.Authentication == nil || len(dependencies.BrowserOrigins.Values()) == 0 {
 		return nil, fmt.Errorf("public API dependencies are incomplete")
@@ -163,6 +164,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("DELETE /v1/operations/runtime-agent-principals/{runtimeAgentId}", current.deleteRuntimeAgentPrincipal)
 	mux.HandleFunc("PUT /v1/operations/runtime-agent-principals/{runtimeAgentId}/labels", current.putRuntimeAgentLabels)
 	mux.HandleFunc("GET /v1/operations/snapshot", current.getOperationsSnapshot)
+	mux.HandleFunc("GET /v1/operations/performance", current.getPerformance)
+	mux.HandleFunc("GET /v1/operations/performance/history", current.getPerformanceHistory)
+	mux.HandleFunc("GET /v1/operations/allocation-history", current.listAllocationResourceHistory)
 	mux.HandleFunc("GET /v1/operations/runtime-agents", current.listRuntimeAgents)
 	mux.HandleFunc("GET /v1/operations/allocations", current.listAllocations)
 	mux.HandleFunc("GET /v1/operations/settings/scheduler", current.getSchedulerSettings)
@@ -223,6 +227,9 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	mux.HandleFunc("/v1/operations/runtime-credentials/{credentialId}", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/runtime-credentials", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/snapshot", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/performance", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/performance/history", current.methodNotAllowed)
+	mux.HandleFunc("/v1/operations/allocation-history", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/runtime-agents", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/allocations", current.methodNotAllowed)
 	mux.HandleFunc("/v1/operations/settings/scheduler", current.methodNotAllowed)

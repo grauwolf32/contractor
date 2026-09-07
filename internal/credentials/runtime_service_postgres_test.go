@@ -469,6 +469,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 		RuntimeAgentLabelRevision:         1,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration:              allocationConfig,
+		PerformanceCollectionPolicy:       contracts.PerformanceCollectionDisabled,
 	}); err != nil {
 		t.Fatal(err)
 	}

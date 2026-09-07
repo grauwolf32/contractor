@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,86 @@ import (
 	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestPerformanceAndProfilingSwitchesRemainIndependent(t *testing.T) {
+	for _, metricsEnabled := range []bool{false, true} {
+		for _, profilingEnabled := range []bool{false, true} {
+			name := fmt.Sprintf("metrics=%t/pprof=%t", metricsEnabled, profilingEnabled)
+			t.Run(name, func(t *testing.T) {
+				public := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
+				private := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				})
+				factoryCalls := 0
+				wrappedPublic, wrappedPrivate, collector := instrumentPerformance(
+					metricsEnabled,
+					public,
+					private,
+					func() *performance.Collector {
+						factoryCalls++
+						return performance.New(performance.Options{})
+					},
+				)
+				if factoryCalls != boolCount(metricsEnabled) || (collector != nil) != metricsEnabled {
+					t.Fatalf("metrics wiring = calls:%d collector:%v", factoryCalls, collector != nil)
+				}
+				for _, handler := range []http.Handler{wrappedPublic, wrappedPrivate} {
+					response := httptest.NewRecorder()
+					handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/test", nil))
+					if response.Code != http.StatusNoContent {
+						t.Fatalf("instrumented response status = %d", response.Code)
+					}
+				}
+
+				address := unusedLoopbackAddress(t)
+				profileServer, err := configureProfiling(Config{
+					Pprof: profilingEnabled, PprofListen: address, ShutdownTimeout: time.Second,
+				})
+				if err != nil || (profileServer != nil) != profilingEnabled {
+					t.Fatalf("profiling wiring = (%v, %v)", profileServer != nil, err)
+				}
+				if profileServer != nil {
+					if err := profileServer.Close(); err != nil {
+						t.Fatal(err)
+					}
+					listener, listenErr := net.Listen("tcp", address)
+					if listenErr != nil {
+						t.Fatalf("profiling listener was not released: %v", listenErr)
+					}
+					_ = listener.Close()
+				} else {
+					listener, listenErr := net.Listen("tcp", address)
+					if listenErr != nil {
+						t.Fatalf("disabled profiling unexpectedly bound listener: %v", listenErr)
+					}
+					_ = listener.Close()
+				}
+			})
+		}
+	}
+}
+
+func boolCount(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+func unusedLoopbackAddress(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return address
+}
 
 func TestDisabledPerformanceDoesNotConstructAnything(t *testing.T) {
 	if newPerformanceDiagnostics(false, "not a database URL") != nil {

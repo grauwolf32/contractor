@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
+	"github.com/grauwolf32/contractor/internal/performance"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runservice"
@@ -83,6 +84,20 @@ type MetricsReader interface {
 
 type OperationsReader interface {
 	SnapshotOperations() controlplane.OperationsSnapshot
+}
+
+type PerformanceReader interface {
+	Snapshot() performance.SnapshotResponse
+	History(context.Context, time.Time, time.Time, string) (performance.HistoryResponse, error)
+}
+
+type AllocationResourceReader interface {
+	ListAllocationResourceHistory(
+		context.Context, telemetry.AllocationResourceHistoryParams,
+	) ([]telemetry.AllocationResourceSummary, error)
+	ListStageAllocationResources(
+		context.Context, string, []string,
+	) (map[string][]telemetry.AllocationResourceSummary, error)
 }
 
 type OperationsInvalidator interface {
@@ -238,6 +253,8 @@ type Dependencies struct {
 	PlannerPlans            PlannerPlanReader
 	Metrics                 MetricsReader
 	Operations              OperationsReader
+	Performance             PerformanceReader
+	AllocationResources     AllocationResourceReader
 	OperationsInvalidator   OperationsInvalidator
 	SchedulerSettings       SchedulerSettingsManagement
 	Events                  *publicevents.Hub
@@ -558,23 +575,29 @@ type runRuntimeConfigResponse struct {
 }
 
 type stageAttemptResponse struct {
-	StageExecutionID     string                             `json:"stageExecutionId"`
-	Stage                string                             `json:"stage"`
-	Objective            string                             `json:"objective,omitempty"`
-	Attempt              int                                `json:"attempt"`
-	PreviousExecutionID  *string                            `json:"previousExecutionId,omitempty"`
-	ExecutionConfig      stageExecutionConfigResponse       `json:"executionConfig"`
-	State                runstore.StageExecutionState       `json:"state"`
-	Result               *contracts.StageContentResult      `json:"result,omitempty"`
-	Termination          *runstore.StageTermination         `json:"termination,omitempty"`
-	Metrics              *telemetry.Summary                 `json:"metrics,omitempty"`
-	Diagnostics          *telemetry.AttemptDiagnostics      `json:"diagnostics,omitempty"`
-	Plan                 *planner.PlannerPlanProjection     `json:"plan,omitempty"`
-	RuntimeConfiguration *stageRuntimeConfigurationResponse `json:"runtimeConfiguration,omitempty"`
-	CreatedAt            time.Time                          `json:"createdAt,omitempty"`
-	UpdatedAt            time.Time                          `json:"updatedAt,omitempty"`
-	PlannerStartedAt     *time.Time                         `json:"plannerStartedAt,omitempty"`
-	TerminalAt           *time.Time                         `json:"terminalAt,omitempty"`
+	StageExecutionID     string                                `json:"stageExecutionId"`
+	Stage                string                                `json:"stage"`
+	Objective            string                                `json:"objective,omitempty"`
+	Attempt              int                                   `json:"attempt"`
+	PreviousExecutionID  *string                               `json:"previousExecutionId,omitempty"`
+	ExecutionConfig      stageExecutionConfigResponse          `json:"executionConfig"`
+	State                runstore.StageExecutionState          `json:"state"`
+	Result               *contracts.StageContentResult         `json:"result,omitempty"`
+	Termination          *runstore.StageTermination            `json:"termination,omitempty"`
+	Metrics              *telemetry.Summary                    `json:"metrics,omitempty"`
+	Diagnostics          *telemetry.AttemptDiagnostics         `json:"diagnostics,omitempty"`
+	Plan                 *planner.PlannerPlanProjection        `json:"plan,omitempty"`
+	RuntimeConfiguration *stageRuntimeConfigurationResponse    `json:"runtimeConfiguration,omitempty"`
+	Resources            []telemetry.AllocationResourceSummary `json:"resources"`
+	CreatedAt            time.Time                             `json:"createdAt,omitempty"`
+	UpdatedAt            time.Time                             `json:"updatedAt,omitempty"`
+	PlannerStartedAt     *time.Time                            `json:"plannerStartedAt,omitempty"`
+	TerminalAt           *time.Time                            `json:"terminalAt,omitempty"`
+}
+
+type allocationResourcePageResponse struct {
+	Items []telemetry.AllocationResourceSummary `json:"items"`
+	Page  pageInfoResponse                      `json:"page"`
 }
 
 type stageRuntimeConfigurationResponse struct {

@@ -119,6 +119,30 @@ func TestPerformanceGoldenRequestsAndCapabilities(t *testing.T) {
 	}
 }
 
+func TestPerformanceCollectionPolicyPinsOnlyAllocationDecisions(t *testing.T) {
+	for _, policy := range []PerformanceCollectionPolicy{
+		PerformanceCollectionRequested,
+		PerformanceCollectionDisabled,
+		PerformanceCollectionUnsupported,
+	} {
+		if err := policy.ValidatePinned(); err != nil {
+			t.Fatalf("pinned policy %q: %v", policy, err)
+		}
+		request := policy.Request()
+		if (request != nil) != (policy == PerformanceCollectionRequested) {
+			t.Fatalf("policy %q request = %+v", policy, request)
+		}
+		if request != nil && request.Validate() != nil {
+			t.Fatalf("policy %q produced invalid request: %+v", policy, request)
+		}
+	}
+	for _, policy := range []PerformanceCollectionPolicy{"", PerformanceCollectionLegacy, "unknown"} {
+		if policy.ValidatePinned() == nil {
+			t.Fatalf("read-only or unknown policy %q accepted as a pin", policy)
+		}
+	}
+}
+
 func TestPerformanceGoldenAllocationRequestIsOptional(t *testing.T) {
 	var spec map[string]json.RawMessage
 	if err := json.Unmarshal(readFixture(t, "valid", "allocation-spec.json"), &spec); err != nil {
