@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V47-001
+title: "Honor the selected Planner sampling temperature"
+milestone: model-policy-runtime-correctness
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: ["go"]
+goal: >-
+  Planner sends temperature 0 regardless of the pinned ModelPolicy.
+context:
+  authority: >-
+    User approved recording and implementing the three model-policy review findings.
+    Preserve unrelated in-progress Audit work and do not edit configs/e2e or deploy services.
+scope:
+  in:
+    - "Use the selected optional temperature for Streamline and Router; preserve explicit zero and omit the parameter when the configured policy omits it. Test actual generated requests and legacy construction."
+  out:
+    - "New aggregate Run/Audit budgets, changes to production model limits, audit-results@2 implementation."
+acceptance_criteria:
+  - id: A1
+    given: "The recorded failure scenario"
+    when: "The production code path executes"
+    then: "The corrected behavior described in scope is enforced and covered by regression tests."
+  - id: A2
+    given: "Cancellation, omitted optional settings and existing successful invocations"
+    when: "The focused regression suite runs"
+    then: "Compatible behavior and secret-free diagnostics are retained."
+tests:
+  - command: "go test ./internal/planner/streamline ./internal/planner/router"
+    covers: ["A1", "A2"]

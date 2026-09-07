@@ -244,7 +244,16 @@ func (p *streamlinePlanner) ExecutionReport() (contracts.ExecutionReport, bool) 
 func (p *streamlinePlanner) newRootAgent(
 	state *executionState, tools []tool.Tool, allowed map[string]struct{},
 ) (agent.Agent, error) {
-	temperature := float32(0)
+	// Legacy factories without ModelAccess retain their deterministic default.
+	legacyTemperature := float32(0)
+	temperature := &legacyTemperature
+	if p.invocation.ModelAccess != nil {
+		temperature = nil
+		if selected := p.invocation.ModelAccess.ModelPolicy.Temperature; selected != nil {
+			value := float32(*selected)
+			temperature = &value
+		}
+	}
 	instrumentation := planner.InvocationInstrumentation(p.invocation)
 	modelAlias := "configured-model"
 	if p.invocation.ModelAccess != nil {
@@ -295,7 +304,7 @@ func (p *streamlinePlanner) newRootAgent(
 		InstructionProvider: func(agent.ReadonlyContext) (string, error) {
 			return p.systemInstruction(), nil
 		},
-		GenerateContentConfig: &genai.GenerateContentConfig{Temperature: &temperature},
+		GenerateContentConfig: &genai.GenerateContentConfig{Temperature: temperature},
 		Tools:                 tools,
 		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
 			func(_ agent.CallbackContext, request *model.LLMRequest) (*model.LLMResponse, error) {
