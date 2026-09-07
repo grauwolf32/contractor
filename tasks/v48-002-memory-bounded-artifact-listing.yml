@@ -3,8 +3,8 @@ id: V48-002
 title: "Keep Memory enumeration independent of ordinary Artifact count"
 milestone: shared-memory-production-correctness
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 40ac02fd5b1a294c0ff8fca0117dc551862f1e2d
 depends_on: [V9-007]
 languages: [go, python, yaml]
 goal: >-
