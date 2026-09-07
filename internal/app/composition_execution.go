@@ -56,7 +56,7 @@ func configurePlanners(
 	if err != nil {
 		return plannerServices{}, fmt.Errorf("configure Planner sessions: %w", err)
 	}
-	a2aInvoker, err := plannera2a.NewMTLS(files, cfg.RuntimeRequestTimeout, plannera2a.Options{})
+	a2aInvoker, err := plannera2a.NewMTLS(files, cfg.RuntimeRequestTimeout, plannera2a.Options{PollInterval: cfg.Operations.A2A.PollInterval})
 	if err != nil {
 		return plannerServices{}, fmt.Errorf("configure A2A client: %w", err)
 	}
@@ -127,14 +127,16 @@ func configureWorkflows(
 		control.workers,
 		planners.registry,
 		scheduler.Options{
-			OperationTimeout:   cfg.RuntimeRequestTimeout,
-			PlannerTimeout:     cfg.PlannerTimeout,
-			RuntimeSettings:    runtimeSettings,
-			Credentials:        credentialSet.provider,
-			RuntimeCredentials: credentialSet.runtime,
-			PlannerTelemetry:   plannerTelemetryRegistry,
-			RunSkills:          &runSkillInitializer{pool: pool},
-			Settings:           schedulerSettings,
+			OperationTimeout:    cfg.Operations.Scheduler.OperationTimeout,
+			FinalizationTimeout: cfg.Operations.Scheduler.FinalizationTimeout,
+			AbortTimeout:        cfg.Operations.Scheduler.AbortTimeout,
+			PlannerTimeout:      cfg.PlannerTimeout,
+			RuntimeSettings:     runtimeSettings,
+			Credentials:         credentialSet.provider,
+			RuntimeCredentials:  credentialSet.runtime,
+			PlannerTelemetry:    plannerTelemetryRegistry,
+			RunSkills:           &runSkillInitializer{pool: pool},
+			Settings:            schedulerSettings,
 			TelemetrySecrets: []string{
 				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
@@ -149,7 +151,7 @@ func configureWorkflows(
 		pool,
 		runstore.NewPostgresStore(pool),
 		workflowScheduler,
-		projectlifecycle.Options{OperationTimeout: cfg.RuntimeRequestTimeout, Logger: logger},
+		projectlifecycle.Options{OperationTimeout: cfg.Operations.ProjectLifecycle.OperationTimeout, ClaimDuration: cfg.Operations.ProjectLifecycle.ClaimDuration, Logger: logger},
 	)
 	if err != nil {
 		return workflowServices{}, fmt.Errorf("configure Project deletion controller: %w", err)

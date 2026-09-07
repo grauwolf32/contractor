@@ -170,6 +170,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 
 	flags := flag.NewFlagSet("contractor-server serve", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	if err := settings.operations.registerFlags(flags, getenv); err != nil {
+		return Config{}, err
+	}
 	flags.Var(&gitRemotes, "git-allowed-remote", "allowed Git remote host:port; repeatable")
 	flags.StringVar(&gitKnownHosts, "git-known-hosts-file", gitKnownHosts, "absolute read-only SSH known_hosts file")
 	flags.StringVar(&serverConfigPath, "config", serverConfigPath, "strict YAML ServerConfig file")
@@ -235,6 +238,9 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if flags.NArg() != 0 {
 		return Config{}, fmt.Errorf("unexpected positional arguments: %v", flags.Args())
 	}
+	if err := settings.operations.validate(); err != nil {
+		return Config{}, err
+	}
 	metricsEnabled, err := performanceMetrics.parse("performance-metrics")
 	if err != nil {
 		return Config{}, err
@@ -297,6 +303,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	return Config{
+		Operations:          settings.operations,
 		GitImport:           gitConfig,
 		ArtifactBlobBackend: selectedBlobBackend, ArtifactBlobPath: blobPath,
 		ListenAddress: listenAddress, PrivateListenAddress: privateListenAddress, PrivateURL: privateURL,

@@ -27,6 +27,9 @@ type PoolOptions struct {
 	Logger         *slog.Logger
 	// DisableWarmConnections overrides DSN pool_min_conns/pool_min_idle_conns.
 	DisableWarmConnections bool
+	// RejectTimeoutOverrides makes process-owned budgets the single source of
+	// truth. Optional maintenance/diagnostic callers retain their existing policy.
+	RejectTimeoutOverrides bool
 }
 
 // PoolConfig applies OpenPool's connection/operation budgets without connecting.
@@ -38,6 +41,17 @@ func PoolConfig(databaseURL string, options PoolOptions) (*pgxpool.Config, error
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, ErrInvalidDatabaseConfiguration
+	}
+	if options.RejectTimeoutOverrides {
+		if config.ConnConfig.ConnectTimeout != 0 {
+			return nil, fmt.Errorf("configure connect_timeout via ServerConfig database.connectTimeout, not PostgreSQL connection settings")
+		}
+		for _, key := range []string{"statement_timeout", "lock_timeout", "idle_in_transaction_session_timeout"} {
+			_, configured := config.ConnConfig.RuntimeParams[key]
+			if configured || strings.Contains(config.ConnConfig.RuntimeParams["options"], key) {
+				return nil, fmt.Errorf("configure %s via ServerConfig database budgets, not PostgreSQL connection settings", key)
+			}
+		}
 	}
 	if options.MaxConnections < 0 || options.MinConnections < 0 ||
 		options.MaxConnections > 0 && options.MinConnections > options.MaxConnections {

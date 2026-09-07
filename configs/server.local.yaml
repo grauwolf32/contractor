@@ -12,9 +12,37 @@ spec:
   managedConfigRoot: ../.local/managed-configs
 
   shutdownTimeout: 5s
+  # Individual private Runtime/A2A HTTP requests only. See docs/operations/timeout-configuration.md.
   runtimeRequestTimeout: 30s
   workerRequestTimeout: 300s
   plannerTimeout: 30m
+
+  scheduler:
+    operationTimeout: 30s
+    finalizationTimeout: 10s
+    abortTimeout: 10s
+  runtimeLifecycle:
+    cleanupTimeout: 30s
+  projectLifecycle:
+    operationTimeout: 30s
+    claimDuration: 1m
+  auditController:
+    pollInterval: 1s
+    claimLease: 30s
+    operationTimeout: 10s
+    claimBatch: 8
+  database:
+    connectTimeout: 5s
+    acquireTimeout: 2s
+    queryTimeout: 20s
+    statementTimeout: 15s
+    lockTimeout: 2s
+    idleTransactionTimeout: 30s
+  a2a:
+    pollInterval: 100ms
+  credentialManagement:
+    connectTimeout: 3s
+    requestTimeout: 15s
 
   artifactBlobBackend: postgresql
   gitAllowedRemotes:

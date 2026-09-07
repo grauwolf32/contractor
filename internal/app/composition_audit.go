@@ -28,6 +28,7 @@ type auditServices struct {
 }
 
 func configureAudits(
+	cfg Config,
 	pool *pgxpool.Pool,
 	configurationManager *workflowconfig.Manager,
 	credentialSet credentialServices,
@@ -73,7 +74,11 @@ func configureAudits(
 		auditstore.NewPostgresStore(pool), runstore.NewPostgresStore(pool),
 		runCreationService, auditSubmissionBuilder, workflows.scheduler,
 		auditcontroller.Options{
-			Logger: logger, Collector: auditImporter, RoundBuilder: auditService,
+			PollInterval:     cfg.Operations.AuditController.PollInterval,
+			ClaimLease:       cfg.Operations.AuditController.ClaimLease,
+			OperationTimeout: cfg.Operations.AuditController.OperationTimeout,
+			ClaimBatch:       cfg.Operations.AuditController.ClaimBatch,
+			Logger:           logger, Collector: auditImporter, RoundBuilder: auditService,
 		},
 	)
 	if err != nil {

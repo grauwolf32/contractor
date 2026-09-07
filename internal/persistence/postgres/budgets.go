@@ -24,6 +24,12 @@ func DefaultBudgets() Budgets {
 	return Budgets{2 * time.Second, 20 * time.Second, 15 * time.Second, 2 * time.Second, 30 * time.Second}
 }
 
+// Validate checks a process policy without opening a database connection.
+func (b Budgets) Validate() error {
+	_, err := b.normalized()
+	return err
+}
+
 func (b Budgets) normalized() (Budgets, error) {
 	defaults := DefaultBudgets()
 	for _, pair := range []struct {

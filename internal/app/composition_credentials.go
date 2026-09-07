@@ -97,7 +97,10 @@ func configureCredentials(
 		return credentialServices{}, errors.New("managed LLM Gateway credentials require --credential-master-key-file")
 	}
 	liteLLMManager, err := litellmcredentials.NewManager(
-		adminBindings, configurationManager, litellmcredentials.Options{},
+		adminBindings, configurationManager, litellmcredentials.Options{
+			ConnectTimeout: cfg.Operations.CredentialManagement.ConnectTimeout,
+			RequestTimeout: cfg.Operations.CredentialManagement.RequestTimeout,
+		},
 	)
 	if err != nil {
 		return credentialServices{}, fmt.Errorf("configure LiteLLM credential manager: %w", err)

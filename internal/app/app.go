@@ -27,6 +27,7 @@ import (
 
 // Config contains process-level settings needed by the bootstrap server.
 type Config struct {
+	Operations            OperationalSettings
 	ListenAddress         string
 	PrivateListenAddress  string
 	PrivateURL            string
@@ -119,7 +120,8 @@ func RunCLI(
 	if cfg.PlannerTimeout <= 0 {
 		return errors.New("Planner timeout is required")
 	}
-	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, persistencepostgres.PoolOptions{Logger: logger})
+	cfg.Operations.logEffective(logger, cfg.RuntimeRequestTimeout)
+	pool, err := persistencepostgres.OpenPool(ctx, cfg.DatabaseURL, cfg.Operations.Database.poolOptions(logger))
 	if err != nil {
 		return err
 	}
@@ -185,7 +187,7 @@ func RunCLI(
 		return fmt.Errorf("configure public event WebSocket: %w", err)
 	}
 	defer eventHub.Close()
-	audits, err := configureAudits(pool, configurationManager, credentialSet, catalogs, workflows, logger)
+	audits, err := configureAudits(cfg, pool, configurationManager, credentialSet, catalogs, workflows, logger)
 	if err != nil {
 		return err
 	}
