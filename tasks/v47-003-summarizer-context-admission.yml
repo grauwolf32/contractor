@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V47-003
+title: "Fit the complete terminal summarizer request into the model context"
+milestone: model-policy-runtime-correctness
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: ["python"]
+goal: >-
+  A 512 KiB document limit does not enforce contextWindowTokens or reserve output tokens and system/schema overhead.
+context:
+  authority: >-
+    User approved recording and implementing the three model-policy review findings.
+    Preserve unrelated in-progress Audit work and do not edit configs/e2e or deploy services.
+scope:
+  in:
+    - "Admit the complete summarizer request using model-aware token counting or an explicitly conservative supported bound, reserve maxOutputTokens, remove oldest complete transcript groups, preserve required task identity and reject an oversized irreducible request before generation. Keep single-shot, secret-free, cancellation-safe behavior."
+  out:
+    - "New aggregate Run/Audit budgets, changes to production model limits, audit-results@2 implementation."
+acceptance_criteria:
+  - id: A1
+    given: "A long multilingual transcript plus system instructions and strict JSON response schema"
+    when: "The complete request exceeds context minus output and framing reserves"
+    then: "Oldest complete groups are removed; retained groups form a newest suffix and task/observations/schema remain intact."
+  - id: A2
+    given: "An exact-boundary request or an oversized irreducible task"
+    when: "The final model callback performs admission"
+    then: "The fitting request is unchanged; the oversized task fails without a model call and with retryable=false."
+  - id: A3
+    given: "No exact tokenizer identity is configured for the gateway alias"
+    when: "Admission runs"
+    then: "Charge one token per serialized UTF-8 byte, reserve maxOutputTokens plus 4096 framing tokens, and document the byte-level-tokenizer/custom-template limitation rather than claim exact counting."
+implementation_notes:
+  accounting: >-
+    Count the same complete OpenAI-compatible payload the runtime adapter sends,
+    including system text and strict schema; use binary search over newest complete
+    transcript suffixes. No extra gateway calls or new tokenizer dependencies.
+  limitation: >-
+    This deliberately conservative admission rule can discard more history than
+    exact tokenization. It does not establish a universal bound for arbitrary
+    upstream text expansion or custom chat templates beyond the framing reserve;
+    the provider remains authoritative. Exact tokenizer/template negotiation is
+    future work, not an implicit capability of an OpenAI-compatible endpoint.
+tests:
+  - command: "cd runtime && .venv/bin/python -m pytest tests/test_worker_summarizer.py tests/test_openai_gateway_llm.py tests/test_adk_runtime.py"
+    covers: ["A1", "A2", "A3"]

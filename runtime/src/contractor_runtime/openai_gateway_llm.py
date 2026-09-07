@@ -122,6 +122,18 @@ def _completion_request(model: str, request: LlmRequest) -> dict[str, Any]:
     return payload
 
 
+def completion_request_byte_bound(model: str, request: LlmRequest) -> int:
+    """Conservatively charge one token per UTF-8 byte of the complete wire payload.
+
+    This is deliberately not an estimate from an unrelated tokenizer. It covers
+    messages, system text and the strict output schema for byte-level tokenizers;
+    callers must separately reserve backend chat-template framing and output.
+    Arbitrary backend normalization/templates still require a model-aware counter.
+    """
+    payload = _completion_request(model, request)
+    return len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
 def _instruction_text(value: Any) -> str:
     if isinstance(value, str):
         return value
