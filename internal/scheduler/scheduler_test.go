@@ -491,7 +491,7 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 	if strings.Contains(fmt.Sprintf("%+v", settings), secret) {
 		t.Fatal("formatted Runtime settings exposed Caido bearer")
 	}
-	workerSettings := map[string]contracts.WorkerExecutionSettingsV2{
+	workerSettings := map[string]contracts.WorkerExecutionSettings{
 		"builder": {RuntimeSettings: settings},
 	}
 	clearWorkerExecutionSettings(workerSettings)
@@ -525,7 +525,7 @@ func TestSchedulerMaterializesProjectOriginOnlyForHTTPRequestWorkerAndErasesIt(t
 	stage.Agents["builder"] = binding
 	run := runstore.WorkflowRun{ProjectHTTPTarget: &contracts.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRefV2{
+		Credential: &contracts.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}}
@@ -629,16 +629,16 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
 				Credential: "planner-otel", FlushTimeoutSeconds: 1,
 			}
-			resolved.PlannerRuntimeCredential = &contracts.RuntimeCredentialRefV2{
+			resolved.PlannerRuntimeCredential = &contracts.RuntimeCredentialRef{
 				CredentialID: "planner-otel", Kind: contracts.RuntimeCredentialOTLPHeaders,
 			}
 			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
 				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
 			}
-			resolved.Provenance.RunLabels = []contracts.RuntimeLabelBindingProvenanceV2{{
+			resolved.Provenance.RunLabels = []contracts.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
 			}}
-			resolved.Provenance.AgentLabels = []contracts.RuntimeLabelBindingProvenanceV2{{
+			resolved.Provenance.AgentLabels = []contracts.RuntimeLabelBindingProvenance{{
 				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
 			}}
 			harness.allocator.resolvedRuntimeConfig = &resolved
@@ -1792,12 +1792,13 @@ func newSchedulerHarness(t *testing.T) *schedulerHarness {
 		persistence.stageStates = append(persistence.stageStates, runstore.StageRunning)
 	}
 	idSequence := 0
+	token := contracts.NewSecretString("test-token")
 	scheduler, err := New(store, persistence, resolver, allocator, workers, planners, Options{
 		PollInterval: time.Second, ClaimDuration: time.Hour, OperationTimeout: time.Second,
 		PlannerTimeout: 30 * time.Second, FinalizationTimeout: 10 * time.Second, AbortTimeout: 10 * time.Second,
 		RuntimeSettings: contracts.RuntimeSettings{
 			LLMGatewayURL:   "https://gateway.test/v1",
-			LLMGatewayToken: contracts.NewSecretString("test-token"),
+			LLMGatewayToken: &token,
 			ArtifactAPIURL:  "https://control.test/private/v1", RequestTimeoutSeconds: 5,
 		},
 		Credentials: credentialResolverFunc(func(
@@ -2537,7 +2538,7 @@ type memoryWorkers struct {
 	finalizeCalls        int
 	abortCalls           int
 	releaseCalls         int
-	preparedSettings     []map[string]contracts.WorkerExecutionSettingsV2
+	preparedSettings     []map[string]contracts.WorkerExecutionSettings
 	preparedReservations [][]controlplane.Reservation
 	prepareError         error
 	abortError           error
@@ -2548,7 +2549,7 @@ type memoryWorkers struct {
 
 func (w *memoryWorkers) PrepareAll(
 	_ context.Context, reservations []controlplane.Reservation,
-	settings map[string]contracts.WorkerExecutionSettingsV2,
+	settings map[string]contracts.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	w.prepareCalls++
 	w.preparedSettings = append(w.preparedSettings, settings)
@@ -2741,8 +2742,8 @@ func (r *recordingPlannerTelemetryRegistry) Create(
 	return r.inner.Create(ref, settings)
 }
 
-func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) contracts.RuntimeConfigRefV2 {
-	return contracts.RuntimeConfigRefV2{
+func schedulerTestRuntimeConfigRef(value runtimeconfig.Ref) contracts.RuntimeConfigRef {
+	return contracts.RuntimeConfigRef{
 		Name: value.Name, Version: value.Version, Digest: value.Digest,
 	}
 }

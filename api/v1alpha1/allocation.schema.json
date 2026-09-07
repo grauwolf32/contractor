@@ -5,223 +5,384 @@
     "executionError": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["code", "message"],
+      "required": [
+        "code",
+        "message"
+      ],
       "properties": {
-        "code": {"type": "string", "minLength": 1},
-        "message": {"type": "string", "minLength": 1, "maxLength": 4096},
-        "retryable": {"type": "boolean"}
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "retryable": {
+          "type": "boolean"
+        }
       }
     },
     "toolMetrics": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "calls": {"type": "integer", "minimum": 0},
-        "succeeded": {"type": "integer", "minimum": 0},
-        "failed": {"type": "integer", "minimum": 0}
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "succeeded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "workerBudgetMetrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxModelCalls", "maxToolCalls", "maxTotalTokens", "observedModelCalls", "observedToolCalls", "observedTotalTokens", "tokenUsageUnavailable"],
+      "required": [
+        "maxModelCalls",
+        "maxToolCalls",
+        "maxTotalTokens",
+        "observedModelCalls",
+        "observedToolCalls",
+        "observedTotalTokens",
+        "tokenUsageUnavailable"
+      ],
       "properties": {
-        "maxModelCalls": {"type": "integer", "minimum": 1, "maximum": 1000},
-        "maxToolCalls": {"type": "integer", "minimum": 1, "maximum": 10000},
-        "maxTotalTokens": {"type": "integer", "minimum": 1, "maximum": 100000000},
-        "observedModelCalls": {"type": "integer", "minimum": 0},
-        "observedToolCalls": {"type": "integer", "minimum": 0},
-        "observedTotalTokens": {"type": "integer", "minimum": 0},
-        "tokenUsageUnavailable": {"type": "integer", "minimum": 0},
-        "exhausted": {"enum": ["model_calls", "tool_calls", "total_tokens"]}
+        "maxModelCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "maxTotalTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000000
+        },
+        "observedModelCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observedToolCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "observedTotalTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokenUsageUnavailable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exhausted": {
+          "enum": [
+            "model_calls",
+            "tool_calls",
+            "total_tokens"
+          ]
+        }
       }
     },
     "workerSummarizerMetrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["attempts", "succeeded", "failed", "modelCalls", "inputTokens", "outputTokens", "totalTokens", "tokenUsageUnavailable", "failureCodes"],
+      "required": [
+        "attempts",
+        "succeeded",
+        "failed",
+        "modelCalls",
+        "inputTokens",
+        "outputTokens",
+        "totalTokens",
+        "tokenUsageUnavailable",
+        "failureCodes"
+      ],
       "properties": {
-        "attempts": {"type": "integer", "minimum": 1},
-        "succeeded": {"type": "integer", "minimum": 0},
-        "failed": {"type": "integer", "minimum": 0},
-        "modelCalls": {"type": "integer", "minimum": 0},
-        "inputTokens": {"type": "integer", "minimum": 0},
-        "outputTokens": {"type": "integer", "minimum": 0},
-        "totalTokens": {"type": "integer", "minimum": 0},
-        "tokenUsageUnavailable": {"type": "integer", "minimum": 0},
+        "attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "succeeded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokenUsageUnavailable": {
+          "type": "integer",
+          "minimum": 0
+        },
         "failureCodes": {
           "type": "object",
           "maxProperties": 64,
-          "propertyNames": {"minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9_]{0,63}$"},
-          "additionalProperties": {"type": "integer", "minimum": 1}
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
         }
       }
     },
     "executionMetrics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["tools"],
+      "required": [
+        "tools"
+      ],
       "properties": {
-        "durationMs": {"type": "integer", "minimum": 0},
-        "modelCalls": {"type": "integer", "minimum": 0},
-        "inputTokens": {"type": "integer", "minimum": 0},
-        "outputTokens": {"type": "integer", "minimum": 0},
-        "totalTokens": {"type": "integer", "minimum": 0},
-        "workerBudget": {"$ref": "#/$defs/workerBudgetMetrics"},
-        "summarizer": {"$ref": "#/$defs/workerSummarizerMetrics"},
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "modelCalls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "workerBudget": {
+          "$ref": "#/$defs/workerBudgetMetrics"
+        },
+        "summarizer": {
+          "$ref": "#/$defs/workerSummarizerMetrics"
+        },
         "tools": {
           "type": "object",
-          "additionalProperties": {"$ref": "#/$defs/toolMetrics"}
+          "additionalProperties": {
+            "$ref": "#/$defs/toolMetrics"
+          }
         }
       }
     },
     "toolCallRecord": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["callId", "tool", "argumentsTruncated", "outcome"],
+      "required": [
+        "callId",
+        "tool",
+        "argumentsTruncated",
+        "outcome"
+      ],
       "properties": {
-        "callId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "tool": {"type": "string", "minLength": 1},
-        "arguments": {"type": "object"},
-        "argumentsTruncated": {"type": "boolean"},
-        "outcome": {"enum": ["succeeded", "failed"]},
-        "durationMs": {"type": "integer", "minimum": 0},
-        "resultSizeBytes": {"type": "integer", "minimum": 0},
-        "error": {"$ref": "#/$defs/executionError"}
+        "callId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "arguments": {
+          "type": "object"
+        },
+        "argumentsTruncated": {
+          "type": "boolean"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed"
+          ]
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resultSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "$ref": "#/$defs/executionError"
+        }
       }
     },
     "workerCompletionDiagnostics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "phase", "acceptedCount", "totalCount", "reminderCount"],
+      "required": [
+        "kind",
+        "phase",
+        "acceptedCount",
+        "totalCount",
+        "reminderCount"
+      ],
       "properties": {
-        "kind": {"const": "audit-check-results@1"},
-        "phase": {"enum": ["collecting", "sealed", "publishing", "published", "failed"]},
-        "acceptedCount": {"type": "integer", "minimum": 0, "maximum": 64},
-        "totalCount": {"type": "integer", "minimum": 1, "maximum": 64},
-        "reminderCount": {"type": "integer", "minimum": 0, "maximum": 2},
-        "failureCode": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+        "kind": {
+          "const": "audit-check-results@1"
+        },
+        "phase": {
+          "enum": [
+            "collecting",
+            "sealed",
+            "publishing",
+            "published",
+            "failed"
+          ]
+        },
+        "acceptedCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64
+        },
+        "totalCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "reminderCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "failureCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        }
       },
-      "allOf": [{
-        "if": {"properties": {"phase": {"const": "failed"}}},
-        "then": {"required": ["failureCode"]},
-        "else": {"not": {"required": ["failureCode"]}}
-      }]
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "failureCode"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "failureCode"
+              ]
+            }
+          }
+        }
+      ]
     },
     "executionReport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reportId", "complete", "metrics", "toolCalls", "errors", "truncated"],
+      "required": [
+        "reportId",
+        "complete",
+        "metrics",
+        "toolCalls",
+        "errors",
+        "truncated"
+      ],
       "properties": {
-        "reportId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "complete": {"type": "boolean"},
-        "metrics": {"$ref": "#/$defs/executionMetrics"},
-        "completion": {"$ref": "#/$defs/workerCompletionDiagnostics"},
+        "reportId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "metrics": {
+          "$ref": "#/$defs/executionMetrics"
+        },
+        "completion": {
+          "$ref": "#/$defs/workerCompletionDiagnostics"
+        },
         "toolCalls": {
           "type": "array",
           "maxItems": 1000,
-          "items": {"$ref": "#/$defs/toolCallRecord"}
+          "items": {
+            "$ref": "#/$defs/toolCallRecord"
+          }
         },
         "errors": {
           "type": "array",
           "maxItems": 100,
-          "items": {"$ref": "#/$defs/executionError"}
+          "items": {
+            "$ref": "#/$defs/executionError"
+          }
         },
-        "truncated": {"type": "boolean"}
+        "truncated": {
+          "type": "boolean"
+        }
       }
     },
     "runtimeReport": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["complete", "adapters"],
-      "properties": {
-        "complete": {"type": "boolean"},
-        "resources": {"$ref": "performance.schema.json#/$defs/runtimeResources"},
-        "durationMs": {"type": "integer", "minimum": 0},
-        "stopReason": {"type": "string", "minLength": 1},
-        "adapters": {
-          "type": "object",
-          "maxProperties": 64,
-          "propertyNames": {"enum": ["http-proxy@1", "otlp-http@1"]},
-          "additionalProperties": {"$ref": "#/$defs/runtimeAdapterMetrics"}
-        }
-      }
-    },
-    "runtimeAdapterMetrics": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["operations", "failedOperations"],
-      "properties": {
-        "operations": {"type": "integer", "minimum": 0},
-        "failedOperations": {"type": "integer", "minimum": 0},
-        "flushAttempted": {"type": "boolean"},
-        "flushSucceeded": {"type": "boolean"},
-        "droppedSpans": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "queueOverflow": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "encodingFailed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "nonRetryable": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "retryExhausted": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "collectorRejected": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "deadlineExceeded": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "cancelled": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
-            "shutdown": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615}
-          }
-        },
-        "lastErrorCode": {
-          "enum": [
-            "close_failed",
-            "delivery_failed",
-            "flush_failed",
-            "flush_timeout",
-            "queue_overflow",
-            "request_failed"
-          ]
-        }
-      }
+      "$ref": "runtime-report.schema.json"
     },
     "allocationFinalReport": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reportId", "allocationId", "startedAt", "finishedAt", "worker", "runtime"],
+      "required": [
+        "reportId",
+        "allocationId",
+        "startedAt",
+        "finishedAt",
+        "worker",
+        "runtime"
+      ],
       "properties": {
-        "reportId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "startedAt": {"$ref": "common.schema.json#/$defs/timestamp"},
-        "finishedAt": {"$ref": "common.schema.json#/$defs/timestamp"},
-        "worker": {"$ref": "#/$defs/executionReport"},
-        "runtime": {"$ref": "#/$defs/runtimeReport"}
-      }
-    },
-    "resolvedSkill": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["name", "artifact", "packageDigest"],
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 64,
-          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        "reportId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
         },
-        "artifact": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["namespace", "name", "revision"],
-          "properties": {
-            "namespace": {"const": "skills"},
-            "name": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64,
-              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-            },
-            "revision": {"$ref": "common.schema.json#/$defs/opaqueId"}
-          }
+        "allocationId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
         },
-        "packageDigest": {"$ref": "common.schema.json#/$defs/digest"}
+        "startedAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "finishedAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "worker": {
+          "$ref": "#/$defs/executionReport"
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtimeReport"
+        }
       }
     },
     "runMetadataLabels": {
@@ -229,9 +390,18 @@
       "maxProperties": 32,
       "propertyNames": {
         "allOf": [
-          {"minLength": 1, "maxLength": 63},
-          {"pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"},
-          {"not": {"pattern": "^contractor\\."}}
+          {
+            "minLength": 1,
+            "maxLength": 63
+          },
+          {
+            "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          },
+          {
+            "not": {
+              "pattern": "^contractor\\."
+            }
+          }
         ]
       },
       "additionalProperties": {
@@ -242,94 +412,949 @@
       }
     },
     "allocationSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "completionContract": {
+          "$ref": "worker-completion-contract.schema.json"
+        },
+        "allocationId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "runId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "stageExecutionId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "logicalAgentName": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+          "not": {
+            "pattern": "[^A-Za-z0-9_.-]"
+          }
+        },
+        "workerSessionMode": {
+          "enum": [
+            "isolated",
+            "shared"
+          ]
+        },
+        "runMetadataLabels": {
+          "$ref": "#/$defs/runMetadataLabels"
+        },
+        "leaseExpiresAt": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "agentTemplate": {
+          "$ref": "common.schema.json#/$defs/resolvedAgentTemplate"
+        },
+        "resolvedSkills": {
+          "items": {
+            "$ref": "#/$defs/ResolvedSkill"
+          },
+          "maxItems": 32,
+          "title": "Resolvedskills",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "modelPolicy": {
+          "$ref": "common.schema.json#/$defs/resolvedModelPolicy"
+        },
+        "runtimeSettings": {
+          "$ref": "#/$defs/RuntimeSettings"
+        },
+        "resolvedRuntimeConfigProvenance": {
+          "$ref": "#/$defs/ResolvedRuntimeConfigProvenance"
+        },
+        "workspace": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationWorkspaceSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "performanceMetrics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PerformanceMetricsRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "apiVersion",
+        "allocationId",
+        "runId",
+        "stageExecutionId",
+        "logicalAgentName",
+        "namespace",
+        "workerSessionMode",
+        "runMetadataLabels",
+        "leaseExpiresAt",
+        "agentTemplate",
+        "resolvedSkills",
+        "modelPolicy",
+        "runtimeSettings",
+        "resolvedRuntimeConfigProvenance"
+      ],
+      "title": "AllocationSpec",
+      "type": "object"
+    },
+    "AllocationWorkspaceExport": {
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "State",
+          "type": "string"
+        },
+        "diff": {
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Diff",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "diff"
+      ],
+      "title": "AllocationWorkspaceExport",
+      "type": "object"
+    },
+    "AllocationWorkspaceSource": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact",
+        "target"
+      ],
+      "title": "AllocationWorkspaceSource",
+      "type": "object"
+    },
+    "AllocationWorkspaceSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "direct",
+            "overlay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/AllocationWorkspaceSource"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Sources",
+          "type": "array"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationWorkspaceState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "export": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AllocationWorkspaceExport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "mode",
+        "sources"
+      ],
+      "title": "AllocationWorkspaceSpec",
+      "type": "object"
+    },
+    "AllocationWorkspaceState": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "title": "AllocationWorkspaceState",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "$ref": "common.schema.json#/$defs/artifactRef"
+    },
+    "CaidoSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "bearerToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        },
+        "caBundlePem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cabundlepem"
+        },
+        "requestTimeoutSeconds": {
+          "title": "Requesttimeoutseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adapter",
+        "endpoint",
+        "requestTimeoutSeconds"
+      ],
+      "title": "CaidoSettings",
+      "type": "object"
+    },
+    "HTTPOriginTargetSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "basicAuth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPProxyBasicAuth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bearerToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "HTTPOriginTargetSettings",
+      "type": "object"
+    },
+    "HTTPProxyBasicAuth": {
+      "additionalProperties": false,
+      "properties": {
+        "username": {
+          "format": "password",
+          "title": "Username",
+          "type": "string",
+          "writeOnly": true
+        },
+        "password": {
+          "format": "password",
+          "title": "Password",
+          "type": "string",
+          "writeOnly": true
+        }
+      },
+      "required": [
+        "username",
+        "password"
+      ],
+      "title": "HTTPProxyBasicAuth",
+      "type": "object"
+    },
+    "HTTPProxySettings": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "proxyUrl": {
+          "title": "Proxyurl",
+          "type": "string"
+        },
+        "basicAuth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPProxyBasicAuth"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bearerToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearertoken"
+        },
+        "caBundlePem": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cabundlepem"
+        },
+        "targets": {
+          "items": {
+            "enum": [
+              "llm-gateway",
+              "tool-http",
+              "tool-subprocess"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Targets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "adapter",
+        "proxyUrl",
+        "targets"
+      ],
+      "title": "HTTPProxySettings",
+      "type": "object"
+    },
+    "LLMCredentialRef": {
+      "additionalProperties": false,
+      "properties": {
+        "credentialId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Credentialid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credentialId"
+      ],
+      "title": "LLMCredentialRef",
+      "type": "object"
+    },
+    "LLMGatewayConfigRef": {
+      "additionalProperties": false,
+      "properties": {
+        "gatewayId": {
+          "title": "Gatewayid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gatewayId",
+        "version",
+        "digest"
+      ],
+      "title": "LLMGatewayConfigRef",
+      "type": "object"
+    },
+    "PerformanceMetricsRequest": {
+      "$ref": "performance.schema.json#/$defs/performanceMetricsRequest"
+    },
+    "ResolvedRuntimeConfigProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/RuntimeLabelBindingProvenance"
+        },
+        "runLabels": {
+          "items": {
+            "$ref": "#/$defs/RuntimeLabelBindingProvenance"
+          },
+          "maxItems": 32,
+          "title": "Runlabels",
+          "type": "array"
+        },
+        "agentLabels": {
+          "items": {
+            "$ref": "#/$defs/RuntimeLabelBindingProvenance"
+          },
+          "maxItems": 32,
+          "title": "Agentlabels",
+          "type": "array"
+        },
+        "runtimeAdapters": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Runtimeadapters",
+          "type": "array"
+        },
+        "llmGatewayConfig": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LLMGatewayConfigRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llmCredential": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LLMCredentialRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "runtimeCredentialRefs": {
+          "items": {
+            "$ref": "#/$defs/RuntimeCredentialRef"
+          },
+          "maxItems": 64,
+          "title": "Runtimecredentialrefs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "default",
+        "runLabels",
+        "agentLabels",
+        "runtimeAdapters",
+        "runtimeCredentialRefs"
+      ],
+      "title": "ResolvedRuntimeConfigProvenance",
+      "type": "object"
+    },
+    "ResolvedSkill": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "runId", "stageExecutionId", "logicalAgentName", "namespace", "workerSessionMode", "runMetadataLabels", "leaseExpiresAt", "agentTemplate", "resolvedSkills", "modelPolicy", "runtimeSettings"],
+      "required": [
+        "name",
+        "artifact",
+        "packageDigest"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "runId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "stageExecutionId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "logicalAgentName": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "namespace": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$", "not": {"pattern": "[^A-Za-z0-9_.-]"}},
-        "workerSessionMode": {"enum": ["isolated", "shared"]},
-        "runMetadataLabels": {"$ref": "#/$defs/runMetadataLabels"},
-        "leaseExpiresAt": {"$ref": "common.schema.json#/$defs/timestamp"},
-        "agentTemplate": {"$ref": "common.schema.json#/$defs/resolvedAgentTemplate"},
-        "resolvedSkills": {
-          "type": "array",
-          "maxItems": 32,
-          "uniqueItems": true,
-          "items": {"$ref": "#/$defs/resolvedSkill"}
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
         },
-        "modelPolicy": {"$ref": "common.schema.json#/$defs/resolvedModelPolicy"},
-        "completionContract": {"$ref": "worker-completion-contract.schema.json"},
-        "runtimeSettings": {
+        "artifact": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["llmGatewayUrl", "llmGatewayToken", "artifactApiUrl", "requestTimeoutSeconds"],
+          "required": [
+            "namespace",
+            "name",
+            "revision"
+          ],
           "properties": {
-            "llmGatewayUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
-            "llmGatewayToken": {"type": "string"},
-            "artifactApiUrl": {"type": "string", "format": "uri", "pattern": "^https?://"},
-            "requestTimeoutSeconds": {"type": "integer", "minimum": 1}
+            "namespace": {
+              "const": "skills"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "revision": {
+              "$ref": "common.schema.json#/$defs/opaqueId"
+            }
           }
+        },
+        "packageDigest": {
+          "$ref": "common.schema.json#/$defs/digest"
         }
       }
+    },
+    "RuntimeConfigRef": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "digest": {
+          "title": "Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "digest"
+      ],
+      "title": "RuntimeConfigRef",
+      "type": "object"
+    },
+    "RuntimeCredentialRef": {
+      "additionalProperties": false,
+      "properties": {
+        "credentialId": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Credentialid",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "caido-bearer@1",
+            "http-origin-basic@1",
+            "http-origin-bearer@1",
+            "http-proxy-basic@1",
+            "http-proxy-bearer@1",
+            "otlp-headers@1"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "credentialId",
+        "kind"
+      ],
+      "title": "RuntimeCredentialRef",
+      "type": "object"
+    },
+    "RuntimeLabelBindingProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "exclusiveMinimum": 0,
+          "maximum": 18446744073709551615,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "config": {
+          "$ref": "#/$defs/RuntimeConfigRef"
+        }
+      },
+      "required": [
+        "label",
+        "bindingRevision",
+        "config"
+      ],
+      "title": "RuntimeLabelBindingProvenance",
+      "type": "object"
+    },
+    "RuntimeSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "llmGatewayUrl": {
+          "title": "Llmgatewayurl",
+          "type": "string"
+        },
+        "llmGatewayToken": {
+          "anyOf": [
+            {
+              "format": "password",
+              "type": "string",
+              "writeOnly": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Llmgatewaytoken"
+        },
+        "artifactApiUrl": {
+          "title": "Artifactapiurl",
+          "type": "string"
+        },
+        "telemetry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelemetrySettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "httpProxy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPProxySettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "caido": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaidoSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "httpOriginTarget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HTTPOriginTargetSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requestTimeoutSeconds": {
+          "exclusiveMinimum": 0,
+          "title": "Requesttimeoutseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "llmGatewayUrl",
+        "artifactApiUrl",
+        "requestTimeoutSeconds"
+      ],
+      "title": "RuntimeSettings",
+      "type": "object"
+    },
+    "TelemetryExportSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "batchSizeBytes": {
+          "maximum": 67108864,
+          "minimum": 1048576,
+          "title": "Batchsizebytes",
+          "type": "integer"
+        },
+        "maxAttempts": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Maxattempts",
+          "type": "integer"
+        },
+        "maxPendingSpans": {
+          "maximum": 2048,
+          "minimum": 1,
+          "title": "Maxpendingspans",
+          "type": "integer"
+        },
+        "maxPendingBytes": {
+          "maximum": 67108864,
+          "minimum": 1048576,
+          "title": "Maxpendingbytes",
+          "type": "integer"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelemetryRetrySettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "batchSizeBytes",
+        "maxAttempts",
+        "maxPendingSpans",
+        "maxPendingBytes"
+      ],
+      "title": "TelemetryExportSettings",
+      "type": "object"
+    },
+    "TelemetrySettings": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "title": "Adapter",
+          "type": "string"
+        },
+        "endpoint": {
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "headers": {
+          "additionalProperties": {
+            "format": "password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "title": "Headers",
+          "type": "object"
+        },
+        "captureContent": {
+          "title": "Capturecontent",
+          "type": "boolean"
+        },
+        "flushTimeoutSeconds": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Flushtimeoutseconds",
+          "type": "integer"
+        },
+        "export": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelemetryExportSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "adapter",
+        "endpoint",
+        "headers",
+        "captureContent",
+        "flushTimeoutSeconds"
+      ],
+      "title": "TelemetrySettings",
+      "type": "object"
+    },
+    "TelemetryRetrySettings": {
+      "additionalProperties": false,
+      "properties": {
+        "initialBackoffMilliseconds": {
+          "maximum": 60000,
+          "minimum": 1,
+          "title": "Initialbackoffmilliseconds",
+          "type": "integer"
+        },
+        "maxBackoffMilliseconds": {
+          "maximum": 60000,
+          "minimum": 1,
+          "title": "Maxbackoffmilliseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "initialBackoffMilliseconds",
+        "maxBackoffMilliseconds"
+      ],
+      "title": "TelemetryRetrySettings",
+      "type": "object"
     }
   },
   "oneOf": [
-    {"$ref": "#/$defs/allocationSpec"},
+    {
+      "$ref": "#/$defs/allocationSpec"
+    },
     {
       "title": "PrepareAllocationRequest",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "spec"],
-      "properties": {"apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"}, "spec": {"$ref": "#/$defs/allocationSpec"}}
+      "required": [
+        "apiVersion",
+        "spec"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "spec": {
+          "$ref": "#/$defs/allocationSpec"
+        }
+      }
     },
     {
       "title": "FinalizeAllocationRequest",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "finalizationId", "deadline"],
+      "required": [
+        "apiVersion",
+        "allocationId",
+        "finalizationId",
+        "deadline"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "finalizationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "deadline": {"$ref": "common.schema.json#/$defs/timestamp"}
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "allocationId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "finalizationId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        }
       }
     },
     {
       "title": "AbortAllocationRequest",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId", "abortId", "reason", "deadline"],
+      "required": [
+        "apiVersion",
+        "allocationId",
+        "abortId",
+        "reason",
+        "deadline"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "abortId": {"$ref": "common.schema.json#/$defs/opaqueId"},
-        "reason": {"$ref": "common.schema.json#/$defs/terminationError"},
-        "deadline": {"$ref": "common.schema.json#/$defs/timestamp"}
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "allocationId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "abortId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        },
+        "reason": {
+          "$ref": "common.schema.json#/$defs/terminationError"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        }
       }
     },
     {
       "title": "ReleaseAllocationRequest",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "allocationId"],
+      "required": [
+        "apiVersion",
+        "allocationId"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "allocationId": {"$ref": "common.schema.json#/$defs/opaqueId"}
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "allocationId": {
+          "$ref": "common.schema.json#/$defs/opaqueId"
+        }
       }
     },
     {
       "title": "AllocationFinalResponse",
       "type": "object",
       "additionalProperties": false,
-      "required": ["apiVersion", "report"],
+      "required": [
+        "apiVersion",
+        "report"
+      ],
       "properties": {
-        "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-        "report": {"$ref": "#/$defs/allocationFinalReport"}
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "report": {
+          "$ref": "#/$defs/allocationFinalReport"
+        }
       }
     }
   ]

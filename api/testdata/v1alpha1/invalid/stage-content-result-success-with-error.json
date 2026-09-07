@@ -1,7 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "outcome": "succeeded",
-  "summary": "Contradictory result",
-  "artifacts": {},
-  "error": {"code": "unexpected", "message": "Must be absent", "retryable": false}
-}
+{"apiVersion":"contractor/v1alpha1","artifacts":{},"error":{"code":"unexpected","message":"Must be absent","retryable":false},"outcome":"succeeded","summary":"Contradictory result"}

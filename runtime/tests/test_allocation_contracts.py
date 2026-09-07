@@ -8,7 +8,7 @@ import pytest
 from fakes.spec import allocation_spec
 from pydantic import ValidationError
 
-from contractor_runtime.contracts import AllocationSpec, AllocationSpecV2
+from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.digests import TemplateDigestMismatch, verify_template_digests
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1" / "valid"
@@ -26,7 +26,7 @@ def test_optional_summarizer_round_trips_on_both_allocation_contracts() -> None:
 
     current = allocation_spec(summarizer=True)
     encoded = current.model_dump_json(by_alias=True, exclude_none=True)
-    decoded = AllocationSpecV2.model_validate_json(encoded)
+    decoded = AllocationSpec.model_validate_json(encoded)
     assert decoded == current
     assert decoded.agent_template.summarizer is not None
     assert decoded.agent_template.summarizer.model_policy.model == "worker-summarizer-model"
@@ -70,7 +70,7 @@ def test_effective_worker_budget_must_remain_above_soft_total_threshold() -> Non
     candidate = allocation.model_dump(by_alias=True, exclude_none=True)
     candidate["modelPolicy"]["maxTotalTokens"] = 20_000
     with pytest.raises(ValidationError, match="effective Worker maxTotalTokens"):
-        AllocationSpecV2.model_validate(candidate)
+        AllocationSpec.model_validate(candidate)
 
 
 def test_summarized_effective_worker_requires_context_window_metadata() -> None:
@@ -78,7 +78,7 @@ def test_summarized_effective_worker_requires_context_window_metadata() -> None:
     candidate = allocation.model_dump(by_alias=True, exclude_none=True)
     candidate["modelPolicy"].pop("contextWindowTokens")
     with pytest.raises(ValidationError, match="effective Worker modelPolicy"):
-        AllocationSpecV2.model_validate(candidate)
+        AllocationSpec.model_validate(candidate)
 
 
 def test_summarizer_policy_and_thresholds_are_covered_by_template_digests() -> None:
@@ -130,8 +130,8 @@ def test_summary_instruction_wire_character_limit(text: str, valid: bool) -> Non
         "text": text,
     }
     if valid:
-        decoded = AllocationSpecV2.model_validate(allocation)
+        decoded = AllocationSpec.model_validate(allocation)
         assert decoded.agent_template.summarizer.instructions.text == text
     else:
         with pytest.raises(ValidationError):
-            AllocationSpecV2.model_validate(allocation)
+            AllocationSpec.model_validate(allocation)

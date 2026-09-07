@@ -24,12 +24,12 @@ from contractor_runtime.contracts import (
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
     TelemetryExportSettings,
-    TelemetrySettingsV2,
+    TelemetrySettings,
 )
 from contractor_runtime.state import ProcessState
 
 
-def _settings(batch_size_bytes: int = 8 * 1024 * 1024) -> TelemetrySettingsV2:
+def _settings(batch_size_bytes: int = 8 * 1024 * 1024) -> TelemetrySettings:
     # Tiny batches keep transport race tests cheap; public validation is tested
     # separately with the supported 1 MiB minimum.
     export = TelemetryExportSettings.defaults().model_copy(
@@ -65,7 +65,7 @@ def test_configured_export_limits_and_attempts_control_background_delivery() -> 
             return httpx.Response(503 if len(payloads) < 3 else 200)
 
         # Validate the actual private wire boundary, with non-default values.
-        settings = TelemetrySettingsV2.model_validate_json(
+        settings = TelemetrySettings.model_validate_json(
             '{"adapter":"otlp-http@1","endpoint":"https://collector.example/v1/traces",'
             '"headers":{},"captureContent":true,"flushTimeoutSeconds":10,'
             '"export":{"batchSizeBytes":1048576,"maxAttempts":3,'

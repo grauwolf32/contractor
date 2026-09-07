@@ -19,7 +19,7 @@ from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     AgentStateSnapshot,
-    AllocationWorkspaceExportV2,
+    AllocationWorkspaceExport,
     ResolvedModelPolicy,
     ResolvedSkill,
     RuntimeSettings,
@@ -110,7 +110,7 @@ class WorkerBuildContext:
     resolved_skills: tuple[ResolvedSkill, ...] = ()
     agent_skills: PreparedAgentSkills | None = field(default=None, repr=False)
     project_workspace: DirectWorkspaceSession | None = field(default=None, repr=False)
-    workspace_export: AllocationWorkspaceExportV2 | None = None
+    workspace_export: AllocationWorkspaceExport | None = None
 
 
 class WorkerRuntimeFactory(Protocol):

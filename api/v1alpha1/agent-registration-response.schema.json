@@ -1,12 +1,51 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://contractor.local/schema/v1alpha1/agent-registration-response.schema.json",
-  "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "heartbeatIntervalSeconds", "confirmedLeaseSeconds"],
   "properties": {
-    "apiVersion": {"$ref": "common.schema.json#/$defs/apiVersion"},
-    "heartbeatIntervalSeconds": {"type": "integer", "minimum": 1},
-    "confirmedLeaseSeconds": {"type": "integer", "minimum": 2}
-  }
+    "apiVersion": {
+      "const": "contractor/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "heartbeatIntervalSeconds": {
+      "exclusiveMinimum": 0,
+      "title": "Heartbeatintervalseconds",
+      "type": "integer"
+    },
+    "confirmedLeaseSeconds": {
+      "exclusiveMinimum": 1,
+      "title": "Confirmedleaseseconds",
+      "type": "integer"
+    },
+    "runtimeAgentId": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Runtimeagentid",
+      "type": "string"
+    },
+    "labels": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Labels",
+      "type": "array"
+    },
+    "labelRevision": {
+      "exclusiveMinimum": 0,
+      "maximum": 18446744073709551615,
+      "title": "Labelrevision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "apiVersion",
+    "heartbeatIntervalSeconds",
+    "confirmedLeaseSeconds",
+    "runtimeAgentId",
+    "labels",
+    "labelRevision"
+  ],
+  "title": "AgentRegistrationResponse",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/agent-registration-response.schema.json"
 }

@@ -15,8 +15,8 @@ from contractor_runtime.contracts.base import (
     MAX_UINT64,
     MAX_WORKER_FILES_READ,
     WireModel,
-    WorkspaceModeV2,
-    WorkspaceStorageV2,
+    WorkspaceMode,
+    WorkspaceStorage,
     _require_sorted_unique,
     _require_workspace_target,
 )
@@ -56,7 +56,7 @@ class WorkspaceObservationSummary(WireModel):
         return self
 
 
-class WorkspaceLimitsV2(WireModel):
+class WorkspaceLimits(WireModel):
     max_files: int = Field(gt=0)
     max_expanded_bytes: int = Field(gt=0)
     max_managed_text_bytes: int = Field(gt=0)
@@ -72,7 +72,7 @@ class WorkspaceLimitsV2(WireModel):
         return self
 
 
-class AllocationWorkspaceSourceV2(WireModel):
+class AllocationWorkspaceSource(WireModel):
     artifact: ArtifactRef
     target: str
 
@@ -83,7 +83,7 @@ class AllocationWorkspaceSourceV2(WireModel):
         return self
 
 
-class AllocationWorkspaceStateV2(WireModel):
+class AllocationWorkspaceState(WireModel):
     artifact: ArtifactRef
 
     @model_validator(mode="after")
@@ -92,7 +92,7 @@ class AllocationWorkspaceStateV2(WireModel):
         return self
 
 
-class AllocationWorkspaceExportV2(WireModel):
+class AllocationWorkspaceExport(WireModel):
     state: str = Field(pattern=ID_PATTERN.pattern)
     diff: str = Field(pattern=ID_PATTERN.pattern)
 
@@ -103,10 +103,10 @@ class AllocationWorkspaceExportV2(WireModel):
         return self
 
 
-class WorkspaceCapabilitiesV2(WireModel):
-    storage: WorkspaceStorageV2
-    modes: list[WorkspaceModeV2] = Field(min_length=1, max_length=2)
-    limits: WorkspaceLimitsV2
+class WorkspaceCapabilities(WireModel):
+    storage: WorkspaceStorage
+    modes: list[WorkspaceMode] = Field(min_length=1, max_length=2)
+    limits: WorkspaceLimits
 
     @model_validator(mode="after")
     def validate_capabilities(self) -> Self:
@@ -114,11 +114,11 @@ class WorkspaceCapabilitiesV2(WireModel):
         return self
 
 
-class AllocationWorkspaceSpecV2(WireModel):
-    mode: WorkspaceModeV2
-    sources: list[AllocationWorkspaceSourceV2] = Field(min_length=1, max_length=32)
-    state: AllocationWorkspaceStateV2 | None = None
-    export: AllocationWorkspaceExportV2 | None = None
+class AllocationWorkspaceSpec(WireModel):
+    mode: WorkspaceMode
+    sources: list[AllocationWorkspaceSource] = Field(min_length=1, max_length=32)
+    state: AllocationWorkspaceState | None = None
+    export: AllocationWorkspaceExport | None = None
 
     @model_validator(mode="after")
     def validate_workspace(self) -> Self:

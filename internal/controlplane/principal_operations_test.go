@@ -18,7 +18,7 @@ func TestPrincipalOperationsSeparatesOfflineBusyAndAdapterMismatch(t *testing.T)
 		CreatedBy: "runtime-registration", CreatedAt: clock.Now(),
 		UpdatedBy: "runtime-registration", UpdatedAt: clock.Now(),
 	}
-	registration := testRegistrationV2("agent-principal-operations")
+	registration := testRegistration("agent-principal-operations")
 	registration.SupportedRuntimeAdapters = []contracts.RuntimeAdapterRef{}
 	if _, err := registry.RegisterAuthenticated(AuthenticatedPrincipal{
 		RuntimeAgentID: principal.RuntimeAgentID,

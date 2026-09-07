@@ -1,6 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "ackSeq": 7,
-  "action": "continue",
-  "allocationId": "019c-allocation-1"
-}
+{"ackSeq":7,"action":"continue","allocationId":"019c-allocation-1","apiVersion":"contractor/v1alpha1"}

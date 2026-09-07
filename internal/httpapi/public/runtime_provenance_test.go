@@ -21,10 +21,10 @@ func TestStageRuntimeConfigurationReadModelIsSafeAndHistorical(t *testing.T) {
 				Configs: []runtimeconfig.Ref{{Name: "site-debug", Version: "2", Digest: digest}},
 			},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenanceV2{
-			AgentLabels: []contracts.RuntimeLabelBindingProvenanceV2{{
+		Provenance: contracts.ResolvedRuntimeConfigProvenance{
+			AgentLabels: []contracts.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7,
-				Config: contracts.RuntimeConfigRefV2{Name: "site-debug", Version: "2", Digest: digest},
+				Config: contracts.RuntimeConfigRef{Name: "site-debug", Version: "2", Digest: digest},
 			}},
 			RuntimeAdapters: []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
 		},

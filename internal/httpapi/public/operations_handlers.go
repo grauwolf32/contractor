@@ -155,7 +155,7 @@ func cloneRuntimeAgentObservation(
 	result.SupportedRuntimeAdapters = append([]string{}, source.SupportedRuntimeAdapters...)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
-		capabilities.Modes = append([]contracts.WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
+		capabilities.Modes = append([]contracts.WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
 		result.WorkspaceCapabilities = &capabilities
 	}
 	result.SupportedToolsets = make(

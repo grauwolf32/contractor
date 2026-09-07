@@ -1162,9 +1162,10 @@ func (i *postgresTestWorkerInvoker) Invoke(
 }
 
 func testSchedulerRuntimeSettings() contracts.RuntimeSettings {
+	token := contracts.NewSecretString("test-token")
 	return contracts.RuntimeSettings{
 		LLMGatewayURL:         "https://gateway.test/v1",
-		LLMGatewayToken:       contracts.NewSecretString("test-token"),
+		LLMGatewayToken:       &token,
 		ArtifactAPIURL:        "https://control.test/private/v1",
 		RequestTimeoutSeconds: 5,
 	}

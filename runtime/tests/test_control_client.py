@@ -28,7 +28,6 @@ def test_registration_commits_idle_and_uses_server_timing(
             [
                 {
                     "apiVersion": "contractor/v1alpha1",
-                    "privateProtocolVersion": 2,
                     "runtimeAgentId": "a" * 64,
                     "labels": [],
                     "labelRevision": 1,
@@ -45,7 +44,7 @@ def test_registration_commits_idle_and_uses_server_timing(
         assert transport.requests[0][0] == "/private/v1/agents/register"
         assert transport.requests[0][1]["instanceId"] == "runtime-register"
         assert transport.requests[0][1]["softwareVersion"] == "0.1.0"
-        assert transport.requests[0][1]["privateProtocolVersion"] == 2
+        assert transport.requests[0][1]["apiVersion"] == "contractor/v1alpha1"
         assert transport.requests[0][1]["initialLabels"] == []
         assert "workspaceCapabilities" not in transport.requests[0][1]
         assert "runtimeAgentId" not in transport.requests[0][1]
@@ -310,7 +309,6 @@ class WaitingTransport:
 def registration_response() -> Mapping[str, Any]:
     return {
         "apiVersion": "contractor/v1alpha1",
-        "privateProtocolVersion": 2,
         "runtimeAgentId": "a" * 64,
         "labels": [],
         "labelRevision": 1,

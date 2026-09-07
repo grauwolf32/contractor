@@ -16,10 +16,9 @@ from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     ArtifactRef,
-    HTTPOriginTargetSettingsV2,
-    HTTPProxySettingsV2,
+    HTTPOriginTargetSettings,
+    HTTPProxySettings,
     RuntimeSettings,
-    RuntimeSettingsV2,
 )
 from contractor_runtime.toolsets.http.tools import (
     HTTP_BODY_MEDIA_TYPE,
@@ -228,10 +227,10 @@ def test_project_authorization_is_exact_origin_hidden_and_erased(tmp_path: Path)
             return httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
 
         factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient(), direct)
-        settings = RuntimeSettingsV2(
+        settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             artifactApiUrl="https://control.example/private/v1",
-            httpOriginTarget=HTTPOriginTargetSettingsV2(
+            httpOriginTarget=HTTPOriginTargetSettings(
                 url="https://target.example/application",
                 bearerToken=TARGET_SECRET,
             ),
@@ -385,12 +384,12 @@ async def close_tools(tools: dict[str, Any]) -> None:
         await tool.close()
 
 
-def proxy_runtime_settings() -> RuntimeSettingsV2:
-    return RuntimeSettingsV2(
+def proxy_runtime_settings() -> RuntimeSettings:
+    return RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
         artifactApiUrl="https://control.example/private/v1",
-        httpProxy=HTTPProxySettingsV2(
+        httpProxy=HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="https://proxy.example",
             targets=["tool-http"],

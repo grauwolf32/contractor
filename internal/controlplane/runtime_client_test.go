@@ -127,7 +127,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 	effectivePolicy.MaxModelCalls++
 	settings := testRuntimeSettings()
 	lease := time.Date(2026, 8, 29, 13, 0, 0, 0, time.UTC)
-	var received contracts.PrepareAllocationRequestV2
+	var received contracts.PrepareAllocationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost || request.URL.Path != "/private/v1/allocations/allocation_1/prepare" {
 			t.Errorf("unexpected request %s %s", request.Method, request.URL.Path)
@@ -170,9 +170,9 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 		PackageDigest: "sha256:" + strings.Repeat("e", 64),
 	}}
 	workspaceRevision := "source-revision-1"
-	reservation.Workspace = &contracts.AllocationWorkspaceSpecV2{
+	reservation.Workspace = &contracts.AllocationWorkspaceSpec{
 		Mode: contracts.WorkspaceModeOverlay,
-		Sources: []contracts.AllocationWorkspaceSourceV2{{
+		Sources: []contracts.AllocationWorkspaceSource{{
 			Artifact: contracts.ArtifactRef{
 				Namespace: "inputs", Name: "source", Revision: &workspaceRevision,
 			},
@@ -186,7 +186,7 @@ func TestRuntimeControlClientPrepareSendsExactResolvedAllocation(t *testing.T) {
 
 	handle, err := client.Prepare(
 		requestid.With(context.Background(), "scheduler-request-1"), reservation,
-		contracts.WorkerExecutionSettingsV2{
+		contracts.WorkerExecutionSettings{
 			ModelPolicy: effectivePolicy, RuntimeSettings: settings,
 			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		},
@@ -245,7 +245,7 @@ func TestRuntimeControlClientPrepareRejectsSecretBearingHandle(t *testing.T) {
 	client, _ := NewRuntimeControlClient(server.Client())
 	reservation := testReservation("allocation_1", "builder", server.URL, server.URL, template, lease)
 
-	_, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettingsV2{
+	_, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{
 		ModelPolicy: template.ModelPolicy, RuntimeSettings: settings,
 		ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 	})
@@ -264,9 +264,9 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 		template, lease,
 	)
 	settings := testRuntimeSettings()
-	settings.HTTPProxy = &contracts.HTTPProxySettingsV2{
+	settings.HTTPProxy = &contracts.HTTPProxySettings{
 		Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: "https://proxy.example",
-		BasicAuth: &contracts.HTTPProxyBasicAuthV2{
+		BasicAuth: &contracts.HTTPProxyBasicAuth{
 			Username: contracts.NewSecretString("worker"),
 			Password: contracts.NewSecretString("short"),
 		},
@@ -280,7 +280,7 @@ func TestWorkerHandleSecretScanDoesNotMatchShortCredentialAgainstJSONKeys(t *tes
 			"https://runtime.example/private/v1/allocations/allocation_1/a2a",
 		),
 	}
-	if err := validateWorkerHandleV2(handle, reservation, settings); err != nil {
+	if err := validateWorkerHandle(handle, reservation, settings); err != nil {
 		t.Fatalf("low-entropy credential collided with a JSON key: %v", err)
 	}
 }
@@ -658,7 +658,7 @@ type recordingRuntime struct {
 }
 
 func (r *recordingRuntime) Prepare(
-	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettingsV2,
+	_ context.Context, reservation Reservation, _ contracts.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -820,9 +820,9 @@ func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
 	}
 }
 
-func testRuntimeSettings() contracts.RuntimeSettingsV2 {
+func testRuntimeSettings() contracts.RuntimeSettings {
 	token := contracts.NewSecretString("recognizable-runtime-secret")
-	return contracts.RuntimeSettingsV2{
+	return contracts.RuntimeSettings{
 		LLMGatewayURL: "https://llm.example/v1", LLMGatewayToken: &token,
 		ArtifactAPIURL: "https://control.example/private/v1", RequestTimeoutSeconds: 30,
 	}
@@ -830,12 +830,12 @@ func testRuntimeSettings() contracts.RuntimeSettingsV2 {
 
 func testWorkerExecutionSettings(
 	template contracts.ResolvedAgentTemplate,
-	runtime contracts.RuntimeSettingsV2,
+	runtime contracts.RuntimeSettings,
 	logicalNames ...string,
-) map[string]contracts.WorkerExecutionSettingsV2 {
-	result := make(map[string]contracts.WorkerExecutionSettingsV2, len(logicalNames))
+) map[string]contracts.WorkerExecutionSettings {
+	result := make(map[string]contracts.WorkerExecutionSettings, len(logicalNames))
 	for _, name := range logicalNames {
-		result[name] = contracts.WorkerExecutionSettingsV2{
+		result[name] = contracts.WorkerExecutionSettings{
 			ModelPolicy: template.ModelPolicy, RuntimeSettings: runtime,
 			ResolvedRuntimeConfigProvenance: testRuntimeProvenance(),
 		}
@@ -843,21 +843,21 @@ func testWorkerExecutionSettings(
 	return result
 }
 
-func testRuntimeProvenance() contracts.ResolvedRuntimeConfigProvenanceV2 {
+func testRuntimeProvenance() contracts.ResolvedRuntimeConfigProvenance {
 	gateway := contracts.LLMGatewayConfigRef{
 		GatewayID: "local-litellm", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
 	}
-	return contracts.ResolvedRuntimeConfigProvenanceV2{
-		Default: contracts.RuntimeLabelBindingProvenanceV2{
+	return contracts.ResolvedRuntimeConfigProvenance{
+		Default: contracts.RuntimeLabelBindingProvenance{
 			Label: "default", BindingRevision: 1,
-			Config: contracts.RuntimeConfigRefV2{
+			Config: contracts.RuntimeConfigRef{
 				Name: "contractor-empty", Version: "1", Digest: "sha256:" + strings.Repeat("a", 64),
 			},
 		},
-		RunLabels:       []contracts.RuntimeLabelBindingProvenanceV2{},
-		AgentLabels:     []contracts.RuntimeLabelBindingProvenanceV2{},
+		RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
+		AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
 		RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-		RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+		RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
 	}
 }
 
@@ -883,7 +883,7 @@ func TestRuntimeAdapterMetricsAreFilteredAgainstPinnedReservation(t *testing.T) 
 	}}
 	report := contracts.RuntimeReport{
 		Complete: true,
-		Adapters: map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetricsV2{
+		Adapters: map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetrics{
 			contracts.RuntimeAdapterOTLPHTTP:  {Operations: 2},
 			contracts.RuntimeAdapterHTTPProxy: {Operations: 1},
 		},
@@ -910,8 +910,8 @@ func serverURL(request *http.Request) string {
 func TestRuntimeSettingSecretsIncludesProjectOriginAuthorization(t *testing.T) {
 	t.Parallel()
 	token := contracts.NewSecretString("project-origin-secret")
-	settings := contracts.RuntimeSettingsV2{
-		HTTPOriginTarget: &contracts.HTTPOriginTargetSettingsV2{
+	settings := contracts.RuntimeSettings{
+		HTTPOriginTarget: &contracts.HTTPOriginTargetSettings{
 			URL: "https://app.example.test", BearerToken: &token,
 		},
 	}

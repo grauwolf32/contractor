@@ -10,12 +10,11 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from contractor_runtime.contracts import (
-    AgentRegistrationV2,
+    AgentRegistration,
     AllocationSpec,
-    AllocationSpecV2,
     RuntimeCompletionCapabilities,
     WorkerCompletionContract,
-    decode_private_v2,
+    decode_private,
 )
 from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_COLLECTED_BYTES,
@@ -34,15 +33,12 @@ from contractor_runtime.toolsets.audit_results.contracts import (
 from contractor_runtime.worker.completion import ContinueCompletion
 
 ROOT = Path(__file__).parents[2]
-CASES = json.loads(
-    (ROOT / "testdata/contracts/private-v2/audit-completion-cases.json").read_bytes()
-)
+CASES = json.loads((ROOT / "api/testdata/v1alpha1/audit-completion-cases.json").read_bytes())
 MODELS = {
     "contract": WorkerCompletionContract,
     "capabilities": RuntimeCompletionCapabilities,
-    "allocation": AllocationSpecV2,
-    "legacy-allocation": AllocationSpec,
-    "registration": AgentRegistrationV2,
+    "allocation": AllocationSpec,
+    "registration": AgentRegistration,
 }
 
 
@@ -50,14 +46,14 @@ MODELS = {
 def test_shared_go_completion_wire_fixtures(case):
     raw = json.dumps(case["value"]).encode()
     if case["valid"]:
-        value = decode_private_v2(MODELS[case["model"]], raw)
+        value = decode_private(MODELS[case["model"]], raw)
         assert value.model_dump(mode="json", by_alias=True, exclude_none=True) == case["value"]
     else:
         with pytest.raises(ValueError):
-            decode_private_v2(MODELS[case["model"]], raw)
+            decode_private(MODELS[case["model"]], raw)
 
 
-def test_generated_private_and_legacy_schemas_accept_complete_contracts():
+def test_private_schemas_accept_complete_contracts():
     schemas = {
         path.name: json.loads(path.read_bytes())
         for path in (ROOT / "api/v1alpha1").glob("*.schema.json")
@@ -65,21 +61,19 @@ def test_generated_private_and_legacy_schemas_accept_complete_contracts():
     registry = Registry().with_resources(
         (schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()
     )
-    private_alloc = json.loads((ROOT / "api/private-v2/allocation.schema.json").read_bytes())
+    private_alloc = json.loads((ROOT / "api/v1alpha1/allocation.schema.json").read_bytes())
     private_registration = json.loads(
-        (ROOT / "api/private-v2/agent-registration.schema.json").read_bytes()
+        (ROOT / "api/v1alpha1/agent-registration.schema.json").read_bytes()
     )
     for case in CASES:
         if case["valid"] and case["model"] in {
             "allocation",
             "registration",
-            "legacy-allocation",
             "contract",
         }:
             schema = {
                 "allocation": private_alloc,
                 "registration": private_registration,
-                "legacy-allocation": schemas["allocation.schema.json"],
                 "contract": schemas["worker-completion-contract.schema.json"],
             }[case["model"]]
             Draft202012Validator(schema, registry=registry).validate(case["value"])
@@ -163,14 +157,12 @@ def test_limits_and_separate_recorded_publication_receipts():
         ContinueCompletion("x" * (16 * 1024 + 1))
 
 
-def test_legacy_omission_is_preserved_after_completion_registration(tmp_path):
+def test_optional_completion_fields_are_omitted_without_opt_in(tmp_path):
     from contractor_runtime.factories import built_in_factories
 
     assert "audit-results@2" in built_in_factories(tmp_path).toolsets
-    raw = json.loads(
-        (ROOT / "testdata/contracts/private-v2/valid/agent-registration.json").read_bytes()
-    )
-    registration = AgentRegistrationV2.model_validate_json(json.dumps(raw))
+    raw = json.loads((ROOT / "api/testdata/v1alpha1/valid/agent-registration.json").read_bytes())
+    registration = AgentRegistration.model_validate_json(json.dumps(raw))
     assert registration.capabilities is None
     assert "capabilities" not in registration.model_dump(by_alias=True, exclude_none=True)
     from fakes.spec import allocation_spec

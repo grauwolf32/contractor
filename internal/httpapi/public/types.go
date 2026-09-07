@@ -389,8 +389,8 @@ type updateProjectRequest struct {
 }
 
 type projectHTTPTargetRequest struct {
-	URL        string                            `json:"url"`
-	Credential *contracts.RuntimeCredentialRefV2 `json:"credential,omitempty"`
+	URL        string                          `json:"url"`
+	Credential *contracts.RuntimeCredentialRef `json:"credential,omitempty"`
 }
 
 func (r *updateProjectRequest) UnmarshalJSON(data []byte) error {

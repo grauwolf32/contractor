@@ -13,7 +13,7 @@ from typing import Protocol
 
 import jcs
 
-from contractor_runtime.contracts import WorkspaceModeV2
+from contractor_runtime.contracts import WorkspaceMode
 from contractor_runtime.projectfs.errors import WorkspaceStorageError as WorkspaceStorageError
 from contractor_runtime.projectfs.paths import (
     ProjectPathError,
@@ -208,7 +208,7 @@ class DirectWorkspaceSession:
     def __init__(
         self,
         *,
-        mode: WorkspaceModeV2,
+        mode: WorkspaceMode,
         storage: ProjectWorkspaceStorage,
         content_root: str,
         limits: WorkspaceLimits,
@@ -246,7 +246,7 @@ class DirectWorkspaceSession:
         self._closed = False
 
     @property
-    def mode(self) -> WorkspaceModeV2:
+    def mode(self) -> WorkspaceMode:
         return self._mode
 
     @property

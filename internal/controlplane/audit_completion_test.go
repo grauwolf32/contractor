@@ -28,14 +28,14 @@ func completionBinding(t *testing.T) BindingRequirement {
 func TestAuditCompletionMixedFleetAndReservationReplay(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
 	for _, id := range []string{"a-old", "b-tools-only", "c-capable"} {
-		registration := testRegistrationV2(id)
+		registration := testRegistration(id)
 		if id != "a-old" {
 			registration.SupportedToolsets = append(registration.SupportedToolsets, contracts.ToolsetCapability{Ref: "audit-results@2", Tools: []string{"read_audit_task", "submit_check_result"}})
 		}
 		if id == "c-capable" {
 			registration.Capabilities = &contracts.RuntimeCompletionCapabilities{CompletionContracts: []string{contracts.AuditCheckResultsV1}}
 		}
-		principal := legacyPrincipal(id)
+		principal := inProcessPrincipal(id)
 		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func TestAuditCompletionDirectPrepareRejectsUnsupportedBeforeHTTP(t *testing.T) 
 	}
 	binding := completionBinding(t)
 	reservation := Reservation{Grant: AllocationGrant{Namespace: binding.Namespace}, AgentTemplate: binding.AgentTemplate, CompletionContract: binding.CompletionContract}
-	if _, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettingsV2{}); !errors.Is(err, ErrInvalidRequest) {
+	if _, err := client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{}); !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("direct prepare: %v", err)
 	}
 }
@@ -89,7 +89,7 @@ func TestAuditCompletionDirectPrepareRejectsUnsupportedBeforeHTTP(t *testing.T) 
 func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	binding := completionBinding(t)
 	lease := time.Now().Add(time.Minute).UTC().Truncate(time.Microsecond)
-	var received contracts.PrepareAllocationRequestV2
+	var received contracts.PrepareAllocationRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
 			t.Error(err)
@@ -108,7 +108,7 @@ func TestAuditCompletionPrepareSendsPinnedContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettingsV2{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
+	_, err = client.Prepare(context.Background(), reservation, contracts.WorkerExecutionSettings{ModelPolicy: binding.AgentTemplate.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()})
 	if err != nil {
 		t.Fatal(err)
 	}

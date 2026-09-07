@@ -13,6 +13,9 @@ goal: >-
   capabilities, typed allocation settings, safe provenance and adapter metrics.
 
 context:
+  superseded_by: >-
+    V50-001 removes the rollout version split. Current fields use the original
+    type names and apiVersion contractor/v1alpha1 with one schema/fixture catalog.
   compatibility: >-
     This is a synchronized breaking change to the private API only. Registration
     request and response require integer privateProtocolVersion=2 while their
@@ -80,5 +83,5 @@ acceptance_criteria:
 tests:
   - {name: go-contracts, command: "go test ./internal/contracts/... ./internal/controlplane/...", covers: [A1, A2, A3]}
   - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_contracts.py tests/test_capabilities.py tests/test_settings.py", covers: [A1, A2, A3, A4]}
-  - {name: parity, command: "make test-runtime-wire-v2", covers: [A2, A3]}
+  - {name: parity, command: "make test-runtime-wire", covers: [A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3, A4]}

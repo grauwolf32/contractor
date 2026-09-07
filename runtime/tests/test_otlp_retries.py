@@ -12,6 +12,7 @@ import httpx
 import pytest
 from jsonschema import Draft202012Validator
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceResponse
+from referencing import Registry, Resource
 from test_otlp_adapter import adapter_context, telemetry_settings
 
 from contractor_runtime.adapters import otlp_retry
@@ -415,16 +416,22 @@ def test_drop_counters_round_trip_in_runtime_report_and_published_schema() -> No
     report = RuntimeReport(complete=True, adapters={"otlp-http@1": metrics.snapshot()})
     encoded = report.model_dump_json(by_alias=True, exclude_none=True)
     assert RuntimeReport.model_validate_json(encoded) == report
-    schema = json.loads(
-        (Path(__file__).parents[2] / "api/private-v2/runtime-report.schema.json").read_text()
+    schema_root = Path(__file__).parents[2] / "api/v1alpha1"
+    schemas = {
+        path.name: json.loads(path.read_bytes()) for path in schema_root.glob("*.schema.json")
+    }
+    registry = Registry().with_resources(
+        (schema["$id"], Resource.from_contents(schema)) for schema in schemas.values()
     )
-    Draft202012Validator(schema).validate(json.loads(encoded))
-    final_schema = json.loads(
-        (Path(__file__).parents[2] / "api/v1alpha1/allocation.schema.json").read_text()
+    runtime = json.loads(encoded)
+    Draft202012Validator(schemas["runtime-report.schema.json"], registry=registry).validate(runtime)
+    final = json.loads(
+        (
+            Path(__file__).parents[2] / "api/testdata/v1alpha1/valid/allocation-final-response.json"
+        ).read_bytes()
     )
-    Draft202012Validator(final_schema["$defs"]["runtimeAdapterMetrics"]).validate(
-        json.loads(encoded)["adapters"]["otlp-http@1"]
-    )
+    final["report"]["runtime"] = runtime
+    Draft202012Validator(schemas["allocation.schema.json"], registry=registry).validate(final)
 
 
 @pytest.mark.parametrize(

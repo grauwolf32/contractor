@@ -1,5 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "ackSeq": 1,
-  "action": "forget"
-}
+{"ackSeq":1,"action":"forget","apiVersion":"contractor/v1alpha1"}

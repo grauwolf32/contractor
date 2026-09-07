@@ -20,7 +20,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterBuildContext,
     RuntimeAdapterMetricsState,
 )
-from contractor_runtime.contracts import CaidoSettingsV2, RuntimeAdapterRef
+from contractor_runtime.contracts import CaidoSettings, RuntimeAdapterRef
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
 MAX_CAIDO_VARIABLE_BYTES = 4 * 1024 * 1024
@@ -360,7 +360,7 @@ class CaidoGraphQLAdapterFactory:
         context: RuntimeAdapterBuildContext,
         settings: AdapterSettings,
     ) -> CaidoGraphQLAdapter:
-        if not isinstance(settings, CaidoSettingsV2):
+        if not isinstance(settings, CaidoSettings):
             raise AdapterFactoryError(retryable=False)
         try:
             return CaidoGraphQLAdapter(context, settings)
@@ -377,7 +377,7 @@ class CaidoGraphQLAdapter:
     def __init__(
         self,
         context: RuntimeAdapterBuildContext,
-        settings: CaidoSettingsV2,
+        settings: CaidoSettings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:

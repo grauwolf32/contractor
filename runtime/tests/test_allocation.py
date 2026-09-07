@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from fakes.spec import allocation_spec
+from fakes.spec import allocation_spec, runtime_provenance
 
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -28,7 +28,7 @@ from contractor_runtime.contracts import (
     ToolsetSelection,
     WorkerRuntimeRef,
     WorkerSessionMode,
-    encode_private_v2,
+    encode_private,
 )
 from contractor_runtime.digests import (
     _agent_template_digest,
@@ -628,6 +628,7 @@ def make_spec(
         agentTemplate=template,
         resolvedSkills=[],
         modelPolicy=policy.model_copy(deep=True),
+        resolvedRuntimeConfigProvenance=runtime_provenance(),
         runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=SECRET,
@@ -765,7 +766,7 @@ def test_resource_collection_disabled_never_constructs_sampler(
         )
         assert result.report.runtime.resources is None
         assert result.report.runtime.resources_error is None
-        assert b'"resources"' not in encode_private_v2(result)
+        assert b'"resources"' not in encode_private(result)
         await service.release(
             ReleaseAllocationRequest(
                 apiVersion=API_VERSION,
@@ -848,7 +849,7 @@ def test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset(
             assert resources.rss_start_bytes == (1000 if index == 0 else 100)
             assert resources.rss_peak_observed_bytes == (1010 if index == 0 else 110)
             assert resources.rss_sample_count == 2
-            encoded = encode_private_v2(result)
+            encoded = encode_private(result)
             assert len(encoded) < 1024 * 1024
             probe.now += 500  # Finalized, idle and release time must not extend coverage.
             retry = (
@@ -856,7 +857,7 @@ def test_resources_cover_prepare_and_teardown_freeze_before_release_and_reset(
                 if operation == "abort"
                 else await service.finalize(final)
             )
-            assert encode_private_v2(retry) == encoded
+            assert encode_private(retry) == encoded
             await service.release(
                 ReleaseAllocationRequest(
                     apiVersion=API_VERSION,
@@ -991,7 +992,7 @@ def test_resource_failure_does_not_change_worker_completeness_or_slot_reuse(
         assert response.report.worker.complete and response.report.runtime.complete
         assert response.report.runtime.resources.status == "unavailable"
         assert response.report.runtime.resources.reason == "read_failed"
-        assert b"secret-canary" not in encode_private_v2(response)
+        assert b"secret-canary" not in encode_private(response)
         await service.release(
             ReleaseAllocationRequest(
                 apiVersion=API_VERSION,

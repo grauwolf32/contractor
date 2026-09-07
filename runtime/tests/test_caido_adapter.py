@@ -17,7 +17,7 @@ from contractor_runtime.adapters.caido_graphql import (
     CaidoGraphQLClient,
 )
 from contractor_runtime.adapters.host import RuntimeAdapterBuildContext
-from contractor_runtime.contracts import CaidoSettingsV2
+from contractor_runtime.contracts import CaidoSettings
 
 CAIDO_TOKEN = "recognizable-caido-bearer-secret"
 CAIDO_ENDPOINT = "https://caido.internal/prefix"
@@ -203,8 +203,8 @@ def adapter_context() -> RuntimeAdapterBuildContext:
     )
 
 
-def caido_settings(*, token: str | None) -> CaidoSettingsV2:
-    return CaidoSettingsV2(
+def caido_settings(*, token: str | None) -> CaidoSettings:
+    return CaidoSettings(
         adapter="caido-graphql@1",
         endpoint=CAIDO_ENDPOINT,
         bearerToken=token,

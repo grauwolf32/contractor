@@ -404,7 +404,7 @@ func resolveWorkspaceContext(
 	if source == nil {
 		return nil, nil
 	}
-	mode := contracts.WorkspaceModeV2(source.Mode)
+	mode := contracts.WorkspaceMode(source.Mode)
 	if err := mode.Validate(); err != nil {
 		return nil, fmt.Errorf("context.workspace.mode must be direct or overlay")
 	}

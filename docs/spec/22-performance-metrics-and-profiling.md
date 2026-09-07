@@ -264,13 +264,13 @@ available when collection is off, without starting the diagnostic pool.
 
 ## Allocation request and final resources
 
-Extend private v2 registration with optional
+Extend private registration with optional
 `supportedPerformanceMetricsVersions: [1]`; omission/empty means unsupported.
 Advertise version 1 only when the Runtime collector is implemented. A Server
 must not filter placement based on this optional diagnostic capability.
 
 When collection is enabled and the chosen Runtime supports version 1, add this
-optional top-level field to its Server-generated `AllocationSpecV2`:
+optional top-level field to its Server-generated `AllocationSpec`:
 
 ```json
 "performanceMetrics": {"version": 1, "intervalSeconds": 15}
@@ -404,11 +404,11 @@ go tool pprof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
 
 ## Verification and delivery
 
-Implement through V32-001..V32-008 in [the task index](../../tasks/index.yml):
+Implemented through V32-001..V32-008 in [the task index](../../tasks/index.yml):
 
 | Task | Deliverable | Dependencies |
 | --- | --- | --- |
-| [V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml) | Startup and public/private measurement contracts | Existing report, private-v2 and Operations contracts |
+| [V32-001](../../tasks/v32-001-performance-contracts-and-settings.yml) | Startup and public/private measurement contracts | Existing report, unified v1alpha1 private and Operations contracts |
 | [V32-002](../../tasks/v32-002-server-performance-collection.yml) | Server HTTP/process/pool collectors | V32-001 |
 | [V32-003](../../tasks/v32-003-postgres-performance-history.yml) | PostgreSQL collector and minute storage | V32-002, V29-007 |
 | [V32-004](../../tasks/v32-004-allocation-resource-sampling.yml) | Runtime allocation accumulator and final resources | V32-001, existing lifecycle hardening |

@@ -20,13 +20,13 @@ from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
-    AllocationSpecV2,
-    CaidoSettingsV2,
+    AllocationSpec,
+    CaidoSettings,
     FinalizeAllocationRequest,
-    HTTPProxySettingsV2,
+    HTTPProxySettings,
     ReleaseAllocationRequest,
     RuntimeAdapterRef,
-    TelemetrySettingsV2,
+    TelemetrySettings,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -444,10 +444,10 @@ def configured_spec(
     telemetry: bool = False,
     proxy_targets: list[str] | None = None,
     caido: bool = False,
-) -> AllocationSpecV2:
+) -> AllocationSpec:
     spec = allocation_spec(tools=["read_artifact"])
     telemetry_settings = (
-        TelemetrySettingsV2(
+        TelemetrySettings(
             adapter="otlp-http@1",
             endpoint="https://telemetry.example/v1/traces",
             headers={"Authorization": TELEMETRY_SECRET},
@@ -458,7 +458,7 @@ def configured_spec(
         else None
     )
     proxy_settings = (
-        HTTPProxySettingsV2(
+        HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="https://proxy.example",
             basicAuth={"username": "worker", "password": PROXY_SECRET},
@@ -468,7 +468,7 @@ def configured_spec(
         else None
     )
     caido_settings = (
-        CaidoSettingsV2(
+        CaidoSettings(
             adapter="caido-graphql@1",
             endpoint="https://caido.example/prefix",
             bearerToken=CAIDO_SECRET,

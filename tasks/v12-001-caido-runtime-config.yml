@@ -23,7 +23,7 @@ scope:
   in:
     - Extend strict RuntimeConfig normalization/canonicalization, atomic merge, origins, snapshots and database validation.
     - Extend runtime credential CRUD allowlists with caido-bearer@1.
-    - Resolve endpoint/token/CA/timeout into RuntimeSettingsV2 and safe provenance.
+    - Resolve endpoint/token/CA/timeout into RuntimeSettings and safe provenance.
     - Add caido-graphql@1 to RuntimeAdapter refs, registration capability and redacted Go/Python private fixtures.
     - Extend Operations/public OpenAPI projections with safe config/origin/required-adapter metadata only.
     - Add migration coverage for retained RuntimeConfig documents and allocation snapshots.
@@ -42,5 +42,5 @@ acceptance_criteria:
 
 tests:
   - {name: runtime-config, command: "go test ./internal/runtimeconfig ./internal/contracts ./internal/httpapi/public", covers: [A1, A2, A3]}
-  - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_private_v2_contracts.py tests/test_contracts.py", covers: [A2, A3]}
+  - {name: python-contracts, command: "cd runtime && uv run pytest tests/test_private_contracts.py tests/test_contracts.py", covers: [A2, A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

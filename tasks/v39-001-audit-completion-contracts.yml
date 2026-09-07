@@ -39,12 +39,12 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: internal/config/descriptors.go
     description: "Register the authoring-only @2 descriptor separately from fleet capabilities."
-  - path: internal/contracts/private_v2.go
+  - path: internal/contracts/private.go
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: api/v1alpha1/allocation.schema.json
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
-  - path: api/private-v2
-    description: "Update generated production allocation/registration schemas and shared private-v2 fixtures, not only the v1alpha1 schema."
+  - path: api/v1alpha1
+    description: "Update current allocation/registration schemas and the shared v1alpha1 fixtures."
   - path: runtime/src/contractor_runtime/contracts/__init__.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/src/contractor_runtime/toolsets/audit_results/contracts.py

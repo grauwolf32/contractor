@@ -91,10 +91,10 @@ type WorkspaceExport struct {
 }
 
 type WorkspaceContext struct {
-	Mode    contracts.WorkspaceModeV2 `json:"mode"`
-	Sources []WorkspaceSource         `json:"sources"`
-	State   *WorkspaceStateInput      `json:"state,omitempty"`
-	Export  *WorkspaceExport          `json:"export,omitempty"`
+	Mode    contracts.WorkspaceMode `json:"mode"`
+	Sources []WorkspaceSource       `json:"sources"`
+	State   *WorkspaceStateInput    `json:"state,omitempty"`
+	Export  *WorkspaceExport        `json:"export,omitempty"`
 }
 
 type StageResultContract struct {

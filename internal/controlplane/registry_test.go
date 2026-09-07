@@ -161,21 +161,21 @@ func TestReserveAllContainsCodeAnalysisOperationSubsets(t *testing.T) {
 func TestWorkspaceModeParticipatesInCompleteCompatibility(t *testing.T) {
 	t.Parallel()
 	template := testTemplate(t)
-	registration := testRegistrationV2("workspace-agent")
-	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
+	registration := testRegistration("workspace-agent")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{
 		Storage: contracts.WorkspaceStorageLocal,
-		Modes:   []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect},
-		Limits: contracts.WorkspaceLimitsV2{
+		Modes:   []contracts.WorkspaceMode{contracts.WorkspaceModeDirect},
+		Limits: contracts.WorkspaceLimits{
 			MaxFiles: 100, MaxExpandedBytes: 1024, MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
 		},
 	}
-	direct := &contracts.AllocationWorkspaceSpecV2{
+	direct := &contracts.AllocationWorkspaceSpec{
 		Mode: contracts.WorkspaceModeDirect,
-		Sources: []contracts.AllocationWorkspaceSourceV2{{
+		Sources: []contracts.AllocationWorkspaceSource{{
 			Artifact: exactWorkspaceRef("source", "r1"), Target: "",
 		}},
 	}
-	overlay := contracts.CloneAllocationWorkspaceSpecV2(direct)
+	overlay := contracts.CloneAllocationWorkspaceSpec(direct)
 	overlay.Mode = contracts.WorkspaceModeOverlay
 	if !isCompatible(registration, template, direct) {
 		t.Fatal("direct-capable Runtime Agent rejected a direct workspace")
@@ -183,7 +183,7 @@ func TestWorkspaceModeParticipatesInCompleteCompatibility(t *testing.T) {
 	if isCompatible(registration, template, overlay) {
 		t.Fatal("direct-only Runtime Agent accepted an overlay workspace")
 	}
-	if isCompatible(testRegistrationV2("no-workspace-agent"), template, direct) {
+	if isCompatible(testRegistration("no-workspace-agent"), template, direct) {
 		t.Fatal("Runtime Agent without workspace capability accepted a workspace")
 	}
 }
@@ -191,16 +191,16 @@ func TestWorkspaceModeParticipatesInCompleteCompatibility(t *testing.T) {
 func TestWorkspaceReservationReplayPinsExactProjection(t *testing.T) {
 	clock := newTestClock()
 	registry := newTestRegistry(t, clock)
-	registration := testRegistrationV2("workspace-replay-agent")
-	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
+	registration := testRegistration("workspace-replay-agent")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{
 		Storage: contracts.WorkspaceStorageLocal,
-		Modes:   []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect},
-		Limits: contracts.WorkspaceLimitsV2{
+		Modes:   []contracts.WorkspaceMode{contracts.WorkspaceModeDirect},
+		Limits: contracts.WorkspaceLimits{
 			MaxFiles: 100, MaxExpandedBytes: 1024,
 			MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
 		},
 	}
-	principal := legacyPrincipal(registration.InstanceID)
+	principal := inProcessPrincipal(registration.InstanceID)
 	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatal(err)
 	}
@@ -212,9 +212,9 @@ func TestWorkspaceReservationReplayPinsExactProjection(t *testing.T) {
 		}
 	}
 	binding := testBinding(t, "builder", "builder", testTemplate(t))
-	binding.Workspace = &contracts.AllocationWorkspaceSpecV2{
+	binding.Workspace = &contracts.AllocationWorkspaceSpec{
 		Mode: contracts.WorkspaceModeDirect,
-		Sources: []contracts.AllocationWorkspaceSourceV2{{
+		Sources: []contracts.AllocationWorkspaceSource{{
 			Artifact: exactWorkspaceRef("source", "revision-1"), Target: "",
 		}},
 	}
@@ -234,7 +234,7 @@ func TestWorkspaceReservationReplayPinsExactProjection(t *testing.T) {
 	}
 	changed := request
 	changed.Bindings = append([]BindingRequirement(nil), request.Bindings...)
-	changed.Bindings[0].Workspace = contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace)
+	changed.Bindings[0].Workspace = contracts.CloneAllocationWorkspaceSpec(binding.Workspace)
 	revision := "revision-2"
 	changed.Bindings[0].Workspace.Sources[0].Artifact.Revision = &revision
 	if _, err := registry.ReserveAll(changed); !errors.Is(err, ErrReservationConflict) {
@@ -731,7 +731,7 @@ func TestAuthenticatedPrincipalOwnsOnlyOneLiveProcessAndEveryHeartbeat(t *testin
 	principal := AuthenticatedPrincipal{
 		RuntimeAgentID: strings.Repeat("a", 64), Labels: []string{"debug"}, LabelRevision: 3,
 	}
-	first := testRegistrationV2("agent-principal-first")
+	first := testRegistration("agent-principal-first")
 	first.InitialLabels = []string{"startup-value"}
 	if _, err := registry.RegisterAuthenticated(principal, first); err != nil {
 		t.Fatal(err)
@@ -744,7 +744,7 @@ func TestAuthenticatedPrincipalOwnsOnlyOneLiveProcessAndEveryHeartbeat(t *testin
 		!equalTestStrings(snapshot.Principal.Labels, []string{"debug"}) {
 		t.Fatalf("same-process retry = (%+v, %v)", snapshot, err)
 	}
-	second := testRegistrationV2("agent-principal-second")
+	second := testRegistration("agent-principal-second")
 	if _, err := registry.RegisterAuthenticated(principal, second); !errors.Is(err, ErrRegistrationConflict) {
 		t.Fatalf("concurrent same-principal registration error = %v", err)
 	}
@@ -772,7 +772,7 @@ func TestPrincipalDeletionGuardExcludesRegistrationWithoutHoldingDurableWork(t *
 	principal := AuthenticatedPrincipal{
 		RuntimeAgentID: strings.Repeat("c", 64), Labels: []string{}, LabelRevision: 1,
 	}
-	registration := testRegistrationV2("agent-delete-guard")
+	registration := testRegistration("agent-delete-guard")
 	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatal(err)
 	}
@@ -1180,7 +1180,9 @@ func testBinding(
 
 func testRegistration(instanceID string) contracts.AgentRegistration {
 	return contracts.AgentRegistration{
-		APIVersion: contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
+		InitialLabels:            []string{},
+		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		APIVersion:               contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "0.1.0",
 		StartedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
 		ControlURL:        "https://" + instanceID + ".example:9443",
 		A2AURL:            "https://" + instanceID + ".example:9444",

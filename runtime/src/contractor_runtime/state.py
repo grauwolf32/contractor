@@ -12,10 +12,9 @@ from contractor_runtime import __version__
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
-    PRIVATE_PROTOCOL_VERSION_V2,
     AgentHeartbeat,
     AgentObservedState,
-    AgentRegistrationV2,
+    AgentRegistration,
     RuntimeCompletionCapabilities,
 )
 from contractor_runtime.settings import Settings
@@ -92,7 +91,7 @@ class RuntimeState:
                 route_dispatches=self._route_dispatches,
             )
 
-    async def registration(self, settings: Settings) -> AgentRegistrationV2:
+    async def registration(self, settings: Settings) -> AgentRegistration:
         """Build a registration without publishing an internal idle transition.
 
         The wire contract has no ``starting`` value. The request advertises the
@@ -105,9 +104,8 @@ class RuntimeState:
             if capabilities is None:
                 raise RuntimeError("Runtime Agent capabilities have not been discovered")
             observed_state, allocation_id = self._wire_state(prospective_idle=True)
-            return AgentRegistrationV2(
+            return AgentRegistration(
                 apiVersion=API_VERSION,
-                privateProtocolVersion=PRIVATE_PROTOCOL_VERSION_V2,
                 instanceId=self._instance_id,
                 softwareVersion=__version__,
                 startedAt=self._started_at,

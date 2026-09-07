@@ -5,6 +5,11 @@ The [target design](../spec/25-audit-worker-finalization.md) remains opt-in.
 No production selector, running Audit, Runtime capability advertisement or
 completion dispatch has been enabled by this task.
 
+The protocol version split described below was removed by
+[V50-001](../../tasks/v50-001-unified-private-contracts.yml). Current registration
+and allocation models and fixtures live only under `v1alpha1`; this review records
+the earlier V39-001 implementation boundary.
+
 ## Trusted configuration and wire shapes
 
 An AuditProfile check binding can select `workerCompletion` with

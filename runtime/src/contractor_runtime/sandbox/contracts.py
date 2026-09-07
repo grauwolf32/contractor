@@ -15,7 +15,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Protocol
 
-from contractor_runtime.contracts import AllocationSpec, AllocationSpecV2
+from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 
 PODMAN_PROFILE = "podman@1"
@@ -67,8 +67,7 @@ def validate_sandbox_selection(spec: AllocationSpec, storage: str | None) -> Non
             raise SandboxContractError(SandboxErrorCode.INCOMPATIBLE)
     requirement = SANDBOX_REQUIREMENTS.get(ref)
     if requirement is not None and (
-        not isinstance(spec, AllocationSpecV2)
-        or spec.workspace is None
+        spec.workspace is None
         or spec.workspace.mode != requirement.workspace_mode
         or storage != requirement.workspace_storage
     ):

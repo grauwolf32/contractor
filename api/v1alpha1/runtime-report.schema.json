@@ -1,16 +1,16 @@
 {
   "$defs": {
-    "RuntimeAdapterMetricsV2": {
+    "RuntimeAdapterMetrics": {
       "additionalProperties": false,
       "properties": {
         "operations": {
-          "maximum": 18446744073709552000,
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "title": "Operations",
           "type": "integer"
         },
         "failedOperations": {
-          "maximum": 18446744073709552000,
+          "maximum": 18446744073709551615,
           "minimum": 0,
           "title": "Failedoperations",
           "type": "integer"
@@ -67,11 +67,11 @@
         "operations",
         "failedOperations"
       ],
-      "title": "RuntimeAdapterMetricsV2",
+      "title": "RuntimeAdapterMetrics",
       "type": "object"
     },
     "RuntimeResources": {
-      "$ref": "../v1alpha1/performance.schema.json#/$defs/runtimeResources"
+      "$ref": "performance.schema.json#/$defs/runtimeResources"
     },
     "DroppedSpanCounts": {
       "additionalProperties": false,
@@ -169,23 +169,23 @@
       "default": null,
       "title": "Stopreason"
     },
+    "resources": {
+      "$ref": "#/$defs/RuntimeResources"
+    },
     "adapters": {
       "additionalProperties": {
-        "$ref": "#/$defs/RuntimeAdapterMetricsV2"
+        "$ref": "#/$defs/RuntimeAdapterMetrics"
       },
       "title": "Adapters",
       "type": "object"
-    },
-    "resources": {
-      "$ref": "#/$defs/RuntimeResources"
     }
   },
   "required": [
     "complete",
     "adapters"
   ],
-  "title": "RuntimeReportV2",
+  "title": "RuntimeReport",
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://contractor.local/schema/private-v2/runtime-report.schema.json"
+  "$id": "https://contractor.local/schema/v1alpha1/runtime-report.schema.json"
 }

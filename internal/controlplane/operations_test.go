@@ -281,10 +281,10 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 				Ref: "run-artifacts@1", Tools: []string{"read_artifact"},
 			}},
 			SupportedSandboxProfiles: []string{"local-workdir@1"},
-			WorkspaceCapabilities: &contracts.WorkspaceCapabilitiesV2{
+			WorkspaceCapabilities: &contracts.WorkspaceCapabilities{
 				Storage: contracts.WorkspaceStorageLocal,
-				Modes:   []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect},
-				Limits: contracts.WorkspaceLimitsV2{
+				Modes:   []contracts.WorkspaceMode{contracts.WorkspaceModeDirect},
+				Limits: contracts.WorkspaceLimits{
 					MaxFiles: 100, MaxExpandedBytes: 1024,
 					MaxManagedTextBytes: 1024, MaxFileBytes: 1024,
 				},
@@ -318,7 +318,7 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 			}
 		}},
 		{"invalid-workspace-mode", func(agent *RuntimeAgentObservation) {
-			agent.WorkspaceCapabilities.Modes = []contracts.WorkspaceModeV2{"unsupported"}
+			agent.WorkspaceCapabilities.Modes = []contracts.WorkspaceMode{"unsupported"}
 		}},
 	}
 	for _, test := range tests {
@@ -335,18 +335,18 @@ func TestRuntimeAgentCapabilityValidationFailsClosed(t *testing.T) {
 
 func TestOperationsExposeDetachedFrozenWorkspaceCapabilities(t *testing.T) {
 	registry := newTestRegistry(t, newTestClock())
-	registration := testRegistrationV2("workspace-operations")
-	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
+	registration := testRegistration("workspace-operations")
+	registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{
 		Storage: contracts.WorkspaceStorageMemory,
-		Modes: []contracts.WorkspaceModeV2{
+		Modes: []contracts.WorkspaceMode{
 			contracts.WorkspaceModeDirect, contracts.WorkspaceModeOverlay,
 		},
-		Limits: contracts.WorkspaceLimitsV2{
+		Limits: contracts.WorkspaceLimits{
 			MaxFiles: 100, MaxExpandedBytes: 4096,
 			MaxManagedTextBytes: 2048, MaxFileBytes: 1024,
 		},
 	}
-	principal := legacyPrincipal(registration.InstanceID)
+	principal := inProcessPrincipal(registration.InstanceID)
 	if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 		t.Fatal(err)
 	}

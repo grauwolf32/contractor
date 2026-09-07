@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import ssl
-from typing import Any, Literal, Self
+from typing import Literal, Self
 
 from pydantic import (
     Field,
@@ -143,22 +143,6 @@ class ResolvedSkill(WireModel):
         return self
 
 
-class RuntimeSettings(WireModel):
-    llm_gateway_url: str
-    llm_gateway_token: SecretStr
-    artifact_api_url: str
-    request_timeout_seconds: int = Field(gt=0)
-
-    @field_validator("llm_gateway_url", "artifact_api_url")
-    @classmethod
-    def validate_url(cls, value: str, info: Any) -> str:
-        return _require_url(info.field_name, value)
-
-    @field_serializer("llm_gateway_token", when_used="json")
-    def serialize_token(self, value: SecretStr) -> str:
-        return value.get_secret_value()
-
-
 class TelemetryRetrySettings(WireModel):
     initial_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
     max_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
@@ -197,7 +181,7 @@ class TelemetryExportSettings(WireModel):
         return self
 
 
-class HTTPProxyBasicAuthV2(WireModel):
+class HTTPProxyBasicAuth(WireModel):
     username: SecretStr
     password: SecretStr
 
@@ -230,7 +214,7 @@ def _validate_ca_bundle(owner: str, value: str) -> None:
         raise ValueError(f"{owner} CA bundle is invalid") from None
 
 
-class RuntimeConfigRefV2(WireModel):
+class RuntimeConfigRef(WireModel):
     name: str
     version: str
     digest: str
@@ -246,12 +230,12 @@ class RuntimeConfigRefV2(WireModel):
         return self
 
 
-class RuntimeCredentialRefV2(WireModel):
+class RuntimeCredentialRef(WireModel):
     credential_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN.pattern)
     kind: RuntimeCredentialKind
 
 
-class LLMCredentialRefV2(WireModel):
+class LLMCredentialRef(WireModel):
     credential_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN.pattern)
 
 
@@ -305,7 +289,7 @@ class ResolvedLLMGatewayConfig(WireModel):
         return _require_inference_gateway_url(value)
 
 
-class TelemetrySettingsV2(WireModel):
+class TelemetrySettings(WireModel):
     adapter: RuntimeAdapterRef
     endpoint: str
     headers: dict[str, SecretStr]
@@ -343,9 +327,9 @@ class TelemetrySettingsV2(WireModel):
         return {name: secret.get_secret_value() for name, secret in value.items()}
 
 
-class HTTPOriginTargetSettingsV2(WireModel):
+class HTTPOriginTargetSettings(WireModel):
     url: str
-    basic_auth: HTTPProxyBasicAuthV2 | None = None
+    basic_auth: HTTPProxyBasicAuth | None = None
     bearer_token: SecretStr | None = None
 
     @model_validator(mode="after")
@@ -366,10 +350,10 @@ class HTTPOriginTargetSettingsV2(WireModel):
         return None if value is None else value.get_secret_value()
 
 
-class HTTPProxySettingsV2(WireModel):
+class HTTPProxySettings(WireModel):
     adapter: RuntimeAdapterRef
     proxy_url: str
-    basic_auth: HTTPProxyBasicAuthV2 | None = None
+    basic_auth: HTTPProxyBasicAuth | None = None
     bearer_token: SecretStr | None = None
     ca_bundle_pem: str | None = None
     targets: list[HTTPProxyTarget] = Field(min_length=1, max_length=3)
@@ -395,7 +379,7 @@ class HTTPProxySettingsV2(WireModel):
         return None if value is None else value.get_secret_value()
 
 
-class CaidoSettingsV2(WireModel):
+class CaidoSettings(WireModel):
     adapter: RuntimeAdapterRef
     endpoint: str
     bearer_token: SecretStr | None = None
@@ -422,10 +406,10 @@ class CaidoSettingsV2(WireModel):
         return None if value is None else value.get_secret_value()
 
 
-class RuntimeLabelBindingProvenanceV2(WireModel):
+class RuntimeLabelBindingProvenance(WireModel):
     label: str
     binding_revision: int = Field(gt=0, le=2**64 - 1)
-    config: RuntimeConfigRefV2
+    config: RuntimeConfigRef
 
 
 def _require_worker_policy(policy: ResolvedModelPolicy, *, has_tools: bool) -> None:
@@ -450,14 +434,14 @@ def _require_worker_summarizer_policy(policy: ResolvedModelPolicy) -> None:
         raise ValueError("modelPolicy is incompatible with the Worker terminal summarizer")
 
 
-class RuntimeSettingsV2(WireModel):
+class RuntimeSettings(WireModel):
     llm_gateway_url: str
     llm_gateway_token: SecretStr | None = None
     artifact_api_url: str
-    telemetry: TelemetrySettingsV2 | None = None
-    http_proxy: HTTPProxySettingsV2 | None = None
-    caido: CaidoSettingsV2 | None = None
-    http_origin_target: HTTPOriginTargetSettingsV2 | None = None
+    telemetry: TelemetrySettings | None = None
+    http_proxy: HTTPProxySettings | None = None
+    caido: CaidoSettings | None = None
+    http_origin_target: HTTPOriginTargetSettings | None = None
     request_timeout_seconds: int = Field(gt=0)
 
     @model_validator(mode="after")
@@ -473,14 +457,14 @@ class RuntimeSettingsV2(WireModel):
         return None if value is None else value.get_secret_value()
 
 
-class ResolvedRuntimeConfigProvenanceV2(WireModel):
-    default: RuntimeLabelBindingProvenanceV2
-    run_labels: list[RuntimeLabelBindingProvenanceV2] = Field(max_length=32)
-    agent_labels: list[RuntimeLabelBindingProvenanceV2] = Field(max_length=32)
+class ResolvedRuntimeConfigProvenance(WireModel):
+    default: RuntimeLabelBindingProvenance
+    run_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=32)
+    agent_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=32)
     runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
     llm_gateway_config: LLMGatewayConfigRef | None = None
-    llm_credential: LLMCredentialRefV2 | None = None
-    runtime_credential_refs: list[RuntimeCredentialRefV2] = Field(max_length=64)
+    llm_credential: LLMCredentialRef | None = None
+    runtime_credential_refs: list[RuntimeCredentialRef] = Field(max_length=64)
 
     @model_validator(mode="after")
     def validate_provenance(self) -> Self:

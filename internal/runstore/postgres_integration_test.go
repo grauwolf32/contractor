@@ -773,18 +773,18 @@ func testAllocationRuntimeConfiguration() *AllocationRuntimeConfiguration {
 		Origins: runtimeconfig.ResolvedRuntimeConfigOrigins{
 			LLMGateway: &runtimeconfig.RuntimeFieldOrigin{Layer: runtimeconfig.LayerWorkflow},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenanceV2{
-			Default: contracts.RuntimeLabelBindingProvenanceV2{
+		Provenance: contracts.ResolvedRuntimeConfigProvenance{
+			Default: contracts.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRefV2{
+				Config: contracts.RuntimeConfigRef{
 					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 					Digest: runtimeconfig.BuiltInDigest,
 				},
 			},
-			RunLabels:       []contracts.RuntimeLabelBindingProvenanceV2{},
-			AgentLabels:     []contracts.RuntimeLabelBindingProvenanceV2{},
+			RunLabels:       []contracts.RuntimeLabelBindingProvenance{},
+			AgentLabels:     []contracts.RuntimeLabelBindingProvenance{},
 			RuntimeAdapters: []contracts.RuntimeAdapterRef{}, LLMGatewayConfig: &gateway,
-			RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+			RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
 		},
 	}
 }

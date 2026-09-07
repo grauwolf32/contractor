@@ -229,7 +229,9 @@ func registerRuntime(
 ) {
 	t.Helper()
 	_, err := registry.Register(contracts.AgentRegistration{
-		APIVersion: contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
+		InitialLabels:            []string{},
+		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
+		APIVersion:               contracts.APIVersion, InstanceID: runtime.instanceID, SoftwareVersion: "0.1.0",
 		StartedAt: clock.Now(), ControlURL: runtime.controlURL, A2AURL: runtime.a2aURL,
 		SupportedRuntimes: []string{"adk@1"},
 		SupportedToolsets: []contracts.ToolsetCapability{{

@@ -22,7 +22,7 @@ func (s *Scheduler) workerExecutionSettings(
 	ctx context.Context,
 	stage workflowconfig.ResolvedStage,
 	reservationSets ...[]controlplane.Reservation,
-) (map[string]contracts.WorkerExecutionSettingsV2, error) {
+) (map[string]contracts.WorkerExecutionSettings, error) {
 	return s.workerExecutionSettingsForRun(ctx, runstore.WorkflowRun{}, stage, reservationSets...)
 }
 
@@ -31,7 +31,7 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 	run runstore.WorkflowRun,
 	stage workflowconfig.ResolvedStage,
 	reservationSets ...[]controlplane.Reservation,
-) (map[string]contracts.WorkerExecutionSettingsV2, error) {
+) (map[string]contracts.WorkerExecutionSettings, error) {
 	reservations := make(map[string]controlplane.Reservation)
 	if len(reservationSets) > 1 {
 		return nil, fmt.Errorf("Worker execution settings accept at most one reservation set")
@@ -41,7 +41,7 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 			reservations[reservation.Grant.LogicalAgentName] = reservation
 		}
 	}
-	result := make(map[string]contracts.WorkerExecutionSettingsV2, len(stage.ExecutionConfig.Agents))
+	result := make(map[string]contracts.WorkerExecutionSettings, len(stage.ExecutionConfig.Agents))
 	for logicalName, selection := range stage.ExecutionConfig.Agents {
 		resolved, err := fallbackResolvedWorkerConfig(selection)
 		if reservation, ok := reservations[logicalName]; ok {
@@ -63,7 +63,7 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 			}
 			runtimeSettings.HTTPOriginTarget = target
 		}
-		result[logicalName] = contracts.WorkerExecutionSettingsV2{
+		result[logicalName] = contracts.WorkerExecutionSettings{
 			ModelPolicy: cloneModelPolicy(resolved.ModelPolicy), RuntimeSettings: runtimeSettings,
 			ResolvedRuntimeConfigProvenance: resolved.Provenance,
 		}
@@ -91,11 +91,11 @@ func agentUsesHTTPRequest(template contracts.ResolvedAgentTemplate) bool {
 func (s *Scheduler) materializeHTTPOriginTarget(
 	ctx context.Context,
 	reference contracts.HTTPOriginTargetRef,
-) (*contracts.HTTPOriginTargetSettingsV2, error) {
+) (*contracts.HTTPOriginTargetSettings, error) {
 	if err := reference.Validate(); err != nil {
 		return nil, errors.New("Project HTTP target snapshot is invalid")
 	}
-	target := &contracts.HTTPOriginTargetSettingsV2{URL: reference.URL}
+	target := &contracts.HTTPOriginTargetSettings{URL: reference.URL}
 	if reference.Credential == nil {
 		return target, nil
 	}
@@ -112,7 +112,7 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 				if decodeRuntimeCredential(plaintext, &material) != nil {
 					return errors.New("invalid HTTP origin basic credential material")
 				}
-				target.BasicAuth = &contracts.HTTPProxyBasicAuthV2{
+				target.BasicAuth = &contracts.HTTPProxyBasicAuth{
 					Username: contracts.NewSecretString(material.Username),
 					Password: contracts.NewSecretString(material.Password),
 				}
@@ -147,19 +147,19 @@ func fallbackResolvedWorkerConfig(
 		return runtimeconfig.ResolvedRuntimeConfig{}, fmt.Errorf("Worker has no complete LLM Gateway route")
 	}
 	gatewayRef := selection.LLMGateway.Ref
-	provenance := contracts.ResolvedRuntimeConfigProvenanceV2{
-		Default: contracts.RuntimeLabelBindingProvenanceV2{
+	provenance := contracts.ResolvedRuntimeConfigProvenance{
+		Default: contracts.RuntimeLabelBindingProvenance{
 			Label: "default", BindingRevision: 1,
-			Config: contracts.RuntimeConfigRefV2{
+			Config: contracts.RuntimeConfigRef{
 				Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 				Digest: runtimeconfig.BuiltInDigest,
 			},
 		},
-		RunLabels:        []contracts.RuntimeLabelBindingProvenanceV2{},
-		AgentLabels:      []contracts.RuntimeLabelBindingProvenanceV2{},
+		RunLabels:        []contracts.RuntimeLabelBindingProvenance{},
+		AgentLabels:      []contracts.RuntimeLabelBindingProvenance{},
 		RuntimeAdapters:  []contracts.RuntimeAdapterRef{},
 		LLMGatewayConfig: &gatewayRef, LLMCredential: cloneCredentialRef(selection.Credential),
-		RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{},
+		RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{},
 	}
 	return runtimeconfig.ResolvedRuntimeConfig{
 		ModelPolicy: cloneModelPolicy(selection.ModelPolicy), LLMGateway: *selection.LLMGateway,
@@ -171,26 +171,26 @@ func fallbackResolvedWorkerConfig(
 func (s *Scheduler) materializeRuntimeSettings(
 	ctx context.Context,
 	resolved runtimeconfig.ResolvedRuntimeConfig,
-) (contracts.RuntimeSettingsV2, error) {
-	result := contracts.RuntimeSettingsV2{
+) (contracts.RuntimeSettings, error) {
+	result := contracts.RuntimeSettings{
 		LLMGatewayURL:         resolved.LLMGateway.URL,
 		ArtifactAPIURL:        s.options.RuntimeSettings.ArtifactAPIURL,
 		RequestTimeoutSeconds: s.options.RuntimeSettings.RequestTimeoutSeconds,
 	}
 	if resolved.LLMCredential != nil {
 		if s.options.Credentials == nil {
-			return contracts.RuntimeSettingsV2{}, fmt.Errorf("selected LLM credential is unavailable")
+			return contracts.RuntimeSettings{}, fmt.Errorf("selected LLM credential is unavailable")
 		}
 		token, err := s.options.Credentials.ResolveLLMCredential(
 			ctx, *resolved.LLMCredential, resolved.LLMGateway.Ref,
 		)
 		if err != nil || token.Reveal() == "" {
-			return contracts.RuntimeSettingsV2{}, fmt.Errorf("selected LLM credential is unavailable")
+			return contracts.RuntimeSettings{}, fmt.Errorf("selected LLM credential is unavailable")
 		}
 		result.LLMGatewayToken = &token
 	}
 	if resolved.WorkerTelemetry != nil {
-		telemetry := &contracts.TelemetrySettingsV2{
+		telemetry := &contracts.TelemetrySettings{
 			Adapter: contracts.RuntimeAdapterOTLPHTTP, Endpoint: resolved.WorkerTelemetry.Endpoint,
 			Headers: map[string]contracts.SecretString{}, CaptureContent: resolved.WorkerTelemetry.CaptureContent,
 			FlushTimeoutSeconds: resolved.WorkerTelemetry.FlushTimeoutSeconds,
@@ -219,13 +219,13 @@ func (s *Scheduler) materializeRuntimeSettings(
 					return nil
 				},
 			); err != nil {
-				return contracts.RuntimeSettingsV2{}, fmt.Errorf("Worker telemetry credential is unavailable")
+				return contracts.RuntimeSettings{}, fmt.Errorf("Worker telemetry credential is unavailable")
 			}
 		}
 		result.Telemetry = telemetry
 	}
 	if resolved.HTTPProxy != nil {
-		proxy := &contracts.HTTPProxySettingsV2{
+		proxy := &contracts.HTTPProxySettings{
 			Adapter: contracts.RuntimeAdapterHTTPProxy, ProxyURL: resolved.HTTPProxy.ProxyURL,
 			Targets: make([]contracts.HTTPProxyTarget, len(resolved.HTTPProxy.Targets)),
 		}
@@ -252,7 +252,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 						if decodeRuntimeCredential(plaintext, &material) != nil {
 							return errors.New("invalid proxy basic credential material")
 						}
-						proxy.BasicAuth = &contracts.HTTPProxyBasicAuthV2{
+						proxy.BasicAuth = &contracts.HTTPProxyBasicAuth{
 							Username: contracts.NewSecretString(material.Username),
 							Password: contracts.NewSecretString(material.Password),
 						}
@@ -271,7 +271,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 					return nil
 				},
 			); err != nil {
-				return contracts.RuntimeSettingsV2{}, fmt.Errorf("Worker HTTP proxy credential is unavailable")
+				return contracts.RuntimeSettings{}, fmt.Errorf("Worker HTTP proxy credential is unavailable")
 			}
 		}
 		result.HTTPProxy = proxy
@@ -284,7 +284,7 @@ func (s *Scheduler) materializeRuntimeSettings(
 		if timeout > 120 {
 			timeout = 120
 		}
-		caido := &contracts.CaidoSettingsV2{
+		caido := &contracts.CaidoSettings{
 			Adapter: contracts.RuntimeAdapterCaidoGraphQL, Endpoint: resolved.Caido.Endpoint,
 			RequestTimeoutSeconds: timeout,
 		}
@@ -307,13 +307,13 @@ func (s *Scheduler) materializeRuntimeSettings(
 					return nil
 				},
 			); err != nil {
-				return contracts.RuntimeSettingsV2{}, fmt.Errorf("Worker Caido credential is unavailable")
+				return contracts.RuntimeSettings{}, fmt.Errorf("Worker Caido credential is unavailable")
 			}
 		}
 		result.Caido = caido
 	}
 	if err := result.Validate(); err != nil {
-		return contracts.RuntimeSettingsV2{}, fmt.Errorf("materialized Runtime settings are invalid")
+		return contracts.RuntimeSettings{}, fmt.Errorf("materialized Runtime settings are invalid")
 	}
 	return result, nil
 }
@@ -343,7 +343,7 @@ func decodeRuntimeCredential(data []byte, target any) error {
 	return nil
 }
 
-func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionSettingsV2) {
+func clearWorkerExecutionSettings(settings map[string]contracts.WorkerExecutionSettings) {
 	for name, value := range settings {
 		value.RuntimeSettings.LLMGatewayToken = nil
 		if value.RuntimeSettings.Telemetry != nil {

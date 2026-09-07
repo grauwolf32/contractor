@@ -145,97 +145,6 @@ type ResolvedAgentTemplate struct {
 
 func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTemplate(t) }
 
-type RuntimeSettings struct {
-	LLMGatewayURL         string       `json:"llmGatewayUrl"`
-	LLMGatewayToken       SecretString `json:"llmGatewayToken"`
-	ArtifactAPIURL        string       `json:"artifactApiUrl"`
-	RequestTimeoutSeconds int          `json:"requestTimeoutSeconds"`
-}
-
-// WorkerExecutionSettings is an in-process preparation value. AllocationSpec
-// carries its two members as separate wire fields so effective policy never
-// mutates the digest-bearing AgentTemplate.
-type WorkerExecutionSettings struct {
-	ModelPolicy     ResolvedModelPolicy
-	RuntimeSettings RuntimeSettings
-}
-
-type AllocationSpec struct {
-	CompletionContract *WorkerCompletionContract `json:"completionContract,omitempty"`
-	APIVersion         string                    `json:"apiVersion"`
-	AllocationID       string                    `json:"allocationId"`
-	RunID              string                    `json:"runId"`
-	StageExecutionID   string                    `json:"stageExecutionId"`
-	LogicalAgentName   string                    `json:"logicalAgentName"`
-	Namespace          string                    `json:"namespace"`
-	WorkerSessionMode  WorkerSessionMode         `json:"workerSessionMode"`
-	RunMetadataLabels  RunMetadataLabels         `json:"runMetadataLabels"`
-	LeaseExpiresAt     time.Time                 `json:"leaseExpiresAt"`
-	AgentTemplate      ResolvedAgentTemplate     `json:"agentTemplate"`
-	ResolvedSkills     []ResolvedSkill           `json:"resolvedSkills"`
-	ModelPolicy        ResolvedModelPolicy       `json:"modelPolicy"`
-	RuntimeSettings    RuntimeSettings           `json:"runtimeSettings"`
-}
-
-func (s AllocationSpec) Validate() error {
-	if s.CompletionContract != nil {
-		if err := s.CompletionContract.ValidateAllocation(s.Namespace, s.AgentTemplate); err != nil {
-			return err
-		}
-	}
-	if err := validateAPIVersion(s.APIVersion); err != nil {
-		return err
-	}
-	for field, value := range map[string]string{
-		"allocationId": s.AllocationID, "runId": s.RunID,
-		"stageExecutionId": s.StageExecutionID, "logicalAgentName": s.LogicalAgentName,
-		"namespace": s.Namespace,
-	} {
-		if err := validateOpaqueID(field, value); err != nil {
-			return err
-		}
-	}
-	if err := ValidateArtifactName(s.Namespace); err != nil {
-		return err
-	}
-	if err := s.WorkerSessionMode.Validate(); err != nil {
-		return err
-	}
-	if err := s.RunMetadataLabels.Validate(); err != nil {
-		return err
-	}
-	if s.LeaseExpiresAt.IsZero() {
-		return invalidf("leaseExpiresAt must not be zero")
-	}
-	if err := validateResolvedAgentTemplate(s.AgentTemplate); err != nil {
-		return err
-	}
-	if err := ValidateResolvedSkills(s.AgentTemplate, s.ResolvedSkills); err != nil {
-		return err
-	}
-	if err := validateWorkerModelPolicy(s.ModelPolicy, len(s.AgentTemplate.Toolsets) > 0 || len(s.AgentTemplate.Skills) > 0); err != nil {
-		return err
-	}
-	if s.AgentTemplate.Summarizer != nil {
-		if err := validateWorkerSummarizerConfig(*s.AgentTemplate.Summarizer, s.ModelPolicy); err != nil {
-			return err
-		}
-	}
-	return validateRuntimeSettings(s.RuntimeSettings)
-}
-
-type PrepareAllocationRequest struct {
-	APIVersion string         `json:"apiVersion"`
-	Spec       AllocationSpec `json:"spec"`
-}
-
-func (r PrepareAllocationRequest) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	return r.Spec.Validate()
-}
-
 type WorkerHandle struct {
 	AllocationID string `json:"allocationId"`
 	// RuntimeAgentID is Server-owned routing/authentication metadata. It is
@@ -524,19 +433,6 @@ func validateWorkerSummarizerConfig(
 		if workerPolicy.MaxTotalTokens <= 0 || *config.CumulativeBudget >= workerPolicy.MaxTotalTokens {
 			return invalidf("Worker summarizer cumulativeBudget must be below Worker maxTotalTokens")
 		}
-	}
-	return nil
-}
-
-func validateRuntimeSettings(settings RuntimeSettings) error {
-	if err := validateURL("runtimeSettings.llmGatewayUrl", settings.LLMGatewayURL); err != nil {
-		return err
-	}
-	if err := validateURL("runtimeSettings.artifactApiUrl", settings.ArtifactAPIURL); err != nil {
-		return err
-	}
-	if settings.RequestTimeoutSeconds <= 0 {
-		return invalidf("runtimeSettings.requestTimeoutSeconds must be positive")
 	}
 	return nil
 }

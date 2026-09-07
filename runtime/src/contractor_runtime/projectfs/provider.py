@@ -16,10 +16,12 @@ from fsspec.implementations.local import LocalFileSystem
 from fsspec.implementations.memory import MemoryFileSystem
 
 from contractor_runtime.contracts import (
-    WorkspaceCapabilitiesV2,
-    WorkspaceLimitsV2,
-    WorkspaceModeV2,
-    WorkspaceStorageV2,
+    WorkspaceCapabilities,
+    WorkspaceMode,
+    WorkspaceStorage,
+)
+from contractor_runtime.contracts import (
+    WorkspaceLimits as WireWorkspaceLimits,
 )
 from contractor_runtime.settings import (
     DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
@@ -35,15 +37,15 @@ _MEMORY_ROOT = "/contractor-workspaces"
 
 @dataclass(frozen=True, slots=True)
 class WorkspaceCapabilitySnapshot:
-    storage: WorkspaceStorageV2
-    modes: tuple[WorkspaceModeV2, ...]
+    storage: WorkspaceStorage
+    modes: tuple[WorkspaceMode, ...]
     limits: WorkspaceLimits
 
-    def wire(self) -> WorkspaceCapabilitiesV2:
-        return WorkspaceCapabilitiesV2(
+    def wire(self) -> WorkspaceCapabilities:
+        return WorkspaceCapabilities(
             storage=self.storage,
             modes=list(self.modes),
-            limits=WorkspaceLimitsV2(
+            limits=WireWorkspaceLimits(
                 maxFiles=self.limits.max_files,
                 maxExpandedBytes=self.limits.max_expanded_bytes,
                 maxManagedTextBytes=self.limits.max_managed_text_bytes,
@@ -56,7 +58,7 @@ class WorkspaceCapabilitySnapshot:
 class ProjectWorkspaceStorage:
     """Opaque provider-owned storage handle; physical locations stay private."""
 
-    storage: WorkspaceStorageV2
+    storage: WorkspaceStorage
     filesystem: AbstractFileSystem = field(repr=False)
     root: str = field(repr=False)
     provider_id: str = field(repr=False)

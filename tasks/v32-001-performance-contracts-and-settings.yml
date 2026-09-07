@@ -37,7 +37,7 @@ scope:
   in:
     - Add validated Go startup configuration fields and focused environment/CLI tests; later tasks own collector/listener composition.
     - Define typed internal performance samples, finite histogram buckets, freshness, partial coverage and safe error enums.
-    - Extend Go/Python private registration and AllocationSpecV2 with optional capability and performanceMetrics request contracts.
+    - Extend Go/Python private registration and AllocationSpec with optional capability and performanceMetrics request contracts.
     - Define performanceMetrics as version 1 and intervalSeconds 15; omission disables allocation sampling.
     - Extend RuntimeReport with independently validated optional resources and matching private JSON schemas and cross-language fixtures.
     - Define public PerformanceSnapshot, PerformanceHistory and AllocationResourceSummary schemas and proposed read-only Operations routes; regenerate TypeScript contracts.

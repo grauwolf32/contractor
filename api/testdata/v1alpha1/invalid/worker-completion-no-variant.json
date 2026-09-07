@@ -1,5 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "invocationId": "worker-invalid-empty",
-  "stateRevision": 2
-}
+{"apiVersion":"contractor/v1alpha1","invocationId":"worker-invalid-empty","stateRevision":2}

@@ -18,7 +18,7 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentTemplateRef,
-    AllocationWorkspaceExportV2,
+    AllocationWorkspaceExport,
     ArtifactRef,
     ArtifactWriteResult,
     ModelPolicyRef,
@@ -379,7 +379,7 @@ def make_exporter(
         workspace=session,
         client=client,  # type: ignore[arg-type]
         namespace="editor",
-        slots=AllocationWorkspaceExportV2(state="workspace_state", diff="workspace_diff"),
+        slots=AllocationWorkspaceExport(state="workspace_state", diff="workspace_diff"),
     )
 
 
@@ -442,9 +442,7 @@ def build_context(
             requestTimeoutSeconds=30,
         ),
         project_workspace=session,
-        workspace_export=AllocationWorkspaceExportV2(
-            state="workspace_state", diff="workspace_diff"
-        ),
+        workspace_export=AllocationWorkspaceExport(state="workspace_state", diff="workspace_diff"),
     )
 
 

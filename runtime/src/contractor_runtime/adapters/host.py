@@ -12,14 +12,14 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
-    AllocationSpecV2,
-    CaidoSettingsV2,
+    AllocationSpec,
+    CaidoSettings,
     DroppedSpanCounts,
-    HTTPProxySettingsV2,
-    RuntimeAdapterMetricsV2,
+    HTTPProxySettings,
+    RuntimeAdapterMetrics,
     RuntimeAdapterRef,
-    RuntimeSettingsV2,
-    TelemetrySettingsV2,
+    RuntimeSettings,
+    TelemetrySettings,
 )
 
 UINT64_MAX = 2**64 - 1
@@ -171,7 +171,7 @@ class RuntimeAdapterMetricsState:
         self.flush_succeeded = succeeded
         self.record_operation(succeeded=succeeded, error_code=error_code)
 
-    def snapshot(self) -> RuntimeAdapterMetricsV2:
+    def snapshot(self) -> RuntimeAdapterMetrics:
         operations = max(0, min(UINT64_MAX, self.operations))
         failures = max(0, min(operations, self.failed_operations))
         flush_attempted = self.flush_attempted
@@ -182,7 +182,7 @@ class RuntimeAdapterMetricsState:
         elif flush_attempted is False and flush_succeeded:
             flush_succeeded = False
         error_code = self.last_error_code if self.last_error_code in SAFE_ERROR_CODES else None
-        return RuntimeAdapterMetricsV2(
+        return RuntimeAdapterMetrics(
             operations=operations,
             failedOperations=failures,
             flushAttempted=flush_attempted,
@@ -213,7 +213,7 @@ class AllocationAdapter(Protocol):
     async def close(self) -> None: ...
 
 
-AdapterSettings = TelemetrySettingsV2 | HTTPProxySettingsV2 | CaidoSettingsV2
+AdapterSettings = TelemetrySettings | HTTPProxySettings | CaidoSettings
 
 
 class RuntimeAdapterFactory(Protocol):
@@ -253,7 +253,7 @@ class AllocationAdapterHost:
     @classmethod
     async def create(
         cls,
-        spec: AllocationSpecV2,
+        spec: AllocationSpec,
         factories: Mapping[str, RuntimeAdapterFactory],
         *,
         deadline: datetime,
@@ -305,7 +305,7 @@ class AllocationAdapterHost:
                                 context,
                                 run_metadata_labels=run_metadata_labels,
                             )
-                            if isinstance(settings, TelemetrySettingsV2)
+                            if isinstance(settings, TelemetrySettings)
                             else context
                         ),
                         settings,
@@ -326,7 +326,7 @@ class AllocationAdapterHost:
                     raise AdapterFactoryError(retryable=True)
                 flush_timeout = (
                     float(settings.flush_timeout_seconds)
-                    if isinstance(settings, TelemetrySettingsV2)
+                    if isinstance(settings, TelemetrySettings)
                     else None
                 )
                 try:
@@ -363,10 +363,6 @@ class AllocationAdapterHost:
             ) from None
         return cls(hosted, handles=handles)
 
-    @classmethod
-    def empty(cls) -> AllocationAdapterHost:
-        return cls()
-
     @property
     def handles(self) -> AdapterHandles:
         return self._handles
@@ -379,7 +375,7 @@ class AllocationAdapterHost:
     def closed(self) -> bool:
         return self._closed
 
-    def report_metrics(self) -> dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]:
+    def report_metrics(self) -> dict[RuntimeAdapterRef, RuntimeAdapterMetrics]:
         return {ref: self._metrics[ref].snapshot() for ref in sorted(self._metrics)}
 
     async def terminate(
@@ -446,7 +442,7 @@ class AllocationAdapterHost:
         return f"AllocationAdapterHost(refs={self.refs!r}, closed={self._closed!r})"
 
 
-def _selected_settings(settings: RuntimeSettingsV2) -> dict[str, AdapterSettings]:
+def _selected_settings(settings: RuntimeSettings) -> dict[str, AdapterSettings]:
     selected: dict[str, AdapterSettings] = {}
     if settings.telemetry is not None:
         selected[settings.telemetry.adapter] = settings.telemetry
@@ -457,20 +453,20 @@ def _selected_settings(settings: RuntimeSettingsV2) -> dict[str, AdapterSettings
     return selected
 
 
-def _runtime_config_refs(spec: AllocationSpecV2) -> tuple[str, ...]:
+def _runtime_config_refs(spec: AllocationSpec) -> tuple[str, ...]:
     provenance = spec.resolved_runtime_config_provenance
     bindings = (provenance.default, *provenance.run_labels, *provenance.agent_labels)
     return tuple(f"{binding.config.name}@{binding.config.version}" for binding in bindings)
 
 
-def _runtime_config_digests(spec: AllocationSpecV2) -> tuple[str, ...]:
+def _runtime_config_digests(spec: AllocationSpec) -> tuple[str, ...]:
     provenance = spec.resolved_runtime_config_provenance
     bindings = (provenance.default, *provenance.run_labels, *provenance.agent_labels)
     return tuple(binding.config.digest for binding in bindings)
 
 
 def _private_bypass_hosts(
-    settings: RuntimeSettingsV2,
+    settings: RuntimeSettings,
     additional: Sequence[str],
 ) -> tuple[str, ...]:
     parsed = urlsplit(settings.artifact_api_url)
@@ -483,7 +479,7 @@ def _private_bypass_hosts(
 
 
 def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) -> None:
-    if isinstance(settings, TelemetrySettingsV2):
+    if isinstance(settings, TelemetrySettings):
         if (
             any(
                 value is not None
@@ -498,7 +494,7 @@ def _validate_typed_handles(settings: AdapterSettings, handles: AdapterHandles) 
         ):
             raise AdapterFactoryError(retryable=False)
         return
-    if isinstance(settings, CaidoSettingsV2):
+    if isinstance(settings, CaidoSettings):
         if (
             any(
                 value is not None

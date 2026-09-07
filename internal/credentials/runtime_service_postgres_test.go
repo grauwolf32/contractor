@@ -436,24 +436,24 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 				Layer: runtimeconfig.LayerAgentLabels, Configs: []runtimeconfig.Ref{allocationRef},
 			},
 		},
-		Provenance: contracts.ResolvedRuntimeConfigProvenanceV2{
-			Default: contracts.RuntimeLabelBindingProvenanceV2{
+		Provenance: contracts.ResolvedRuntimeConfigProvenance{
+			Default: contracts.RuntimeLabelBindingProvenance{
 				Label: "default", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRefV2{
+				Config: contracts.RuntimeConfigRef{
 					Name: runtimeconfig.BuiltInName, Version: runtimeconfig.BuiltInVersion,
 					Digest: runtimeconfig.BuiltInDigest,
 				},
 			},
-			RunLabels: []contracts.RuntimeLabelBindingProvenanceV2{},
-			AgentLabels: []contracts.RuntimeLabelBindingProvenanceV2{{
+			RunLabels: []contracts.RuntimeLabelBindingProvenance{},
+			AgentLabels: []contracts.RuntimeLabelBindingProvenance{{
 				Label: "allocation-debug", BindingRevision: 1,
-				Config: contracts.RuntimeConfigRefV2{
+				Config: contracts.RuntimeConfigRef{
 					Name: allocationRef.Name, Version: allocationRef.Version, Digest: allocationRef.Digest,
 				},
 			}},
 			RuntimeAdapters:  []contracts.RuntimeAdapterRef{contracts.RuntimeAdapterOTLPHTTP},
 			LLMGatewayConfig: &gateway,
-			RuntimeCredentialRefs: []contracts.RuntimeCredentialRefV2{{
+			RuntimeCredentialRefs: []contracts.RuntimeCredentialRef{{
 				CredentialID: "allocation-debug", Kind: contracts.RuntimeCredentialOTLPHeaders,
 			}},
 		},

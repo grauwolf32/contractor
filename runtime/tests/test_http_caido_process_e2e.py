@@ -31,11 +31,11 @@ from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
-    CaidoSettingsV2,
+    CaidoSettings,
     FinalizeAllocationRequest,
-    HTTPProxySettingsV2,
+    HTTPProxySettings,
     ReleaseAllocationRequest,
-    RuntimeSettingsV2,
+    RuntimeSettings,
     StageContentRequest,
     ToolsetRef,
     ToolsetSelection,
@@ -221,17 +221,17 @@ def http_caido_spec() -> Any:
     spec.model_policy = policy
     spec.agent_template.model_policy = policy.model_copy(deep=True)
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
-    spec.runtime_settings = RuntimeSettingsV2(
+    spec.runtime_settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
         artifactApiUrl="https://control.example/private/v1",
-        httpProxy=HTTPProxySettingsV2(
+        httpProxy=HTTPProxySettings(
             adapter="http-proxy@1",
             proxyUrl="https://proxy.example",
             bearerToken=PROXY_SECRET,
             targets=["tool-http"],
         ),
-        caido=CaidoSettingsV2(
+        caido=CaidoSettings(
             adapter="caido-graphql@1",
             endpoint="https://caido.example",
             bearerToken=CAIDO_SECRET,
@@ -328,7 +328,7 @@ class MockHTTPProxyAdapterFactory:
 
     async def create(self, context: RuntimeAdapterBuildContext, settings: Any) -> Any:
         del context
-        assert isinstance(settings, HTTPProxySettingsV2)
+        assert isinstance(settings, HTTPProxySettings)
         adapter = MockHTTPProxyAdapter(self._handler)
         self.adapters.append(adapter)
         return adapter
@@ -367,7 +367,7 @@ class MockCaidoAdapterFactory:
     async def create(
         self, context: RuntimeAdapterBuildContext, settings: Any
     ) -> CaidoGraphQLAdapter:
-        assert isinstance(settings, CaidoSettingsV2)
+        assert isinstance(settings, CaidoSettings)
         adapter = CaidoGraphQLAdapter(
             context,
             settings,

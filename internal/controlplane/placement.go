@@ -293,7 +293,7 @@ FOR UPDATE`, request.StageExecutionID).Scan(&state, &runID); err != nil {
 	return nil
 }
 
-func (a *PlacementAllocator) collectionPolicy(registration contracts.AgentRegistrationV2) contracts.PerformanceCollectionPolicy {
+func (a *PlacementAllocator) collectionPolicy(registration contracts.AgentRegistration) contracts.PerformanceCollectionPolicy {
 	if !a.performanceMetrics {
 		return contracts.PerformanceCollectionDisabled
 	}

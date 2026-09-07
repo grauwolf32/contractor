@@ -55,13 +55,13 @@ func TestPlacementPostgresUsesCandidateAdaptersAndPinsBeforeExposure(t *testing.
 }
 
 func TestPlacementPerformanceCollectionPolicyDoesNotFilterCandidates(t *testing.T) {
-	unsupported := contracts.AgentRegistrationV2{}
-	supported := contracts.AgentRegistrationV2{
+	unsupported := contracts.AgentRegistration{}
+	supported := contracts.AgentRegistration{
 		SupportedPerformanceMetricsVersions: contracts.PerformanceMetricsVersions{1},
 	}
 	for _, test := range []struct {
 		enabled      bool
-		registration contracts.AgentRegistrationV2
+		registration contracts.AgentRegistration
 		want         contracts.PerformanceCollectionPolicy
 	}{
 		{false, unsupported, contracts.PerformanceCollectionDisabled},
@@ -342,9 +342,8 @@ func (f *placementFixture) registerCandidateWithLabels(
 	if _, err := runtimeconfig.NewPrincipalRepository(f.pool).Insert(ctx, principal); err != nil {
 		t.Fatal(err)
 	}
-	registration := contracts.AgentRegistrationV2{
-		APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
-		InstanceID: instanceID, SoftwareVersion: "1.0.0", StartedAt: now,
+	registration := contracts.AgentRegistration{
+		APIVersion: contracts.APIVersion, InstanceID: instanceID, SoftwareVersion: "1.0.0", StartedAt: now,
 		ControlURL: "https://" + instanceID + ".test", A2AURL: "https://" + instanceID + ".test",
 		InitialLabels:     append([]string{}, labels...),
 		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},

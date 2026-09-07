@@ -24,10 +24,10 @@ from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
-    AllocationWorkspaceExportV2,
-    AllocationWorkspaceSourceV2,
-    AllocationWorkspaceSpecV2,
-    AllocationWorkspaceStateV2,
+    AllocationWorkspaceExport,
+    AllocationWorkspaceSource,
+    AllocationWorkspaceSpec,
+    AllocationWorkspaceState,
     ArtifactRef,
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
@@ -343,28 +343,28 @@ def workspace_spec(
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
     sources = (
         [
-            AllocationWorkspaceSourceV2(
+            AllocationWorkspaceSource(
                 artifact=ArtifactRef(namespace="inputs", name="backend", revision=REVISION),
                 target="backend",
             ),
-            AllocationWorkspaceSourceV2(
+            AllocationWorkspaceSource(
                 artifact=ArtifactRef(namespace="inputs", name="frontend", revision=REVISION),
                 target="frontend",
             ),
         ]
         if multiple_sources
         else [
-            AllocationWorkspaceSourceV2(
+            AllocationWorkspaceSource(
                 artifact=ArtifactRef(namespace="inputs", name="source", revision=REVISION),
                 target="",
             )
         ]
     )
-    spec.workspace = AllocationWorkspaceSpecV2(
+    spec.workspace = AllocationWorkspaceSpec(
         mode="overlay",
         sources=sources,
-        state=AllocationWorkspaceStateV2(artifact=state) if state is not None else None,
-        export=AllocationWorkspaceExportV2(state="workspace_state", diff="workspace_diff"),
+        state=AllocationWorkspaceState(artifact=state) if state is not None else None,
+        export=AllocationWorkspaceExport(state="workspace_state", diff="workspace_diff"),
     )
     return spec
 

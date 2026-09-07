@@ -36,7 +36,7 @@ func TestPodmanWorkspaceRequirementsStayBindingSpecific(t *testing.T) {
 	if len(bindings) != 2 {
 		t.Fatalf("bindings = %d", len(bindings))
 	}
-	memory := &contracts.WorkspaceCapabilitiesV2{Storage: contracts.WorkspaceStorageMemory, Modes: []contracts.WorkspaceModeV2{contracts.WorkspaceModeDirect}}
+	memory := &contracts.WorkspaceCapabilities{Storage: contracts.WorkspaceStorageMemory, Modes: []contracts.WorkspaceMode{contracts.WorkspaceModeDirect}}
 	local := *memory
 	local.Storage = contracts.WorkspaceStorageLocal
 	for _, binding := range bindings {

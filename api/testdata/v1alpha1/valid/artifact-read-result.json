@@ -1,10 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "artifact": {
-    "namespace": "inputs",
-    "name": "source",
-    "revision": "019c-revision-1"
-  },
-  "mediaType": "text/plain",
-  "size": 42
-}
+{"apiVersion":"contractor/v1alpha1","artifact":{"name":"source","namespace":"inputs","revision":"019c-revision-1"},"mediaType":"text/plain","size":42}

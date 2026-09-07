@@ -8,7 +8,7 @@ from fakes.spec import allocation_spec
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
-from contractor_runtime.contracts import AllocationSpecV2, ArtifactRef
+from contractor_runtime.contracts import AllocationSpec, ArtifactRef
 
 ROOT = Path(__file__).parents[2]
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/artifact-name-cases.json").read_text())
@@ -35,4 +35,4 @@ def test_allocation_namespace_rejects_nonportable_names(name: str) -> None:
     value = allocation_spec().model_dump(mode="json", by_alias=True, exclude_none=True)
     value["namespace"] = name
     with pytest.raises(ValidationError):
-        AllocationSpecV2.model_validate(value)
+        AllocationSpec.model_validate(value)

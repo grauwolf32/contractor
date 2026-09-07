@@ -13,7 +13,9 @@ adapter receives `StageContentRequest` in an A2A DataPart with media type
 `WorkerCompletion` with media type
 `application/vnd.contractor.worker-completion+json`.
 
-The schemas are review artifacts and compatibility contracts. Go and Python
+This is the single private contract catalog. There is no separate protocol
+number, alternate DTO family or conversion path. HTTP routes retain their
+`/private/v1` prefix. The schemas are review artifacts and wire definitions. Go and Python
 DTOs are maintained explicitly and are checked against shared golden fixtures
 under `api/testdata/v1alpha1`.
 
@@ -21,8 +23,8 @@ under `api/testdata/v1alpha1`.
 default covered by the AgentTemplate digest. The separate required
 `AllocationSpec.modelPolicy` is the effective Worker policy pinned by the Run;
 Runtime validates its own digest and uses it without mutating or re-signing the
-AgentTemplate. `RuntimeSettings.llmGatewayToken` may be the empty string for an
-explicitly unauthenticated Gateway.
+AgentTemplate. `RuntimeSettings.llmGatewayToken` is omitted for an
+unauthenticated Gateway; a supplied token must be nonempty.
 
 Every `AllocationSpec` also carries a required `runMetadataLabels` object. An
 unlabeled Run sends `{}`. Server and Runtime validate the shared 32-entry,
@@ -50,7 +52,7 @@ An optional `summarizer.instructions` contains the resolved `ref`, `digest`, and
 `text`, like Worker instructions. Its text is nonblank and at most 8,000 Unicode
 characters, and its ref/digest participate in the AgentTemplate digest. Runtime
 verifies the instruction text digest and uses the text literally as the summary
-agent's instruction. Omission preserves the legacy built-in instruction. This
+agent's instruction. Omission selects the built-in instruction. This
 character limit does not guarantee a 2,000-token upper bound.
 
 `AgentStateSnapshot.state.schemaVersion` is `2`: invocation metrics include a
@@ -64,3 +66,24 @@ describes its normalized, digest-bearing resolved value on private wires.
 `execution-config-manifest.schema.json` describes immutable Stage-local
 escalation profiles, while `workflow-transition.schema.json` describes the
 strict `on` block including bounded retry and inline-or-ref escalation.
+
+Registration requires `initialLabels` and `supportedRuntimeAdapters`, including
+empty arrays when nothing is selected. The response carries the durable
+`runtimeAgentId`, authoritative `labels` and `labelRevision` alongside lease timing.
+Every allocation requires `resolvedRuntimeConfigProvenance`; endpoint and credential
+material belongs only to the separate `runtimeSettings` value. Optional settings
+select telemetry, HTTP proxy, HTTP origin authentication and Caido adapters.
+
+`runtime-report.schema.json` describes the current Runtime report and is referenced
+by allocation final responses. Reports include an `adapters` object, which is empty
+when no adapters were selected. Producer schemas reject malformed resource metrics;
+receivers isolate invalid resource measurements and preserve valid execution facts
+with a safe `invalid_report` diagnostic. Duplicate keys, malformed JSON and unknown
+envelope fields remain errors.
+
+Optional `supportedPerformanceMetricsVersions: [1]` advertises resource sampling.
+An allocation requests it with `performanceMetrics: {version: 1, intervalSeconds: 15}`;
+omission disables sampling. Shared producer fragments live in `performance.schema.json`.
+Resource integers are bounded by `2^53 - 1`. A complete report requires CPU/RSS
+boundaries, two successful RSS observations and no uncovered interval above 30 seconds.
+Shared Go/Python cases also verify cross-field invariants beyond JSON Schema.

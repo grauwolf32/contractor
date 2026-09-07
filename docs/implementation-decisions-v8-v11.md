@@ -11,6 +11,11 @@ task commit in `tasks/<id>.yml`. If implementation discovers a contract change,
 the specification and task are updated before code relies on it, and the
 reason is appended here.
 
+Private protocol rollout entries D012/D013 describe the historical implementation
+sequence. [V50-001](../tasks/v50-001-unified-private-contracts.yml) supersedes their
+parallel DTOs and protocol number: all current fields now use the original model
+names and the sole `contractor/v1alpha1` catalog. No old protocol is retained.
+
 ## Decisions accepted during the pre-implementation review
 
 ### D001 — Workflow owns workspace composition; Runtime owns storage
@@ -150,9 +155,9 @@ tests that make the choice observable.
 - Applies to: V8-004, V8-007 and V8-010.
 - Decision: V8-004 atomically activates the complete v2 registration request
   and response on Go and Python because durable principal labels now exist. It
-  does not invent an AllocationSpec provenance document: AllocationSpecV2 is
+  does not invent an AllocationSpec provenance document: AllocationSpec is
   activated by V8-007 only after the candidate-specific transaction can commit
-  every exact binding/config/credential ref before delivery. RuntimeReportV2
+  every exact binding/config/credential ref before delivery. RuntimeReport
   adapter counters become authoritative with the adapter lifecycle host in
   V8-010. The private HTTP routes and shared `apiVersion` remain unchanged;
   there is no v1/v2 registration negotiation or compatibility response.
@@ -164,9 +169,9 @@ tests that make the choice observable.
 - Compatibility impact: a v1 Runtime registration now fails closed. Existing
   Allocation lifecycle messages remain at their prior shape only until the
   already-planned V8-007 synchronized switch.
-- Observable tests: `make test-runtime-wire-v2` covers the v1 registration
+- Observable tests: `make test-runtime-wire` covers the v1 registration
   rejection and v2 emission/response parsing; V8-007's placement tests must
-  cover the AllocationSpecV2 cut-over before its completion commit.
+  cover the AllocationSpec cut-over before its completion commit.
 
 ### D014 — A Run pins a compact exact reference snapshot
 
@@ -212,7 +217,7 @@ tests that make the choice observable.
 - Decision: the pure resolver accepts exact pinned RuntimeConfig bodies,
   execution-route patches, immutable Gateway bodies, LLM credential effective
   policy metadata and Runtime credential kinds. It returns effective physical
-  settings, typed field origins and protocol-v2 safe provenance. Token/header/
+  settings, typed field origins and safe Runtime provenance. Token/header/
   password material is neither an input nor an output; V8-007 resolves only the
   chosen IDs after durable placement.
 - Planner boundary: default and Run-label Planner telemetry is resolved and
@@ -254,9 +259,9 @@ tests that make the choice observable.
   credentials contribute their immutable effective ModelPolicy/model allowlist.
   Both still require the exact selected Gateway ref.
 - Secret boundary: allocation rows retain only ModelPolicy ref, typed field
-  origins and protocol-v2 safe provenance. The Scheduler decrypts selected
+  origins and safe Runtime provenance. The Scheduler decrypts selected
   tokens/headers/passwords only after commit, supplies them in
-  `PrepareAllocationRequestV2`, rejects a WorkerHandle containing any supplied
+  `PrepareAllocationRequest`, rejects a WorkerHandle containing any supplied
   value, and clears all reachable request-setting references immediately after
   the bounded prepare call. Credential deletion shares one reader/writer fence
   with allocation commit and remains blocked until durable release completion.
@@ -362,8 +367,8 @@ tests that make the choice observable.
   then keeps only valid metrics whose refs occur in the reservation's pinned
   provenance; unexpected, malformed or missing metrics set `complete=false`
   and cannot block terminalization/release.
-  The separate canonical `RuntimeReportV2` fixture remains the private-v2
-  parity contract. This small Go change is necessary even though V8-010 was
+  The separate canonical `RuntimeReport` fixture is part of the shared
+  v1alpha1 parity catalog. This small Go change is necessary even though V8-010 was
   originally marked Python-only: otherwise `DisallowUnknownFields` would
   reject the Runtime's first adapter report.
 - Secret handling: allocation replay fingerprints use a per-process keyed HMAC

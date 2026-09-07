@@ -86,7 +86,7 @@ func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, fmt.Errorf("%w: query parameters are not supported", ErrInvalidRequest))
 		return
 	}
-	registration, err := decodePrivateV2JSON[contracts.AgentRegistrationV2](w, r)
+	registration, err := decodePrivateJSON[contracts.AgentRegistration](w, r)
 	if err != nil {
 		h.handleError(w, err)
 		return
@@ -163,38 +163,13 @@ func (*privateHTTPHandler) notFound(w http.ResponseWriter, _ *http.Request) {
 
 func decodePrivateJSON[T contracts.Validatable](w http.ResponseWriter, r *http.Request) (T, error) {
 	var zero T
-	values := r.Header.Values("Content-Type")
-	if len(values) != 1 {
-		return zero, fmt.Errorf("%w: exactly one Content-Type is required", ErrInvalidRequest)
-	}
-	mediaType, parameters, err := mime.ParseMediaType(values[0])
-	if err != nil || mediaType != "application/json" || len(parameters) != 0 {
-		return zero, fmt.Errorf("%w: Content-Type must be application/json without parameters", ErrInvalidRequest)
-	}
-	if r.ContentLength > maxPrivateJSONBody {
-		return zero, fmt.Errorf("%w: request body is too large", ErrInvalidRequest)
-	}
-	body := http.MaxBytesReader(w, r.Body, maxPrivateJSONBody)
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return zero, fmt.Errorf("%w: read request body", ErrInvalidRequest)
-	}
-	value, err := contracts.DecodeStrict[T](data)
-	if err != nil {
-		return zero, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
-	}
-	return value, nil
-}
-
-func decodePrivateV2JSON[T contracts.Validatable](w http.ResponseWriter, r *http.Request) (T, error) {
-	var zero T
 	data, err := readPrivateJSON(w, r)
 	if err != nil {
 		return zero, err
 	}
-	value, err := contracts.DecodePrivateV2Strict[T](data)
+	value, err := contracts.DecodePrivateStrict[T](data)
 	if err != nil {
-		return zero, fmt.Errorf("%w: private protocol v2 input is invalid", ErrInvalidRequest)
+		return zero, fmt.Errorf("%w: private protocol input is invalid", ErrInvalidRequest)
 	}
 	return value, nil
 }

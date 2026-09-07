@@ -478,9 +478,8 @@ func assertDuplicatePrincipalRegistrationRejected(
 	for index, adapter := range principal.Live.SupportedRuntimeAdapters {
 		adapters[index] = contracts.RuntimeAdapterRef(adapter)
 	}
-	registration := contracts.AgentRegistrationV2{
-		APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
-		InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
+	registration := contracts.AgentRegistration{
+		APIVersion: contracts.APIVersion, InstanceID: "duplicate-runtime-" + randomHex(t, 8), SoftwareVersion: "0.1.0",
 		StartedAt: time.Now().UTC(), ControlURL: "https://127.0.0.1:1", A2AURL: "https://127.0.0.1:1",
 		InitialLabels: []string{}, SupportedRuntimes: append([]string(nil), principal.Live.SupportedRuntimes...),
 		SupportedToolsets:        toolsets,
@@ -860,7 +859,7 @@ func onlyRuntimeAdapterMetrics(
 	ctx context.Context,
 	store runstore.Repository,
 	runID, adapter string,
-) contracts.RuntimeAdapterMetricsV2 {
+) contracts.RuntimeAdapterMetrics {
 	t.Helper()
 	executions, err := store.ListStageExecutions(ctx, runID)
 	if err != nil || len(executions) != 1 {

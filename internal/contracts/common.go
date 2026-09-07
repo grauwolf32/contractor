@@ -60,7 +60,7 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 
 func validateAPIVersion(value string) error {
 	if value != APIVersion {
-		return invalidf("apiVersion must be %q", APIVersion)
+		return fmt.Errorf("%w: %w", ErrValidation, privateVersionError)
 	}
 	return nil
 }

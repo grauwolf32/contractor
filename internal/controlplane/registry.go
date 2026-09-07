@@ -22,8 +22,8 @@ const (
 )
 
 type Registry interface {
-	RegistrationResponse(AuthenticatedPrincipal) contracts.AgentRegistrationResponseV2
-	RegisterAuthenticated(AuthenticatedPrincipal, contracts.AgentRegistrationV2) (AgentSnapshot, error)
+	RegistrationResponse(AuthenticatedPrincipal) contracts.AgentRegistrationResponse
+	RegisterAuthenticated(AuthenticatedPrincipal, contracts.AgentRegistration) (AgentSnapshot, error)
 	HeartbeatAuthenticated(string, contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error)
 	ReserveAll(ReservationRequest) ([]Reservation, error)
 	GetGrant(string) (AllocationGrant, error)
@@ -55,7 +55,7 @@ type RegistryOptions struct {
 
 type AgentSnapshot struct {
 	Principal                 AuthenticatedPrincipal
-	Registration              contracts.AgentRegistrationV2
+	Registration              contracts.AgentRegistration
 	LastSeenAt                time.Time
 	LastHeartbeatSeq          uint64
 	LastIssuedAckSeq          uint64
@@ -90,7 +90,7 @@ type InMemoryRegistry struct {
 
 type agentEntry struct {
 	principal                 AuthenticatedPrincipal
-	registration              contracts.AgentRegistrationV2
+	registration              contracts.AgentRegistration
 	identity                  string
 	orderKey                  string
 	lastSeenAt                time.Time
@@ -162,10 +162,9 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 	}, nil
 }
 
-func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal) contracts.AgentRegistrationResponseV2 {
-	return contracts.AgentRegistrationResponseV2{
+func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal) contracts.AgentRegistrationResponse {
+	return contracts.AgentRegistrationResponse{
 		APIVersion:               contracts.APIVersion,
-		PrivateProtocolVersion:   contracts.PrivateProtocolVersionV2,
 		RuntimeAgentID:           principal.RuntimeAgentID,
 		Labels:                   append([]string{}, principal.Labels...),
 		LabelRevision:            principal.LabelRevision,
@@ -176,7 +175,7 @@ func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal
 
 func (r *InMemoryRegistry) RegisterAuthenticated(
 	principal AuthenticatedPrincipal,
-	registration contracts.AgentRegistrationV2,
+	registration contracts.AgentRegistration,
 ) (AgentSnapshot, error) {
 	if err := registration.Validate(); err != nil {
 		return AgentSnapshot{}, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
@@ -185,11 +184,11 @@ func (r *InMemoryRegistry) RegisterAuthenticated(
 		return AgentSnapshot{}, err
 	}
 	normalized := normalizeRegistration(registration)
-	identity, err := contracts.AgentRegistrationFingerprintV2(normalized)
+	identity, err := contracts.AgentRegistrationFingerprint(normalized)
 	if err != nil {
 		return AgentSnapshot{}, fmt.Errorf("encode registration identity: %w", err)
 	}
-	orderKey := r.agentOrderKey(legacyRegistrationProjection(normalized))
+	orderKey := r.agentOrderKey(cloneRegistration(normalized))
 	now := r.now()
 
 	r.mu.Lock()
@@ -309,24 +308,13 @@ func (r *InMemoryRegistry) HeartbeatAuthenticated(
 // Register and Heartbeat retain a small in-process test/embedding surface for
 // callers that do not terminate TLS. The private HTTP API never uses these
 // methods: production always supplies its certificate-derived principal to
-// RegisterAuthenticated/HeartbeatAuthenticated and serves protocol v2 only.
+// RegisterAuthenticated/HeartbeatAuthenticated and validates the current private contract.
 func (r *InMemoryRegistry) Register(registration contracts.AgentRegistration) (AgentSnapshot, error) {
-	v2 := contracts.AgentRegistrationV2{
-		APIVersion:             registration.APIVersion,
-		PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
-		InstanceID:             registration.InstanceID, SoftwareVersion: registration.SoftwareVersion,
-		StartedAt: registration.StartedAt, ControlURL: registration.ControlURL, A2AURL: registration.A2AURL,
-		InitialLabels: []string{}, SupportedRuntimes: registration.SupportedRuntimes,
-		SupportedToolsets:        registration.SupportedToolsets,
-		SupportedSandboxProfiles: registration.SupportedSandboxProfiles,
-		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
-		ObservedState:            registration.ObservedState, AllocationID: registration.AllocationID,
-	}
-	return r.RegisterAuthenticated(legacyPrincipal(registration.InstanceID), v2)
+	return r.RegisterAuthenticated(inProcessPrincipal(registration.InstanceID), registration)
 }
 
 func (r *InMemoryRegistry) Heartbeat(heartbeat contracts.AgentHeartbeat) (contracts.HeartbeatResponse, error) {
-	return r.HeartbeatAuthenticated(legacyPrincipal(heartbeat.InstanceID).RuntimeAgentID, heartbeat)
+	return r.HeartbeatAuthenticated(inProcessPrincipal(heartbeat.InstanceID).RuntimeAgentID, heartbeat)
 }
 
 func (r *InMemoryRegistry) ReserveAll(request ReservationRequest) ([]Reservation, error) {
@@ -456,13 +444,13 @@ func (r *InMemoryRegistry) reserveAll(
 		}
 		reservation := Reservation{
 			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),
-			CompletionCapabilities: contracts.NormalizeAgentRegistrationV2(entry.registration).Capabilities,
+			CompletionCapabilities: contracts.NormalizeAgentRegistration(entry.registration).Capabilities,
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
 			AgentTemplate:             cloneAgentTemplate(binding.AgentTemplate),
 			WorkerSessionMode:         binding.WorkerSessionMode,
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
-			Workspace:                 contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
+			Workspace:                 contracts.CloneAllocationWorkspaceSpec(binding.Workspace),
 			RunMetadataLabels:         runMetadataLabels.Clone(),
 			RuntimeAgentLabelRevision: entry.principal.LabelRevision,
 			LeaseExpiresAt:            entry.confirmedLeaseExpiresAt,
@@ -1098,16 +1086,16 @@ func isPlacementEligible(entry *agentEntry, monotonicNow time.Duration) bool {
 		entry.confirmedLeaseDeadline > monotonicNow
 }
 
-func isBindingCompatible(registration contracts.AgentRegistrationV2, binding BindingRequirement) bool {
+func isBindingCompatible(registration contracts.AgentRegistration, binding BindingRequirement) bool {
 	return contracts.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
 		isCompatible(registration, binding.AgentTemplate, binding.Workspace)
 }
 
 func isCompatible(
-	registration contracts.AgentRegistrationV2,
+	registration contracts.AgentRegistration,
 	template contracts.ResolvedAgentTemplate,
-	workspace *contracts.AllocationWorkspaceSpecV2,
+	workspace *contracts.AllocationWorkspaceSpec,
 ) bool {
 	if !workflowconfig.SandboxWorkspaceCompatible(template, workspace, registration.WorkspaceCapabilities) {
 		return false
@@ -1147,8 +1135,8 @@ func isCompatible(
 }
 
 func supportsWorkspaceMode(
-	capabilities *contracts.WorkspaceCapabilitiesV2,
-	mode contracts.WorkspaceModeV2,
+	capabilities *contracts.WorkspaceCapabilities,
+	mode contracts.WorkspaceMode,
 ) bool {
 	if capabilities == nil {
 		return false
@@ -1227,7 +1215,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:   cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			RuntimeSelection:  cloneRuntimeSelection(binding.RuntimeSelection),
-			Workspace:         contracts.CloneAllocationWorkspaceSpecV2(binding.Workspace),
+			Workspace:         contracts.CloneAllocationWorkspaceSpec(binding.Workspace),
 		}
 	}
 	sort.Slice(bindings, func(i, j int) bool { return bindings[i].LogicalAgentName < bindings[j].LogicalAgentName })
@@ -1251,8 +1239,8 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 	return "sha256:" + hex.EncodeToString(digest[:]), bindings, nil
 }
 
-func normalizeRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegistrationV2 {
-	return contracts.NormalizeAgentRegistrationV2(source)
+func normalizeRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
+	return contracts.NormalizeAgentRegistration(source)
 }
 
 func snapshotAgent(entry *agentEntry) AgentSnapshot {
@@ -1468,11 +1456,11 @@ func (r *InMemoryRegistry) PrincipalRuntimeObservation(
 	return &result, true
 }
 
-func sameRuntimeEndpoint(left, right contracts.AgentRegistrationV2) bool {
+func sameRuntimeEndpoint(left, right contracts.AgentRegistration) bool {
 	return left.ControlURL == right.ControlURL || left.A2AURL == right.A2AURL
 }
 
-func cloneRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegistrationV2 {
+func cloneRegistration(source contracts.AgentRegistration) contracts.AgentRegistration {
 	result := source
 	result.AllocationID = cloneString(source.AllocationID)
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
@@ -1484,7 +1472,7 @@ func cloneRegistration(source contracts.AgentRegistrationV2) contracts.AgentRegi
 	)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
-		capabilities.Modes = append([]contracts.WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
+		capabilities.Modes = append([]contracts.WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
 		result.WorkspaceCapabilities = &capabilities
 	}
 	result.SupportedToolsets = make([]contracts.ToolsetCapability, len(source.SupportedToolsets))
@@ -1501,29 +1489,16 @@ func clonePrincipal(source AuthenticatedPrincipal) AuthenticatedPrincipal {
 	return result
 }
 
-func legacyPrincipal(instanceID string) AuthenticatedPrincipal {
+func inProcessPrincipal(instanceID string) AuthenticatedPrincipal {
 	sum := sha256.Sum256([]byte("in-process-runtime-principal\x00" + instanceID))
 	return AuthenticatedPrincipal{
 		RuntimeAgentID: hex.EncodeToString(sum[:]), Labels: []string{}, LabelRevision: 1,
 	}
 }
 
-func legacyRegistrationProjection(source contracts.AgentRegistrationV2) contracts.AgentRegistration {
-	return contracts.AgentRegistration{
-		APIVersion: source.APIVersion, InstanceID: source.InstanceID,
-		SoftwareVersion: source.SoftwareVersion, StartedAt: source.StartedAt,
-		ControlURL: source.ControlURL, A2AURL: source.A2AURL,
-		SupportedRuntimes:        append([]string(nil), source.SupportedRuntimes...),
-		SupportedToolsets:        cloneRegistration(source).SupportedToolsets,
-		SupportedSandboxProfiles: append([]string(nil), source.SupportedSandboxProfiles...),
-		ObservedState:            source.ObservedState, AllocationID: cloneString(source.AllocationID),
-	}
-}
-
 func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
-	probe := contracts.AgentRegistrationResponseV2{
-		APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
-		RuntimeAgentID: principal.RuntimeAgentID, Labels: principal.Labels,
+	probe := contracts.AgentRegistrationResponse{
+		APIVersion: contracts.APIVersion, RuntimeAgentID: principal.RuntimeAgentID, Labels: principal.Labels,
 		LabelRevision: principal.LabelRevision, HeartbeatIntervalSeconds: 1, ConfirmedLeaseSeconds: 2,
 	}
 	if err := probe.Validate(); err != nil {
@@ -1549,7 +1524,7 @@ func cloneReservation(source Reservation) Reservation {
 	result.AgentTemplate = cloneAgentTemplate(source.AgentTemplate)
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
-	result.Workspace = contracts.CloneAllocationWorkspaceSpecV2(source.Workspace)
+	result.Workspace = contracts.CloneAllocationWorkspaceSpec(source.Workspace)
 	result.RunMetadataLabels = source.RunMetadataLabels.Clone()
 	if source.PerformanceMetrics != nil {
 		request := *source.PerformanceMetrics

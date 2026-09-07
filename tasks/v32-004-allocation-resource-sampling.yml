@@ -15,7 +15,7 @@ goal: >-
 context:
   specification: docs/spec/22-performance-metrics-and-profiling.md
   request: >-
-    AllocationSpecV2.performanceMetrics is optional; only version=1 and
+    AllocationSpec.performanceMetrics is optional; only version=1 and
     intervalSeconds=15 are supported. Omission means no sampler or resource
     reads. Advertise supportedPerformanceMetricsVersions:[1] only once the
     implementation is installed. No Runtime-wide monitoring endpoint or push loop.

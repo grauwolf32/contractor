@@ -5,7 +5,7 @@
     "supportedPerformanceMetricsVersions": {
       "type": "array", "maxItems": 1, "uniqueItems": true,
       "items": {"type": "integer", "const": 1},
-      "description": "Private-v2 registration capability. Omitted or empty means unsupported; do not advertise 1 until the collector exists."
+      "description": "Private registration capability. Omitted or empty means unsupported; [1] advertises the installed resource collector."
     },
     "performanceMetricsRequest": {
       "type": "object", "additionalProperties": false,

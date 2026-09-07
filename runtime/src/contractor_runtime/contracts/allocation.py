@@ -27,14 +27,13 @@ from contractor_runtime.contracts.settings import (
     AgentTemplateRef,
     ResolvedAgentTemplate,
     ResolvedModelPolicy,
-    ResolvedRuntimeConfigProvenanceV2,
+    ResolvedRuntimeConfigProvenance,
     ResolvedSkill,
     RuntimeSettings,
-    RuntimeSettingsV2,
     WorkerRuntimeRef,
     _require_worker_policy,
 )
-from contractor_runtime.contracts.workspace import AllocationWorkspaceSpecV2
+from contractor_runtime.contracts.workspace import AllocationWorkspaceSpec
 
 
 class WorkerCompletionContract(WireModel):
@@ -123,6 +122,9 @@ class AllocationSpec(VersionedWireModel):
     resolved_skills: list[ResolvedSkill] = Field(max_length=32)
     model_policy: ResolvedModelPolicy
     runtime_settings: RuntimeSettings
+    resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenance
+    workspace: AllocationWorkspaceSpec | None = None
+    performance_metrics: PerformanceMetricsRequest | None = None
 
     @field_validator("run_metadata_labels")
     @classmethod
@@ -207,14 +209,3 @@ class AbortAllocationRequest(VersionedWireModel):
 
 class PrepareAllocationRequest(VersionedWireModel):
     spec: AllocationSpec
-
-
-class AllocationSpecV2(AllocationSpec):
-    runtime_settings: RuntimeSettingsV2
-    resolved_runtime_config_provenance: ResolvedRuntimeConfigProvenanceV2
-    workspace: AllocationWorkspaceSpecV2 | None = None
-    performance_metrics: PerformanceMetricsRequest | None = None
-
-
-class PrepareAllocationRequestV2(VersionedWireModel):
-    spec: AllocationSpecV2

@@ -21,7 +21,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterBuildContext,
     RuntimeAdapterMetricsState,
 )
-from contractor_runtime.contracts import HTTPProxySettingsV2, RuntimeAdapterRef
+from contractor_runtime.contracts import HTTPProxySettings, RuntimeAdapterRef
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -396,7 +396,7 @@ class HTTPProxyAdapterFactory:
         context: RuntimeAdapterBuildContext,
         settings: AdapterSettings,
     ) -> HTTPProxyAdapter:
-        if not isinstance(settings, HTTPProxySettingsV2):
+        if not isinstance(settings, HTTPProxySettings):
             raise AdapterFactoryError(retryable=False)
         try:
             return HTTPProxyAdapter(context, settings)
@@ -413,7 +413,7 @@ class HTTPProxyAdapter:
     def __init__(
         self,
         context: RuntimeAdapterBuildContext,
-        settings: HTTPProxySettingsV2,
+        settings: HTTPProxySettings,
     ) -> None:
         self.metrics = RuntimeAdapterMetricsState()
         basic_auth: tuple[str, str] | None = None

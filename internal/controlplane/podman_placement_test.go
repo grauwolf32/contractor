@@ -10,24 +10,24 @@ func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.
 	registry := newTestRegistry(t, newTestClock())
 	for _, candidate := range []struct {
 		id      string
-		storage contracts.WorkspaceStorageV2
-		mode    contracts.WorkspaceModeV2
+		storage contracts.WorkspaceStorage
+		mode    contracts.WorkspaceMode
 	}{
 		{"agent-a-memory", contracts.WorkspaceStorageMemory, contracts.WorkspaceModeDirect},
 		{"agent-b-podman", contracts.WorkspaceStorageLocal, contracts.WorkspaceModeDirect},
 		{"agent-c-overlay", contracts.WorkspaceStorageLocal, contracts.WorkspaceModeOverlay},
 	} {
-		registration := testRegistrationV2(candidate.id)
+		registration := testRegistration(candidate.id)
 		// Even an optimistic remote claim cannot bypass exact storage/mode checks.
 		registration.SupportedSandboxProfiles = append(registration.SupportedSandboxProfiles, "podman@1")
 		registration.SupportedToolsets = append(registration.SupportedToolsets,
 			contracts.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
-		registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{
-			Storage: candidate.storage, Modes: []contracts.WorkspaceModeV2{candidate.mode},
-			Limits: contracts.WorkspaceLimitsV2{MaxFiles: 100, MaxExpandedBytes: 1024,
+		registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{
+			Storage: candidate.storage, Modes: []contracts.WorkspaceMode{candidate.mode},
+			Limits: contracts.WorkspaceLimits{MaxFiles: 100, MaxExpandedBytes: 1024,
 				MaxManagedTextBytes: 1024, MaxFileBytes: 1024},
 		}
-		principal := legacyPrincipal(candidate.id)
+		principal := inProcessPrincipal(candidate.id)
 		if _, err := registry.RegisterAuthenticated(principal, registration); err != nil {
 			t.Fatal(err)
 		}
@@ -50,8 +50,8 @@ func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.
 		if i == 2 {
 			mode = contracts.WorkspaceModeOverlay
 		}
-		bindings[i].Workspace = &contracts.AllocationWorkspaceSpecV2{Mode: mode,
-			Sources: []contracts.AllocationWorkspaceSourceV2{{Artifact: exactWorkspaceRef("source", "revision-1"), Target: ""}}}
+		bindings[i].Workspace = &contracts.AllocationWorkspaceSpec{Mode: mode,
+			Sources: []contracts.AllocationWorkspaceSource{{Artifact: exactWorkspaceRef("source", "revision-1"), Target: ""}}}
 	}
 	reservations, err := registry.ReserveAll(ReservationRequest{RunID: "run-podman-fleet", StageExecutionID: "stage-podman-fleet", Bindings: bindings})
 	if err != nil {
@@ -70,8 +70,8 @@ func TestPodmanRegisteredFleetPreservesOrdinaryMemoryAndOverlaySlots(t *testing.
 func TestPodmanPlacementRequiresExactLocalDirectCapability(t *testing.T) {
 	for _, test := range []struct {
 		name                     string
-		storage                  contracts.WorkspaceStorageV2
-		mode                     contracts.WorkspaceModeV2
+		storage                  contracts.WorkspaceStorage
+		mode                     contracts.WorkspaceMode
 		profile, tool, workspace bool
 		want                     bool
 	}{
@@ -83,20 +83,20 @@ func TestPodmanPlacementRequiresExactLocalDirectCapability(t *testing.T) {
 		{"missing-tool", contracts.WorkspaceStorageLocal, contracts.WorkspaceModeDirect, true, false, true, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			registration := testRegistrationV2("podman-test")
+			registration := testRegistration("podman-test")
 			if test.profile {
 				registration.SupportedSandboxProfiles = append(registration.SupportedSandboxProfiles, "podman@1")
 			}
 			if test.tool {
 				registration.SupportedToolsets = append(registration.SupportedToolsets, contracts.ToolsetCapability{Ref: "code-execution@1", Tools: []string{"exec_command"}})
 			}
-			registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilitiesV2{Storage: test.storage, Modes: []contracts.WorkspaceModeV2{test.mode}}
+			registration.WorkspaceCapabilities = &contracts.WorkspaceCapabilities{Storage: test.storage, Modes: []contracts.WorkspaceMode{test.mode}}
 			template := testTemplate(t)
 			template.SandboxProfile = contracts.SandboxProfileRef{SandboxProfileID: "podman", Version: "1"}
 			template.Toolsets = []contracts.ToolsetSelection{{Ref: contracts.ToolsetRef{ToolsetID: "code-execution", Version: "1"}, Tools: []string{"exec_command"}}}
-			var workspace *contracts.AllocationWorkspaceSpecV2
+			var workspace *contracts.AllocationWorkspaceSpec
 			if test.workspace {
-				workspace = &contracts.AllocationWorkspaceSpecV2{Mode: test.mode}
+				workspace = &contracts.AllocationWorkspaceSpec{Mode: test.mode}
 			}
 			if got := isCompatible(registration, template, workspace); got != test.want {
 				t.Fatalf("compatible = %v, want %v", got, test.want)

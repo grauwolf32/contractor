@@ -32,7 +32,7 @@ scope:
   in:
     - Add migration 000017_runtime_agent_principals.sql with labels, label revision, audit metadata and indexes supporting label rebind validation.
     - Derive the principal in the private mTLS middleware and pass it explicitly through registration, heartbeat, report and grant paths.
-    - Atomically switch the Go Server and Python Runtime registration request/response from private v1 to the complete v2 registration DTOs; do not retain a wire compatibility mode or serve a partial v2 registration response. AllocationSpecV2 activation remains in V8-007, where exact provenance can first be committed before delivery.
+    - Atomically switch the Go Server and Python Runtime registration request/response from private v1 to the complete v2 registration DTOs; do not retain a wire compatibility mode or serve a partial v2 registration response. AllocationSpec activation remains in V8-007, where exact provenance can first be committed before delivery.
     - Seed/return authoritative labels transactionally; reject a second live instance for the same principal and a principal mismatch on retry/heartbeat.
     - Implement label-set CAS, same-layer worker-setting conflict validation, non-Agent-applicable rejection and safe offline principal deletion rules.
     - During label rebind, validate every assigned principal under binding-then-principal lexical lock order and reject newly conflicting sets atomically.
@@ -78,7 +78,7 @@ acceptance_criteria:
 
 tests:
   - {name: principal-store, command: "CONTRACTOR_TEST_DATABASE_URL=postgres://... make test-runtime-principals", covers: [A1, A2, A4]}
-  - {name: protocol-activation, command: "make test-runtime-wire-v2", covers: [A1, A2, A3]}
+  - {name: protocol-activation, command: "make test-runtime-wire", covers: [A1, A2, A3]}
   - {name: mtls, command: "make test-mtls", covers: [A2, A3]}
   - {name: artifact-security, command: "go test -race ./internal/httpapi/privateartifacts/... ./internal/controlplane/...", covers: [A2, A3, A4]}
   - {name: runtime-client, command: "cd runtime && uv run pytest tests/test_artifacts.py tests/test_control_client.py", covers: [A1, A3]}

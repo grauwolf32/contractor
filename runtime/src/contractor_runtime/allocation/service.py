@@ -38,7 +38,6 @@ from contractor_runtime.contracts import (
     AgentStateSnapshot,
     AllocationFinalResponse,
     AllocationSpec,
-    AllocationSpecV2,
     FinalizeAllocationRequest,
     PrepareAllocationResponse,
     ReleaseAllocationRequest,
@@ -108,7 +107,7 @@ class AllocationService:
         return self._exit_process(code)
 
     def _start_resources(self, spec: AllocationSpec) -> ResourceCollector | None:
-        if not isinstance(spec, AllocationSpecV2) or spec.performance_metrics is None:
+        if spec.performance_metrics is None:
             return None
         try:
             collector = self._resource_collector_factory()
@@ -229,18 +228,15 @@ class AllocationService:
                         deadline=asyncio.get_running_loop().time()
                         + max(0.0, (adapter_deadline - self._now()).total_seconds())
                     )
-                if isinstance(spec, AllocationSpecV2):
-                    adapter_host = await AllocationAdapterHost.create(
-                        spec,
-                        self._factories.runtime_adapters,
-                        deadline=adapter_deadline,
-                        now=self._now,
-                        private_bypass_hosts=self._private_bypass_hosts,
-                    )
-                else:
-                    adapter_host = AllocationAdapterHost.empty()
+                adapter_host = await AllocationAdapterHost.create(
+                    spec,
+                    self._factories.runtime_adapters,
+                    deadline=adapter_deadline,
+                    now=self._now,
+                    private_bypass_hosts=self._private_bypass_hosts,
+                )
                 workspace = await sandbox.prepare()
-                if isinstance(spec, AllocationSpecV2) and spec.workspace is not None:
+                if spec.workspace is not None:
                     assert self._factories.workspace_provider is not None
                     assert self._factories.artifact_client_factory is not None
                     artifact_reader = self._factories.artifact_client_factory(
@@ -295,9 +291,7 @@ class AllocationService:
                         resolved_skills=tuple(spec.resolved_skills),
                         project_workspace=project_workspace,
                         workspace_export=(
-                            spec.workspace.export
-                            if isinstance(spec, AllocationSpecV2) and spec.workspace is not None
-                            else None
+                            spec.workspace.export if spec.workspace is not None else None
                         ),
                     )
                 )

@@ -275,7 +275,6 @@ def test_cli_shutdown_drains_active_allocation_before_owner_close(tmp_path, monk
             response = await super().post_json(path, payload)
             return {
                 **response,
-                "privateProtocolVersion": 2,
                 "runtimeAgentId": "a" * 64,
                 "labels": [],
                 "labelRevision": 1,

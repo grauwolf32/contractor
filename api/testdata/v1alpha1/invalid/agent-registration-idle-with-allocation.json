@@ -1,13 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "instanceId": "019c-runtime-1",
-  "softwareVersion": "0.1.0",
-  "startedAt": "2026-08-29T10:00:00Z",
-  "controlUrl": "https://127.0.0.1:9443/private/v1",
-  "a2aUrl": "https://127.0.0.1:9443/a2a",
-  "supportedRuntimes": ["adk@1"],
-  "supportedToolsets": [],
-  "supportedSandboxProfiles": ["local-workdir@1"],
-  "observedState": "idle",
-  "allocationId": "must-not-be-present"
-}
+{"a2aUrl":"https://127.0.0.1:9443/a2a","allocationId":"must-not-be-present","apiVersion":"contractor/v1alpha1","controlUrl":"https://127.0.0.1:9443/private/v1","initialLabels":[],"instanceId":"019c-runtime-1","observedState":"idle","softwareVersion":"0.1.0","startedAt":"2026-08-29T10:00:00Z","supportedRuntimeAdapters":[],"supportedRuntimes":["adk@1"],"supportedSandboxProfiles":["local-workdir@1"],"supportedToolsets":[]}

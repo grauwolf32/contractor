@@ -155,17 +155,17 @@ type ResolveRuntimeConfigInput struct {
 // ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
 // secret material is deliberately resolved only after placement by V8-007.
 type ResolvedRuntimeConfig struct {
-	ModelPolicy              contracts.ResolvedModelPolicy               `json:"modelPolicy"`
-	LLMGateway               contracts.ResolvedLLMGatewayConfig          `json:"llmGateway"`
-	LLMCredential            *contracts.LLMCredentialRef                 `json:"llmCredential,omitempty"`
-	WorkerTelemetry          *TelemetryConfig                            `json:"workerTelemetry,omitempty"`
-	HTTPProxy                *HTTPProxyConfig                            `json:"httpProxy,omitempty"`
-	Caido                    *CaidoConfig                                `json:"caido,omitempty"`
-	PlannerTelemetry         *TelemetryConfig                            `json:"plannerTelemetry,omitempty"`
-	PlannerRuntimeCredential *contracts.RuntimeCredentialRefV2           `json:"plannerRuntimeCredential,omitempty"`
-	RequiredRuntimeAdapters  []contracts.RuntimeAdapterRef               `json:"requiredRuntimeAdapters"`
-	Origins                  ResolvedRuntimeConfigOrigins                `json:"origins"`
-	Provenance               contracts.ResolvedRuntimeConfigProvenanceV2 `json:"provenance"`
+	ModelPolicy              contracts.ResolvedModelPolicy             `json:"modelPolicy"`
+	LLMGateway               contracts.ResolvedLLMGatewayConfig        `json:"llmGateway"`
+	LLMCredential            *contracts.LLMCredentialRef               `json:"llmCredential,omitempty"`
+	WorkerTelemetry          *TelemetryConfig                          `json:"workerTelemetry,omitempty"`
+	HTTPProxy                *HTTPProxyConfig                          `json:"httpProxy,omitempty"`
+	Caido                    *CaidoConfig                              `json:"caido,omitempty"`
+	PlannerTelemetry         *TelemetryConfig                          `json:"plannerTelemetry,omitempty"`
+	PlannerRuntimeCredential *contracts.RuntimeCredentialRef           `json:"plannerRuntimeCredential,omitempty"`
+	RequiredRuntimeAdapters  []contracts.RuntimeAdapterRef             `json:"requiredRuntimeAdapters"`
+	Origins                  ResolvedRuntimeConfigOrigins              `json:"origins"`
+	Provenance               contracts.ResolvedRuntimeConfigProvenance `json:"provenance"`
 }
 
 func (r ResolvedRuntimeConfig) Validate() error {
@@ -273,7 +273,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if err != nil {
 		return ResolvedRuntimeConfig{}, err
 	}
-	provenance := contracts.ResolvedRuntimeConfigProvenanceV2{
+	provenance := contracts.ResolvedRuntimeConfigProvenance{
 		Default:               bindingProvenance(input.Default),
 		RunLabels:             bindingProvenanceList(runPins),
 		AgentLabels:           bindingProvenanceList(agentPins),
@@ -480,8 +480,8 @@ func validateLLMRoute(
 func validateAdapterSettings(
 	input ResolveRuntimeConfigInput,
 	effective effectiveRuntimeConfig,
-) ([]contracts.RuntimeCredentialRefV2, *contracts.RuntimeCredentialRefV2, []contracts.RuntimeAdapterRef, error) {
-	workerCredentials := make([]contracts.RuntimeCredentialRefV2, 0, 3)
+) ([]contracts.RuntimeCredentialRef, *contracts.RuntimeCredentialRef, []contracts.RuntimeAdapterRef, error) {
+	workerCredentials := make([]contracts.RuntimeCredentialRef, 0, 3)
 	adapters := make([]contracts.RuntimeAdapterRef, 0, 3)
 	if effective.workerTelemetry != nil {
 		if err := validateTelemetryConfig(*effective.workerTelemetry, "worker.telemetry"); err != nil {
@@ -532,7 +532,7 @@ func validateAdapterSettings(
 			workerCredentials = append(workerCredentials, ref)
 		}
 	}
-	var plannerCredential *contracts.RuntimeCredentialRefV2
+	var plannerCredential *contracts.RuntimeCredentialRef
 	if effective.plannerTelemetry != nil {
 		if err := validateTelemetryConfig(*effective.plannerTelemetry, "planner.telemetry"); err != nil {
 			return nil, nil, nil, err
@@ -617,17 +617,17 @@ func requireRuntimeCredential(
 	catalog map[string]contracts.RuntimeCredentialKind,
 	credentialID, path string,
 	allowed ...contracts.RuntimeCredentialKind,
-) (contracts.RuntimeCredentialRefV2, error) {
+) (contracts.RuntimeCredentialRef, error) {
 	kind, ok := catalog[credentialID]
 	if !ok {
-		return contracts.RuntimeCredentialRefV2{}, resolutionError(ResolutionIncomplete, path, ErrInvalid)
+		return contracts.RuntimeCredentialRef{}, resolutionError(ResolutionIncomplete, path, ErrInvalid)
 	}
 	for _, candidate := range allowed {
 		if kind == candidate {
-			return contracts.RuntimeCredentialRefV2{CredentialID: credentialID, Kind: kind}, nil
+			return contracts.RuntimeCredentialRef{CredentialID: credentialID, Kind: kind}, nil
 		}
 	}
-	return contracts.RuntimeCredentialRefV2{}, resolutionError(
+	return contracts.RuntimeCredentialRef{}, resolutionError(
 		ResolutionCredentialKindMismatch, path, ErrInvalid,
 	)
 }
@@ -674,17 +674,17 @@ func originsForPinned(layer RuntimeLayer, entries []PinnedRuntimeConfig) layerOr
 	}
 }
 
-func bindingProvenance(value PinnedRuntimeConfig) contracts.RuntimeLabelBindingProvenanceV2 {
-	return contracts.RuntimeLabelBindingProvenanceV2{
+func bindingProvenance(value PinnedRuntimeConfig) contracts.RuntimeLabelBindingProvenance {
+	return contracts.RuntimeLabelBindingProvenance{
 		Label: value.Label, BindingRevision: value.BindingRevision,
-		Config: contracts.RuntimeConfigRefV2{
+		Config: contracts.RuntimeConfigRef{
 			Name: value.Config.Name, Version: value.Config.Version, Digest: value.Config.Digest,
 		},
 	}
 }
 
-func bindingProvenanceList(values []PinnedRuntimeConfig) []contracts.RuntimeLabelBindingProvenanceV2 {
-	result := make([]contracts.RuntimeLabelBindingProvenanceV2, len(values))
+func bindingProvenanceList(values []PinnedRuntimeConfig) []contracts.RuntimeLabelBindingProvenance {
+	result := make([]contracts.RuntimeLabelBindingProvenance, len(values))
 	for index := range values {
 		result[index] = bindingProvenance(values[index])
 	}
@@ -840,10 +840,10 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result.RequiredRuntimeAdapters = append([]contracts.RuntimeAdapterRef{}, r.RequiredRuntimeAdapters...)
 	result.Origins = cloneOrigins(r.Origins)
 	result.Provenance.RunLabels = append(
-		[]contracts.RuntimeLabelBindingProvenanceV2{}, r.Provenance.RunLabels...,
+		[]contracts.RuntimeLabelBindingProvenance{}, r.Provenance.RunLabels...,
 	)
 	result.Provenance.AgentLabels = append(
-		[]contracts.RuntimeLabelBindingProvenanceV2{}, r.Provenance.AgentLabels...,
+		[]contracts.RuntimeLabelBindingProvenance{}, r.Provenance.AgentLabels...,
 	)
 	result.Provenance.RuntimeAdapters = append(
 		[]contracts.RuntimeAdapterRef{}, r.Provenance.RuntimeAdapters...,
@@ -851,7 +851,7 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	result.Provenance.LLMGatewayConfig = cloneGatewayRef(r.Provenance.LLMGatewayConfig)
 	result.Provenance.LLMCredential = cloneCredentialRef(r.Provenance.LLMCredential)
 	result.Provenance.RuntimeCredentialRefs = append(
-		[]contracts.RuntimeCredentialRefV2{}, r.Provenance.RuntimeCredentialRefs...,
+		[]contracts.RuntimeCredentialRef{}, r.Provenance.RuntimeCredentialRefs...,
 	)
 	return result
 }

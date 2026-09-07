@@ -23,7 +23,7 @@ context:
 scope:
   in:
     - Carry resolved workspace through StageCreation/StageExecution persistence and recovery validation.
-    - Add workspace to BindingRequirement, Reservation and RuntimeControlClient AllocationSpecV2 construction.
+    - Add workspace to BindingRequirement, Reservation and RuntimeControlClient AllocationSpec construction.
     - Reuse exact StageContext refs by alias and clone the same values for every Router binding.
     - Include requested workspace mode in complete candidate compatibility and Operations rejection detail without exposing refs/content.
     - Verify reservation replay compares the immutable workspace projection.

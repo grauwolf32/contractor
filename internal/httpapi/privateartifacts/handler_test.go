@@ -555,9 +555,8 @@ func newProductionGrantHandler(
 		principal := controlplane.AuthenticatedPrincipal{
 			RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
 		}
-		registration := contracts.AgentRegistrationV2{
-			APIVersion: contracts.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
-			InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
+		registration := contracts.AgentRegistration{
+			APIVersion: contracts.APIVersion, InstanceID: identity.instanceID, SoftwareVersion: "0.1.0",
 			StartedAt:     time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC),
 			ControlURL:    "https://" + identity.instanceID + ".example:9443",
 			A2AURL:        "https://" + identity.instanceID + ".example:9444",

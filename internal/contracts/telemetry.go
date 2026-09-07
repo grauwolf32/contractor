@@ -84,19 +84,19 @@ type ExecutionReport struct {
 }
 
 type RuntimeReport struct {
-	Complete       bool                                          `json:"complete"`
-	DurationMS     *int64                                        `json:"durationMs,omitempty"`
-	StopReason     *string                                       `json:"stopReason,omitempty"`
-	Adapters       map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
-	Resources      *RuntimeResources                             `json:"resources,omitempty"`
-	ResourcesError *ResourceReason                               `json:"-"`
+	Complete       bool                                        `json:"complete"`
+	DurationMS     *int64                                      `json:"durationMs,omitempty"`
+	StopReason     *string                                     `json:"stopReason,omitempty"`
+	Adapters       map[RuntimeAdapterRef]RuntimeAdapterMetrics `json:"adapters"`
+	Resources      *RuntimeResources                           `json:"resources,omitempty"`
+	ResourcesError *ResourceReason                             `json:"-"`
 }
 
 func (r RuntimeReport) MarshalJSON() ([]byte, error) {
 	type wireRuntimeReport RuntimeReport
 	copy := wireRuntimeReport(r)
 	if copy.Adapters == nil {
-		copy.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{}
+		copy.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetrics{}
 	}
 	return json.Marshal(copy)
 }
@@ -123,7 +123,7 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	}
 	*r = RuntimeReport{
 		Complete: wire.Complete, DurationMS: wire.DurationMS, StopReason: wire.StopReason,
-		Adapters: map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{},
+		Adapters: map[RuntimeAdapterRef]RuntimeAdapterMetrics{},
 	}
 	r.Resources, r.ResourcesError = decodeOptionalResources(wire.Resources)
 	if wire.Adapters == nil {
@@ -142,18 +142,18 @@ func (r *RuntimeReport) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetricsV2, error) {
-	var metrics RuntimeAdapterMetricsV2
+func decodeRuntimeAdapterMetrics(data []byte) (RuntimeAdapterMetrics, error) {
+	var metrics RuntimeAdapterMetrics
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&metrics); err != nil {
-		return RuntimeAdapterMetricsV2{}, err
+		return RuntimeAdapterMetrics{}, err
 	}
 	if err := requireTelemetryJSONEOF(decoder); err != nil {
-		return RuntimeAdapterMetricsV2{}, err
+		return RuntimeAdapterMetrics{}, err
 	}
 	if err := metrics.Validate(); err != nil {
-		return RuntimeAdapterMetricsV2{}, err
+		return RuntimeAdapterMetrics{}, err
 	}
 	return metrics, nil
 }

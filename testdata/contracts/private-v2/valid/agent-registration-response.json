@@ -1,1 +1,0 @@
-{"apiVersion":"contractor/v1alpha1","confirmedLeaseSeconds":60,"heartbeatIntervalSeconds":10,"labelRevision":7,"labels":["caido","debug"],"privateProtocolVersion":2,"runtimeAgentId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}

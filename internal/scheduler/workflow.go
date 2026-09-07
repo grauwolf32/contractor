@@ -216,7 +216,7 @@ func bindingRequirements(
 			ResolvedSkills:    resolvedSkills,
 			ExecutionConfig:   allocationExecutionConfig(stage, name),
 			RuntimeSelection:  &selection,
-			Workspace:         contracts.CloneAllocationWorkspaceSpecV2(workspace),
+			Workspace:         contracts.CloneAllocationWorkspaceSpec(workspace),
 		})
 	}
 	return result, nil
@@ -225,20 +225,20 @@ func bindingRequirements(
 func projectAllocationWorkspace(
 	workspace *workflowconfig.WorkspaceContext,
 	context runstore.StageContextSnapshot,
-) (*contracts.AllocationWorkspaceSpecV2, error) {
+) (*contracts.AllocationWorkspaceSpec, error) {
 	if workspace == nil {
 		return nil, nil
 	}
-	result := &contracts.AllocationWorkspaceSpecV2{
+	result := &contracts.AllocationWorkspaceSpec{
 		Mode:    workspace.Mode,
-		Sources: make([]contracts.AllocationWorkspaceSourceV2, 0, len(workspace.Sources)),
+		Sources: make([]contracts.AllocationWorkspaceSource, 0, len(workspace.Sources)),
 	}
 	for _, source := range workspace.Sources {
 		pinned, exists := context.Artifacts[source.Artifact]
 		if !exists || pinned.Artifact == nil {
 			return nil, fmt.Errorf("workspace source %q has no exact StageContext pin", source.Artifact)
 		}
-		result.Sources = append(result.Sources, contracts.AllocationWorkspaceSourceV2{
+		result.Sources = append(result.Sources, contracts.AllocationWorkspaceSource{
 			Artifact: cloneArtifactRef(*pinned.Artifact), Target: source.Target,
 		})
 	}
@@ -248,13 +248,13 @@ func projectAllocationWorkspace(
 			return nil, fmt.Errorf("workspace state %q is absent from StageContext", workspace.State.Artifact)
 		}
 		if pinned.Artifact != nil {
-			result.State = &contracts.AllocationWorkspaceStateV2{
+			result.State = &contracts.AllocationWorkspaceState{
 				Artifact: cloneArtifactRef(*pinned.Artifact),
 			}
 		}
 	}
 	if workspace.Export != nil {
-		result.Export = &contracts.AllocationWorkspaceExportV2{
+		result.Export = &contracts.AllocationWorkspaceExport{
 			State: workspace.Export.State, Diff: workspace.Export.Diff,
 		}
 	}

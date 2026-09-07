@@ -564,9 +564,9 @@ const AllocationRuntimeConfigurationSchemaVersion = "contractor.runtime-config-p
 // outside PostgreSQL; immutable refs, origins and adapter requirements remain
 // available for audit and report attribution.
 type AllocationRuntimeConfiguration struct {
-	ModelPolicy contracts.ModelPolicyRef                    `json:"modelPolicy"`
-	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins  `json:"origins"`
-	Provenance  contracts.ResolvedRuntimeConfigProvenanceV2 `json:"provenance"`
+	ModelPolicy contracts.ModelPolicyRef                   `json:"modelPolicy"`
+	Origins     runtimeconfig.ResolvedRuntimeConfigOrigins `json:"origins"`
+	Provenance  contracts.ResolvedRuntimeConfigProvenance  `json:"provenance"`
 }
 
 // StageExecutionReport is the trusted Server envelope around one bounded

@@ -13,7 +13,7 @@ from contractor_runtime.artifacts import (
     ArtifactTransportError,
 )
 from contractor_runtime.contracts import (
-    AllocationWorkspaceExportV2,
+    AllocationWorkspaceExport,
     ArtifactRef,
     WorkerResult,
 )
@@ -60,7 +60,7 @@ class WorkspaceAutoExporter:
         workspace: OverlayWorkspaceSession,
         client: ArtifactClient,
         namespace: str,
-        slots: AllocationWorkspaceExportV2,
+        slots: AllocationWorkspaceExport,
     ) -> None:
         self._workspace = workspace
         self._client = client

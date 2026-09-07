@@ -24,7 +24,7 @@ type BindingRequirement struct {
 	AgentTemplate      contracts.ResolvedAgentTemplate
 	ResolvedSkills     []contracts.ResolvedSkill
 	ExecutionConfig    AllocationExecutionConfig
-	Workspace          *contracts.AllocationWorkspaceSpecV2
+	Workspace          *contracts.AllocationWorkspaceSpec
 	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
 	// Candidate Agent labels are deliberately resolved later by placement.
 	RuntimeSelection *workflowconfig.ResolvedConsumerExecutionConfig
@@ -35,7 +35,7 @@ type ReservationRequest struct {
 	StageExecutionID  string
 	RunMetadataLabels contracts.RunMetadataLabels
 	Bindings          []BindingRequirement
-	// RuntimeConfig is nil only for the legacy in-process Registry surface used
+	// RuntimeConfig is nil only for the in-process Registry surface used
 	// by focused capacity tests. Production placement always supplies the
 	// immutable Run snapshot.
 	RuntimeConfig *runtimeconfig.RunSnapshot
@@ -105,7 +105,7 @@ type Reservation struct {
 	WorkerSessionMode           contracts.WorkerSessionMode
 	ResolvedSkills              []contracts.ResolvedSkill
 	ExecutionConfig             AllocationExecutionConfig
-	Workspace                   *contracts.AllocationWorkspaceSpecV2
+	Workspace                   *contracts.AllocationWorkspaceSpec
 	RunMetadataLabels           contracts.RunMetadataLabels
 	RuntimeAgentLabelRevision   uint64
 	ResolvedRuntimeConfig       *runtimeconfig.ResolvedRuntimeConfig

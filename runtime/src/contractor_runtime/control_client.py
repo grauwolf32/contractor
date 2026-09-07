@@ -16,11 +16,11 @@ from urllib.parse import quote, urlsplit
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import (
-    AgentRegistrationResponseV2,
+    AgentRegistrationResponse,
     HeartbeatResponse,
     PrivateProtocolDecodeError,
     ReconciliationAction,
-    decode_private_v2,
+    decode_private,
 )
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import verify_control_plane_peer
@@ -174,16 +174,16 @@ class ControlClient:
     def timing(self) -> ControlTiming:
         return self._timing
 
-    async def register(self) -> AgentRegistrationResponseV2:
+    async def register(self) -> AgentRegistrationResponse:
         registration = await self._state.registration(self._settings)
         raw = await self._transport.post_json(
             "/private/v1/agents/register",
             registration.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
         try:
-            response = decode_private_v2(AgentRegistrationResponseV2, _response_json(raw))
+            response = decode_private(AgentRegistrationResponse, _response_json(raw))
         except (PrivateProtocolDecodeError, ValidationError):
-            raise ControlClientError("invalid protocol-v2 registration response") from None
+            raise ControlClientError("invalid registration response") from None
         self._timing = ControlTiming(
             heartbeat_interval_seconds=float(response.heartbeat_interval_seconds),
             confirmed_lease_seconds=float(response.confirmed_lease_seconds),

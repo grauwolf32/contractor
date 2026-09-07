@@ -30,7 +30,7 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registration := testRegistrationV2("agent-http")
+	registration := testRegistration("agent-http")
 	if err := registration.Validate(); err != nil {
 		t.Fatalf("test registration is invalid: %v", err)
 	}
@@ -57,25 +57,28 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	if trusted.Code != http.StatusOK {
 		t.Fatalf("registration status = %d, body %s", trusted.Code, trusted.Body.String())
 	}
-	var response contracts.AgentRegistrationResponseV2
+	var response contracts.AgentRegistrationResponse
 	if err := json.Unmarshal(trusted.Body.Bytes(), &response); err != nil || response.HeartbeatIntervalSeconds != 10 || response.ConfirmedLeaseSeconds != 60 {
 		t.Fatalf("registration response = (%+v, %v)", response, err)
 	}
 	wantPrincipal, _ := mtls.RuntimeAgentID(&x509.Certificate{
 		RawSubjectPublicKeyInfo: []byte("test-runtime-key"),
 	})
-	if response.PrivateProtocolVersion != 2 || response.RuntimeAgentID != wantPrincipal ||
+	if response.APIVersion != contracts.APIVersion || response.RuntimeAgentID != wantPrincipal ||
 		response.LabelRevision != 1 || response.Labels == nil {
-		t.Fatalf("protocol-v2 principal response = %+v", response)
+		t.Fatalf("registration principal response = %+v", response)
 	}
 
-	legacyBody, _ := json.Marshal(testRegistration("legacy-agent"))
-	legacy := httptest.NewRecorder()
-	handler.ServeHTTP(
-		legacy, verifiedRequest(http.MethodPost, "/private/v1/agents/register", legacyBody),
-	)
-	if legacy.Code != http.StatusBadRequest {
-		t.Fatalf("v1 registration status = %d, body %s", legacy.Code, legacy.Body.String())
+	var incompleteRegistration map[string]any
+	if err := json.Unmarshal(body, &incompleteRegistration); err != nil {
+		t.Fatal(err)
+	}
+	delete(incompleteRegistration, "supportedRuntimeAdapters")
+	incompleteBody, _ := json.Marshal(incompleteRegistration)
+	incomplete := httptest.NewRecorder()
+	handler.ServeHTTP(incomplete, verifiedRequest(http.MethodPost, "/private/v1/agents/register", incompleteBody))
+	if incomplete.Code != http.StatusBadRequest {
+		t.Fatalf("incomplete registration status = %d, body %s", incomplete.Code, incomplete.Body.String())
 	}
 
 	invalidBody := append(bytes.TrimSuffix(body, []byte("}")), []byte(`,"unknown":true}`)...)
@@ -123,7 +126,7 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 	server.StartTLS()
 	defer server.Close()
 
-	registration := testRegistrationV2("trusted-agent")
+	registration := testRegistration("trusted-agent")
 	body, _ := json.Marshal(registration)
 	trustedClientTLS, err := mtls.ControlPlaneClientConfig(trusted.agent, "127.0.0.1")
 	if err != nil {
@@ -146,7 +149,7 @@ func TestPrivateRegistryMTLSRejectsForeignCA(t *testing.T) {
 		t.Fatal(err)
 	}
 	foreignClient := &http.Client{Transport: &http.Transport{TLSClientConfig: foreignClientTLS}, Timeout: 3 * time.Second}
-	foreignRegistration := testRegistrationV2("foreign-agent")
+	foreignRegistration := testRegistration("foreign-agent")
 	foreignBody, _ := json.Marshal(foreignRegistration)
 	if response, err := postJSON(foreignClient, server.URL+"/private/v1/agents/register", foreignBody); err == nil {
 		_ = response.Body.Close()
@@ -166,20 +169,6 @@ func verifiedRequest(method, target string, body []byte) *http.Request {
 	}
 	request.Header.Set("Content-Type", "application/json")
 	return request
-}
-
-func testRegistrationV2(instanceID string) contracts.AgentRegistrationV2 {
-	legacy := testRegistration(instanceID)
-	return contracts.AgentRegistrationV2{
-		APIVersion: legacy.APIVersion, PrivateProtocolVersion: contracts.PrivateProtocolVersionV2,
-		InstanceID: legacy.InstanceID, SoftwareVersion: legacy.SoftwareVersion,
-		StartedAt: legacy.StartedAt, ControlURL: legacy.ControlURL, A2AURL: legacy.A2AURL,
-		InitialLabels: []string{}, SupportedRuntimes: legacy.SupportedRuntimes,
-		SupportedToolsets:        legacy.SupportedToolsets,
-		SupportedSandboxProfiles: legacy.SupportedSandboxProfiles,
-		SupportedRuntimeAdapters: []contracts.RuntimeAdapterRef{},
-		ObservedState:            legacy.ObservedState, AllocationID: legacy.AllocationID,
-	}
 }
 
 type testPrincipalRegistrar struct{}

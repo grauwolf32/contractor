@@ -72,7 +72,7 @@ request timeout.
 
 `credential` is an optional ID of credential kind `caido-bearer@1`. Absence
 means explicitly unauthenticated/guest access. The resolved token is a
-`SecretString` only in private `RuntimeSettingsV2`; provenance carries the
+`SecretString` only in private `RuntimeSettings`; provenance carries the
 credential ID/kind, never bytes.
 
 `caido-graphql@1` advertises one private infrastructure handle

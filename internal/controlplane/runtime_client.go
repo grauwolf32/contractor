@@ -32,7 +32,7 @@ var (
 )
 
 type RuntimeLifecycle interface {
-	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettingsV2) (contracts.WorkerHandle, error)
+	Prepare(context.Context, Reservation, contracts.WorkerExecutionSettings) (contracts.WorkerHandle, error)
 	Finalize(context.Context, Reservation, string, time.Time) (contracts.AllocationFinalReport, error)
 	Abort(context.Context, Reservation, string, contracts.TerminationError, time.Time) (contracts.AllocationFinalReport, error)
 	Release(context.Context, Reservation) error
@@ -90,7 +90,7 @@ func NewRuntimeControlClient(client *http.Client) (*RuntimeControlClient, error)
 func (c *RuntimeControlClient) Prepare(
 	ctx context.Context,
 	reservation Reservation,
-	settings contracts.WorkerExecutionSettingsV2,
+	settings contracts.WorkerExecutionSettings,
 ) (contracts.WorkerHandle, error) {
 	if !contracts.SupportsWorkerCompletion(reservation.CompletionCapabilities, reservation.CompletionContract) {
 		return contracts.WorkerHandle{}, fmt.Errorf("%w: Runtime does not support completion contract", ErrInvalidRequest)
@@ -102,7 +102,7 @@ func (c *RuntimeControlClient) Prepare(
 	if resolvedSkills == nil && len(reservation.AgentTemplate.Skills) == 0 {
 		resolvedSkills = []contracts.ResolvedSkill{}
 	}
-	spec := contracts.AllocationSpecV2{
+	spec := contracts.AllocationSpec{
 		CompletionContract: contracts.CloneWorkerCompletionContract(reservation.CompletionContract),
 		APIVersion:         contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
 		RunID: reservation.Grant.RunID, StageExecutionID: reservation.Grant.StageExecutionID,
@@ -113,10 +113,10 @@ func (c *RuntimeControlClient) Prepare(
 		ResolvedSkills: contracts.CloneResolvedSkills(resolvedSkills),
 		ModelPolicy:    cloneModelPolicy(settings.ModelPolicy), RuntimeSettings: settings.RuntimeSettings,
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
-		Workspace:                       contracts.CloneAllocationWorkspaceSpecV2(reservation.Workspace),
+		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
-	request := contracts.PrepareAllocationRequestV2{APIVersion: contracts.APIVersion, Spec: spec}
+	request := contracts.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
@@ -127,7 +127,7 @@ func (c *RuntimeControlClient) Prepare(
 	); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
-	if err := validateWorkerHandleV2(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
+	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
 	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
@@ -386,7 +386,7 @@ func sanitizeRuntimeAdapterMetrics(report *contracts.RuntimeReport, reservation 
 		}
 	}
 	if report.Adapters == nil {
-		report.Adapters = map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetricsV2{}
+		report.Adapters = map[contracts.RuntimeAdapterRef]contracts.RuntimeAdapterMetrics{}
 	}
 	for ref, metrics := range report.Adapters {
 		_, selected := expected[ref]
@@ -542,10 +542,10 @@ func (c *RuntimeControlClient) endpoint(baseURL, allocationID, operation string)
 	return parsed.String(), nil
 }
 
-func validateWorkerHandleV2(
+func validateWorkerHandle(
 	handle contracts.WorkerHandle,
 	reservation Reservation,
-	settings contracts.RuntimeSettingsV2,
+	settings contracts.RuntimeSettings,
 ) error {
 	if handle.AllocationID != reservation.Grant.AllocationID ||
 		handle.AgentTemplateRef != reservation.AgentTemplate.Ref ||
@@ -597,7 +597,7 @@ func collectStringValues(result map[string]struct{}, value any) {
 	}
 }
 
-func runtimeSettingSecrets(settings contracts.RuntimeSettingsV2) []string {
+func runtimeSettingSecrets(settings contracts.RuntimeSettings) []string {
 	result := make([]string, 0, 36)
 	if settings.LLMGatewayToken != nil {
 		result = append(result, settings.LLMGatewayToken.Reveal())
@@ -838,7 +838,7 @@ func NewRuntimeBatchController(
 func (c *RuntimeBatchController) PrepareAll(
 	ctx context.Context,
 	reservations []Reservation,
-	settings map[string]contracts.WorkerExecutionSettingsV2,
+	settings map[string]contracts.WorkerExecutionSettings,
 ) (map[string]contracts.WorkerHandle, error) {
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err

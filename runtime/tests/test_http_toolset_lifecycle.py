@@ -10,12 +10,7 @@ import pytest
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.contracts import (
-    ArtifactRef,
-    HTTPProxySettingsV2,
-    RuntimeSettings,
-    RuntimeSettingsV2,
-)
+from contractor_runtime.contracts import ArtifactRef, HTTPProxySettings, RuntimeSettings
 from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -86,11 +81,11 @@ def test_tool_cleanup_succeeds_after_terminal_proxy_adapter_detach(tmp_path: Pat
         )
         handle = ProxyHTTPClient(client)
         factory = HTTPToolsetFactory(lambda _allocation, _settings: FakeArtifactClient())
-        settings = RuntimeSettingsV2(
+        settings = RuntimeSettings(
             llmGatewayUrl="https://gateway.example/v1",
             llmGatewayToken="gateway-token",
             artifactApiUrl="https://control.example/private/v1",
-            httpProxy=HTTPProxySettingsV2(
+            httpProxy=HTTPProxySettings(
                 adapter="http-proxy@1",
                 proxyUrl="https://proxy.example",
                 targets=["tool-http"],

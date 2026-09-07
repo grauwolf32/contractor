@@ -5,7 +5,7 @@ import pytest
 from fakes.spec import allocation_spec
 from starlette.testclient import TestClient
 
-from contractor_runtime.contracts import API_VERSION, PrepareAllocationRequestV2
+from contractor_runtime.contracts import API_VERSION, PrepareAllocationRequest
 from contractor_runtime.server import create_app
 from contractor_runtime.state import RuntimeState
 
@@ -60,7 +60,7 @@ def test_prepare_rejects_legacy_request_before_lifecycle_dispatch() -> None:
         async def active_a2a_application(self, _: str) -> object:
             raise AssertionError("unexpected A2A dispatch")
 
-    request = PrepareAllocationRequestV2(
+    request = PrepareAllocationRequest(
         apiVersion=API_VERSION,
         spec=allocation_spec(),
     ).model_dump(mode="json", by_alias=True)
@@ -103,7 +103,7 @@ def test_prepare_rejects_invalid_run_metadata_labels_before_dispatch(
         async def active_a2a_application(self, _: str) -> object:
             raise AssertionError("unexpected A2A dispatch")
 
-    request = PrepareAllocationRequestV2(
+    request = PrepareAllocationRequest(
         apiVersion=API_VERSION,
         spec=allocation_spec(),
     ).model_dump(mode="json", by_alias=True)
@@ -137,7 +137,7 @@ def test_internal_failure_is_correlated_and_does_not_log_injected_secret(
         async def active_a2a_application(self, _: str) -> object:
             raise RuntimeError(injected_secret)
 
-    request = PrepareAllocationRequestV2(
+    request = PrepareAllocationRequest(
         apiVersion=API_VERSION,
         spec=allocation_spec(allocation_id=injected_secret),
     )

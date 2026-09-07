@@ -1,17 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "allocationId": "allocation-secret-authority",
-  "state": {
-    "schemaVersion": 1,
-    "stateRevision": 1,
-    "metrics": {
-      "counters": {},
-      "toolCalls": [],
-      "errors": [],
-      "finalOutcome": null,
-      "truncated": false
-    },
-    "currentInvocation": null,
-    "lastCompletedInvocation": null
-  }
-}
+{"allocationId":"allocation-secret-authority","apiVersion":"contractor/v1alpha1","state":{"currentInvocation":null,"lastCompletedInvocation":null,"metrics":{"counters":{},"errors":[],"finalOutcome":null,"toolCalls":[],"truncated":false},"schemaVersion":1,"stateRevision":1}}

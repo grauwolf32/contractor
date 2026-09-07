@@ -1,13 +1,1 @@
-{
-  "apiVersion": "contractor/v9",
-  "allocationId": "a",
-  "runId": "r",
-  "stageExecutionId": "s",
-  "logicalAgentName": "builder",
-  "namespace": "builder",
-  "runMetadataLabels": {},
-  "leaseExpiresAt": "2026-08-29T10:01:00Z",
-  "agentTemplate": {},
-  "resolvedSkills": [],
-  "runtimeSettings": {}
-}
+{"agentTemplate":{},"allocationId":"a","apiVersion":"contractor/v9","leaseExpiresAt":"2026-08-29T10:01:00Z","logicalAgentName":"builder","namespace":"builder","resolvedRuntimeConfigProvenance":{"agentLabels":[{"bindingRevision":5,"config":{"digest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","name":"site_proxy","version":"1"},"label":"site_proxy"}],"default":{"bindingRevision":1,"config":{"digest":"sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f","name":"contractor-empty","version":"1"},"label":"default"},"llmCredential":{"credentialId":"worker_local"},"llmGatewayConfig":{"digest":"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","gatewayId":"local-litellm","version":"1"},"runLabels":[{"bindingRevision":3,"config":{"digest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","name":"debug","version":"2"},"label":"debug"}],"runtimeAdapters":["caido-graphql@1","http-proxy@1","otlp-http@1"],"runtimeCredentialRefs":[{"credentialId":"caido_api","kind":"caido-bearer@1"},{"credentialId":"caido_proxy","kind":"http-proxy-basic@1"},{"credentialId":"langfuse_otel","kind":"otlp-headers@1"}]},"resolvedSkills":[],"runId":"r","runMetadataLabels":{},"runtimeSettings":{},"stageExecutionId":"s"}

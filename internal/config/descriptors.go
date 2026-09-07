@@ -34,8 +34,8 @@ type ToolsetDescriptor struct {
 // SandboxProfileDescriptor describes authoring and binding-specific placement
 // requirements, not proof that a Runtime has installed the implementation.
 type SandboxProfileDescriptor struct {
-	WorkspaceMode    contracts.WorkspaceModeV2
-	WorkspaceStorage contracts.WorkspaceStorageV2
+	WorkspaceMode    contracts.WorkspaceMode
+	WorkspaceStorage contracts.WorkspaceStorage
 }
 
 // Descriptors enumerates registered contracts that configuration is allowed to

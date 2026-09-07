@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from contractor_runtime.contracts import WorkspaceStorageV2
+from contractor_runtime.contracts import WorkspaceStorage
 from contractor_runtime.sandbox.podman.settings import (
     PodmanSettings,
     add_podman_arguments,
@@ -35,7 +35,7 @@ class WorkspaceLimits:
 
 @dataclass(frozen=True, slots=True)
 class WorkspaceSettings:
-    storage: WorkspaceStorageV2
+    storage: WorkspaceStorage
     limits: WorkspaceLimits
     work_root: Path | None = field(default=None, repr=False)
     operation_timeout_seconds: float = DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS
@@ -334,7 +334,7 @@ def _workspace_settings(
             parser.error("--workspace-storage is required when workspace options are set")
         return None
 
-    storage: WorkspaceStorageV2 = args.workspace_storage
+    storage: WorkspaceStorage = args.workspace_storage
     work_root: Path | None = None
     if storage == "local":
         raw_root = args.workspace_work_root

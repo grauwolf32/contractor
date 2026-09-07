@@ -15,8 +15,8 @@ from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     ArtifactRef,
-    CaidoSettingsV2,
-    RuntimeSettingsV2,
+    CaidoSettings,
+    RuntimeSettings,
 )
 from contractor_runtime.toolsets.caido.tools import (
     CAIDO_EXCHANGE_MEDIA_TYPE,
@@ -150,11 +150,11 @@ async def create_tools(
         metrics=metrics,
         transport=httpx.MockTransport(handler),
     )
-    settings = RuntimeSettingsV2(
+    settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example/v1",
         llmGatewayToken="gateway-token",
         artifactApiUrl="https://control.example/private/v1",
-        caido=CaidoSettingsV2(
+        caido=CaidoSettings(
             adapter="caido-graphql@1",
             endpoint="https://caido.example",
             bearerToken=CAIDO_TOKEN,

@@ -46,7 +46,7 @@ from contractor_runtime.contracts import (
     RuntimeAdapterRef,
     TelemetryExportSettings,
     TelemetryRetrySettings,
-    TelemetrySettingsV2,
+    TelemetrySettings,
 )
 
 MAX_SPAN_ATTRIBUTES = 64
@@ -382,7 +382,7 @@ class OTLPHTTPAdapterFactory:
         context: RuntimeAdapterBuildContext,
         settings: AdapterSettings,
     ) -> OTLPHTTPAdapter:
-        if not isinstance(settings, TelemetrySettingsV2):
+        if not isinstance(settings, TelemetrySettings):
             raise AdapterFactoryError(retryable=False)
         try:
             return OTLPHTTPAdapter(context, settings, transport=self._transport)
@@ -399,7 +399,7 @@ class OTLPHTTPAdapter:
     def __init__(
         self,
         context: RuntimeAdapterBuildContext,
-        settings: TelemetrySettingsV2,
+        settings: TelemetrySettings,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:

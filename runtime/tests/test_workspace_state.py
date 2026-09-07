@@ -10,7 +10,7 @@ import pytest
 from test_projectfs_zip import REVISION, archive, settings, workspace_inputs
 
 from contractor_runtime.artifacts import ArtifactValue
-from contractor_runtime.contracts import AllocationWorkspaceStateV2, ArtifactRef
+from contractor_runtime.contracts import AllocationWorkspaceState, ArtifactRef
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     ManagedWorkspaceTree,
@@ -156,7 +156,7 @@ def test_hydration_applies_exact_state_to_overlay_view_and_direct_copy(tmp_path:
             binding_created_at=datetime(2026, 9, 1, tzinfo=UTC),
             revision_created_at=datetime(2026, 9, 1, tzinfo=UTC),
         )
-        spec.state = AllocationWorkspaceStateV2(artifact=state_ref)
+        spec.state = AllocationWorkspaceState(artifact=state_ref)
 
         overlay_provider = LocalWorkspaceProvider(settings("local", tmp_path / "overlay"))
         imported = await hydrate_workspace(

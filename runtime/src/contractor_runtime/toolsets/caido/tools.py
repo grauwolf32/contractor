@@ -18,7 +18,7 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
-from contractor_runtime.contracts import ArtifactRef, RuntimeSettings, RuntimeSettingsV2
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import (
     artifact_observation_cursor,
     clear_artifact_observations,
@@ -2045,11 +2045,7 @@ def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
     token = settings.llm_gateway_token
     if token is not None:
         values.append(token.get_secret_value())
-    if (
-        isinstance(settings, RuntimeSettingsV2)
-        and settings.caido is not None
-        and settings.caido.bearer_token is not None
-    ):
+    if settings.caido is not None and settings.caido.bearer_token is not None:
         values.append(settings.caido.bearer_token.get_secret_value())
     return tuple(value for value in values if value)
 

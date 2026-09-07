@@ -6,10 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlsplit
 
-from contractor_runtime.contracts import (
-    RuntimeSettings,
-    RuntimeSettingsV2,
-)
+from contractor_runtime.contracts import RuntimeSettings
 
 
 def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
@@ -17,33 +14,30 @@ def _runtime_setting_values(settings: RuntimeSettings) -> tuple[str, ...]:
     token = settings.llm_gateway_token
     if token is not None:
         values.append(token.get_secret_value())
-    if isinstance(settings, RuntimeSettingsV2):
-        if settings.telemetry is not None:
-            values.append(settings.telemetry.endpoint)
+    if settings.telemetry is not None:
+        values.append(settings.telemetry.endpoint)
+        values.extend(secret.get_secret_value() for secret in settings.telemetry.headers.values())
+    if settings.http_proxy is not None:
+        proxy = settings.http_proxy
+        values.append(proxy.proxy_url)
+        if proxy.basic_auth is not None:
             values.extend(
-                secret.get_secret_value() for secret in settings.telemetry.headers.values()
-            )
-        if settings.http_proxy is not None:
-            proxy = settings.http_proxy
-            values.append(proxy.proxy_url)
-            if proxy.basic_auth is not None:
-                values.extend(
-                    (
-                        proxy.basic_auth.username.get_secret_value(),
-                        proxy.basic_auth.password.get_secret_value(),
-                    )
+                (
+                    proxy.basic_auth.username.get_secret_value(),
+                    proxy.basic_auth.password.get_secret_value(),
                 )
-            if proxy.bearer_token is not None:
-                values.append(proxy.bearer_token.get_secret_value())
-            if proxy.ca_bundle_pem is not None:
-                values.append(proxy.ca_bundle_pem)
-        if settings.caido is not None:
-            caido = settings.caido
-            values.append(caido.endpoint)
-            if caido.bearer_token is not None:
-                values.append(caido.bearer_token.get_secret_value())
-            if caido.ca_bundle_pem is not None:
-                values.append(caido.ca_bundle_pem)
+            )
+        if proxy.bearer_token is not None:
+            values.append(proxy.bearer_token.get_secret_value())
+        if proxy.ca_bundle_pem is not None:
+            values.append(proxy.ca_bundle_pem)
+    if settings.caido is not None:
+        caido = settings.caido
+        values.append(caido.endpoint)
+        if caido.bearer_token is not None:
+            values.append(caido.bearer_token.get_secret_value())
+        if caido.ca_bundle_pem is not None:
+            values.append(caido.ca_bundle_pem)
     return tuple(value for value in values if value)
 
 

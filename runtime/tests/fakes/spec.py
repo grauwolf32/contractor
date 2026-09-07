@@ -3,22 +3,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentTemplateRef,
-    AllocationSpecV2,
+    AllocationSpec,
     ArtifactRef,
-    LLMGatewayConfigRef,
     ModelPolicyRef,
     ResolvedAgentTemplate,
     ResolvedInstructions,
     ResolvedModelPolicy,
-    ResolvedRuntimeConfigProvenanceV2,
+    ResolvedRuntimeConfigProvenance,
     ResolvedSkill,
-    RuntimeConfigRefV2,
-    RuntimeLabelBindingProvenanceV2,
-    RuntimeSettingsV2,
+    RuntimeSettings,
     SandboxProfileRef,
     ToolsetRef,
     ToolsetSelection,
@@ -40,7 +38,7 @@ def allocation_spec(
     tools: list[str] | None = None,
     skills: list[ResolvedSkill] | None = None,
     summarizer: bool = False,
-) -> AllocationSpecV2:
+) -> AllocationSpec:
     skills = skills or []
     instructions = "Use only the selected tools and return a strict result."
     policy = ResolvedModelPolicy(
@@ -97,7 +95,7 @@ def allocation_spec(
         sandboxProfile=SandboxProfileRef(sandboxProfileId="local-workdir", version="1"),
     )
     template.ref.digest = _agent_template_digest(template)
-    return AllocationSpecV2(
+    return AllocationSpec(
         apiVersion=API_VERSION,
         allocationId=allocation_id,
         runId="run-1",
@@ -110,30 +108,19 @@ def allocation_spec(
         agentTemplate=template,
         resolvedSkills=skills,
         modelPolicy=policy.model_copy(deep=True),
-        runtimeSettings=RuntimeSettingsV2(
+        runtimeSettings=RuntimeSettings(
             llmGatewayUrl="https://llm.example/v1",
             llmGatewayToken=secret,
             artifactApiUrl="https://control.example/private/v1",
             requestTimeoutSeconds=30,
         ),
-        resolvedRuntimeConfigProvenance=ResolvedRuntimeConfigProvenanceV2(
-            default=RuntimeLabelBindingProvenanceV2(
-                label="default",
-                bindingRevision=1,
-                config=RuntimeConfigRefV2(
-                    name="contractor-empty",
-                    version="1",
-                    digest="sha256:" + "a" * 64,
-                ),
-            ),
-            runLabels=[],
-            agentLabels=[],
-            runtimeAdapters=[],
-            llmGatewayConfig=LLMGatewayConfigRef(
-                gatewayId="local-litellm",
-                version="1",
-                digest="sha256:" + "b" * 64,
-            ),
-            runtimeCredentialRefs=[],
-        ),
+        resolvedRuntimeConfigProvenance=runtime_provenance(),
     )
+
+
+def runtime_provenance() -> ResolvedRuntimeConfigProvenance:
+    fixture = (
+        Path(__file__).resolve().parents[3]
+        / "api/testdata/v1alpha1/valid/runtime-provenance-empty.json"
+    )
+    return ResolvedRuntimeConfigProvenance.model_validate_json(fixture.read_bytes())

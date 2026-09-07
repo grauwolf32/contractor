@@ -1946,7 +1946,9 @@ func (s *Scheduler) rebuildStageMetrics(stageExecutionID string) {
 func (s *Scheduler) telemetrySecrets() []string {
 	result := make([]string, 0, len(s.options.TelemetrySecrets)+1)
 	result = append(result, s.options.TelemetrySecrets...)
-	result = append(result, s.options.RuntimeSettings.LLMGatewayToken.Reveal())
+	if s.options.RuntimeSettings.LLMGatewayToken != nil {
+		result = append(result, s.options.RuntimeSettings.LLMGatewayToken.Reveal())
+	}
 	return result
 }
 

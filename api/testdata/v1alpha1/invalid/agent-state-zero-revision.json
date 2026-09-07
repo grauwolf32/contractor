@@ -1,16 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "state": {
-    "schemaVersion": 1,
-    "stateRevision": 0,
-    "metrics": {
-      "counters": {},
-      "toolCalls": [],
-      "errors": [],
-      "finalOutcome": null,
-      "truncated": false
-    },
-    "currentInvocation": null,
-    "lastCompletedInvocation": null
-  }
-}
+{"apiVersion":"contractor/v1alpha1","state":{"currentInvocation":null,"lastCompletedInvocation":null,"metrics":{"counters":{},"errors":[],"finalOutcome":null,"toolCalls":[],"truncated":false},"schemaVersion":1,"stateRevision":0}}

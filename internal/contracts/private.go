@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	PrivateProtocolVersionV2 = 2
-
 	RuntimeAdapterOTLPHTTP     RuntimeAdapterRef = "otlp-http@1"
 	RuntimeAdapterHTTPProxy    RuntimeAdapterRef = "http-proxy@1"
 	RuntimeAdapterCaidoGraphQL RuntimeAdapterRef = "caido-graphql@1"
@@ -74,7 +72,7 @@ type PrivateProtocolError struct {
 }
 
 func (e *PrivateProtocolError) Error() string {
-	return "private protocol v2 " + string(e.Class) + " error"
+	return "private protocol " + string(e.Class) + " error"
 }
 
 func (e *PrivateProtocolError) Format(state fmt.State, _ rune) {
@@ -104,27 +102,27 @@ func (k RuntimeCredentialKind) Validate() error {
 	}
 }
 
-type AgentRegistrationV2 struct {
-	Capabilities                        *RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
-	APIVersion                          string                         `json:"apiVersion"`
-	PrivateProtocolVersion              int                            `json:"privateProtocolVersion"`
-	InstanceID                          string                         `json:"instanceId"`
-	SoftwareVersion                     string                         `json:"softwareVersion"`
-	StartedAt                           time.Time                      `json:"startedAt"`
-	ControlURL                          string                         `json:"controlUrl"`
-	A2AURL                              string                         `json:"a2aUrl"`
-	InitialLabels                       []string                       `json:"initialLabels"`
-	SupportedRuntimes                   []string                       `json:"supportedRuntimes"`
-	SupportedToolsets                   []ToolsetCapability            `json:"supportedToolsets"`
-	SupportedSandboxProfiles            []string                       `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters            []RuntimeAdapterRef            `json:"supportedRuntimeAdapters"`
-	SupportedPerformanceMetricsVersions PerformanceMetricsVersions     `json:"supportedPerformanceMetricsVersions,omitempty"`
-	WorkspaceCapabilities               *WorkspaceCapabilitiesV2       `json:"workspaceCapabilities,omitempty"`
-	ObservedState                       AgentObservedState             `json:"observedState"`
-	AllocationID                        *string                        `json:"allocationId,omitempty"`
+type AgentRegistration struct {
+	Capabilities *RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
+	APIVersion   string                         `json:"apiVersion"`
+
+	InstanceID                          string                     `json:"instanceId"`
+	SoftwareVersion                     string                     `json:"softwareVersion"`
+	StartedAt                           time.Time                  `json:"startedAt"`
+	ControlURL                          string                     `json:"controlUrl"`
+	A2AURL                              string                     `json:"a2aUrl"`
+	InitialLabels                       []string                   `json:"initialLabels"`
+	SupportedRuntimes                   []string                   `json:"supportedRuntimes"`
+	SupportedToolsets                   []ToolsetCapability        `json:"supportedToolsets"`
+	SupportedSandboxProfiles            []string                   `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters            []RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
+	SupportedPerformanceMetricsVersions PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
+	WorkspaceCapabilities               *WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
+	ObservedState                       AgentObservedState         `json:"observedState"`
+	AllocationID                        *string                    `json:"allocationId,omitempty"`
 }
 
-func (r AgentRegistrationV2) Validate() error {
+func (r AgentRegistration) Validate() error {
 	if r.Capabilities != nil {
 		if err := r.Capabilities.Validate(); err != nil {
 			return err
@@ -132,9 +130,6 @@ func (r AgentRegistrationV2) Validate() error {
 	}
 	if len(r.SupportedPerformanceMetricsVersions) > 1 || (len(r.SupportedPerformanceMetricsVersions) == 1 && r.SupportedPerformanceMetricsVersions[0] != 1) {
 		return invalidf("unsupported performance metrics capability")
-	}
-	if err := validatePrivateProtocolVersion(r.PrivateProtocolVersion); err != nil {
-		return err
 	}
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err
@@ -176,14 +171,14 @@ func (r AgentRegistrationV2) Validate() error {
 	return validateObservedAllocation(r.ObservedState, r.AllocationID)
 }
 
-type WorkspaceModeV2 string
+type WorkspaceMode string
 
 const (
-	WorkspaceModeDirect  WorkspaceModeV2 = "direct"
-	WorkspaceModeOverlay WorkspaceModeV2 = "overlay"
+	WorkspaceModeDirect  WorkspaceMode = "direct"
+	WorkspaceModeOverlay WorkspaceMode = "overlay"
 )
 
-func (m WorkspaceModeV2) Validate() error {
+func (m WorkspaceMode) Validate() error {
 	switch m {
 	case WorkspaceModeDirect, WorkspaceModeOverlay:
 		return nil
@@ -192,14 +187,14 @@ func (m WorkspaceModeV2) Validate() error {
 	}
 }
 
-type WorkspaceStorageV2 string
+type WorkspaceStorage string
 
 const (
-	WorkspaceStorageLocal  WorkspaceStorageV2 = "local"
-	WorkspaceStorageMemory WorkspaceStorageV2 = "memory"
+	WorkspaceStorageLocal  WorkspaceStorage = "local"
+	WorkspaceStorageMemory WorkspaceStorage = "memory"
 )
 
-func (s WorkspaceStorageV2) Validate() error {
+func (s WorkspaceStorage) Validate() error {
 	switch s {
 	case WorkspaceStorageLocal, WorkspaceStorageMemory:
 		return nil
@@ -208,14 +203,14 @@ func (s WorkspaceStorageV2) Validate() error {
 	}
 }
 
-type WorkspaceLimitsV2 struct {
+type WorkspaceLimits struct {
 	MaxFiles            int   `json:"maxFiles"`
 	MaxExpandedBytes    int64 `json:"maxExpandedBytes"`
 	MaxManagedTextBytes int64 `json:"maxManagedTextBytes"`
 	MaxFileBytes        int64 `json:"maxFileBytes"`
 }
 
-func (l WorkspaceLimitsV2) Validate() error {
+func (l WorkspaceLimits) Validate() error {
 	if l.MaxFiles <= 0 || l.MaxExpandedBytes <= 0 || l.MaxManagedTextBytes <= 0 || l.MaxFileBytes <= 0 ||
 		l.MaxFileBytes > l.MaxExpandedBytes || l.MaxManagedTextBytes > l.MaxExpandedBytes {
 		return invalidf("workspace limits are invalid")
@@ -223,13 +218,13 @@ func (l WorkspaceLimitsV2) Validate() error {
 	return nil
 }
 
-type WorkspaceCapabilitiesV2 struct {
-	Storage WorkspaceStorageV2 `json:"storage"`
-	Modes   []WorkspaceModeV2  `json:"modes"`
-	Limits  WorkspaceLimitsV2  `json:"limits"`
+type WorkspaceCapabilities struct {
+	Storage WorkspaceStorage `json:"storage"`
+	Modes   []WorkspaceMode  `json:"modes"`
+	Limits  WorkspaceLimits  `json:"limits"`
 }
 
-func (c WorkspaceCapabilitiesV2) Validate() error {
+func (c WorkspaceCapabilities) Validate() error {
 	if err := c.Storage.Validate(); err != nil {
 		return err
 	}
@@ -249,35 +244,35 @@ func (c WorkspaceCapabilitiesV2) Validate() error {
 	return c.Limits.Validate()
 }
 
-type AllocationWorkspaceSourceV2 struct {
+type AllocationWorkspaceSource struct {
 	Artifact ArtifactRef `json:"artifact"`
 	Target   string      `json:"target"`
 }
 
-type AllocationWorkspaceStateV2 struct {
+type AllocationWorkspaceState struct {
 	Artifact ArtifactRef `json:"artifact"`
 }
 
-type AllocationWorkspaceExportV2 struct {
+type AllocationWorkspaceExport struct {
 	State string `json:"state"`
 	Diff  string `json:"diff"`
 }
 
-type AllocationWorkspaceSpecV2 struct {
-	Mode    WorkspaceModeV2               `json:"mode"`
-	Sources []AllocationWorkspaceSourceV2 `json:"sources"`
-	State   *AllocationWorkspaceStateV2   `json:"state,omitempty"`
-	Export  *AllocationWorkspaceExportV2  `json:"export,omitempty"`
+type AllocationWorkspaceSpec struct {
+	Mode    WorkspaceMode               `json:"mode"`
+	Sources []AllocationWorkspaceSource `json:"sources"`
+	State   *AllocationWorkspaceState   `json:"state,omitempty"`
+	Export  *AllocationWorkspaceExport  `json:"export,omitempty"`
 }
 
-// CloneAllocationWorkspaceSpecV2 returns a detached copy suitable for crossing
+// CloneAllocationWorkspaceSpec returns a detached copy suitable for crossing
 // ownership boundaries between Scheduler, Control Plane and Runtime clients.
-func CloneAllocationWorkspaceSpecV2(source *AllocationWorkspaceSpecV2) *AllocationWorkspaceSpecV2 {
+func CloneAllocationWorkspaceSpec(source *AllocationWorkspaceSpec) *AllocationWorkspaceSpec {
 	if source == nil {
 		return nil
 	}
 	result := *source
-	result.Sources = make([]AllocationWorkspaceSourceV2, len(source.Sources))
+	result.Sources = make([]AllocationWorkspaceSource, len(source.Sources))
 	for index, item := range source.Sources {
 		result.Sources[index] = item
 		result.Sources[index].Artifact = cloneWorkspaceArtifactRef(item.Artifact)
@@ -303,7 +298,7 @@ func cloneWorkspaceArtifactRef(source ArtifactRef) ArtifactRef {
 	return result
 }
 
-func (s AllocationWorkspaceSpecV2) Validate() error {
+func (s AllocationWorkspaceSpec) Validate() error {
 	if err := s.Mode.Validate(); err != nil {
 		return err
 	}
@@ -373,9 +368,9 @@ func validateWorkspaceTarget(value string) error {
 	return nil
 }
 
-type AgentRegistrationResponseV2 struct {
-	APIVersion               string   `json:"apiVersion"`
-	PrivateProtocolVersion   int      `json:"privateProtocolVersion"`
+type AgentRegistrationResponse struct {
+	APIVersion string `json:"apiVersion"`
+
 	RuntimeAgentID           string   `json:"runtimeAgentId"`
 	Labels                   []string `json:"labels"`
 	LabelRevision            uint64   `json:"labelRevision"`
@@ -383,10 +378,7 @@ type AgentRegistrationResponseV2 struct {
 	ConfirmedLeaseSeconds    int      `json:"confirmedLeaseSeconds"`
 }
 
-func (r AgentRegistrationResponseV2) Validate() error {
-	if err := validatePrivateProtocolVersion(r.PrivateProtocolVersion); err != nil {
-		return err
-	}
+func (r AgentRegistrationResponse) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
@@ -405,7 +397,7 @@ func (r AgentRegistrationResponseV2) Validate() error {
 	return nil
 }
 
-type TelemetrySettingsV2 struct {
+type TelemetrySettings struct {
 	Adapter             RuntimeAdapterRef        `json:"adapter"`
 	Endpoint            string                   `json:"endpoint"`
 	Headers             map[string]SecretString  `json:"headers"`
@@ -414,7 +406,7 @@ type TelemetrySettingsV2 struct {
 	Export              *TelemetryExportSettings `json:"export,omitempty"`
 }
 
-func (s TelemetrySettingsV2) Validate() error {
+func (s TelemetrySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterOTLPHTTP {
 		return invalidf("telemetry adapter must be otlp-http@1")
 	}
@@ -452,23 +444,23 @@ func (s TelemetrySettingsV2) Validate() error {
 	return nil
 }
 
-type HTTPProxyBasicAuthV2 struct {
+type HTTPProxyBasicAuth struct {
 	Username SecretString `json:"username"`
 	Password SecretString `json:"password"`
 }
 
 type HTTPProxyTarget string
 
-type HTTPProxySettingsV2 struct {
-	Adapter     RuntimeAdapterRef     `json:"adapter"`
-	ProxyURL    string                `json:"proxyUrl"`
-	BasicAuth   *HTTPProxyBasicAuthV2 `json:"basicAuth,omitempty"`
-	BearerToken *SecretString         `json:"bearerToken,omitempty"`
-	CABundlePEM *string               `json:"caBundlePem,omitempty"`
-	Targets     []HTTPProxyTarget     `json:"targets"`
+type HTTPProxySettings struct {
+	Adapter     RuntimeAdapterRef   `json:"adapter"`
+	ProxyURL    string              `json:"proxyUrl"`
+	BasicAuth   *HTTPProxyBasicAuth `json:"basicAuth,omitempty"`
+	BearerToken *SecretString       `json:"bearerToken,omitempty"`
+	CABundlePEM *string             `json:"caBundlePem,omitempty"`
+	Targets     []HTTPProxyTarget   `json:"targets"`
 }
 
-type CaidoSettingsV2 struct {
+type CaidoSettings struct {
 	Adapter               RuntimeAdapterRef `json:"adapter"`
 	Endpoint              string            `json:"endpoint"`
 	BearerToken           *SecretString     `json:"bearerToken,omitempty"`
@@ -476,7 +468,7 @@ type CaidoSettingsV2 struct {
 	RequestTimeoutSeconds int               `json:"requestTimeoutSeconds"`
 }
 
-func (s CaidoSettingsV2) Validate() error {
+func (s CaidoSettings) Validate() error {
 	if s.Adapter != RuntimeAdapterCaidoGraphQL {
 		return invalidf("Caido adapter must be caido-graphql@1")
 	}
@@ -500,7 +492,7 @@ func (s CaidoSettingsV2) Validate() error {
 	return nil
 }
 
-func (s HTTPProxySettingsV2) Validate() error {
+func (s HTTPProxySettings) Validate() error {
 	if s.Adapter != RuntimeAdapterHTTPProxy {
 		return invalidf("HTTP proxy adapter must be http-proxy@1")
 	}
@@ -545,23 +537,23 @@ func (s HTTPProxySettingsV2) Validate() error {
 	return nil
 }
 
-type RuntimeSettingsV2 struct {
-	LLMGatewayURL         string                      `json:"llmGatewayUrl"`
-	LLMGatewayToken       *SecretString               `json:"llmGatewayToken,omitempty"`
-	ArtifactAPIURL        string                      `json:"artifactApiUrl"`
-	Telemetry             *TelemetrySettingsV2        `json:"telemetry,omitempty"`
-	HTTPProxy             *HTTPProxySettingsV2        `json:"httpProxy,omitempty"`
-	Caido                 *CaidoSettingsV2            `json:"caido,omitempty"`
-	HTTPOriginTarget      *HTTPOriginTargetSettingsV2 `json:"httpOriginTarget,omitempty"`
-	RequestTimeoutSeconds int                         `json:"requestTimeoutSeconds"`
+type RuntimeSettings struct {
+	LLMGatewayURL         string                    `json:"llmGatewayUrl"`
+	LLMGatewayToken       *SecretString             `json:"llmGatewayToken,omitempty"`
+	ArtifactAPIURL        string                    `json:"artifactApiUrl"`
+	Telemetry             *TelemetrySettings        `json:"telemetry,omitempty"`
+	HTTPProxy             *HTTPProxySettings        `json:"httpProxy,omitempty"`
+	Caido                 *CaidoSettings            `json:"caido,omitempty"`
+	HTTPOriginTarget      *HTTPOriginTargetSettings `json:"httpOriginTarget,omitempty"`
+	RequestTimeoutSeconds int                       `json:"requestTimeoutSeconds"`
 }
 
 // HTTPOriginTargetRef is the immutable, non-secret target provenance pinned
 // by a Project Run. URL may contain an application path, while Authorization
 // is scoped by Runtime to its exact normalized origin.
 type HTTPOriginTargetRef struct {
-	URL        string                  `json:"url"`
-	Credential *RuntimeCredentialRefV2 `json:"credential,omitempty"`
+	URL        string                `json:"url"`
+	Credential *RuntimeCredentialRef `json:"credential,omitempty"`
 }
 
 func (t HTTPOriginTargetRef) Validate() error {
@@ -581,15 +573,15 @@ func (t HTTPOriginTargetRef) Validate() error {
 	return nil
 }
 
-// HTTPOriginTargetSettingsV2 exists only in the allocation transport. Its
+// HTTPOriginTargetSettings exists only in the allocation transport. Its
 // optional secret members are mutually exclusive and are never persisted.
-type HTTPOriginTargetSettingsV2 struct {
-	URL         string                `json:"url"`
-	BasicAuth   *HTTPProxyBasicAuthV2 `json:"basicAuth,omitempty"`
-	BearerToken *SecretString         `json:"bearerToken,omitempty"`
+type HTTPOriginTargetSettings struct {
+	URL         string              `json:"url"`
+	BasicAuth   *HTTPProxyBasicAuth `json:"basicAuth,omitempty"`
+	BearerToken *SecretString       `json:"bearerToken,omitempty"`
 }
 
-func (s HTTPOriginTargetSettingsV2) Validate() error {
+func (s HTTPOriginTargetSettings) Validate() error {
 	if err := validateRuntimeEndpoint("httpOriginTarget.url", s.URL); err != nil {
 		return err
 	}
@@ -612,15 +604,15 @@ func (s HTTPOriginTargetSettingsV2) Validate() error {
 	return nil
 }
 
-// WorkerExecutionSettingsV2 is the in-process secret-bearing value delivered
+// WorkerExecutionSettings is the in-process secret-bearing value delivered
 // only after allocation provenance is durable.
-type WorkerExecutionSettingsV2 struct {
+type WorkerExecutionSettings struct {
 	ModelPolicy                     ResolvedModelPolicy
-	RuntimeSettings                 RuntimeSettingsV2
-	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenanceV2
+	RuntimeSettings                 RuntimeSettings
+	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenance
 }
 
-func (s RuntimeSettingsV2) Validate() error {
+func (s RuntimeSettings) Validate() error {
 	if err := validateRuntimeEndpoint("runtimeSettings.llmGatewayUrl", s.LLMGatewayURL); err != nil {
 		return err
 	}
@@ -653,13 +645,13 @@ func (s RuntimeSettingsV2) Validate() error {
 	return nil
 }
 
-type RuntimeConfigRefV2 struct {
+type RuntimeConfigRef struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Digest  string `json:"digest"`
 }
 
-func (r RuntimeConfigRefV2) Validate() error {
+func (r RuntimeConfigRef) Validate() error {
 	if len(r.Name) == 0 || len(r.Name) > 63 || !idPattern.MatchString(r.Name) {
 		return invalidf("RuntimeConfig ref name is invalid")
 	}
@@ -672,28 +664,28 @@ func (r RuntimeConfigRefV2) Validate() error {
 	return validateDigest("RuntimeConfig ref digest", r.Digest)
 }
 
-type RuntimeLabelBindingProvenanceV2 struct {
-	Label           string             `json:"label"`
-	BindingRevision uint64             `json:"bindingRevision"`
-	Config          RuntimeConfigRefV2 `json:"config"`
+type RuntimeLabelBindingProvenance struct {
+	Label           string           `json:"label"`
+	BindingRevision uint64           `json:"bindingRevision"`
+	Config          RuntimeConfigRef `json:"config"`
 }
 
-type RuntimeCredentialRefV2 struct {
+type RuntimeCredentialRef struct {
 	CredentialID string                `json:"credentialId"`
 	Kind         RuntimeCredentialKind `json:"kind"`
 }
 
-type ResolvedRuntimeConfigProvenanceV2 struct {
-	Default               RuntimeLabelBindingProvenanceV2   `json:"default"`
-	RunLabels             []RuntimeLabelBindingProvenanceV2 `json:"runLabels"`
-	AgentLabels           []RuntimeLabelBindingProvenanceV2 `json:"agentLabels"`
-	RuntimeAdapters       []RuntimeAdapterRef               `json:"runtimeAdapters"`
-	LLMGatewayConfig      *LLMGatewayConfigRef              `json:"llmGatewayConfig,omitempty"`
-	LLMCredential         *LLMCredentialRef                 `json:"llmCredential,omitempty"`
-	RuntimeCredentialRefs []RuntimeCredentialRefV2          `json:"runtimeCredentialRefs"`
+type ResolvedRuntimeConfigProvenance struct {
+	Default               RuntimeLabelBindingProvenance   `json:"default"`
+	RunLabels             []RuntimeLabelBindingProvenance `json:"runLabels"`
+	AgentLabels           []RuntimeLabelBindingProvenance `json:"agentLabels"`
+	RuntimeAdapters       []RuntimeAdapterRef             `json:"runtimeAdapters"`
+	LLMGatewayConfig      *LLMGatewayConfigRef            `json:"llmGatewayConfig,omitempty"`
+	LLMCredential         *LLMCredentialRef               `json:"llmCredential,omitempty"`
+	RuntimeCredentialRefs []RuntimeCredentialRef          `json:"runtimeCredentialRefs"`
 }
 
-func (p ResolvedRuntimeConfigProvenanceV2) Validate() error {
+func (p ResolvedRuntimeConfigProvenance) Validate() error {
 	if p.Default.Label != "default" || p.Default.BindingRevision == 0 {
 		return invalidf("provenance default binding is invalid")
 	}
@@ -742,27 +734,27 @@ func (p ResolvedRuntimeConfigProvenanceV2) Validate() error {
 	return nil
 }
 
-type AllocationSpecV2 struct {
-	CompletionContract              *WorkerCompletionContract         `json:"completionContract,omitempty"`
-	APIVersion                      string                            `json:"apiVersion"`
-	AllocationID                    string                            `json:"allocationId"`
-	RunID                           string                            `json:"runId"`
-	StageExecutionID                string                            `json:"stageExecutionId"`
-	LogicalAgentName                string                            `json:"logicalAgentName"`
-	Namespace                       string                            `json:"namespace"`
-	WorkerSessionMode               WorkerSessionMode                 `json:"workerSessionMode"`
-	RunMetadataLabels               RunMetadataLabels                 `json:"runMetadataLabels"`
-	LeaseExpiresAt                  time.Time                         `json:"leaseExpiresAt"`
-	AgentTemplate                   ResolvedAgentTemplate             `json:"agentTemplate"`
-	ResolvedSkills                  []ResolvedSkill                   `json:"resolvedSkills"`
-	ModelPolicy                     ResolvedModelPolicy               `json:"modelPolicy"`
-	RuntimeSettings                 RuntimeSettingsV2                 `json:"runtimeSettings"`
-	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenanceV2 `json:"resolvedRuntimeConfigProvenance"`
-	Workspace                       *AllocationWorkspaceSpecV2        `json:"workspace,omitempty"`
-	PerformanceMetrics              *PerformanceMetricsRequest        `json:"performanceMetrics,omitempty"`
+type AllocationSpec struct {
+	CompletionContract              *WorkerCompletionContract       `json:"completionContract,omitempty"`
+	APIVersion                      string                          `json:"apiVersion"`
+	AllocationID                    string                          `json:"allocationId"`
+	RunID                           string                          `json:"runId"`
+	StageExecutionID                string                          `json:"stageExecutionId"`
+	LogicalAgentName                string                          `json:"logicalAgentName"`
+	Namespace                       string                          `json:"namespace"`
+	WorkerSessionMode               WorkerSessionMode               `json:"workerSessionMode"`
+	RunMetadataLabels               RunMetadataLabels               `json:"runMetadataLabels"`
+	LeaseExpiresAt                  time.Time                       `json:"leaseExpiresAt"`
+	AgentTemplate                   ResolvedAgentTemplate           `json:"agentTemplate"`
+	ResolvedSkills                  []ResolvedSkill                 `json:"resolvedSkills"`
+	ModelPolicy                     ResolvedModelPolicy             `json:"modelPolicy"`
+	RuntimeSettings                 RuntimeSettings                 `json:"runtimeSettings"`
+	ResolvedRuntimeConfigProvenance ResolvedRuntimeConfigProvenance `json:"resolvedRuntimeConfigProvenance"`
+	Workspace                       *AllocationWorkspaceSpec        `json:"workspace,omitempty"`
+	PerformanceMetrics              *PerformanceMetricsRequest      `json:"performanceMetrics,omitempty"`
 }
 
-func (s AllocationSpecV2) Validate() error {
+func (s AllocationSpec) Validate() error {
 	if s.CompletionContract != nil {
 		if err := s.CompletionContract.ValidateAllocation(s.Namespace, s.AgentTemplate); err != nil {
 			return err
@@ -819,19 +811,19 @@ func (s AllocationSpecV2) Validate() error {
 	return s.ResolvedRuntimeConfigProvenance.Validate()
 }
 
-type PrepareAllocationRequestV2 struct {
-	APIVersion string           `json:"apiVersion"`
-	Spec       AllocationSpecV2 `json:"spec"`
+type PrepareAllocationRequest struct {
+	APIVersion string         `json:"apiVersion"`
+	Spec       AllocationSpec `json:"spec"`
 }
 
-func (r PrepareAllocationRequestV2) Validate() error {
+func (r PrepareAllocationRequest) Validate() error {
 	if err := validateAPIVersion(r.APIVersion); err != nil {
 		return err
 	}
 	return r.Spec.Validate()
 }
 
-type RuntimeAdapterMetricsV2 struct {
+type RuntimeAdapterMetrics struct {
 	Operations       uint64             `json:"operations"`
 	FailedOperations uint64             `json:"failedOperations"`
 	FlushAttempted   *bool              `json:"flushAttempted,omitempty"`
@@ -840,7 +832,7 @@ type RuntimeAdapterMetricsV2 struct {
 	DroppedSpans     *DroppedSpanCounts `json:"droppedSpans,omitempty"`
 }
 
-func (m RuntimeAdapterMetricsV2) Validate() error {
+func (m RuntimeAdapterMetrics) Validate() error {
 	if m.FailedOperations > m.Operations {
 		return invalidf("Runtime adapter failures exceed operations")
 	}
@@ -858,36 +850,7 @@ func (m RuntimeAdapterMetricsV2) Validate() error {
 	return nil
 }
 
-type RuntimeReportV2 struct {
-	Complete       bool                                          `json:"complete"`
-	DurationMS     *int64                                        `json:"durationMs,omitempty"`
-	StopReason     *string                                       `json:"stopReason,omitempty"`
-	Adapters       map[RuntimeAdapterRef]RuntimeAdapterMetricsV2 `json:"adapters"`
-	Resources      *RuntimeResources                             `json:"resources,omitempty"`
-	ResourcesError *ResourceReason                               `json:"-"`
-}
-
-func (r *RuntimeReportV2) UnmarshalJSON(data []byte) error {
-	type wireReport RuntimeReportV2
-	var value wireReport
-	wire := struct {
-		*wireReport
-		Resources json.RawMessage `json:"resources"`
-	}{wireReport: &value}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&wire); err != nil {
-		return err
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
-		return err
-	}
-	value.Resources, value.ResourcesError = decodeOptionalResources(wire.Resources)
-	*r = RuntimeReportV2(value)
-	return nil
-}
-
-func (r RuntimeReportV2) Validate() error {
+func (r RuntimeReport) Validate() error {
 	if r.Resources != nil {
 		if err := r.Resources.Validate(); err != nil {
 			return err
@@ -913,10 +876,10 @@ func (r RuntimeReportV2) Validate() error {
 	return nil
 }
 
-// NormalizeAgentRegistrationV2 produces the immutable ordering used for
+// NormalizeAgentRegistration produces the immutable ordering used for
 // registration retries and fingerprints. Decode still requires sorted wire
 // sets so normalization cannot hide a malformed peer.
-func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV2 {
+func NormalizeAgentRegistration(source AgentRegistration) AgentRegistration {
 	result := source
 	if source.Capabilities != nil {
 		value := *source.Capabilities
@@ -930,7 +893,7 @@ func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV
 	result.SupportedPerformanceMetricsVersions = append([]int(nil), source.SupportedPerformanceMetricsVersions...)
 	if source.WorkspaceCapabilities != nil {
 		capabilities := *source.WorkspaceCapabilities
-		capabilities.Modes = append([]WorkspaceModeV2{}, source.WorkspaceCapabilities.Modes...)
+		capabilities.Modes = append([]WorkspaceMode{}, source.WorkspaceCapabilities.Modes...)
 		result.WorkspaceCapabilities = &capabilities
 	}
 	result.SupportedToolsets = make([]ToolsetCapability, len(source.SupportedToolsets))
@@ -951,14 +914,14 @@ func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV
 	return result
 }
 
-// AgentRegistrationFingerprintV2 excludes mutable observation and startup
+// AgentRegistrationFingerprint excludes mutable observation and startup
 // labels. It is not the TLS principal fingerprint.
-func AgentRegistrationFingerprintV2(source AgentRegistrationV2) (string, error) {
-	normalized := NormalizeAgentRegistrationV2(source)
+func AgentRegistrationFingerprint(source AgentRegistration) (string, error) {
+	normalized := NormalizeAgentRegistration(source)
 	normalized.InitialLabels = nil
 	normalized.ObservedState = ""
 	normalized.AllocationID = nil
-	canonical, err := MarshalPrivateV2Canonical(normalized)
+	canonical, err := MarshalPrivateCanonical(normalized)
 	if err != nil {
 		return "", err
 	}
@@ -966,9 +929,9 @@ func AgentRegistrationFingerprintV2(source AgentRegistrationV2) (string, error) 
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-// RuntimeAdapterCapabilityProjectionV2 returns a detached sorted safe view for
+// RuntimeAdapterCapabilityProjection returns a detached sorted safe view for
 // Operations. It contains refs only, never settings or probe diagnostics.
-func RuntimeAdapterCapabilityProjectionV2(source AgentRegistrationV2) []string {
+func RuntimeAdapterCapabilityProjection(source AgentRegistration) []string {
 	result := make([]string, len(source.SupportedRuntimeAdapters))
 	for index, ref := range source.SupportedRuntimeAdapters {
 		result[index] = string(ref)
@@ -977,9 +940,9 @@ func RuntimeAdapterCapabilityProjectionV2(source AgentRegistrationV2) []string {
 	return result
 }
 
-// DecodePrivateV2Strict rejects duplicate keys, unknown fields and trailing
-// JSON before returning a semantically validated private-v2 DTO.
-func DecodePrivateV2Strict[T Validatable](data []byte) (T, error) {
+// DecodePrivateStrict rejects duplicate keys, unknown fields and trailing
+// JSON before returning a semantically validated private DTO.
+func DecodePrivateStrict[T Validatable](data []byte) (T, error) {
 	var value T
 	if err := rejectDuplicateJSONKeys(data); err != nil {
 		class := PrivateProtocolErrorSchema
@@ -1006,10 +969,10 @@ func DecodePrivateV2Strict[T Validatable](data []byte) (T, error) {
 	return value, nil
 }
 
-// MarshalPrivateV2Canonical uses RFC 8785 JCS for cross-language fixtures and
+// MarshalPrivateCanonical uses RFC 8785 JCS for cross-language fixtures and
 // fingerprints. It remains a private-wire encoder and therefore includes
 // SecretString values; callers must never log its result.
-func MarshalPrivateV2Canonical(value any) ([]byte, error) {
+func MarshalPrivateCanonical(value any) ([]byte, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return nil, fmt.Errorf("encode private protocol value: %w", err)
@@ -1091,13 +1054,6 @@ func scanJSONValue(decoder *json.Decoder) error {
 	return nil
 }
 
-func validatePrivateProtocolVersion(value int) error {
-	if value != PrivateProtocolVersionV2 {
-		return fmt.Errorf("%w: expected version 2", privateVersionError)
-	}
-	return nil
-}
-
 func validateSortedLabels(field string, values []string, maximum int, allowDefault bool) error {
 	if values == nil || len(values) > maximum {
 		return invalidf("%s must be a non-null bounded array", field)
@@ -1172,7 +1128,7 @@ func validateCABundle(owner, value string) error {
 	return nil
 }
 
-func validateProvenanceBindings(field string, values []RuntimeLabelBindingProvenanceV2) error {
+func validateProvenanceBindings(field string, values []RuntimeLabelBindingProvenance) error {
 	if values == nil || len(values) > 32 {
 		return invalidf("provenance %s must be a non-null bounded array", field)
 	}

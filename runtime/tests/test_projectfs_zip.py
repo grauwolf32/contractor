@@ -12,8 +12,8 @@ import pytest
 
 from contractor_runtime.artifacts import ArtifactClientError, ArtifactValue
 from contractor_runtime.contracts import (
-    AllocationWorkspaceSourceV2,
-    AllocationWorkspaceSpecV2,
+    AllocationWorkspaceSource,
+    AllocationWorkspaceSpec,
     ArtifactRef,
 )
 from contractor_runtime.projectfs import (
@@ -320,12 +320,12 @@ def assert_invalid_and_clean(
 
 def workspace_inputs(
     sources: list[tuple[str, str, bytes]],
-) -> tuple[AllocationWorkspaceSpecV2, FakeArtifactReader]:
+) -> tuple[AllocationWorkspaceSpec, FakeArtifactReader]:
     values: dict[tuple[str, str, str], ArtifactValue] = {}
-    specs: list[AllocationWorkspaceSourceV2] = []
+    specs: list[AllocationWorkspaceSource] = []
     for name, target, payload in sources:
         ref = ArtifactRef(namespace="inputs", name=name, revision=REVISION)
-        specs.append(AllocationWorkspaceSourceV2(artifact=ref, target=target))
+        specs.append(AllocationWorkspaceSource(artifact=ref, target=target))
         values[(ref.namespace, ref.name, REVISION)] = ArtifactValue(
             artifact=ref,
             media_type="application/zip",
@@ -333,7 +333,7 @@ def workspace_inputs(
             binding_created_at=NOW,
             revision_created_at=NOW,
         )
-    return AllocationWorkspaceSpecV2(mode="direct", sources=specs), FakeArtifactReader(values)
+    return AllocationWorkspaceSpec(mode="direct", sources=specs), FakeArtifactReader(values)
 
 
 def archive(members: dict[str, bytes | None]) -> bytes:

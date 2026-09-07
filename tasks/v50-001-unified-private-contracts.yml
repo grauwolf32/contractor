@@ -1,0 +1,47 @@
+schema_version: "1.0"
+id: V50-001
+title: Replace legacy private contracts with the current models under v1alpha1
+milestone: unified-private-contracts
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [go, python, json, markdown]
+goal: >-
+  Keep one private contract surface, using current fields and validation under
+  the original type and schema names, without a legacy protocol compatibility layer.
+context:
+  authority: >-
+    User explicitly requested deleting old variants and moving private-v2 into
+    v1alpha1 under the old names; the project is in local development and does
+    not need legacy protocol compatibility.
+scope:
+  in:
+    - Replace old Go/Python models with current fields and validation, removing V2 aliases and conversion paths.
+    - Use apiVersion contractor/v1alpha1 as the single version marker.
+    - Consolidate schemas and fixtures under api/v1alpha1 and api/testdata/v1alpha1.
+    - Update production consumers, tests, documentation and task references.
+  out:
+    - Change independently versioned Audit tools, model/config versions, public API or A2A envelopes.
+    - Deploy services or alter running user data.
+acceptance_criteria:
+  - id: A1
+    text: Registration, allocation and reports use one strict current model in both languages.
+  - id: A2
+    text: No private-v2 catalog, legacy model aliases or fallback conversions remain.
+  - id: A3
+    text: Contract parity and affected Server/Runtime regression suites pass with current fixtures.
+tests:
+  - command: go test ./...
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run --frozen pytest
+    covers: [A1, A2, A3]
+  - command: make verify-wire-contracts verify-public-api
+    covers: [A1, A2, A3]
+
+verification:
+  - "Review: docs/reviews/2026-09-08-unified-private-contracts.md."
+  - "An isolated task snapshot passed go test ./... and 1775 Python tests; 30 Python tests skipped. PostgreSQL tests use their environment gate."
+  - "Cross-language mTLS prepare/finalize/abort/release integration passed with real Go/Python processes."
+  - "Wire/public API gates, audit completion schema tests, lint and whitespace checks passed."
+  - "Current model names and apiVersion contractor/v1alpha1 replace the separate protocol number, DTO family, schemas and fixture catalog."

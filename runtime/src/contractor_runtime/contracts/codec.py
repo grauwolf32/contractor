@@ -10,11 +10,7 @@ from pydantic import (
     ValidationError,
 )
 
-from contractor_runtime.contracts.base import PRIVATE_PROTOCOL_VERSION_V2, WireModel
-from contractor_runtime.contracts.registration import (
-    AgentRegistrationResponseV2,
-    AgentRegistrationV2,
-)
+from contractor_runtime.contracts.base import API_VERSION, VersionedWireModel, WireModel
 from contractor_runtime.contracts.reports import AllocationFinalResponse
 
 
@@ -23,7 +19,7 @@ class PrivateProtocolDecodeError(ValueError):
 
     def __init__(self, reason: Literal["version", "duplicate_key", "schema", "invariant"]):
         self.reason = reason
-        super().__init__(f"private protocol v2 {reason} error")
+        super().__init__(f"private protocol {reason} error")
 
 
 class _DuplicateJSONKey(ValueError):
@@ -34,7 +30,7 @@ def _invalid_json_constant(_value: str) -> Any:
     raise ValueError("non-standard JSON constant")
 
 
-def encode_private_v2(value: WireModel) -> bytes:
+def encode_private(value: WireModel) -> bytes:
     """Return RFC 8785 canonical private JSON; callers must not log it."""
 
     dumped = value.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -50,10 +46,10 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def decode_private_v2[PrivateModelT: WireModel](
+def decode_private[PrivateModelT: WireModel](
     model: type[PrivateModelT], raw: str | bytes
 ) -> PrivateModelT:
-    """Decode one secret-bearing v2 document without reflecting input in errors."""
+    """Decode one secret-bearing private document without reflecting input in errors."""
 
     if (
         issubclass(model, AllocationFinalResponse)
@@ -70,10 +66,7 @@ def decode_private_v2[PrivateModelT: WireModel](
         raise PrivateProtocolDecodeError("schema") from None
     if not isinstance(value, dict):
         raise PrivateProtocolDecodeError("schema")
-    if (
-        issubclass(model, (AgentRegistrationV2, AgentRegistrationResponseV2))
-        and value.get("privateProtocolVersion") != PRIVATE_PROTOCOL_VERSION_V2
-    ):
+    if issubclass(model, VersionedWireModel) and value.get("apiVersion") != API_VERSION:
         raise PrivateProtocolDecodeError("version")
     try:
         # Keep Pydantic's strict JSON conversions (notably RFC 3339 strings to

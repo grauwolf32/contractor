@@ -175,7 +175,7 @@ func decodeOptionalResources(data json.RawMessage) (*RuntimeResources, *Resource
 	if len(data) == 0 {
 		return nil, nil
 	}
-	resources, err := DecodePrivateV2Strict[RuntimeResources](data)
+	resources, err := DecodePrivateStrict[RuntimeResources](data)
 	if err != nil {
 		reason := ResourceInvalidReport
 		return nil, &reason

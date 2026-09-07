@@ -29,7 +29,7 @@ from contractor_runtime.adapters.http_proxy import (
     ProxySubprocessError,
     ProxySubprocessLauncher,
 )
-from contractor_runtime.contracts import HTTPProxySettingsV2
+from contractor_runtime.contracts import HTTPProxySettings
 from contractor_runtime.factories import FactoryRegistry
 from contractor_runtime.llm.factory import gateway_model
 from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
@@ -218,7 +218,7 @@ def test_proxy_failures_are_bounded_and_never_fall_back(
 def test_bearer_subprocess_fails_closed_and_registry_rejects_channel_mismatch() -> None:
     async def scenario() -> None:
         async with fake_proxy(text_response) as proxy:
-            settings = HTTPProxySettingsV2(
+            settings = HTTPProxySettings(
                 adapter="http-proxy@1",
                 proxyUrl=proxy.url,
                 bearerToken=PROXY_BEARER,
@@ -347,8 +347,8 @@ def proxy_settings(
     *,
     targets: list[str],
     ca_bundle: str | None = None,
-) -> HTTPProxySettingsV2:
-    return HTTPProxySettingsV2(
+) -> HTTPProxySettings:
+    return HTTPProxySettings(
         adapter="http-proxy@1",
         proxyUrl=proxy_url,
         basicAuth={"username": "proxy-user", "password": PROXY_PASSWORD},

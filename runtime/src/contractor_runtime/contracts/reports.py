@@ -161,7 +161,7 @@ class DroppedSpanCounts(WireModel):
     shutdown: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
 
 
-class RuntimeAdapterMetricsV2(WireModel):
+class RuntimeAdapterMetrics(WireModel):
     operations: int = Field(ge=0, le=2**64 - 1)
     failed_operations: int = Field(ge=0, le=2**64 - 1)
     flush_attempted: bool | None = None
@@ -308,9 +308,9 @@ class RuntimeReport(WireModel):
     complete: bool
     duration_ms: int | None = Field(default=None, ge=0)
     stop_reason: str | None = None
-    adapters: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2] = Field(default_factory=dict)
     resources: RuntimeResources | None = None
     _resources_error: ResourceReason | None = PrivateAttr(default=None)
+    adapters: dict[RuntimeAdapterRef, RuntimeAdapterMetrics]
 
     @property
     def resources_error(self) -> ResourceReason | None:
@@ -339,6 +339,15 @@ class RuntimeReport(WireModel):
             _require_text("stopReason", value)
         return value
 
+    @field_validator("adapters")
+    @classmethod
+    def validate_adapters(
+        cls, value: dict[RuntimeAdapterRef, RuntimeAdapterMetrics]
+    ) -> dict[RuntimeAdapterRef, RuntimeAdapterMetrics]:
+        if len(value) > 64:
+            raise ValueError("Runtime adapter metrics exceed 64 entries")
+        return value
+
 
 class AllocationFinalReport(WireModel):
     report_id: str
@@ -362,19 +371,6 @@ class AllocationFinalReport(WireModel):
         ):
             raise ValueError("allocation final report exceeds 1 MiB")
         return self
-
-
-class RuntimeReportV2(RuntimeReport):
-    adapters: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]
-
-    @field_validator("adapters")
-    @classmethod
-    def validate_adapters(
-        cls, value: dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]
-    ) -> dict[RuntimeAdapterRef, RuntimeAdapterMetricsV2]:
-        if len(value) > 64:
-            raise ValueError("Runtime adapter metrics exceed 64 entries")
-        return value
 
 
 class AllocationFinalResponse(VersionedWireModel):

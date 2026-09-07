@@ -1,7 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "artifacts": [
-    {"namespace": "analysis", "name": "report"},
-    {"namespace": "inputs", "name": "source"}
-  ]
-}
+{"apiVersion":"contractor/v1alpha1","artifacts":[{"name":"report","namespace":"analysis"},{"name":"source","namespace":"inputs"}]}

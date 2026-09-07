@@ -12,7 +12,6 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import (
     _RUNTIME_AGENT_ID_PATTERN,
-    PRIVATE_PROTOCOL_VERSION_V2,
     VERSION_PATTERN,
     AgentObservedState,
     ReconciliationAction,
@@ -26,7 +25,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     _require_url,
 )
-from contractor_runtime.contracts.workspace import WorkspaceCapabilitiesV2
+from contractor_runtime.contracts.workspace import WorkspaceCapabilities
 
 
 class ToolsetCapability(WireModel):
@@ -56,11 +55,21 @@ def _validate_observed_allocation(state: AgentObservedState, allocation_id: str 
 class AgentRegistrationResponse(VersionedWireModel):
     heartbeat_interval_seconds: int = Field(gt=0)
     confirmed_lease_seconds: int = Field(gt=0)
+    runtime_agent_id: str = Field(pattern=_RUNTIME_AGENT_ID_PATTERN.pattern)
+    labels: list[str] = Field(max_length=32)
+    label_revision: int = Field(gt=0, le=2**64 - 1)
 
     @model_validator(mode="after")
     def validate_timing(self) -> Self:
         if self.confirmed_lease_seconds <= self.heartbeat_interval_seconds:
             raise ValueError("confirmed lease must exceed heartbeat interval")
+        return self
+
+    @model_validator(mode="after")
+    def validate_labels(self) -> Self:
+        for label in self.labels:
+            _require_runtime_label("labels", label)
+        _require_sorted_unique("labels", self.labels, maximum=32)
         return self
 
 
@@ -112,20 +121,6 @@ class AgentHeartbeat(VersionedWireModel):
         return self
 
 
-class AgentRegistrationResponseV2(AgentRegistrationResponse):
-    private_protocol_version: Literal[PRIVATE_PROTOCOL_VERSION_V2]
-    runtime_agent_id: str = Field(pattern=_RUNTIME_AGENT_ID_PATTERN.pattern)
-    labels: list[str] = Field(max_length=32)
-    label_revision: int = Field(gt=0, le=2**64 - 1)
-
-    @model_validator(mode="after")
-    def validate_v2_response(self) -> Self:
-        for label in self.labels:
-            _require_runtime_label("labels", label)
-        _require_sorted_unique("labels", self.labels, maximum=32)
-        return self
-
-
 class AgentRegistration(VersionedWireModel):
     instance_id: str
     software_version: str = Field(min_length=1, max_length=128, pattern=VERSION_PATTERN.pattern)
@@ -137,6 +132,13 @@ class AgentRegistration(VersionedWireModel):
     supported_sandbox_profiles: list[str]
     observed_state: AgentObservedState
     allocation_id: str | None = None
+    capabilities: RuntimeCompletionCapabilities | None = None
+    initial_labels: list[str] = Field(max_length=32)
+    supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
+    workspace_capabilities: WorkspaceCapabilities | None = None
+    supported_performance_metrics_versions: list[Annotated[int, Field(strict=True, ge=1, le=1)]] = (
+        Field(default_factory=list, max_length=1, exclude_if=lambda value: not value)
+    )
 
     @model_validator(mode="after")
     def validate_registration(self) -> Self:
@@ -152,19 +154,8 @@ class AgentRegistration(VersionedWireModel):
         _validate_observed_allocation(self.observed_state, self.allocation_id)
         return self
 
-
-class AgentRegistrationV2(AgentRegistration):
-    capabilities: RuntimeCompletionCapabilities | None = None
-    private_protocol_version: Literal[PRIVATE_PROTOCOL_VERSION_V2]
-    initial_labels: list[str] = Field(max_length=32)
-    supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
-    workspace_capabilities: WorkspaceCapabilitiesV2 | None = None
-    supported_performance_metrics_versions: list[Annotated[int, Field(strict=True, ge=1, le=1)]] = (
-        Field(default_factory=list, max_length=1, exclude_if=lambda value: not value)
-    )
-
     @model_validator(mode="after")
-    def validate_v2_registration(self) -> Self:
+    def validate_runtime_capabilities(self) -> Self:
         if len(self.supported_runtimes) > 128 or len(self.supported_toolsets) > 128:
             raise ValueError("Runtime capability collection exceeds its bound")
         if len(self.supported_sandbox_profiles) > 128:

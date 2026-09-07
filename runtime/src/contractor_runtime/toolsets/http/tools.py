@@ -27,7 +27,7 @@ from contractor_runtime.artifacts import (
     ArtifactClient,
     ArtifactTransportError,
 )
-from contractor_runtime.contracts import ArtifactRef, RuntimeSettings, RuntimeSettingsV2
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.toolsets.common.artifact_visibility import HTTP_BODY_ARTIFACT_PREFIX
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
@@ -1028,22 +1028,17 @@ def _direct_client() -> httpx.AsyncClient:
 
 
 def _tool_http_proxy_required(settings: RuntimeSettings) -> bool:
-    return (
-        isinstance(settings, RuntimeSettingsV2)
-        and settings.http_proxy is not None
-        and "tool-http" in settings.http_proxy.targets
-    )
+    return settings.http_proxy is not None and "tool-http" in settings.http_proxy.targets
 
 
 def _private_origins(settings: RuntimeSettings) -> frozenset[tuple[str, str, int]]:
     values = [settings.llm_gateway_url, settings.artifact_api_url]
-    if isinstance(settings, RuntimeSettingsV2):
-        if settings.telemetry is not None:
-            values.append(settings.telemetry.endpoint)
-        if settings.http_proxy is not None:
-            values.append(settings.http_proxy.proxy_url)
-        if settings.caido is not None:
-            values.append(settings.caido.endpoint)
+    if settings.telemetry is not None:
+        values.append(settings.telemetry.endpoint)
+    if settings.http_proxy is not None:
+        values.append(settings.http_proxy.proxy_url)
+    if settings.caido is not None:
+        values.append(settings.caido.endpoint)
     return frozenset(_origin(value) for value in values)
 
 
@@ -1052,7 +1047,7 @@ def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
     token = settings.llm_gateway_token
     if token is not None:
         values.append(token.get_secret_value())
-    if isinstance(settings, RuntimeSettingsV2) and settings.http_proxy is not None:
+    if settings.http_proxy is not None:
         proxy = settings.http_proxy
         if proxy.basic_auth is not None:
             values.extend(
@@ -1063,7 +1058,7 @@ def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
             )
         if proxy.bearer_token is not None:
             values.append(proxy.bearer_token.get_secret_value())
-    if isinstance(settings, RuntimeSettingsV2) and settings.http_origin_target is not None:
+    if settings.http_origin_target is not None:
         target = settings.http_origin_target
         if target.basic_auth is not None:
             values.extend(
@@ -1081,13 +1076,13 @@ def _runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
 
 
 def _target_origin(settings: RuntimeSettings) -> tuple[str, str, int] | None:
-    if not isinstance(settings, RuntimeSettingsV2) or settings.http_origin_target is None:
+    if settings.http_origin_target is None:
         return None
     return _origin(settings.http_origin_target.url)
 
 
 def _target_authorization(settings: RuntimeSettings) -> str | None:
-    if not isinstance(settings, RuntimeSettingsV2) or settings.http_origin_target is None:
+    if settings.http_origin_target is None:
         return None
     target = settings.http_origin_target
     if target.bearer_token is not None:

@@ -20,18 +20,20 @@ import yaml
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
-    AllocationWorkspaceSpecV2,
+    AllocationWorkspaceSpec,
     ArtifactRef,
     ArtifactWriteResult,
     FinalizeAllocationRequest,
+    ModelPolicyRef,
     ReleaseAllocationRequest,
     ResolvedInstructions,
+    ResolvedModelPolicy,
     SandboxProfileRef,
     StageContentRequest,
     ToolsetRef,
     ToolsetSelection,
 )
-from contractor_runtime.digests import _agent_template_digest, _digest_bytes
+from contractor_runtime.digests import _agent_template_digest, _digest_bytes, _model_policy_digest
 from contractor_runtime.state import ProcessState
 from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
@@ -132,12 +134,19 @@ def sample_spec(peer):
         )
         for item in authored["toolsets"]
     ]
-    assert authored["modelPolicy"] == "worker@1"
-    policy = document("model-policies/worker.yaml")["spec"]
-    for name, value in policy.items():
-        assert spec.model_policy.model_dump(by_alias=True)[name] == value
+    policy = document("model-policies/worker.yaml")
+    metadata = policy["metadata"]
+    assert authored["modelPolicy"] == f"{metadata['name']}@{metadata['version']}"
+    spec.model_policy = ResolvedModelPolicy(
+        ref=ModelPolicyRef(
+            policyId=metadata["name"], version=metadata["version"], digest="sha256:" + "0" * 64
+        ),
+        **policy["spec"],
+    )
+    spec.model_policy.ref.digest = _model_policy_digest(spec.model_policy)
+    spec.agent_template.model_policy = spec.model_policy.model_copy(deep=True)
     spec.agent_template.ref.digest = _agent_template_digest(spec.agent_template)
-    spec.workspace = AllocationWorkspaceSpecV2(
+    spec.workspace = AllocationWorkspaceSpec(
         mode=stage["context"]["workspace"]["mode"],
         sources=[{"artifact": peer.source_ref, "target": ""}],
     )

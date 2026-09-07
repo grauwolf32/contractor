@@ -134,20 +134,20 @@ func (c OperationsCursor) MarshalJSON() ([]byte, error) {
 }
 
 type RuntimeAgentObservation struct {
-	InstanceID                string                             `json:"instanceId"`
-	SoftwareVersion           string                             `json:"softwareVersion"`
-	SupportedRuntimes         []string                           `json:"supportedRuntimes"`
-	SupportedToolsets         []RuntimeToolsetCapability         `json:"supportedToolsets"`
-	SupportedSandboxProfiles  []string                           `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters  []string                           `json:"supportedRuntimeAdapters"`
-	WorkspaceCapabilities     *contracts.WorkspaceCapabilitiesV2 `json:"workspaceCapabilities,omitempty"`
-	ObservedState             contracts.AgentObservedState       `json:"observedState"`
-	SlotState                 SlotState                          `json:"slotState"`
-	LastAcceptedHeartbeat     *time.Time                         `json:"lastAcceptedHeartbeat,omitempty"`
-	ConfirmedLeaseUntil       *time.Time                         `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationID       *string                            `json:"currentAllocationId,omitempty"`
-	AuthoritativeAllocationID *string                            `json:"authoritativeAllocationId,omitempty"`
-	ReconciliationReason      *SafeReason                        `json:"reconciliationReason,omitempty"`
+	InstanceID                string                           `json:"instanceId"`
+	SoftwareVersion           string                           `json:"softwareVersion"`
+	SupportedRuntimes         []string                         `json:"supportedRuntimes"`
+	SupportedToolsets         []RuntimeToolsetCapability       `json:"supportedToolsets"`
+	SupportedSandboxProfiles  []string                         `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters  []string                         `json:"supportedRuntimeAdapters"`
+	WorkspaceCapabilities     *contracts.WorkspaceCapabilities `json:"workspaceCapabilities,omitempty"`
+	ObservedState             contracts.AgentObservedState     `json:"observedState"`
+	SlotState                 SlotState                        `json:"slotState"`
+	LastAcceptedHeartbeat     *time.Time                       `json:"lastAcceptedHeartbeat,omitempty"`
+	ConfirmedLeaseUntil       *time.Time                       `json:"confirmedLeaseUntil,omitempty"`
+	CurrentAllocationID       *string                          `json:"currentAllocationId,omitempty"`
+	AuthoritativeAllocationID *string                          `json:"authoritativeAllocationId,omitempty"`
+	ReconciliationReason      *SafeReason                      `json:"reconciliationReason,omitempty"`
 }
 
 type RuntimeToolsetCapability struct {
@@ -531,7 +531,7 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 		SupportedRuntimes:         append([]string{}, entry.registration.SupportedRuntimes...),
 		SupportedToolsets:         make([]RuntimeToolsetCapability, len(entry.registration.SupportedToolsets)),
 		SupportedSandboxProfiles:  append([]string{}, entry.registration.SupportedSandboxProfiles...),
-		SupportedRuntimeAdapters:  contracts.RuntimeAdapterCapabilityProjectionV2(entry.registration),
+		SupportedRuntimeAdapters:  contracts.RuntimeAdapterCapabilityProjection(entry.registration),
 		WorkspaceCapabilities:     cloneWorkspaceCapabilities(entry.registration.WorkspaceCapabilities),
 		ObservedState:             entry.registration.ObservedState,
 		SlotState:                 slotState(entry),
@@ -571,13 +571,13 @@ func runtimeObservation(entry *agentEntry) RuntimeAgentObservation {
 }
 
 func cloneWorkspaceCapabilities(
-	source *contracts.WorkspaceCapabilitiesV2,
-) *contracts.WorkspaceCapabilitiesV2 {
+	source *contracts.WorkspaceCapabilities,
+) *contracts.WorkspaceCapabilities {
 	if source == nil {
 		return nil
 	}
 	result := *source
-	result.Modes = append([]contracts.WorkspaceModeV2{}, source.Modes...)
+	result.Modes = append([]contracts.WorkspaceMode{}, source.Modes...)
 	return &result
 }
 

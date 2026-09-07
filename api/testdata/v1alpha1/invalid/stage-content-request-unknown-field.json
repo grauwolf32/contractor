@@ -1,9 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "subtaskId": "0",
-  "objective": "Do work",
-  "instructions": "Follow instructions",
-  "parameters": {},
-  "artifacts": {},
-  "runId": "must-not-be-accepted"
-}
+{"apiVersion":"contractor/v1alpha1","artifacts":{},"instructions":"Follow instructions","objective":"Do work","parameters":{},"runId":"must-not-be-accepted","subtaskId":"0"}

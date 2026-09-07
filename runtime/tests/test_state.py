@@ -75,7 +75,7 @@ def test_v2_startup_inputs_are_emitted_after_protocol_activation() -> None:
             instance_id="runtime-v1-until-v8-004", capabilities=capabilities
         ).registration(settings)
         wire = registration.model_dump(mode="json", by_alias=True)
-        assert wire["privateProtocolVersion"] == 2
+        assert wire["apiVersion"] == "contractor/v1alpha1"
         assert wire["initialLabels"] == ["debug"]
         assert wire["supportedRuntimeAdapters"] == ["otlp-http@1"]
         assert "runtimeAgentId" not in wire

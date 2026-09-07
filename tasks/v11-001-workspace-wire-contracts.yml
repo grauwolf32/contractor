@@ -16,7 +16,7 @@ goal: >-
 context:
   ownership: >-
     Workflow source/state references are logical aliases without revisions.
-    AllocationSpecV2 carries exact RunScope ArtifactRefs for sources and
+    AllocationSpec carries exact RunScope ArtifactRefs for sources and
     optional state, plus logical result-slot names for export. Runtime startup
     alone owns storage local|memory and physical limits.
   media_types: >-
@@ -27,7 +27,7 @@ context:
 scope:
   in:
     - Add typed Go and Pydantic models for workspace mode, source, optional state, export and Runtime capability limits.
-    - Add optional workspace to AllocationSpecV2 and optional workspaceCapabilities to AgentRegistrationV2.
+    - Add optional workspace to AllocationSpec and optional workspaceCapabilities to AgentRegistration.
     - Require sorted modes, exact ArtifactRefs on the private manifest and bounded normalized target/slot strings.
     - Extend strict duplicate/unknown-field/canonical round-trip fixtures in both languages.
     - Keep StageContentRequest unchanged.

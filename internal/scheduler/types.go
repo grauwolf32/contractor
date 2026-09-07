@@ -151,7 +151,7 @@ type WorkerController interface {
 	PrepareAll(
 		context.Context,
 		[]controlplane.Reservation,
-		map[string]contracts.WorkerExecutionSettingsV2,
+		map[string]contracts.WorkerExecutionSettings,
 	) (map[string]contracts.WorkerHandle, error)
 	FinalizeAll(
 		context.Context,

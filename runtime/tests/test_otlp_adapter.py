@@ -26,11 +26,11 @@ from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
     API_VERSION,
-    AllocationSpecV2,
+    AllocationSpec,
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
     TelemetryExportSettings,
-    TelemetrySettingsV2,
+    TelemetrySettings,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -385,8 +385,8 @@ def adapter_context() -> RuntimeAdapterBuildContext:
     )
 
 
-def telemetry_settings() -> TelemetrySettingsV2:
-    return TelemetrySettingsV2(
+def telemetry_settings() -> TelemetrySettings:
+    return TelemetrySettings(
         adapter="otlp-http@1",
         endpoint=ENDPOINT,
         headers={"Authorization": f"Bearer {HEADER_SECRET}"},
@@ -395,7 +395,7 @@ def telemetry_settings() -> TelemetrySettingsV2:
     )
 
 
-def configured_allocation() -> AllocationSpecV2:
+def configured_allocation() -> AllocationSpec:
     spec = allocation_spec(tools=["read_artifact"])
     return spec.model_copy(
         update={

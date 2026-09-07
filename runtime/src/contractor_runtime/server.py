@@ -27,7 +27,7 @@ from contractor_runtime.contracts import (
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
     AbortAllocationRequest,
     FinalizeAllocationRequest,
-    PrepareAllocationRequestV2,
+    PrepareAllocationRequest,
     ReleaseAllocationRequest,
 )
 from contractor_runtime.mtls import verify_control_plane_peer
@@ -178,7 +178,7 @@ def create_app(
         )
 
     async def prepare(request: Request) -> Response:
-        return await lifecycle_call(request, PrepareAllocationRequestV2, "prepare")
+        return await lifecycle_call(request, PrepareAllocationRequest, "prepare")
 
     async def finalize(request: Request) -> Response:
         return await lifecycle_call(request, FinalizeAllocationRequest, "finalize")
@@ -261,7 +261,7 @@ def create_app(
             value = await _decode_request(request, model)
             allocation_id = (
                 value.spec.allocation_id
-                if isinstance(value, PrepareAllocationRequestV2)
+                if isinstance(value, PrepareAllocationRequest)
                 else value.allocation_id
             )
             if request.path_params["allocation_id"] != allocation_id:

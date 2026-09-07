@@ -15,13 +15,10 @@ from contractor_runtime.contracts import (
     AgentHeartbeat,
     AgentRegistration,
     AgentRegistrationResponse,
-    AgentRegistrationResponseV2,
-    AgentRegistrationV2,
     AgentStateSnapshot,
     AllocationFinalResponse,
     AllocationSpec,
-    AllocationSpecV2,
-    AllocationWorkspaceSpecV2,
+    AllocationWorkspaceSpec,
     ArtifactListResult,
     ArtifactReadResult,
     FinalizeAllocationRequest,
@@ -30,18 +27,17 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     ResolvedAgentTemplate,
     ResolvedLLMGatewayConfig,
-    ResolvedRuntimeConfigProvenanceV2,
-    RuntimeReportV2,
+    ResolvedRuntimeConfigProvenance,
+    RuntimeReport,
     RuntimeSettings,
-    RuntimeSettingsV2,
     StageContentRequest,
     StageContentResult,
     WorkerCompletion,
     WorkerModelResult,
     WorkerSessionMode,
-    WorkspaceCapabilitiesV2,
-    decode_private_v2,
-    encode_private_v2,
+    WorkspaceCapabilities,
+    decode_private,
+    encode_private,
 )
 from contractor_runtime.digests import (
     GatewayDigestMismatch,
@@ -50,44 +46,39 @@ from contractor_runtime.digests import (
 )
 
 FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "v1alpha1"
-PRIVATE_V2_FIXTURES = Path(__file__).parents[2] / "testdata" / "contracts" / "private-v2"
 
-PRIVATE_V2_VALID_MODELS: dict[str, type[BaseModel]] = {
-    "agent-registration.json": AgentRegistrationV2,
-    "agent-registration-response.json": AgentRegistrationResponseV2,
-    "runtime-settings-empty.json": RuntimeSettingsV2,
-    "runtime-settings-telemetry.json": RuntimeSettingsV2,
-    "runtime-settings-telemetry-export.json": RuntimeSettingsV2,
-    "runtime-settings-proxy.json": RuntimeSettingsV2,
-    "runtime-settings-combined.json": RuntimeSettingsV2,
-    "runtime-provenance.json": ResolvedRuntimeConfigProvenanceV2,
-    "runtime-report.json": RuntimeReportV2,
-    "workspace-capabilities.json": WorkspaceCapabilitiesV2,
-    "allocation-workspace-overlay.json": AllocationWorkspaceSpecV2,
-}
-
-PRIVATE_V2_INVALID_MODELS: dict[str, tuple[type[BaseModel], str]] = {
-    "registration-versionless.json": (AgentRegistrationV2, "version"),
-    "registration-v1.json": (AgentRegistrationV2, "version"),
-    "registration-unsorted-labels.json": (AgentRegistrationV2, "invariant"),
-    "registration-unsorted-adapters.json": (AgentRegistrationV2, "invariant"),
-    "runtime-settings-duplicate-key.json": (RuntimeSettingsV2, "duplicate_key"),
-    "runtime-settings-unknown-adapter.json": (RuntimeSettingsV2, "invariant"),
-    "runtime-settings-two-proxy-auth.json": (RuntimeSettingsV2, "invariant"),
-    "runtime-settings-secret-error.json": (RuntimeSettingsV2, "invariant"),
-    "runtime-settings-caido-secret-error.json": (RuntimeSettingsV2, "invariant"),
-    "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenanceV2, "schema"),
+DECODE_ERROR_CASES: dict[str, tuple[type[BaseModel], str]] = {
+    "registration-missing-api-version.json": (AgentRegistration, "version"),
+    "registration-bad-api-version.json": (AgentRegistration, "version"),
+    "registration-unsorted-labels.json": (AgentRegistration, "invariant"),
+    "registration-unsorted-adapters.json": (AgentRegistration, "invariant"),
+    "runtime-settings-duplicate-key.json": (RuntimeSettings, "duplicate_key"),
+    "runtime-settings-unknown-adapter.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-two-proxy-auth.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-secret-error.json": (RuntimeSettings, "invariant"),
+    "runtime-settings-caido-secret-error.json": (RuntimeSettings, "invariant"),
+    "runtime-provenance-secret-field.json": (ResolvedRuntimeConfigProvenance, "schema"),
     "workspace-capabilities-unsorted-modes.json": (
-        WorkspaceCapabilitiesV2,
+        WorkspaceCapabilities,
         "invariant",
     ),
     "allocation-workspace-versionless-source.json": (
-        AllocationWorkspaceSpecV2,
+        AllocationWorkspaceSpec,
         "invariant",
     ),
 }
 
 VALID_MODELS: dict[str, type[BaseModel]] = {
+    "runtime-settings-empty.json": RuntimeSettings,
+    "runtime-settings-telemetry.json": RuntimeSettings,
+    "runtime-settings-telemetry-export.json": RuntimeSettings,
+    "runtime-settings-proxy.json": RuntimeSettings,
+    "runtime-settings-combined.json": RuntimeSettings,
+    "runtime-provenance.json": ResolvedRuntimeConfigProvenance,
+    "runtime-provenance-empty.json": ResolvedRuntimeConfigProvenance,
+    "runtime-report.json": RuntimeReport,
+    "workspace-capabilities.json": WorkspaceCapabilities,
+    "allocation-workspace-overlay.json": AllocationWorkspaceSpec,
     "agent-state-snapshot.json": AgentStateSnapshot,
     "agent-registration.json": AgentRegistration,
     "agent-registration-response.json": AgentRegistrationResponse,
@@ -113,6 +104,9 @@ VALID_MODELS: dict[str, type[BaseModel]] = {
 }
 
 INVALID_MODELS: dict[str, type[BaseModel]] = {
+    "registration-missing-labels.json": AgentRegistration,
+    "registration-missing-adapters.json": AgentRegistration,
+    "allocation-spec-missing-provenance.json": AllocationSpec,
     "agent-state-zero-revision.json": AgentStateSnapshot,
     "agent-state-echoed-allocation.json": AgentStateSnapshot,
     "agent-registration-idle-with-allocation.json": AgentRegistration,
@@ -142,6 +136,24 @@ def test_stage_content_request_does_not_expose_session_controls() -> None:
 
 
 FIXTURE_SCHEMAS = {
+    "registration-missing-labels": "agent-registration.schema.json",
+    "registration-missing-adapters": "agent-registration.schema.json",
+    "allocation-spec-missing-provenance": "allocation.schema.json",
+    "runtime-report": "runtime-report.schema.json",
+    "runtime-provenance": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
+    "runtime-provenance-empty": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
+    "runtime-provenance-secret-field": (
+        "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"
+    ),
+    "workspace-capabilities": "agent-registration.schema.json#/$defs/WorkspaceCapabilities",
+    "allocation-workspace-overlay": "allocation.schema.json#/$defs/AllocationWorkspaceSpec",
+    "registration-bad-api-version": "agent-registration.schema.json",
+    "registration-missing-api-version": "agent-registration.schema.json",
+    "runtime-settings-empty": "allocation.schema.json#/$defs/RuntimeSettings",
+    "runtime-settings-telemetry": "allocation.schema.json#/$defs/RuntimeSettings",
+    "runtime-settings-telemetry-export": "allocation.schema.json#/$defs/RuntimeSettings",
+    "runtime-settings-proxy": "allocation.schema.json#/$defs/RuntimeSettings",
+    "runtime-settings-combined": "allocation.schema.json#/$defs/RuntimeSettings",
     "agent-state-snapshot": "agent-state.schema.json",
     "agent-registration": "agent-registration.schema.json",
     "agent-registration-response": "agent-registration-response.schema.json",
@@ -294,23 +306,23 @@ def test_agent_state_snapshot_rejects_missing_or_untyped_nested_state() -> None:
             AgentStateSnapshot.model_validate_json(json.dumps(candidate))
 
 
-@pytest.mark.parametrize(("filename", "model"), PRIVATE_V2_VALID_MODELS.items())
-def test_private_v2_valid_fixture_is_shared_canonical_json(
+@pytest.mark.parametrize(("filename", "model"), VALID_MODELS.items())
+def test_private_valid_fixture_is_shared_canonical_json(
     filename: str, model: type[BaseModel]
 ) -> None:
-    raw = (PRIVATE_V2_FIXTURES / "valid" / filename).read_bytes().strip()
-    value = decode_private_v2(model, raw)
-    assert encode_private_v2(value) == raw
+    raw = (FIXTURES / "valid" / filename).read_bytes().strip()
+    value = decode_private(model, raw)
+    assert encode_private(value) == raw
 
 
-@pytest.mark.parametrize(("filename", "case"), PRIVATE_V2_INVALID_MODELS.items())
-def test_private_v2_invalid_fixture_has_safe_reason(
+@pytest.mark.parametrize(("filename", "case"), DECODE_ERROR_CASES.items())
+def test_private_invalid_fixture_has_safe_reason(
     filename: str, case: tuple[type[BaseModel], str]
 ) -> None:
     model, reason = case
-    raw = (PRIVATE_V2_FIXTURES / "invalid" / filename).read_bytes()
+    raw = (FIXTURES / "invalid" / filename).read_bytes()
     with pytest.raises(PrivateProtocolDecodeError) as failure:
-        decode_private_v2(model, raw)
+        decode_private(model, raw)
     assert failure.value.reason == reason
     rendered = f"{failure.value!s} {failure.value!r}"
     for canary in (
@@ -324,17 +336,17 @@ def test_private_v2_invalid_fixture_has_safe_reason(
         assert canary not in rendered
 
 
-def test_private_v2_allocation_composes_and_redacts_settings() -> None:
+def test_private_allocation_composes_and_redacts_settings() -> None:
     value = json.loads((FIXTURES / "valid" / "allocation-spec.json").read_text())
     value["runtimeSettings"] = json.loads(
-        (PRIVATE_V2_FIXTURES / "valid" / "runtime-settings-combined.json").read_text()
+        (FIXTURES / "valid" / "runtime-settings-combined.json").read_text()
     )
     value["resolvedRuntimeConfigProvenance"] = json.loads(
-        (PRIVATE_V2_FIXTURES / "valid" / "runtime-provenance.json").read_text()
+        (FIXTURES / "valid" / "runtime-provenance.json").read_text()
     )
-    allocation = decode_private_v2(AllocationSpecV2, json.dumps(value))
-    canonical = encode_private_v2(allocation)
-    decode_private_v2(AllocationSpecV2, canonical)
+    allocation = decode_private(AllocationSpec, json.dumps(value))
+    canonical = encode_private(allocation)
+    decode_private(AllocationSpec, canonical)
     rendered = f"{allocation.runtime_settings!s} {allocation.runtime_settings!r}"
     for secret in (
         "gateway-secret",
@@ -512,7 +524,7 @@ def test_all_golden_files_have_an_assigned_model() -> None:
     valid_files = {path.name for path in (FIXTURES / "valid").glob("*.json")}
     invalid_files = {path.name for path in (FIXTURES / "invalid").glob("*.json")}
     assert valid_files == VALID_MODELS.keys()
-    assert invalid_files == INVALID_MODELS.keys()
+    assert invalid_files == INVALID_MODELS.keys() | DECODE_ERROR_CASES.keys()
 
 
 def test_shared_allocation_run_metadata_label_cases_match_model_and_schema() -> None:
@@ -595,7 +607,7 @@ def test_run_metadata_labels_exist_only_on_allocation_telemetry_input() -> None:
         StageContentResult,
         WorkerCompletion,
         AgentStateSnapshot,
-        RuntimeReportV2,
+        RuntimeReport,
     ):
         assert "run_metadata_labels" not in model.model_fields
 
@@ -610,6 +622,15 @@ def test_schema_files_are_json_objects() -> None:
     assert all(schema.get("$schema") == expected_draft for schema in schemas)
 
 
+def test_schema_ids_are_unique_across_the_api_catalog() -> None:
+    owners: dict[str, Path] = {}
+    for path in (Path(__file__).parents[2] / "api").rglob("*.schema.json"):
+        schema = json.loads(path.read_bytes())
+        schema_id = schema["$id"]
+        assert schema_id not in owners, (schema_id, owners.get(schema_id), path)
+        owners[schema_id] = path
+
+
 def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
     schema_root = Path(__file__).parents[2] / "api" / "v1alpha1"
     schemas = {
@@ -621,7 +642,14 @@ def test_json_schemas_accept_and_reject_the_golden_fixtures() -> None:
 
     for kind, expected_valid in (("valid", True), ("invalid", False)):
         for path in (FIXTURES / kind).glob("*.json"):
+            if path.stem not in FIXTURE_SCHEMAS:
+                # These cases exercise semantic invariants or duplicate JSON keys
+                # in the Go/Python codecs, which JSON Schema cannot express.
+                assert path.name in DECODE_ERROR_CASES
+                continue
             schema_name = FIXTURE_SCHEMAS[path.stem]
-            validator = Draft202012Validator(schemas[schema_name], registry=registry)
+            filename, _, fragment = schema_name.partition("#")
+            reference = schemas[filename]["$id"] + (f"#{fragment}" if fragment else "")
+            validator = Draft202012Validator({"$ref": reference}, registry=registry)
             errors = list(validator.iter_errors(json.loads(path.read_text(encoding="utf-8"))))
             assert bool(errors) is not expected_valid, (path.name, errors)

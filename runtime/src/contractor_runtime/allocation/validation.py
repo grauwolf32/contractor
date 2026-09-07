@@ -7,11 +7,7 @@ from datetime import datetime
 
 from contractor_runtime.allocation.errors import AllocationError
 from contractor_runtime.capabilities import CapabilitySnapshot
-from contractor_runtime.contracts import (
-    AllocationSpec,
-    AllocationSpecV2,
-    normalize_run_metadata_labels,
-)
+from contractor_runtime.contracts import AllocationSpec, normalize_run_metadata_labels
 from contractor_runtime.digests import (
     TemplateDigestMismatch,
     verify_model_policy_digest,
@@ -163,9 +159,7 @@ def validate_spec(
                 for tool in selection.tools
                 for channel in factory.infrastructure_channels.get(tool, frozenset())
             )
-        if getattr(factory, "requires_workspace", False) and (
-            not isinstance(spec, AllocationSpecV2) or spec.workspace is None
-        ):
+        if getattr(factory, "requires_workspace", False) and spec.workspace is None:
             raise AllocationError(
                 "workspace_required",
                 "selected Toolset requires an allocation project workspace",
@@ -174,7 +168,6 @@ def validate_spec(
             )
         if (
             toolset_ref == "workspace-changes@1"
-            and isinstance(spec, AllocationSpecV2)
             and spec.workspace is not None
             and spec.workspace.mode != "overlay"
         ):
@@ -185,54 +178,53 @@ def validate_spec(
                 status_code=422,
             )
 
-    if isinstance(spec, AllocationSpecV2):
+    if (
+        "caido-graphql-client" in required_infrastructure_channels
+        and spec.runtime_settings.caido is None
+    ):
+        raise AllocationError(
+            "caido_not_configured",
+            "selected Caido tools require resolved Runtime configuration",
+            retryable=False,
+            status_code=422,
+        )
+    if spec.workspace is not None:
+        provider = factories.workspace_provider
         if (
-            "caido-graphql-client" in required_infrastructure_channels
-            and spec.runtime_settings.caido is None
+            provider is None
+            or capabilities.workspace is None
+            or capabilities.workspace != provider.capability
+            or not capabilities.supports_workspace_mode(spec.workspace.mode)
         ):
             raise AllocationError(
-                "caido_not_configured",
-                "selected Caido tools require resolved Runtime configuration",
+                "workspace_mode_unsupported",
+                "allocation workspace mode is not available on this Runtime Agent",
                 retryable=False,
                 status_code=422,
             )
-        if spec.workspace is not None:
-            provider = factories.workspace_provider
-            if (
-                provider is None
-                or capabilities.workspace is None
-                or capabilities.workspace != provider.capability
-                or not capabilities.supports_workspace_mode(spec.workspace.mode)
-            ):
-                raise AllocationError(
-                    "workspace_mode_unsupported",
-                    "allocation workspace mode is not available on this Runtime Agent",
-                    retryable=False,
-                    status_code=422,
-                )
-            if factories.artifact_client_factory is None:
-                raise AllocationError(
-                    "workspace_source_unavailable",
-                    "allocation workspace Artifact client is unavailable",
-                    retryable=True,
-                    status_code=503,
-                )
-        required = set(spec.resolved_runtime_config_provenance.runtime_adapters)
-        configured: set[str] = set()
-        if spec.runtime_settings.telemetry is not None:
-            configured.add(spec.runtime_settings.telemetry.adapter)
-        if spec.runtime_settings.http_proxy is not None:
-            configured.add(spec.runtime_settings.http_proxy.adapter)
-        if spec.runtime_settings.caido is not None:
-            configured.add(spec.runtime_settings.caido.adapter)
-        if (
-            required != configured
-            or not capabilities.supports_runtime_adapters(required)
-            or not required <= set(factories.runtime_adapters)
-        ):
+        if factories.artifact_client_factory is None:
             raise AllocationError(
-                "unsupported_runtime_adapter",
-                "allocation Runtime adapter settings do not match frozen capabilities",
-                retryable=False,
-                status_code=422,
+                "workspace_source_unavailable",
+                "allocation workspace Artifact client is unavailable",
+                retryable=True,
+                status_code=503,
             )
+    required = set(spec.resolved_runtime_config_provenance.runtime_adapters)
+    configured: set[str] = set()
+    if spec.runtime_settings.telemetry is not None:
+        configured.add(spec.runtime_settings.telemetry.adapter)
+    if spec.runtime_settings.http_proxy is not None:
+        configured.add(spec.runtime_settings.http_proxy.adapter)
+    if spec.runtime_settings.caido is not None:
+        configured.add(spec.runtime_settings.caido.adapter)
+    if (
+        required != configured
+        or not capabilities.supports_runtime_adapters(required)
+        or not required <= set(factories.runtime_adapters)
+    ):
+        raise AllocationError(
+            "unsupported_runtime_adapter",
+            "allocation Runtime adapter settings do not match frozen capabilities",
+            retryable=False,
+            status_code=422,
+        )

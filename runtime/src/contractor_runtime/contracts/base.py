@@ -188,7 +188,6 @@ def _encoded_state_path_list_size(paths: list[str]) -> int:
     return len(json.dumps(paths, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 
-PRIVATE_PROTOCOL_VERSION_V2 = 2
 RUNTIME_ADAPTER_REFS = frozenset({"caido-graphql@1", "http-proxy@1", "otlp-http@1"})
 RUNTIME_CREDENTIAL_KINDS = frozenset(
     {"caido-bearer@1", "http-proxy-basic@1", "http-proxy-bearer@1", "otlp-headers@1"}
@@ -233,8 +232,8 @@ RuntimeCredentialKind = Literal[
     "otlp-headers@1",
 ]
 HTTPProxyTarget = Literal["llm-gateway", "tool-http", "tool-subprocess"]
-WorkspaceModeV2 = Literal["direct", "overlay"]
-WorkspaceStorageV2 = Literal["local", "memory"]
+WorkspaceMode = Literal["direct", "overlay"]
+WorkspaceStorage = Literal["local", "memory"]
 
 
 def _require_sorted_unique(field: str, values: list[str], *, maximum: int) -> None:

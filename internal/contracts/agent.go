@@ -1,7 +1,5 @@
 package contracts
 
-import "time"
-
 type AgentObservedState string
 
 const (
@@ -23,65 +21,6 @@ const (
 type ToolsetCapability struct {
 	Ref   string   `json:"ref"`
 	Tools []string `json:"tools"`
-}
-
-type AgentRegistration struct {
-	APIVersion               string              `json:"apiVersion"`
-	InstanceID               string              `json:"instanceId"`
-	SoftwareVersion          string              `json:"softwareVersion"`
-	StartedAt                time.Time           `json:"startedAt"`
-	ControlURL               string              `json:"controlUrl"`
-	A2AURL                   string              `json:"a2aUrl"`
-	SupportedRuntimes        []string            `json:"supportedRuntimes"`
-	SupportedToolsets        []ToolsetCapability `json:"supportedToolsets"`
-	SupportedSandboxProfiles []string            `json:"supportedSandboxProfiles"`
-	ObservedState            AgentObservedState  `json:"observedState"`
-	AllocationID             *string             `json:"allocationId,omitempty"`
-}
-
-type AgentRegistrationResponse struct {
-	APIVersion               string `json:"apiVersion"`
-	HeartbeatIntervalSeconds int    `json:"heartbeatIntervalSeconds"`
-	ConfirmedLeaseSeconds    int    `json:"confirmedLeaseSeconds"`
-}
-
-func (r AgentRegistrationResponse) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	if r.HeartbeatIntervalSeconds <= 0 || r.ConfirmedLeaseSeconds <= 0 {
-		return invalidf("heartbeat interval and confirmed lease must be positive")
-	}
-	if r.ConfirmedLeaseSeconds <= r.HeartbeatIntervalSeconds {
-		return invalidf("confirmed lease must exceed heartbeat interval")
-	}
-	return nil
-}
-
-func (r AgentRegistration) Validate() error {
-	if err := validateAPIVersion(r.APIVersion); err != nil {
-		return err
-	}
-	if err := validateOpaqueID("instanceId", r.InstanceID); err != nil {
-		return err
-	}
-	if len(r.SoftwareVersion) == 0 || len(r.SoftwareVersion) > 128 ||
-		!versionPattern.MatchString(r.SoftwareVersion) {
-		return invalidf("softwareVersion must be a bounded version string")
-	}
-	if r.StartedAt.IsZero() {
-		return invalidf("startedAt must not be zero")
-	}
-	if err := validateURL("controlUrl", r.ControlURL); err != nil {
-		return err
-	}
-	if err := validateURL("a2aUrl", r.A2AURL); err != nil {
-		return err
-	}
-	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {
-		return err
-	}
-	return validateObservedAllocation(r.ObservedState, r.AllocationID)
 }
 
 type AgentHeartbeat struct {

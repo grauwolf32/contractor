@@ -7,7 +7,7 @@ import (
 )
 
 func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
-	raw, err := os.ReadFile("../../testdata/contracts/private-v2/audit-completion-cases.json")
+	raw, err := os.ReadFile("../../api/testdata/v1alpha1/audit-completion-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,11 +32,9 @@ func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
 			case "capabilities":
 				err = privateReject[RuntimeCompletionCapabilities](c.Value)
 			case "allocation":
-				err = privateReject[AllocationSpecV2](c.Value)
-			case "legacy-allocation":
 				err = privateReject[AllocationSpec](c.Value)
 			case "registration":
-				err = privateReject[AgentRegistrationV2](c.Value)
+				err = privateReject[AgentRegistration](c.Value)
 			default:
 				t.Fatalf("unknown fixture model %q", c.Model)
 			}
@@ -48,12 +46,12 @@ func TestAuditCompletionSharedPythonFixtures(t *testing.T) {
 }
 
 func TestCompletionCapabilityCloneDoesNotGrantOrShareSupport(t *testing.T) {
-	empty := NormalizeAgentRegistrationV2(AgentRegistrationV2{})
+	empty := NormalizeAgentRegistration(AgentRegistration{})
 	if empty.Capabilities != nil {
 		t.Fatal("omission invented completion capability")
 	}
-	original := AgentRegistrationV2{Capabilities: &RuntimeCompletionCapabilities{CompletionContracts: []string{AuditCheckResultsV1}}}
-	cloned := NormalizeAgentRegistrationV2(original)
+	original := AgentRegistration{Capabilities: &RuntimeCompletionCapabilities{CompletionContracts: []string{AuditCheckResultsV1}}}
+	cloned := NormalizeAgentRegistration(original)
 	cloned.Capabilities.CompletionContracts[0] = "changed"
 	if original.Capabilities.CompletionContracts[0] != AuditCheckResultsV1 {
 		t.Fatal("capability clone aliases mutable source")

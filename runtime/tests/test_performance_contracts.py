@@ -11,20 +11,19 @@ from pydantic import ValidationError
 from referencing import Registry, Resource
 
 from contractor_runtime.contracts import (
-    AgentRegistrationV2,
+    AgentRegistration,
     AllocationFinalResponse,
-    AllocationSpecV2,
+    AllocationSpec,
     PerformanceMetricsRequest,
     PrivateProtocolDecodeError,
     RuntimeReport,
-    RuntimeReportV2,
     RuntimeResources,
-    decode_private_v2,
-    encode_private_v2,
+    decode_private,
+    encode_private,
 )
 
 ROOT = Path(__file__).parents[2]
-FIXTURES = ROOT / "testdata/contracts/private-v2"
+FIXTURES = ROOT / "api/testdata/v1alpha1"
 CASES = json.loads((FIXTURES / "performance-cases.json").read_text())
 FINAL = ROOT / "api/testdata/v1alpha1/valid/allocation-final-response.json"
 SCHEMAS = {
@@ -47,23 +46,23 @@ def schema_validator(name: str, definition: str | None = None) -> Draft202012Val
 
 @pytest.mark.parametrize("case", CASES["validResources"], ids=lambda case: case["name"])
 def test_performance_golden_valid_resources_round_trip(case: dict) -> None:
-    value = decode_private_v2(RuntimeResources, json.dumps(case["value"]))
-    assert json.loads(encode_private_v2(value)) == case["value"]
+    value = decode_private(RuntimeResources, json.dumps(case["value"]))
+    assert json.loads(encode_private(value)) == case["value"]
     schema_validator("v1alpha1/performance", "runtimeResources").validate(case["value"])
     report = json.loads(FINAL.read_text())
     report["report"]["runtime"]["resources"] = case["value"]
-    final = decode_private_v2(AllocationFinalResponse, json.dumps(report))
+    final = decode_private(AllocationFinalResponse, json.dumps(report))
     assert final.report.runtime.resources == value
     assert final.report.runtime.resources_error is None
-    assert json.loads(encode_private_v2(final))["report"]["runtime"]["resources"] == case["value"]
-    schema_validator("private-v2/runtime-report").validate(report["report"]["runtime"])
+    assert json.loads(encode_private(final))["report"]["runtime"]["resources"] == case["value"]
+    schema_validator("v1alpha1/runtime-report").validate(report["report"]["runtime"])
     schema_validator("v1alpha1/allocation").validate(report)
 
 
 @pytest.mark.parametrize("case", CASES["invalidResources"], ids=lambda case: case["name"])
 def test_performance_golden_resource_errors_are_isolated(case: dict) -> None:
     with pytest.raises(PrivateProtocolDecodeError) as caught:
-        decode_private_v2(RuntimeResources, json.dumps(case["value"]))
+        decode_private(RuntimeResources, json.dumps(case["value"]))
     assert "secret-canary" not in str(caught.value)
     if case["schemaInvalid"]:
         assert not schema_validator("v1alpha1/performance", "runtimeResources").is_valid(
@@ -73,21 +72,18 @@ def test_performance_golden_resource_errors_are_isolated(case: dict) -> None:
     original_worker = report["report"]["worker"].copy()
     report["report"]["runtime"]["resources"] = case["value"]
     if case["schemaInvalid"]:
-        assert not schema_validator("private-v2/runtime-report").is_valid(
-            report["report"]["runtime"]
-        )
-    final = decode_private_v2(AllocationFinalResponse, json.dumps(report))
+        assert not schema_validator("v1alpha1/runtime-report").is_valid(report["report"]["runtime"])
+    final = decode_private(AllocationFinalResponse, json.dumps(report))
     assert final.report.runtime.resources is None
     assert final.report.runtime.resources_error == "invalid_report"
     assert final.report.runtime.complete is True
-    assert json.loads(encode_private_v2(final))["report"]["worker"] == original_worker
-    assert b"secret-canary" not in encode_private_v2(final)
-    assert b"resources_error" not in encode_private_v2(final)
-    for model in (RuntimeReport, RuntimeReportV2):
-        runtime = decode_private_v2(model, json.dumps(report["report"]["runtime"]))
-        assert runtime.resources is None
-        assert runtime.resources_error == "invalid_report"
-        assert runtime.complete is True
+    assert json.loads(encode_private(final))["report"]["worker"] == original_worker
+    assert b"secret-canary" not in encode_private(final)
+    assert b"resources_error" not in encode_private(final)
+    runtime = decode_private(RuntimeReport, json.dumps(report["report"]["runtime"]))
+    assert runtime.resources is None
+    assert runtime.resources_error == "invalid_report"
+    assert runtime.complete is True
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, -1.0, True])
@@ -107,42 +103,40 @@ def test_performance_golden_requests_and_capabilities(valid: bool) -> None:
         if valid:
             assert (
                 json.loads(
-                    encode_private_v2(
-                        decode_private_v2(PerformanceMetricsRequest, json.dumps(value))
-                    )
+                    encode_private(decode_private(PerformanceMetricsRequest, json.dumps(value)))
                 )
                 == value
             )
         else:
             with pytest.raises(PrivateProtocolDecodeError):
-                decode_private_v2(PerformanceMetricsRequest, json.dumps(value))
+                decode_private(PerformanceMetricsRequest, json.dumps(value))
     for value in CASES[f"{prefix}Capabilities"]:
         registration = json.loads((FIXTURES / "valid/agent-registration.json").read_text())
         registration["supportedPerformanceMetricsVersions"] = value
-        assert schema_validator("private-v2/agent-registration").is_valid(registration) == valid
+        assert schema_validator("v1alpha1/agent-registration").is_valid(registration) == valid
         if valid:
-            decoded = decode_private_v2(AgentRegistrationV2, json.dumps(registration))
+            decoded = decode_private(AgentRegistration, json.dumps(registration))
             assert decoded.supported_performance_metrics_versions == value
         else:
             with pytest.raises(PrivateProtocolDecodeError):
-                decode_private_v2(AgentRegistrationV2, json.dumps(registration))
+                decode_private(AgentRegistration, json.dumps(registration))
 
 
 def test_performance_old_new_allocation_and_registration_contracts() -> None:
     raw = (FIXTURES / "valid/agent-registration.json").read_bytes().strip()
-    registration = decode_private_v2(AgentRegistrationV2, raw)
+    registration = decode_private(AgentRegistration, raw)
     assert registration.supported_performance_metrics_versions == []
-    assert encode_private_v2(registration) == raw
-    assert b"supportedPerformanceMetricsVersions" not in encode_private_v2(registration)
+    assert encode_private(registration) == raw
+    assert b"supportedPerformanceMetricsVersions" not in encode_private(registration)
     for requested in (False, True):
         spec = allocation_spec()
         if requested:
             spec.performance_metrics = PerformanceMetricsRequest(version=1, interval_seconds=15)
-        raw = encode_private_v2(spec)
-        decoded = decode_private_v2(AllocationSpecV2, raw)
+        raw = encode_private(spec)
+        decoded = decode_private(AllocationSpec, raw)
         assert (decoded.performance_metrics is not None) == requested
         assert (b"performanceMetrics" in raw) == requested
-        schema_validator("private-v2/allocation").validate(json.loads(raw))
+        schema_validator("v1alpha1/allocation").validate(json.loads(raw))
 
 
 @pytest.mark.parametrize(
@@ -157,7 +151,7 @@ def test_performance_old_new_allocation_and_registration_contracts() -> None:
 )
 def test_resource_isolation_preserves_envelope_syntax(raw: str) -> None:
     with pytest.raises(PrivateProtocolDecodeError) as caught:
-        decode_private_v2(RuntimeReportV2, raw)
+        decode_private(RuntimeReport, raw)
     assert "secret-canary" not in str(caught.value)
 
 
@@ -165,4 +159,4 @@ def test_resource_isolation_preserves_original_final_report_size_limit() -> None
     report = json.loads(FINAL.read_text())
     report["report"]["runtime"]["resources"] = {"unknown": "x" * 1024 * 1024}
     with pytest.raises(PrivateProtocolDecodeError):
-        decode_private_v2(AllocationFinalResponse, json.dumps(report))
+        decode_private(AllocationFinalResponse, json.dumps(report))

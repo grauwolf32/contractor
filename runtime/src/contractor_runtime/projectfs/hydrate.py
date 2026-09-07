@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from contractor_runtime.artifacts import ArtifactClientError, ArtifactValue
-from contractor_runtime.contracts import AllocationWorkspaceSpecV2, ArtifactRef
+from contractor_runtime.contracts import AllocationWorkspaceSpec, ArtifactRef
 from contractor_runtime.projectfs.overlay import (
     WORKSPACE_OVERLAY_MEDIA_TYPE,
     OverlayWorkspaceSession,
@@ -83,7 +83,7 @@ class _TreeAccumulator:
 async def hydrate_workspace(
     *,
     provider: WorkspaceProvider,
-    spec: AllocationWorkspaceSpecV2,
+    spec: AllocationWorkspaceSpec,
     artifact_reader: ArtifactReader,
     allocation_id: str,
     timeout_seconds: float,

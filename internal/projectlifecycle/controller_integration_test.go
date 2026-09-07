@@ -56,7 +56,7 @@ INSERT INTO runtime_credentials (
 		Name: project.Name, Description: project.Description,
 		HTTPTarget: &contracts.HTTPOriginTargetRef{
 			URL: "https://app.example.test/api",
-			Credential: &contracts.RuntimeCredentialRefV2{
+			Credential: &contracts.RuntimeCredentialRef{
 				CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 			},
 		},

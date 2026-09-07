@@ -401,7 +401,7 @@ func TestProjectRunForksExactProjectInputAndKeepsImmutableMembership(t *testing.
 	configuredProject := fixture.projects.projects["project-one"]
 	configuredProject.HTTPTarget = &contracts.HTTPOriginTargetRef{
 		URL: "https://app.example.test/api",
-		Credential: &contracts.RuntimeCredentialRefV2{
+		Credential: &contracts.RuntimeCredentialRef{
 			CredentialID: "project-origin", Kind: contracts.RuntimeCredentialOriginBearer,
 		},
 	}

@@ -56,6 +56,10 @@ func TestInvalidGoldenFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) error{
+		"registration-missing-labels.json":        reject[AgentRegistration],
+		"registration-missing-adapters.json":      reject[AgentRegistration],
+		"allocation-spec-missing-provenance.json": reject[AllocationSpec],
+
 		"agent-state-zero-revision.json":                      reject[AgentStateSnapshot],
 		"agent-state-echoed-allocation.json":                  reject[AgentStateSnapshot],
 		"agent-registration-idle-with-allocation.json":        reject[AgentRegistration],
@@ -259,9 +263,10 @@ func TestRuntimeSettingsRedactFormattingButSerializeOnWire(t *testing.T) {
 	t.Parallel()
 
 	const token = "recognizable-secret-token"
+	secret := NewSecretString(token)
 	settings := RuntimeSettings{
 		LLMGatewayURL:         "https://gateway.example/v1",
-		LLMGatewayToken:       NewSecretString(token),
+		LLMGatewayToken:       &secret,
 		ArtifactAPIURL:        "https://server.example/private/v1",
 		RequestTimeoutSeconds: 30,
 	}
@@ -282,11 +287,11 @@ func TestRuntimeSettingsAllowsExplicitUnauthenticatedGateway(t *testing.T) {
 	t.Parallel()
 	settings := RuntimeSettings{
 		LLMGatewayURL:         "http://127.0.0.1:4000/v1",
-		LLMGatewayToken:       NewSecretString(""),
+		LLMGatewayToken:       nil,
 		ArtifactAPIURL:        "https://server.example/private/v1",
 		RequestTimeoutSeconds: 30,
 	}
-	if err := validateRuntimeSettings(settings); err != nil {
+	if err := settings.Validate(); err != nil {
 		t.Fatalf("unauthenticated RuntimeSettings were rejected: %v", err)
 	}
 }
@@ -300,19 +305,19 @@ func TestAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{
+	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetrics{
 		RuntimeAdapterOTLPHTTP: {Operations: 2, FailedOperations: 1},
 	}
 	if err := value.Validate(); err != nil {
 		t.Fatalf("valid adapter metrics were rejected: %v", err)
 	}
-	value.Report.Runtime.Adapters[RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetricsV2{
+	value.Report.Runtime.Adapters[RuntimeAdapterOTLPHTTP] = RuntimeAdapterMetrics{
 		Operations: 1, FailedOperations: 2,
 	}
 	if err := value.Validate(); err == nil {
 		t.Fatal("adapter metrics with failures above operations were accepted")
 	}
-	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetricsV2{
+	value.Report.Runtime.Adapters = map[RuntimeAdapterRef]RuntimeAdapterMetrics{
 		"unknown@1": {Operations: 1},
 	}
 	if err := value.Validate(); err == nil {

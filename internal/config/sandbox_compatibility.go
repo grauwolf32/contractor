@@ -26,7 +26,7 @@ func (d Descriptors) ValidateSandboxToolCompatibility(template contracts.Resolve
 
 // SandboxWorkspaceCompatible is binding-specific: other Workers retain their
 // usual storage-independent workspace placement.
-func SandboxWorkspaceCompatible(template contracts.ResolvedAgentTemplate, workspace *contracts.AllocationWorkspaceSpecV2, capability *contracts.WorkspaceCapabilitiesV2) bool {
+func SandboxWorkspaceCompatible(template contracts.ResolvedAgentTemplate, workspace *contracts.AllocationWorkspaceSpec, capability *contracts.WorkspaceCapabilities) bool {
 	d := sandboxPlacementDescriptors
 	if d.ValidateSandboxToolCompatibility(template) != nil {
 		return false

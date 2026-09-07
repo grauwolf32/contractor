@@ -1,15 +1,1 @@
-{
-  "apiVersion": "contractor/v1alpha1",
-  "subtaskId": "0",
-  "objective": "Copy the source artifact",
-  "instructions": "Use the exact input.",
-  "parameters": {},
-  "artifacts": {},
-  "resultArtifacts": {
-    "report": {
-      "namespace": "builder",
-      "name": "report",
-      "revision": "invented-revision"
-    }
-  }
-}
+{"apiVersion":"contractor/v1alpha1","artifacts":{},"instructions":"Use the exact input.","objective":"Copy the source artifact","parameters":{},"resultArtifacts":{"report":{"name":"report","namespace":"builder","revision":"invented-revision"}},"subtaskId":"0"}
