@@ -3,8 +3,8 @@ id: V48-003
 title: "Return empty Memory tags as arrays in Planner and Worker projections"
 milestone: shared-memory-production-correctness
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 84190d6e89460f8ddc237cbf9f1c86ff263d3419
 depends_on: [V9-005]
 languages: [go, python]
 goal: "Make untagged full notes and previews serialize tags as [] consistently in both Memory adapters."
