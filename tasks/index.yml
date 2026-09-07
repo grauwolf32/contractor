@@ -388,6 +388,11 @@ milestones:
       logical Workers through explicitly selected bounded Run-scoped notes over
       the existing ArtifactStore, with hidden revisions, safe response-loss
       reconciliation, exact routing schemas and content-free telemetry.
+  - id: operational-timeout-configuration
+    exit_task: V49-001
+    outcome: >-
+      Explicit transport, operation and lifecycle settings reach Server/Runtime
+      consumers independently and preserve enclosing and saved deadlines.
   - id: shared-memory-production-correctness
     exit_task: V48-004
     outcome: >-
@@ -2624,3 +2629,4 @@ tasks:
   - {id: V48-002, file: v48-002-memory-bounded-artifact-listing.yml}
   - {id: V48-003, file: v48-003-memory-empty-tags-parity.yml}
   - {id: V48-004, file: v48-004-production-memory-selection.yml}
+  - {id: V49-001, file: v49-001-operational-timeout-configuration.yml}

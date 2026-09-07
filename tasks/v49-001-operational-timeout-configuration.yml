@@ -1,0 +1,74 @@
+schema_version: "1.0"
+id: V49-001
+title: Separate transport, operation and lifecycle budgets and expose operational settings
+milestone: operational-timeout-configuration
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: []
+languages: [go, python, yaml, markdown]
+goal: >-
+  Give each operational timeout one explicit owner and ensure configured budgets
+  reach their consumers without extending enclosing deadlines.
+context:
+  review: docs/reviews/2026-09-07-hardcoded-operational-parameters.md
+  authority: >-
+    User requested planning and implementing the separation of overloaded
+    runtimeRequestTimeout, then explicitly included all seven proposed fixes.
+  overlap: >-
+    V45-002 remains a separate general process-settings refactor. Preserve
+    concurrent model-policy, telemetry and Runtime sandbox reorganization changes.
+scope:
+  in:
+    - Respect the existing CLI timeout in context check.
+    - Keep runtimeRequestTimeout exclusively for individual private Runtime/A2A HTTP requests.
+    - Add typed ServerConfig settings for Scheduler operations/finalization/abort, Runtime batch cleanup, Project lifecycle operations, Audit Controller, PostgreSQL budgets, A2A polling and credential-manager HTTP timeouts.
+    - Give local Runtime workspace operations an explicit configurable timeout and respect the enclosing cleanup deadline.
+    - Preserve saved terminal deadlines across retries/recovery and bound nested requests by the earlier applicable deadline.
+    - Document effective settings, input precedence, migration and relationships between budgets.
+  out:
+    - Change Memory, heartbeat, authentication or other established domain limits.
+    - Change model policies, Workflow identities, inference retries, A2A connection security or the polling algorithm.
+    - Introduce hot reload, generic key-value configuration or new Operations UI settings.
+    - Tune production values or deploy/restart services.
+requirements:
+  - id: R1
+    text: >-
+      Preserve existing default behavior (HTTP 30s, Scheduler/Project operation
+      30s, Runtime cleanup 30s, finalization/abort 10s). Explicit HTTP overrides
+      no longer implicitly change operation/cleanup budgets. Document migration.
+  - id: R2
+    text: >-
+      Parse and validate typed settings once. Server components receive resolved
+      settings. Reject malformed, zero and negative explicit durations and
+      inconsistent Audit lease/database timeout relationships. Keep secrets out
+      of ServerConfig. Define deterministic precedence with DSN settings.
+  - id: R3
+    text: >-
+      An operation budget covers its complete work, including waits. Finalize,
+      abort and cleanup retain ownership/fencing and the same absolute terminal
+      deadline on retry. Shorter enclosing deadlines and request timeouts win;
+      changing the process configuration does not reset a saved deadline.
+  - id: R4
+    text: >-
+      Regression tests use distinct non-default values and actual consumers,
+      including a delayed local HTTP response and a bounded workspace operation.
+      Preserve unrelated working-tree changes and record implementation commits.
+acceptance_criteria:
+  - id: A1
+    text: All seven review findings have a documented configuration path or direct CLI fix.
+  - id: A2
+    text: Transport changes do not change operation budgets; explicit non-default settings reach consumers.
+  - id: A3
+    text: Cancellation, deadline expiry, retries and cleanup preserve resource ownership and saved deadlines.
+  - id: A4
+    text: Existing configs load with compatible defaults; invalid and conflicting settings fail clearly.
+tests:
+  - command: go test -race -count=1 ./internal/app ./internal/cli ./internal/controlplane ./internal/planner/a2a ./internal/scheduler ./internal/auditcontroller ./internal/projectlifecycle ./internal/persistence/postgres ./internal/credentials/litellm
+    covers: [A1, A2, A3, A4]
+  - command: cd runtime && uv run pytest -W error tests/test_settings.py tests/test_workspace_provider.py tests/test_projectfs_local_direct.py tests/test_local_direct_faults.py tests/test_allocation.py
+    covers: [A1, A2, A3, A4]
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    covers: [A4]
+  - command: git diff --check
+    covers: [A4]
