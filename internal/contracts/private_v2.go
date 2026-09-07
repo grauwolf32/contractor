@@ -105,25 +105,31 @@ func (k RuntimeCredentialKind) Validate() error {
 }
 
 type AgentRegistrationV2 struct {
-	APIVersion                          string                     `json:"apiVersion"`
-	PrivateProtocolVersion              int                        `json:"privateProtocolVersion"`
-	InstanceID                          string                     `json:"instanceId"`
-	SoftwareVersion                     string                     `json:"softwareVersion"`
-	StartedAt                           time.Time                  `json:"startedAt"`
-	ControlURL                          string                     `json:"controlUrl"`
-	A2AURL                              string                     `json:"a2aUrl"`
-	InitialLabels                       []string                   `json:"initialLabels"`
-	SupportedRuntimes                   []string                   `json:"supportedRuntimes"`
-	SupportedToolsets                   []ToolsetCapability        `json:"supportedToolsets"`
-	SupportedSandboxProfiles            []string                   `json:"supportedSandboxProfiles"`
-	SupportedRuntimeAdapters            []RuntimeAdapterRef        `json:"supportedRuntimeAdapters"`
-	SupportedPerformanceMetricsVersions PerformanceMetricsVersions `json:"supportedPerformanceMetricsVersions,omitempty"`
-	WorkspaceCapabilities               *WorkspaceCapabilitiesV2   `json:"workspaceCapabilities,omitempty"`
-	ObservedState                       AgentObservedState         `json:"observedState"`
-	AllocationID                        *string                    `json:"allocationId,omitempty"`
+	Capabilities                        *RuntimeCompletionCapabilities `json:"capabilities,omitempty"`
+	APIVersion                          string                         `json:"apiVersion"`
+	PrivateProtocolVersion              int                            `json:"privateProtocolVersion"`
+	InstanceID                          string                         `json:"instanceId"`
+	SoftwareVersion                     string                         `json:"softwareVersion"`
+	StartedAt                           time.Time                      `json:"startedAt"`
+	ControlURL                          string                         `json:"controlUrl"`
+	A2AURL                              string                         `json:"a2aUrl"`
+	InitialLabels                       []string                       `json:"initialLabels"`
+	SupportedRuntimes                   []string                       `json:"supportedRuntimes"`
+	SupportedToolsets                   []ToolsetCapability            `json:"supportedToolsets"`
+	SupportedSandboxProfiles            []string                       `json:"supportedSandboxProfiles"`
+	SupportedRuntimeAdapters            []RuntimeAdapterRef            `json:"supportedRuntimeAdapters"`
+	SupportedPerformanceMetricsVersions PerformanceMetricsVersions     `json:"supportedPerformanceMetricsVersions,omitempty"`
+	WorkspaceCapabilities               *WorkspaceCapabilitiesV2       `json:"workspaceCapabilities,omitempty"`
+	ObservedState                       AgentObservedState             `json:"observedState"`
+	AllocationID                        *string                        `json:"allocationId,omitempty"`
 }
 
 func (r AgentRegistrationV2) Validate() error {
+	if r.Capabilities != nil {
+		if err := r.Capabilities.Validate(); err != nil {
+			return err
+		}
+	}
 	if len(r.SupportedPerformanceMetricsVersions) > 1 || (len(r.SupportedPerformanceMetricsVersions) == 1 && r.SupportedPerformanceMetricsVersions[0] != 1) {
 		return invalidf("unsupported performance metrics capability")
 	}
@@ -733,6 +739,7 @@ func (p ResolvedRuntimeConfigProvenanceV2) Validate() error {
 }
 
 type AllocationSpecV2 struct {
+	CompletionContract              *WorkerCompletionContract         `json:"completionContract,omitempty"`
 	APIVersion                      string                            `json:"apiVersion"`
 	AllocationID                    string                            `json:"allocationId"`
 	RunID                           string                            `json:"runId"`
@@ -752,6 +759,11 @@ type AllocationSpecV2 struct {
 }
 
 func (s AllocationSpecV2) Validate() error {
+	if s.CompletionContract != nil {
+		if err := s.CompletionContract.ValidateAllocation(s.Namespace, s.AgentTemplate); err != nil {
+			return err
+		}
+	}
 	if s.PerformanceMetrics != nil {
 		if err := s.PerformanceMetrics.Validate(); err != nil {
 			return err
@@ -901,6 +913,11 @@ func (r RuntimeReportV2) Validate() error {
 // sets so normalization cannot hide a malformed peer.
 func NormalizeAgentRegistrationV2(source AgentRegistrationV2) AgentRegistrationV2 {
 	result := source
+	if source.Capabilities != nil {
+		value := *source.Capabilities
+		value.CompletionContracts = append([]string{}, source.Capabilities.CompletionContracts...)
+		result.Capabilities = &value
+	}
 	result.InitialLabels = append([]string{}, source.InitialLabels...)
 	result.SupportedRuntimes = append([]string{}, source.SupportedRuntimes...)
 	result.SupportedSandboxProfiles = append([]string{}, source.SupportedSandboxProfiles...)

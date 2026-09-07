@@ -100,6 +100,25 @@
       ],
       "title": "WorkspaceLimitsV2",
       "type": "object"
+    },
+    "RuntimeCompletionCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "completionContracts": {
+          "items": {
+            "const": "audit-check-results@1",
+            "type": "string"
+          },
+          "maxItems": 1,
+          "title": "Completioncontracts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "completionContracts"
+      ],
+      "title": "RuntimeCompletionCapabilities",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -203,6 +222,17 @@
     },
     "supportedPerformanceMetricsVersions": {
       "$ref": "../v1alpha1/performance.schema.json#/$defs/supportedPerformanceMetricsVersions"
+    },
+    "capabilities": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RuntimeCompletionCapabilities"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

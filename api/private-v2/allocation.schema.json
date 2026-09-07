@@ -1023,6 +1023,87 @@
       ],
       "title": "WorkerSummarizerConfig",
       "type": "object"
+    },
+    "WorkerCompletionContract": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "audit-check-results@1",
+          "title": "Kind",
+          "type": "string"
+        },
+        "task": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "required": [
+                "revision"
+              ],
+              "properties": {
+                "namespace": {
+                  "const": "inputs"
+                },
+                "revision": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        },
+        "executionManifest": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "required": [
+                "revision"
+              ],
+              "properties": {
+                "namespace": {
+                  "const": "inputs"
+                },
+                "revision": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        },
+        "resultArtifact": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "not": {
+                "required": [
+                  "revision"
+                ]
+              },
+              "properties": {
+                "namespace": {
+                  "not": {
+                    "const": "inputs"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "task",
+        "executionManifest",
+        "resultArtifact"
+      ],
+      "title": "WorkerCompletionContract",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1102,6 +1183,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/PerformanceMetricsRequest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "completionContract": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkerCompletionContract"
         },
         {
           "type": "null"

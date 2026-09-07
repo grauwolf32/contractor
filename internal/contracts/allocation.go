@@ -159,22 +159,28 @@ type WorkerExecutionSettings struct {
 }
 
 type AllocationSpec struct {
-	APIVersion        string                `json:"apiVersion"`
-	AllocationID      string                `json:"allocationId"`
-	RunID             string                `json:"runId"`
-	StageExecutionID  string                `json:"stageExecutionId"`
-	LogicalAgentName  string                `json:"logicalAgentName"`
-	Namespace         string                `json:"namespace"`
-	WorkerSessionMode WorkerSessionMode     `json:"workerSessionMode"`
-	RunMetadataLabels RunMetadataLabels     `json:"runMetadataLabels"`
-	LeaseExpiresAt    time.Time             `json:"leaseExpiresAt"`
-	AgentTemplate     ResolvedAgentTemplate `json:"agentTemplate"`
-	ResolvedSkills    []ResolvedSkill       `json:"resolvedSkills"`
-	ModelPolicy       ResolvedModelPolicy   `json:"modelPolicy"`
-	RuntimeSettings   RuntimeSettings       `json:"runtimeSettings"`
+	CompletionContract *WorkerCompletionContract `json:"completionContract,omitempty"`
+	APIVersion         string                    `json:"apiVersion"`
+	AllocationID       string                    `json:"allocationId"`
+	RunID              string                    `json:"runId"`
+	StageExecutionID   string                    `json:"stageExecutionId"`
+	LogicalAgentName   string                    `json:"logicalAgentName"`
+	Namespace          string                    `json:"namespace"`
+	WorkerSessionMode  WorkerSessionMode         `json:"workerSessionMode"`
+	RunMetadataLabels  RunMetadataLabels         `json:"runMetadataLabels"`
+	LeaseExpiresAt     time.Time                 `json:"leaseExpiresAt"`
+	AgentTemplate      ResolvedAgentTemplate     `json:"agentTemplate"`
+	ResolvedSkills     []ResolvedSkill           `json:"resolvedSkills"`
+	ModelPolicy        ResolvedModelPolicy       `json:"modelPolicy"`
+	RuntimeSettings    RuntimeSettings           `json:"runtimeSettings"`
 }
 
 func (s AllocationSpec) Validate() error {
+	if s.CompletionContract != nil {
+		if err := s.CompletionContract.ValidateAllocation(s.Namespace, s.AgentTemplate); err != nil {
+			return err
+		}
+	}
 	if err := validateAPIVersion(s.APIVersion); err != nil {
 		return err
 	}

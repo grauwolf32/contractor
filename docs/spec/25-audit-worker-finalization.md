@@ -1,7 +1,8 @@
 # Audit Worker completion contracts
 
-Status: agreed target design, not yet implemented. Implementation is tracked by
-V39-001–007. Existing deployed Runs and immutable snapshots keep their current
+Status: V39-001 implements inert contracts/interfaces and proves real-ADK
+continuation; production propagation, collection, publication and activation remain
+V39-002–007. See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md). Existing deployed Runs and immutable snapshots keep their current
 behavior until an explicitly versioned configuration selects this contract.
 
 This document extends [14](14-worker-results-and-live-state.md) and

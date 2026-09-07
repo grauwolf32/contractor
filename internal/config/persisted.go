@@ -87,6 +87,9 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 				"persisted AuditProfile workflow %q kind is invalid", role,
 			)
 		}
+		if err := ValidateAuditWorkerCompletion(binding); err != nil {
+			return ResolvedAuditProfile{}, err
+		}
 		if err := ValidateWorkflowGraph(binding.Workflow); err != nil {
 			return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile workflow %q: %w", role, err)
 		}

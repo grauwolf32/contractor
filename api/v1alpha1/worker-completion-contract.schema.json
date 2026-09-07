@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/worker-completion-contract.schema.json",
+  "$defs": {
+    "ArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "name"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "const": "audit-check-results@1",
+      "title": "Kind",
+      "type": "string"
+    },
+    "task": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "required": [
+            "revision"
+          ],
+          "properties": {
+            "namespace": {
+              "const": "inputs"
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "executionManifest": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "required": [
+            "revision"
+          ],
+          "properties": {
+            "namespace": {
+              "const": "inputs"
+            },
+            "revision": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "resultArtifact": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "not": {
+            "required": [
+              "revision"
+            ]
+          },
+          "properties": {
+            "namespace": {
+              "not": {
+                "const": "inputs"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": [
+    "kind",
+    "task",
+    "executionManifest",
+    "resultArtifact"
+  ],
+  "title": "WorkerCompletionContract",
+  "type": "object"
+}

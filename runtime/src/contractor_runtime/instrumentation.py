@@ -165,6 +165,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._summarizer_enabled = summarizer_enabled
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
+        self._continuation: str | None = None
+        self._active_session_identity: tuple[Any, ...] | None = None
         self._active_invocation_id: str | None = None
         self._invocation_metrics: InvocationMetricsReducer | None = None
         self._workspace_observations: WorkspaceObservationReducer | None = None
@@ -183,7 +185,39 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._projection_failed = False
         self._prepared = (invocation_id, subtask_id)
 
+    def prepare_continuation(self, *, invocation_id: str) -> None:
+        """Authorize one more Runner turn of the active logical invocation.
+
+        The Runtime completion boundary calls this only after the prior turn has
+        settled. It grants no additional model/tool budget and does not begin a
+        new invocation, clear observations or reset the reducer.
+        """
+        if (
+            self._closed
+            or self._active_invocation_id != invocation_id
+            or self._prepared is not None
+            or self._continuation is not None
+            or self._pending_models
+            or self._pending_auxiliary_models
+            or self._pending_tools
+        ):
+            raise RuntimeError("Worker instrumentation cannot continue this invocation")
+        self._state.execution.check()
+        self._continuation = invocation_id
+
     async def before_run_callback(self, *, invocation_context: Any) -> None:
+        async with self._lock:
+            if self._continuation is not None:
+                if (
+                    self._continuation != invocation_context.invocation_id
+                    or not self._is_active(invocation_context.invocation_id)
+                    or self._active_session_identity != _session_identity(invocation_context)
+                ):
+                    raise RuntimeError("Worker instrumentation continuation is stale")
+                self._state.execution.check()
+                self._continuation = None
+                _install_session_snapshot(invocation_context, await self._state.snapshot())
+                return
         workspace_observations: WorkspaceObservationReducer | None = None
         workspace_projection_failed = False
         source = self._workspace_observation_source
@@ -201,6 +235,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 raise RuntimeError("Worker instrumentation invocation is not prepared")
             self._prepared = None
             self._active_invocation_id = prepared[0]
+            self._active_session_identity = _session_identity(invocation_context)
             self._invocation_metrics = InvocationMetricsReducer()
             self._workspace_observations = workspace_observations
             self._projection_failed = self._projection_failed or workspace_projection_failed
@@ -553,6 +588,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 workspace=self._workspace_snapshot(),
             )
             self._active_invocation_id = None
+            self._active_session_identity = None
+            self._continuation = None
             self._invocation_metrics = None
             self._workspace_observations = None
             return snapshot
@@ -563,6 +600,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 return
             self._closed = True
             self._prepared = None
+            self._continuation = None
             while self._pending_models:
                 _end_span(self._pending_models.pop(0), outcome="cancelled")
             for phase, span in tuple(self._pending_auxiliary_models.items()):
@@ -575,6 +613,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     reset_tool_metric_correlation(pending.metric_token)
             self._pending_tools.clear()
             self._active_invocation_id = None
+            self._active_session_identity = None
+            self._continuation = None
             self._invocation_metrics = None
             self._workspace_observations = None
 
@@ -681,6 +721,14 @@ class WorkerInstrumentationPlugin(BasePlugin):
     def _workspace_snapshot(self) -> dict[str, Any] | None:
         reducer = self._workspace_observations
         return reducer.snapshot() if reducer is not None else None
+
+
+def _session_identity(context: Any) -> tuple[Any, ...]:
+    session = getattr(context, "session", None)
+    identifier = getattr(session, "id", None)
+    if identifier is None:
+        return (id(session),)
+    return (getattr(session, "app_name", None), getattr(session, "user_id", None), identifier)
 
 
 def _install_session_snapshot(context: Any | None, snapshot: dict[str, Any]) -> None:

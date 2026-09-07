@@ -124,11 +124,12 @@ func (kind AuditWorkflowRoleKind) valid() bool {
 }
 
 type ResolvedAuditWorkflowBinding struct {
-	Kind       AuditWorkflowRoleKind                    `json:"kind"`
-	Workflow   ResolvedWorkflow                         `json:"workflow"`
-	Inputs     map[string]AuditWorkflowInputMapping     `json:"inputs"`
-	Parameters map[string]AuditWorkflowParameterMapping `json:"parameters"`
-	Outputs    map[string]string                        `json:"outputs"`
+	WorkerCompletion *AuditWorkerCompletion                   `json:"workerCompletion,omitempty"`
+	Kind             AuditWorkflowRoleKind                    `json:"kind"`
+	Workflow         ResolvedWorkflow                         `json:"workflow"`
+	Inputs           map[string]AuditWorkflowInputMapping     `json:"inputs"`
+	Parameters       map[string]AuditWorkflowParameterMapping `json:"parameters"`
+	Outputs          map[string]string                        `json:"outputs"`
 }
 
 type AuditRoundMode string
@@ -236,11 +237,12 @@ type auditStandardSelectionSource struct {
 }
 
 type auditWorkflowBindingSource struct {
-	Kind       string                                      `yaml:"kind"`
-	Ref        string                                      `yaml:"ref"`
-	Inputs     *map[string]auditWorkflowInputMappingSource `yaml:"inputs"`
-	Parameters *map[string]auditParameterMappingSource     `yaml:"parameters"`
-	Outputs    *map[string]string                          `yaml:"outputs"`
+	WorkerCompletion *AuditWorkerCompletion                      `yaml:"workerCompletion,omitempty"`
+	Kind             string                                      `yaml:"kind"`
+	Ref              string                                      `yaml:"ref"`
+	Inputs           *map[string]auditWorkflowInputMappingSource `yaml:"inputs"`
+	Parameters       *map[string]auditParameterMappingSource     `yaml:"parameters"`
+	Outputs          *map[string]string                          `yaml:"outputs"`
 }
 
 type auditWorkflowInputMappingSource struct {
@@ -466,7 +468,10 @@ func (l *loader) resolveAuditWorkflowBindings(
 		}
 		result[role] = ResolvedAuditWorkflowBinding{
 			Kind: kind, Workflow: cloneWorkflow(workflow), Inputs: inputs,
-			Parameters: parameters, Outputs: outputs,
+			Parameters: parameters, Outputs: outputs, WorkerCompletion: candidate.WorkerCompletion,
+		}
+		if err := ValidateAuditWorkerCompletion(result[role]); err != nil {
+			return nil, fmt.Errorf("spec.workflows.%s: %w", role, err)
 		}
 	}
 	return result, nil
@@ -973,6 +978,12 @@ func auditProfileDigestWithRoleKinds(
 			"workflow": binding.Workflow, "inputs": binding.Inputs,
 			"parameters": binding.Parameters, "outputs": binding.Outputs,
 		}
+		if binding.WorkerCompletion != nil {
+			if !includeRoleKinds {
+				return "", fmt.Errorf("legacy AuditProfile cannot contain workerCompletion")
+			}
+			value["workerCompletion"] = binding.WorkerCompletion
+		}
 		if includeRoleKinds {
 			value["kind"] = binding.Kind
 		}
@@ -1008,6 +1019,10 @@ func cloneAuditProfile(source ResolvedAuditProfile) ResolvedAuditProfile {
 	result.Workflows = make(map[string]ResolvedAuditWorkflowBinding, len(source.Workflows))
 	for role, binding := range source.Workflows {
 		cloned := binding
+		if binding.WorkerCompletion != nil {
+			value := *binding.WorkerCompletion
+			cloned.WorkerCompletion = &value
+		}
 		cloned.Workflow = cloneWorkflow(binding.Workflow)
 		cloned.Inputs = cloneMap(binding.Inputs)
 		cloned.Parameters = cloneMap(binding.Parameters)

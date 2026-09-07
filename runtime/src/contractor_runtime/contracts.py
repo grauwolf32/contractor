@@ -562,7 +562,51 @@ class RuntimeSettings(WireModel):
         return value.get_secret_value()
 
 
+class WorkerCompletionContract(WireModel):
+    kind: Literal["audit-check-results@1"]
+    task: ArtifactRef
+    execution_manifest: ArtifactRef
+    result_artifact: ArtifactRef
+
+    @model_validator(mode="after")
+    def validate_completion_refs(self) -> Self:
+        self.task.require_exact()
+        self.execution_manifest.require_exact()
+        if (
+            self.task.namespace != "inputs"
+            or self.execution_manifest.namespace != "inputs"
+            or self.task.name == self.execution_manifest.name
+            or self.result_artifact.revision is not None
+            or self.result_artifact.namespace == "inputs"
+        ):
+            raise ValueError("completion needs distinct exact Run inputs and a versionless output")
+        return self
+
+    def validate_allocation(self, namespace: str, template: ResolvedAgentTemplate) -> None:
+        if self.result_artifact.namespace != namespace:
+            raise ValueError("completion output is outside Worker namespace")
+        selections = [
+            selection
+            for selection in template.toolsets
+            if selection.ref.toolset_id == "audit-results"
+        ]
+        if (
+            template.summarizer is not None
+            or len(selections) != 1
+            or selections[0].ref.version != "2"
+            or sorted(selections[0].tools) != ["read_audit_task", "submit_check_result"]
+        ):
+            raise ValueError(
+                "Audit completion needs audit-results@2 with both tools and no summarizer"
+            )
+
+
+class RuntimeCompletionCapabilities(WireModel):
+    completion_contracts: list[Literal["audit-check-results@1"]] = Field(max_length=1)
+
+
 class AllocationSpec(VersionedWireModel):
+    completion_contract: WorkerCompletionContract | None = None
     allocation_id: str
     run_id: str
     stage_execution_id: str
@@ -583,6 +627,8 @@ class AllocationSpec(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_spec(self) -> Self:
+        if self.completion_contract is not None:
+            self.completion_contract.validate_allocation(self.namespace, self.agent_template)
         for field, value in (
             ("allocationId", self.allocation_id),
             ("runId", self.run_id),
@@ -1803,6 +1849,7 @@ class AllocationWorkspaceSpecV2(WireModel):
 
 
 class AgentRegistrationV2(AgentRegistration):
+    capabilities: RuntimeCompletionCapabilities | None = None
     private_protocol_version: Literal[PRIVATE_PROTOCOL_VERSION_V2]
     initial_labels: list[str] = Field(max_length=32)
     supported_runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)

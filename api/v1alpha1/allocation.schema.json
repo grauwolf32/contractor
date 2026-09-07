@@ -230,6 +230,7 @@
           "items": {"$ref": "#/$defs/resolvedSkill"}
         },
         "modelPolicy": {"$ref": "common.schema.json#/$defs/resolvedModelPolicy"},
+        "completionContract": {"$ref": "worker-completion-contract.schema.json"},
         "runtimeSettings": {
           "type": "object",
           "additionalProperties": false,

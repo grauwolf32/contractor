@@ -69,6 +69,9 @@ func MVPDescriptors() Descriptors {
 					"exec_command": {SandboxExecution},
 				},
 			},
+			"audit-results@2": {
+				Tools: []string{"read_audit_task", "submit_check_result"},
+			},
 			"audit-results@1": {
 				Tools: []string{"read_audit_task", "submit_check_result"},
 			},
