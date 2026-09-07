@@ -68,3 +68,30 @@ func TestTerminalCallsUseSavedOrEarlierCallerDeadlineIndependentlyOfCleanup(t *t
 		}
 	}
 }
+
+func (r *deadlineRuntime) Release(ctx context.Context, reservation Reservation) error {
+	r.check(ctx, r.terminal)
+	return r.recordingRuntime.Release(ctx, reservation)
+}
+
+func TestFailedPrepareAbortAndReleaseShareOneAbsoluteDeadline(t *testing.T) {
+	now := time.Now()
+	deadline := now.Add(time.Second)
+	runtime := &deadlineRuntime{t: t, want: deadline, terminal: deadline}
+	controller, err := NewRuntimeBatchController(runtime, &recordingAllocationRegistry{}, RuntimeBatchOptions{
+		CleanupTimeout: time.Second, Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservations := []Reservation{
+		testReservation("allocation_1", "first", "https://first.example", "https://first.example", testTemplate(t), deadline),
+		testReservation("allocation_2", "second", "https://second.example", "https://second.example", testTemplate(t), deadline),
+	}
+	if err := controller.cleanupFailedPrepare(reservations); err != nil {
+		t.Fatal(err)
+	}
+	if len(runtime.aborted) != 2 || len(runtime.released) != 2 {
+		t.Fatal("incomplete cleanup")
+	}
+}

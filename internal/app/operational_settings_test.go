@@ -99,6 +99,7 @@ spec:
 		"database: {lockTimeout: 16s}", "database: {statementTimeout: 20s}",
 		"database: {queryTimeout: 0s}", "database: {acquireTimeout: 1ns}",
 		"projectLifecycle: {operationTimeout: 1m}",
+		"projectLifecycle: {operationTimeout: 1ns, claimDuration: 2ns}",
 		"credentialManagement: {connectTimeout: 61s}", "credentialManagement: {requestTimeout: 121s}",
 	} {
 		t.Run(spec, func(t *testing.T) {

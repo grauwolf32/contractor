@@ -997,12 +997,12 @@ func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []
 }
 
 func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation) error {
-	ctx, cancel := context.WithTimeout(context.Background(), c.cleanupTimeout)
+	deadline := c.currentTime().Add(c.cleanupTimeout)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 	reason := contracts.TerminationError{
 		Code: "allocation_batch_preparation_failed", Message: "Stage allocation batch preparation failed", Retryable: true,
 	}
-	deadline := c.currentTime().Add(c.cleanupTimeout)
 	var failures []error
 	safeReason := safeTerminationReason(reason)
 	for _, reservation := range reservations {

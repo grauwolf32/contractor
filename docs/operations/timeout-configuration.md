@@ -16,7 +16,7 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `scheduler.abortTimeout` | `10s` | Absolute abort deadline recorded with the termination transition |
 | `runtimeLifecycle.cleanupTimeout` | `30s` | One release batch or failed-prepare cleanup, including abort then release |
 | `projectLifecycle.operationTimeout` | `30s` | A Project deletion controller operation |
-| `projectLifecycle.claimDuration` | `1m` | Project deletion claim lease; must exceed its operation timeout |
+| `projectLifecycle.claimDuration` | `1m` | Project deletion claim lease; at least 1us and must exceed its operation timeout |
 | `auditController.pollInterval` | `1s` | Delay between Audit claim attempts |
 | `auditController.claimLease` | `30s` | Audit controller ownership lease, 1s..5m and at least twice its operation timeout |
 | `auditController.operationTimeout` | `10s` | Claim, reconcile or release operation; includes work inside reconciliation |

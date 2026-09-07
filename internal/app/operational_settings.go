@@ -217,8 +217,8 @@ func (s *OperationalSettings) validate() error {
 	if audit.ClaimBatch < 1 || audit.ClaimBatch > auditstore.MaxClaimBatch {
 		return fmt.Errorf("spec.auditController.claimBatch must be 1..%d", auditstore.MaxClaimBatch)
 	}
-	if s.ProjectLifecycle.OperationTimeout >= s.ProjectLifecycle.ClaimDuration {
-		return fmt.Errorf("spec.projectLifecycle.operationTimeout must be less than claimDuration")
+	if s.ProjectLifecycle.ClaimDuration < time.Microsecond || s.ProjectLifecycle.OperationTimeout >= s.ProjectLifecycle.ClaimDuration {
+		return fmt.Errorf("spec.projectLifecycle.claimDuration must be at least 1us and greater than operationTimeout")
 	}
 	credentials := s.CredentialManagement
 	if credentials.ConnectTimeout > time.Minute || credentials.RequestTimeout > 2*time.Minute {

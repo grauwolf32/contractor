@@ -441,7 +441,7 @@ func TestPrepareAllCleansEveryReservationAfterPartialFailure(t *testing.T) {
 	runtime := &recordingRuntime{prepareFailure: map[string]error{"allocation_2": errors.New("synthetic failure")}}
 	registry := &recordingAllocationRegistry{}
 	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
-		Now:            func() time.Time { return time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC) },
+		Now:            time.Now,
 		NewID:          func(prefix string) (string, error) { return prefix + "cleanup", nil },
 		CleanupTimeout: time.Second,
 	})
