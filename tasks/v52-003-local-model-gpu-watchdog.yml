@@ -1,0 +1,46 @@
+schema_version: "1.0"
+id: V52-003
+title: Recover and document repeated local model GPU watchdog failures
+milestone: live-workflow-baselines
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [markdown, yaml]
+goal: >-
+  Restore the local evaluation model after repeated NVIDIA watchdog incidents,
+  preserve affected attempts and distinguish infrastructure failure from
+  workflow quality.
+context:
+  authority: User requested autonomous baseline recovery and tasks for serious findings.
+  evidence: >-
+    NVIDIA Xid 8 / RC watchdog for llama-server at 2026-09-08 01:33:16 and
+    02:16:25 MSK. The first incident ended FastAPI Run
+    run_dadc76fa00901b0339c831d00c21adfc with upstream HTTP 400 terminated.
+    After the second incident, LM Studio still advertised the model as loaded
+    while GPU utilization stayed at zero and model calls stopped advancing.
+  deployment: LM Studio qwen/qwen3.8-27b on RTX 5090 via local-litellm@1.
+scope:
+  in:
+    - Capture content-free process, GPU and gateway evidence.
+    - Recover the affected local model service and verify inference resumes.
+    - Retain failed attempts and rerun affected baseline cases with unchanged scoring.
+    - Record any remaining driver/backend stability limitation without claiming a driver fix.
+  out:
+    - Update GPU drivers or reboot the workstation during unrelated active work.
+    - Hide failed attempts, bypass model budgets or change benchmark truth.
+acceptance_criteria:
+  - id: A1
+    text: Repeated incidents and affected baseline attempts have recorded timestamps and diagnostic evidence.
+  - id: A2
+    text: The recovered local provider answers inference requests and at least one fresh workflow advances through multiple model calls.
+  - id: A3
+    text: Baseline reporting records recovery and any remaining stability limitation.
+tests:
+  - command: git diff --check
+    covers: [A1, A3]
+verification:
+  - LM Studio automatically replaced the affected llama-server process; no manual restart or workstation reboot was necessary.
+  - Fresh FastAPI Run run_50409a0ec8f4b373d6866a2ad3e7171d advanced from one to eight model calls and twenty tool calls after replacement.
+  - A bounded content-free inference probe and final workflow outcomes are being recorded in the baseline report.
+  - The repeated Xid root cause remains unproven; recovery does not establish driver/backend stability.

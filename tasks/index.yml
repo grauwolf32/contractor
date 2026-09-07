@@ -2645,3 +2645,4 @@ tasks:
   - {id: V51-001, file: v51-001-runtime-otlp-retries.yml}
   - {id: V52-001, file: v52-001-caido-live-response-contracts.yml}
   - {id: V52-002, file: v52-002-xbow-runtime-target-preflight.yml}
+  - {id: V52-003, file: v52-003-local-model-gpu-watchdog.yml}
