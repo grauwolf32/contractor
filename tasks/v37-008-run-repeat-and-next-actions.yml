@@ -3,8 +3,8 @@ id: "V37-008"
 title: "Open a reviewed repeat Run draft and explain actionable failure or waiting states"
 milestone: "ui-journey-usability"
 priority: "P2"
-status: "in_progress"
-implementation_commit: null
+status: "completed"
+implementation_commit: "c008980672cdf8ac15a6f9204a9be11382e3c145"
 depends_on: ["V37-002", "V37-004", "V28-004"]
 languages: ["go", "typescript"]
 goal: >-
