@@ -8,7 +8,6 @@ import httpx
 import pytest
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
-    ExportTraceServiceResponse,
 )
 from test_otlp_adapter import (
     HEADER_SECRET,
@@ -241,7 +240,7 @@ def test_final_flush_joins_active_sender_and_drains_tail() -> None:
 
 
 @pytest.mark.parametrize("background", [False, True])
-@pytest.mark.parametrize("failure", ["status", "disconnect", "timeout", "partial"])
+@pytest.mark.parametrize("failure", ["status", "disconnect", "timeout"])
 def test_second_attempt_recovers_with_identical_payload_and_preserves_new_spans(
     background: bool, failure: str
 ) -> None:
@@ -258,10 +257,6 @@ def test_second_attempt_recovers_with_identical_payload_and_preserves_new_spans(
                     raise httpx.ConnectError("provider-secret-canary")
                 if failure == "timeout":
                     await asyncio.Event().wait()
-                if failure == "partial":
-                    response = ExportTraceServiceResponse()
-                    response.partial_success.rejected_spans = 1
-                    return httpx.Response(200, content=response.SerializeToString())
                 return httpx.Response(503)
             if len(payloads) == 2:
                 retry_entered.set()
@@ -460,7 +455,8 @@ def test_allocation_deadline_cancels_background_post_and_allows_release(
             tmp_path, OTLPHTTPAdapterFactory(httpx.MockTransport(collector))
         )
         spec = configured_allocation()
-        spec.runtime_settings.telemetry = _settings(1)
+        spec.runtime_settings.telemetry = _settings(4096)
+        spec.runtime_settings.telemetry.export.max_pending_spans = 1
         await service.prepare(spec)
         assert service._context is not None
         instrumentation = service._context.adapter_host.handles.instrumentation

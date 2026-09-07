@@ -293,7 +293,17 @@ stored documents and uses the defaults above, preserving existing immutable
 RuntimeConfig digests. Explicit timeouts in existing configurations are retained;
 the 10-second default applies when publishing without `flushTimeoutSeconds`.
 The Server pins these values and passes them to Python through RuntimeSettings.
-The Operations RuntimeConfig form exposes the same settings.
+The Operations RuntimeConfig form exposes the batch, attempt and queue settings.
+Retry timing is configured in the optional `worker.telemetry.export.retry` object:
+
+| Setting | Default | Allowed values |
+| --- | --- | --- |
+| `initialBackoffMilliseconds` | 100 | 1–60000, no greater than the maximum |
+| `maxBackoffMilliseconds` | 1000 | 1–60000 |
+
+A supplied retry object materializes omitted fields before publication. An absent
+retry object remains absent, including in existing explicit export blocks, so
+adding these defaults does not change previously stored document digests.
 
 Worker exporters start one asynchronous sender when the queue reaches
 `batchSizeBytes` of encoded pending data or `maxPendingSpans`. Requests contain
@@ -304,18 +314,53 @@ The sender transmits ready batches sequentially while Worker callbacks continue
 appending; the in-flight batch remains charged to both queue limits. Only its
 prefix is removed after delivery, preserving spans added during the request.
 Each batch gets at most `maxAttempts` HTTP attempts; retries preserve the payload
-and span IDs. Each attempt has its own total timeout of
-`min(requestTimeoutSeconds, flushTimeoutSeconds)`. The final flush's overall
-deadline can cut an attempt short and is never extended for retries. Adapter
-operation/error counters account for each HTTP attempt. Once attempts are
-exhausted, the batch is dropped and subsequent batches can proceed. Cancellation
-is not retried. There is no periodic timer: a sub-threshold tail waits for more
-spans or the final flush. Planner export scheduling is unchanged.
+and span IDs. One absolute `flushTimeoutSeconds` budget covers the batch's
+encoding, HTTP attempts and waits. Each HTTP attempt is also bounded by
+`min(requestTimeoutSeconds, flushTimeoutSeconds)`. Final draining has its own
+`flushTimeoutSeconds` cap, shortened by the enclosing allocation deadline; none
+of these deadlines is extended for retries. Adapter operation/error counters
+account for each HTTP attempt. Subsequent batches can proceed after a failed
+batch is discarded. Cancellation is not retried. There is no periodic timer:
+a sub-threshold tail waits for more spans or the final flush.
 
-Export accepts bounded OTLP protobuf or JSON acknowledgements and the Langfuse
-v3 JSON ingestion-job acknowledgement (`name=otel-ingestion-job`, non-empty
-string `id`). Rejected spans, partial-success errors, malformed bodies and
-non-2xx responses remain delivery failures; a 2xx status alone is insufficient.
+Worker delivery retries temporary transport failures and HTTP 429, 502, 503 and
+504. Other HTTP errors, including 500, are terminal. A valid `Retry-After` header
+is honored as seconds or an HTTP date. Without it, exponential backoff starts at
+`initialBackoffMilliseconds` and doubles up to `maxBackoffMilliseconds`; equal
+jitter selects a delay between half that ceiling and the ceiling. If the delay
+cannot fit the remaining batch budget, the batch expires without another attempt.
+
+Worker export accepts bounded OTLP protobuf or JSON acknowledgements and the
+Langfuse v3 JSON ingestion-job acknowledgement (`name=otel-ingestion-job`,
+non-empty string `id`). Malformed or oversized acknowledgements are terminal.
+OTLP partial success is never retried: only `rejectedSpans` are discarded. A
+warning with zero rejected spans counts as successful delivery. Provider error
+messages are not retained in diagnostics. This follows the
+[OTLP retry and partial-success rules](https://opentelemetry.io/docs/specs/otlp/).
+Planner export scheduling and acknowledgement handling are unchanged.
+
+The Worker Runtime report adds optional
+`adapters["otlp-http@1"].droppedSpans` counters, separate from HTTP operation
+failures. They count spans, not requests or attempts:
+
+| Counter | Local discard reason |
+| --- | --- |
+| `queueOverflow` | A new span cannot fit either queue limit. |
+| `encodingFailed` | Encoding fails or a whole span cannot fit a bounded request. |
+| `nonRetryable` | Permanent HTTP/transport failure or invalid acknowledgement. |
+| `retryExhausted` | A temporary failure uses the last allowed attempt. |
+| `collectorRejected` | The collector explicitly rejects this many spans. |
+| `deadlineExceeded` | The batch deadline expires or cannot accommodate Retry-After/backoff. |
+| `cancelled` | The sender is cancelled, including by an enclosing flush deadline. |
+| `shutdown` | Close discards an active batch or queued tail, or a span finishes after close. |
+
+Each local discard is counted once, including during close; successful retries
+add no discarded spans. Counters saturate at uint64 maximum and remain in the
+final Runtime report after adapter cleanup. These are local discard decisions:
+a lost acknowledgement can make remote acceptance unknown, and retries can
+produce duplicates. They do not measure confirmed collector loss or spans lost
+in a process crash. No endpoint, response body, credential or captured content
+is included in these counters.
 
 `http-proxy@1` configures ordinary HTTP proxying. A model-visible Caido API tool
 would be a separately selected Toolset plus a future typed `caido-api@1`

@@ -148,12 +148,26 @@ class PerformanceMetricsRequest(WireModel):
         return value
 
 
+class DroppedSpanCounts(WireModel):
+    """Locally discarded spans by reason; delivery may be ambiguous on I/O failure."""
+
+    queue_overflow: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    encoding_failed: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    non_retryable: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    retry_exhausted: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    collector_rejected: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    deadline_exceeded: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    cancelled: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+    shutdown: int = Field(default=0, strict=True, ge=0, le=2**64 - 1)
+
+
 class RuntimeAdapterMetricsV2(WireModel):
     operations: int = Field(ge=0, le=2**64 - 1)
     failed_operations: int = Field(ge=0, le=2**64 - 1)
     flush_attempted: bool | None = None
     flush_succeeded: bool | None = None
     last_error_code: str | None = None
+    dropped_spans: DroppedSpanCounts | None = None
 
     @model_validator(mode="after")
     def validate_metrics(self) -> Self:

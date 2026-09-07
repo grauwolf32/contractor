@@ -90,11 +90,17 @@ type telemetrySource struct {
 	Export              optional[telemetryExportSource] `json:"export"`
 }
 
+type telemetryRetrySource struct {
+	InitialBackoffMilliseconds optional[int] `json:"initialBackoffMilliseconds"`
+	MaxBackoffMilliseconds     optional[int] `json:"maxBackoffMilliseconds"`
+}
+
 type telemetryExportSource struct {
-	BatchSizeBytes  optional[int] `json:"batchSizeBytes"`
-	MaxAttempts     optional[int] `json:"maxAttempts"`
-	MaxPendingSpans optional[int] `json:"maxPendingSpans"`
-	MaxPendingBytes optional[int] `json:"maxPendingBytes"`
+	Retry           optional[telemetryRetrySource] `json:"retry"`
+	BatchSizeBytes  optional[int]                  `json:"batchSizeBytes"`
+	MaxAttempts     optional[int]                  `json:"maxAttempts"`
+	MaxPendingSpans optional[int]                  `json:"maxPendingSpans"`
+	MaxPendingBytes optional[int]                  `json:"maxPendingBytes"`
 }
 
 type httpProxySource struct {
@@ -471,6 +477,28 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 				}
 				*field.target = field.source.value
 			}
+		}
+		if value.Export.value.Retry.present {
+			source := value.Export.value.Retry
+			if source.null {
+				return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export.retry cannot be null", path)
+			}
+			retry := contracts.DefaultTelemetryRetrySettings()
+			for _, setting := range []struct {
+				source optional[int]
+				target *int
+			}{
+				{source.value.InitialBackoffMilliseconds, &retry.InitialBackoffMilliseconds},
+				{source.value.MaxBackoffMilliseconds, &retry.MaxBackoffMilliseconds},
+			} {
+				if setting.source.null {
+					return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export.retry fields cannot be null", path)
+				}
+				if setting.source.present {
+					*setting.target = setting.source.value
+				}
+			}
+			export.Retry = &retry
 		}
 		if err := export.Validate(); err != nil {
 			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export: %v", path, err)

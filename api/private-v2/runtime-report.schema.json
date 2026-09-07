@@ -50,6 +50,17 @@
           ],
           "default": null,
           "title": "Lasterrorcode"
+        },
+        "droppedSpans": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DroppedSpanCounts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -61,6 +72,70 @@
     },
     "RuntimeResources": {
       "$ref": "../v1alpha1/performance.schema.json#/$defs/runtimeResources"
+    },
+    "DroppedSpanCounts": {
+      "additionalProperties": false,
+      "description": "Locally discarded spans by reason; delivery may be ambiguous on I/O failure.",
+      "properties": {
+        "queueOverflow": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Queueoverflow",
+          "type": "integer"
+        },
+        "encodingFailed": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Encodingfailed",
+          "type": "integer"
+        },
+        "nonRetryable": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Nonretryable",
+          "type": "integer"
+        },
+        "retryExhausted": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Retryexhausted",
+          "type": "integer"
+        },
+        "collectorRejected": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Collectorrejected",
+          "type": "integer"
+        },
+        "deadlineExceeded": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Deadlineexceeded",
+          "type": "integer"
+        },
+        "cancelled": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Cancelled",
+          "type": "integer"
+        },
+        "shutdown": {
+          "default": 0,
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "title": "Shutdown",
+          "type": "integer"
+        }
+      },
+      "title": "DroppedSpanCounts",
+      "type": "object"
     }
   },
   "additionalProperties": false,

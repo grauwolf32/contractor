@@ -2,10 +2,11 @@ package contracts
 
 // TelemetryExportSettings bounds one Worker's allocation-local OTLP exporter.
 type TelemetryExportSettings struct {
-	BatchSizeBytes  int `json:"batchSizeBytes"`
-	MaxAttempts     int `json:"maxAttempts"`
-	MaxPendingSpans int `json:"maxPendingSpans"`
-	MaxPendingBytes int `json:"maxPendingBytes"`
+	BatchSizeBytes  int                     `json:"batchSizeBytes"`
+	MaxAttempts     int                     `json:"maxAttempts"`
+	MaxPendingSpans int                     `json:"maxPendingSpans"`
+	MaxPendingBytes int                     `json:"maxPendingBytes"`
+	Retry           *TelemetryRetrySettings `json:"retry,omitempty"`
 }
 
 func DefaultTelemetryExportSettings() TelemetryExportSettings {
@@ -16,6 +17,11 @@ func DefaultTelemetryExportSettings() TelemetryExportSettings {
 }
 
 func (s TelemetryExportSettings) Validate() error {
+	if s.Retry != nil {
+		if err := s.Retry.Validate(); err != nil {
+			return err
+		}
+	}
 	if s.BatchSizeBytes < 1024*1024 || s.BatchSizeBytes > 64*1024*1024 {
 		return invalidf("telemetry export batchSizeBytes must be from 1 through 64 MiB")
 	}
@@ -27,6 +33,23 @@ func (s TelemetryExportSettings) Validate() error {
 	}
 	if s.MaxPendingBytes < s.BatchSizeBytes || s.MaxPendingBytes > 64*1024*1024 {
 		return invalidf("telemetry export maxPendingBytes must cover batchSizeBytes and be at most 64 MiB")
+	}
+	return nil
+}
+
+// TelemetryRetrySettings is optional so stored RuntimeConfig digests remain stable.
+type TelemetryRetrySettings struct {
+	InitialBackoffMilliseconds int `json:"initialBackoffMilliseconds"`
+	MaxBackoffMilliseconds     int `json:"maxBackoffMilliseconds"`
+}
+
+func DefaultTelemetryRetrySettings() TelemetryRetrySettings {
+	return TelemetryRetrySettings{InitialBackoffMilliseconds: 100, MaxBackoffMilliseconds: 1000}
+}
+
+func (s TelemetryRetrySettings) Validate() error {
+	if s.InitialBackoffMilliseconds < 1 || s.MaxBackoffMilliseconds > 60000 || s.InitialBackoffMilliseconds > s.MaxBackoffMilliseconds {
+		return invalidf("telemetry retry backoff must satisfy 1 <= initialBackoffMilliseconds <= maxBackoffMilliseconds <= 60000")
 	}
 	return nil
 }

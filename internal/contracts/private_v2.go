@@ -832,11 +832,12 @@ func (r PrepareAllocationRequestV2) Validate() error {
 }
 
 type RuntimeAdapterMetricsV2 struct {
-	Operations       uint64  `json:"operations"`
-	FailedOperations uint64  `json:"failedOperations"`
-	FlushAttempted   *bool   `json:"flushAttempted,omitempty"`
-	FlushSucceeded   *bool   `json:"flushSucceeded,omitempty"`
-	LastErrorCode    *string `json:"lastErrorCode,omitempty"`
+	Operations       uint64             `json:"operations"`
+	FailedOperations uint64             `json:"failedOperations"`
+	FlushAttempted   *bool              `json:"flushAttempted,omitempty"`
+	FlushSucceeded   *bool              `json:"flushSucceeded,omitempty"`
+	LastErrorCode    *string            `json:"lastErrorCode,omitempty"`
+	DroppedSpans     *DroppedSpanCounts `json:"droppedSpans,omitempty"`
 }
 
 func (m RuntimeAdapterMetricsV2) Validate() error {

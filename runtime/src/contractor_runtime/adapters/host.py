@@ -14,6 +14,7 @@ from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
 from contractor_runtime.contracts import (
     AllocationSpecV2,
     CaidoSettingsV2,
+    DroppedSpanCounts,
     HTTPProxySettingsV2,
     RuntimeAdapterMetricsV2,
     RuntimeAdapterRef,
@@ -147,6 +148,15 @@ class RuntimeAdapterMetricsState:
     flush_attempted: bool | None = None
     flush_succeeded: bool | None = None
     last_error_code: str | None = None
+    dropped_spans: DroppedSpanCounts | None = None
+
+    def record_dropped_spans(self, reason: str, count: int) -> None:
+        if reason not in DroppedSpanCounts.model_fields or type(count) is not int or count < 0:
+            raise ValueError("invalid discarded span count")
+        if self.dropped_spans is None:
+            self.dropped_spans = DroppedSpanCounts()
+        value = getattr(self.dropped_spans, reason)
+        setattr(self.dropped_spans, reason, min(UINT64_MAX, value + count))
 
     def record_operation(self, *, succeeded: bool, error_code: str | None = None) -> None:
         if error_code is not None and error_code not in SAFE_ERROR_CODES:
@@ -178,6 +188,9 @@ class RuntimeAdapterMetricsState:
             flushAttempted=flush_attempted,
             flushSucceeded=flush_succeeded,
             lastErrorCode=error_code,
+            droppedSpans=(
+                self.dropped_spans.model_copy(deep=True) if self.dropped_spans is not None else None
+            ),
         )
 
     def __repr__(self) -> str:

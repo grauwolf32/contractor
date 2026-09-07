@@ -197,6 +197,10 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		if resolved.WorkerTelemetry.Export != nil {
 			export := *resolved.WorkerTelemetry.Export
+			if export.Retry != nil {
+				retry := *export.Retry
+				export.Retry = &retry
+			}
 			telemetry.Export = &export
 		}
 		if credentialID := resolved.WorkerTelemetry.Credential; credentialID != "" {

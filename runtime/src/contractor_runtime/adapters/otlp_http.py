@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 import time
@@ -12,10 +11,8 @@ from dataclasses import dataclass
 from types import MappingProxyType
 
 import httpx
-from google.protobuf.message import DecodeError
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
-    ExportTraceServiceResponse,
 )
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue, ArrayValue, KeyValue
 from opentelemetry.proto.resource.v1.resource_pb2 import Resource
@@ -36,12 +33,19 @@ from contractor_runtime.adapters.instrumentation import (
     ScalarAttribute,
     TelemetryAttribute,
 )
+from contractor_runtime.adapters.otlp_retry import (
+    DeliveryResponse,
+    backoff_seconds,
+    classify_response,
+)
 from contractor_runtime.contracts import (
     MAX_RUN_METADATA_LABEL_VALUE_BYTES,
     MAX_RUN_METADATA_LABELS,
     RUN_METADATA_LABEL_KEY_PATTERN,
+    DroppedSpanCounts,
     RuntimeAdapterRef,
     TelemetryExportSettings,
+    TelemetryRetrySettings,
     TelemetrySettingsV2,
 )
 
@@ -51,7 +55,6 @@ MAX_STRING_ATTRIBUTE_BYTES = 256
 MAX_SEQUENCE_VALUES = 65
 MAX_ATTRIBUTE_KEY_BYTES = 128
 MAX_SPAN_NAME_BYTES = 128
-MAX_RESPONSE_BYTES = 64 * 1024
 RUN_METADATA_LABEL_ATTRIBUTE_PREFIX = "contractor.run.label."
 
 _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
@@ -229,6 +232,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         content: Mapping[str, str] | None = None,
     ) -> None:
         if self._closed:
+            self._metrics.record_dropped_spans("shutdown", 1)
             return
         try:
             safe_attributes = _safe_attributes(attributes, self._secret_values)
@@ -279,12 +283,14 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             encoded = span.SerializeToString()
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            self._metrics.record_dropped_spans("encoding_failed", 1)
             return
         size = len(encoded)
         if (
             len(self._queue) >= self._max_pending_spans
             or self._pending_bytes + size > self._max_pending_bytes
         ):
+            self._metrics.record_dropped_spans("queue_overflow", 1)
             self._metrics.record_operation(succeeded=False, error_code="queue_overflow")
             self.queue_full = True
             if self._on_enqueue is not None:
@@ -328,6 +334,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self.queue_full = False
 
     def close(self) -> None:
+        self._metrics.record_dropped_spans("shutdown", self.pending_spans)
         self.clear()
         self._on_enqueue = None
         self._secret_values = ()
@@ -396,10 +403,15 @@ class OTLPHTTPAdapter:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self.metrics = RuntimeAdapterMetricsState()
+        self.metrics = RuntimeAdapterMetricsState(dropped_spans=DroppedSpanCounts())
         self._export_settings = (settings.export or TelemetryExportSettings.defaults()).model_copy(
             deep=True
         )
+        self._retry_settings = (
+            self._export_settings.retry or TelemetryRetrySettings.defaults()
+        ).model_copy(deep=True)
+        self._batch_timeout = float(settings.flush_timeout_seconds)
+        self._flush_timeout = float(settings.flush_timeout_seconds)
         secret_headers = {
             name: value.get_secret_value() for name, value in settings.headers.items()
         }
@@ -498,58 +510,95 @@ class OTLPHTTPAdapter:
             if self._instrumentation.pending_spans == 0:
                 return
             task = self._start_export()
-        if not await task:
-            raise OTLPDeliveryError
+        async with asyncio.timeout(self._flush_timeout):
+            if not await task:
+                raise OTLPDeliveryError
 
     async def _send_batch(self) -> None:
         client = self._client
         if client is None:
             return
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._batch_timeout
         batch_size = self._export_settings.batch_size_bytes
         count = self._instrumentation.batch_span_count(batch_size)
+        dropped = count
+        reason = "encoding_failed"
         try:
-            payload = self._instrumentation.export_request(span_count=count)
-            # Include protobuf envelope overhead in the request limit. A span
-            # is never split; individual spans fit the minimum batch size.
-            while len(payload) > batch_size and count > 1:
-                count -= 1
+            try:
                 payload = self._instrumentation.export_request(span_count=count)
-        except Exception:
-            self._instrumentation.discard_prefix(count)
-            self.metrics.record_operation(succeeded=False, error_code="request_failed")
+                while len(payload) > batch_size and count > 1:
+                    count -= 1
+                    payload = self._instrumentation.export_request(span_count=count)
+                dropped = count
+                if len(payload) > batch_size:
+                    raise ValueError("OTLP batch exceeds its bound")
+            except Exception:
+                dropped = count
+                self.metrics.record_operation(succeeded=False, error_code="request_failed")
+                raise OTLPDeliveryError from None
+            reason = "retry_exhausted"
+            async with asyncio.timeout_at(deadline):
+                for attempt in range(self._export_settings.max_attempts):
+                    if loop.time() >= deadline:
+                        reason = "deadline_exceeded"
+                        raise OTLPDeliveryError
+                    result = await self._attempt(client, payload, count)
+                    if result.accepted:
+                        dropped = result.rejected_spans
+                        reason = "collector_rejected"
+                        if dropped:
+                            raise OTLPDeliveryError
+                        return
+                    if not result.retryable:
+                        reason = "non_retryable"
+                        raise OTLPDeliveryError
+                    if attempt + 1 == self._export_settings.max_attempts:
+                        break
+                    delay = result.retry_after
+                    if delay is None:
+                        delay = backoff_seconds(self._retry_settings, attempt)
+                    # A collector delay cannot be shortened to squeeze in another
+                    # request. Give up this batch when the delay cannot fit.
+                    if delay >= deadline - loop.time():
+                        reason = "deadline_exceeded"
+                        raise OTLPDeliveryError
+                    await asyncio.sleep(delay)
+            raise OTLPDeliveryError
+        except TimeoutError:
+            reason = "deadline_exceeded"
             raise OTLPDeliveryError from None
-        try:
-            for _ in range(self._export_settings.max_attempts):
-                failed = False
-                try:
-                    # Each attempt has a total timeout, including its response
-                    # body. The lifecycle deadline can cancel either attempt.
-                    async with asyncio.timeout(self._delivery_timeout):
-                        async with client.stream(
-                            "POST",
-                            self._endpoint,
-                            headers=self._headers,
-                            content=payload,
-                        ) as response:
-                            if (
-                                not 200 <= response.status_code < 300
-                                or not await _accepted_response(response)
-                            ):
-                                failed = True
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    failed = True
-                if failed:
-                    self.metrics.record_operation(succeeded=False, error_code="delivery_failed")
-                    continue
-                self.metrics.record_operation(succeeded=True)
-                return
-            raise OTLPDeliveryError from None
+        except asyncio.CancelledError:
+            reason = "shutdown" if self._closing else "cancelled"
+            raise
         finally:
-            # Keep the exact payload, span IDs and queue reservation across the
-            # retry; arrivals during either attempt belong to the next batch.
+            # Attempts reuse exactly this prefix; concurrent arrivals remain queued.
+            self.metrics.record_dropped_spans(reason, dropped)
             self._instrumentation.discard_prefix(count)
+
+    async def _attempt(
+        self, client: httpx.AsyncClient, payload: bytes, count: int
+    ) -> DeliveryResponse:
+        try:
+            async with asyncio.timeout(self._delivery_timeout):
+                async with client.stream(
+                    "POST", self._endpoint, headers=self._headers, content=payload
+                ) as response:
+                    result = await classify_response(response, span_count=count)
+        except asyncio.CancelledError:
+            self.metrics.record_operation(succeeded=False, error_code="delivery_failed")
+            raise
+        except (httpx.UnsupportedProtocol, httpx.LocalProtocolError):
+            result = DeliveryResponse()
+        except (httpx.TransportError, TimeoutError):
+            result = DeliveryResponse(retryable=True)
+        except Exception:
+            result = DeliveryResponse()
+        succeeded = result.accepted and result.rejected_spans == 0
+        self.metrics.record_operation(
+            succeeded=succeeded, error_code=None if succeeded else "delivery_failed"
+        )
+        return result
 
     async def close(self) -> None:
         if self._closed:
@@ -621,37 +670,6 @@ def _run_metadata_attributes(source: Mapping[str, str], secrets: Sequence[str]) 
             continue
         result[attribute_key] = value
     return result
-
-
-async def _accepted_response(response: httpx.Response) -> bool:
-    body = bytearray()
-    try:
-        async for chunk in response.aiter_bytes():
-            if len(body) + len(chunk) > MAX_RESPONSE_BYTES:
-                return False
-            body.extend(chunk)
-        if body and "application/json" in response.headers.get("content-type", ""):
-            value = json.loads(body)
-            if not isinstance(value, dict):
-                return False
-            # Langfuse v3 acknowledges its durable ingestion queue job as JSON,
-            # even when the request and Accept header use OTLP protobuf.
-            if value.get("name") == "otel-ingestion-job":
-                return isinstance(value.get("id"), str) and bool(value["id"])
-            if set(value) - {"partialSuccess"}:
-                return False
-            partial = value.get("partialSuccess", {})
-            return (
-                isinstance(partial, dict)
-                and not (set(partial) - {"rejectedSpans", "errorMessage"})
-                and partial.get("rejectedSpans", 0) in (0, "0")
-                and not partial.get("errorMessage")
-            )
-        decoded = ExportTraceServiceResponse.FromString(bytes(body))
-    except (DecodeError, ValueError):
-        return False
-    partial = decoded.partial_success
-    return partial.rejected_spans == 0 and not partial.error_message
 
 
 def _safe_attribute_value(

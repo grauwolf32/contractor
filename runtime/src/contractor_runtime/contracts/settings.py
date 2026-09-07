@@ -159,11 +159,27 @@ class RuntimeSettings(WireModel):
         return value.get_secret_value()
 
 
+class TelemetryRetrySettings(WireModel):
+    initial_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
+    max_backoff_milliseconds: int = Field(strict=True, ge=1, le=60_000)
+
+    @classmethod
+    def defaults(cls) -> TelemetryRetrySettings:
+        return cls(initialBackoffMilliseconds=100, maxBackoffMilliseconds=1000)
+
+    @model_validator(mode="after")
+    def validate_backoff(self) -> Self:
+        if self.initial_backoff_milliseconds > self.max_backoff_milliseconds:
+            raise ValueError("telemetry retry initial backoff exceeds maximum")
+        return self
+
+
 class TelemetryExportSettings(WireModel):
     batch_size_bytes: int = Field(strict=True, ge=1024 * 1024, le=64 * 1024 * 1024)
     max_attempts: int = Field(strict=True, ge=1, le=10)
     max_pending_spans: int = Field(strict=True, ge=1, le=2048)
     max_pending_bytes: int = Field(strict=True, ge=1024 * 1024, le=64 * 1024 * 1024)
+    retry: TelemetryRetrySettings | None = None
 
     @classmethod
     def defaults(cls) -> TelemetryExportSettings:

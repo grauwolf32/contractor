@@ -165,6 +165,7 @@ from contractor_runtime.contracts.registration import (
 )
 from contractor_runtime.contracts.reports import AllocationFinalReport as AllocationFinalReport
 from contractor_runtime.contracts.reports import AllocationFinalResponse as AllocationFinalResponse
+from contractor_runtime.contracts.reports import DroppedSpanCounts as DroppedSpanCounts
 from contractor_runtime.contracts.reports import ExecutionError as ExecutionError
 from contractor_runtime.contracts.reports import ExecutionMetrics as ExecutionMetrics
 from contractor_runtime.contracts.reports import ExecutionReport as ExecutionReport
@@ -218,6 +219,7 @@ from contractor_runtime.contracts.settings import RuntimeSettings as RuntimeSett
 from contractor_runtime.contracts.settings import RuntimeSettingsV2 as RuntimeSettingsV2
 from contractor_runtime.contracts.settings import SandboxProfileRef as SandboxProfileRef
 from contractor_runtime.contracts.settings import TelemetryExportSettings as TelemetryExportSettings
+from contractor_runtime.contracts.settings import TelemetryRetrySettings as TelemetryRetrySettings
 from contractor_runtime.contracts.settings import TelemetrySettingsV2 as TelemetrySettingsV2
 from contractor_runtime.contracts.settings import ToolsetRef as ToolsetRef
 from contractor_runtime.contracts.settings import ToolsetSelection as ToolsetSelection

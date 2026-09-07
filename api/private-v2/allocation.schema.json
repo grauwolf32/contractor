@@ -1142,6 +1142,17 @@
           "minimum": 1048576,
           "title": "Maxpendingbytes",
           "type": "integer"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelemetryRetrySettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1151,6 +1162,29 @@
         "maxPendingBytes"
       ],
       "title": "TelemetryExportSettings",
+      "type": "object"
+    },
+    "TelemetryRetrySettings": {
+      "additionalProperties": false,
+      "properties": {
+        "initialBackoffMilliseconds": {
+          "maximum": 60000,
+          "minimum": 1,
+          "title": "Initialbackoffmilliseconds",
+          "type": "integer"
+        },
+        "maxBackoffMilliseconds": {
+          "maximum": 60000,
+          "minimum": 1,
+          "title": "Maxbackoffmilliseconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "initialBackoffMilliseconds",
+        "maxBackoffMilliseconds"
+      ],
+      "title": "TelemetryRetrySettings",
       "type": "object"
     }
   },

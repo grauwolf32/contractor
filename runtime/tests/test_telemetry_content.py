@@ -17,7 +17,8 @@ from contractor_runtime.adapters.content import (
     capture_span_content,
     encode_content,
 )
-from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory, _accepted_response
+from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
+from contractor_runtime.adapters.otlp_retry import classify_response
 from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.worker.summarizer import TerminalSummarizer
@@ -162,4 +163,5 @@ def test_terminal_summarizer_captures_actual_adk_request_and_response() -> None:
     ],
 )
 def test_json_collector_ack(value: object, accepted: bool) -> None:
-    assert asyncio.run(_accepted_response(httpx.Response(200, json=value))) is accepted
+    result = asyncio.run(classify_response(httpx.Response(200, json=value), span_count=1))
+    assert (result.accepted and result.rejected_spans == 0) is accepted

@@ -156,6 +156,20 @@
         "failedOperations": {"type": "integer", "minimum": 0},
         "flushAttempted": {"type": "boolean"},
         "flushSucceeded": {"type": "boolean"},
+        "droppedSpans": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "queueOverflow": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "encodingFailed": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "nonRetryable": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "retryExhausted": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "collectorRejected": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "deadlineExceeded": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "cancelled": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+            "shutdown": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615}
+          }
+        },
         "lastErrorCode": {
           "enum": [
             "close_failed",

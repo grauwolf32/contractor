@@ -775,6 +775,10 @@ func cloneTelemetry(value *TelemetryConfig) *TelemetryConfig {
 	result := *value
 	if value.Export != nil {
 		export := *value.Export
+		if value.Export.Retry != nil {
+			retry := *value.Export.Retry
+			export.Retry = &retry
+		}
 		result.Export = &export
 	}
 	return &result
