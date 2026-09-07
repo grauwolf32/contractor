@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -113,9 +114,18 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			if err != nil || !replay.Replayed || replay.Created || attempts != 2 || generated != 1 {
 				t.Fatalf("replay=%+v, %v", replay, err)
 			}
-			var runs, refs int
-			if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM workflow_runs), (SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind='run')`).Scan(&runs, &refs); err != nil || runs != 1 || refs != 1 {
-				t.Fatalf("retry left duplicated resources: runs=%d revisions=%d error=%v", runs, refs, err)
+			// Run creation retains both the input and the protected repeat request.
+			// Neither an aborted attempt nor an idempotent replay may add revisions.
+			var runs, refs, inputs, repeatRequests int
+			err = pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM workflow_runs), count(*),
+       count(*) FILTER (WHERE scope_id=$1 AND namespace='inputs' AND name='source'),
+       count(*) FILTER (WHERE scope_id=$1 AND namespace=$2 AND name=$3)
+FROM artifact_binding_revisions WHERE scope_kind='run'`,
+				result.Run.RunID, artifactpolicy.RunSystemNamespace, artifactpolicy.RunRepeatRequestName,
+			).Scan(&runs, &refs, &inputs, &repeatRequests)
+			if err != nil || runs != 1 || refs != 2 || inputs != 1 || repeatRequests != 1 {
+				t.Fatalf("retry resource counts: runs=%d revisions=%d inputs=%d repeatRequests=%d error=%v", runs, refs, inputs, repeatRequests, err)
 			}
 		})
 	}
