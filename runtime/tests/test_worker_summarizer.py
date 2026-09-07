@@ -189,6 +189,31 @@ def _tool_response_event(call_id: str) -> Event:
     )
 
 
+def test_summary_uses_literal_configured_instructions() -> None:
+    import asyncio
+
+    from fakes.model import json_result, scripted_model
+    from fakes.spec import allocation_spec
+
+    from contractor_runtime.summarizer import TerminalSummarizer
+
+    async def scenario() -> None:
+        model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])
+        config = allocation_spec(summarizer=True).agent_template.summarizer
+        assert config is not None
+        instructions = 'Составь итог {subtaskId}. JSON: {"result": "text"}.'
+        prompt = "Worker transcript"
+        summarizer = TerminalSummarizer(
+            model=model, policy=config.model_policy, instructions=instructions
+        )
+        await summarizer.run(prompt=prompt, invocation_id="literal-summary")
+        assert len(model.requests) == 1
+        assert instructions in model.requests[0]["systemInstruction"]
+        assert model.requests[0]["contentText"] == prompt
+
+    asyncio.run(scenario())
+
+
 def test_summary_sends_large_projection_without_local_context_trimming() -> None:
     import asyncio
 

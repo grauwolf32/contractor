@@ -1009,6 +1009,7 @@ class AdkWorkerRuntime:
             summarizer = TerminalSummarizer(
                 model=summary_model,
                 policy=config.model_policy,
+                instructions=config.instructions.text if config.instructions is not None else None,
                 instrumentation=self._instrumentation,
             )
             candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)

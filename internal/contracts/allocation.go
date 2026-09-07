@@ -4,6 +4,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type AgentTemplateRef struct {
@@ -120,9 +121,10 @@ type ToolsetSelection struct {
 // the normalized context ratio is always present while the optional cumulative
 // budget remains a pointer so strict decoding distinguishes omission from zero.
 type WorkerSummarizerConfig struct {
-	ModelPolicy        ResolvedModelPolicy `json:"modelPolicy"`
-	ContextWindowRatio float64             `json:"contextWindowRatio"`
-	CumulativeBudget   *int                `json:"cumulativeBudget,omitempty"`
+	Instructions       *ResolvedInstructions `json:"instructions,omitempty"`
+	ModelPolicy        ResolvedModelPolicy   `json:"modelPolicy"`
+	ContextWindowRatio float64               `json:"contextWindowRatio"`
+	CumulativeBudget   *int                  `json:"cumulativeBudget,omitempty"`
 }
 
 func (c WorkerSummarizerConfig) Validate(workerPolicy ResolvedModelPolicy) error {
@@ -494,6 +496,17 @@ func validateWorkerSummarizerConfig(
 	config WorkerSummarizerConfig,
 	workerPolicy ResolvedModelPolicy,
 ) error {
+	if instructions := config.Instructions; instructions != nil {
+		if strings.TrimSpace(instructions.Ref) == "" || strings.TrimSpace(instructions.Text) == "" {
+			return invalidf("Worker summarizer instructions ref and text must not be empty")
+		}
+		if !utf8.ValidString(instructions.Text) || utf8.RuneCountInString(instructions.Text) > 8000 {
+			return invalidf("Worker summarizer instructions must contain at most 8000 Unicode characters")
+		}
+		if err := validateDigest("summarizer.instructions.digest", instructions.Digest); err != nil {
+			return err
+		}
+	}
 	if err := validateWorkerSummarizerModelPolicy(config.ModelPolicy); err != nil {
 		return err
 	}

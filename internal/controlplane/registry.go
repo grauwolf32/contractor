@@ -1615,6 +1615,10 @@ func cloneAgentTemplate(source contracts.ResolvedAgentTemplate) contracts.Resolv
 	result.ModelPolicy = cloneModelPolicy(source.ModelPolicy)
 	if source.Summarizer != nil {
 		summarizer := *source.Summarizer
+		if source.Summarizer.Instructions != nil {
+			instructions := *source.Summarizer.Instructions
+			summarizer.Instructions = &instructions
+		}
 		summarizer.ModelPolicy = cloneModelPolicy(source.Summarizer.ModelPolicy)
 		summarizer.CumulativeBudget = cloneIntPointer(source.Summarizer.CumulativeBudget)
 		result.Summarizer = &summarizer

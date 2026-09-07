@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V47-004
+title: "Configure and bound terminal summarizer instructions"
+milestone: model-policy-runtime-correctness
+priority: P1
+status: in_progress
+depends_on: []
+languages: ["go", "python"]
+goal: >-
+  Move production terminal summarizer instructions into a shared configuration
+  file, pin the resolved text and reject instructions longer than 8000 Unicode
+  characters. The suggested 2000-token allowance is an estimate, not a tokenizer bound.
+context:
+  authority: >-
+    User requested extracting summarizer instructions into config with an
+    8000-character maximum. Preserve configs/e2e and unrelated concurrent edits.
+scope:
+  in:
+    - "Optional summarizer.instructions.ref, resolution, immutable digests, safe resources, wire validation and runtime use."
+    - "Shared production instruction file and 8000-character validation; legacy omission retains existing behavior."
+  out:
+    - "Reverting V47-003, exact tokenizer integration, changes to context thresholds or model policies."
+acceptance_criteria:
+  - id: A1
+    given: "Configured summarizer instructions"
+    when: "Config resolves and the Runtime sends the summary request"
+    then: "The exact configured text is pinned and sent literally, including braces, and text changes affect the template digest."
+  - id: A2
+    given: "Missing references, blank text, or more than 8000 Unicode characters"
+    when: "Configuration or resolved wire is validated"
+    then: "Invalid instructions are rejected; 8000 characters are accepted."
+  - id: A3
+    given: "Legacy configurations without explicit summarizer instructions"
+    when: "They resolve and run"
+    then: "Existing instructions and digest behavior remain compatible; configs/e2e is unchanged."
+tests:
+  - command: "go test ./internal/config ./internal/contracts ./internal/controlplane"
+    covers: ["A1", "A2", "A3"]
+  - command: "cd runtime && .venv/bin/python -m pytest tests/test_worker_summarizer.py tests/test_adk_runtime.py tests/test_contracts.py tests/test_allocation_contracts.py"
+    covers: ["A1", "A2", "A3"]

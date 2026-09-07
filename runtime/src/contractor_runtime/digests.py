@@ -32,6 +32,13 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
 
     if template.summarizer is not None:
         verify_model_policy_digest(template.summarizer.model_policy)
+        instructions = template.summarizer.instructions
+        if instructions is not None and (
+            _digest_bytes(instructions.text.encode("utf-8")) != instructions.digest
+        ):
+            raise TemplateDigestMismatch(
+                "resolved summarizer instruction digest does not match its text"
+            )
 
     template_digest = _agent_template_digest(template)
     if template_digest != template.ref.digest:
@@ -126,6 +133,12 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
         if template.summarizer.cumulative_budget is not None:
             summarizer["cumulativeBudget"] = template.summarizer.cumulative_budget
         summarizer["contextWindowRatio"] = template.summarizer.context_window_ratio
+        instructions = template.summarizer.instructions
+        if instructions is not None:
+            summarizer["instructions"] = {
+                "ref": instructions.ref,
+                "digest": instructions.digest,
+            }
         manifest["spec"]["summarizer"] = summarizer
     return _digest_jcs(manifest)
 

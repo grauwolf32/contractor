@@ -326,9 +326,10 @@ type agentTemplateSpecSource struct {
 }
 
 type workerSummarizerSource struct {
-	ModelPolicy        string   `yaml:"modelPolicy"`
-	ContextWindowRatio *float64 `yaml:"contextWindowRatio,omitempty"`
-	CumulativeBudget   *int     `yaml:"cumulativeBudget,omitempty"`
+	Instructions       *instructionsRefSource `yaml:"instructions,omitempty"`
+	ModelPolicy        string                 `yaml:"modelPolicy"`
+	ContextWindowRatio *float64               `yaml:"contextWindowRatio,omitempty"`
+	CumulativeBudget   *int                   `yaml:"cumulativeBudget,omitempty"`
 }
 
 type artifactRefSource struct {

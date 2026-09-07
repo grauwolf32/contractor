@@ -466,12 +466,17 @@ class ToolsetSelection(WireModel):
 
 
 class WorkerSummarizerConfig(WireModel):
+    instructions: ResolvedInstructions | None = None
     model_policy: ResolvedModelPolicy
     cumulative_budget: int | None = Field(default=None, gt=0, le=100_000_000)
     context_window_ratio: float = Field(gt=0, lt=1)
 
     @model_validator(mode="after")
     def validate_summarizer(self) -> Self:
+        if self.instructions is not None and len(self.instructions.text) > 8000:
+            raise ValueError(
+                "Worker summarizer instructions must contain at most 8000 Unicode characters"
+            )
         _require_worker_summarizer_policy(self.model_policy)
         if not math.isfinite(self.context_window_ratio):
             raise ValueError("Worker summarizer contextWindowRatio must be finite")

@@ -46,6 +46,13 @@ Worker ModelPolicy's required `contextWindowTokens` and `maxOutputTokens` to
 derive the prompt boundary. Omission of the complete summarizer block is the
 only disabled representation.
 
+An optional `summarizer.instructions` contains the resolved `ref`, `digest`, and
+`text`, like Worker instructions. Its text is nonblank and at most 8,000 Unicode
+characters, and its ref/digest participate in the AgentTemplate digest. Runtime
+verifies the instruction text digest and uses the text literally as the summary
+agent's instruction. Omission preserves the legacy built-in instruction. This
+character limit does not guarantee a 2,000-token upper bound.
+
 `AgentStateSnapshot.state.schemaVersion` is `2`: invocation metrics include a
 required nullable `latestPromptTokens`, and every current/completed invocation
 contains a closed summarizer phase/usage record. The HTTP ETag's existing

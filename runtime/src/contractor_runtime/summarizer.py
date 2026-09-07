@@ -199,10 +199,12 @@ class TerminalSummarizer:
         *,
         model: BaseLlm,
         policy: ResolvedModelPolicy,
+        instructions: str | None = None,
         instrumentation: RuntimeInstrumentation | None = None,
     ) -> None:
         self._delegate = model
         self._policy = policy
+        self._instructions = _SYSTEM_INSTRUCTION if instructions is None else instructions
         self._model = _OneShotModel(model)
         self._instrumentation = instrumentation
 
@@ -233,7 +235,9 @@ class TerminalSummarizer:
             name="contractor_terminal_summarizer",
             description="Produce one terminal result from bounded Worker history.",
             model=self._model,
-            instruction=_SYSTEM_INSTRUCTION,
+            # A provider preserves literal braces in configured Markdown/JSON
+            # instead of treating them as ADK session-state substitutions.
+            instruction=lambda _: self._instructions,
             tools=[],
             output_schema=WorkerModelResult,
             generate_content_config=generation,

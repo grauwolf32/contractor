@@ -111,6 +111,11 @@ func agentTemplateDigest(selector Selector, template contracts.ResolvedAgentTemp
 			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget
 		}
 		summarizer["contextWindowRatio"] = template.Summarizer.ContextWindowRatio
+		if instructions := template.Summarizer.Instructions; instructions != nil {
+			summarizer["instructions"] = map[string]any{
+				"ref": instructions.Ref, "digest": instructions.Digest,
+			}
+		}
 		spec["summarizer"] = summarizer
 	}
 

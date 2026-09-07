@@ -126,6 +126,13 @@ func (l *loader) resolveWorkerSummarizer(
 	if source.ContextWindowRatio != nil {
 		result.ContextWindowRatio = *source.ContextWindowRatio
 	}
+	if source.Instructions != nil {
+		instructions, err := l.resolveInstructions(source.Instructions)
+		if err != nil {
+			return nil, fmt.Errorf("instructions: %w", err)
+		}
+		result.Instructions = &instructions
+	}
 	if err := result.Validate(workerPolicy); err != nil {
 		return nil, err
 	}

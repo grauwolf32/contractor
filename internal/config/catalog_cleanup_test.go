@@ -66,6 +66,9 @@ func TestRepositoryDefaultCatalogHasNoUnintentionallyOrphanedWorkerConfig(t *tes
 				selector := binding.Template.Ref.TemplateID + "@" + binding.Template.Ref.Version
 				reachableTemplates[selector] = true
 				reachableInstructions[binding.Template.Instructions.Ref] = true
+				if summary := binding.Template.Summarizer; summary != nil && summary.Instructions != nil {
+					reachableInstructions[summary.Instructions.Ref] = true
+				}
 			}
 		}
 	}

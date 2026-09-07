@@ -97,3 +97,41 @@ def test_summarizer_policy_and_thresholds_are_covered_by_template_digests() -> N
     changed_policy.summarizer.model_policy.model = "different-summary-model"
     with pytest.raises(TemplateDigestMismatch, match="ModelPolicy"):
         verify_template_digests(changed_policy)
+
+
+def test_summary_instruction_golden_and_digest_tampering() -> None:
+    from contractor_runtime.digests import _agent_template_digest
+
+    raw = (FIXTURES / "allocation-spec-summarizer-instructions.json").read_text(encoding="utf-8")
+    template = AllocationSpec.model_validate_json(raw).agent_template
+    verify_template_digests(template)
+    assert template.summarizer is not None
+    assert template.summarizer.instructions is not None
+    template.summarizer.instructions.ref = "instructions/other.md"
+    with pytest.raises(TemplateDigestMismatch, match="AgentTemplate"):
+        verify_template_digests(template)
+    template.ref.digest = _agent_template_digest(template)
+    verify_template_digests(template)
+    template.summarizer.instructions.text += "Changed."
+    with pytest.raises(TemplateDigestMismatch, match="instruction digest"):
+        verify_template_digests(template)
+
+
+@pytest.mark.parametrize(
+    "text,valid", [("界" * 8000, True), ("界" * 8001, False), (" \n\t", False)]
+)
+def test_summary_instruction_wire_character_limit(text: str, valid: bool) -> None:
+    import hashlib
+
+    allocation = allocation_spec(summarizer=True).model_dump(by_alias=True, exclude_none=True)
+    allocation["agentTemplate"]["summarizer"]["instructions"] = {
+        "ref": "instructions/summary.md",
+        "digest": "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "text": text,
+    }
+    if valid:
+        decoded = AllocationSpecV2.model_validate(allocation)
+        assert decoded.agent_template.summarizer.instructions.text == text
+    else:
+        with pytest.raises(ValidationError):
+            AllocationSpecV2.model_validate(allocation)

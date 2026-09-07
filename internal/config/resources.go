@@ -220,6 +220,11 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget
 		}
 		result["summarizer"] = summarizer
+		if instructions := template.Summarizer.Instructions; instructions != nil {
+			summarizer["instructions"] = map[string]any{
+				"ref": instructions.Ref, "digest": instructions.Digest,
+			}
+		}
 	}
 	return result
 }

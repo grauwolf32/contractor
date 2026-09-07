@@ -83,6 +83,12 @@
       "additionalProperties": false,
       "required": ["modelPolicy", "contextWindowRatio"],
       "properties": {
+        "instructions": {
+          "allOf": [
+            {"$ref": "#/$defs/resolvedAgentTemplate/properties/instructions"},
+            {"properties": {"text": {"maxLength": 8000, "pattern": "\\S"}}}
+          ]
+        },
         "modelPolicy": {
           "allOf": [
             {"$ref": "#/$defs/resolvedModelPolicy"},

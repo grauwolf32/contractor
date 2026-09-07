@@ -1259,6 +1259,7 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
             max_output_tokens=1024,
             context_window_tokens=8192,
             cumulative_budget=10 if trigger == "cumulative-budget" else None,
+            summary_instructions="Summarize literally {subtaskId} with configured instructions.",
         )
 
         completion = await runtime.invoke(stage_request())
@@ -1271,6 +1272,10 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
         assert len(summary_model.requests) == 1
         summary_request = summary_model.requests[0]
         assert summary_request["model"] == "worker-summary-model"
+        assert (
+            "Summarize literally {subtaskId} with configured instructions."
+            in summary_request["systemInstruction"]
+        )
         assert summary_request["maxOutputTokens"] == 2048
         assert summary_request["temperature"] == 0.0
         assert summary_request["toolNames"] == []
@@ -1913,6 +1918,7 @@ async def create_runtime(
     project_workspace: Any = None,
     summary_model: object | None = None,
     summary_max_total_tokens: int | None = None,
+    summary_instructions: str | None = None,
     cumulative_budget: int | None = None,
     context_window_tokens: int = 131_072,
     context_window_ratio: float = 0.9,
@@ -1959,6 +1965,15 @@ async def create_runtime(
         context = replace(
             context,
             summarizer=WorkerSummarizerConfig(
+                instructions=(
+                    ResolvedInstructions(
+                        ref="instructions/custom-summary.md",
+                        digest="sha256:" + "a" * 64,
+                        text=summary_instructions,
+                    )
+                    if summary_instructions is not None
+                    else None
+                ),
                 modelPolicy=summary_policy,
                 contextWindowRatio=context_window_ratio,
                 cumulativeBudget=cumulative_budget,
