@@ -3,8 +3,8 @@ id: V39-005
 title: "Integrate common Worker finalization with the Audit completeness gate"
 milestone: audit-worker-completion
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: "bd36ef6b64e7eee4fe43f1e6996d80363341891a"
 depends_on: ["V39-002","V39-003","V39-004"]
 languages: ["python"]
 
