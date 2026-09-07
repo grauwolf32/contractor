@@ -3,8 +3,8 @@ id: V48-001
 title: "Reconcile Memory writes after ambiguous Artifact HTTP failures"
 milestone: shared-memory-production-correctness
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 08653eb05694b6533ca6d54791a08ddcec0fc53a
 depends_on: [V9-007]
 languages: [python, go]
 goal: >-
