@@ -151,7 +151,7 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
         "requests_by_offset": _StaticOperation(
             operation_name="RequestsByOffset",
             document=(
-                "query RequestsByOffset($limit: Int, $offset: Int, $filter: HTTPQL, "
+                "query RequestsByOffset($limit: Int, $offset: Int, $filter: HTTPQLInput, "
                 "$order: RequestResponseOrderInput) { requestsByOffset(limit: $limit, offset: "
                 "$offset, filter: $filter, order: $order) { count { value } nodes { id method host "
                 "path port query isTls source createdAt response { statusCode length roundtripTime "

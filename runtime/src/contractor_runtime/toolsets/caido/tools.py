@@ -10,6 +10,7 @@ import math
 import secrets
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from types import MappingProxyType
 from typing import Any
@@ -270,7 +271,7 @@ class _CaidoSession:
             "order": {"by": "ID", "ordering": "DESC"},
         }
         if selected_filter:
-            variables["filter"] = selected_filter
+            variables["filter"] = {"code": selected_filter}
         async with self._lock:
             data = await self._execute("requests_by_offset", variables)
             connection = _connection(data, "requestsByOffset", selected_limit)
@@ -1486,7 +1487,7 @@ def _active_workflow_result(data: object, expected_workflow_id: str) -> dict[str
     if payload["task"] is None:
         raise CaidoToolError("caido_response_invalid")
     task = _exact_object(payload["task"], {"id", "createdAt", "workflow"})
-    _text(task["createdAt"])
+    _timestamp(task["createdAt"])
     workflow = _exact_object(task["workflow"], {"id", "name"})
     if _identifier(workflow["id"]) != expected_workflow_id:
         raise CaidoToolError("caido_response_invalid")
@@ -1581,7 +1582,7 @@ def _request_summary(value: object) -> dict[str, Any]:
         "query": _text(node["query"]),
         "is_tls": _boolean(node["isTls"]),
         "source": _text(node["source"]),
-        "created_at": _text(node["createdAt"]),
+        "created_at": _timestamp(node["createdAt"]),
         "status_code": None if response is None else response["status_code"],
         "response_length": None if response is None else response["length"],
         "roundtrip_ms": None if response is None else response["roundtrip_ms"],
@@ -1637,7 +1638,7 @@ def _request_detail(value: object) -> dict[str, Any]:
         "port": _nullable_integer(request["port"], minimum=1, maximum=65535),
         "query": _text(request["query"]),
         "is_tls": _boolean(request["isTls"]),
-        "created_at": _text(request["createdAt"]),
+        "created_at": _timestamp(request["createdAt"]),
         "source": _text(request["source"]),
         "response": response,
         "_raw": request["raw"],
@@ -1653,7 +1654,7 @@ def _automate_session(value: object) -> dict[str, Any]:
             {
                 "id": _identifier(entry["id"]),
                 "name": _text(entry["name"]),
-                "created_at": _text(entry["createdAt"]),
+                "created_at": _timestamp(entry["createdAt"]),
             }
         )
     settings = _exact_object(session["settings"], {"strategy", "placeholders"})
@@ -1773,7 +1774,7 @@ def _finding(value: object) -> dict[str, Any]:
         "reporter": _text(item["reporter"]),
         "host": _text(item["host"]),
         "path": _text(item["path"]),
-        "created_at": _text(item["createdAt"]),
+        "created_at": _timestamp(item["createdAt"]),
         "request_id": request_id,
     }
 
@@ -1964,6 +1965,20 @@ def _text(value: object) -> str:
     if not isinstance(value, str) or len(value.encode()) > MAX_SHORT_TEXT_BYTES:
         raise CaidoToolError("caido_response_invalid")
     return value
+
+
+def _timestamp(value: object) -> str:
+    # Caido's Timestamp scalar is milliseconds since the Unix epoch.
+    # Retain supported textual responses while normalizing actual numeric scalars.
+    if isinstance(value, str):
+        return _text(value)
+    if type(value) is not int or value < 0:
+        raise CaidoToolError("caido_response_invalid")
+    try:
+        instant = datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=value)
+    except OverflowError:
+        raise CaidoToolError("caido_response_invalid") from None
+    return instant.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _string_list(value: object, *, maximum: int, item_bytes: int) -> list[str]:

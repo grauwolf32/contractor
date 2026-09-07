@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import httpx
+import pytest
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.caido_graphql import CaidoGraphQLClient
@@ -21,7 +22,9 @@ from contractor_runtime.contracts import (
 from contractor_runtime.toolsets.caido.tools import (
     CAIDO_EXCHANGE_MEDIA_TYPE,
     CAIDO_TOOL_NAMES,
+    CaidoToolError,
     CaidoToolsetFactory,
+    _timestamp,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -29,12 +32,33 @@ CAIDO_TOKEN = "recognizable-caido-tool-secret"
 HTTPQL = 'req.host.eq:"target.example"'
 
 
+@pytest.mark.parametrize("numeric_timestamps", [False, True])
 def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
     tmp_path: Path,
+    numeric_timestamps: bool,
 ) -> None:
     raw_request = ("GET /long HTTP/1.1\r\nHost: target.example\r\n\r\n" + "r" * 9000).encode()
     raw_response = b"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n\r\n\x00\xff"
     responses = representative_responses(raw_request, raw_response)
+    if numeric_timestamps:
+        timestamps = {
+            "2026-09-01T00:00:00Z": 1788220800000,
+            "2026-09-01T00:01:00Z": 1788220860000,
+            "2026-09-01T00:02:00Z": 1788220920000,
+        }
+
+        def replace_timestamps(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key == "createdAt":
+                        value[key] = timestamps[item]
+                    else:
+                        replace_timestamps(item)
+            elif isinstance(value, list):
+                for item in value:
+                    replace_timestamps(item)
+
+        replace_timestamps(responses)
     observed: list[dict[str, Any]] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -67,9 +91,12 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
         assert history["count"] == 1
         assert history["offset"] == 2
         assert history["requests"][0]["status_code"] == 200
+        expected_time = "2026-09-01T00:00:00.000Z" if numeric_timestamps else "2026-09-01T00:00:00Z"
+        assert history["requests"][0]["created_at"] == expected_time
 
         detail = await tools["caido_request_detail"]("request-1")
         assert detail["raw"]["truncated"] is True
+        assert detail["created_at"] == expected_time
         assert detail["response"]["raw"]["kind"] == "binary"
         exact = ArtifactRef.model_validate(detail["raw_artifact"]).require_exact()
         stored = json.loads(artifacts.payloads[(exact.namespace, exact.name, exact.revision)])
@@ -115,8 +142,9 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
             "Workflows",
             "FindingsByOffset",
         ]
+        assert "$filter: HTTPQLInput" in observed[1]["query"]
         assert observed[1]["variables"] == {
-            "filter": HTTPQL,
+            "filter": {"code": HTTPQL},
             "limit": 20,
             "offset": 2,
             "order": {"by": "ID", "ordering": "DESC"},
@@ -131,6 +159,12 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
         await handle.close()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("value", [None, True, 1.5, -1, 10**100, {}])
+def test_invalid_caido_timestamp_scalars_are_rejected(value: object) -> None:
+    with pytest.raises(CaidoToolError, match="caido_response_invalid"):
+        _timestamp(value)
 
 
 async def create_tools(

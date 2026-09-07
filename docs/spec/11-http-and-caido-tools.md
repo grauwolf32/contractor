@@ -246,6 +246,15 @@ runtime-generated GraphQL. Adapter capability discovery proves only that the
 local implementation can construct the typed client; it deliberately does not
 contact or introspect an infrastructure instance during Agent registration.
 
+For Caido 0.56.2, filtered history supplies an `HTTPQLInput` object with a
+`code` field. Its numeric `Timestamp` scalars contain integer milliseconds
+since the Unix epoch; tools normalize them to UTC ISO 8601 strings with
+millisecond precision. Bounded textual timestamps remain accepted for
+compatible deployments. Boolean, fractional, negative and overflowing numeric
+timestamps are malformed responses. A deployment compatibility check should
+exercise a real proxied request through the production history and request
+detail tools, because schema validation alone does not validate scalar values.
+
 Common first limits:
 
 | Resource | Limit |

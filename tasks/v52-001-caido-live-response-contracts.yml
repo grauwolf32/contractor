@@ -1,0 +1,48 @@
+schema_version: "1.0"
+id: V52-001
+title: Validate Caido tool response contracts against the live API
+milestone: live-workflow-baselines
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: [python, markdown]
+goal: >-
+  Make supported Caido history and request operations work with the actual
+  Caido schema and scalar representations rather than only mocked responses.
+context:
+  authority: User requested autonomous local workflow baselines, correction of failures, and tasks for serious findings.
+  specification: docs/spec/11-http-and-caido-tools.md
+  evidence: >-
+    Local Caido 0.56.2; Run run_61b5fd9b903532fa1dd31bce66c964c5.
+    requestsByOffset requires HTTPQLInput/code and returns createdAt as an
+    integer epoch timestamp; the Runtime declared HTTPQL and expected text.
+    Model tool calls repeatedly failed with caido_response_invalid.
+scope:
+  in:
+    - Correct static GraphQL input types and variable shapes.
+    - Normalize supported timestamp scalars to the documented bounded tool output.
+    - Cover live-shaped history and request-detail responses, including malformed scalar rejection.
+    - Verify actual tool normalization against a dedicated local Caido project.
+  out:
+    - Weaken HTTP target restrictions, change benchmark scoring, or change model instructions.
+acceptance_criteria:
+  - id: A1
+    text: Static queries validate against Caido 0.56.2 and filtered history uses HTTPQLInput/code.
+  - id: A2
+    text: Live-shaped request timestamps are normalized consistently while malformed values remain rejected.
+  - id: A3
+    text: A real proxied local fixture request can be read through the production history and detail tool paths.
+tests:
+  - command: cd runtime && uv run pytest tests/test_caido_adapter.py tests/test_caido_read_tools.py tests/test_caido_action_tools.py
+    covers: [A1, A2]
+  - command: cd runtime && uv run ruff check src/contractor_runtime/adapters/caido_graphql.py src/contractor_runtime/toolsets/caido/tools.py tests/test_caido_read_tools.py
+    covers: [A1, A2]
+  - command: git diff --check
+    covers: [A1, A2, A3]
+verification:
+  - Runtime focused checks passed: 24 adapter/read/action/allocation tests plus 15 fixture/security tests.
+  - Live Caido 0.56.2 accepts all 18 static operation documents.
+  - Production HTTP request via configured Caido proxy returned 200; filtered history and request detail returned matching normalized timestamps; replay completed.
+  - Private proof is retained at /tmp/contractor-baseline-20260908/caido-production-tool-preflight.json, without credentials or target response bodies.
+  - Ruff for changed Runtime files and git diff --check passed.
