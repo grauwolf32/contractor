@@ -3,8 +3,8 @@ id: V51-001
 title: Bound Runtime OTLP retries and expose discarded-span diagnostics
 milestone: runtime-otlp-delivery
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b763e6ab93ec30e9b09c5280fc36f326234880e3
 depends_on: []
 languages: [python, go, json, markdown]
 goal: >-
@@ -39,7 +39,16 @@ acceptance_criteria:
 tests:
   - command: cd runtime && uv run pytest -W error tests/test_otlp_adapter.py tests/test_otlp_streaming.py tests/test_otlp_retries.py tests/test_adapter_host.py tests/test_telemetry_content.py tests/test_contracts.py tests/test_allocation.py
     covers: [A1, A2, A3, A4]
-  - command: go test -race -count=1 ./internal/contracts ./internal/runtimeconfig ./internal/controlplane ./internal/telemetry
+  - command: go test -race -count=1 ./internal/contracts ./internal/runtimeconfig ./internal/controlplane ./internal/telemetry ./internal/scheduler
     covers: [A3, A4]
   - command: git diff --check
     covers: [A4]
+
+verification:
+  - "Worker retries only transient transport failures and HTTP 429/502/503/504. Both Retry-After forms, invalid-header fallback, configured exponential backoff with equal jitter, stable payload/span IDs, shared batch budgets and cancellation were exercised through actual exporter requests."
+  - "Permanent responses, malformed/oversized acknowledgements and partial acceptance never replay the batch. Partial rejection counts only rejected spans; zero-rejection warnings succeed."
+  - "Discard counters distinguish queue overflow, encoding failure, terminal delivery failure, attempt exhaustion, explicit collector rejection, batch expiry, cancellation and shutdown. Tests verify no double counting across in-flight batches, concurrent tail appends and repeated close, plus uint64 saturation and detached report snapshots."
+  - "Optional retry settings normalize, validate, remain detached during resolution and Scheduler projection, and preserve old explicit export documents and digests. Python/Go reports and private/public JSON schemas retain the new counters. Invalid Go diagnostics preserve the existing incomplete-report fallback."
+  - "All five listed Go packages passed -race -count=1 with a disposable PostgreSQL 17 instance and database integration tests enabled."
+  - "An isolated worktree containing exactly the 23 staged implementation files passed 224 Python tests with warnings as errors. All five Go packages also passed there; after adjusting the report test to the existing JSON decoder, internal/contracts was rerun successfully."
+  - "Focused Ruff checks and formatting passed for all ten changed Python files. git diff --check passed. V50 private-contract consolidation was excluded from the implementation commit and preserved in the shared working tree."
