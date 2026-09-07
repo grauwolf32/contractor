@@ -3,8 +3,8 @@ id: V47-002
 title: "Preserve gateway failure retryability across completion paths"
 milestone: model-policy-runtime-correctness
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: b76f1de4657dcc855dbd0ae1497f91d429ab945f
 depends_on: []
 languages: ["python"]
 goal: >-

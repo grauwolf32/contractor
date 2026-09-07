@@ -3,8 +3,8 @@ id: V47-003
 title: "Fit the complete terminal summarizer request into the model context"
 milestone: model-policy-runtime-correctness
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 4d81f18cf42448d10b4fa814d5131c31507d6c96
 depends_on: []
 languages: ["python"]
 goal: >-
