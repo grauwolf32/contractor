@@ -676,7 +676,7 @@ milestones:
       without mandatory annotations, OpenAPI subjects or hypothesis verification.
 
   - id: model-policy-runtime-correctness
-    exit_task: V47-005
+    exit_task: V47-006
     outcome: >-
       Planner requests honor pinned temperature, Worker completion preserves
       gateway retryability, and terminal summaries use configurable bounded
@@ -2625,6 +2625,7 @@ tasks:
   - {id: V47-003, file: v47-003-summarizer-context-admission.yml}
   - {id: V47-004, file: v47-004-configurable-summarizer-instructions.yml}
   - {id: V47-005, file: v47-005-remove-summarizer-context-admission.yml}
+  - {id: V47-006, file: v47-006-config-catalog-release.yml}
   - {id: V47-006, file: v47-006-config-catalog-release.yml}
   - {id: V48-001, file: v48-001-memory-ambiguous-http-write.yml}
   - {id: V48-002, file: v48-002-memory-bounded-artifact-listing.yml}

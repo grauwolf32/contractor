@@ -3,7 +3,8 @@ id: V47-006
 title: "Finalize model-policy catalog and verify the live gateway"
 milestone: model-policy-runtime-correctness
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 394018a04a57c52a1e4cdce8d0c4ef63edd74114
 depends_on: ["V47-004", "V47-005"]
 languages: ["go", "python"]
 goal: >-
