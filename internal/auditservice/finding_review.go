@@ -42,90 +42,6 @@ finding.rejection_reason, finding.duplicate_target_id,
 finding.current_assessment_id, finding.current_decision_id,
 finding.revision, finding.created_at, finding.updated_at`
 
-func (s *Service) ListFindings(
-	ctx context.Context, params FindingListParams,
-) ([]Finding, error) {
-	if err := validateFindingList(params); err != nil {
-		return nil, err
-	}
-	var state, verdict, severity *string
-	if params.State != nil {
-		value := string(*params.State)
-		state = &value
-	}
-	if params.Verdict != nil {
-		value := string(*params.Verdict)
-		verdict = &value
-	}
-	if params.Severity != nil {
-		value := string(*params.Severity)
-		severity = &value
-	}
-	rows, err := s.pool.Query(ctx, `
-SELECT `+findingRowColumns+`
-  FROM audit_findings AS finding
-  JOIN audits AS audit USING (audit_id)
-  LEFT JOIN audit_review_decisions AS decision
-    ON decision.decision_id = finding.current_decision_id
- WHERE audit.owner_id = $1 AND finding.audit_id = $2
-   AND ($3::text IS NULL OR finding.state = $3)
-   AND ($4::text IS NULL OR decision.verdict = $4)
-   AND (NOT $5::boolean OR finding.current_decision_id IS NULL)
-   AND ($6::text IS NULL OR decision.severity = $6)
-   AND ($7::timestamptz IS NULL OR
-        (finding.created_at, finding.finding_id) > ($7, $8))
- ORDER BY finding.created_at, finding.finding_id
- LIMIT $9`, params.OwnerID, params.AuditID, state, verdict, params.Unreviewed,
-		severity, params.AfterCreatedAt, params.AfterFindingID, params.Limit)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit findings: %w", err)
-	}
-	defer rows.Close()
-	result := make([]Finding, 0, params.Limit)
-	for rows.Next() {
-		row, scanErr := scanFindingRow(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		finding, loadErr := s.hydrateFinding(ctx, params.OwnerID, row)
-		if loadErr != nil {
-			return nil, loadErr
-		}
-		result = append(result, finding)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate Audit findings: %w", err)
-	}
-	if len(result) == 0 {
-		if _, err := auditstore.NewPostgresStore(s.pool).Get(ctx, params.OwnerID, params.AuditID); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
-}
-
-func (s *Service) GetFinding(
-	ctx context.Context, ownerID, auditID, findingID string,
-) (Finding, error) {
-	if !validReviewIdentity(ownerID, 256) || !validReviewIdentity(auditID, 256) ||
-		!validReviewIdentity(findingID, 256) {
-		return Finding{}, auditstore.ErrInvalid
-	}
-	row, err := scanFindingRow(s.pool.QueryRow(ctx, `
-SELECT `+findingRowColumns+`
-  FROM audit_findings AS finding
-  JOIN audits AS audit USING (audit_id)
- WHERE audit.owner_id = $1 AND finding.audit_id = $2 AND finding.finding_id = $3`,
-		ownerID, auditID, findingID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Finding{}, auditstore.ErrNotFound
-	}
-	if err != nil {
-		return Finding{}, fmt.Errorf("read Audit finding: %w", err)
-	}
-	return s.hydrateFinding(ctx, ownerID, row)
-}
-
 func (s *Service) CreateFindingReview(
 	ctx context.Context, params CreateFindingReviewParams,
 ) (FindingReviewResult, error) {
@@ -700,39 +616,6 @@ SELECT created_at, record_id, kind, receipt_id, relation, proposal_ref,
 		result = append(result, value)
 	}
 	return result, rows.Err()
-}
-
-func (s *Service) hydrateFinding(
-	ctx context.Context, ownerID string, row findingRow,
-) (Finding, error) {
-	receipt, err := s.findings.GetAuditReceipt(ctx, ownerID, row.auditID, row.firstReceiptID)
-	if err != nil {
-		return Finding{}, err
-	}
-	result := Finding{
-		FindingID: row.findingID, AuditID: row.auditID, State: row.state,
-		RejectionReason: row.rejectionReason, DuplicateTargetID: row.duplicateTargetID,
-		FirstProposal: receipt, Revision: row.revision,
-		CreatedAt: row.createdAt, UpdatedAt: row.updatedAt,
-	}
-	if row.currentDecisionID != nil {
-		decision, err := readDecision(s.pool.QueryRow(ctx, decisionSelect+` WHERE decision.decision_id = $1`, *row.currentDecisionID))
-		if err != nil {
-			return Finding{}, err
-		}
-		result.AnalystDecision = &decision
-		verdict := decision.Verdict
-		result.AnalystVerdict = &verdict
-		result.AnalystSeverity = decision.Severity
-	}
-	if row.currentAssessmentID != nil {
-		assessment, err := readAssessment(s.pool.QueryRow(ctx, assessmentSelect+` WHERE assessment.assessment_id = $1`, *row.currentAssessmentID))
-		if err != nil {
-			return Finding{}, err
-		}
-		result.CurrentAssessment = &assessment
-	}
-	return result, nil
 }
 
 func lockFinding(

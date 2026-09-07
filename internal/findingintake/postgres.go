@@ -54,6 +54,19 @@ SELECT `+receiptProjection+`
 }
 
 func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) {
+	result, err := scanReceiptRow(row)
+	if err != nil {
+		return Receipt{}, err
+	}
+	holds, err := readAuditHolds(ctx, db, result.ReceiptID)
+	if err != nil {
+		return Receipt{}, err
+	}
+	result.AuditHolds = holds
+	return result, nil
+}
+
+func scanReceiptRow(row pgx.Row) (Receipt, error) {
 	var result Receipt
 	var configurationRef, proposalRef, evidenceJSON []byte
 	var auditID, auditExecutionID, auditRole *string
@@ -93,11 +106,6 @@ func scanReceipt(ctx context.Context, db querier, row pgx.Row) (Receipt, error) 
 			AuditID: *auditID, ExecutionID: *auditExecutionID, Role: *auditRole,
 		}
 	}
-	holds, err := readAuditHolds(ctx, db, result.ReceiptID)
-	if err != nil {
-		return Receipt{}, err
-	}
-	result.AuditHolds = holds
 	return result, nil
 }
 
@@ -290,42 +298,21 @@ SELECT receipt.receipt_id, hold.proposal_ref
 	return result, nil
 }
 
-func (s *Service) hydrateReceiptDocuments(
-	ctx context.Context,
-	receipts []Receipt,
-) ([]Receipt, error) {
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(s.pool))
+func (s *Service) hydrateReceiptDocuments(ctx context.Context, receipts []Receipt) ([]Receipt, error) {
+	repository := artifacts.NewPostgresRepository(s.pool)
 	for index := range receipts {
 		receipt := &receipts[index]
-		var store artifacts.ScopedStore
-		var ref contracts.ArtifactRef
-		var expected ExactArtifact
-		var err error
-		if !receipt.Origin.RunDeleted {
-			store, err = artifactService.Run(receipt.Origin.RunID)
-			ref, expected = receipt.Proposal.Ref, receipt.Proposal
-		} else if len(receipt.AuditHolds) != 0 {
-			hold := receipt.AuditHolds[0]
-			store, err = artifactService.Project(hold.ProjectID)
-			ref, expected = hold.Proposal.Ref, hold.Proposal
-		} else {
-			return nil, ErrNotFound
-		}
+		request, expected, err := receiptArtifact(*receipt)
 		if err != nil {
 			return nil, err
 		}
-		read, err := store.Read(ctx, ref)
+		read, err := repository.Read(ctx, request.Scope, request.Ref)
 		if err != nil {
 			return nil, err
 		}
-		if read.Payload.MediaType != expected.MediaType ||
-			int64(len(read.Payload.Data)) != expected.SizeBytes ||
-			digestBytes(read.Payload.Data) != expected.Digest {
-			return nil, artifacts.ErrArtifactIntegrity
-		}
-		document, err := auditdomain.DecodeFindingProposal(read.Payload.Data)
-		if err != nil || document.ClientKey != receipt.ClientKey {
-			return nil, artifacts.ErrArtifactIntegrity
+		document, err := decodeReceiptDocument(read, expected, receipt.ClientKey)
+		if err != nil {
+			return nil, err
 		}
 		receipt.Document = document
 	}

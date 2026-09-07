@@ -42,8 +42,8 @@ acceptance_criteria:
     behavior; a single-connection pool can serve the page.
 tests:
 - name: postgres-race
-  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/artifacts ./internal/auditservice
-    ./internal/findingintake ./internal/httpapi/public
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1 ./internal/artifacts
+    ./internal/auditservice ./internal/findingintake ./internal/httpapi/public
   covers:
   - A1
   - A2
