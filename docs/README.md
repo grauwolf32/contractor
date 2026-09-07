@@ -19,6 +19,7 @@ blob backend remain replaceable deployment adapters.
 - [Artifact blob storage and no-PVC deployment](artifact-blob-storage.md)
 - [Git repository artifacts](git-artifacts.md) — SSH-key Settings, Workflow/Project import, deployment and release verification; [specification](spec/24-git-artifacts.md).
 - [Specification index](spec/README.md)
+- [Portable evaluation format](spec/26-portable-evaluation-format.md) — versioned datasets, execution bindings and evaluator records; [offline readiness and implementation pins](reviews/portable-eval-format-readiness.md). Model quality runs require a separate frozen budget.
 - [UI user stories and improvement roadmap](ui-user-stories.md) — planned scenarios, acceptance and V37/V38 tasks.
 - [UI use-case and usability review, 2026-09-06](reviews/2026-09-06-ui-use-cases-and-usability.md) — observed obstacles and supporting evidence.
 - [LikeC4 architecture](spec/architecture.c4)

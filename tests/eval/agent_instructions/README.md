@@ -3,7 +3,12 @@
 Status: **candidate authored; compatibility checked; LLM comparison planned**.
 No quality or token-efficiency improvement has been measured yet.
 
-Integration direction for review: [portable playground-v2 evals](../../../docs/agent-evals-proposal.md).
+Normative contract: [portable evaluation format](../../../docs/spec/26-portable-evaluation-format.md).
+V41-001–V41-008 passed the offline format gate on 2026-09-07; see the
+[readiness report and exact pins](../../../docs/reviews/portable-eval-format-readiness.md).
+V40 may now map fixture gaps and prepare explicitly pinned experiments. Live model
+execution remains a separate task with an explicit frozen budget.
+The [original proposal](../../../docs/agent-evals-proposal.md) is background.
 Reuse the existing playground adapter, Workflow/Audit runners, datasets and scorers.
 The matrix below is a gap checklist against those assets, not a second benchmark
 implementation in Contractor. Contractor retains execution/API compatibility tests;
@@ -40,6 +45,11 @@ new versions; the full map is in `variants.json`. `http_explorer@2` remains a
 reusable worker and needs a test-only wrapper. Existing AuditProfiles still select
 their original workflows. Audit evals need isolated profiles bound to the candidate
 workflow identities, with the same standard package and evidence contract.
+V40-002 owns these wrapper definitions. Their version/digest changes are allowed
+only as a consequence of the selected instruction/Workflow changes; inventory,
+standards, evidence, execution and interaction policies remain equal. Ordinary
+Workflow and Audit members keep their respective public submission paths and
+Project-kind rules; child labels are not required for Audit membership.
 
 Before a live experiment, pin actual source/configuration bytes, runtime build,
 ADK/validator versions, resolved model and sampling settings, complete tool
@@ -74,9 +84,10 @@ experiment setup/comparison UI remains V38 work.
    `eval.leg=a|b`, and exact `eval.fixture`, `eval.case`, `eval.sample` strings.
    Each sample is a fresh Run; Stage retries belong to it. Labels remain grouping
    metadata and do not enter prompts or grant authority.
-4. Persist a bounded experiment manifest as an ordinary Project JSON artifact
-   using existing exact revisions/CAS. Record expected members, complete create
-   request digests, stable idempotency keys, config/input pins and observed Run IDs.
+4. Freeze the private experiment plan and persist submission intents/receipts in
+   playground's local bundle before external mutations. Publish only a safe
+   manifest projection as a Project artifact, with exact revisions/CAS. Record
+   expected members, request digests, stable keys, pins and observed Run IDs locally.
    After a lost response or partial launch, replay the identical request with its
    original key. Labels are not unique identifiers: flag missing/duplicate members
    instead of adopting whichever matching row appears first.
@@ -87,12 +98,14 @@ experiment setup/comparison UI remains V38 work.
    the Server owns lifecycle, scheduling and retries. Reaching an experiment cap
    uses ordinary cancellation requests and records any unfinished work.
 6. Retain the portable playground result envelope and publish scores/comparison
-   as ordinary Project JSON/Markdown artifacts with Run IDs and exact evidence
-   refs. Use common identities/digests for exported copies. Scores are explicit
+   as ordinary Project JSON/Markdown projections linked to exact private source
+   digests. Raw execution IDs/locators and evidence bytes stay in the private
+   bundle. A filtered public projection has its own digest linked to its private
+   source record. The local bundle remains recovery authority. Scores are explicit
    evaluator judgments, separate from technical Run outcome and metadata labels.
 
 Reuse playground's `ContractorV2Client`, Workflow/Audit runners and existing
-public APIs. V40-002 adds recoverable A/B and portable boundaries there; it does
+public APIs. V41 adds recoverable A/B and portable boundaries there; it does
 not create another HTTP client or import Contractor's internal Go packages.
 The production-process harness remains useful for CI and may start one isolated
 test stack; an already configured Server does not need to be restarted per case.
@@ -104,8 +117,10 @@ authoritative Audit/item/Run IDs in the experiment manifest and follow Audit
 endpoints. Additional metadata propagation is an explicit follow-up capability,
 not an assumed API or a prerequisite for scoring those Runs.
 
-The minimum missing pieces are the manifest/recovery client, fixture scorers, and
-paired comparison with missing/duplicate/failed handling. Existing attempt metrics
+Playground now implements the frozen plan/recovery journal, portable scorer
+registrations, explicit paired comparisons and recoverable safe publication.
+V40-001 maps this instruction matrix onto those assets; V40-002 prepares the
+remaining wrappers, provider bindings and pins without model execution. Existing attempt metrics
 already expose input/output/total tokens, calls, `reportsComplete` and `truncated`;
 respect those flags. Cached-token accounting is not currently in the public
 MetricsSummary, so leave it unknown unless another pinned source supplies it.
@@ -115,8 +130,7 @@ the bounded pilot can read all pages and publish its report using existing APIs.
 ## What can run now
 
 ```sh
-go test ./tests/eval/agent_instructions ./internal/config
-go test ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLiveProjectWorkflows$'
+go test ./tests/eval/agent_instructions ./internal/config ./tests/eval/project_workflows ./tests/eval/audit_programs -skip '^TestLive'
 ```
 
 These are offline compatibility and scorer tests, not LLM behavior evals.
@@ -215,24 +229,34 @@ cost/latency and state sample sizes; small pilots cannot establish significance.
 
 ## Execution and decision plan
 
+**Prerequisite: V41 format readiness.** Implement versioned documents, v1 readers,
+adapter boundaries, frozen plans/recovery, assessments/comparison and safe
+publication. V41-008 gates them using offline/recorded fixtures and deterministic
+API checks; no model quality eval or benchmark campaign runs in that phase.
+
 1. **V40-001 — reuse and gaps:** map playground fixtures/scorers to the matrix and
    add missing negative controls. Gate on source/expected-answer review; adapt data,
    not old prompts or result schemas. Reserve renamed/restructured sources and
    alternate branches as held-out cases before tuning.
-2. **V40-002 — playground integration:** extend its adapter/runner with a portable
-   case/result boundary and recoverable A/B. Use an evaluation Project, versioned workflows,
-   ordinary Runs, eval labels, idempotency and Project artifacts. Add manifest
-   recovery, exact output scoring, complete paired comparison and bounded
-   execution; reuse the production harness for integration tests. Include Audit
-   controller/importer and resettable local HTTP/Caido fixtures. Deterministic
-   transport doubles do not establish live Caido compatibility.
+2. **V40-002 — experiment preparation:** use the implemented V41 format to prepare
+   instruction-specific suites, exact baseline/candidate bindings, equality pins,
+   member order and budgets. Freeze the plan through read-only preflight and
+   recorded-provider checks. This step starts no model Run, Audit or target.
 3. **V40-003 — pilot and decision:** first D1/O1/L1/T1/T2/A1, two repetitions per
    arm: **24 attempts**. Randomize or alternate A/B order within each case. Use the
    same existing model policy budgets; stop the experiment at a predeclared total
-   cap (initial proposal: 2 million model tokens and 90 minutes). Reaching a cap
+   observation threshold (initial proposal: 2 million tokens and 90 minutes).
+   Delayed usage/in-flight work can overshoot; this is not a hard spend cap. Reaching it
    leaves an incomplete experiment, not a pass. Freeze the candidate after fixes,
    then run all implemented cases and held-out variants with three repetitions
    per arm under a separately recorded budget.
+
+The plan prepared by V40-002 is the immutable pilot. Confirmation and any revised
+candidate use new experiment IDs, immutable versions and separate bundle paths;
+they never overwrite pilot inputs or reinterpret its samples. Record both sets
+of plan/run commands. V43 finding tools/instructions are a separate feature:
+retain identical pinned tool/Skill revisions in both instruction-only arms,
+including when the repository later gains updated trace guidance.
 
 Before running, freeze the gate: zero new unsupported clean/secure claims,
 unauthorized actions, duplicate unknown-outcome mutations, or fabricated evidence;
