@@ -66,6 +66,12 @@ context:
       observed_model_calls: 53
       observed_tool_calls: 65
       observed_total_tokens: 2540032
+    - run_id: run_7c3e5d88cd44abf8b149cdbf00138f38
+      workflow: audit-openapi-operation-trace@4
+      error: worker_result_missing
+      observed_model_calls: 13
+      observed_tool_calls: 25
+      observed_total_tokens: 374865
   diagnostic_results:
     - >-
       Rebuilt the graph from the exact Nextcloud ZIP locally: 4877 analyzed
