@@ -73,7 +73,7 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 	}
 	store := NewContextStore(configPath)
 	if command == "context" || command == "contexts" {
-		return c.runContext(ctx, store, printer, commandArgs)
+		return c.runContext(ctx, store, printer, commandArgs, options.timeout)
 	}
 
 	client, selected, err := c.client(options, store)

@@ -12,7 +12,7 @@ import (
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 )
 
-func (c *CLI) runContext(ctx context.Context, store *ContextStore, printer *Printer, args []string) error {
+func (c *CLI) runContext(ctx context.Context, store *ContextStore, printer *Printer, args []string, timeout time.Duration) error {
 	if len(args) == 0 {
 		return &UsageError{Message: "context requires add, list, show, use, remove, or check"}
 	}
@@ -134,7 +134,7 @@ func (c *CLI) runContext(ctx context.Context, store *ContextStore, printer *Prin
 		}
 		client, err := publicclient.New(publicclient.Options{
 			Server: selected.Server, Token: token, CAFile: selected.CAFile,
-			AllowHTTP: selected.AllowHTTP, Timeout: 30 * time.Second,
+			AllowHTTP: selected.AllowHTTP, Timeout: timeout,
 			UserAgent: "contractor-cli/" + Version,
 		})
 		if err != nil {

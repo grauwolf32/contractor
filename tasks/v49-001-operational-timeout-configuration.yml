@@ -3,7 +3,7 @@ id: V49-001
 title: Separate transport, operation and lifecycle budgets and expose operational settings
 milestone: operational-timeout-configuration
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: []
 languages: [go, python, yaml, markdown]
