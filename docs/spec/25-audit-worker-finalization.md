@@ -1,9 +1,12 @@
 # Audit Worker completion contracts
 
 Status: V39-001 implements inert contracts/interfaces and proves real-ADK
-continuation; production propagation, collection, publication and activation remain
-V39-002–007. See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md). Existing deployed Runs and immutable snapshots keep their current
-behavior until an explicitly versioned configuration selects this contract.
+continuation. V39-004 implements deterministic encoding/publication; Server
+propagation, collection, activation and the release gate remain V39-002/003/005–007.
+See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md) and
+[publication validation](../reviews/2026-09-07-audit-result-publication.md).
+Existing deployed Runs and immutable snapshots keep their current behavior until
+an explicitly versioned configuration selects this contract.
 
 This document extends [14](14-worker-results-and-live-state.md) and
 [19](19-audits.md). Where those documents describe mandatory LLM serialization
@@ -177,7 +180,8 @@ distinction between invalid input and a valid result whose gaps yield
 inconclusive coverage; do not require every accepted result to be conclusive.
 
 Use the existing limits: at most 64 assigned items, 16 KiB per summary, 512
-coverage values per bounded list, 256 evidence records across the whole batch,
+coverage values per bounded list, 128 proposal keys per item (the existing importer
+limit), 256 evidence records across the whole batch,
 8 MiB canonical collected-data budget, and 16 MiB final package. Charge
 replacements by prospective total size, not just the new item's size. Validate
 prospective encoded member/package bounds before accepting submissions so a

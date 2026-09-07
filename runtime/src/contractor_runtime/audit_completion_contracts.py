@@ -17,6 +17,7 @@ from contractor_runtime.contracts import WorkerFailure, WorkerResult
 MAX_ITEMS = 64
 MAX_SUMMARY_BYTES = 16 * 1024
 MAX_VALUES = 512
+MAX_PROPOSAL_KEYS = 128
 MAX_EVIDENCE = 256
 MAX_COLLECTED_BYTES = 8 * 1024 * 1024
 MAX_MEMBER_BYTES = 16 * 1024 * 1024
@@ -126,6 +127,8 @@ class NormalizedAuditItem:
                 _identifier(value)
             if len(set(values)) != len(values):
                 raise ValueError("duplicate Audit collection identifier")
+        if len(self.proposal_keys) > MAX_PROPOSAL_KEYS:
+            raise ValueError("Audit proposal keys exceed the existing importer limit")
         _tuple(self.evidence, MAX_EVIDENCE)
         if any(not isinstance(value, AuditEvidence) for value in self.evidence):
             raise ValueError("Audit evidence must be normalized and immutable")

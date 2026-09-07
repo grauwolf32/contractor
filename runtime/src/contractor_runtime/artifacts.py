@@ -113,6 +113,11 @@ class ArtifactClient:
         self._known_exact_refs: dict[tuple[str, str], ArtifactRef] = {}
         self._observed_exact_refs: list[ArtifactRef] = []
 
+    @property
+    def allocation_id(self) -> str:
+        """Return the immutable allocation scope used by every request."""
+        return self._allocation_id
+
     async def submit_finding_proposal(self, request: Mapping[str, object]) -> dict[str, object]:
         """Submit one stable allocation-bound finding request.
 
