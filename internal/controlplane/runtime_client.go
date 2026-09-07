@@ -877,6 +877,8 @@ func (c *RuntimeBatchController) FinalizeAll(
 	finalizationID string,
 	deadline time.Time,
 ) (map[string]contracts.AllocationFinalReport, error) {
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
@@ -891,7 +893,7 @@ func (c *RuntimeBatchController) FinalizeAll(
 			failures = append(failures, fmt.Errorf("observe finalizing allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 	}
-	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+	results := fanOutRuntimeCalls(ctx, reservations, func(
 		callContext context.Context, _ int, reservation Reservation,
 	) (contracts.AllocationFinalReport, error) {
 		return c.runtime.Finalize(callContext, reservation, finalizationID, deadline)
@@ -920,6 +922,8 @@ func (c *RuntimeBatchController) AbortAll(
 	reason contracts.TerminationError,
 	deadline time.Time,
 ) (map[string]contracts.AllocationFinalReport, error) {
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 	if err := validateReservationBatch(reservations); err != nil {
 		return nil, err
 	}
@@ -936,7 +940,7 @@ func (c *RuntimeBatchController) AbortAll(
 			failures = append(failures, fmt.Errorf("observe aborting allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 	}
-	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+	results := fanOutRuntimeCalls(ctx, reservations, func(
 		callContext context.Context, _ int, reservation Reservation,
 	) (contracts.AllocationFinalReport, error) {
 		return c.runtime.Abort(callContext, reservation, abortID, reason, deadline)
@@ -958,6 +962,8 @@ func (c *RuntimeBatchController) AbortAll(
 }
 
 func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []Reservation) error {
+	ctx, cancel := context.WithTimeout(ctx, c.cleanupTimeout)
+	defer cancel()
 	if err := validateReservationBatch(reservations); err != nil {
 		return err
 	}
@@ -969,7 +975,7 @@ func (c *RuntimeBatchController) ReleaseAll(ctx context.Context, reservations []
 			failures = append(failures, fmt.Errorf("observe releasing allocation %q: %w", reservation.Grant.AllocationID, err))
 		}
 	}
-	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+	results := fanOutRuntimeCalls(ctx, reservations, func(
 		callContext context.Context, _ int, reservation Reservation,
 	) (struct{}, error) {
 		return struct{}{}, c.runtime.Release(callContext, reservation)
@@ -1020,7 +1026,7 @@ func (c *RuntimeBatchController) cleanupFailedPrepare(reservations []Reservation
 		releasingPhaseError error
 		releaseErr          error
 	}
-	results := fanOutRuntimeCalls(ctx, reservations, c.cleanupTimeout, func(
+	results := fanOutRuntimeCalls(ctx, reservations, func(
 		callContext context.Context, index int, reservation Reservation,
 	) (cleanupResult, error) {
 		result := cleanupResult{}
@@ -1087,7 +1093,6 @@ type runtimeCallResult[T any] struct {
 func fanOutRuntimeCalls[T any](
 	ctx context.Context,
 	reservations []Reservation,
-	timeout time.Duration,
 	call func(context.Context, int, Reservation) (T, error),
 ) []runtimeCallResult[T] {
 	results := make([]runtimeCallResult[T], len(reservations))
@@ -1096,9 +1101,7 @@ func fanOutRuntimeCalls[T any](
 	for index := range reservations {
 		go func(index int) {
 			defer group.Done()
-			callContext, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-			results[index].value, results[index].err = call(callContext, index, reservations[index])
+			results[index].value, results[index].err = call(ctx, index, reservations[index])
 		}(index)
 	}
 	group.Wait()
