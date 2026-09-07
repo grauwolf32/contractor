@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V45-009
+title: Index Workflow bindings and simplify configuration traversal
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Index Workflow bindings and simplify configuration traversal.
+context:
+  verified_evidence: AgentTemplate binding requests rescan all Workflows/Stages/Agents and sort before
+    pagination; completion validation repeatedly scans context artifacts.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Build a reverse AgentTemplate-use index with the immutable configuration snapshot.
+  - Keep catalog fingerprint and cursor validation tied to the same snapshot.
+  - Index required context artifact occurrences for completion validation and extract descriptor-specific
+    normalizers.
+  out:
+  - Mutable cross-snapshot caches, changed catalog identity, ordering or duplicate validation.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Binding pages and cursors remain correct across configuration reloads and exact template revisions.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Completion validation preserves requiredness and exact occurrence counts while avoiding repeated
+    nested searches.
+tests:
+- name: configuration-race
+  command: go test -race -count=1 ./internal/config ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V45-001
+title: Separate Server composition from process lifecycle
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Separate Server composition from process lifecycle.
+context:
+  verified_evidence: RunCLI contains 635 lines covering credentials, catalogs, execution, HTTP wiring
+    and resource ownership.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Extract explicit credential, catalog, execution and HTTP composition helpers in internal/app.
+  - Keep RunCLI responsible for command dispatch and the visible startup/shutdown sequence.
+  - Keep database, blob, event hub and profiling cleanup ownership explicit, including failed startup.
+  out:
+  - Public or private API behavior, process setting changes and generic dependency injection frameworks.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Server commands, configuration and startup failures retain their existing behavior.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Resource ownership, public-to-background-to-private shutdown order and transaction-bound credential
+    resolution remain intact.
+tests:
+- name: app-race
+  command: go test -race -count=1 ./internal/app ./cmd/contractor-server
+  covers:
+  - A1
+  - A2
+- name: server-build
+  command: go build ./cmd/contractor-server
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

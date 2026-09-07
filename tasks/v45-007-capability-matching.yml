@@ -1,0 +1,50 @@
+schema_version: '1.0'
+id: V45-007
+title: Isolate deterministic capability matching from Registry
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Isolate deterministic capability matching from Registry.
+context:
+  verified_evidence: completeCapabilityAssignmentWithEdges has four nested loops for candidate graph construction
+    and iterative augmenting-path matching.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Extract candidate graph construction, augmenting-path search and path application.
+  - Use typed composite keys for candidate edge identity.
+  - Keep matching independent of registry mutation and preserve stable candidate order.
+  out:
+  - Greedy replacement, recursive request-controlled traversal and changed reservation locking.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Specialist/generalist and candidate-edge cases still find complete assignments whenever they exist.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Stable selection, capability checks, concurrent reservation exclusion and replay remain intact.
+tests:
+- name: controlplane-race
+  command: go test -race -count=1 ./internal/controlplane
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

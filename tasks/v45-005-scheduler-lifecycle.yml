@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V45-005
+title: Separate Scheduler lifecycle phases
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Separate Scheduler lifecycle phases.
+context:
+  verified_evidence: scheduler.go contains 2276 lines across lane supervision, claims, Stage preparation,
+    Planner invocation, terminal transitions, releases and reports.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Split lifecycle responsibilities into focused files inside internal/scheduler.
+  - Extract preparation, Planner invocation and finalization transition from prepareAndPlan.
+  - Retain explicit operation context ownership and durable transition ordering.
+  out:
+  - Scheduling policy changes, concurrency redesign, new durable states and generic orchestration frameworks.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Existing success, failure, retry, escalation and capacity-deferral behavior remains equivalent.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Cancellation, claim loss, allocation fencing and terminal release recovery retain their existing
+    authority and ordering.
+tests:
+- name: scheduler-race
+  command: go test -race -count=1 ./internal/scheduler ./internal/controlplane ./internal/planner/...
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

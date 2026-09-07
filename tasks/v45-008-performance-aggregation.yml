@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V45-008
+title: Extract metric accumulators and share HTTP merging
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Extract metric accumulators and share HTTP merging.
+context:
+  verified_evidence: AggregateMinute mixes HTTP, CPU, gauges and freshness with four nested loops; HTTP
+    merging is repeated in historyBuilder.add.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Extract focused accumulation helpers for HTTP windows, CPU deltas and process/pool gauges.
+  - Share fixed-dimension HTTP counter and duration merging between minute and history aggregation.
+  - Keep original observation timestamps and detached returned records.
+  out:
+  - Changing metric dimensions, retention, sampling cadence or missing-data semantics.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Generation changes, overlapping windows, cached observations and missing baselines retain exact
+    partial/unavailable behavior.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Minute and history HTTP counts and histograms remain equivalent and returned records cannot mutate
+    input samples.
+tests:
+- name: performance-race
+  command: go test -race -count=1 ./internal/performance
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

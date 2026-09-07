@@ -1,0 +1,53 @@
+schema_version: '1.0'
+id: V45-006
+title: Extract Audit reconciliation phases and batch selection
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Extract Audit reconciliation phases and batch selection.
+context:
+  verified_evidence: Controller.reconcile spans 274 lines with six control-flow levels covering review,
+    collection, rounds, cancellation, deletion and dispatch.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Extract review, collection, round progression, settlement and dispatch selection helpers.
+  - Keep phase precedence visible in reconcile and return after each durable change.
+  - Extract next-round inbox page/check selection with an explicit result type for selected work and scan
+    exhaustion.
+  out:
+  - State transition changes, claim or revision bypasses and new Audit execution policy.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Round discovery, execution, assessment, review and closure follow existing phase precedence and
+    batch limits.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Cancellation, deletion, deadlines, revision conflicts and exhausted inbox scans preserve truthful
+    outcomes and retry behavior.
+tests:
+- name: audit-controller-race
+  command: go test -race -count=1 ./internal/auditcontroller ./internal/auditservice ./internal/auditimport
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

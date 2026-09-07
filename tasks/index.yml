@@ -2538,3 +2538,15 @@ tasks:
   - {id: V43-005, file: v43-005-findings-contract-gate.yml}
   - {id: V44-001, file: v44-001-openapi-graph-comparison-profile.yml}
   - {id: V44-002, file: v44-002-openapi-workspace-streamline.yml}
+  - {id: V45-001, file: v45-001-server-composition.yml}
+  - {id: V45-002, file: v45-002-process-settings.yml}
+  - {id: V45-003, file: v45-003-finding-batch-reads.yml}
+  - {id: V45-004, file: v45-004-audit-import-preparation.yml}
+  - {id: V45-005, file: v45-005-scheduler-lifecycle.yml}
+  - {id: V45-006, file: v45-006-audit-reconciliation.yml}
+  - {id: V45-007, file: v45-007-capability-matching.yml}
+  - {id: V45-008, file: v45-008-performance-aggregation.yml}
+  - {id: V45-009, file: v45-009-configuration-indexes.yml}
+  - {id: V45-010, file: v45-010-audit-store-queries.yml}
+  - {id: V45-011, file: v45-011-public-http-components.yml}
+  - {id: V45-012, file: v45-012-shared-contract-limits.yml}

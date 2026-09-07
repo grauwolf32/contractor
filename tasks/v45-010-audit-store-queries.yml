@@ -1,0 +1,52 @@
+schema_version: '1.0'
+id: V45-010
+title: Separate Audit write preparation from atomic SQL
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Separate Audit write preparation from atomic SQL.
+context:
+  verified_evidence: PostgresStore.Collect and CreateExecutionIntent combine long parameter projections
+    with large atomic CTE statements.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Extract typed preparation of collection items, links and execution parameters.
+  - Give large SQL statements names and explain their authority checks, dependencies and mutation phases.
+  - Preserve one-statement atomicity and replay checks.
+  out:
+  - Splitting atomic statements into independent writes, schema changes and altered lock ordering.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: Collections and execution intents preserve exact identities, budgets and complete-batch validation.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Replay, stale claims, concurrent transitions and failed validation cannot produce partial durable
+    effects.
+tests:
+- name: audit-store-postgres
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/auditstore ./internal/auditcontroller
+    ./internal/auditimport
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2

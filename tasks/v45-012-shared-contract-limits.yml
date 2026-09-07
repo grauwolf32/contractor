@@ -1,0 +1,54 @@
+schema_version: '1.0'
+id: V45-012
+title: Centralize repeated contract limits and Audit schema identity
+milestone: server-maintainability
+priority: P2
+status: pending
+depends_on: []
+languages:
+- go
+goal: Centralize repeated contract limits and Audit schema identity.
+context:
+  verified_evidence: Stage result limits and the Caido timeout maximum repeat across layers; the Audit
+    baseline schema is copied despite an existing service constant.
+  current_contract: Behavior-preserving refactoring of the existing Go Server. Preserve exact pinned identities,
+    authority checks and operation/resource ownership. Tests describe the required verification, not measured
+    production performance.
+scope:
+  in:
+  - Centralize limits for the same Stage/Worker result contracts in internal/contracts and remove unused
+    copies.
+  - Use one Caido maximum timeout constant in normalization, preparation and wire validation.
+  - Move shared Audit baseline identity and compatible data projections into an appropriate domain package.
+  out:
+  - Changing numeric bounds or wire values, merging distinct limits just because their values match and
+    a global miscellaneous constants package.
+requirements:
+- id: R1
+  text: Keep dependencies explicit and changes confined to this task; preserve unrelated working-tree
+    changes.
+- id: R2
+  text: Use existing behavior tests and add regressions for newly exposed boundaries or bounded query
+    counts.
+acceptance_criteria:
+- id: A1
+  given: The current Server contracts and supported input fixtures.
+  when: The refactored path executes.
+  then: All existing boundary cases accept and reject the same payloads across planners, Scheduler and
+    contracts.
+- id: A2
+  given: Failures, boundary cases and existing lifecycle behavior.
+  when: The relevant regression suite runs.
+  then: Pinned Audit baselines remain byte/digest compatible and all readers use the shared schema identity.
+tests:
+- name: contract-race
+  command: go test -race -count=1 ./internal/contracts ./internal/runtimeconfig ./internal/scheduler ./internal/planner/...
+    ./internal/auditdomain ./internal/auditimport ./internal/auditservice
+  covers:
+  - A1
+  - A2
+- name: diff
+  command: git diff --check
+  covers:
+  - A1
+  - A2
