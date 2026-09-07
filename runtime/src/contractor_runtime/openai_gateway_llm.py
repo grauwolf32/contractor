@@ -14,6 +14,7 @@ from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.genai import types
+from openai import APIConnectionError, APIStatusError
 from pydantic import BaseModel, PrivateAttr
 
 from contractor_runtime.model_client import GatewayClientHandle
@@ -31,8 +32,9 @@ _FINISH_REASON = {
 class GatewayModelError(RuntimeError):
     """Secret-free boundary error for failures below the model adapter."""
 
-    def __init__(self, provider_error_type: str) -> None:
+    def __init__(self, provider_error_type: str, *, retryable: bool = True) -> None:
         self.provider_error_type = provider_error_type
+        self.retryable = retryable
         super().__init__(f"LLM gateway call failed ({provider_error_type})")
 
 
@@ -68,6 +70,7 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
         provider_error_type: str | None = None
+        retryable = False
         response: LlmResponse | None = None
         try:
             if stream:
@@ -81,10 +84,11 @@ class OpenAICompatibleGatewayLlm(BaseLlm):
             raise
         except Exception as error:
             provider_error_type = _safe_error_type(error)
+            retryable = _retryable_gateway_error(error)
         if provider_error_type is not None:
             # Raise outside the except suite so the provider exception is not
             # retained through __context__ and cannot keep headers/body alive.
-            raise GatewayModelError(provider_error_type) from None
+            raise GatewayModelError(provider_error_type, retryable=retryable) from None
         if response is None:  # Defensive: every non-error call must produce one response.
             raise GatewayModelError("InvalidGatewayResponse") from None
         yield response
@@ -481,3 +485,20 @@ def _safe_error_type(error: Exception) -> str:
         return error.code
     name = type(error).__name__
     return name if _SAFE_ERROR_TYPE.fullmatch(name) else "UnknownProviderError"
+
+
+def _retryable_gateway_error(error: Exception) -> bool:
+    # Read only bounded scalar metadata; never retain response bodies or headers.
+    if isinstance(error, APIStatusError):
+        if isinstance(error.code, str) and error.code in {
+            "insufficient_quota",
+            "budget_exceeded",
+            "context_length_exceeded",
+        }:
+            return False
+        return error.status_code in {408, 409, 429} or 500 <= error.status_code < 600
+    if isinstance(error, (APIConnectionError, TimeoutError)):
+        return True
+    if isinstance(error, _AdapterFailure):
+        return error.code not in {"StreamingUnsupported"}
+    return False

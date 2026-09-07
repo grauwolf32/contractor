@@ -62,8 +62,9 @@ class SummarizerUsage:
 class SummarizerFailure(RuntimeError):
     """Safe, content-free terminal summarizer failure."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, retryable: bool = True) -> None:
         self.code = code
+        self.retryable = retryable
         super().__init__(f"Worker terminal summarizer failed ({code})")
 
 
@@ -275,7 +276,7 @@ class TerminalSummarizer:
                     if isinstance(getattr(error, "provider_error_type", None), str)
                     else "execution_failed"
                 )
-                raise SummarizerFailure(code) from None
+                raise SummarizerFailure(code, retryable=getattr(error, "retryable", True)) from None
             usage = self.usage
             if (
                 self._policy.max_total_tokens is not None

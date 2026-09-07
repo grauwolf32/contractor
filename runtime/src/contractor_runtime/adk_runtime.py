@@ -616,7 +616,9 @@ class AdkWorkerRuntime:
                 outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)
             elif gateway_error is not None:
                 outcome = _failure(
-                    "worker_gateway_unavailable", "Worker LLM Gateway request failed", True
+                    "worker_gateway_unavailable",
+                    "Worker LLM Gateway request failed",
+                    gateway_error.retryable,
                 )
             else:
                 outcome = _failure("worker_execution_failed", "Worker execution failed", True)
@@ -765,11 +767,12 @@ class AdkWorkerRuntime:
                         ),
                         False,
                     )
-                if _gateway_model_error(error) is not None:
+                gateway_error = _gateway_model_error(error)
+                if gateway_error is not None:
                     return _failure(
                         "worker_gateway_unavailable",
                         "Worker LLM Gateway request failed",
-                        True,
+                        gateway_error.retryable,
                     ), False
                 finalizer_error = _result_finalizer_error(error)
                 if finalizer_error is not None:
@@ -860,6 +863,7 @@ class AdkWorkerRuntime:
         if config is None:
             raise RuntimeError("Worker summarization was requested while disabled")
         usage = SummarizerUsage()
+        retryable = True
         summarizer: TerminalSummarizer | None = None
         summary_model: BaseLlm | None = None
         try:
@@ -927,6 +931,7 @@ class AdkWorkerRuntime:
         except SummarizerFailure as error:
             usage = summarizer.usage if summarizer is not None else usage
             failure_code = error.code
+            retryable = error.retryable
         except Exception:
             usage = summarizer.usage if summarizer is not None else usage
             failure_code = "runtime_failed"
@@ -943,7 +948,7 @@ class AdkWorkerRuntime:
             usage=usage,
             failure_code=failure_code,
         )
-        return _summarizer_failure(failure_code), False
+        return _summarizer_failure(failure_code, retryable=retryable), False
 
     async def _complete_summarizer_attempt(
         self,
@@ -1380,11 +1385,11 @@ def _failure(code: str, message: str, retryable: bool) -> WorkerFailure:
     return WorkerFailure(code=code, message=message, retryable=retryable)
 
 
-def _summarizer_failure(cause: str) -> WorkerFailure:
+def _summarizer_failure(cause: str, *, retryable: bool = True) -> WorkerFailure:
     return _failure(
         "worker_summarization_failed",
         f"Worker terminal summarization failed ({cause})",
-        True,
+        retryable,
     )
 
 

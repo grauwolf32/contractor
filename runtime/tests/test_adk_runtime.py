@@ -452,8 +452,13 @@ def test_adk_worker_maps_unhandled_model_error_to_safe_worker_failure(tmp_path: 
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
+)
 def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
     tmp_path: Path,
+    error_type: str,
+    retryable: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     model = scripted_model([])
@@ -462,7 +467,7 @@ def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
         del stream
         if False:
             yield None
-        raise GatewayModelError("TimeoutError")
+        raise GatewayModelError(error_type, retryable=retryable)
 
     monkeypatch.setattr(type(model), "generate_content_async", gateway_failure)
 
@@ -475,7 +480,7 @@ def test_adk_worker_maps_gateway_error_to_safe_retryable_failure(
         assert completion.result is None
         assert completion.failure is not None
         assert completion.failure.code == "worker_gateway_unavailable"
-        assert completion.failure.retryable is True
+        assert completion.failure.retryable is retryable
         assert "TimeoutError" not in completion.failure.message
         snapshot = await state.snapshot()
         assert snapshot["lastCompletedInvocation"]["invocationId"] == completion.invocation_id
@@ -694,12 +699,17 @@ def test_adk_worker_does_not_start_required_finalizer_without_model_budget(
     asyncio.run(scenario())
 
 
-def test_adk_worker_maps_result_finalizer_gateway_failure_once(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
+)
+def test_adk_worker_maps_result_finalizer_gateway_failure_once(
+    tmp_path: Path, error_type: str, retryable: bool
+) -> None:
     async def scenario() -> None:
         state = WorkerState()
         model = scripted_model(
             [terminal_text("Terminal text is ready")],
-            result_finalizer_error=GatewayModelError("TimeoutError"),
+            result_finalizer_error=GatewayModelError(error_type, retryable=retryable),
         )
         runtime = await create_runtime(tmp_path, state, {}, model)
 
@@ -708,7 +718,7 @@ def test_adk_worker_maps_result_finalizer_gateway_failure_once(tmp_path: Path) -
         assert completion.result is None
         assert completion.failure is not None
         assert completion.failure.code == "worker_gateway_unavailable"
-        assert completion.failure.retryable is True
+        assert completion.failure.retryable is retryable
         assert len(model.requests) == 2
         assert state.metrics.counters["llm_calls"] == 2
         assert state.metrics.counters["llm_errors"] == 1
@@ -1513,15 +1523,20 @@ def test_adk_worker_reports_invalid_terminal_summary_as_one_safe_failure(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "error_type,retryable", [("TimeoutError", True), ("BadRequestError", False)]
+)
 def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
     tmp_path: Path,
+    error_type: str,
+    retryable: bool,
 ) -> None:
     class TimeoutSummaryModel(BaseLlm):
         async def generate_content_async(self, _request: LlmRequest, stream: bool = False) -> Any:
             del stream
             if False:
                 yield None
-            raise GatewayModelError("TimeoutError")
+            raise GatewayModelError(error_type, retryable=retryable)
 
     async def scenario() -> None:
         async def probe() -> dict[str, bool]:
@@ -1543,6 +1558,7 @@ def test_terminal_summarizer_maps_provider_timeout_to_one_safe_failure(
 
         assert completion.failure is not None
         assert completion.failure.code == "worker_summarization_failed"
+        assert completion.failure.retryable is retryable
         summary = state.metrics.build_report(
             report_id="worker-report", duration_ms=1
         ).metrics.summarizer

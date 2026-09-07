@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V47-002
+title: "Preserve gateway failure retryability across completion paths"
+milestone: model-policy-runtime-correctness
+priority: P1
+status: in_progress
+implementation_commit: null
+depends_on: []
+languages: ["python"]
+goal: >-
+  Gateway errors are collapsed into retryable Worker failures, including permanent request and authorization errors.
+context:
+  authority: >-
+    User approved recording and implementing the three model-policy review findings.
+    Preserve unrelated in-progress Audit work and do not edit configs/e2e or deploy services.
+scope:
+  in:
+    - "Classify transport failures and HTTP status without retaining provider bodies. Preserve retryability through ordinary Worker execution, result finalization and terminal summarization; test 400/401/403/404/413/422 versus 408/429/5xx and cancellation."
+  out:
+    - "New aggregate Run/Audit budgets, changes to production model limits, audit-results@2 implementation."
+acceptance_criteria:
+  - id: A1
+    given: "The recorded failure scenario"
+    when: "The production code path executes"
+    then: "The corrected behavior described in scope is enforced and covered by regression tests."
+  - id: A2
+    given: "Cancellation, omitted optional settings and existing successful invocations"
+    when: "The focused regression suite runs"
+    then: "Compatible behavior and secret-free diagnostics are retained."
+tests:
+  - command: "cd runtime && .venv/bin/python -m pytest tests/test_openai_gateway_llm.py tests/test_adk_runtime.py tests/test_worker_summarizer.py"
+    covers: ["A1", "A2"]

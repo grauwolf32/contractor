@@ -502,3 +502,54 @@ def completion_response(
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
         },
     )
+
+
+@pytest.mark.parametrize(
+    "status,code,retryable",
+    [
+        (400, "context_length_exceeded", False),
+        (401, "invalid_api_key", False),
+        (403, None, False),
+        (404, None, False),
+        (413, None, False),
+        (422, None, False),
+        (408, None, True),
+        (409, None, True),
+        (429, "rate_limit_exceeded", True),
+        (429, "insufficient_quota", False),
+        (429, "budget_exceeded", False),
+        (500, None, True),
+        (502, None, True),
+        (503, None, True),
+        (504, None, True),
+    ],
+)
+def test_gateway_http_failures_preserve_safe_retryability(status, code, retryable) -> None:
+    async def scenario() -> None:
+        async def reject(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                status, json={"error": {"message": SECRET, "code": code}}, request=request
+            )
+
+        http_client = httpx.AsyncClient(transport=httpx.MockTransport(reject))
+        handle = new_gateway_client(
+            base_url="https://gateway.example/v1",
+            api_key=SECRET,
+            timeout_seconds=120,
+            http_client=http_client,
+        )
+        handle.client.max_retries = 0
+        model = OpenAICompatibleGatewayLlm(model="worker-model", client_handle=handle)
+        try:
+            with pytest.raises(GatewayModelError) as captured:
+                async for _ in model.generate_content_async(LlmRequest()):
+                    pass
+            assert captured.value.retryable is retryable
+            assert captured.value.__context__ is None
+            assert captured.value.__cause__ is None
+            assert SECRET not in repr(captured.value.__dict__)
+        finally:
+            await model.close()
+            await http_client.aclose()
+
+    asyncio.run(scenario())
