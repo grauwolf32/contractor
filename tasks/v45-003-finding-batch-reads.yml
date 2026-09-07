@@ -3,7 +3,7 @@ id: V45-003
 title: Batch Audit finding related reads
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -52,3 +52,14 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 05a043eeeef4d3bc19610edb937ceee7b8d837d5
+verification:
+  verified_on: '2026-09-07'
+  results:
+  - PostgreSQL integration suites with the race detector passed for artifacts, auditservice, findingintake
+    and public HTTP.
+  - Single-connection regression measured 6 SQL queries for 1, 5 and 30 fully hydrated findings, and 8
+    for 65 findings; artifact reads use batches of 32.
+  - Tests cover pagination, owner isolation, missing batch members, equality with single receipt reads,
+    exact revisions, cross-scope reads and filesystem payload integrity.
+  - go vet for changed packages and git diff --check passed.

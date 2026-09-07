@@ -3,7 +3,7 @@ id: V45-004
 title: Separate Audit result preparation and index pinned standards
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
