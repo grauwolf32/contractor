@@ -3,8 +3,8 @@ id: V49-001
 title: Separate transport, operation and lifecycle budgets and expose operational settings
 milestone: operational-timeout-configuration
 priority: P2
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 31c781996aeec71015759e8f5fb06c20654b6bd1
 depends_on: []
 languages: [go, python, yaml, markdown]
 goal: >-
@@ -72,3 +72,15 @@ tests:
     covers: [A4]
   - command: git diff --check
     covers: [A4]
+
+verification:
+  - "All seven review findings are addressed. docs/operations/timeout-configuration.md records ownership, defaults, flags/environment mappings, DSN conflicts and migration."
+  - "CLI commit 59c3052e45b4abf0b22224d18bab9275ba46d4ee: delayed local HTTP responses demonstrate that check/context check both obey flags and environment."
+  - "Server configuration commit 5da763ca3186f6db7d8ddf7ce2d5a889d7c54132: distinct non-default typed values, source precedence, effective-value diagnostics, actual pgx settings and redacted DSN-conflict errors passed."
+  - "Terminal deadline commit 7c00f1959ffa8d15f3436ac45a1705ae100c2277: changing cleanup timeout cannot cap saved finalize/abort deadlines; earlier caller deadlines win. Scheduler restart preserves stored IDs and deadlines despite changed configuration."
+  - "Workspace commit bcd1b1e1dfde7b56eb1cc9f8e60554dac8f74ebf: configured physical I/O budget, earlier initialization/close deadlines, retained disposal ownership, overlay/memory cleanup, rollback and release retry gates passed."
+  - "Final review commit 31c781996aeec71015759e8f5fb06c20654b6bd1: failed-prepare abort/release share exactly one absolute deadline; Project claim validation respects PostgreSQL microsecond precision."
+  - "All nine Go packages listed above passed with -race -count=1 and CONTRACTOR_TEST_DATABASE_URL pointing to a disposable PostgreSQL 17 instance, including database wait/lock and controller integration tests."
+  - "229 Python tests passed with warnings as errors: tests/test_settings.py tests/test_workspace*.py tests/test_projectfs*.py tests/test_local_direct_faults.py tests/test_allocation.py. Focused Ruff checks and formatting passed."
+  - "A separate clean worktree at the final implementation commit independently passed the same nine Go packages with PostgreSQL, all 229 Python tests and configuration validation. Concurrent policy, telemetry and sandbox changes were excluded from these commits and preserved in the original working tree."
+  - "Working and committed configs validate. git diff --check passed. No service deployment or production tuning was performed."

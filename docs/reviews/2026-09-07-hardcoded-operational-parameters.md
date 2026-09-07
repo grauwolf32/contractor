@@ -189,3 +189,23 @@ cleanup/backoff интервалов. Они не включены в семь �
 Проверка: статический анализ цепочек конфигурации, сверка со спецификациями и
 задачами, локальный HTTP probe CLI, вызов PostgreSQL PoolConfig без БД и перехват
 workspace deadline. Production-код и задачи этим ревью не изменены.
+
+
+## Исправлено в V49-001
+
+Все семь основных замечаний закрыты задачей
+[V49-001](../../tasks/v49-001-operational-timeout-configuration.yml).
+Настройки, значения по умолчанию, приоритет источников и миграция описаны в
+[руководстве по таймаутам](../operations/timeout-configuration.md).
+
+CLI использует существующий общий timeout. ServerConfig отдельно задаёт бюджеты
+Scheduler, Runtime cleanup, Project lifecycle, Audit Controller, PostgreSQL,
+A2A polling и управления ключами Gateway. Local direct workspace получает
+process setting и оставшийся бюджет cleanup. HTTP timeout больше не меняет
+бюджеты операций. Сохранённые terminal deadlines и владение ресурсами проверены
+при восстановлении, отмене, истечении срока и повторном release.
+
+Проверка реализации: девять Go-пакетов с `-race` и временной PostgreSQL 17,
+229 Python-тестов с warnings-as-errors, Ruff и валидация конфигурации. Те же
+проверки Go/Python и конфигурации прошли в чистой рабочей копии коммитов,
+независимо от параллельных изменений. Хеши реализации записаны в задаче.
