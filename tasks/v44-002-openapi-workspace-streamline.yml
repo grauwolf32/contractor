@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V44-002
+title: Integrate the workspace-backed OpenAPI Streamline variant
+milestone: openapi-workflow-variants
+priority: P2
+status: in_progress
+depends_on: [V22-002, V22-003]
+languages: [yaml, go, markdown]
+
+goal: >-
+  Expose the previously requested modeled planning option for OpenAPI generation
+  while preserving the current passthrough workflow's workspace and artifacts.
+
+context:
+  baseline: openapi-from-workspace@5
+  precedent: V22-002 supplied the corresponding LikeC4 variant; this task covers OpenAPI explicitly.
+
+scope:
+  in:
+    - Publish openapi-from-workspace-streamline@1 with four streamline@1 Stages.
+    - Pin project_planner@1 and project_worker@1 and preserve strong-oas-review@1 validation escalation.
+    - Preserve source/seed inputs, report handoffs, cumulative workspace state/diff, retries and final outputs.
+    - Check non-planner semantic parity against openapi-from-workspace@5 and include the variant in the current catalog.
+    - Document the variant as experimental pending quality/cost evals, with passthrough remaining the simpler default.
+  out:
+    - New Runtime mechanisms, live evals, default promotion or changes to LikeC4 behavior.
+
+acceptance_criteria:
+  - id: A1
+    given: Current passthrough and Streamline OpenAPI workflows.
+    when: Strict configuration loading and parity assertions run.
+    then: Only planning and its explicit policies differ; workspace, evidence and result contracts remain equal.
+  - id: A2
+    given: The built-in graph-backed document workflows.
+    when: The repository catalog and analysis selections are checked.
+    then: The new OpenAPI variant resolves with the expected graph templates and modeled roles.
+
+tests:
+  - {name: configuration, command: "go test -count=1 ./internal/config", covers: [A1, A2]}
+  - {name: config-gate, command: "make test-config", covers: [A1, A2]}

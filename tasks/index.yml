@@ -500,6 +500,12 @@ milestones:
       Worker, LikeC4 retains a workspace-backed Streamline option, and the
       default catalog contains current user workflows rather than historical
       implementation versions or process-only fixtures.
+  - id: openapi-workflow-variants
+    exit_task: V44-002
+    outcome: >-
+      The OpenAPI catalog exposes an explicitly limited graph comparison profile
+      and a workspace-backed Streamline variant, preserving existing finding
+      production, source/evidence contracts and the separate quality-eval boundary.
   - id: project-workspaces-mvp
     exit_task: V23-007
     outcome: >-
@@ -2530,3 +2536,5 @@ tasks:
   - {id: V43-003, file: v43-003-findings-reader-tool.yml}
   - {id: V43-004, file: v43-004-findings-agent-integration.yml}
   - {id: V43-005, file: v43-005-findings-contract-gate.yml}
+  - {id: V44-001, file: v44-001-openapi-graph-comparison-profile.yml}
+  - {id: V44-002, file: v44-002-openapi-workspace-streamline.yml}

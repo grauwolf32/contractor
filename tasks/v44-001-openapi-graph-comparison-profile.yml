@@ -1,0 +1,40 @@
+schema_version: "1.0"
+id: V44-001
+title: Integrate the limited OpenAPI graph comparison profile
+milestone: openapi-workflow-variants
+priority: P2
+status: in_progress
+depends_on: [V25-008A, V15-007, V43-004]
+languages: [yaml, go, markdown]
+
+goal: >-
+  Preserve a graph-backed operation-resolution variant alongside the existing
+  finding-producing OpenAPI profile, with explicit limits and exact inputs.
+
+context:
+  request: Integrate the previously requested graph tools and commit the reviewed configuration changes.
+  existing_variant: openapi-operation-trace@3 already publishes finding proposals through audit-openapi-operation-trace@2.
+
+scope:
+  in:
+    - Publish audit_openapi_operation_tracer@1 and audit-openapi-operation-trace@1 with eleven code-analysis tools and bounded filesystem reads.
+    - Replace the default catalog's OpenAPI profile @1 with @2 while retaining existing Audit snapshots and the separately versioned profile @3.
+    - Keep the trusted task package, execution manifest, exact source workspace and audit-results@1 result contract.
+    - Document @2 as the limited comparison variant without findings, annotation export or full trace coverage.
+    - Verify configuration, Skills selection and the scripted production-process Audit lifecycle.
+  out:
+    - Model quality evals, deployments, new finalization protocols or modification of the existing finding-producing versions.
+
+acceptance_criteria:
+  - id: A1
+    given: The complete built-in catalog including the finding-producing profile.
+    when: Profile @2 resolves.
+    then: The exact graph tool allowlist and source workspace are selected; profile @3 remains available and independent.
+  - id: A2
+    given: Scripted Runtime and Server processes with PostgreSQL and pinned OpenAPI/source inputs.
+    when: The operation Audit executes and publishes results.
+    then: Graph/source reads, canonical results, coverage and lifecycle pass without live model calls.
+
+tests:
+  - {name: config-and-skills, command: "go test -count=1 ./internal/config ./internal/agentskills ./tests/e2e", covers: [A1]}
+  - {name: process, command: "test -n \"$CONTRACTOR_TEST_DATABASE_URL\" && go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^TestAuditProgramsAcrossProductionProcesses$'", covers: [A2]}
