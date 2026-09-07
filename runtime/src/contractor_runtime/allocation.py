@@ -350,6 +350,7 @@ class AllocationService:
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=spec.runtime_settings,
                         summarizer=spec.agent_template.summarizer,
+                        completion_contract=spec.completion_contract,
                         adapter_handles=adapter_host.handles.for_worker(),
                         resolved_skills=tuple(spec.resolved_skills),
                         project_workspace=project_workspace,
@@ -674,6 +675,34 @@ class AllocationService:
 
     def _validate_spec(self, spec: AllocationSpec) -> None:
         capabilities = self._capabilities or self._state.capabilities
+        audit_tools = any(
+            selection.ref.toolset_id == "audit-results" and selection.ref.version == "2"
+            for selection in spec.agent_template.toolsets
+        )
+        contract = spec.completion_contract
+        if contract is not None:
+            try:
+                contract.validate_allocation(spec.namespace, spec.agent_template)
+            except ValueError:
+                raise AllocationError(
+                    "invalid_worker_completion",
+                    "Invalid Audit completion selection",
+                    retryable=False,
+                    status_code=422,
+                ) from None
+        if (audit_tools and contract is None) or (
+            contract is not None
+            and (
+                contract.kind not in capabilities.completion_contracts
+                or not getattr(self._runtime_factory(spec), "supports_audit_completion", False)
+            )
+        ):
+            raise AllocationError(
+                "unsupported_worker_completion",
+                "Audit completion requires trusted supported preparation",
+                retryable=False,
+                status_code=422,
+            )
         provider = self._factories.workspace_provider
         try:
             validate_sandbox_selection(spec, provider.capability.storage if provider else None)
@@ -909,6 +938,11 @@ class AllocationService:
                 for channel in factory.infrastructure_channels.get(name, frozenset())
             )
             created = await factory.create_selected(
+                **(
+                    {"completion_contract": spec.completion_contract}
+                    if ref == "audit-results@2"
+                    else {}
+                ),
                 **(
                     {"sandbox_executor": execution.executor if execution else None}
                     if ref == "code-execution@1"

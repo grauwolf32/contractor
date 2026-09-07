@@ -16,6 +16,7 @@ from contractor_runtime.contracts import (
     AgentHeartbeat,
     AgentObservedState,
     AgentRegistrationV2,
+    RuntimeCompletionCapabilities,
 )
 from contractor_runtime.settings import Settings
 
@@ -115,6 +116,13 @@ class RuntimeState:
                 initialLabels=list(settings.initial_labels),
                 supportedRuntimes=list(capabilities.runtimes),
                 supportedToolsets=capabilities.wire_toolsets(),
+                capabilities=(
+                    RuntimeCompletionCapabilities(
+                        completionContracts=list(capabilities.completion_contracts)
+                    )
+                    if capabilities.completion_contracts
+                    else None
+                ),
                 supportedSandboxProfiles=list(capabilities.sandbox_profiles),
                 supportedRuntimeAdapters=list(capabilities.runtime_adapters),
                 supportedPerformanceMetricsVersions=list(capabilities.performance_metrics_versions),

@@ -56,9 +56,8 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
     actual[EXECUTION_TOOLSET] = {
         name: sorted(channels) for name, channels in EXECUTION_CHANNELS.items()
     }
-    # V39-001 registers the inert authoring contract; Runtime activation is V39-005.
-    assert "audit-results@2" not in factories
-    actual["audit-results@2"] = {}
+    # V39-005 installs the factory; positive advertisement also requires its probe.
+    assert "audit-results@2" in factories
     assert actual == fixture["toolsets"]
 
 

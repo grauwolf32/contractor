@@ -36,6 +36,10 @@ from contractor_runtime.agent_skills.runtime import (
     probe_native_agent_skills,
 )
 from contractor_runtime.artifacts import ArtifactClient
+from contractor_runtime.audit_completion_contracts import ContinueCompletion, FailCompletion
+from contractor_runtime.audit_result_collector import AuditCollectionError
+from contractor_runtime.audit_result_encoding import AuditResultError
+from contractor_runtime.audit_worker_completion import PreparedAuditCompletion
 from contractor_runtime.contracts import (
     API_VERSION,
     MAX_WORKER_RESULT_BYTES,
@@ -125,6 +129,11 @@ class _InvocationBudget:
     total_tokens: int = 0
     token_usage_unavailable: int = 0
     latest_prompt_tokens: int | None = None
+    failure: WorkerBudgetExceeded | None = None
+
+    def _exhausted(self, dimension, limit, observed):
+        self.failure = WorkerBudgetExceeded(dimension, limit, observed)
+        return self.failure
 
     def start(self) -> None:
         self.metrics.start_worker_budget(
@@ -137,14 +146,14 @@ class _InvocationBudget:
     def before_model_call(self) -> None:
         self._require_token_capacity()
         if self.model_calls >= self.max_model_calls:
-            raise WorkerBudgetExceeded("model_calls", self.max_model_calls, self.model_calls)
+            raise self._exhausted("model_calls", self.max_model_calls, self.model_calls)
         self.model_calls += 1
         self._sync()
 
     def before_tool_call(self) -> None:
         self._require_token_capacity()
         if self.tool_calls >= self.max_tool_calls:
-            raise WorkerBudgetExceeded("tool_calls", self.max_tool_calls, self.tool_calls)
+            raise self._exhausted("tool_calls", self.max_tool_calls, self.tool_calls)
         self.tool_calls += 1
         self._sync()
 
@@ -158,11 +167,11 @@ class _InvocationBudget:
         self.total_tokens += projected.total_tokens
         self._sync()
         if self.total_tokens > self.max_total_tokens:
-            raise WorkerBudgetExceeded("total_tokens", self.max_total_tokens, self.total_tokens)
+            raise self._exhausted("total_tokens", self.max_total_tokens, self.total_tokens)
 
     def _require_token_capacity(self) -> None:
         if self.total_tokens >= self.max_total_tokens:
-            raise WorkerBudgetExceeded("total_tokens", self.max_total_tokens, self.total_tokens)
+            raise self._exhausted("total_tokens", self.max_total_tokens, self.total_tokens)
 
     def should_summarize(self) -> bool:
         return (
@@ -193,6 +202,7 @@ def gateway_model(context: WorkerBuildContext) -> BaseLlm:
 class AdkWorkerRuntimeFactory:
     ref = "adk@1"
     supports_agent_skills = True
+    supports_audit_completion = True
 
     def __init__(
         self,
@@ -280,6 +290,20 @@ class AdkWorkerRuntime:
     ) -> None:
         self.allocation_id = context.allocation_id
         self._context = context
+        self._audit_completion = None
+        binding = getattr(context.tools.get("submit_check_result"), "completion_binding", None)
+        if context.completion_contract is not None:
+            if (
+                context.summarizer is not None
+                or not isinstance(binding, PreparedAuditCompletion)
+                or binding.contract != context.completion_contract
+                or getattr(context.tools.get("read_audit_task"), "completion_binding", None)
+                is not binding
+            ):
+                raise ValueError("Audit completion requires its trusted prepared tool binding")
+            self._audit_completion = binding
+        elif binding is not None:
+            raise ValueError("Audit tools require a trusted completion contract")
         self._model: BaseLlm | None = model
         self._model_factory = model_factory
         self._metrics = context.state.metrics
@@ -330,10 +354,14 @@ class AdkWorkerRuntime:
             workspace_observation_source=context.project_workspace,
             summarizer_enabled=context.summarizer is not None,
         )
-        self._result_finalizer: WorkerResultFinalizer | None = WorkerResultFinalizer(
-            model=model,
-            policy=policy,
-            observer=self._plugin,
+        self._result_finalizer: WorkerResultFinalizer | None = (
+            None
+            if self._audit_completion
+            else WorkerResultFinalizer(
+                model=model,
+                policy=policy,
+                observer=self._plugin,
+            )
         )
         self._agent = LlmAgent(
             name="contractor_worker",
@@ -702,38 +730,149 @@ class AdkWorkerRuntime:
         summary_secrets = _summarizer_secrets(self._context, gateway_token)
         transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
-        candidate: str | None = None
+        audit = self._audit_completion
+        deadline = (
+            asyncio.get_running_loop().time()
+            + self._context.runtime_settings.request_timeout_seconds
+        )
         try:
-            try:
-                async for event in runner.run_async(
-                    user_id=self._user_id,
-                    session_id=session_id,
-                    invocation_id=invocation_id,
-                    new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-                ):
-                    transcript.record(event)
-                    if output_limit_reached(event):
-                        return _failure(
-                            "worker_output_limit_exceeded",
-                            "Worker model response reached its output token limit",
-                            True,
-                        ), False
-                    text = _candidate_text(event)
-                    if text is not None:
-                        candidate = text
-            except Exception as error:
-                self._worker_state.execution.check()
-                if _worker_summarization_request(error) is not None:
-                    return await self._run_terminal_summarizer(
+            if audit is not None:
+                if audit.contract.result_artifact not in request.result_artifacts.values():
+                    return _failure(
+                        "invalid_worker_result_binding", "Audit result binding is missing", False
+                    ), False
+                audit.begin(invocation_id)
+            async with (
+                asyncio.timeout_at(deadline) if audit is not None else contextlib.nullcontext()
+            ):
+                while True:
+                    candidate: str | None = None
+                    try:
+                        async for event in runner.run_async(
+                            user_id=self._user_id,
+                            session_id=session_id,
+                            invocation_id=invocation_id,
+                            new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+                        ):
+                            transcript.record(event)
+                            if audit is not None:
+                                self._check_audit_active()
+                            if audit is not None and getattr(event, "error_code", None):
+                                return _failure(
+                                    "worker_execution_failed",
+                                    "Worker model returned an error",
+                                    True,
+                                ), False
+                            if output_limit_reached(event):
+                                return _failure(
+                                    "worker_output_limit_exceeded",
+                                    "Worker model response reached its output token limit",
+                                    True,
+                                ), False
+                            text = _candidate_text(event)
+                            if text is not None:
+                                candidate = text
+                    except Exception as error:
+                        self._worker_state.execution.check()
+                        if _worker_summarization_request(error) is not None:
+                            return await self._run_terminal_summarizer(
+                                request=request,
+                                invocation_id=invocation_id,
+                                transcript=transcript,
+                                observed_refs=tuple(self._invocation_observed_refs),
+                                secrets=summary_secrets,
+                            )
+                        budget_error = _worker_budget_error(error)
+                        if budget_error is None:
+                            raise
+                        self._metrics.record_worker_budget_exhausted(budget_error.dimension)
+                        return (
+                            _failure(
+                                "worker_budget_exhausted",
+                                f"Worker invocation budget exhausted ({budget_error.dimension})",
+                                True,
+                            ),
+                            False,
+                        )
+                    outcome, exportable = await self._complete_normal_finish(
                         request=request,
+                        candidate=candidate,
                         invocation_id=invocation_id,
-                        transcript=transcript,
-                        observed_refs=tuple(self._invocation_observed_refs),
-                        secrets=summary_secrets,
+                        deadline=deadline,
                     )
-                budget_error = _worker_budget_error(error)
-                if budget_error is None:
+                    if not isinstance(outcome, ContinueCompletion):
+                        return outcome, exportable
+                    self._check_audit_active()
+                    self._plugin.prepare_continuation(invocation_id=invocation_id)
+                    prompt = outcome.reminder
+        except WorkerBudgetExceeded as error:
+            self._metrics.record_worker_budget_exhausted(error.dimension)
+            return _failure("worker_budget_exhausted", str(error), True), False
+        except TimeoutError:
+            return _failure("worker_timeout", "Audit invocation deadline exceeded", True), False
+        except (AuditResultError, AuditCollectionError) as error:
+            self._check_audit_active()
+            return _failure(
+                error.code,
+                "Audit completion failed (" + error.code + ")",
+                getattr(error, "retryable", False),
+            ), False
+        finally:
+            if audit is not None:
+                await audit.end()
+            self._invocation_observed_refs.clear()
+            _clear_artifact_observation_logs(self._context.tools)
+
+    def _check_audit_active(self):
+        self._worker_state.execution.check()
+        task = asyncio.current_task()
+        if not self._accepting or (task is not None and task.cancelling()):
+            raise asyncio.CancelledError
+        if self._active_budget is not None and self._active_budget.failure is not None:
+            raise self._active_budget.failure
+
+    async def _complete_normal_finish(self, *, request, candidate, invocation_id, deadline):
+        """One semantic dispatch before terminal State or session cleanup."""
+        if self._audit_completion is not None:
+            try:
+                decision = await self._audit_completion.finish(
+                    request=request,
+                    deadline=deadline,
+                    check_active=self._check_audit_active,
+                )
+            except Exception as error:
+                self._check_audit_active()
+                if isinstance(error, (AuditResultError, AuditCollectionError)):
                     raise
+                raise AuditResultError("audit_result_publication_failed", retryable=True) from None
+            if isinstance(decision, ContinueCompletion):
+                return decision, False
+            if isinstance(decision, FailCompletion):
+                return decision.failure, False
+            return self._build_runtime_result(
+                request,
+                json.dumps({"subtaskId": request.subtask_id, "result": decision.result.result}),
+                tuple(self._invocation_observed_refs),
+                verified_finalizer_refs=tuple(decision.result.artifacts.values()),
+            )
+        return await self._complete_ordinary_finish(request, candidate, invocation_id)
+
+    async def _complete_ordinary_finish(self, request, candidate, invocation_id):
+        self._worker_state.execution.check()
+        if candidate is None:
+            return self._build_runtime_result(
+                request, candidate, tuple(self._invocation_observed_refs)
+            )
+        try:
+            return await self._run_result_finalizer(
+                request=request,
+                candidate=candidate,
+                invocation_id=invocation_id,
+                observed_refs=tuple(self._invocation_observed_refs),
+            )
+        except Exception as error:
+            budget_error = _worker_budget_error(error)
+            if budget_error is not None:
                 self._metrics.record_worker_budget_exhausted(budget_error.dimension)
                 return (
                     _failure(
@@ -743,64 +882,37 @@ class AdkWorkerRuntime:
                     ),
                     False,
                 )
-            self._worker_state.execution.check()
-            if candidate is None:
-                return self._build_runtime_result(
-                    request, candidate, tuple(self._invocation_observed_refs)
-                )
-            try:
-                return await self._run_result_finalizer(
-                    request=request,
-                    candidate=candidate,
-                    invocation_id=invocation_id,
-                    observed_refs=tuple(self._invocation_observed_refs),
-                )
-            except Exception as error:
-                budget_error = _worker_budget_error(error)
-                if budget_error is not None:
-                    self._metrics.record_worker_budget_exhausted(budget_error.dimension)
-                    return (
-                        _failure(
-                            "worker_budget_exhausted",
-                            f"Worker invocation budget exhausted ({budget_error.dimension})",
-                            True,
-                        ),
-                        False,
-                    )
-                gateway_error = _gateway_model_error(error)
-                if gateway_error is not None:
+            gateway_error = _gateway_model_error(error)
+            if gateway_error is not None:
+                return _failure(
+                    "worker_gateway_unavailable",
+                    "Worker LLM Gateway request failed",
+                    gateway_error.retryable,
+                ), False
+            finalizer_error = _result_finalizer_error(error)
+            if finalizer_error is not None:
+                if finalizer_error.code == "output_limit_exceeded":
                     return _failure(
-                        "worker_gateway_unavailable",
-                        "Worker LLM Gateway request failed",
-                        gateway_error.retryable,
-                    ), False
-                finalizer_error = _result_finalizer_error(error)
-                if finalizer_error is not None:
-                    if finalizer_error.code == "output_limit_exceeded":
-                        return _failure(
-                            "worker_output_limit_exceeded",
-                            "Worker result finalizer reached its output token limit",
-                            True,
-                        ), False
-                    if finalizer_error.code == "input_too_large":
-                        return _failure(
-                            "worker_result_too_large",
-                            "Worker result finalization input exceeds its limit",
-                            False,
-                        ), False
-                    return _failure(
-                        "worker_result_finalizer_failed",
-                        f"Worker result finalizer failed ({finalizer_error.code})",
+                        "worker_output_limit_exceeded",
+                        "Worker result finalizer reached its output token limit",
                         True,
+                    ), False
+                if finalizer_error.code == "input_too_large":
+                    return _failure(
+                        "worker_result_too_large",
+                        "Worker result finalization input exceeds its limit",
+                        False,
                     ), False
                 return _failure(
                     "worker_result_finalizer_failed",
-                    "Worker result finalizer failed (runtime_failed)",
+                    f"Worker result finalizer failed ({finalizer_error.code})",
                     True,
                 ), False
-        finally:
-            self._invocation_observed_refs.clear()
-            _clear_artifact_observation_logs(self._context.tools)
+            return _failure(
+                "worker_result_finalizer_failed",
+                "Worker result finalizer failed (runtime_failed)",
+                True,
+            ), False
 
     async def _run_result_finalizer(
         self,
@@ -983,6 +1095,8 @@ class AdkWorkerRuntime:
         request: StageContentRequest,
         candidate: str | None,
         observed_refs: tuple[ArtifactRef, ...],
+        *,
+        verified_finalizer_refs: tuple[ArtifactRef, ...] = (),
     ) -> tuple[WorkerResult | WorkerFailure, bool]:
         if candidate is None:
             return _failure(
@@ -1027,7 +1141,8 @@ class AdkWorkerRuntime:
                 "unsafe_worker_result", "Worker returned content blocked by Runtime policy", False
             ), False
         observed = {
-            (ref.namespace, ref.name): ref for ref in _latest_observed_exact_refs(observed_refs)
+            (ref.namespace, ref.name): ref
+            for ref in _latest_observed_exact_refs((*observed_refs, *verified_finalizer_refs))
         }
         artifacts: dict[str, ArtifactRef] = {}
         exporter = self._workspace_exporter

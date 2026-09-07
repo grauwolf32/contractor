@@ -3,7 +3,7 @@ id: V39-005
 title: "Integrate common Worker finalization with the Audit completeness gate"
 milestone: audit-worker-completion
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: ["V39-002","V39-003","V39-004"]
 languages: ["python"]
@@ -38,6 +38,10 @@ scope:
     - "Global mandatory-tool callback, replacing ordinary LLM finalization, new budgets, durable partial checks and automatic demo deployment."
 
 deliverables:
+  - path: runtime/src/contractor_runtime/audit_worker_completion.py
+    description: "Exact prepared input binding, invocation ownership, reminders and deterministic publication strategy."
+  - path: docs/reviews/2026-09-07-audit-completion-runtime.md
+    description: "Completion boundaries, compatibility and real-ADK verification evidence."
   - path: runtime/src/contractor_runtime/adk_runtime.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/src/contractor_runtime/instrumentation.py
@@ -82,3 +86,5 @@ acceptance_criteria:
 tests:
   - command: "cd runtime && uv run --frozen pytest tests/test_audit_completion_runtime.py tests/test_audit_completion_continuation.py tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_result_finalizer.py tests/test_app.py tests/test_capabilities.py"
     covers: ["A1","A2","A3","A4","A5"]
+  - command: "cd runtime && uv run --frozen pytest tests/test_worker_summarizer.py tests/test_allocation.py tests/test_audit_completion_contracts.py tests/test_audit_result_collector.py tests/test_audit_results_toolset.py tests/test_audit_result_publication.py"
+    covers: ["A1","A3","A4"]

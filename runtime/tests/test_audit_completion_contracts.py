@@ -163,10 +163,10 @@ def test_limits_and_separate_recorded_publication_receipts():
         ContinueCompletion("x" * (16 * 1024 + 1))
 
 
-def test_types_do_not_enable_runtime_support(tmp_path):
+def test_legacy_omission_is_preserved_after_completion_registration(tmp_path):
     from contractor_runtime.factories import built_in_factories
 
-    assert "audit-results@2" not in built_in_factories(tmp_path).toolsets
+    assert "audit-results@2" in built_in_factories(tmp_path).toolsets
     raw = json.loads(
         (ROOT / "testdata/contracts/private-v2/valid/agent-registration.json").read_bytes()
     )

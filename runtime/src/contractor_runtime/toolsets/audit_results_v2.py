@@ -1,10 +1,8 @@
-"""Unregistered audit-results@2 tools bound to one trusted invocation collector.
-
-The common completion boundary will own construction, failure cleanup and
-activation. These tools have no artifact client and cannot publish results.
-"""
+"""audit-results@2 tools bound to the trusted active invocation collector."""
 
 import time
+from collections.abc import Callable
+from types import MappingProxyType
 from typing import Any
 
 from google.adk.tools.tool_context import ToolContext
@@ -100,17 +98,27 @@ class ReadAuditTaskTool:
 
     def __init__(
         self,
-        collector: InvocationAuditCollector,
+        collector: InvocationAuditCollector | Callable[[], InvocationAuditCollector],
         task_ref: ArtifactRef,
         metrics: ToolMetrics,
     ):
         if not task_ref.revision:
             raise ValueError("audit-results@2 requires the validated exact task ref")
-        self._collector = collector
+        self._collector_source = collector
         self._task_ref = task_ref.model_copy(deep=True)
         self._metrics = metrics
         self.__name__ = self.name
         self.__doc__ = "Read the pinned Audit tasks, requested coverage and evidence contracts."
+
+    @property
+    def _collector(self):
+        source = self._collector_source
+        return source() if callable(source) else source
+
+    async def close(self):
+        binding = getattr(self, "completion_binding", None)
+        if binding is not None:
+            await binding.end()
 
     async def __call__(self, tool_context: ToolContext) -> dict[str, Any]:
         started = time.perf_counter_ns()
@@ -135,8 +143,12 @@ class ReadAuditTaskTool:
 class SubmitCheckResultTool:
     name = "submit_check_result"
 
-    def __init__(self, collector: InvocationAuditCollector, metrics: ToolMetrics):
-        self._collector = collector
+    def __init__(
+        self,
+        collector: InvocationAuditCollector | Callable[[], InvocationAuditCollector],
+        metrics: ToolMetrics,
+    ):
+        self._collector_source = collector
         self._metrics = metrics
         self.__name__ = self.name
         self.__doc__ = """Record Audit results locally; success does not publish or accept an Audit.
@@ -150,6 +162,16 @@ class SubmitCheckResultTool:
         Errors preserve previously recorded results. Receipts give all revisions,
         acceptedCount, totalCount, missingItemKeys and complete.
         """
+
+    @property
+    def _collector(self):
+        source = self._collector_source
+        return source() if callable(source) else source
+
+    async def close(self):
+        binding = getattr(self, "completion_binding", None)
+        if binding is not None:
+            await binding.end()
 
     async def __call__(
         self,
@@ -167,8 +189,9 @@ class SubmitCheckResultTool:
         started = time.perf_counter_ns()
         failure = None
         try:
-            self._collector.check_invocation(tool_context.invocation_id)
-            keys = self._collector.owner.item_keys
+            collector = self._collector
+            collector.check_invocation(tool_context.invocation_id)
+            keys = collector.owner.item_keys
             if results is not None:
                 if any(
                     value is not None
@@ -188,7 +211,7 @@ class SubmitCheckResultTool:
                     raise AuditCollectionError(
                         "results", "Provide the complete batch in task order."
                     )
-                receipt = await self._collector.record_batch(
+                receipt = await collector.record_batch(
                     tuple(_normalize(key, value) for key, value in zip(keys, results, strict=True))
                 )
             else:
@@ -206,7 +229,7 @@ class SubmitCheckResultTool:
                     "evidence": [] if evidence is None else evidence,
                     "proposal_keys": [] if proposal_keys is None else proposal_keys,
                 }
-                receipt = await self._collector.record(
+                receipt = await collector.record(
                     _normalize(item_key, value),
                     expected_revision=expected_revision,
                 )
@@ -233,3 +256,51 @@ class SubmitCheckResultTool:
             duration_ms=(time.perf_counter_ns() - started) // 1_000_000,
         )
         return result
+
+
+class AuditResultsToolsetFactory:
+    ref = "audit-results@2"
+    exported_tools = frozenset({"read_audit_task", "submit_check_result"})
+    infrastructure_channels = MappingProxyType({})
+
+    def __init__(self, client_factory):
+        self._client_factory = client_factory
+
+    async def probe(self):
+        return self.exported_tools if self._client_factory is not None else frozenset()
+
+    async def create_selected(
+        self,
+        *,
+        selected,
+        allocation_id,
+        namespace,
+        runtime_settings,
+        state,
+        completion_contract=None,
+        **kwargs,
+    ):
+        from contractor_runtime.audit_worker_completion import PreparedAuditCompletion
+
+        if (
+            completion_contract is None
+            or completion_contract.result_artifact.namespace != namespace
+            or set(selected) != self.exported_tools
+            or self._client_factory is None
+        ):
+            raise ValueError("audit-results@2 requires trusted completion preparation")
+        binding = await PreparedAuditCompletion.prepare(
+            contract=completion_contract,
+            allocation_id=allocation_id,
+            client=self._client_factory(allocation_id, runtime_settings),
+            timeout=runtime_settings.request_timeout_seconds,
+        )
+        tools = {
+            "read_audit_task": ReadAuditTaskTool(
+                binding.current, completion_contract.task, state.metrics
+            ),
+            "submit_check_result": SubmitCheckResultTool(binding.current, state.metrics),
+        }
+        for tool in tools.values():
+            tool.completion_binding = binding
+        return tools

@@ -43,6 +43,7 @@ class CapabilitySnapshot:
     runtime_adapters: tuple[str, ...] = ()
     workspace: WorkspaceCapabilitySnapshot | None = None
     performance_metrics_versions: tuple[int, ...] = SUPPORTED_PERFORMANCE_METRICS_VERSIONS
+    completion_contracts: tuple[str, ...] = ()
 
     @classmethod
     def create(
@@ -53,10 +54,21 @@ class CapabilitySnapshot:
         sandbox_profiles: Iterable[str],
         runtime_adapters: Iterable[str] = (),
         workspace: WorkspaceCapabilitySnapshot | None = None,
+        completion_contracts: Iterable[str] = (),
     ) -> CapabilitySnapshot:
         normalized_runtimes = tuple(sorted(set(runtimes)))
         normalized_sandboxes = tuple(sorted(set(sandbox_profiles)))
         normalized_adapters = tuple(sorted(set(runtime_adapters)))
+        completion = tuple(sorted(set(completion_contracts)))
+        if set(completion) - {"audit-check-results@1"} or (
+            completion
+            and (
+                "adk@1" not in normalized_runtimes
+                or not {"read_audit_task", "submit_check_result"}
+                <= set(toolsets.get("audit-results@2", ()))
+            )
+        ):
+            raise CapabilityDiscoveryError("invalid Worker completion capability snapshot")
         if len(normalized_adapters) > 64 or any(
             ref not in RUNTIME_ADAPTER_REFS for ref in normalized_adapters
         ):
@@ -76,6 +88,7 @@ class CapabilitySnapshot:
             sandbox_profiles=normalized_sandboxes,
             runtime_adapters=normalized_adapters,
             workspace=workspace,
+            completion_contracts=completion,
         )
 
     def wire_toolsets(self) -> list[ToolsetCapability]:
@@ -219,6 +232,14 @@ async def discover_capabilities(
         sandbox_profiles=sandboxes,
         runtime_adapters=runtime_adapters,
         workspace=workspace,
+        completion_contracts=(
+            ("audit-check-results@1",)
+            if "adk@1" in runtimes
+            and getattr(factories.worker_runtimes.get("adk@1"), "supports_audit_completion", False)
+            and {"read_audit_task", "submit_check_result"}
+            <= set(toolsets.get("audit-results@2", ()))
+            else ()
+        ),
     )
 
 
