@@ -1,0 +1,143 @@
+schema_version: "1.0"
+id: V53-001
+title: Prevent large-source Audit checks from exhausting their budget without a result
+milestone: real-project-audit-stability
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python, yaml, markdown]
+goal: >-
+  Diagnose and correct the failure to finish a bounded source Audit on Nextcloud,
+  while retaining truthful evidence gaps, finite budgets and exact input identity.
+context:
+  authority: >-
+    User requested monitoring the execution queue, investigating failures,
+    creating tasks and fixing serious bugs; simple fixes need no separate task.
+  specification: docs/spec/19-audits.md
+  incident:
+    project_id: project_26f02cc01364ebe6d382dd6cc3091122
+    audit_id: audit_aeeed3020f85b21c435a5d4c5117b5ed
+    run_id: run_9350a2d2809606caf043dc96fd1df834
+    workflow: audit-asvs-source-verification@3
+    source_repository: https://github.com/nextcloud/server
+    source_commit: b11c68e25d6030187e02477d3d82013405f62965
+    source_sha256: daa077b4a0b14c2659260f43850999db34f80878fddd1e0888feb2f6c65607da
+    error: worker_budget_exhausted (total_tokens)
+    observed_model_calls: 88
+    observed_tool_calls: 172
+    observed_total_tokens: 2515604
+    model_policy_total_token_limit: 2500000
+    result_artifact_created: false
+    other_diagnostic: tool_open_source_archive_failed (ArtifactAPIError)
+  evidence: >-
+    Local raw incident, exact source manifest and API snapshots are retained in
+    .local/demo/nextcloud-audits-20260908/. The source ZIP was verified at 5906
+    entries, 8071292 compressed bytes and 29019349 expanded bytes, below the
+    source-analysis tool limits. The first failure is not yet established to
+    be a Runtime bug rather than model investigation behavior.
+  additional_incidents:
+    - run_id: run_7579fb482892fcad18e9aa6c26eab17a
+      workflow: audit-top10-source-risk@3
+      error: worker_result_missing
+      observed_model_calls: 22
+      observed_tool_calls: 27
+      observed_total_tokens: 523715
+    - run_id: run_db4e3b43c25a4f6f3c43443485070c1f
+      workflow: audit-openapi-operation-trace@4
+      error: worker_budget_exhausted (total_tokens)
+      observed_model_calls: 41
+      observed_tool_calls: 78
+      observed_total_tokens: 2569731
+      live_evidence: >-
+        The last allocation snapshot recorded 57 find_symbol calls and 13
+        read_file calls, with no graph navigation or result submission yet.
+        Graph query arguments are intentionally absent from safe telemetry;
+        identical queries cannot be inferred from those counters alone.
+    - run_id: run_f9a560a9631e77cb0dd079ac9ae4af8a
+      workflow: audit-asvs-source-verification@3
+      error: worker_output_limit_exceeded
+      observed_model_calls: 20
+      observed_tool_calls: 36
+      observed_total_tokens: 336488
+      final_item_disposition: execution-failed
+    - run_id: run_ae42a760cb621117a00f2965b2709cd7
+      workflow: audit-top10-source-risk@3
+      error: worker_budget_exhausted (total_tokens)
+      observed_model_calls: 53
+      observed_tool_calls: 65
+      observed_total_tokens: 2540032
+  diagnostic_results:
+    - >-
+      Rebuilt the graph from the exact Nextcloud ZIP locally: 4877 analyzed
+      files, 69111 nodes, 88291 edges, no parse errors or capacity truncation.
+      The PHP handler and service symbols used by the failed operation resolve,
+      including MountPublicLinkController.createFederatedShare. Report:
+      .local/demo/nextcloud-audits-20260908/graph-reproduction.json.
+    - >-
+      ASVS retry run_f9a560a9631e77cb0dd079ac9ae4af8a repeated identical
+      search_source query hashes, path patterns and options without a result
+      submission, then exhausted the per-response output limit. The controller
+      correctly exhausted two item attempts and retained execution-failed.
+    - >-
+      The initial open_source_archive failure is identified: the Worker tried
+      task.source_ref, which identifies the standard inventory package, instead
+      of the Run's pinned inputs/source ZIP. Its next call used the correct
+      input revision and succeeded. Preserve origin provenance; clarify input
+      selection in successor instructions rather than weakening artifact scope.
+    - >-
+      Trace run_c532a42a92712a54871f86b780e6fed4 succeeded and its result was
+      imported as traced-partial with explicit gaps. The same source and
+      profile can produce a valid result; neither package admission nor
+      result import is universally broken.
+    - >-
+      A separate trace attempt run_70608f8a2cb796b89bfaa227e6c46940 failed
+      before its first model response with worker_gateway_unavailable. LiteLLM
+      recorded upstream HTTP 400, Engine protocol predict request failed:
+      fetch failed. Kernel logs recorded NVIDIA Xid 8 / RC watchdog at
+      02:16:25 MSK. This infrastructure incident belongs to the already active
+      V52-003, not to the investigation-budget diagnosis in this task.
+  correction_plan:
+    - >-
+      Reproduce the remaining failure with model-content diagnostics enabled
+      on a new bounded execution when safe telemetry cannot establish the
+      cause. Preserve the original failed runs and their frozen inputs.
+    - >-
+      If model investigation repeats, validate clearer stopping instructions
+      and a representative-source investigation limit in new immutable
+      template, workflow and profile versions. Do not raise global budgets.
+    - >-
+      Evaluate the implemented audit-check-results@1 completion strategy for
+      successor ASVS, Top10 and trace profiles. Require semantic regression
+      checks and a fresh live result before claiming recovery; bounded
+      completion reminders alone do not solve investigation budget exhaustion.
+  concurrent_work: >-
+    Preserve pre-existing edits to the Caido adapter, tool implementation and
+    test. Keep monitoring other Audit and non-Audit runs during investigation.
+scope:
+  in:
+    - Capture live Worker counters and tool observations before failed allocations are released.
+    - Distinguish incorrect artifact selection, repetitive investigation, model budget use and completion defects with reproducible evidence.
+    - Apply the smallest demonstrated correction; create immutable configuration versions when instructions or policies change.
+    - Preserve the original failed run and exact Audit baseline; validate recovery on a bounded fresh execution.
+  out:
+    - Silently raise global budgets, weaken evidence contracts or report missing evidence as a successful verification.
+    - Rewrite pinned active Audit closures or interrupt unrelated active allocations.
+acceptance_criteria:
+  - id: A1
+    text: The incident has a reproducible cause and safe diagnostic evidence, including whether any result was produced before budget exhaustion.
+  - id: A2
+    text: The correction has focused regression checks appropriate to its layer and keeps exact source, scope and assessment semantics.
+  - id: A3
+    text: A bounded live Nextcloud check verifies the corrected behavior or records a precise remaining blocker without masking failed attempts.
+tests:
+  - command: git diff --check
+    covers: [A1]
+verification:
+  - >-
+    Queue observation, artifact inventory inspection and exact-source graph
+    reproduction are complete. The recorded incidents and investigation plan
+    do not establish a correction for model budget or output-limit failures.
+  - >-
+    A2 and A3 remain open. Pin focused regression commands for the selected
+    correction and record a bounded live Nextcloud execution before completing
+    this task.
