@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -27,12 +28,16 @@ from contractor_runtime.settings import WorkspaceLimits
 
 T = TypeVar("T")
 # Internal ceiling; a caller's earlier timeout also fences and retains ownership.
-_OPERATION_SECONDS = 30.0
 _Mutation = Callable[[RootedLocalFilesystem, float], None]
 
 
 class LocalDirectWorkspace:
-    def __init__(self, content_root: str, limits: WorkspaceLimits) -> None:
+    def __init__(
+        self, content_root: str, limits: WorkspaceLimits, *, operation_timeout_seconds: float
+    ) -> None:
+        if not math.isfinite(operation_timeout_seconds) or operation_timeout_seconds <= 0:
+            raise ValueError("workspace operation timeout must be finite and positive")
+        self._operation_timeout_seconds = operation_timeout_seconds
         self._root = Path(content_root)
         self._limits = limits
         self._filesystem: RootedLocalFilesystem | None = None
@@ -44,8 +49,7 @@ class LocalDirectWorkspace:
         *,
         deadline: float | None = None,
     ) -> T:
-        if deadline is None:
-            deadline = time.monotonic() + _OPERATION_SECONDS
+        deadline = self._deadline(deadline)
 
         def owned() -> T:
             # Even initial root verification must not block the event loop.
@@ -193,9 +197,17 @@ class LocalDirectWorkspace:
 
         await self._mutate(plan)
 
-    async def close(self) -> None:
+    def _deadline(self, enclosing: float | None) -> float:
+        operation_deadline = time.monotonic() + self._operation_timeout_seconds
+        if enclosing is None:
+            return operation_deadline
+        if not math.isfinite(enclosing):
+            raise WorkspaceStorageError("workspace_unavailable")
+        return min(operation_deadline, enclosing)
+
+    async def close(self, *, deadline: float | None = None) -> None:
         # AllocationService cleans provider storage only after this barrier.
-        await self.guard.close(lambda: None, deadline=time.monotonic() + _OPERATION_SECONDS)
+        await self.guard.close(lambda: None, deadline=self._deadline(deadline))
 
 
 def _managed(tree: LocalTree) -> ManagedWorkspaceTree:

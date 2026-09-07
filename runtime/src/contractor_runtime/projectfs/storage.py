@@ -226,7 +226,9 @@ class DirectWorkspaceSession:
         from contractor_runtime.projectfs.local_direct import LocalDirectWorkspace
 
         self._local = (
-            LocalDirectWorkspace(content_root, limits)
+            LocalDirectWorkspace(
+                content_root, limits, operation_timeout_seconds=storage.operation_timeout_seconds
+            )
             if mode == "direct" and storage.storage == "local"
             else None
         )
@@ -426,12 +428,12 @@ class DirectWorkspaceSession:
             _remove_tree(candidate, normalized_source)
             self._commit_candidate(candidate)
 
-    async def close(self) -> None:
+    async def close(self, *, deadline: float | None = None) -> None:
         if self._local is not None:
-            await self._local.close()
+            await self._local.close(deadline=deadline)
             self._closed = True
             return
-        async with self._lock:
+        async with asyncio.timeout_at(deadline), self._lock:
             self._closed = True
             self._tree.directories.clear()
             self._tree.text_files.clear()

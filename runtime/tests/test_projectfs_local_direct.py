@@ -7,6 +7,7 @@ import os
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,6 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     WorkspaceStorageError,
     hydrate_workspace,
-    local_direct,
 )
 from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
 from contractor_runtime.settings import WorkspaceLimits
@@ -26,13 +26,21 @@ from contractor_runtime.settings import WorkspaceLimits
 
 @asynccontextmanager
 async def workspace(
-    tmp_path: Path, *, limits: WorkspaceLimits | None = None
+    tmp_path: Path,
+    *,
+    limits: WorkspaceLimits | None = None,
+    operation_timeout_seconds: float = 30.0,
 ) -> AsyncIterator[tuple[DirectWorkspaceSession, Path]]:
     spec, reader = workspace_inputs(
         [("source", "", archive({"src/a.txt": b"source\r\n", "binary": b"\x00x"}))]
     )
     spec.mode = "direct"
-    provider = LocalWorkspaceProvider(settings("local", tmp_path / "project", limits=limits))
+    provider = LocalWorkspaceProvider(
+        replace(
+            settings("local", tmp_path / "project", limits=limits),
+            operation_timeout_seconds=operation_timeout_seconds,
+        )
+    )
     session = await hydrate_workspace(
         provider=provider,
         spec=spec,
@@ -210,11 +218,12 @@ def test_mutation_quota_includes_unchanged_binary_bytes(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("cancel", [False, True])
-def test_cancel_timeout_and_close_share_ownership(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool
-) -> None:
+def test_cancel_timeout_and_close_share_ownership(tmp_path: Path, cancel: bool) -> None:
     async def scenario() -> None:
-        async with workspace(tmp_path) as (session, root):
+        async with workspace(tmp_path, operation_timeout_seconds=2 if cancel else 0.05) as (
+            session,
+            root,
+        ):
             started, finish = threading.Event(), threading.Event()
 
             def transform(text: str) -> str:
@@ -222,7 +231,6 @@ def test_cancel_timeout_and_close_share_ownership(
                 assert finish.wait(3)
                 return text + "done"
 
-            monkeypatch.setattr(local_direct, "_OPERATION_SECONDS", 2 if cancel else 0.05)
             owner = asyncio.create_task(session.update_text("src/a.txt", transform))
             closing = None
             try:
@@ -237,7 +245,6 @@ def test_cancel_timeout_and_close_share_ownership(
                         await owner
                 with pytest.raises(WorkspaceStorageError, match="workspace_unavailable"):
                     await session.write_text("new", "denied")
-                monkeypatch.setattr(local_direct, "_OPERATION_SECONDS", 2)
                 closing = asyncio.create_task(session.close())
                 for _ in range(5):
                     await asyncio.sleep(0)

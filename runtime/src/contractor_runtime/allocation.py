@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 from collections.abc import Awaitable, Callable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -631,7 +632,7 @@ class AllocationService:
             context.execution.reject()
             await context.execution.remove(deadline=deadline)
         if context.project_workspace is not None:
-            await self._cleanup_project_workspace(context.project_workspace)
+            await self._cleanup_project_workspace(context.project_workspace, deadline=deadline)
             context.project_workspace = None
         await context.sandbox.cleanup(context.workspace)
         await context.adapter_host.rollback(deadline=deadline, now=self._now)
@@ -1218,7 +1219,7 @@ class AllocationService:
             return
         try:
             await _await_before_deadline(
-                lambda: self._cleanup_project_workspace(project_workspace),
+                lambda: self._cleanup_project_workspace(project_workspace, deadline=deadline),
                 deadline=deadline,
                 now=self._now,
             )
@@ -1263,8 +1264,11 @@ class AllocationService:
     async def _cleanup_project_workspace(
         self,
         project_workspace: DirectWorkspaceSession,
+        *,
+        deadline: datetime,
     ) -> None:
-        await project_workspace.close()
+        remaining = (deadline - self._now()).total_seconds()
+        await project_workspace.close(deadline=time.monotonic() + max(0.0, remaining))
         provider = self._factories.workspace_provider
         if provider is None:
             raise RuntimeError("project workspace provider is unavailable")
@@ -1339,7 +1343,9 @@ class AllocationService:
             await attempt(lambda: worker.abort(deadline))
         await attempt(lambda: _close_tools(tools))
         if project_workspace is not None:
-            await attempt(lambda: self._cleanup_project_workspace(project_workspace))
+            await attempt(
+                lambda: self._cleanup_project_workspace(project_workspace, deadline=deadline)
+            )
         if workspace is not None:
             await attempt(lambda: sandbox.cleanup(workspace))
         if adapter_host is not None:

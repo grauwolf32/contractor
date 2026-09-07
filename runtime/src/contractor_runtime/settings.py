@@ -14,6 +14,8 @@ from urllib.parse import urlsplit
 from contractor_runtime.contracts import WorkspaceStorageV2
 from contractor_runtime.podman_settings import PodmanSettings, add_podman_arguments, podman_settings
 
+DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS = 30.0
+
 LOCAL_WORKSPACE_DEFAULTS = (50_000, 2 << 30, 256 << 20, 16 << 20)
 MEMORY_WORKSPACE_DEFAULTS = (10_000, 256 << 20, 64 << 20, 4 << 20)
 WORKSPACE_LIMIT_CEILINGS = (1_000_000, 64 << 30, 16 << 30, 2 << 30)
@@ -32,6 +34,11 @@ class WorkspaceSettings:
     storage: WorkspaceStorageV2
     limits: WorkspaceLimits
     work_root: Path | None = field(default=None, repr=False)
+    operation_timeout_seconds: float = DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.operation_timeout_seconds) or self.operation_timeout_seconds <= 0:
+            raise ValueError("workspace operation timeout must be finite and positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +91,11 @@ def parse_settings(
     )
     parser.add_argument(
         "--workspace-work-root", default=values.get("CONTRACTOR_WORKSPACE_WORK_ROOT")
+    )
+    parser.add_argument(
+        "--workspace-operation-timeout-seconds",
+        type=float,
+        default=values.get("CONTRACTOR_WORKSPACE_OPERATION_TIMEOUT_SECONDS"),
     )
     parser.add_argument(
         "--workspace-max-files",
@@ -306,6 +318,7 @@ def _workspace_settings(
     parser: argparse.ArgumentParser, args: argparse.Namespace
 ) -> WorkspaceSettings | None:
     related = (
+        args.workspace_operation_timeout_seconds,
         args.workspace_work_root,
         args.workspace_max_files,
         args.workspace_max_expanded_bytes,
@@ -334,6 +347,16 @@ def _workspace_settings(
     elif args.workspace_work_root is not None:
         parser.error("--workspace-work-root is valid only for local workspace storage")
 
+    operation_timeout = args.workspace_operation_timeout_seconds
+    if operation_timeout is not None and storage != "local":
+        parser.error(
+            "--workspace-operation-timeout-seconds is valid only for local workspace storage"
+        )
+    if operation_timeout is None:
+        operation_timeout = DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS
+    if not math.isfinite(operation_timeout) or operation_timeout <= 0:
+        parser.error("--workspace-operation-timeout-seconds must be finite and positive")
+
     defaults = LOCAL_WORKSPACE_DEFAULTS if storage == "local" else MEMORY_WORKSPACE_DEFAULTS
     values = (
         args.workspace_max_files,
@@ -358,6 +381,7 @@ def _workspace_settings(
         parser.error("workspace managed/file byte limits must not exceed expanded bytes")
     return WorkspaceSettings(
         storage=storage,
+        operation_timeout_seconds=operation_timeout,
         work_root=work_root,
         limits=WorkspaceLimits(
             max_files=max_files,

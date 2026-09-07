@@ -21,7 +21,11 @@ from contractor_runtime.contracts import (
     WorkspaceModeV2,
     WorkspaceStorageV2,
 )
-from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.settings import (
+    DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS,
+    WorkspaceLimits,
+    WorkspaceSettings,
+)
 
 LOCAL_DIRECTORY_PREFIX = "workspace-"
 LOCAL_OWNER_MARKER = ".contractor-workspace-owner"
@@ -57,6 +61,7 @@ class ProjectWorkspaceStorage:
     root: str = field(repr=False)
     provider_id: str = field(repr=False)
     owner_token: str = field(repr=False)
+    operation_timeout_seconds: float = DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS
 
 
 class WorkspaceProvider(Protocol):
@@ -81,6 +86,7 @@ class LocalWorkspaceProvider:
     ) -> None:
         if settings.storage != "local" or settings.work_root is None:
             raise ValueError("local workspace provider requires a local work root")
+        self._operation_timeout_seconds = settings.operation_timeout_seconds
         self._root = settings.work_root
         self._provider_id = uuid.uuid4().hex
         self._capability = _capability(settings)
@@ -117,6 +123,7 @@ class LocalWorkspaceProvider:
             raise
         return ProjectWorkspaceStorage(
             storage="local",
+            operation_timeout_seconds=self._operation_timeout_seconds,
             filesystem=self._filesystem,
             root=str(path),
             provider_id=self._provider_id,

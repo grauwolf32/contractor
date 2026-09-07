@@ -233,14 +233,21 @@ def test_owned_mutation_blocks_allocation_release_and_slot_reuse(
                 with pytest.raises(AllocationError, match="allocation cleanup failed"):
                     await releasing
             assert (await state.snapshot()).process_state is ProcessState.FENCED
-            retained = context.release_cleanup_task
+            # The bounded release attempt may finish on its deadline. Physical
+            # disposal still belongs to the original guard task until I/O settles.
+            retained = project._local.guard._cleanup
             assert retained is not None and not retained.done()
+            release_attempt = context.release_cleanup_task
+            if cancel_release:
+                assert release_attempt is not None and not release_attempt.done()
             assert root.exists() and cleanup_calls == 0
             with pytest.raises(AllocationError):
                 await service.prepare(direct_workspace_spec("must-not-reuse"))
             retry = asyncio.create_task(service.release(request))
             await asyncio.sleep(0)
-            assert context.release_cleanup_task is retained
+            assert project._local.guard._cleanup is retained
+            if cancel_release:
+                assert context.release_cleanup_task is release_attempt
             finish.set()
             await asyncio.wait_for(retry, timeout=2)
             await service.release(request)

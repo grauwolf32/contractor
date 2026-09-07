@@ -84,5 +84,21 @@ heartbeat leases, model policies or inference retry rules.
 Both `contractor check` and `contractor context check [name]` use the global
 `--timeout` / `CONTRACTOR_TIMEOUT` setting, whose default remains 30s.
 
-Local direct workspace operation settings and cancellation behavior are described
-in the Runtime subsection added with the workspace implementation of V49-001.
+Runtime uses `WorkspaceSettings.operation_timeout_seconds`, configured with
+`--workspace-operation-timeout-seconds` or
+`CONTRACTOR_WORKSPACE_OPERATION_TIMEOUT_SECONDS` (default `30.0`; seconds as a
+finite positive number). CLI overrides environment. An explicit override requires
+`--workspace-storage local`; setting it for memory or disabled workspaces fails.
+The value applies to local direct filesystem operations and close waits, including
+serialization and initialization. It is process-local and is not advertised as a
+Worker capability or placed into Allocation settings.
+
+Initialization and close use the earlier of this operation budget and the
+supplied enclosing deadline. Allocation release, rollback and terminal cleanup
+forward their remaining deadline into close. An expired wait fences the workspace
+but keeps its physical I/O and disposal tasks owned until they actually finish.
+A release retry can resume idempotent cleanup and join the same disposal task;
+it cannot reuse the slot or remove storage while the original I/O is running.
+Already saved finalize/abort deadlines remain unchanged on retry. A completed,
+failed release attempt retains the existing ability to retry physical cleanup
+under a new release attempt budget.

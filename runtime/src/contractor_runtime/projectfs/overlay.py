@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import difflib
 import hashlib
 import json
@@ -268,8 +269,8 @@ class OverlayWorkspaceSession(DirectWorkspaceSession):
             self._checkpoint = self._tree.clone()
             return self._checkpoint.snapshot()
 
-    async def close(self) -> None:
-        async with self._lock:
+    async def close(self, *, deadline: float | None = None) -> None:
+        async with asyncio.timeout_at(deadline), self._lock:
             self._closed = True
             for tree in (self._tree, self._source, self._checkpoint):
                 tree.directories.clear()

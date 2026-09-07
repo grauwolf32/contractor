@@ -66,7 +66,7 @@ acceptance_criteria:
 tests:
   - command: go test -race -count=1 ./internal/app ./internal/cli ./internal/controlplane ./internal/planner/a2a ./internal/scheduler ./internal/auditcontroller ./internal/projectlifecycle ./internal/persistence/postgres ./internal/credentials/litellm
     covers: [A1, A2, A3, A4]
-  - command: cd runtime && uv run pytest -W error tests/test_settings.py tests/test_workspace_provider.py tests/test_projectfs_local_direct.py tests/test_local_direct_faults.py tests/test_allocation.py
+  - command: cd runtime && uv run pytest -W error tests/test_settings.py tests/test_workspace_provider.py tests/test_projectfs_local_direct.py tests/test_local_direct_faults.py tests/test_allocation.py tests/test_workspace_timeouts.py
     covers: [A1, A2, A3, A4]
   - command: go run ./cmd/contractor-server config validate --root ./configs
     covers: [A4]
