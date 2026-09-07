@@ -22,6 +22,7 @@ const navigation = [
   { to: "/operations", label: "Overview", end: true },
   { to: "/operations/runtime-agents", label: "Runtime Agents" },
   { to: "/operations/allocations", label: "Allocations" },
+  { to: "/operations/performance", label: "Performance" },
   { to: "/operations/configurations", label: "LLM configurations" },
   { to: "/operations/credentials", label: "Credentials" },
   { to: "/operations/settings", label: "Settings" },
@@ -109,6 +110,9 @@ export function OperationsLayoutRoute() {
   const normalizedPath = location.pathname.replace(/\/+$/, "");
   const personalSettings =
     !authorized && normalizedPath === "/operations/settings";
+  const independentRead =
+    normalizedPath === "/operations/performance" ||
+    normalizedPath === "/operations/allocations/completed";
   const [connection, setConnection] =
     useState<RunEventConnectionState>("connecting");
   const [liveError, setLiveError] = useState<string>();
@@ -129,7 +133,7 @@ export function OperationsLayoutRoute() {
   const query = useQuery({
     queryKey: queryKeys.operations.snapshot,
     queryFn: () => getOperationsSnapshot(api),
-    enabled: authorized,
+    enabled: authorized && !independentRead,
   });
 
   if (!authorized && !personalSettings) {
@@ -160,7 +164,7 @@ export function OperationsLayoutRoute() {
             view; they never predict allocation or configuration state.
           </p>
         </div>
-        {personalSettings ? null : (
+        {independentRead || personalSettings ? null : (
           <button
             className="secondary-button"
             type="button"
@@ -187,7 +191,7 @@ export function OperationsLayoutRoute() {
           ))}
       </nav>
 
-      {personalSettings ? (
+      {independentRead || personalSettings ? (
         <Outlet />
       ) : query.isPending ? (
         <p className="loading-copy" aria-live="polite">

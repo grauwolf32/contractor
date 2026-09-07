@@ -2688,6 +2688,28 @@ code {
   color: #95e6d9;
 }
 
+.state-ok,
+.state-available {
+  border-color: #357067;
+  background: #102b28;
+  color: #95e6d9;
+}
+
+.state-partial,
+.state-stale,
+.state-unsupported {
+  border-color: #76642d;
+  background: #28220f;
+  color: #ffe9a4;
+}
+
+.state-unavailable,
+.state-disabled {
+  border-color: #4d5968;
+  background: #1a202b;
+  color: #aeb9c6;
+}
+
 .live-status {
   display: flex;
   width: fit-content;
@@ -3194,6 +3216,281 @@ code {
   border-color: #52622d;
   background: var(--accent-dark);
   color: var(--accent);
+}
+
+.allocation-view-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+  padding: 0.35rem;
+}
+
+.allocation-view-tabs a {
+  display: grid;
+  min-width: 11rem;
+  gap: 0.12rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: var(--muted-strong);
+  padding: 0.65rem 0.85rem;
+  text-decoration: none;
+}
+
+.allocation-view-tabs a:hover,
+.allocation-view-tabs a.active {
+  border-color: #52622d;
+  background: var(--accent-dark);
+  color: var(--text);
+}
+
+.allocation-view-tabs a.active {
+  box-shadow: inset 0 -2px var(--accent);
+}
+
+.allocation-view-tabs strong {
+  font-size: 0.82rem;
+}
+
+.allocation-view-tabs small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.performance-heading {
+  align-items: flex-start;
+}
+
+.performance-observed-at {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.performance-card-grid,
+.performance-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.performance-metric-card,
+.performance-chart-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: #0c1016aa;
+  padding: 1rem;
+}
+
+.performance-metric-card > header,
+.performance-chart-heading,
+.allocation-resource-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.performance-metric-card h4,
+.performance-chart-card h4 {
+  margin: 0;
+}
+
+.performance-metric-card > small,
+.performance-chart-card > small,
+.allocation-resource-card > small {
+  display: block;
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+.performance-metrics-grid,
+.allocation-resource-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.performance-metrics-grid dd,
+.allocation-resource-metrics dd {
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.performance-history {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1.25rem;
+}
+
+.performance-range-control,
+.allocation-history-filter label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.performance-range-control select,
+.allocation-history-filter input {
+  min-width: 12rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  outline: none;
+  background: #080b0f;
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.performance-range-control select:focus,
+.allocation-history-filter input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #d8ff7222;
+}
+
+.performance-chart-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.performance-chart-heading strong {
+  color: var(--accent);
+  font-size: 1.1rem;
+}
+
+.performance-chart {
+  width: 100%;
+  min-height: 10rem;
+  overflow: visible;
+}
+
+.performance-chart text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.performance-chart-axis {
+  stroke: #4d5968;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.performance-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.performance-chart-point {
+  fill: #d8ff72;
+  stroke: #111821;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.performance-chart-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.performance-chart-summary > div {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 0.55rem;
+}
+
+.performance-chart-summary dt {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.performance-chart-summary dd {
+  overflow-wrap: anywhere;
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+}
+
+.completed-allocation-panel {
+  margin: 0;
+}
+
+.allocation-history-filter {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+
+.allocation-resource-list {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.allocation-resource-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: #0c1016aa;
+  padding: 1rem;
+}
+
+.allocation-resource-card > header > div,
+.allocation-resource-card > header > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.allocation-resource-card > header code {
+  overflow: hidden;
+  max-width: 28rem;
+  text-overflow: ellipsis;
+}
+
+.allocation-resource-identity {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0 0;
+}
+
+.allocation-resource-identity dt {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.allocation-resource-identity dd {
+  overflow-wrap: anywhere;
+  margin: 0.2rem 0 0;
+  font-size: 0.76rem;
+}
+
+.allocation-resource-note {
+  margin: 0.8rem 0 0;
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+}
+
+.run-attempt-resources {
+  grid-column: 1 / -1;
 }
 
 .operations-overview-grid {
@@ -4680,7 +4977,10 @@ code {
   .runtime-provenance-grid,
   .runtime-label-options,
   .runtime-binding-card,
-  .runtime-secret-row {
+  .runtime-secret-row,
+  .performance-card-grid,
+  .performance-chart-grid,
+  .allocation-resource-identity {
     grid-template-columns: 1fr;
   }
 
@@ -4691,7 +4991,8 @@ code {
   }
 
   .allocation-card > summary,
-  .allocation-card > summary > span {
+  .allocation-card > summary > span,
+  .allocation-resource-card > header {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -4726,6 +5027,12 @@ code {
     background: color-mix(in srgb, var(--background) 94%, transparent);
     padding: 0.6rem 0.25rem;
     backdrop-filter: blur(0.8rem);
+  }
+
+  .performance-metrics-grid,
+  .allocation-resource-metrics,
+  .performance-chart-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -5120,6 +5427,16 @@ code {
     min-height: 2.5rem;
     display: inline-flex;
     align-items: center;
+  }
+
+  .allocation-view-tabs {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .allocation-view-tabs a {
+    min-width: 0;
   }
 }
 

@@ -294,6 +294,23 @@ export const queryKeys = {
   operations: {
     all: ["operations"] as const,
     snapshot: ["operations", "snapshot"] as const,
+    performance: {
+      all: ["operations", "performance"] as const,
+      current: ["operations", "performance", "current"] as const,
+      history: (range: string) =>
+        ["operations", "performance", "history", range] as const,
+    },
+    allocationHistory: {
+      all: ["operations", "allocation-history"] as const,
+      list: (runId?: string, cursor?: string) =>
+        [
+          "operations",
+          "allocation-history",
+          "list",
+          runId ?? null,
+          cursor ?? null,
+        ] as const,
+    },
     schedulerSettings: ["operations", "scheduler-settings"] as const,
     runtimeConfigs: {
       all: ["operations", "runtime-configs"] as const,

@@ -19,6 +19,8 @@ const CLIENT_ROUTES = new Set([
   "/catalog/agents",
   "/catalog/skills",
   "/operations",
+  "/operations/performance",
+  "/operations/allocations/completed",
 ]);
 const CLIENT_ROUTE_PATTERNS = [
   /^\/catalog\/(?:workflows|agents)\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/,

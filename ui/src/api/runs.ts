@@ -12,6 +12,7 @@ import {
 import type { PublicAPI } from "./client";
 import { PublicAPIError, publicAPIError } from "./error";
 import type { components } from "./generated/public";
+import { safeAllocationResourceSummary } from "./performance";
 import {
   safeRunRuntimeConfiguration,
   safeStageRuntimeConfiguration,
@@ -213,6 +214,33 @@ export async function getRun(
   ) {
     throw invalidRunResponse(result.response.status);
   }
+  const attempts = run.attempts.map((attempt) => {
+    const resources = (attempt.resources ?? []).map((resource) =>
+      safeAllocationResourceSummary(resource, result.response.status),
+    );
+    if (
+      resources.some(
+        (resource) =>
+          resource.runId !== run.runId ||
+          resource.stageExecutionId !== attempt.stageExecutionId ||
+          resource.stage !== attempt.stage ||
+          resource.outcome !== attempt.state,
+      )
+    ) {
+      throw invalidRunResponse(result.response.status);
+    }
+    return {
+      ...attempt,
+      ...(attempt.resources === undefined ? {} : { resources }),
+      ...(attempt.runtimeConfiguration === undefined
+        ? {}
+        : {
+            runtimeConfiguration: safeStageRuntimeConfiguration(
+              attempt.runtimeConfiguration,
+            ),
+          }),
+    };
+  });
   return {
     runId: run.runId,
     ...(run.projectId === undefined ? {} : { projectId: run.projectId }),
@@ -231,16 +259,7 @@ export async function getRun(
       : { cancellation: run.cancellation }),
     ...(run.parameters === undefined ? {} : { parameters: run.parameters }),
     ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
-    attempts: run.attempts.map((attempt) => ({
-      ...attempt,
-      ...(attempt.runtimeConfiguration === undefined
-        ? {}
-        : {
-            runtimeConfiguration: safeStageRuntimeConfiguration(
-              attempt.runtimeConfiguration,
-            ),
-          }),
-    })),
+    attempts,
     transitions: [...run.transitions],
     outputs: { ...run.outputs },
     outputPublications: (run.outputPublications ?? []).map((publication) => ({

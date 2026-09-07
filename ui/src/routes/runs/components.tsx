@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import type { components } from "../../api/generated/public";
+import { AllocationResourceList } from "../operations/performance/resources";
 import type {
   StageAttempt,
   StageTransition,
@@ -339,6 +340,22 @@ function MetricsView({ metrics }: { metrics: Metrics }) {
   );
 }
 
+function ResourceView({ attempt }: { attempt: StageAttempt }) {
+  if (attempt.resources === undefined || attempt.resources.length === 0) {
+    return null;
+  }
+  return (
+    <div className="attempt-block run-attempt-resources">
+      <h4>Allocation resource observations</h4>
+      <p className="compact-copy">
+        These terminal summaries use the allocation-pinned collection policy;
+        missing measurements are not zero usage.
+      </p>
+      <AllocationResourceList items={attempt.resources} showRunLink={false} />
+    </div>
+  );
+}
+
 function DiagnosticsView({ diagnostics }: { diagnostics: Diagnostics }) {
   return (
     <div className="attempt-block">
@@ -533,6 +550,7 @@ export function StageAttemptView({
         {attempt.metrics === undefined ? null : (
           <MetricsView metrics={attempt.metrics} />
         )}
+        <ResourceView attempt={attempt} />
         {attempt.diagnostics === undefined ? null : (
           <DiagnosticsView diagnostics={attempt.diagnostics} />
         )}

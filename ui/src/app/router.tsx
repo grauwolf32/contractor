@@ -33,10 +33,12 @@ import {
 import { AgentListRoute } from "../routes/catalog/agents";
 import { AgentDetailRoute } from "../routes/catalog/agent-detail";
 import { AllocationListRoute } from "../routes/operations/allocations";
+import { CompletedAllocationListRoute } from "../routes/operations/allocations/completed";
 import { CredentialDetailRoute } from "../routes/operations/credentials/detail";
 import { CredentialListRoute } from "../routes/operations/credentials";
 import { OperationsLayoutRoute } from "../routes/operations/layout";
 import { OperationsOverviewRoute } from "../routes/operations/overview";
+import { OperationsPerformanceRoute } from "../routes/operations/performance";
 import { ConfigurationDetailRoute } from "../routes/operations/llm-configurations/detail";
 import { ConfigurationListRoute } from "../routes/operations/llm-configurations";
 import { RuntimeAgentListRoute } from "../routes/operations/runtime-agents";
@@ -173,6 +175,14 @@ export function applicationRoutes(): RouteObject[] {
                 {
                   path: "allocations",
                   element: <AllocationListRoute />,
+                },
+                {
+                  path: "allocations/completed",
+                  element: <CompletedAllocationListRoute />,
+                },
+                {
+                  path: "performance",
+                  element: <OperationsPerformanceRoute />,
                 },
                 {
                   path: "configurations",

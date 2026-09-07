@@ -1215,6 +1215,32 @@ describe("Run routes", () => {
             errorCount: 1,
             truncated: false,
           },
+          resources: [
+            {
+              allocationId: "allocation-reviewer-2",
+              runId: "run-router",
+              stageExecutionId: "stage-router-2",
+              stage: "analysis",
+              logicalAgent: "reviewer",
+              outcome: "succeeded",
+              finishedAt: "2026-08-31T12:05:00Z",
+              collectionPolicy: "requested",
+              status: "available",
+              resources: {
+                version: 1,
+                scope: "runtime_process",
+                status: "complete",
+                durationSeconds: 120,
+                cpuUserSeconds: 18,
+                cpuSystemSeconds: 6,
+                rssStartBytes: 201_326_592,
+                rssEndBytes: 234_881_024,
+                rssPeakObservedBytes: 268_435_456,
+                rssSampleCount: 9,
+                maxSampleGapSeconds: 15,
+              },
+            },
+          ],
           diagnostics: {
             items: [
               {
@@ -1328,6 +1354,13 @@ describe("Run routes", () => {
     expect(screen.getByText("strong-review@2")).toBeInTheDocument();
     expect(screen.getByText("Model calls")).toBeInTheDocument();
     expect(screen.getByText("1600")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Allocation resource observations" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("256.0 MiB")).toBeInTheDocument();
+    expect(
+      screen.getByText("Runtime process scope · complete"),
+    ).toBeInTheDocument();
     expect(
       screen.getAllByRole("heading", { name: "Attempt diagnostics" }),
     ).toHaveLength(2);
