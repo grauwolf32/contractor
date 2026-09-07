@@ -3,7 +3,7 @@ id: V48-001
 title: "Reconcile Memory writes after ambiguous Artifact HTTP failures"
 milestone: shared-memory-production-correctness
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V9-007]
 languages: [python, go]
@@ -69,3 +69,8 @@ tests:
     covers: [A2, A3]
   - command: "make test-shared-memory-matrix"
     covers: [A1, A2, A3]
+
+verification:
+  - "72 Python tests passed with warnings treated as errors."
+  - "Go race suites passed for Memory, private Artifact handlers and Artifact persistence against disposable PostgreSQL 17, including lost database acknowledgement."
+  - "make test-shared-memory-matrix passed with separate HTTP-ambiguity and handler-acknowledgement cases."

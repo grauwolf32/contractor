@@ -276,10 +276,13 @@ class _MemorySession:
         except ArtifactAPIError as error:
             if error.code == "artifact_conflict":
                 raise MemoryToolError("memory_changed", retryable=True) from None
-            raise _mapped_client_error(error) from None
+            mapped = _mapped_client_error(error)
+            if mapped.code == "memory_forbidden" or not 500 <= error.status_code < 600:
+                raise mapped from None
 
-        # Only transport uncertainty authorizes one exact replay. The same
-        # immutable bytes and the same precondition are deliberately reused.
+        # Transport loss and server failures may follow a committed PUT (for
+        # example, a lost database acknowledgement mapped to HTTP 500). Replay
+        # only the same immutable bytes with the same precondition, once.
         try:
             return await self._client.write_artifact(
                 target,

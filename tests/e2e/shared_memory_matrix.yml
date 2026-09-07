@@ -70,6 +70,16 @@ cases:
     faults: [F02]
     expected: PostgreSQL commit ambiguity replays one byte-identical mutation without a Memory replay store.
     test: {source: internal/memory/postgres_integration_test.go, symbol: TestPostgresPlannerMemoryCommitAmbiguityReplaysExactMutation}
+  - id: worker_http_commit_ambiguity
+    category: concurrency
+    faults: [F16]
+    expected: HTTP 5xx before or after commit replays identical bytes and CAS once for create replace and append.
+    test: {source: runtime/tests/test_memory_toolset.py, symbol: test_production_artifact_client_http_commit_ambiguity}
+  - id: artifact_http_acknowledgement_failure
+    category: concurrency
+    faults: [F17]
+    expected: A repository acknowledgement error becomes bounded HTTP 500 even when its write committed and exact CAS replay cannot duplicate it.
+    test: {source: internal/httpapi/privateartifacts/write_ambiguity_test.go, symbol: TestPrivateArtifactCommittedWriteCanReturnHTTP500}
   - id: same_binding_interference
     category: concurrency
     faults: [F03]

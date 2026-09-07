@@ -226,6 +226,19 @@ def test_response_loss_append_is_not_applied_twice() -> None:
 @pytest.mark.parametrize("fault", ["before", "after"])
 @pytest.mark.parametrize("mutation", ["create", "replace", "append"])
 def test_production_artifact_client_response_loss_matrix(mutation: str, fault: str) -> None:
+    _assert_production_response_loss(mutation, fault)
+
+
+@pytest.mark.parametrize("status", [500, 502, 503, 504])
+@pytest.mark.parametrize("boundary", ["before", "after"])
+@pytest.mark.parametrize("mutation", ["create", "replace", "append"])
+def test_production_artifact_client_http_commit_ambiguity(
+    mutation: str, boundary: str, status: int
+) -> None:
+    _assert_production_response_loss(mutation, f"http_{status}_{boundary}")
+
+
+def _assert_production_response_loss(mutation: str, fault: str) -> None:
     async def scenario() -> None:
         backend = FakeArtifactClient()
         transport = FaultingArtifactTransport(backend)
@@ -298,7 +311,7 @@ def test_stale_cas_and_newer_value_after_lost_response_return_memory_changed() -
 
 @pytest.mark.parametrize(
     ("fault", "expected_attempts"),
-    [("advance_before", 1), ("after_advance", 2)],
+    [("advance_before", 1), ("after_advance", 2), ("http_500_after_advance", 2)],
 )
 def test_production_artifact_client_changed_binding_is_never_overwritten(
     fault: str, expected_attempts: int
@@ -326,6 +339,86 @@ def test_production_artifact_client_changed_binding_is_never_overwritten(
             assert attempts[0] == attempts[1]
         assert backend.decoded_content("builder", "memory.shared") == "external winner"
         assert backend.semantic_writes == (2 if fault == "advance_before" else 3)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("read_error", "expected_code"),
+    [
+        (ArtifactAPIError(403, "artifact_access_denied", False), "memory_forbidden"),
+        (ArtifactTransportError("unavailable"), "memory_unavailable"),
+        (asyncio.CancelledError(), None),
+    ],
+)
+def test_http_ambiguity_preserves_reconciliation_authority_and_cancellation(
+    read_error: BaseException, expected_code: str | None
+) -> None:
+    async def scenario() -> None:
+        backend = FakeArtifactClient()
+
+        class LostAckTransport(FaultingArtifactTransport):
+            async def request(self, *args, **kwargs):
+                response = await super().request(*args, **kwargs)
+                if response.status_code == 500:
+                    backend.read_error = read_error
+                return response
+
+        transport = LostAckTransport(backend)
+        client = ArtifactClient("allocation-1", transport)
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda *_: client),
+            WorkerState(),
+            ["write_memory", "append_memory"],
+        )
+        await tools["write_memory"]("shared", "base")
+        transport.write_faults.append("http_500_after")
+        if expected_code is None:
+            with pytest.raises(asyncio.CancelledError):
+                await tools["append_memory"]("shared", "fragment")
+        else:
+            with pytest.raises(MemoryToolError) as failure:
+                await tools["append_memory"]("shared", "fragment")
+            assert failure.value.code == expected_code
+        assert len(transport.put_attempts) == 3  # seed, uncertain append, exact replay
+        assert transport.put_attempts[-1] == transport.put_attempts[-2]
+        assert backend.decoded_content("builder", "memory.shared") == "base\nfragment"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "expected"),
+    [
+        (403, "artifact_access_denied", "memory_forbidden"),
+        (503, "allocation_write_fenced", "memory_forbidden"),
+        (409, "artifact_conflict", "memory_changed"),
+        (400, "invalid_request", "memory_unavailable"),
+    ],
+)
+def test_http_rejections_do_not_replay(status: int, code: str, expected: str) -> None:
+    async def scenario() -> None:
+        backend = FakeArtifactClient()
+
+        class RejectedTransport(FaultingArtifactTransport):
+            async def request(self, method, path, **kwargs):
+                if method == "PUT":
+                    self.put_attempts.append(
+                        ArtifactRequestAttempt(path, dict(kwargs["headers"]), kwargs["body"])
+                    )
+                    return self._error_response(ArtifactAPIError(status, code, True))
+                return await super().request(method, path, **kwargs)
+
+        transport = RejectedTransport(backend)
+        client = ArtifactClient("allocation-1", transport)
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda *_: client), WorkerState(), ["write_memory"]
+        )
+        with pytest.raises(MemoryToolError) as failure:
+            await tools["write_memory"]("shared", "body")
+        assert failure.value.code == expected
+        assert len(transport.put_attempts) == 1
+        assert backend.semantic_writes == 0
 
     asyncio.run(scenario())
 
@@ -797,7 +890,13 @@ class FaultingArtifactTransport:
         attempt = ArtifactRequestAttempt(path, dict(headers), body)
         self.put_attempts.append(attempt)
         fault = self.write_faults.pop(0) if self.write_faults else ""
+        http_status = 0
+        if fault.startswith("http_"):
+            _, status, fault = fault.split("_", 2)
+            http_status = int(status)
         if fault == "before":
+            if http_status:
+                return self._error_response(ArtifactAPIError(http_status, "internal_error", True))
             raise ArtifactTransportError("synthetic PUT response loss before commit")
         if fault == "advance_before":
             self.backend._advance(target.namespace, target.name)
@@ -815,6 +914,8 @@ class FaultingArtifactTransport:
             return self._error_response(error)
         if fault == "after_advance":
             self.backend._advance(target.namespace, target.name)
+        if http_status and fault in {"after", "after_advance"}:
+            return self._error_response(ArtifactAPIError(http_status, "internal_error", True))
         if fault == "after":
             raise ArtifactTransportError("synthetic PUT response loss after commit")
         if fault == "after_advance":

@@ -306,6 +306,11 @@ The model does not resolve the conflict with a revision. It calls a read/list
 operation and decides whether to retry the semantic mutation.
 
 The existing Artifact CAS response-loss rule is also sufficient for append.
+An Artifact PUT transport failure or HTTP 5xx does not prove rollback: a
+database acknowledgement can be lost after commit and become `internal_error`
+in the HTTP response. Worker recovery treats such server failures as ambiguous
+unless the response explicitly reports an authority/fence rejection or CAS
+conflict. Non-5xx API rejections retain their normal error mapping.
 After reading revision `r`, the wrapper computes one canonical next payload and
 retries only those same bytes with the same `If-Match: r`; it never re-reads and
 blindly appends the fragment again. If the retry conflicts, it reads current:
