@@ -3,8 +3,8 @@ id: V39-002
 title: "Pin Audit completion authority through Run creation and Runtime placement"
 milestone: audit-worker-completion
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: ad8d4e6eab5e2901cd10599a61fe9ac8be4b3df2
 depends_on: ["V39-001"]
 languages: ["go"]
 
