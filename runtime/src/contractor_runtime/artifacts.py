@@ -26,6 +26,7 @@ from contractor_runtime.mtls import verify_control_plane_peer
 
 MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
+MAX_BINDING_LIST_LIMIT = 256
 MAX_RESPONSE_HEADERS = 64
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -213,11 +214,24 @@ class ArtifactClient:
 
         self._observed_exact_refs.clear()
 
-    async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
+    async def list_artifacts(
+        self,
+        namespace: str | None = None,
+        *,
+        name_prefix: str | None = None,
+        limit: int | None = None,
+    ) -> list[ArtifactRef]:
         path = self._root
         if namespace is not None:
             _validate_component("namespace", namespace)
             path += f"?namespace={quote(namespace, safe='')}"
+        if name_prefix is not None or limit is not None:
+            if namespace is None or type(name_prefix) is not str:
+                raise ValueError("filtered artifact list requires namespace, name_prefix and limit")
+            _validate_component("name prefix", name_prefix)
+            if type(limit) is not int or not 1 <= limit <= MAX_BINDING_LIST_LIMIT:
+                raise ValueError("artifact list limit is invalid")
+            path += f"&namePrefix={quote(name_prefix, safe='')}&limit={limit}"
         response = await self._transport.request(
             "GET",
             path,
@@ -233,6 +247,16 @@ class ArtifactClient:
             raise ArtifactTransportError(
                 "Artifact API returned an invalid list response"
             ) from error
+        if name_prefix is not None and (
+            len(result.artifacts) > limit
+            or any(
+                ref.namespace != namespace
+                or not ref.name.startswith(name_prefix)
+                or ref.revision is not None
+                for ref in result.artifacts
+            )
+        ):
+            raise ArtifactTransportError("Artifact API returned an invalid filtered list")
         return result.artifacts
 
     async def read_artifact(

@@ -168,6 +168,18 @@ writes return the same exact revision in both `ETag` and the versioned
 `ArtifactWriteResult`. The allocation ID is the only authority-bearing path
 value: neither URL nor body accepts a Run or User scope selector.
 
+`GET /private/v1/allocations/{allocationID}/artifacts` preserves its existing
+unfiltered listing and optional `namespace` query. Trusted adapters may instead
+supply all three `namespace`, `namePrefix` and `limit` parameters. This form
+requires non-empty portable ASCII namespace/prefix components and an integer
+limit in `1..256`, applies a literal case-sensitive name prefix in storage, and
+returns at most `limit` versionless refs ordered by name. Underscores are literal,
+not SQL wildcards. Missing paired parameters, duplicates and invalid values are
+rejected. This is a bounded query, not an assertion that the result is complete:
+quota-aware callers request one extra row to detect overflow. Run system
+namespaces remain hidden. The filtering does not add a scope selector or change
+the unfiltered client contract.
+
 Tool selection and Artifact authorization are independent checks. Selecting
 `write_artifact` only constructs and exposes that model tool; it never broadens
 the Server-side allocation grant. A grant likewise does not cause an
@@ -254,6 +266,7 @@ async def write_artifact(
 
 async def list_artifacts(
     namespace: NamespaceId | None = None,
+    *, name_prefix: str | None = None, limit: int | None = None,
 ) -> list[ArtifactRef]: ...
 ```
 

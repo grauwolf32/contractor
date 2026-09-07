@@ -3,7 +3,7 @@ id: V48-002
 title: "Keep Memory enumeration independent of ordinary Artifact count"
 milestone: shared-memory-production-correctness
 priority: P2
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V9-007]
 languages: [go, python, yaml]
@@ -69,3 +69,8 @@ tests:
     covers: [A1, A2, A3]
   - command: "make verify-wire-contracts"
     covers: [A3]
+
+verification:
+  - "176 focused Python tests passed, including 7000 ordinary bindings with 0/1/128/129 notes and the unchanged 1 MiB transport bound."
+  - "Go race suites passed against disposable PostgreSQL 17 for Memory, Artifact storage, private HTTP handlers and contracts."
+  - "verify-wire-contracts passed: Go contracts and 134 Python wire/performance contract tests."

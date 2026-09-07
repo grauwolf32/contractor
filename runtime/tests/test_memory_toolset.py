@@ -423,6 +423,47 @@ def test_http_rejections_do_not_replay(status: int, code: str, expected: str) ->
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("note_count", [0, 1, 128, 129])
+def test_memory_ignores_large_ordinary_artifact_namespace(note_count: int) -> None:
+    async def scenario() -> None:
+        backend = FakeArtifactClient()
+        for index in range(7000):
+            backend.seed_raw(
+                "builder", f"artifact_{index:06d}_" + "x" * 110, b"ordinary", "text/plain"
+            )
+        for index in range(note_count):
+            backend.seed_note("builder", f"note_{index}", "body", ordinal=index)
+        backend.seed_note("foreign", "other", "foreign body", ordinal=0)
+        client = ArtifactClient("allocation-1", FaultingArtifactTransport(backend))
+        tools = await create_tools(
+            MemoryToolsetFactory(lambda *_: client),
+            WorkerState(),
+            ["list_memories", "search_memory", "list_memory_tags", "write_memory"],
+        )
+        # The old path really exceeds the unchanged byte limit in this fixture.
+        with pytest.raises(ArtifactTransportError):
+            await client.list_artifacts("builder")
+        if note_count > MAXIMUM_NOTES:
+            with pytest.raises(MemoryToolError) as corrupt:
+                await tools["list_memories"]()
+            assert corrupt.value.code == "memory_unavailable"
+            return
+        assert len(await tools["list_memories"]()) == note_count
+        assert await tools["search_memory"](["absent"]) == []
+        assert await tools["list_memory_tags"]() == []
+        if note_count == MAXIMUM_NOTES:
+            with pytest.raises(MemoryToolError) as full:
+                await tools["write_memory"]("new_note", "body")
+            assert full.value.code == "memory_namespace_full"
+            updated = await tools["write_memory"]("note_0", "changed")
+            assert updated["ordinal"] == 0
+        else:
+            created = await tools["write_memory"]("new_note", "body")
+            assert created["ordinal"] == note_count
+
+    asyncio.run(scenario())
+
+
 def test_namespace_quota_rejects_new_note_but_allows_existing_update() -> None:
     async def scenario() -> None:
         client = FakeArtifactClient()
@@ -840,7 +881,6 @@ class FaultingArtifactTransport:
         body: bytes,
         max_response_bytes: int,
     ) -> ArtifactHTTPResponse:
-        del max_response_bytes
         parsed = urlsplit(path)
         parts = [unquote(part) for part in parsed.path.strip("/").split("/")]
         if len(parts) < 3 or parts[:1] != ["allocations"] or parts[2] != "artifacts":
@@ -848,8 +888,12 @@ class FaultingArtifactTransport:
         if method == "GET" and len(parts) == 3:
             query = parse_qs(parsed.query, keep_blank_values=True)
             namespace = query.get("namespace", [None])[0]
-            refs = await self.backend.list_artifacts(namespace)
-            return self._json_response(
+            refs = await self.backend.list_artifacts(
+                namespace,
+                name_prefix=query.get("namePrefix", [None])[0],
+                limit=int(query["limit"][0]) if "limit" in query else None,
+            )
+            response = self._json_response(
                 200,
                 {
                     "apiVersion": API_VERSION,
@@ -859,6 +903,9 @@ class FaultingArtifactTransport:
                     ],
                 },
             )
+            if len(response.body) > max_response_bytes:
+                raise ArtifactTransportError("Artifact list response exceeds the byte limit")
+            return response
         if len(parts) != 5:
             raise AssertionError(f"unexpected Artifact path {path!r}")
         target = ArtifactRef(namespace=parts[3], name=parts[4])
@@ -1000,15 +1047,22 @@ class FakeArtifactClient:
         finally:
             self.active_operations -= 1
 
-    async def list_artifacts(self, namespace: str | None = None) -> list[ArtifactRef]:
+    async def list_artifacts(
+        self,
+        namespace: str | None = None,
+        *,
+        name_prefix: str | None = None,
+        limit: int | None = None,
+    ) -> list[ArtifactRef]:
         async with self._operation():
             if self.list_error is not None:
                 raise self.list_error
             return [
                 ArtifactRef(namespace=item_namespace, name=name)
                 for item_namespace, name in sorted(self._bindings)
-                if namespace is None or item_namespace == namespace
-            ]
+                if (namespace is None or item_namespace == namespace)
+                and (name_prefix is None or name.startswith(name_prefix))
+            ][:limit]
 
     async def read_artifact(self, ref: ArtifactRef) -> ArtifactValue:
         async with self._operation():

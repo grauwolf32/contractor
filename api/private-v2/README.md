@@ -33,3 +33,12 @@ are not copied into model-visible context or serialized as raw input.
 The startup switches are contracts only in V32-001. Collectors, allocation
 sampling and the separate profiling listener are implemented by later tasks;
 the three public performance routes remain `planned` until V32-005.
+
+The existing private Artifact listing path (still under `/private/v1`) also
+accepts the paired `namePrefix` and `limit` query parameters when `namespace`
+is supplied. Prefixes use the portable Artifact-name alphabet and literal,
+case-sensitive matching; `limit` is an integer from 1 through 256. The response
+is the unchanged versionless `ArtifactListResult`, capped at that limit. A
+caller detecting quota overflow must request one extra row. Omitting both
+parameters preserves the old listing. See spec 03 for the complete contract.
+Server support must be installed before a Runtime uses the filtered query.

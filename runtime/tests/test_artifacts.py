@@ -103,6 +103,59 @@ def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:
     asyncio.run(scenario())
 
 
+def test_filtered_list_validates_query_and_response_without_widening_scope() -> None:
+    async def scenario() -> None:
+        transport = FakeTransport(
+            [
+                json_response(
+                    200,
+                    {
+                        "apiVersion": "contractor/v1alpha1",
+                        "artifacts": [{"namespace": "builder", "name": "memory.one"}],
+                    },
+                )
+            ]
+        )
+        client = ArtifactClient("allocation-1", transport)
+        refs = await client.list_artifacts("builder", name_prefix="memory.", limit=129)
+        assert len(refs) == 1 and refs[0].revision is None
+        assert transport.requests[0].path.endswith(
+            "?namespace=builder&namePrefix=memory.&limit=129"
+        )
+        for kwargs in (
+            {"name_prefix": "memory.", "limit": 129},
+            {"namespace": "builder", "name_prefix": "memory."},
+            {"namespace": "builder", "limit": 129},
+            {"namespace": "builder", "name_prefix": "memory%", "limit": 129},
+            {"namespace": "builder", "name_prefix": "memory.", "limit": 0},
+            {"namespace": "builder", "name_prefix": "memory.", "limit": 257},
+            {"namespace": "builder", "name_prefix": "memory.", "limit": True},
+        ):
+            with pytest.raises(ValueError):
+                await client.list_artifacts(**kwargs)
+        assert len(transport.requests) == 1
+        for invalid in (
+            [{"namespace": "foreign", "name": "memory.one"}],
+            [{"namespace": "builder", "name": "ordinary"}],
+            [{"namespace": "builder", "name": "memory.one", "revision": "hidden"}],
+            [{"namespace": "builder", "name": f"memory.n{i}"} for i in range(130)],
+        ):
+            malformed = ArtifactClient(
+                "allocation-1",
+                FakeTransport(
+                    [
+                        json_response(
+                            200, {"apiVersion": "contractor/v1alpha1", "artifacts": invalid}
+                        )
+                    ]
+                ),
+            )
+            with pytest.raises(ArtifactTransportError):
+                await malformed.list_artifacts("builder", name_prefix="memory.", limit=129)
+
+    asyncio.run(scenario())
+
+
 def test_exact_read_and_cas_update_use_unambiguous_revision_channels() -> None:
     async def scenario() -> None:
         transport = FakeTransport(

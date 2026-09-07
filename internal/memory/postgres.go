@@ -47,8 +47,7 @@ func (s *PostgresStore) List(
 		if err != nil {
 			return nil, err
 		}
-		namespace := binding.Namespace
-		return store.List(ctx, &namespace)
+		return store.ListPrefix(ctx, binding.Namespace, ArtifactNamePrefix, MaximumNotes+1)
 	})
 }
 

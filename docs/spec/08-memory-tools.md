@@ -204,6 +204,13 @@ returns `memory_namespace_full`. Existing notes remain readable, replaceable
 and appendable at the limit. MemoryTools never evicts an older note to make
 room.
 
+Both adapters enumerate only the literal `memory.` name prefix through the
+existing Artifact Store/API, with a limit of 129 bindings. This detects quota
+corruption without fetching unrelated artifacts from the same namespace or
+exceeding the private list response limit. A result of 129 notes is rejected,
+never treated as a complete valid notebook. Unfiltered generic listing retains
+its existing contract.
+
 The wrapper owns ordinals. Under the no-delete serialized `v1` contract, the
 current Namespace therefore contains each ordinal in `0..count-1` exactly
 once. A duplicate, gap or otherwise impossible current ordinal set is corrupt
