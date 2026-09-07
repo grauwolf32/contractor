@@ -28,7 +28,7 @@ import (
 
 const (
 	maxPlannerPendingSpans   = 2048
-	maxPlannerPendingBytes   = 2 * 1024 * 1024
+	maxPlannerPendingBytes   = 64 * 1024 * 1024
 	maxPlannerResponseBytes  = 64 * 1024
 	maxPlannerAttributeBytes = 256
 	maxPlannerResourceValues = 65

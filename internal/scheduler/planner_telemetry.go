@@ -180,7 +180,10 @@ func (s *Scheduler) flushPlannerTelemetry(
 	}
 	result := telemetry.PlannerExportResult{Attempted: true, ErrorCode: "flush_timeout"}
 	if bound > 0 {
-		flushContext, cancel := context.WithTimeout(ctx, bound)
+		// A cancelled run still needs its terminal diagnostic spans exported.
+		// Detach cancellation only for this best-effort request; the explicit
+		// flush, finalization and stage-deadline bounds above remain in force.
+		flushContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), bound)
 		result = normalizePlannerExportResult(instance.Flush(flushContext))
 		cancel()
 	}

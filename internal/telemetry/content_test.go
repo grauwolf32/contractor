@@ -65,6 +65,47 @@ func TestPlannerTrustedContentOptIn(t *testing.T) {
 	}
 }
 
+func TestPlannerContentQueueRetainsLateSpansBeyondTwoMiB(t *testing.T) {
+	var payload []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		payload, _ = io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	registry, _ := NewBuiltinPlannerAdapterRegistry()
+	adapter, err := registry.Create(PlannerAdapterOTLPHTTP, PlannerAdapterSettings{
+		Endpoint: server.URL, FlushTimeout: time.Second, CaptureContent: true,
+		RunMetadataLabels: contracts.RunMetadataLabels{},
+		Resource:          PlannerResource{RunID: "run-test", StageExecutionID: "stage-test", PlannerRef: "streamline@1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+	for range 16 {
+		span := adapter.Instrumentation().StartSpan(PlannerSpanModel, PlannerSpanAttributes{ModelAlias: "test-model"})
+		CapturePlannerInput(span, func() any { return strings.Repeat("x", 192*1024) })
+		span.End("succeeded", PlannerSpanAttributes{})
+	}
+	last := adapter.Instrumentation().StartSpan(PlannerSpanFinish, PlannerSpanAttributes{})
+	CapturePlannerOutput(last, func() any { return "late-finish-canary" })
+	last.End("succeeded", PlannerSpanAttributes{})
+	if result := adapter.Flush(t.Context()); !result.Succeeded {
+		t.Fatalf("flush: %+v", result)
+	}
+	if len(payload) <= 2*1024*1024 || len(payload) > maxPlannerPendingBytes {
+		t.Fatalf("unexpected payload size: %d", len(payload))
+	}
+	var decoded collectortracev1.ExportTraceServiceRequest
+	if err := proto.Unmarshal(payload, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	spans := decoded.ResourceSpans[0].ScopeSpans[0].Spans
+	if len(spans) != 17 || !strings.Contains(string(payload), "late-finish-canary") {
+		t.Fatal("late span dropped from content-heavy trace")
+	}
+}
+
 func TestPlannerOTLPJSONAndPartialAcknowledgements(t *testing.T) {
 	for _, tc := range []struct {
 		body string

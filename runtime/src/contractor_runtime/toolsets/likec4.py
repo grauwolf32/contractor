@@ -799,8 +799,15 @@ def _bounded_cli_text(value: str) -> str:
     encoded = value.encode("utf-8")
     if len(encoded) <= MAX_DIAGNOSTIC_TEXT_BYTES:
         return value
-    visible = encoded[:MAX_DIAGNOSTIC_TEXT_BYTES].decode("utf-8", errors="ignore")
-    return visible + "[TRUNCATED]"
+    # Parser messages can list hundreds of expected alternatives before the
+    # actual offending token. Keep that actionable suffix as well as the title.
+    marker = "\n[TRUNCATED]\n"
+    available = MAX_DIAGNOSTIC_TEXT_BYTES - len(marker.encode("utf-8"))
+    head_bytes = available // 2
+    tail_bytes = available - head_bytes
+    head = encoded[:head_bytes].decode("utf-8", errors="ignore")
+    tail = encoded[-tail_bytes:].decode("utf-8", errors="ignore")
+    return head + marker + tail
 
 
 def _validation_failure(available: bool, message: str) -> dict[str, Any]:

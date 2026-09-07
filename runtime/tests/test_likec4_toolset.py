@@ -377,6 +377,50 @@ def test_validation_accepts_banner_current_and_legacy_json_and_normalizes_paths(
     assert not list(tmp_path.glob(".likec4-validate-*"))
 
 
+@pytest.mark.parametrize("character", ["x", "я", "😀"])
+def test_bounded_cli_text_keeps_actionable_suffix_within_utf8_limit(character: str) -> None:
+    limit = likec4_module.MAX_DIAGNOSTIC_TEXT_BYTES
+    short = "Expected an element, found `description`."
+    assert likec4_module._bounded_cli_text(short) == short
+    exact = "x" * limit
+    assert likec4_module._bounded_cli_text(exact) == exact
+    message = "Expecting one of:\n" + character * limit + "\nbut found: `description`"
+    bounded = likec4_module._bounded_cli_text(message)
+    assert bounded.startswith("Expecting one of:\n")
+    assert bounded.endswith("but found: `description`")
+    assert "[TRUNCATED]" in bounded
+    assert len(bounded.encode("utf-8")) <= limit
+    assert "\ufffd" not in bounded
+
+
+def test_validation_keeps_found_token_in_long_parser_diagnostic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    message = "Expecting one of:\n" + "  [IdTerminal, ->]\n" * 400 + "but found: `view`"
+    monkeypatch.setattr(likec4_module.shutil, "which", lambda _name: "/bin/likec4")
+    monkeypatch.setattr(
+        likec4_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [],
+            1,
+            json.dumps(
+                {
+                    "valid": False,
+                    "errors": [{"message": message, "file": "/private/tmp/main.c4", "line": 17}],
+                }
+            ).encode(),
+            b"",
+        ),
+    )
+    result = _run_likec4(BASE_DOCUMENT, tmp_path)
+    assert not result["valid"]
+    issue = result["issues"][0]
+    assert issue["message"].endswith("but found: `view`")
+    assert len(issue["message"].encode("utf-8")) <= likec4_module.MAX_DIAGNOSTIC_TEXT_BYTES
+    assert issue["line"] == 17 and issue["file"] == "main.c4"
+
+
 @pytest.mark.parametrize(
     ("result", "message"),
     [

@@ -13,7 +13,7 @@ spec:
 
   shutdownTimeout: 5s
   runtimeRequestTimeout: 30s
-  workerRequestTimeout: 180s
+  workerRequestTimeout: 300s
   plannerTimeout: 30m
 
   artifactBlobBackend: postgresql

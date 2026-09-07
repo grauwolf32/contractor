@@ -45,7 +45,7 @@ from contractor_runtime.contracts import (
 )
 
 MAX_PENDING_SPANS = 2048
-MAX_PENDING_BYTES = 2 * 1024 * 1024
+MAX_PENDING_BYTES = 64 * 1024 * 1024
 MAX_SPAN_ATTRIBUTES = 64
 MAX_STRING_ATTRIBUTE_BYTES = 256
 # One flattened RuntimeConfig chain may contain default + 32 Run + 32 Agent refs.

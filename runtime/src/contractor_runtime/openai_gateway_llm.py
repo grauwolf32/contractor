@@ -361,6 +361,8 @@ def _to_llm_response(completion: Any) -> LlmResponse:
     message = getattr(choice, "message", None)
     if message is None:
         raise _AdapterFailure("InvalidGatewayResponse")
+    finish_reason = _map_finish_reason(getattr(choice, "finish_reason", None))
+    output_limited = finish_reason == types.FinishReason.MAX_TOKENS
     parts: list[types.Part] = []
     reasoning = _reasoning_text(message)
     if reasoning:
@@ -368,7 +370,11 @@ def _to_llm_response(completion: Any) -> LlmResponse:
     text = _response_text(getattr(message, "content", None))
     if text:
         parts.append(types.Part.from_text(text=text))
-    for tool_call in getattr(message, "tool_calls", None) or []:
+    # A length-limited response is never executable, even if a partial tool
+    # call happens to parse. Keep the finish reason and usage instead of
+    # misclassifying truncated arguments as an unaccounted adapter error.
+    tool_calls = [] if output_limited else (getattr(message, "tool_calls", None) or [])
+    for tool_call in tool_calls:
         function = getattr(tool_call, "function", None)
         name = getattr(function, "name", None)
         if function is None or not name:
@@ -377,10 +383,9 @@ def _to_llm_response(completion: Any) -> LlmResponse:
         part = types.Part.from_function_call(name=name, args=arguments)
         part.function_call.id = getattr(tool_call, "id", None) or ""
         parts.append(part)
-    if not parts:
+    if not parts and not output_limited:
         raise _AdapterFailure("EmptyGatewayResponse")
 
-    finish_reason = _map_finish_reason(getattr(choice, "finish_reason", None))
     response = LlmResponse(
         model_version=getattr(completion, "model", None),
         content=types.Content(role="model", parts=parts),

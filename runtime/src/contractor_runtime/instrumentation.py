@@ -19,6 +19,7 @@ from contractor_runtime.metrics import (
     bind_tool_metric_correlation,
     reset_tool_metric_correlation,
 )
+from contractor_runtime.model_response import output_limit_reached
 from contractor_runtime.observations import (
     WorkspaceObservationReducer,
     WorkspaceObservationSource,
@@ -295,7 +296,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             capture_span_content(span, output=lambda: llm_response.content)
             self._metrics.record_model_usage(usage)
             self._require_reducer().record_model_usage(usage)
-            _end_span(span, outcome="succeeded", attributes=_usage_attributes(usage))
+            attributes = _usage_attributes(usage)
+            limited = output_limit_reached(llm_response)
+            if limited:
+                attributes["error.type"] = "OutputTokenLimitExceeded"
+            _end_span(span, outcome="failed" if limited else "succeeded", attributes=attributes)
             try:
                 budget = self._budget()
                 if budget is not None:

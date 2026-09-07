@@ -56,6 +56,7 @@ from contractor_runtime.instrumentation import (
     WorkerSummarizationRequested,
 )
 from contractor_runtime.model_client import build_gateway_client
+from contractor_runtime.model_response import output_limit_reached
 from contractor_runtime.observations import lean_workspace_summary
 from contractor_runtime.openai_gateway_llm import (
     GatewayModelError,
@@ -709,6 +710,12 @@ class AdkWorkerRuntime:
                     new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
                 ):
                     transcript.record(event)
+                    if output_limit_reached(event):
+                        return _failure(
+                            "worker_output_limit_exceeded",
+                            "Worker model response reached its output token limit",
+                            True,
+                        ), False
                     text = _candidate_text(event)
                     if text is not None:
                         candidate = text
@@ -766,6 +773,12 @@ class AdkWorkerRuntime:
                     ), False
                 finalizer_error = _result_finalizer_error(error)
                 if finalizer_error is not None:
+                    if finalizer_error.code == "output_limit_exceeded":
+                        return _failure(
+                            "worker_output_limit_exceeded",
+                            "Worker result finalizer reached its output token limit",
+                            True,
+                        ), False
                     if finalizer_error.code == "input_too_large":
                         return _failure(
                             "worker_result_too_large",

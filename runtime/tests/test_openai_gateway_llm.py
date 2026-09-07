@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -12,7 +13,11 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from contractor_runtime.model_client import GatewayClientHandle, new_gateway_client
-from contractor_runtime.openai_gateway_llm import GatewayModelError, OpenAICompatibleGatewayLlm
+from contractor_runtime.openai_gateway_llm import (
+    GatewayModelError,
+    OpenAICompatibleGatewayLlm,
+    _to_llm_response,
+)
 
 SECRET = "recognizable-openai-gateway-secret"
 
@@ -20,6 +25,36 @@ SECRET = "recognizable-openai-gateway-secret"
 class StructuredResult(BaseModel):
     result: str
     optional_note: str | None = None
+
+
+@pytest.mark.parametrize("arguments", [None, '{"path":', '{"path":"partial.txt"}'])
+def test_output_limit_retains_usage_without_executable_tool_calls(arguments: str | None) -> None:
+    calls = (
+        []
+        if arguments is None
+        else [
+            SimpleNamespace(
+                id="call-truncated",
+                function=SimpleNamespace(name="write_file", arguments=arguments),
+            )
+        ]
+    )
+    response = _to_llm_response(
+        SimpleNamespace(
+            model="worker-model",
+            choices=[
+                SimpleNamespace(
+                    finish_reason="length",
+                    message=SimpleNamespace(content=None, tool_calls=calls),
+                )
+            ],
+            usage=SimpleNamespace(prompt_tokens=12, completion_tokens=32, total_tokens=44),
+        )
+    )
+    assert response.finish_reason == types.FinishReason.MAX_TOKENS
+    assert response.error_code == "MAX_TOKENS"
+    assert response.usage_metadata.total_token_count == 44
+    assert not response.content.parts
 
 
 def test_adk_request_and_gateway_response_round_trip() -> None:

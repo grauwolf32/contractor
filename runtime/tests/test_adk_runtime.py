@@ -13,6 +13,7 @@ import pytest
 from fakes.model import json_result, scripted_model, text_result, thought_result, tool_call
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.llm_request import LlmRequest
+from google.genai import types
 
 from contractor_runtime.adapters import (
     AdapterHandles,
@@ -1020,6 +1021,54 @@ def test_adk_worker_missing_result_fails_without_an_extra_model_turn(tmp_path: P
         assert len(model.requests) == 1
         assert model.requests[0]["toolNames"] == []
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("thought_only", [False, True])
+def test_adk_worker_reports_output_limit_instead_of_accepting_partial_result(
+    tmp_path: Path, thought_only: bool
+) -> None:
+    async def scenario() -> None:
+        response = thought_result("unfinished") if thought_only else text_result("partial result")
+        response.finish_reason = types.FinishReason.MAX_TOKENS
+        response.error_code = "MAX_TOKENS"
+        response.error_message = SECRET
+        model = scripted_model([response])
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        result = await runtime.invoke(stage_request())
+        assert result.result is None
+        assert result.failure is not None
+        assert result.failure.code == "worker_output_limit_exceeded"
+        assert result.failure.retryable
+        assert len(model.requests) == 1
+        assert SECRET not in result.model_dump_json(by_alias=True)
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.total_tokens > 0
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+def test_adk_worker_reports_finalizer_output_limit(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        response = thought_result("unfinished serialization")
+        response.finish_reason = types.FinishReason.MAX_TOKENS
+        response.error_code = "MAX_TOKENS"
+        model = scripted_model([text_result("Done"), response], auto_result_finalizer=False)
+        state = WorkerState()
+        runtime = await create_runtime(tmp_path, state, {}, model)
+        result = await runtime.invoke(stage_request())
+        assert result.result is None
+        assert result.failure is not None
+        assert result.failure.code == "worker_output_limit_exceeded"
+        assert result.failure.retryable
+        assert len(model.requests) == 2
+        report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
+        assert report.metrics.model_calls == 2
+        assert report.metrics.total_tokens == 20
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
 

@@ -265,7 +265,7 @@ Transport credentials and provider error bodies are never automatically added.
 With capture enabled, content may itself contain secrets and is not filtered.
 Export uses a bounded queue whose
 overflow increments adapter failures without blocking model/tool execution.
-The first queue holds at most 2,048 span records and 2 MiB of encoded pending
+Each Planner/Worker exporter queue holds at most 2,048 span records and 64 MiB of encoded pending
 data; a record that would exceed either bound is dropped and counted. One span
 has at most 64 attributes. Metadata strings are at most 256 UTF-8 bytes;
 opt-in input/output content has a separate 256 KiB limit per field.
@@ -769,8 +769,10 @@ model calls also capture input/output. Content is serialized as JSON into `langf
 and `langfuse.observation.output`; model spans carry
 `langfuse.observation.type=generation` and the model alias. Each content field is
 bounded to 256 KiB UTF-8; oversized content becomes a valid JSON object with
-`truncated: true` and a preview. The existing 2 MiB pending queue bound still
-applies, so content-heavy spans may be dropped. Capture does not change durable
+`truncated: true` and a preview. The 64 MiB pending queue bound still
+applies, so content-heavy spans may be dropped. This bound is per exporter,
+not a process-wide memory limit; simultaneous allocations multiply the retained
+capacity, and serialization/transport may require additional memory. Capture does not change durable
 reports, ordinary logs or metrics. Secret filtering and a separate retention
 policy can be added later; they are not prerequisites for this trusted-sink mode.
 Existing Runs retain their pinned configuration; enabling capture affects only

@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from fakes.model import json_result, scripted_model
+from google.genai import types
 
 from contractor_runtime.contracts import ModelPolicyRef, ResolvedModelPolicy
 from contractor_runtime.result_finalizer import (
@@ -78,6 +79,26 @@ def test_result_finalizer_is_one_tool_free_structured_adk_call() -> None:
         assert request_payload == {"resultText": terminal_text, "subtaskId": "1.2"}
         assert "Objective" not in request["contentText"]
         assert "ArtifactRef" not in request["contentText"]
+
+    asyncio.run(scenario())
+
+
+def test_result_finalizer_rejects_even_valid_json_at_output_limit() -> None:
+    async def scenario() -> None:
+        response = json_result({"subtaskId": "1.2", "result": "Done"})
+        response.finish_reason = types.FinishReason.MAX_TOKENS
+        response.error_code = "MAX_TOKENS"
+        model = scripted_model([response], auto_result_finalizer=False)
+        observer = RecordingObserver()
+        finalizer = WorkerResultFinalizer(model=model, policy=policy(), observer=observer)
+        with pytest.raises(ResultFinalizerFailure) as caught:
+            await finalizer.run(
+                subtask_id="1.2", result_text="Done", invocation_id="worker-invocation"
+            )
+        assert caught.value.code == "output_limit_exceeded"
+        assert observer.before == observer.after == 1
+        assert observer.usage is not None
+        assert len(model.requests) == 1
 
     asyncio.run(scenario())
 

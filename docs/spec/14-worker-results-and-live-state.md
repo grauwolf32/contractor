@@ -219,6 +219,7 @@ defined by [10](10-runtime-filesystems-and-edit-tools.md).
 Initial stable result failures include:
 
 - `worker_result_missing`;
+- `worker_output_limit_exceeded`;
 - `worker_result_invalid`;
 - `worker_result_subtask_mismatch`;
 - `worker_result_finalizer_mismatch`;
@@ -231,7 +232,13 @@ Malformed/missing model output, a subtask mismatch, an internal finalizer
 failure and a finalizer exact-copy mismatch are retryable Worker failures
 because a fresh StageExecution may succeed. Provider transport failures retain
 the shared `worker_gateway_unavailable` code; an internal finalizer boundary
-failure uses `worker_result_finalizer_failed`. Deterministic size, secret-retention and
+failure uses `worker_result_finalizer_failed`. A `MAX_TOKENS` finish from the
+Worker or its result finalizer uses retryable `worker_output_limit_exceeded`,
+not `worker_result_missing`. Runtime accounts the consumed tokens but does not
+accept the truncated text (even valid-looking JSON), call the finalizer on it,
+or start an unbudgeted continuation. Workflow policy owns any retry; operators
+can adjust the per-response output limit or model reasoning configuration.
+Deterministic size, secret-retention and
 invalid binding violations are non-retryable. Workflow policy, not Runtime,
 decides whether that flag causes another attempt.
 

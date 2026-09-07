@@ -201,9 +201,29 @@ def test_otlp_delivery_failure_is_safe_metrics_only(failure: str) -> None:
     asyncio.run(scenario())
 
 
+def test_otlp_content_queue_retains_late_spans_beyond_two_mib() -> None:
+    metrics = _metrics()
+    instrumentation = OTLPInstrumentation(
+        metrics, {"service.name": "test"}, secret_values=(), capture_content=True
+    )
+    for _ in range(16):
+        span = instrumentation.start_span("contractor.worker.model", attributes={})
+        span.set_content("input", '"' + "x" * (192 * 1024) + '"')
+        span.end(outcome="succeeded")
+    last = instrumentation.start_span("contractor.worker.a2a_task", attributes={})
+    last.set_content("output", '"late-finish-canary"')
+    last.end(outcome="succeeded")
+    assert instrumentation.pending_spans == 17
+    assert 2 * 1024 * 1024 < instrumentation.pending_bytes <= MAX_PENDING_BYTES
+    request = ExportTraceServiceRequest.FromString(instrumentation.export_request())
+    assert len(request.resource_spans[0].scope_spans[0].spans) == 17
+    assert b"late-finish-canary" in request.SerializeToString()
+    assert metrics.failed_operations == 0
+
+
 def test_otlp_queue_enforces_count_and_encoded_byte_bounds() -> None:
     assert MAX_PENDING_SPANS == 2048
-    assert MAX_PENDING_BYTES == 2 * 1024 * 1024
+    assert MAX_PENDING_BYTES == 64 * 1024 * 1024
     count_metrics = _metrics()
     by_count = OTLPInstrumentation(
         count_metrics,

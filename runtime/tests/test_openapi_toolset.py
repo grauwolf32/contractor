@@ -358,6 +358,96 @@ def test_parser_enforces_byte_depth_and_item_limits(
         _validate_json_tree([1, 2, 3])
 
 
+def test_partial_path_updates_validate_after_merge_and_reject_invalid_result(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"]("Demo")
+        await tools["upsert_openapi_path"]("/health", valid_path_item(), ["src/app.py"])
+        parameters = [{"name": "verbose", "in": "query", "schema": {"type": "boolean"}}]
+        await tools["upsert_openapi_path"]("/health", {"parameters": parameters}, ["src/app.py"])
+        await tools["upsert_openapi_path"](
+            "/health",
+            {
+                "get": {
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"properties": {"ok": {"type": "boolean"}}}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ["src/app.py"],
+        )
+        item = (await tools["get_openapi_path"]("/health"))["pathItem"]
+        assert item["parameters"] == parameters
+        response = item["get"]["responses"]["200"]
+        assert response["description"] == "OK"
+        assert response["content"]["application/json"]["schema"] == {
+            "type": "object",
+            "properties": {"ok": {"type": "boolean"}},
+        }
+        writes = client.write_count
+        for path, patch in [
+            ("/new", {"parameters": parameters}),
+            ("/health", {"get": {"responses": {"200": None}}}),
+            ("/health", {"post": {"summary": "missing responses"}}),
+        ]:
+            with pytest.raises(ValueError):
+                await tools["upsert_openapi_path"](path, patch, ["src/app.py"])
+            assert client.write_count == writes
+            assert (await tools["get_openapi_path"]("/health"))["pathItem"] == item
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "section,initial,patch",
+    [
+        (
+            "responses",
+            {"description": "OK"},
+            {"content": {"application/json": {"schema": {"type": "string"}}}},
+        ),
+        (
+            "requestBodies",
+            {"content": {"application/json": {"schema": {"type": "string"}}}},
+            {"description": "Input"},
+        ),
+        ("securitySchemes", {"type": "http", "scheme": "bearer"}, {"description": "Access token"}),
+    ],
+)
+def test_partial_component_updates_validate_after_merge(
+    tmp_path: Path, section: str, initial: dict[str, Any], patch: dict[str, Any]
+) -> None:
+    async def scenario() -> None:
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("route = '/health'\n")
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        await tools["initialize_openapi"]("Demo")
+        await tools["upsert_openapi_component"](section, "Example", initial, ["src/app.py"])
+        await tools["upsert_openapi_component"](section, "Example", patch, ["src/app.py"])
+        component = (await tools["get_openapi_component"](section, "Example"))["component"]
+        assert component == {**initial, **patch, "x-component-files": ["src/app.py"]}
+        writes = client.write_count
+        with pytest.raises(ValueError):
+            await tools["upsert_openapi_component"](section, "Missing", patch, ["src/app.py"])
+        assert client.write_count == writes
+
+    asyncio.run(scenario())
+
+
 def test_invalid_mutations_and_stale_cas_leave_document_unchanged(tmp_path: Path) -> None:
     async def scenario() -> None:
         source = tmp_path / "source" / "src"

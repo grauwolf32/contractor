@@ -85,6 +85,21 @@ when each semantic Stage benefits from explicit ordered subtask decomposition;
 the passthrough variant remains the simpler default when one Worker invocation
 can own the complete Stage objective.
 
+For larger local runs, the opt-in `local_project_worker@1` policy permits
+128 model calls, 512 tool calls, 8,000,000 cumulative tokens and 32,768 output
+tokens per response. `local_project_planner@1` permits 96 model calls, 64 Worker
+calls, 2,000,000 cumulative tokens and 8,192 output tokens per response. Select
+these through Run execution overrides; they do not replace shared Workflow
+defaults. Passthrough has no modeled Planner and accepts only the Worker
+override. These budgets assume a local deployment; they are not cost-safe
+defaults for a metered provider. Model context capacity, individual request
+timeouts and Stage deadlines remain separate bounds. See the
+[local stability run ledger](../docs/reviews/2026-09-07-local-workflow-stability.md)
+for the tested model configuration and actual outcomes.
+Version 2 of both local policies retains those budgets and uses temperature
+1.0 for Qwen3.8 thinking-mode sampling; version 1 retains the diagnostic 0.1
+setting. Sampling parameters are model-specific, not universal defaults.
+
 Both current LikeC4 template families select the versionless logical
 `skills/likec4` artifact for detailed DSL guidance while retaining mandatory
 artifact, evidence, validation and completion rules in always-on instructions.

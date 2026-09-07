@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: local_project_planner
+  version: "1"
+
+spec:
+  model: planner-model
+  maxOutputTokens: 8192
+  maxModelCalls: 96
+  maxWorkerCalls: 64
+  maxTotalTokens: 2000000
+  temperature: 0.1

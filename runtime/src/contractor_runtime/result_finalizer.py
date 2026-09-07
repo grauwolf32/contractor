@@ -21,6 +21,7 @@ from google.genai import types
 from pydantic import PrivateAttr
 
 from contractor_runtime.contracts import ResolvedModelPolicy, WorkerModelResult
+from contractor_runtime.model_response import output_limit_reached
 
 MAX_RESULT_FINALIZER_INPUT_BYTES = 256 * 1024
 _DOCUMENT_PREAMBLE = "Contractor Worker result finalization input (JSON):\n"
@@ -61,6 +62,7 @@ class _OneShotFinalizerModel(BaseLlm):
     _delegate: BaseLlm = PrivateAttr()
     _calls: int = PrivateAttr(default=0)
     _usage: Any | None = PrivateAttr(default=None)
+    _output_limited: bool = PrivateAttr(default=False)
 
     def __init__(self, delegate: BaseLlm) -> None:
         super().__init__(model=delegate.model)
@@ -74,6 +76,10 @@ class _OneShotFinalizerModel(BaseLlm):
     def usage(self) -> Any | None:
         return self._usage
 
+    @property
+    def output_limited(self) -> bool:
+        return self._output_limited
+
     async def generate_content_async(
         self, llm_request: LlmRequest, stream: bool = False
     ) -> AsyncGenerator[LlmResponse]:
@@ -83,6 +89,10 @@ class _OneShotFinalizerModel(BaseLlm):
         async for response in self._delegate.generate_content_async(llm_request, stream=stream):
             if not bool(getattr(response, "partial", False)):
                 self._usage = getattr(response, "usage_metadata", None)
+            if output_limit_reached(response):
+                self._output_limited = True
+                # Do not let ADK parse or attempt to repair truncated JSON.
+                return
             yield response
 
 
@@ -174,6 +184,8 @@ class WorkerResultFinalizer:
                 usage=model.usage,
             )
             call_started = False
+            if model.output_limited:
+                raise ResultFinalizerFailure("output_limit_exceeded")
             return candidate
         finally:
             if call_started:

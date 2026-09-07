@@ -370,10 +370,11 @@ class _OpenAPISession:
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(path_item)
         candidate["x-path-files"] = validated_evidence
-        _validate_path_item(candidate)
 
         def modify(document: dict[str, Any]) -> None:
             current = document["paths"].get(normalized, {})
+            # The supplied object is a merge patch, not a standalone Path
+            # Item. Validate the complete merged candidate before publishing.
             document["paths"][normalized] = _deep_merge(current, candidate)
             _validate_path_item(document["paths"][normalized])
 
@@ -437,7 +438,6 @@ class _OpenAPISession:
         validated_evidence = await self._validate_evidence(evidence_files)
         candidate = copy.deepcopy(component)
         candidate["x-component-files"] = validated_evidence
-        _validate_component(normalized, candidate)
 
         def modify(document: dict[str, Any]) -> None:
             values = document.setdefault("components", {}).setdefault(normalized, {})
