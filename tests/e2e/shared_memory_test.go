@@ -31,6 +31,10 @@ import (
 const memoryTelemetryLabel = "memory-release-audit"
 
 func TestSharedMemoryMVPProcesses(t *testing.T) {
+	runSharedMemoryProcesses(t, false)
+}
+
+func runSharedMemoryProcesses(t *testing.T, production bool) {
 	if testing.Short() {
 		t.Skip("end-to-end process test")
 	}
@@ -74,11 +78,16 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 	}
 
 	gateway := newSharedMemoryGateway(llmGatewayToken)
+	gateway.productionTemplates = production
 	t.Cleanup(gateway.close)
 	configRoot := stageE2EConfiguration(
 		t, filepath.Join(repositoryRoot, "configs", "e2e"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
+	productionWorkflow := ""
+	if production {
+		productionWorkflow = stageProductionMemoryConfiguration(t, repositoryRoot, configRoot)
+	}
 	publicAddress := freeAddress(t)
 	privateAddress := freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
@@ -189,6 +198,19 @@ func TestSharedMemoryMVPProcesses(t *testing.T) {
 	)
 	secondAllocations := assertStreamlineMemoryRun(t, ctx, pool, store, secondRunID, secondStatus)
 
+	if production {
+		input := uploadInput(t, publicClient, publicBaseURL)
+		runID := createWorkflowRun(t, publicClient, publicBaseURL, productionWorkflow, "production-memory-domain", input)
+		status := waitForSharedMemoryRun(t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, runID)
+		if len(status.Outputs) != 1 || status.Outputs["result"].Revision == nil || status.Outputs["result"].Name == "memory.copy_progress" {
+			t.Fatalf("Memory replaced domain output: %+v", status.Outputs)
+		}
+		data, mediaType := download(t, publicClient, publicBaseURL+"/v1/runs/"+url.PathEscape(runID)+"/outputs/result")
+		if string(data) != e2eInput || mediaType != e2eMediaType {
+			t.Fatalf("production domain output = %q (%s)", data, mediaType)
+		}
+		assertPersistedMemory(t, ctx, pool, runID, "builder", "copy_progress", "", []string{}, []string{"Input inspected; produce the declared copied artifact"})
+	}
 	emptyStarts, existingStarts := gateway.StartCounts()
 	if emptyStarts != 2 || existingStarts != 2 {
 		t.Fatalf("coordinate namespace starts empty/existing = %d/%d, want 2/2", emptyStarts, existingStarts)

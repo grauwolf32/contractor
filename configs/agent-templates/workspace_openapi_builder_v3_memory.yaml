@@ -1,0 +1,46 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: workspace_openapi_builder
+  version: "3"
+
+spec:
+  description: Builds an evidence-linked OpenAPI document from a hydrated project workspace
+  runtime: adk@1
+  instructions:
+    ref: instructions/workspace-openapi-builder-worker-memory.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+        - search_memory
+        - list_memory_tags
+    - ref: filesystem@1
+      tools: [ls, glob, read_file, grep]
+    - ref: workspace-changes@1
+      tools: [changed_paths, diff, rollback_changes]
+    - ref: text-artifacts@1
+      tools: [read_text_artifact]
+    - ref: openapi@1
+      tools:
+        - load_openapi
+        - initialize_openapi
+        - get_openapi_info
+        - set_openapi_info
+        - list_openapi_servers
+        - set_openapi_servers
+        - list_openapi_tags
+        - set_openapi_tags
+        - list_openapi_paths
+        - get_openapi_path
+        - upsert_openapi_path
+        - list_openapi_components
+        - get_openapi_component
+        - upsert_openapi_component
+        - validate_openapi
+  sandboxProfile: local-workdir@1

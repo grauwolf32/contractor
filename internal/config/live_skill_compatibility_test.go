@@ -24,8 +24,15 @@ func TestRepositoryLiveSkillCompatibilityBoundary(t *testing.T) {
 		}
 	}
 	slices.Sort(caidoSelectors)
-	if !slices.Equal(caidoSelectors, []string{"caido_analyst@1"}) {
-		t.Fatalf("skills/caido selectors = %v, want only caido_analyst@1", caidoSelectors)
+	wantCaido := []string{"caido_analyst@1"}
+	for _, entry := range repositoryMemoryCatalog(t).Templates {
+		if entry.Legacy == "caido_analyst@1" {
+			wantCaido = append(wantCaido, entry.Active)
+		}
+	}
+	slices.Sort(wantCaido)
+	if !slices.Equal(caidoSelectors, wantCaido) {
+		t.Fatalf("skills/caido selectors = %v, want %v", caidoSelectors, wantCaido)
 	}
 
 	descriptors := MVPDescriptors()

@@ -32,14 +32,31 @@ func TestInstructionVariantsPreserveExecutionContracts(t *testing.T) {
 	}
 	readJSON(t, "variants.json", &manifest)
 	root := filepath.Join("..", "..", "..")
+	var frozen struct {
+		Files map[string]string `json:"files"`
+	}
+	readJSON(t, "catalog-baseline.json", &frozen)
+	baselineBytes := func(path string) []byte {
+		data, ok := frozen.Files[path]
+		if !ok {
+			t.Fatalf("frozen catalog lacks %s", path)
+		}
+		return []byte(data)
+	}
 	for _, pairs := range [][]variantPair{manifest.Instructions, manifest.Templates, manifest.Workflows} {
 		for _, pair := range pairs {
 			for path, want := range map[string]string{
 				pair.Baseline: pair.BaselineSHA256, pair.Candidate: pair.CandidateSHA256,
 			} {
-				data, err := os.ReadFile(filepath.Join(root, path))
-				if err != nil {
-					t.Fatal(err)
+				var data []byte
+				if path == pair.Baseline {
+					data = baselineBytes(path)
+				} else {
+					var err error
+					data, err = os.ReadFile(filepath.Join(root, path))
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
 				if got := fmt.Sprintf("%x", sha256.Sum256(data)); got != want {
 					t.Fatalf("%s changed since the experiment was pinned", path)
@@ -50,18 +67,26 @@ func TestInstructionVariantsPreserveExecutionContracts(t *testing.T) {
 	for _, variant := range []string{"baseline", "candidate"} {
 		t.Run(variant, func(t *testing.T) {
 			directory := t.TempDir()
-			for _, source := range []string{filepath.Join(root, "configs"), "candidate/configs"} {
-				if err := os.CopyFS(directory, os.DirFS(source)); err != nil {
+			for path, data := range frozen.Files {
+				relative, err := filepath.Rel("configs", path)
+				if err != nil {
 					t.Fatal(err)
 				}
+				destination := filepath.Join(directory, relative)
+				if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(destination, []byte(data), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.CopyFS(directory, os.DirFS("candidate/configs")); err != nil {
+				t.Fatal(err)
 			}
 			if variant == "baseline" {
 				// Keep the same test catalog identities in A and B; vary only text.
 				for _, pair := range manifest.Instructions {
-					data, err := os.ReadFile(filepath.Join(root, pair.Baseline))
-					if err != nil {
-						t.Fatal(err)
-					}
+					data := baselineBytes(pair.Baseline)
 					if err := os.WriteFile(filepath.Join(directory, "instructions", filepath.Base(pair.Candidate)), data, 0o600); err != nil {
 						t.Fatal(err)
 					}

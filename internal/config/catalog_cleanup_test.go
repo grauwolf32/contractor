@@ -33,6 +33,10 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 		"security-analysis@2",
 		"taint-trace-from-workspace@2",
 	}
+	for _, entry := range repositoryMemoryCatalog(t).Workflows {
+		want = append(want, entry.Active)
+	}
+	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("default Workflow selectors = %v, want %v", got, want)
 	}
@@ -70,6 +74,16 @@ func TestRepositoryDefaultCatalogHasNoUnintentionallyOrphanedWorkerConfig(t *tes
 	// Workflows even though no built-in Workflow currently selects it.
 	reachableTemplates["http_explorer@1"] = true
 	reachableInstructions["instructions/http-explorer-worker.md"] = true
+	for _, entry := range repositoryMemoryCatalog(t).Templates {
+		if entry.Legacy == "http_explorer@1" {
+			reachableTemplates[entry.Active] = true
+			template, err := snapshot.AgentTemplate(entry.Active)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reachableInstructions[template.Instructions.Ref] = true
+		}
+	}
 	for selector := range snapshot.templates {
 		if !reachableTemplates[selector] {
 			t.Errorf("default AgentTemplate %s is unreachable", selector)

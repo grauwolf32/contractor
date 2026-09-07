@@ -29,8 +29,11 @@ See [migration review](../../../docs/reviews/2026-09-06-agent-instructions.md).
 - `overlay_test.go`: loads A and B through the real config loader and checks that
   capabilities, policies, scope, retries, stages, and result contracts match.
 
-For the offline compatibility test, copy repository `configs/` to a temporary root,
-then merge `candidate/configs/` into it. In A only, replace each candidate
+For the offline compatibility test, materialize `catalog-baseline.json` into a
+temporary root, then merge `candidate/configs/` into it. The snapshot preserves
+the original config closure and pinned bytes while the working catalog evolves.
+Its `capture_commit` records provenance; baseline hashes in `variants.json` remain
+unchanged. In A only, replace each candidate
 instruction with its mapped baseline text. Thus A and B use the **same evaluation
 selectors** and differ only in instruction text and derived digests. Never publish
 these experiment catalogs to an existing operator/managed catalog. Keep each

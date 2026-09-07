@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "legacy": "artifact_builder@1",
+      "active": "artifact_builder@2",
+      "legacy_file": "configs/agent-templates/artifact_builder.yaml",
+      "active_file": "configs/agent-templates/artifact_builder_v2_memory.yaml"
+    },
+    {
+      "legacy": "audit_asvs_source_verifier@1",
+      "active": "audit_asvs_source_verifier@3",
+      "legacy_file": "configs/agent-templates/audit_asvs_source_verifier.yaml",
+      "active_file": "configs/agent-templates/audit_asvs_source_verifier_v3_memory.yaml"
+    },
+    {
+      "legacy": "audit_openapi_operation_tracer@1",
+      "active": "audit_openapi_operation_tracer@3",
+      "legacy_file": "configs/agent-templates/audit_openapi_operation_tracer.yaml",
+      "active_file": "configs/agent-templates/audit_openapi_operation_tracer_v3_memory.yaml"
+    },
+    {
+      "legacy": "audit_openapi_operation_tracer@2",
+      "active": "audit_openapi_operation_tracer@4",
+      "legacy_file": "configs/agent-templates/audit_openapi_operation_tracer_v2.yaml",
+      "active_file": "configs/agent-templates/audit_openapi_operation_tracer_v4_memory.yaml"
+    },
+    {
+      "legacy": "audit_risk_source_checker@1",
+      "active": "audit_risk_source_checker@3",
+      "legacy_file": "configs/agent-templates/audit_risk_source_checker.yaml",
+      "active_file": "configs/agent-templates/audit_risk_source_checker_v3_memory.yaml"
+    },
+    {
+      "legacy": "audit_source_checker@1",
+      "active": "audit_source_checker@3",
+      "legacy_file": "configs/agent-templates/audit_source_checker.yaml",
+      "active_file": "configs/agent-templates/audit_source_checker_v3_memory.yaml"
+    },
+    {
+      "legacy": "caido_analyst@1",
+      "active": "caido_analyst@3",
+      "legacy_file": "configs/agent-templates/caido_analyst.yaml",
+      "active_file": "configs/agent-templates/caido_analyst_v3_memory.yaml"
+    },
+    {
+      "legacy": "findings_analyst@1",
+      "active": "findings_analyst@2",
+      "legacy_file": "configs/agent-templates/findings_analyst.yaml",
+      "active_file": "configs/agent-templates/findings_analyst_v2_memory.yaml"
+    },
+    {
+      "legacy": "http_explorer@1",
+      "active": "http_explorer@3",
+      "legacy_file": "configs/agent-templates/http_explorer.yaml",
+      "active_file": "configs/agent-templates/http_explorer_v3_memory.yaml"
+    },
+    {
+      "legacy": "likec4_builder@2",
+      "active": "likec4_builder@4",
+      "legacy_file": "configs/agent-templates/likec4_builder_v2.yaml",
+      "active_file": "configs/agent-templates/likec4_builder_v4_memory.yaml"
+    },
+    {
+      "legacy": "likec4_validator@2",
+      "active": "likec4_validator@4",
+      "legacy_file": "configs/agent-templates/likec4_validator_v2.yaml",
+      "active_file": "configs/agent-templates/likec4_validator_v4_memory.yaml"
+    },
+    {
+      "legacy": "openapi_builder@1",
+      "active": "openapi_builder@3",
+      "legacy_file": "configs/agent-templates/openapi_builder.yaml",
+      "active_file": "configs/agent-templates/openapi_builder_v3_memory.yaml"
+    },
+    {
+      "legacy": "openapi_validator@1",
+      "active": "openapi_validator@3",
+      "legacy_file": "configs/agent-templates/openapi_validator.yaml",
+      "active_file": "configs/agent-templates/openapi_validator_v3_memory.yaml"
+    },
+    {
+      "legacy": "podman_python_fixer@1",
+      "active": "podman_python_fixer@2",
+      "legacy_file": "configs/agent-templates/podman_python_fixer.yaml",
+      "active_file": "configs/agent-templates/podman_python_fixer_v2_memory.yaml"
+    },
+    {
+      "legacy": "workspace_likec4_builder@1",
+      "active": "workspace_likec4_builder@3",
+      "legacy_file": "configs/agent-templates/workspace_likec4_builder.yaml",
+      "active_file": "configs/agent-templates/workspace_likec4_builder_v3_memory.yaml"
+    },
+    {
+      "legacy": "workspace_likec4_validator@1",
+      "active": "workspace_likec4_validator@3",
+      "legacy_file": "configs/agent-templates/workspace_likec4_validator.yaml",
+      "active_file": "configs/agent-templates/workspace_likec4_validator_v3_memory.yaml"
+    },
+    {
+      "legacy": "workspace_openapi_builder@1",
+      "active": "workspace_openapi_builder@3",
+      "legacy_file": "configs/agent-templates/workspace_openapi_builder.yaml",
+      "active_file": "configs/agent-templates/workspace_openapi_builder_v3_memory.yaml"
+    },
+    {
+      "legacy": "workspace_openapi_validator@1",
+      "active": "workspace_openapi_validator@3",
+      "legacy_file": "configs/agent-templates/workspace_openapi_validator.yaml",
+      "active_file": "configs/agent-templates/workspace_openapi_validator_v3_memory.yaml"
+    },
+    {
+      "legacy": "workspace_source_graph_analyst@1",
+      "active": "workspace_source_graph_analyst@3",
+      "legacy_file": "configs/agent-templates/workspace_source_graph_analyst.yaml",
+      "active_file": "configs/agent-templates/workspace_source_graph_analyst_v3_memory.yaml"
+    },
+    {
+      "legacy": "workspace_taint_analyst@1",
+      "active": "workspace_taint_analyst@3",
+      "legacy_file": "configs/agent-templates/workspace_taint_analyst.yaml",
+      "active_file": "configs/agent-templates/workspace_taint_analyst_v3_memory.yaml"
+    }
+  ],
+  "workflows": [
+    {
+      "legacy": "artifact-copy@1",
+      "active": "artifact-copy@2",
+      "legacy_file": "configs/workflows/artifact_copy.yaml",
+      "active_file": "configs/workflows/artifact_copy_v2_memory.yaml"
+    },
+    {
+      "legacy": "audit-asvs-source-verification@1",
+      "active": "audit-asvs-source-verification@3",
+      "legacy_file": "configs/workflows/audit_asvs_source_verification.yaml",
+      "active_file": "configs/workflows/audit_asvs_source_verification_v3_memory.yaml"
+    },
+    {
+      "legacy": "audit-openapi-operation-trace@1",
+      "active": "audit-openapi-operation-trace@3",
+      "legacy_file": "configs/workflows/audit_openapi_operation_trace.yaml",
+      "active_file": "configs/workflows/audit_openapi_operation_trace_v3_memory.yaml"
+    },
+    {
+      "legacy": "audit-openapi-operation-trace@2",
+      "active": "audit-openapi-operation-trace@4",
+      "legacy_file": "configs/workflows/audit_openapi_operation_trace_v2.yaml",
+      "active_file": "configs/workflows/audit_openapi_operation_trace_v4_memory.yaml"
+    },
+    {
+      "legacy": "audit-source-check@1",
+      "active": "audit-source-check@3",
+      "legacy_file": "configs/workflows/audit_source_check.yaml",
+      "active_file": "configs/workflows/audit_source_check_v3_memory.yaml"
+    },
+    {
+      "legacy": "audit-top10-source-risk@1",
+      "active": "audit-top10-source-risk@3",
+      "legacy_file": "configs/workflows/audit_top10_source_risk.yaml",
+      "active_file": "configs/workflows/audit_top10_source_risk_v3_memory.yaml"
+    },
+    {
+      "legacy": "findings-review@1",
+      "active": "findings-review@2",
+      "legacy_file": "configs/workflows/findings_review.yaml",
+      "active_file": "configs/workflows/findings_review_v2_memory.yaml"
+    },
+    {
+      "legacy": "likec4-from-analysis@3",
+      "active": "likec4-from-analysis@5",
+      "legacy_file": "configs/workflows/likec4_from_analysis_v3.yaml",
+      "active_file": "configs/workflows/likec4_from_analysis_v5_memory.yaml"
+    },
+    {
+      "legacy": "likec4-from-workspace@5",
+      "active": "likec4-from-workspace@7",
+      "legacy_file": "configs/workflows/likec4_from_workspace_v5.yaml",
+      "active_file": "configs/workflows/likec4_from_workspace_v7_memory.yaml"
+    },
+    {
+      "legacy": "likec4-from-workspace-streamline@2",
+      "active": "likec4-from-workspace-streamline@4",
+      "legacy_file": "configs/workflows/likec4_from_workspace_streamline.yaml",
+      "active_file": "configs/workflows/likec4_from_workspace_streamline_v4_memory.yaml"
+    },
+    {
+      "legacy": "openapi-from-analysis@2",
+      "active": "openapi-from-analysis@4",
+      "legacy_file": "configs/workflows/openapi_from_analysis.yaml",
+      "active_file": "configs/workflows/openapi_from_analysis_v4_memory.yaml"
+    },
+    {
+      "legacy": "openapi-from-workspace@5",
+      "active": "openapi-from-workspace@7",
+      "legacy_file": "configs/workflows/openapi_from_workspace_v5.yaml",
+      "active_file": "configs/workflows/openapi_from_workspace_v7_memory.yaml"
+    },
+    {
+      "legacy": "openapi-from-workspace-streamline@1",
+      "active": "openapi-from-workspace-streamline@2",
+      "legacy_file": "configs/workflows/openapi_from_workspace_streamline.yaml",
+      "active_file": "configs/workflows/openapi_from_workspace_streamline_v2_memory.yaml"
+    },
+    {
+      "legacy": "podman-python-check@1",
+      "active": "podman-python-check@2",
+      "legacy_file": "configs/workflows/podman_python_check.yaml",
+      "active_file": "configs/workflows/podman_python_check_v2_memory.yaml"
+    },
+    {
+      "legacy": "security-analysis@2",
+      "active": "security-analysis@4",
+      "legacy_file": "configs/workflows/security_analysis.yaml",
+      "active_file": "configs/workflows/security_analysis_v4_memory.yaml"
+    },
+    {
+      "legacy": "taint-trace-from-workspace@2",
+      "active": "taint-trace-from-workspace@4",
+      "legacy_file": "configs/workflows/taint_trace_from_workspace.yaml",
+      "active_file": "configs/workflows/taint_trace_from_workspace_v4_memory.yaml"
+    }
+  ],
+  "audit_profiles": [
+    {
+      "legacy": "openapi-operation-trace@2",
+      "active": "openapi-operation-trace@4",
+      "legacy_file": "configs/audit-profiles/openapi-operation-trace.yaml",
+      "active_file": "configs/audit-profiles/openapi_operation_trace_v4_memory.yaml"
+    },
+    {
+      "legacy": "openapi-operation-trace@3",
+      "active": "openapi-operation-trace@5",
+      "legacy_file": "configs/audit-profiles/openapi-operation-trace-v3.yaml",
+      "active_file": "configs/audit-profiles/openapi_operation_trace_v5_memory.yaml"
+    },
+    {
+      "legacy": "owasp-asvs-5-0-l1-source-review@1",
+      "active": "owasp-asvs-5-0-l1-source-review@2",
+      "legacy_file": "configs/audit-profiles/owasp-asvs-5.0-l1-source-review.yaml",
+      "active_file": "configs/audit-profiles/owasp_asvs_5_0_l1_source_review_v2_memory.yaml"
+    },
+    {
+      "legacy": "owasp-top10-2025-source-risk@1",
+      "active": "owasp-top10-2025-source-risk@2",
+      "legacy_file": "configs/audit-profiles/owasp-top10-2025-source-risk.yaml",
+      "active_file": "configs/audit-profiles/owasp_top10_2025_source_risk_v2_memory.yaml"
+    },
+    {
+      "legacy": "source-checklist@1",
+      "active": "source-checklist@2",
+      "legacy_file": "configs/audit-profiles/source-checklist.yaml",
+      "active_file": "configs/audit-profiles/source_checklist_v2_memory.yaml"
+    }
+  ]
+}

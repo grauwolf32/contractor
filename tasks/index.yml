@@ -717,10 +717,11 @@ memory_audit_followups_planning:
     empty_tags_projection: V48-003
     absent_working_template_selection: V48-004
   constraints: >-
-    These are pending implementation tasks; existing V9 completion evidence is
-    historical and does not close the new regressions. Deliver V48-001/002/003
-    before enabling working templates in V48-004. Preserve current V47 and V39
-    work, published configuration identities and frozen evaluation baselines.
+    Delivered sequentially: V48-001/002/003 correctness fixes precede V48-004
+    working template enablement. Each task records its implementation commit
+    and verification. V9 evidence remains historical; the new regression and
+    production process gates cover these findings. Existing V47/V39 work,
+    published configuration identities and frozen evaluation baselines are preserved.
 
 active_delivery_order:
   prioritized_on: "2026-09-06"

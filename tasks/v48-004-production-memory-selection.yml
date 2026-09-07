@@ -3,7 +3,7 @@ id: V48-004
 title: "Enable explicit shared Memory in the working AgentTemplate catalog"
 milestone: shared-memory-production-correctness
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: [V48-001, V48-002, V48-003]
 languages: [yaml, markdown, go, python]
@@ -111,3 +111,11 @@ tests:
     covers: [A3]
   - command: "make test-shared-memory-e2e"
     covers: [A2, A3]
+
+verification:
+  - "Working configs validate: 20 Memory-enabled successors alongside 20 retained legacy templates, 16 successor Workflows and 5 successor AuditProfiles."
+  - "Go config, Streamline, Router, Planner and frozen instruction-evaluation suites passed. The inventory gate checks all six operations, exact bindings, original domain tools, policies, summarizers and Audit obligations."
+  - "135 Python Memory/ADK tests passed with warnings treated as errors."
+  - "TestProductionMemoryTemplatesAcrossProcesses passed against real Server and two Runtime processes with a scripted Gateway: Planner/Worker sharing, retry, later Stage, namespace isolation, new-Run emptiness, content-free diagnostics and ordinary artifact completion."
+  - "make test-shared-memory-e2e passed with the legacy Memory fixtures. The production process gate is now part of test-shared-memory-hardening."
+  - "The isolated commit configuration, Go suites and production E2E (105s) passed independently of concurrent policy/telemetry edits; the frozen evaluation retains its original baseline hashes."

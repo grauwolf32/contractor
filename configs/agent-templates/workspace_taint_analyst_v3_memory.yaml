@@ -1,0 +1,47 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: workspace_taint_analyst
+  version: "3"
+
+spec:
+  description: Traces one assigned target through a project workspace, inserts structured annotations, and publishes an evidence report
+  runtime: adk@1
+  instructions:
+    ref: instructions/workspace-taint-analyst-worker-memory.md
+  modelPolicy: domain_worker@1
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+        - search_memory
+        - list_memory_tags
+    - ref: filesystem@1
+      tools: [ls, glob, read_file, grep]
+    - ref: code-analysis@1
+      tools:
+        - search_def
+        - list_symbols
+        - graph_summary
+        - find_symbol
+        - find_callers
+        - find_callees
+        - paths_between
+        - entrypoint_paths_to
+        - attack_surface
+        - complexity_hotspots
+        - functions_that_raise
+    - ref: taint-annotations@1
+      tools: [annotate_trace, annotate_validate, annotate_sink]
+    - ref: workspace-changes@1
+      tools: [changed_paths, diff, rollback_changes]
+    - ref: text-artifacts@1
+      tools: [read_text_artifact, write_text_artifact]
+  skills:
+    - namespace: skills
+      name: trace
+  sandboxProfile: local-workdir@1

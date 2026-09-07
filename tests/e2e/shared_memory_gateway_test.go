@@ -43,8 +43,9 @@ var sharedMemoryToolNames = map[string]bool{
 }
 
 type sharedMemoryGateway struct {
-	server *httptest.Server
-	token  string
+	productionTemplates bool
+	server              *httptest.Server
+	token               string
 
 	mu                       sync.Mutex
 	calls                    int
@@ -205,8 +206,11 @@ func (g *sharedMemoryGateway) next(
 	g.transcriptBytes += len(encoded)
 	g.transcripts = append(g.transcripts, string(encoded))
 	g.mu.Unlock()
-	if schemaErr := validateSharedMemoryTools(request, scenario, worker); schemaErr != nil {
+	if schemaErr := validateSharedMemoryTools(request, scenario, worker, g.productionTemplates); schemaErr != nil {
 		return nil, "", "", "", 0, "", fmt.Errorf("%s: %w", scenario, schemaErr)
+	}
+	if g.productionTemplates && worker && (!strings.Contains(string(encoded), "## Shared Memory") || !strings.Contains(string(encoded), "write only the declared result")) {
+		return nil, "", "", "", 0, "", errors.New("production Worker lost its authored domain/Memory instructions")
 	}
 	if transcriptErr := validateMemoryTranscript(request); transcriptErr != nil {
 		return nil, "", "", "", 0, "", fmt.Errorf("%s: %w", scenario, transcriptErr)
@@ -225,6 +229,9 @@ func (g *sharedMemoryGateway) next(
 }
 
 func sharedMemoryFinalizerScenario(result string) (string, error) {
+	if result == "production-copy-worker updated isolated note" {
+		return "production-copy-worker-result-finalizer", nil
+	}
 	for _, scenario := range []string{
 		"streamline-first-worker", "streamline-retry-worker", "streamline-confirm-worker",
 		"router-builder-worker", "router-reviewer-worker",
@@ -248,6 +255,9 @@ func sharedMemoryScenario(modelName, payload string) (string, bool, error) {
 		}
 	}
 	if modelName == "worker-model" {
+		if strings.Contains(payload, "Copy the source artifact into the declared result artifact") {
+			return "production-copy-worker", true, nil
+		}
 		for marker, scenario := range map[string]string{
 			"MEMORY_STREAMLINE_FIRST_WORKER":    "streamline-first-worker",
 			"MEMORY_STREAMLINE_RETRY_WORKER":    "streamline-retry-worker",
@@ -494,6 +504,9 @@ func routerMemoryPlannerResponse(step int, request map[string]any) (map[string]a
 func sharedMemoryWorkerResponse(
 	scenario string, step int, request map[string]any,
 ) (map[string]any, string, string, error) {
+	if scenario == "production-copy-worker" {
+		return productionMemoryCopyResponse(step, request)
+	}
 	name := streamlineNoteName
 	before, after, description, tag, appendValue := "", "", streamlineDescription, streamlineTag, ""
 	switch scenario {
@@ -808,7 +821,7 @@ func rejectStorageKeys(value any) error {
 	return nil
 }
 
-func validateSharedMemoryTools(request map[string]any, scenario string, worker bool) error {
+func validateSharedMemoryTools(request map[string]any, scenario string, worker, production bool) error {
 	names, err := requestToolNames(request)
 	if err != nil {
 		return err
@@ -822,6 +835,14 @@ func validateSharedMemoryTools(request map[string]any, scenario string, worker b
 		want = []string{"append_memory", "list_memories", "read_memory", "write_memory"}
 		if scenario == "router-reviewer-worker" {
 			want = []string{"read_memory", "write_memory"}
+		}
+	}
+	if production {
+		if worker {
+			want = []string{"append_memory", "list_artifacts", "list_memories", "list_memory_tags", "read_artifact", "read_memory", "search_memory", "write_artifact", "write_memory"}
+		} else {
+			want = append(want, "search_memory", "list_memory_tags")
+			sort.Strings(want)
 		}
 	}
 	if !equalStringSlices(names, want) {
@@ -863,7 +884,7 @@ func validateSharedMemoryTools(request map[string]any, scenario string, worker b
 		}
 		sort.Strings(workers)
 		wantWorkers := []string{"builder", "reviewer"}
-		if name == "append_memory" || name == "list_memories" {
+		if !production && (name == "append_memory" || name == "list_memories") {
 			wantWorkers = []string{"builder"}
 		}
 		if !equalStringSlices(workers, wantWorkers) {

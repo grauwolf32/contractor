@@ -1,0 +1,28 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: artifact_builder
+  version: "2"
+
+spec:
+  description: Reads a declared input and writes the requested result
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder-memory.md
+  modelPolicy: worker@1
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+        - search_memory
+        - list_memory_tags
+    - ref: run-artifacts@1
+      tools:
+        - list_artifacts
+        - read_artifact
+        - write_artifact
+  sandboxProfile: local-workdir@1

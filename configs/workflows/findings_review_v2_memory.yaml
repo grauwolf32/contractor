@@ -1,0 +1,52 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata:
+  name: findings-review
+  version: "2"
+spec:
+  parameters: {}
+  inputs:
+    findings:
+      required: true
+      mediaTypes: [application/vnd.contractor.findings-collection+zip]
+  outputs:
+    report:
+      required: true
+      primary: true
+      mediaTypes: [text/markdown]
+  executionConfig:
+    workers:
+      llmGateway: local-litellm@1
+      credential: development-worker
+  entryStage: analyze
+  stages:
+    analyze:
+      objective: Analyze the supplied finding collection and publish a report grounded in its retained evidence
+      instructions:
+        ref: instructions/findings-analyst-worker.md
+      planner: passthrough@1
+      agents:
+        analyst:
+          template: findings_analyst@2
+          namespace: findings-review
+      context:
+        artifacts:
+          findings:
+            namespace: inputs
+            name: findings
+            required: true
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [text/markdown]
+            from: {namespace: findings-review, name: report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

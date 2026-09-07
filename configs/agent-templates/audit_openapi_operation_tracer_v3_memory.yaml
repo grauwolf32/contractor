@@ -1,0 +1,45 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: audit_openapi_operation_tracer
+  version: "3"
+
+spec:
+  description: Traces one pinned OpenAPI Audit operation through source and structural graph evidence and publishes its canonical result
+  runtime: adk@1
+  instructions:
+    ref: instructions/audit-openapi-operation-tracer-worker-memory.md
+  modelPolicy: domain_worker@2
+  toolsets:
+    - ref: memory-tools@1
+      tools:
+        - list_memories
+        - read_memory
+        - write_memory
+        - append_memory
+        - search_memory
+        - list_memory_tags
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: filesystem@1
+      tools: [ls, glob, read_file, grep]
+    - ref: code-analysis@1
+      tools:
+        - search_def
+        - list_symbols
+        - graph_summary
+        - find_symbol
+        - find_callers
+        - find_callees
+        - paths_between
+        - entrypoint_paths_to
+        - attack_surface
+        - complexity_hotspots
+        - functions_that_raise
+    - ref: audit-results@1
+      tools: [read_audit_task, submit_check_result]
+  skills:
+    - namespace: skills
+      name: trace
+  sandboxProfile: local-workdir@1
