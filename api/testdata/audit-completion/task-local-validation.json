@@ -1,0 +1,460 @@
+{
+  "tasks": {
+    "checklist": {
+      "schema": "contractor.audit.item-task.v1",
+      "item_key": "check-authz",
+      "kind": "checklist",
+      "subject_key": "check-authz",
+      "workflow_role": "check",
+      "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_media_type": "application/yaml",
+      "source_ref": {
+        "namespace": "checklists",
+        "name": "demo",
+        "revision": "checklist-r1"
+      },
+      "canonical_inventory_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "checklist": {
+        "version": "1",
+        "statement": "Authorization is checked before access.",
+        "applicability": "Always applicable to this fixture.",
+        "allowed_methods": [
+          "static-trace"
+        ],
+        "required_evidence": [
+          "source-trace"
+        ],
+        "review_policy": "automatic"
+      }
+    },
+    "standard": {
+      "schema": "contractor.audit.item-task.v1",
+      "item_key": "check-authz",
+      "kind": "standard-mapping",
+      "subject_key": "check-authz",
+      "workflow_role": "check",
+      "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_media_type": "application/yaml",
+      "source_ref": {
+        "namespace": "checklists",
+        "name": "demo",
+        "revision": "checklist-r1"
+      },
+      "canonical_inventory_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "checklist": {
+        "version": "1",
+        "statement": "Authorization is checked before access.",
+        "applicability": "Always applicable to this fixture.",
+        "allowed_methods": [
+          "static-trace"
+        ],
+        "required_evidence": [
+          "source-trace"
+        ],
+        "review_policy": "automatic"
+      },
+      "standard": {
+        "scheme": "fixture",
+        "version": "1",
+        "mapping_key": "check-authz",
+        "entry_ids": [
+          "entry-1"
+        ],
+        "evidence_contract": {
+          "id": "source-contract",
+          "version": "1",
+          "assessments": [
+            "blocked",
+            "inconclusive",
+            "not-tested",
+            "satisfied",
+            "violated"
+          ],
+          "evidence_kinds": [
+            "source-trace"
+          ],
+          "minimum_evidence": 2,
+          "maximum_evidence": 2,
+          "human_review": "never",
+          "rationale_required": true
+        }
+      }
+    },
+    "operation": {
+      "schema": "contractor.audit.item-task.v1",
+      "item_key": "check-authz",
+      "kind": "operation-trace",
+      "subject_key": "check-authz",
+      "workflow_role": "check",
+      "source_content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "source_media_type": "application/yaml",
+      "source_ref": {
+        "namespace": "checklists",
+        "name": "demo",
+        "revision": "checklist-r1"
+      },
+      "canonical_inventory_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "operation": {
+        "path": "/items",
+        "method": "get",
+        "resolved": {},
+        "gaps": []
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "checklist-complete",
+      "task": "checklist",
+      "valid": true,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "completed-is-not-evidence",
+      "task": "checklist",
+      "valid": false,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": []
+      }
+    },
+    {
+      "name": "wrong-required-kind",
+      "task": "checklist",
+      "valid": false,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "observation",
+            "summary": "Observed behavior."
+          }
+        ]
+      }
+    },
+    {
+      "name": "inconclusive-may-lack-evidence",
+      "task": "checklist",
+      "valid": true,
+      "result": {
+        "assessment": "inconclusive",
+        "summary": "Verified control.",
+        "completed": [],
+        "gaps": [],
+        "evidence": []
+      }
+    },
+    {
+      "name": "gaps-yield-inconclusive",
+      "task": "checklist",
+      "valid": true,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [
+          "missing-source"
+        ],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "partial-coverage-valid",
+      "task": "checklist",
+      "valid": true,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown-assessment",
+      "task": "checklist",
+      "valid": false,
+      "result": {
+        "assessment": "pass",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown-completed-coverage",
+      "task": "checklist",
+      "valid": false,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "invented"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-minimum",
+      "task": "standard",
+      "valid": true,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-too-few",
+      "task": "standard",
+      "valid": false,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-too-many",
+      "task": "standard",
+      "valid": false,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-disallowed-assessment",
+      "task": "standard",
+      "valid": false,
+      "result": {
+        "assessment": "refuted",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-disallowed-kind",
+      "task": "standard",
+      "valid": false,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "observation",
+            "summary": "Observed behavior."
+          },
+          {
+            "kind": "observation",
+            "summary": "Observed behavior."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-inconclusive-no-minimum",
+      "task": "standard",
+      "valid": true,
+      "result": {
+        "assessment": "inconclusive",
+        "summary": "Verified control.",
+        "completed": [],
+        "gaps": [],
+        "evidence": []
+      }
+    },
+    {
+      "name": "standard-inconclusive-still-maximum",
+      "task": "standard",
+      "valid": false,
+      "result": {
+        "assessment": "inconclusive",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          },
+          {
+            "kind": "source-trace",
+            "summary": "Guard at app.py:12."
+          }
+        ]
+      }
+    },
+    {
+      "name": "standard-inconclusive-still-kind",
+      "task": "standard",
+      "valid": false,
+      "result": {
+        "assessment": "inconclusive",
+        "summary": "Verified control.",
+        "completed": [
+          "source-trace"
+        ],
+        "gaps": [],
+        "evidence": [
+          {
+            "kind": "observation",
+            "summary": "Observed behavior."
+          }
+        ]
+      }
+    },
+    {
+      "name": "operation-not-tested",
+      "task": "operation",
+      "valid": true,
+      "result": {
+        "assessment": "not-tested",
+        "summary": "Verified control.",
+        "completed": [],
+        "gaps": [],
+        "evidence": []
+      }
+    },
+    {
+      "name": "operation-not-tested-with-coverage",
+      "task": "operation",
+      "valid": false,
+      "result": {
+        "assessment": "not-tested",
+        "summary": "Verified control.",
+        "completed": [
+          "operation-resolution"
+        ],
+        "gaps": [],
+        "evidence": []
+      }
+    },
+    {
+      "name": "operation-complete",
+      "task": "operation",
+      "valid": true,
+      "result": {
+        "assessment": "satisfied",
+        "summary": "Verified control.",
+        "completed": [
+          "operation-resolution"
+        ],
+        "gaps": [],
+        "evidence": []
+      }
+    }
+  ]
+}

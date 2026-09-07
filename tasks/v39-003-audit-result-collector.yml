@@ -3,10 +3,10 @@ id: V39-003
 title: "Collect and validate Audit results incrementally with revisioned updates"
 milestone: audit-worker-completion
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: ["V39-001","V39-004"]
-languages: ["python"]
+languages: ["python", "go"]
 
 goal: >-
   Implement audit-results@2 per-item collection without artifact writes, preserving legacy @1 behavior and giving the model actionable progress/error receipts.
@@ -40,12 +40,18 @@ scope:
     - "A2A integration, activation/registration before common finalization is wired, artifact publication, model retry loops and general persistent draft storage."
 
 deliverables:
+  - path: runtime/src/contractor_runtime/audit_result_collector.py
+    description: "Invocation-owned collector with atomic revisions, lifecycle and shared encoder admission."
   - path: api/testdata/audit-completion/task-local-validation.json
     description: "Shared positive/negative task-local cases for the Python collector and the Go importer release checks."
   - path: runtime/src/contractor_runtime/toolsets/audit_results_v2.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/tests/test_audit_result_collector.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: internal/auditimport/audit_completion_test.go
+    description: "Go importer acceptance of the same task-local JSON cases used by Python."
+  - path: docs/reviews/2026-09-07-audit-result-collector.md
+    description: "Implementation boundaries, lifecycle ownership and validation evidence."
   - path: runtime/tests/test_audit_results_toolset.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
 
@@ -83,5 +89,7 @@ acceptance_criteria:
     then: "Admission and publication size decisions agree, and a rejected replacement preserves the previous value and revision."
 
 tests:
-  - command: "cd runtime && uv run --frozen pytest tests/test_audit_result_collector.py tests/test_audit_results_toolset.py"
+  - command: "cd runtime && uv run --frozen pytest tests/test_audit_result_collector.py tests/test_audit_results_toolset.py tests/test_audit_result_publication.py tests/test_audit_completion_contracts.py"
     covers: ["A1","A2","A3","A4","A5","A6"]
+  - command: "go test ./internal/auditimport -run TestAuditCompletionSharedTaskLocalValidation -count=1"
+    covers: ["A2","A5"]

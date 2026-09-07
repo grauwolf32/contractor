@@ -15,6 +15,8 @@ from google.adk.tools.function_tool import FunctionTool
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
+from contractor_runtime.audit_completion_contracts import AuditInvocationOwner, AuditTrustedInputs
+from contractor_runtime.audit_result_collector import InvocationAuditCollector
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactRef,
@@ -25,7 +27,30 @@ from contractor_runtime.toolsets.audit_results import (
     AuditResultsToolsetFactory,
     SubmitCheckResultTool,
 )
+from contractor_runtime.toolsets.audit_results_v2 import ReadAuditTaskTool as ReadAuditTaskToolV2
+from contractor_runtime.toolsets.audit_results_v2 import (
+    SubmitCheckResultTool as SubmitCheckResultToolV2,
+)
 from contractor_runtime.workspace import AllocationWorkspace
+
+
+def test_v2_adk_schema_keeps_batch_and_adds_revisioned_item_submission() -> None:
+    task, execution = fixture_inputs()
+    owner = AuditInvocationOwner("allocation-1", "invocation-1", digest(task), ("check-authz",))
+    collector = InvocationAuditCollector(AuditTrustedInputs(owner, task, execution))
+    metrics = WorkerState().metrics
+    submit = SubmitCheckResultToolV2(collector, metrics)
+    declaration = FunctionTool(submit)._get_declaration().model_dump(mode="json", by_alias=True)
+    schema = declaration["parametersJsonSchema"]
+    assert "tool_context" not in schema["properties"]
+    assert {"item_key", "expected_revision", "results"} <= set(schema["properties"])
+    assert schema["$defs"]["BatchResultArgument"]["required"] == [
+        "assessment", "summary", "completed", "gaps",
+    ]
+    read = ReadAuditTaskToolV2(
+        collector, ArtifactRef(namespace="inputs", name="task", revision="r1"), metrics,
+    )
+    assert FunctionTool(read)._get_declaration().name == "read_audit_task"
 
 
 def test_submit_check_result_advertises_bounded_batch_member_schema() -> None:
