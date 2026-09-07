@@ -57,7 +57,9 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [22](22-performance-metrics-and-profiling.md) | Implemented: Server/DB performance charts, completed allocation resources, retained history and independent Go profiling |
 | [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
 | [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
-| [25](25-audit-worker-finalization.md) | Planned: explicit Audit-check completion contracts, incremental results and deterministic Runtime ZIP publication; ordinary Workflows unchanged |
+| [25](25-audit-worker-finalization.md) | Partially implemented: inert completion contracts and deterministic ZIP publication; collector, integration and rollout remain; ordinary Workflows unchanged |
+| [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
+| [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
 | [LikeC4](architecture.c4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry

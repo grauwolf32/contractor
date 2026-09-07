@@ -1,12 +1,19 @@
 # Предложение: переносимые eval’ы playground-v2 через существующий сервер
 
-Статус: **предложение для ревью, реализация интеграции не начата**.
+Статус на 2026-09-07: **V41-001–V41-008 завершены; portable v2 реализован в
+playground-v2 и прошёл [offline readiness gate](reviews/portable-eval-format-readiness.md)**.
+Ниже сохранено исходное предложение и описание исходной связности. Точные поля,
+версии, владельцы данных и правила сравнения определяет
+[спецификация 26](spec/26-portable-evaluation-format.md). Следующий этап V40 —
+fixtures, bindings и frozen plan для отдельного эксперимента с инструкциями.
+Качество модели ещё не измерено; readiness report перечисляет ограничения
+live adapters, service pins и budgets.
 
 Цель — использовать и развивать eval’ы `playground-v2`, запускать Contractor
 через его существующий серверный механизм и сохранять возможность проверить
 другую реализацию теми же кейсами и критериями.
 
-## Что уже есть
+## Исходная база предложения
 
 В `playground-v2` имеются проекты, корпуса и закреплённые subsets, скрытый ground
 truth, схемы suites/results, предметные scorers, управление тестовыми targets,
@@ -17,7 +24,7 @@ HTTP API и не импортируют внутренние пакеты Contra
 артефактные ревизии, идемпотентное создание, очередь, retries, cancellation,
 метрики и UI для просмотра. Новый движок выполнения не требуется.
 
-Оставшаяся связность в playground: `suite.schema.json` допускает только два
+Исходная связность в playground: `suite.schema.json` допускает только два
 Contractor-адаптера; `runner.py` напрямую использует `ContractorV2Client`; в
 `result.schema.json` есть поля `contractor_run_id`, `contractor_audit_id` и
 `contractor_run_ids`. Это границы для адаптации, а не повод переписывать harness.
