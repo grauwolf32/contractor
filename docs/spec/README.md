@@ -38,7 +38,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [03](03-artifact-plane.md) | ArtifactStore scopes, RunArtifactSpace, input/output forks, Namespace and CAS |
 | [04](04-execution-lifecycle-and-metrics.md) | StageExecution identity, StageTermination, sessions, finalization, recovery and metrics |
 | [05](05-first-slice-and-open-decisions.md) | First implementation slice and deliberately deferred decisions |
-| [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility and published execution configuration selection |
+| [06](06-server-ui-and-operations.md) | Separate Node.js Web UI, Operations visibility, process budgets and published execution configuration selection |
 | [07](07-runtime-labels-and-infrastructure-config.md) | Run-selected/Agent Runtime labels, database-backed infrastructure configs, adapter placement and allocation-scoped settings |
 | [08](08-memory-tools.md) | Run-scoped shared Memory Namespace and the artifact-backed `memory-tools@1` contract |
 | [09](09-agent-skills.md) | AgentTemplate-selected, artifact-pinned Agent Skills loaded through native Google ADK |
@@ -57,10 +57,10 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [22](22-performance-metrics-and-profiling.md) | Implemented: Server/DB performance charts, completed allocation resources, retained history and independent Go profiling |
 | [23](23-artifact-blob-backends.md) | Startup-selected PostgreSQL/filesystem blobs, Kubernetes without PVC, bounded memory and deferred S3 |
 | [24](24-git-artifacts.md) | Owner SSH-key Settings, bounded in-memory Git snapshots, Workflow/Project import UI and immutable commit provenance |
-| [25](25-audit-worker-finalization.md) | Partially implemented: inert completion contracts and deterministic ZIP publication; collector, integration and rollout remain; ordinary Workflows unchanged |
+| [25](25-audit-worker-finalization.md) | Implemented opt-in through V39-006: collection, Runtime completion, ZIP publication and diagnostics; V39-007 release gate remains |
 | [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
 | [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
-| [LikeC4](architecture.c4) | Component map and focused architecture views |
+| [LikeC4](artitecture.likec4) | Component map and focused architecture views |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
 point for links that previously targeted the monolithic working agreement.
@@ -132,3 +132,9 @@ Each decision has one owning document. Other documents link to it instead of
 repeating a second normative version. Unresolved behavior stays in
 [05](05-first-slice-and-open-decisions.md) rather than being inferred from
 historical designs.
+
+This revision incorporates the V50-001 unified private-contract decision:
+[02](02-runtime-and-a2a.md#one-private-wire-contract) uses one strict
+`contractor/v1alpha1` surface and one schema/fixture catalog. The specification
+describes that accepted target; implementation task files retain their own
+verification status.

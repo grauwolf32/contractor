@@ -400,7 +400,7 @@ summarizer already returns the strict schema and is not followed by the ordinary
 result finalizer. Allocation drain/finalization itself still performs no model
 or tool calls.
 
-The planned explicit Audit-check strategy in
+The implemented explicit Audit-check strategy in
 [25](25-audit-worker-finalization.md) uses the same semantic completion boundary
 but gates on collected valid per-item results, may continue the still-active
 invocation with bounded reminders, and builds its ZIP/WorkerResult in code.
@@ -609,6 +609,30 @@ present record with no normalized errors returns an empty list so the UI can
 distinguish “no participant errors” from “telemetry unavailable”.
 
 ## Worker drain and finalization
+
+### Operational budget ownership
+
+Restart-only ServerConfig settings separate individual HTTP requests
+(`runtimeRequestTimeout`) from Scheduler operations
+(`scheduler.operationTimeout`), stored terminal budgets
+(`scheduler.finalizationTimeout` and `scheduler.abortTimeout`), and batch cleanup
+(`runtimeLifecycle.cleanupTimeout`). Changing the HTTP timeout changes neither
+the other budgets nor an already recorded terminal deadline. The settings
+boundary belongs to [06](06-server-ui-and-operations.md#process-settings-and-operational-budgets);
+the [operational reference](../operations/timeout-configuration.md) owns defaults,
+input precedence, validation and migration.
+
+Finalize/abort uses the earlier of the caller deadline and the stored terminal
+deadline; the cleanup setting does not impose another cap on those phases.
+Recovery and repeated requests reuse the saved operation ID and deadline,
+including after a restart or process-setting change. Each release batch has one
+cleanup deadline. Failed-prepare cleanup shares one deadline across abort and
+release, and failed release retains the allocation grant. Inner requests may end
+earlier, but cannot extend the enclosing operation or relinquish unconfirmed
+resource ownership. [10](10-runtime-filesystems-and-edit-tools.md) applies these
+bounds to physical workspace disposal.
+
+### Finalization protocol
 
 Finalization is part of the private control/lifecycle protocol, not an A2A Task:
 

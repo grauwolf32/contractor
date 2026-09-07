@@ -596,6 +596,22 @@ write-fenced `finalizing`/`aborting` transition.
 
 ## Lifecycle and cleanup
 
+Local direct filesystem work has a process-local `operation_timeout_seconds`,
+configured by `--workspace-operation-timeout-seconds` or
+`CONTRACTOR_WORKSPACE_OPERATION_TIMEOUT_SECONDS` (default 30 seconds). It must
+be finite and positive; CLI overrides environment. An explicit override requires
+local storage and is rejected for memory/disabled workspaces. The setting is
+neither an advertised capability nor an AllocationSpec field. Exact configuration
+rules belong to the [operational reference](../operations/timeout-configuration.md).
+
+The budget covers local I/O, serialization, initialization and close waits.
+Initialization/close uses the earlier of this budget and the enclosing deadline;
+release, rollback and terminal cleanup forward their remaining deadline. A timed
+out wait retains ownership of the physical I/O and disposal task until it ends.
+Saved finalize/abort deadlines are not reset. A later release attempt may retry
+physical cleanup under its own finite release budget while joining retained
+work, without reusing the slot or deleting storage under active I/O.
+
 - partial prepare closes clients and deletes the private session;
 - graceful finalize stops A2A/model work and flushes metrics but retains
   workspace data until release for idempotent finalization/replay;

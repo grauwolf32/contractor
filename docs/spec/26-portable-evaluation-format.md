@@ -1,8 +1,12 @@
 # 26 — Portable evaluation format and execution bindings
 
-Status: **Specified target; implementation pending V41-001–V41-008.**
-No model evaluation or target campaign is authorized by completing this document.
-The first delivery is the format, compatibility layer and conformance gate.
+Status: **Implemented in playground-v2 and offline-verified through V41-008.**
+The format, compatibility layer, execution bindings, recovery, assessment,
+comparison and safe publication are delivered. The
+[readiness report](../reviews/portable-eval-format-readiness.md) retains exact
+implementation/schema pins and offline evidence. V38 Evals UX and V40 model
+quality evaluations remain separate pending work; this delivery does not prove
+instruction quality or a successful live target campaign.
 
 This document owns the portable evaluation contract shared with `playground-v2`.
 It supersedes the format choices in [the proposal](../agent-evals-proposal.md)
@@ -440,7 +444,7 @@ do not replicate Contractor's canonical operation-key algorithm in a scorer.
 If child eval labels are unavailable, use receipt membership; label propagation
 is not a prerequisite. Existing Audit runner Project-kind behavior is retained
 where required; an evaluation Project may index its references without pretending
-the child Runs have a different membership. `audit-results@1` and future V39
+the child Runs have a different membership. `audit-results@1` and the opt-in V39
 completion versions are different bindings/experiments, not mixed samples.
 
 Publisher takes an explicit allowlisted projection, not a raw `asdict` of private
@@ -542,31 +546,41 @@ bounded explanatory text is not a machine-readable matching contract.
 
 ## 12. Delivery gate before evaluations
 
-V41 delivers schemas, typed records, converters, adapter separation, frozen plans,
+V41-001–008 deliver schemas, typed records, converters, adapter separation, frozen plans,
 recovery, scoring/comparison and publication using **offline/recorded fixtures and
 deterministic API conformance tests**. It does not run paid/model quality evals,
 launch benchmark campaigns, publish candidate default configurations or change
 running Audits. Ground-truth sentinels and fault fixtures are mandatory.
 
-Proposed CLI additions to existing `playground-eval` (not implemented yet):
+Delivered commands in `playground-eval experiment`:
 
-- `experiment plan --spec FILE --out DIR`: resolve/validate and freeze, no model
-  execution; read-only provider preflight is allowed and required pins must resolve.
-- `experiment run --plan DIR/plan.json`: explicit execution using the frozen plan.
-- `experiment resume --state DIR`: resume intents, observation/scoring/publication
-  with existing identities, never a new statistical sample implicitly.
-- `experiment compare --state DIR`: derive a versioned comparison from retained data.
-- `experiment publish --state DIR --connection NAME`: publish safe projections.
+- `plan --spec FILE --environment FILE --out DIR`: resolve/validate and freeze;
+  read-only provider preflight must resolve required pins before execution.
+- `run --plan FILE --environment FILE`: execute the selected frozen plan.
+- `resume --plan FILE --environment FILE`: reconcile the same durable intents
+  and observations, without creating an implicit replacement sample.
+- `compare --plan FILE --selection FILE --environment FILE`: derive a comparison
+  from explicitly selected retained records.
+- `publish --plan FILE --selection FILE --environment FILE --project ID`:
+  publish or resume safe projections; `--initialize-local` explicitly initializes
+  a local publication target. Connections remain environment-local.
+
+Assessment is available through the Python API; a generic assessment CLI is not
+part of this delivery. Contractor and recorded execution adapters and local/
+Contractor publication are implemented. Live target/oracle integrations, complete
+live environment pins and measured instruction adoption remain outside the
+offline evidence; the readiness report records those limits.
 
 `validate` continues checking existing catalogs and gains v2 format support.
 Invalid plans, missing required live settings and incompatible schemas fail
 explicitly; an explicitly requested execution cannot silently skip and pass.
 
-The release gate requires all schemas/examples/negative fixtures, old v1 readers,
+The completed release gate covers schemas/examples/negative fixtures, old v1 readers,
 one unchanged case/scorer across Contractor and recorded providers, complete fault
 walkthroughs, owner-safe publication and stable comparison arithmetic. It records
-exact implementation/schema/scorer build digests in a readiness report.
-Only after V41-008 passes may V40 prepare instruction fixtures/bindings and a
-pilot plan. V40-003 remains the separate future model-evaluation task with its own
-explicit budget and environment. Compatibility passing is not evidence that new
+exact implementation/schema/scorer build digests in the readiness report. Those
+pins identify the tested revision, including its retained specification bytes.
+V41-008 has passed; V40 may prepare instruction fixtures/bindings and a frozen
+pilot plan, but those tasks are still pending. V40-003 remains the separate future
+model-evaluation task with its own explicit budget and environment. Compatibility passing is not evidence that new
 instructions improve model quality.

@@ -26,7 +26,7 @@ still validates and durably accepts that candidate.
 ## Four result layers
 
 The following model/serializer path is the default ordinary completion
-strategy. [25](25-audit-worker-finalization.md) defines the planned explicit
+strategy. [25](25-audit-worker-finalization.md) defines the implemented explicit
 `audit-check-results@1` strategy at the same Runtime-owned completion boundary:
 validated incremental submissions, bounded continuation for missing items,
 and deterministic package/WorkerResult construction without an LLM serializer.
@@ -230,8 +230,10 @@ Initial stable result failures include:
 
 Malformed/missing model output, a subtask mismatch, an internal finalizer
 failure and a finalizer exact-copy mismatch are retryable Worker failures
-because a fresh StageExecution may succeed. Provider transport failures retain
-the shared `worker_gateway_unavailable` code; an internal finalizer boundary
+because a fresh StageExecution may succeed. Provider failures retain the shared
+`worker_gateway_unavailable` code and the retryability classification from
+[02](02-runtime-and-a2a.md#gateway-failure-classification), including permanent
+request, authorization and context/quota errors. An internal finalizer boundary
 failure uses `worker_result_finalizer_failed`. A `MAX_TOKENS` finish from the
 Worker or its result finalizer uses retryable `worker_output_limit_exceeded`,
 not `worker_result_missing`. Runtime accounts the consumed tokens but does not

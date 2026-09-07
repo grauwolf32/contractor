@@ -81,6 +81,7 @@ class SandboxProfileRef(BaseModel):
 
 class WorkerSummarizerConfig(BaseModel):
     model_policy: ModelPolicyRef
+    instructions: ResolvedInstructions | None = None
     context_window_ratio: float = 0.9
     cumulative_budget: int | None = None
 
@@ -299,9 +300,10 @@ exhausted dimension in bounded metrics, and `retryable: true`. The model does
 not serialize that failure. Passthrough therefore supplies a normal failed
 candidate to Scheduler, whose Workflow transition owns whole-Stage retry.
 
-`temperature` is optional; when absent, Worker omits the parameter instead of
-inventing a default. When present, it is a finite JSON number greater than or
-equal to zero. Gateway remains responsible for whether that value and the
+`temperature` is optional; when absent, Worker and modeled Planners
+(`streamline@1` and `router@1`) omit the parameter instead of inventing a default.
+An explicit zero is preserved. When present, it is a finite JSON number greater
+than or equal to zero. Gateway remains responsible for whether that value and the
 per-response output limit are supported by the selected route.
 
 The `spec` object contains only `model` and the seven optional portable fields
@@ -594,7 +596,10 @@ exact instruction `digest`; their full text is carried beside the manifest but
 need not be duplicated inside it. A non-empty `skills` set appears as sorted
 logical `{namespace,name}` refs with no revision; the property is omitted for
 the empty set. An optional summarizer appears with its exact ModelPolicy ref,
-normalized context-window ratio and optional cumulative budget. Every model,
+normalized context-window ratio and optional cumulative budget. When its own
+instructions are configured, their resolved `{ref, digest}` is also included;
+omission preserves the earlier manifest. [15](15-worker-summarization.md) owns
+the 8,000-character bound, literal text handling and omission behavior. Every model,
 toolset and sandbox reference appears in its normalized exact form. The computed AgentTemplate digest itself is the only
 AgentTemplate field excluded from the input.
 

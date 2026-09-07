@@ -43,5 +43,5 @@ acceptance_criteria:
 
 tests:
   - {name: hardening, command: "cd runtime && uv run pytest tests/test_projectfs_legacy_parity.py tests/test_projectfs_security.py tests/test_projectfs_concurrency.py", covers: [A1, A2]}
-  - {name: architecture, command: "npx --yes likec4@1.56.0 validate docs/spec/architecture.c4", covers: [A3]}
+  - {name: architecture, command: "npx --yes likec4@1.56.0 validate docs/spec/artitecture.likec4", covers: [A3]}
   - {name: aggregate, command: "make verify", covers: [A1, A2, A3]}

@@ -1,7 +1,7 @@
 # Contractor v2 documentation
 
 The canonical working specification is [`spec`](spec/README.md). Its
-[`architecture.c4`](spec/architecture.c4) model and focused documents describe
+[`artitecture.likec4`](spec/artitecture.likec4) model and focused documents describe
 the same execution architecture; there is no second legacy specification in
 this tree.
 
@@ -20,7 +20,7 @@ blob backend remain replaceable deployment adapters.
 - [Git repository artifacts](git-artifacts.md) — SSH-key Settings, Workflow/Project import, deployment and release verification; [specification](spec/24-git-artifacts.md).
 - [Specification index](spec/README.md)
 - [Portable evaluation format](spec/26-portable-evaluation-format.md) — versioned datasets, execution bindings and evaluator records; [offline readiness and implementation pins](reviews/portable-eval-format-readiness.md). Model quality runs require a separate frozen budget.
-- [UI user stories and improvement roadmap](ui-user-stories.md) — planned scenarios, acceptance and V37/V38 tasks.
+- [UI user stories and improvement roadmap](ui-user-stories.md) — delivered V37-001–009 journeys, remaining V37/V38 work and acceptance criteria.
 - [UI use-case and usability review, 2026-09-06](reviews/2026-09-06-ui-use-cases-and-usability.md) — observed obstacles and supporting evidence.
 - [Workflow and AuditProfile mapping to contractor-old](reviews/2026-09-06-workflows-audits-legacy-mapping.md) — catalog updated 2026-09-07, concrete legacy counterparts and remaining gaps.
 - [Production scenario catalog](reviews/2026-09-06-production-scenario-catalog.md) — purpose, production use and proposed composition of security scenarios; updated 2026-09-07.
@@ -28,7 +28,7 @@ blob backend remain replaceable deployment adapters.
 - [Findings tools and collection format](spec/27-findings-tools-and-collections.md) — implemented creation/reading tools, Server collection publication and Runtime materialization; [offline process validation](reviews/2026-09-06-findings-tools-validation.md).
 - [Unfinished-task consistency review, 2026-09-06](reviews/2026-09-06-unfinished-tasks-consistency.md) — historical review of the pending plan, corrected contract conflicts and verification gaps; current statuses are in tasks/index.yml.
 - [Annotations as optional Workflow artifacts](reviews/2026-09-06-trace-annotation-contract.md) — artifact boundary and when a structured index is useful.
-- [LikeC4 architecture](spec/architecture.c4)
+- [LikeC4 architecture](spec/artitecture.likec4)
 - [Workflow Scheduler and Planner](spec/00-workflow-and-planner.md)
 - [AgentTemplate](spec/01-agent-template.md)
 - [Runtime and A2A](spec/02-runtime-and-a2a.md)
@@ -45,7 +45,8 @@ blob backend remain replaceable deployment adapters.
 - [Projects, reusable artifacts and global Queue](spec/17-projects-and-queue.md)
 - [Run and workspace lifecycle controls](spec/18-run-and-workspace-lifecycle-controls.md)
 - [Project-bound multi-Run Audits](spec/19-audits.md)
-- [Audit Worker completion contracts](spec/25-audit-worker-finalization.md) — inert contracts and deterministic result publisher implemented; collector, integration and rollout remain in V39.
+- [Audit Worker completion contracts](spec/25-audit-worker-finalization.md) — opt-in collection, Runtime completion, publication and diagnostics implemented through V39-006; the required V39-007 release gate remains.
+- [Operational timeout configuration](operations/timeout-configuration.md) — typed process settings, independent budgets, precedence, migration and workspace cleanup deadlines.
 - [Workflow Scheduler concurrency control](spec/20-scheduler-concurrency-control.md)
 - [Allocation-scoped Podman execution](spec/21-podman-sandbox.md) — implemented, opt-in local/direct sandbox with verified cleanup.
 - [Operations performance and profiling](operations-performance.md) — startup

@@ -1,12 +1,16 @@
 # Audit Worker completion contracts
 
-Status: V39-001 implements inert contracts/interfaces and proves real-ADK
-continuation. V39-002 implements trusted Server pinning, allocation persistence
-and capability-aware placement. V39-004 implements deterministic encoding/publication;
-collection, Runtime activation and the release gate remain V39-003/005–007.
-See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md) and
-[publication validation](../reviews/2026-09-07-audit-result-publication.md), and
-[Server pinning validation](../reviews/2026-09-07-audit-completion-pinning.md).
+Status: **Implemented opt-in through V39-006; release gate V39-007 pending.**
+V39-001–006 implement contracts, Server pinning and capability-aware placement,
+incremental collection, deterministic ZIP publication, common Runtime completion,
+bounded diagnostics and versioned examples. The required PostgreSQL/restart and
+real Runtime-to-importer release gate remains V39-007.
+See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md),
+[Server pinning](../reviews/2026-09-07-audit-completion-pinning.md),
+[collector](../reviews/2026-09-07-audit-result-collector.md),
+[publication](../reviews/2026-09-07-audit-result-publication.md),
+[Runtime integration](../reviews/2026-09-07-audit-completion-runtime.md) and
+[diagnostics](../reviews/2026-09-07-audit-completion-diagnostics.md) evidence.
 Existing deployed Runs and immutable snapshots keep their current behavior until
 an explicitly versioned configuration selects this contract.
 
@@ -25,6 +29,14 @@ The boundary returns exactly one of:
 - `continue`: a bounded Runtime-authored reminder; resume the same invocation;
 - `complete`: a trusted WorkerResult ready for normal lifecycle processing;
 - `fail`: a bounded WorkerFailure, with no fabricated successful result.
+
+The shared boundary lives in `worker/completion.py`; the Audit implementation
+lives with `toolsets/audit_results`. Worker orchestration binds a prepared
+completion implementation to the identical trusted contract and all its required
+tools under one owner. Missing, mixed or forged owners fail preparation. The
+common runner does not infer Audit behavior from tool names or import an
+Audit-specific completion policy. This organization does not enable additional
+publicly selectable completion strategies.
 
 | Selected contract | Completion behavior |
 |---|---|
@@ -224,7 +236,7 @@ collector. Final State and cleanup occur once. The current before_run_callback
 consumes a one-use preparation token; simply wrapping runner.run_async in a
 loop is not sufficient. Before freezing the interfaces in V39-001, demonstrate
 the continuation seam with the pinned real ADK Runner, production
-instrumentation and a scripted model; V39-005 completes production integration.
+instrumentation and a scripted model; V39-005 supplies the production integration.
 
 After the reminder allowance is exhausted, return retryable
 `audit_result_incomplete` with safe counts/missing identifiers. Existing hard

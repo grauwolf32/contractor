@@ -1205,7 +1205,7 @@ summarizer has separate soft-limit and accounting semantics under
 result-finalizer phase.
 
 The explicit Audit-check completion contract in
-[25](25-audit-worker-finalization.md) is a planned opt-in strategy at that same
+[25](25-audit-worker-finalization.md) is an implemented opt-in strategy at that same
 completion boundary. It requires validated data for each assigned check and
 uses deterministic ZIP/result publication rather than the ordinary LLM
 serializer. Bounded reminders consume the same invocation budget. Only the
@@ -1213,6 +1213,8 @@ trusted Audit check binding enables it; ordinary workflow behavior is unchanged.
 
 `streamline@1` and `router@1` receive `maxOutputTokens`, `maxModelCalls`,
 `maxWorkerCalls`, and `maxTotalTokens` from their exact resolved ModelPolicy.
+They also preserve its optional `temperature`: omitted stays omitted and
+explicit zero is sent unchanged, as specified in [01](01-agent-template.md).
 The Stage/Planner deadline remains an execution limit outside ModelPolicy and
 is always finite.
 An incompatible or incomplete policy fails Run initialization before capacity

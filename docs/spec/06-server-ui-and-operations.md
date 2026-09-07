@@ -98,15 +98,18 @@ Workflow recommendation, global Queue, Evals and global Skills behavior is
 owned by [17](17-projects-and-queue.md). Runs consolidation and lifecycle
 controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).
 
-## Planned usability work
+## Delivered usability and remaining work
 
 [UI user stories and roadmap](../ui-user-stories.md) records the target journeys
 and their acceptance criteria, based on the
 [2026-09-06 usability review](../reviews/2026-09-06-ui-use-cases-and-usability.md).
-V37-001 through V37-012 plan draft continuity, accessible dialogs, primary
-actions, reviewed input suggestions, Catalog discovery, repeat Run drafts,
-result preview, Audit review and Operations layout. These are planned changes,
-not a claim that the current UI already satisfies every story.
+V37-001 through V37-009 deliver draft continuity, accessible dialogs, primary
+actions, reviewed input suggestions, Catalog discovery, repeat Run drafts and
+primary result preview. Contextual Audit review, the Operations layout and the
+connected desktop/mobile/keyboard release gate remain V37-010 through V37-012.
+V46-001–004 separately track draft-submission races, Performance interval
+boundaries, direct Project Run routes and Catalog Previous pagination. Those
+pending fixes must not be inferred complete from the earlier feature delivery.
 
 Implementation tasks own the necessary amendments to focused contracts. A
 media-type recommendation under [17](17-projects-and-queue.md) does not
@@ -116,11 +119,40 @@ media-type validation. New Catalog and Audit read projections must filter
 before pagination, and a repeat Run must use authorized exact source refs
 rather than treating RunScope refs as UserScope or ProjectScope inputs.
 
-Performance UI remains V32-006 and Git Settings/import remains V35-004. V38-001
-defines experiment setup and comparison before further Evals implementation;
-the existing evaluation Project and generic Run-label behavior remains valid.
+Performance UI and Git Settings/import are implemented and release-verified
+under V32 and V35. V38-001 still owns future Evals experiment/comparison UX;
+the implemented portable evaluator in [26](26-portable-evaluation-format.md)
+does not imply that UI is delivered. Existing evaluation Projects and generic
+Run-label behavior remain valid.
 
 ## Deployment boundary
+
+### Process settings and operational budgets
+
+`ServerConfig.spec` contains typed non-secret process settings, distinct from
+published Workflow/ModelPolicy documents, RuntimeConfig label overlays and the
+durable Scheduler concurrency setting. Process settings are resolved once using
+defaults < YAML < environment < flags, validated before startup, and require a
+restart to change. Effective-setting diagnostics expose resolved durations and
+bounded counts, not credentials, URLs or secret paths.
+
+V49-001 separates Runtime/A2A request timeouts, Scheduler operation and terminal
+budgets, Runtime batch cleanup, Project lifecycle operations/claims, Audit
+controller polling/claims/operations, database budgets, A2A polling and credential
+management HTTP. Increasing one transport timeout cannot silently enlarge an
+operation or reset a stored deadline. Credential-management HTTP limits do not
+control LLM inference, and Audit claim batches do not replace AuditProfile child
+Run batching or global Scheduler concurrency.
+
+The [operational reference](../operations/timeout-configuration.md) is the single
+table of configuration paths, defaults, limits, environment/flag mappings and
+migration rules. It also specifies database timeout ordering and conflicting
+DSN/environment inputs. [04](04-execution-lifecycle-and-metrics.md#operational-budget-ownership)
+owns terminal deadline/cleanup behavior; [10](10-runtime-filesystems-and-edit-tools.md#lifecycle-and-cleanup)
+owns Runtime-local workspace budgets. None of these settings adds an Operations
+UI mutation or hot reload.
+
+### Web UI service
 
 Web UI is its own Node.js build artifact and runtime service. Go Server embeds
 and serves no HTML, JavaScript, CSS or other frontend asset. Rebuilding,
@@ -357,10 +389,10 @@ stale, causing the UI to fetch a new snapshot. This is a current-state view,
 not durable allocation history: an allocation disappears after authoritative
 release.
 
-The partially implemented [performance extension](22-performance-metrics-and-profiling.md)
-specifies a separate Performance page and durable completed-allocation history.
-Collection, history storage and Go profiling are implemented; the Operations
-API integration is in progress and the UI/release gate remain pending. It owns
+The implemented [performance extension](22-performance-metrics-and-profiling.md)
+provides a separate Performance page and durable completed-allocation history.
+Collection, history storage, Go profiling, Operations APIs and UI are implemented
+and verified through V32-008. It owns
 their collection switches, bounded read APIs and freshness/retention semantics;
 it does not extend the live registry's retention or advance its revisions on
 periodic samples. Go profiling is separately enabled at Server startup and is

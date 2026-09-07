@@ -87,7 +87,7 @@ Package, model-context and workspace expansion limits remain independent.
 Receiving a file and retaining it are separate operations. The download/upload
 path must not require a temporary local file in PostgreSQL mode: process bytes
 through bounded memory or streaming interfaces into the chosen backend. A
-planned Git importer in [24](24-git-artifacts.md) honors the same boundary:
+implemented Git importer in [24](24-git-artifacts.md) honors the same boundary:
 in-memory snapshots, owner SSH-key Settings and Workflow/Project import UI
 are separate V35 work, with no local checkout.
 
@@ -206,4 +206,4 @@ the existing exporter/overlay limit mismatch after the generic 64 MiB increase;
 it preserves the independent 16 MiB overlay budget. S3, Git import, automatic
 store migration, online orphan sweeping and stronger crash durability remain
 outside those tasks. Git import is specified separately in
-[24](24-git-artifacts.md) and planned as V35-001 through V35-005.
+[24](24-git-artifacts.md) and implemented and verified by V35-001 through V35-005.

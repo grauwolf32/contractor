@@ -440,10 +440,11 @@ The private registration request also adds mandatory
 registration response returns safe `runtimeAgentId`, authoritative `labels` and
 `labelRevision` beside the existing heartbeat/lease settings. Runtime may show
 them in local diagnostics but does not use the returned labels to configure the
-process or active allocation. Registration request and response contain
-mandatory integer `privateProtocolVersion: 2`; the shared document
-`apiVersion: contractor/v1alpha1` remains unchanged. An older peer fails version
-negotiation rather than silently treating missing arrays as defaults.
+process or active allocation. Registration request and response use the single
+`apiVersion: contractor/v1alpha1` private contract defined in
+[02](02-runtime-and-a2a.md#one-private-wire-contract). They contain no separate
+private-protocol version field. Missing required arrays or unknown fields fail
+strict validation; there is no legacy registration fallback.
 
 Runtime enables every installed built-in adapter by default. An immutable
 startup allowlist may narrow that installed surface with repeated
@@ -708,6 +709,11 @@ RuntimeSettings
     headers                          secret map resolved from credential
     captureContent                   boolean; false by default, true trusts sink
     flushTimeoutSeconds
+    export?                          Worker-only, pinned batch/queue/attempt settings
+      batchSizeBytes
+      maxAttempts
+      maxPendingSpans
+      maxPendingBytes
   httpProxy?
     adapter                          exact RuntimeAdapterRef
     proxyUrl

@@ -150,6 +150,10 @@ search return previews; only `read_memory` and successful mutation responses
 return the full note. ArtifactRef, Artifact revision, physical blob identity,
 and scope IDs are never model-visible.
 
+`tags` is always a JSON array in both full and preview results. An untagged note
+or a replacement that clears tags returns `tags: []`, never `null` or an omitted
+field. Planner and Worker serialize the same logical projection.
+
 `ordinal` is a monotonically increasing unsigned 64-bit creation order within
 one Memory Namespace; its first note receives `0`. Its canonical JSON value is
 also restricted to the exactly interoperable integer range

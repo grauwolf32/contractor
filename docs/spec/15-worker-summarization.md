@@ -29,6 +29,8 @@ An `adk@1` AgentTemplate may contain one optional block:
 spec:
   summarizer:
     modelPolicy: worker-summarizer@1
+    instructions:
+      ref: instructions/terminal-summarizer.md
     contextWindowRatio: 0.9
     cumulativeBudget: 220000
 ```
@@ -36,6 +38,8 @@ spec:
 Omission disables summarization. The object is closed and contains:
 
 - mandatory exact `modelPolicy` selector;
+- optional `instructions: {ref: ...}` resolved by the existing instruction-file
+  loader; the resolved block carries the exact ref, SHA-256 digest and text;
 - optional `contextWindowRatio`, defaulted to `0.9` during resolution and
   required in the normalized AllocationSpec, strictly between zero and one;
 - optional positive `cumulativeBudget`, lower than the normal Worker's hard
@@ -63,6 +67,15 @@ AgentTemplate digest, immutable Run snapshot and AllocationSpec. Runtime
 verifies both digests before Worker construction. Labels may select the same
 physical Worker Gateway route under [07], but cannot enable summarization or
 change its policy/soft limits.
+
+Configured summarizer instructions must contain non-blank text and at most
+8,000 Unicode characters, including whitespace and newlines. This is a character
+bound, not a 2,000-token allowance. The resolved ref/digest participates in the
+AgentTemplate digest; the exact text is pinned in the Run and AllocationSpec
+and verified by Runtime. ADK receives it literally, including braces, without
+expanding session variables. Omission retains the built-in instructions and
+does not add a new member to the template's digest manifest. The working catalog
+selects `instructions/terminal-summarizer.md` explicitly.
 
 ## Trigger semantics
 
@@ -101,7 +114,7 @@ prompt after new tool results. Its ratio and output reserve are a deterministic
 pre-emptive boundary, not a guarantee that every provider will accept the next
 request. Independent model/tool/hard-token budgets remain mandatory.
 
-These rules apply to the ordinary completion strategy. The planned opt-in
+These rules apply to the ordinary completion strategy. The implemented opt-in
 `audit-check-results@1` contract in [25](25-audit-worker-finalization.md) rejects
 summarizer configuration in its first version: tool-free summarization cannot
 satisfy missing per-item submissions or bypass the Audit completion gate.
@@ -151,6 +164,15 @@ newest complete event groups that fit are retained next, preserving their
 original order, and a deterministic `transcriptTruncated` marker reports any
 omission. Tool payloads remain subject to their existing model-visible bounds.
 
+The 512 KiB projection is the only local document-size admission here; it does
+not establish that the complete request fits the summarizer model's context.
+V47-005 removed V47-003's additional byte-to-token estimate, framing reserve and
+context-based history trimming. Runtime sends the bounded projection with the
+pinned instructions and output schema; the Gateway decides context acceptance.
+Context failures retain the permanent-error classification in
+[02](02-runtime-and-a2a.md#gateway-failure-classification). An explicit future
+compaction strategy is separate from this terminal path.
+
 The separate model uses the same strict two-field `WorkerModelResult` schema:
 
 ```python
@@ -167,11 +189,15 @@ the summarizer. Because this tool-free terminal summarizer already produces the
 strict `WorkerModelResult`, Runtime does not invoke the ordinary result
 finalizer after it.
 
-Once terminal summarization is requested, Runtime makes exactly one summarizer
-attempt. Missing/invalid/mismatched/oversized output, provider failure or its
-independent budget exhaustion returns one safe retryable
-`worker_summarization_failed` (with a more specific bounded cause in metrics),
-never resumes the normal Worker and never attempts repair.
+Once terminal summarization is requested, Runtime makes exactly one logical
+summarizer call, subject to the bounded Gateway transport attempt series in
+[02](02-runtime-and-a2a.md). Missing/invalid/mismatched/oversized output or its
+independent budget exhaustion returns safe retryable
+`worker_summarization_failed` with a more specific bounded cause in metrics.
+Provider failures use the same outer code but preserve Gateway retryability:
+authorization, invalid-request and context/quota failures are not made retryable
+by wrapping them. Runtime never resumes the normal Worker or attempts semantic
+repair after a failed summary.
 
 ## State, metrics and lifecycle
 

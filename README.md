@@ -44,7 +44,7 @@ The target deployment is deliberately small:
 - [Command-line client](docs/cli.md)
 - [Local development and end-to-end MVP](docs/development.md)
 - [Working specifications](docs/spec/README.md)
-- [LikeC4 architecture model](docs/spec/architecture.c4)
+- [LikeC4 architecture model](docs/spec/artitecture.likec4)
 
 ## Validate the architecture
 

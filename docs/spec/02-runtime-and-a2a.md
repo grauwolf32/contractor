@@ -13,14 +13,14 @@ Agent capacity and returns ready `WorkerHandle` values to Workflow Scheduler.
 It manages allocation lifecycle, not Planner algorithms, Worker objectives or
 A2A Task semantics.
 
-The partially implemented operational extension in
+The implemented operational extension in
 [22](22-performance-metrics-and-profiling.md) owns optional allocation resource
 collection requests and their diagnostic capability advertisement. That
 capability does not constrain placement or change the lifecycle defined here.
 
 ## Control-plane trust and mTLS
 
-The planned Audit-check extension in [25](25-audit-worker-finalization.md)
+The implemented opt-in Audit-check extension in [25](25-audit-worker-finalization.md)
 adds a Server-pinned optional AllocationSpec completion contract and explicit
 Runtime completion capabilities. Unlike resource diagnostics, support for a
 requested completion contract constrains placement and direct preparation.
@@ -63,6 +63,23 @@ are associated with the Runtime Agent to which the allocation was issued. That
 association protects execution-state consistency; it does not give different
 Runtime Agents different privileges.
 
+### One private wire contract
+
+The private Server/Runtime surface has one current set of strict models under
+`apiVersion: contractor/v1alpha1`. Registration, allocation settings, reports and
+their consumers use the current fields under the original model names. There
+is no parallel legacy model, `V2` alias, conversion fallback or separate
+`privateProtocolVersion` negotiation. Missing required current fields and
+unknown fields fail validation rather than selecting another protocol.
+
+Canonical JSON schemas live in [`api/v1alpha1`](../../api/v1alpha1/) and shared
+valid/invalid fixtures in [`api/testdata/v1alpha1`](../../api/testdata/v1alpha1/).
+Go/Python wire parity checks use this single catalog. The document version does
+not collapse independently versioned Toolsets, completion contracts, workspace
+packages, Audit package formats or A2A envelopes; their own versions remain
+explicit. Changes to this private surface require compatible Server/Runtime
+builds rather than a silent downgrade to an older shape.
+
 ## Registration, principal and process identity
 
 Runtime Agent registration represents one running process. On process start
@@ -90,7 +107,7 @@ RuntimeAgentRegistration
   frozen startup WorkerRuntime, Toolset/tool, SandboxProfile and RuntimeAdapter capabilities
   observed_state
   allocation_id?
-  private protocol version
+  apiVersion: contractor/v1alpha1
 ```
 
 `software_version` is a bounded version string reported by the Runtime Agent
@@ -510,6 +527,22 @@ If a response was lost after the Gateway accepted it, however, repeated Gateway
 work and billing are possible and only the accepted final response's usage can
 be added to the Worker token counters. Gateway-side quotas therefore remain the
 hard authority for all physical attempts.
+
+### Gateway failure classification
+
+After the SDK attempt series ends, Runtime classifies the final failure from
+bounded error metadata. Connection failures/timeouts and HTTP 408, 409, 429 or
+5xx are retryable. Other HTTP errors, including 400, 401, 403, 404, 413 and 422,
+are non-retryable. Explicit `insufficient_quota`, `budget_exceeded` and
+`context_length_exceeded` codes are non-retryable even when the status would
+otherwise allow retry. Provider bodies and headers are not retained in errors.
+
+The ordinary Worker and result finalizer preserve that flag under
+`worker_gateway_unavailable`; terminal summarization preserves it under
+`worker_summarization_failed`. Wrapping an error never grants another semantic
+attempt. Cancellation propagates through the existing lifecycle. Workflow policy
+decides whether a retryable failure creates a fresh StageExecution; this flag is
+separate from the SDK's own bounded transport retries.
 
 Secret fields are accepted only over the private mTLS control channel, retained
 in memory for the active allocation and redacted from logs, Agent Cards,

@@ -1,9 +1,10 @@
-// Target architecture for docs/spec/00–24 and tasks/index.yml (V25–V36).
-// Reconciled on 2026-09-06 against spec/task changes since 9509666c, including
-// working-tree amendments. Task files remain authoritative for delivery status.
-// Dashed #planned elements and tagged relationships mark pending/in-progress work:
-// Podman activation V31-004–008 and performance API/UI V32-005–006/008.
-// Git import V35-001–005 is implemented and verified by its release gate.
+// Architecture for docs/spec/00–27, reconciled on 2026-09-08.
+// Incorporates V50-001 as completed: one contractor/v1alpha1 private contract.
+// Podman V31, Performance V32, Git V35 and findings V43 are implemented.
+// V39 completion is implemented through 006; its 007 release gate remains.
+// V41 portable evals are offline-verified; V38 UI and V40 quality work remain.
+// V47 summarizer/error rules and V49 operational budgets are implemented.
+// Task files retain delivery evidence; #planned marks actual deferred components.
 specification {
   element actor {
     style {
@@ -71,6 +72,38 @@ model {
     #external
   }
 
+  evaluationHarness = system 'playground-v2 Portable Evaluator — external client, offline-verified V41' {
+    #external #optional
+
+    planner = component 'Experiment Planner — validate portable definitions, resolve pins, freeze membership' {
+      #external
+    }
+
+    runner = component 'Experiment Runner — durable intents, observation, cancellation and resume' {
+      #external
+    }
+
+    executionAdapters = component 'Execution Adapters — Contractor Workflow/Audit APIs or recorded observations' {
+      #external
+    }
+
+    assessment = component 'Assessment — immutable scorer/oracle provenance over retained Results' {
+      #external
+    }
+
+    comparison = component 'Comparison — complete expected membership, explicit unknown usage and pairing' {
+      #external
+    }
+
+    publisher = component 'Publisher — safe digested projections, exact replay and CAS index' {
+      #external
+    }
+
+    bundle = storage 'Private Local Bundle — frozen plan, submission receipts, Results, Assessments and Comparisons' {
+      #external
+    }
+  }
+
   webUi = system 'Contractor Web UI — React/TypeScript SPA on a separate Node.js service' {
     #contractor
   }
@@ -127,15 +160,15 @@ model {
     #contractor #optional
   }
 
-  podmanContainer = system 'Allocation Podman Container — planned lifecycle; /workspace bind, private /tmp, no network' {
-    #contractor #optional #planned
+  podmanContainer = system 'Allocation Podman Container — verified lifecycle; /workspace bind, private /tmp, no network' {
+    #contractor #optional
 
     imageSupervisor = component 'Approved image PID 1 — subordinate UID, inert orphan reaper' {
       #contractor
     }
 
     command = component 'Selected shell workload — nonzero keep-id UID; no Runtime secrets or control channel' {
-      #contractor #planned
+      #contractor
     }
   }
 
@@ -191,7 +224,7 @@ model {
     }
 
     allocationPolicy = storage 'Allocation record extension — pinned requested / disabled / unsupported resource policy' {
-      #contractor #planned
+      #contractor
     }
 
     gitKeys = storage 'Owner Git SSH keys — authenticated ciphertext + key generation; no private readback' {
@@ -246,6 +279,10 @@ model {
       }
 
       auditApi = component 'Audit / read-only AuditProfile API — owner commands, exact review decisions and revision polling' {
+        #contractor
+      }
+
+      findingCollectionsApi = component 'Finding Collections API — owner-authorized frozen Run/Audit selection' {
         #contractor
       }
 
@@ -438,9 +475,13 @@ model {
       gitImporter = component 'Git Snapshot Importer — one admitted fetch/ZIP/publication, in-memory objects, 120 s deadline' {
         #contractor
       }
+
+      findingCollectionPublisher = component 'Finding Collection Publisher — pinned receipts/reviews, exact evidence and ordinary ZIP artifacts' {
+        #contractor
+      }
     }
 
-    performanceMonitoring = component 'Built-in Performance — optional collection; API/UI integration pending' {
+    performanceMonitoring = component 'Built-in Performance — optional collection with implemented Operations API/UI' {
       #contractor #optional
 
       httpAccounting = component 'HTTP Accounting — fixed public/private counters + latency histograms; no request content' {
@@ -468,11 +509,11 @@ model {
       }
 
       performanceApi = component 'Operations Performance API — memory-only current, bounded history; authenticated read-only' {
-        #contractor #planned
+        #contractor
       }
 
       allocationResources = component 'Allocation Resource Ingestion / History — independent validation, owner-safe terminal joins' {
-        #contractor #planned
+        #contractor
       }
     }
 
@@ -646,12 +687,12 @@ model {
     performanceMonitoring.postgresCollector -> performanceMonitoring.liveFrames 'Keep each group original observation time; hidden/reset/unavailable data remains explicit'
     performanceMonitoring.liveFrames -> performanceMonitoring.historyWriter 'Aggregate minute coverage and histograms; samplers never wait for writes'
     performanceMonitoring.historyWriter -> performanceMonitoring.diagnosticPool 'Serial minute writes and at most 1000 expired-row deletions per cycle; bounded backlog/loss'
-    performanceMonitoring.performanceApi -> performanceMonitoring.liveFrames 'Current is memory-only; 15 s history limited to this generation and last hour' #planned
-    performanceMonitoring.performanceApi -> identityConfiguration.authService 'Existing Operations authority; retained reads allowed with collection disabled' #planned
-    performanceMonitoring.allocationResources -> identityConfiguration.authService 'Owner-filter terminal history and optional exact Run; default 50, max 100 keyset page' #planned
-    performanceMonitoring.allocationResources -> workspaceLifecycle.runStore 'Join durable allocation/Stage terminal identity, including missing reports; stable finished_at ordering' #planned
-    runtimeOperations.controlPlane -> performanceMonitoring.allocationResources 'Pin diagnostic policy without affecting placement; validate optional resources independently of execution truth' #planned
-    performanceMonitoring.allocationResources -> runtimeOperations.telemetry 'Preserve valid reports and 30-day retention; no second report store or changed Stage outcome' #planned
+    performanceMonitoring.performanceApi -> performanceMonitoring.liveFrames 'Current is memory-only; 15 s history limited to this generation and last hour'
+    performanceMonitoring.performanceApi -> identityConfiguration.authService 'Existing Operations authority; retained reads allowed with collection disabled'
+    performanceMonitoring.allocationResources -> identityConfiguration.authService 'Owner-filter terminal history and optional exact Run; default 50, max 100 keyset page'
+    performanceMonitoring.allocationResources -> workspaceLifecycle.runStore 'Join durable allocation/Stage terminal identity, including missing reports; stable finished_at ordering'
+    runtimeOperations.controlPlane -> performanceMonitoring.allocationResources 'Pin diagnostic policy without affecting placement; validate optional resources independently of execution truth'
+    performanceMonitoring.allocationResources -> runtimeOperations.telemetry 'Preserve valid reports and 30-day retention; no second report store or changed Stage outcome'
   }
 
   runtimeAgent = system 'Runtime Agent — N environment-specific single-slot processes' {
@@ -673,6 +714,10 @@ model {
       }
 
       slotManager = component 'Exclusive Slot / Allocation Context' {
+        #contractor
+      }
+
+      processSettings = component 'Runtime Startup Settings — immutable local workspace I/O budget' {
         #contractor
       }
     }
@@ -700,11 +745,15 @@ model {
         #contractor
       }
 
-      resultFinalizer = component 'Result Finalizer — mandatory isolated tool-free structured serialization' {
+      completionGate = component 'Worker Completion Boundary — trusted continue / complete / fail before terminal publication' {
         #contractor
       }
 
-      terminalSummarizer = component 'Terminal Summarizer — optional isolated tool-free terminal path' {
+      resultFinalizer = component 'Ordinary Result Finalizer — isolated tool-free exact text serialization' {
+        #contractor
+      }
+
+      terminalSummarizer = component 'Terminal Summarizer — pinned instructions, separate one-call policy and bounded transcript' {
         #contractor #optional
       }
 
@@ -724,7 +773,11 @@ model {
         #contractor
       }
 
-      sandboxManager = component 'SandboxProfile manager — existing scratch lifecycle; Podman allocation integration pending' {
+      otlpExporter = component 'Worker OTLP Exporter — async whole-span batches, bounded queue and finite attempts' {
+        #contractor #optional
+      }
+
+      sandboxManager = component 'SandboxProfile manager — scratch lifecycle and verified opt-in Podman backend' {
         #contractor
       }
 
@@ -737,11 +790,11 @@ model {
       }
 
       podmanLifecycle = component 'Podman Allocation Lifecycle — hydrate then start; finalize stops; release removes container before files' {
-        #contractor #optional #planned
+        #contractor #optional
       }
 
       codeExecutionTools = component 'Selected code-execution@1.exec_command — narrow sandbox handle, one bounded command, no uncertain replay' {
-        #contractor #optional #planned
+        #contractor #optional
       }
 
       filesystemTools = component 'Selected filesystem@1 / edit-files@1 / workspace-changes@1 tools' {
@@ -764,7 +817,19 @@ model {
         #contractor #optional
       }
 
-      securityFindingsTools = component 'Selected security-findings@1 — finding proposals only; no model-selectable Audit/Project identity' {
+      securityFindingsTools = component 'Selected finding tool — security-findings@1 or @2; allocation-bound proposal receipts' {
+        #contractor #optional
+      }
+
+      findingReaderTools = component 'Selected list_findings — security-findings@2; bounded frozen collection reader' {
+        #contractor #optional
+      }
+
+      auditResultCollector = component 'Selected audit-results@2 — invocation-local validated item revisions and recorded receipts' {
+        #contractor #optional
+      }
+
+      auditResultPublisher = component 'Audit Completion Publisher — sealed result set to deterministic ZIP and verified artifact receipt' {
         #contractor #optional
       }
 
@@ -788,7 +853,7 @@ model {
         #contractor
       }
 
-      modelClient = component 'Model Client — optional' {
+      modelClient = component 'Contractor ADK BaseLlm / AsyncOpenAI — allocation-owned Gateway route and classified failures' {
         #contractor #optional
       }
     }
@@ -808,21 +873,22 @@ model {
     agentControl.capabilityProbe -> workerExecution.resourceSampler 'Advertise optional performance metrics version 1; omission disables sampling, never a placement constraint'
     agentControl.slotManager -> workerExecution.resourceSampler 'When requested: start after ownership before prepare; freeze after teardown before cached report; idle/release excluded'
     workerExecution.resourceSampler -> workerExecution.executionCollector 'Optional runtime.resources aggregate; process only, no children/containers; failures affect resources only'
-    agentControl.slotManager -> allocationCapabilities.podmanLifecycle 'Own one idempotent container lifecycle; uncertain cleanup retains task and fences slot' #planned
-    agentControl.capabilityProbe -> allocationCapabilities.podmanLifecycle 'V31-006: advertise only after real image/resource/mount/descendant/liveness/removal probes' #planned
-    allocationCapabilities.podmanLifecycle -> allocationCapabilities.workspaceProvider 'Require local + direct; hydrate before container; remove mounted files only after confirmed removal' #planned
-    allocationCapabilities.podmanLifecycle -> allocationCapabilities.podmanClient 'Prepare/stop/remove exact allocation container; owner recovery precedes workspace cleanup' #planned
-    allocationCapabilities.podmanLifecycle -> podmanGuardian 'Private control/liveness renewal bounded by confirmed lease; no workload access' #planned
+    agentControl.slotManager -> allocationCapabilities.podmanLifecycle 'Own one idempotent container lifecycle; uncertain cleanup retains task and fences slot'
+    agentControl.capabilityProbe -> allocationCapabilities.podmanLifecycle 'V31-006: advertise only after real image/resource/mount/descendant/liveness/removal probes'
+    allocationCapabilities.podmanLifecycle -> allocationCapabilities.workspaceProvider 'Require local + direct; hydrate before container; remove mounted files only after confirmed removal'
+    allocationCapabilities.podmanLifecycle -> allocationCapabilities.podmanClient 'Prepare/stop/remove exact allocation container; owner recovery precedes workspace cleanup'
+    allocationCapabilities.podmanLifecycle -> podmanGuardian 'Private control/liveness renewal bounded by confirmed lease; no workload access'
     allocationCapabilities.podmanClient -> podmanPolicy 'Validated immutable startup image/owner/limits; separate from Runtime labels and host subprocess adapters'
     allocationCapabilities.podmanClient -> localPodmanEngine 'Local structured argv only; bounded owned operations, no remote engine or global prune'
-    allocationCapabilities.codeExecutionTools -> allocationCapabilities.podmanClient 'Private execution handle; fixed container shell argv, bounded output/deadline; no host execution' #planned
-    allocationCapabilities.codeExecutionTools -> allocationCapabilities.workspaceProvider 'Hold shared workspace ownership until guardian confirms no remaining writers; reacquire current disk afterward' #planned
-    allocationCapabilities.codeExecutionTools -> podmanGuardian 'Confirm complete descendant cleanup; timeout/output/cancellation/uncertainty stops whole container' #planned
+    allocationCapabilities.codeExecutionTools -> allocationCapabilities.podmanClient 'Private execution handle; fixed container shell argv, bounded output/deadline; no host execution'
+    allocationCapabilities.codeExecutionTools -> allocationCapabilities.workspaceProvider 'Hold shared workspace ownership until guardian confirms no remaining writers; reacquire current disk afterward'
+    allocationCapabilities.codeExecutionTools -> podmanGuardian 'Confirm complete descendant cleanup; timeout/output/cancellation/uncertainty stops whole container'
 
     workerExecution.a2aServer -> workerExecution.workerRuntime 'Validate and deliver one sequential A2A Task for the active allocation'
     workerExecution.workerRuntime -> workerExecution.workerSessionLifecycle 'Acquire shared or fresh isolated session only after admission'
     workerExecution.workerSessionLifecycle -> workerExecution.workerState 'Rehydrate Contractor State; snapshot bounded eligible ADK State; carry no isolated events'
-    workerExecution.workerRuntime -> workerExecution.resultFinalizer 'Serialize every ordinary terminal text in a separate ephemeral session'
+    workerExecution.workerRuntime -> workerExecution.completionGate 'Evaluate semantic completion before terminal State and WorkerCompletion'
+    workerExecution.completionGate -> workerExecution.resultFinalizer 'Ordinary terminal text: one isolated exact-copy serializer'
     workerExecution.workerRuntime -> workerExecution.terminalSummarizer 'At a configured boundary, run one independent terminal summary instead'
     workerExecution.workerRuntime -> workerExecution.workerInstrumentation 'Emit ADK run / model / tool callback boundaries'
     workerExecution.workerInstrumentation -> workerExecution.workerState 'Reduce bounded invocation observations and allocation metrics'
@@ -837,7 +903,7 @@ model {
     workerExecution.workerRuntime -> allocationCapabilities.codeAnalysisTools 'Construct selected read-only operations over a narrowed Reader snapshot'
     workerExecution.workerRuntime -> allocationCapabilities.taintAnnotationTools 'Construct selected structured mutations over a narrowed Writer'
     workerExecution.workerRuntime -> allocationCapabilities.httpCaidoTools 'Construct only selected bounded HTTP / Caido operations'
-    workerExecution.workerRuntime -> allocationCapabilities.codeExecutionTools 'Explicit Toolset allowlist plus podman@1 required; ADK/A2A/trusted tools remain in Runtime process' #planned
+    workerExecution.workerRuntime -> allocationCapabilities.codeExecutionTools 'Explicit Toolset allowlist plus podman@1 required; ADK/A2A/trusted tools remain in Runtime process'
     workerExecution.workerRuntime -> allocationCapabilities.securityFindingsTools 'Construct only explicitly selected proposal tool; no Run creation, approval or final assessment'
     workerExecution.workerRuntime -> allocationCapabilities.skillToolset 'Construct from AgentTemplate-selected exact Run package artifacts'
     workerExecution.workerRuntime -> allocationCapabilities.artifactClient 'Prepare-time exact read of reserved skills/* packages; no write or owner/catalog authority'
@@ -870,8 +936,8 @@ model {
   browser -> server.productSurface.auditApi 'Project Audits UI: bounded revision polling, lifecycle commands, coverage/findings/reviews/report'
   browser -> server.productSurface.userArtifactApi 'Direct UserScope / ProjectScope Artifact queries/uploads/downloads'
   browser -> server.runtimeOperations.operationsApi 'Direct Runtime visibility and configuration management'
-  browser -> server.performanceMonitoring.performanceApi 'Planned Operations Performance page; visible-only 15 s polling and bounded range changes' #planned
-  browser -> server.performanceMonitoring.allocationResources 'Planned completed-allocation history and Run-attempt resource projection, separate from live registry' #planned
+  browser -> server.performanceMonitoring.performanceApi 'Operations Performance page; visible-only 15 s polling and bounded range changes'
+  browser -> server.performanceMonitoring.allocationResources 'Completed-allocation history and Run-attempt resource projection, separate from live registry'
   browser -> server.productSurface.eventApi 'Direct read-only WebSocket: Run/Planner stream + Operations invalidation'
   apiClient -> server 'Operate Workflow Runs without the UI' #contextOnly
   apiClient -> server.productSurface.authApi 'Authenticate through the same local session contract when needed'
@@ -884,13 +950,13 @@ model {
   operator -> server.profilingListener 'Local pprof client or SSH tunnel; profiles streamed to client, never Operations or report storage'
   operator -> server.artifactPlane.blobCleanup 'Offline CLI: dry-run report; apply only with all writers stopped'
   operator -> serverConfigFile 'Provide optional non-secret process settings and paths; no hot reload'
-  localPodmanEngine -> podmanContainer 'Planned allocation create/start/remove; preinstalled image only, /workspace RW and /tmp tmpfs' #planned
-  podmanGuardian -> podmanContainer 'Freeze/inventory pinned cgroup; confirm no writers; EOF/expiry/uncertainty kills entire scope within lease/10 s cap' #planned
-  podmanContainer.imageSupervisor -> podmanContainer.command 'Reap orphan descendants; workload cannot renew guardian or forge completion' #planned
-  podmanContainer.command -> runtimeWorkspaceStorage 'RW mount of this allocation content directory only; no parent roots, credentials or skill scripts' #planned
+  localPodmanEngine -> podmanContainer 'Verified allocation create/start/remove; preinstalled image only, /workspace RW and /tmp tmpfs'
+  podmanGuardian -> podmanContainer 'Freeze/inventory pinned cgroup; confirm no writers; EOF/expiry/uncertainty kills entire scope within lease/10 s cap'
+  podmanContainer.imageSupervisor -> podmanContainer.command 'Reap orphan descendants; workload cannot renew guardian or forge completion'
+  podmanContainer.command -> runtimeWorkspaceStorage 'RW mount of this allocation content directory only; no parent roots, credentials or skill scripts'
 
-  runtimeAgent.agentControl.registryClient -> server.runtimeOperations.controlPlane 'Agent mTLS: register / sequenced heartbeat+ack / observed availability'
-  server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint 'Control Plane mTLS: prepare / state snapshot / finalize / abort / release'
+  runtimeAgent.agentControl.registryClient -> server.runtimeOperations.controlPlane 'mTLS contractor/v1alpha1: register / sequenced heartbeat+ack / frozen capabilities'
+  server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint 'mTLS contractor/v1alpha1: pinned AllocationSpec / live state / finalize / abort / release'
   server.orchestration.workerInvokerTools -> runtimeAgent.workerExecution.a2aServer 'Control Plane mTLS + URI SAN: A2A to active in-process Worker'
   runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService 'Agent mTLS + allocation ID: RunScope operations; no owner/Project/database/blob-backend authority'
   runtimeAgent.allocationCapabilities.securityFindingsTools -> server.auditCoordination.findingIntake 'mTLS POST /private/v1/allocations/{allocation_id}/finding-proposals with trusted invocation/submission IDs'
@@ -915,13 +981,13 @@ model {
   server.performanceMonitoring.httpAccounting -> server.runtimeOperations.controlPlane 'Observe private workload HTTP with same bounded dimensions'
   server.performanceMonitoring.diagnosticPool -> artifactDatabase 'Bounded current_database statistics/size and history maintenance; independent from working/LISTEN pools'
   server.performanceMonitoring.historyWriter -> artifactDatabase.performanceMinutes 'Via diagnostic pool: generation/minute idempotency, 7-day TTL; disabled periods/restarts/loss remain gaps'
-  server.performanceMonitoring.performanceApi -> artifactDatabase.performanceMinutes 'Planned authorized request-pool reads: 7 days, at most 1000 points, filter expired data even when collection is off' #planned
-  server.runtimeOperations.controlPlane -> artifactDatabase.allocationPolicy 'Persist requested/disabled/unsupported once; duplicate prepare/restart retains original decision' #planned
-  server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy 'Read trusted pinned decision; legacy/missing reports remain visible as unknown resources' #planned
+  server.performanceMonitoring.performanceApi -> artifactDatabase.performanceMinutes 'Authorized request-pool reads: 7 days, at most 1000 points, filter expired data even when collection is off'
+  server.runtimeOperations.controlPlane -> artifactDatabase.allocationPolicy 'Persist requested/disabled/unsupported once; duplicate prepare/restart retains original decision'
+  server.performanceMonitoring.allocationResources -> artifactDatabase.allocationPolicy 'Read trusted pinned decision; legacy/missing reports remain visible as unknown resources'
   server.runtimeOperations.telemetry -> artifactDatabase.executionReports 'Persist bounded Contractor reports'
 
   runtimeAgent.workerExecution.executionCollector -> server.runtimeOperations.controlPlane 'Trusted allocation final report'
-  runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend 'Bounded OTLP export; explicit trusted-sink content capture'
+  runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend 'Sequential whole-span batches; default 8 MiB and 2 attempts; final flush deadline caps retries'
   runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy 'Selected Worker LLM/tool HTTP only; private Contractor traffic bypasses'
 
   server.orchestration.stagePlanner -> llmGateway 'Streamline/Router calls with resolved Planner policy/Gateway/credential'
@@ -942,6 +1008,58 @@ model {
   server.identityConfiguration.executionConfigService -> credentialMasterKey 'Read bootstrap key at startup; decrypt just in time'
   server.identityConfiguration.executionConfigService -> gatewayAdminBindings 'Resolve exact Gateway binding; read LiteLLM master key at startup'
   server.identityConfiguration.authService -> localAuthBootstrap 'Read one user ID, username and Argon2id hash at startup'
+
+  // Trusted completion is selected by Audit provenance, never by model text/tools.
+  server.auditCoordination.profileCatalog -> server.orchestration.runService 'Validate opted-in check Worker and every escalation variant; pin completion contract with trusted Audit Run'
+  server.orchestration.runService -> server.runtimeOperations.controlPlane 'Preserve completion contract through snapshot/preparation; require completionContracts and selected tools'
+  runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.completionGate 'Bind identical trusted contract and all required tools under one prepared owner'
+  runtimeAgent.agentControl.capabilityProbe -> runtimeAgent.workerExecution.completionGate 'Advertise supported completion contracts; unsupported prepare fails without downgrade'
+  runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.auditResultCollector 'Invoke explicitly selected read_audit_task and submit_check_result; accepted revisions are local receipts'
+  runtimeAgent.workerExecution.completionGate -> runtimeAgent.allocationCapabilities.auditResultCollector 'Check all assigned items; at most two same-invocation reminders within ordinary budgets; seal when complete'
+  runtimeAgent.workerExecution.completionGate -> runtimeAgent.allocationCapabilities.auditResultPublisher 'Publish sealed complete set and construct trusted WorkerResult without an LLM serializer'
+  runtimeAgent.allocationCapabilities.auditResultCollector -> runtimeAgent.allocationCapabilities.artifactClient 'Prepare exact task/manifest identity and evidence references; no publication on submit'
+  runtimeAgent.allocationCapabilities.auditResultPublisher -> runtimeAgent.allocationCapabilities.artifactClient 'Create-only deterministic ZIP; verify exact receipt; changed existing bytes conflict'
+  runtimeAgent.workerExecution.completionGate -> runtimeAgent.workerExecution.workerInstrumentation 'Bounded phase/count/reminder/failure facts; successful publication is not importer acceptance'
+
+  // Reusable collection publication and reading do not grant review authority.
+  apiClient -> server.productSurface.findingCollectionsApi 'POST /v1/finding-collections with authorized source/revision selection'
+  server.productSurface.findingCollectionsApi -> server.identityConfiguration.authService 'Owner authorization and existing mutation protection'
+  server.productSurface.findingCollectionsApi -> server.artifactPlane.findingCollectionPublisher 'Capture immutable selected receipts, reviews and exact available evidence'
+  server.artifactPlane.findingCollectionPublisher -> server.auditCoordination.auditStore 'Read existing Run receipts/Audit reviews from one authorized snapshot'
+  server.artifactPlane.findingCollectionPublisher -> server.artifactPlane.artifactService 'Read exact evidence and publish one bounded ordinary findings-collection ZIP'
+  apiClient -> server.productSurface.publicApi 'Create an ordinary Run with a published exact findings-collection input'
+  runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.findingReaderTools 'Construct list_findings only when selected independently of finding emission'
+  runtimeAgent.allocationCapabilities.findingReaderTools -> runtimeAgent.allocationCapabilities.artifactClient 'Validate exact input collection; materialize evidence as ordinary current-Run refs'
+
+  // Portable evaluation remains an external API client, with private recovery state.
+  apiClient -> evaluationHarness.planner 'Explicit plan/run/resume/compare/publish commands with local environment bindings'
+  evaluationHarness.planner -> evaluationHarness.bundle 'Freeze Case/Suite/Binding pins, variants and complete expected member set'
+  evaluationHarness.planner -> evaluationHarness.executionAdapters 'Read-only preflight; fail missing required pins before execution'
+  evaluationHarness.runner -> evaluationHarness.bundle 'Persist intent before submit; retain exact receipts, deadlines and observed Results across resume'
+  evaluationHarness.runner -> evaluationHarness.executionAdapters 'Execute/observe only frozen members; cancellation uncertainty stays explicit'
+  evaluationHarness.executionAdapters -> server.productSurface.publicApi 'Existing Workflow/Project Run APIs; stable request identity and exact inputs'
+  evaluationHarness.executionAdapters -> server.productSurface.auditApi 'Existing Audit APIs; distinguish child execution from accepted coverage'
+  evaluationHarness.executionAdapters -> server.productSurface.userArtifactApi 'Read exact result/evidence artifacts under existing owner authority'
+  evaluationHarness.assessment -> evaluationHarness.bundle 'Read exact Results and private expected data; write immutable scorer/oracle judgments'
+  evaluationHarness.comparison -> evaluationHarness.bundle 'Compare full membership and pinned Assessments; failed/missing members and unknown costs stay visible'
+  evaluationHarness.publisher -> evaluationHarness.bundle 'Select allowlisted safe projections; private recovery bundle remains local'
+  evaluationHarness.publisher -> server.productSurface.userArtifactApi 'Existing Project/Artifact publication; create-only replay plus CAS index, no new eval endpoint'
+
+  // Independent restart-only budgets preserve enclosing and stored deadlines.
+  server.identityConfiguration.processSettings -> server.orchestration.workflowScheduler 'Scheduler operation/finalization/abort budgets; stored terminal deadlines survive retry/restart'
+  server.identityConfiguration.processSettings -> server.runtimeOperations.controlPlane 'Separate per-request HTTP timeout and one cleanup budget per release/failed-prepare batch'
+  server.identityConfiguration.processSettings -> server.auditCoordination.auditController 'Explicit poll interval, operation budget, claim lease and bounded claim batch'
+  server.identityConfiguration.processSettings -> server.workspaceLifecycle.projectDeletionController 'Separate operation timeout and longer deletion claim duration'
+  server.identityConfiguration.processSettings -> server.orchestration.workerInvokerTools 'A2A polling interval; request waits still obey the enclosing deadline'
+  server.identityConfiguration.processSettings -> server.identityConfiguration.executionConfigService 'Credential-management connect/request limits, separate from inference'
+  server.identityConfiguration.processSettings -> artifactDatabase 'Working pool connect/acquire/query and PostgreSQL statement/lock/idle budgets; reject conflicting timeout sources'
+  operator -> runtimeAgent.agentControl.processSettings 'Startup workspace operation timeout: CLI overrides environment, finite positive local-storage setting'
+  runtimeAgent.agentControl.processSettings -> runtimeAgent.allocationCapabilities.workspaceProvider 'Local I/O and close budget; earlier enclosing deadline wins and timed-out work retains ownership'
+
+  // Worker OTLP delivery is independent from durable execution reports.
+  runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.otlpExporter 'Pin worker.telemetry.export settings; own sender, final flush, cancellation and close'
+  runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.allocationCapabilities.otlpExporter 'Enqueue bounded spans without waiting for HTTP; overflow counts failure and wakes sender'
+  server.identityConfiguration.runtimeConfigService -> runtimeAgent.allocationCapabilities.otlpExporter 'Resolved RuntimeSettings: default batch 8 MiB, 2 total attempts, 2048 spans/64 MiB queue, flush 10 s'
 }
 // Focused views select model relationships and shorten their display titles.
 // Existing navigation IDs are preserved. Dashed #planned components describe
@@ -1106,7 +1224,7 @@ views {
       title 'Allocation-bound RunScope'
     }
     include server.runtimeOperations -> server.performanceMonitoring with {
-      title 'Planned allocation resource integration'
+      title 'Allocation resource ingestion / history'
     }
     include server.identityConfiguration -> server.performanceMonitoring with {
       title 'Startup collection switch'
@@ -1206,7 +1324,7 @@ views {
       title 'Credentials / Runtime settings'
     }
     include server.runtimeOperations -> server.performanceMonitoring with {
-      title 'Planned allocation resource integration'
+      title 'Allocation resource ingestion / history'
     }
     include server.identityConfiguration -> server.performanceMonitoring with {
       title 'Startup collection switch'
@@ -1341,7 +1459,7 @@ views {
       title 'One loaded definition snapshot'
     }
     include browser -> server.productSurface.gitImportApi with {
-      title 'Planned Workflow / Project import'
+      title 'Workflow / Project Git import'
     }
     include browser -> server.productSurface.auditApi with {
       title 'Audits / revision polling'
@@ -1805,7 +1923,7 @@ views {
 
   view workerSessions {
     title 'Runtime / Sessions and Result Paths'
-    description 'Stage mode applies to the main session. Finalizer and optional summarizer use separate ephemeral, tool-free sessions.'
+    description 'Stage mode applies to the main session. Ordinary completion uses an isolated serializer; optional summarization uses pinned instructions and its own policy. Trusted Audit completion branches before terminal State and publishes deterministically; V39-007 release gate remains.'
 
     include runtimeAgent.workerExecution.a2aServer with {
       title 'Allocation A2A Server'
@@ -1821,6 +1939,10 @@ views {
     }
     include runtimeAgent.workerExecution.workerInstrumentation with {
       title 'Worker Instrumentation'
+    }
+    include runtimeAgent.workerExecution.completionGate with {
+      title 'Trusted Completion Boundary'
+      navigateTo auditWorkerCompletion
     }
     include runtimeAgent.workerExecution.resultFinalizer with {
       title 'Result Finalizer'
@@ -1852,7 +1974,10 @@ views {
     include runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.workerExecution.workerState with {
       title 'Reduce observations'
     }
-    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.resultFinalizer with {
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.completionGate with {
+      title 'Evaluate completion before terminal State'
+    }
+    include runtimeAgent.workerExecution.completionGate -> runtimeAgent.workerExecution.resultFinalizer with {
       title 'Ordinary structured result'
     }
     include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.terminalSummarizer with {
@@ -1883,7 +2008,7 @@ views {
       title 'Exclusive Allocation Slot'
     }
     include runtimeAgent.allocationCapabilities.podmanLifecycle with {
-      title 'Planned Podman Lifecycle'
+      title 'Verified Podman Lifecycle'
       navigateTo podmanSandbox
     }
     include runtimeAgent.allocationCapabilities.sandboxManager with {
@@ -1932,7 +2057,7 @@ views {
       title 'Probe usable tool subset'
     }
     include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.podmanLifecycle with {
-      title 'Planned allocation-owned container'
+      title 'Verified allocation-owned container'
     }
     include runtimeAgent.allocationCapabilities.podmanLifecycle -> runtimeAgent.allocationCapabilities.workspaceProvider with {
       title 'Hydrate first / remove container before files'
@@ -2028,6 +2153,11 @@ views {
       title 'Private Artifact Client'
     }
 
+    include runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Bounded Async Worker Export'
+      navigateTo workerTelemetry
+    }
+
     // Show only the relationships relevant to this view.
     exclude * -> *
     include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.adapterHost with {
@@ -2045,7 +2175,7 @@ views {
     include runtimeAgent.allocationCapabilities.adapterHost -> workerHttpProxy with {
       title 'Selected external HTTP only'
     }
-    include runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend with {
+    include runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend with {
       title 'Bounded OTLP; content capture opt-in'
     }
     include runtimeAgent.allocationCapabilities.modelClient -> llmGateway with {
@@ -2056,6 +2186,9 @@ views {
     }
     include runtimeAgent.allocationCapabilities.httpCaidoTools -> runtimeAgent.allocationCapabilities.artifactClient with {
       title 'Persist bounded response bodies'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Own sender / bounded flush / close'
     }
     global predicate withoutContextOnly
 
@@ -2331,6 +2464,11 @@ views {
       title 'Allocation Adapter Host'
     }
 
+    include runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Bounded Async Worker Export'
+      navigateTo workerTelemetry
+    }
+
     // Show only the relationships relevant to this view.
     exclude * -> *
     include runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.workerExecution.executionCollector with {
@@ -2357,8 +2495,11 @@ views {
     include server.runtimeOperations.telemetry -> telemetryBackend with {
       title 'Optional export'
     }
-    include runtimeAgent.allocationCapabilities.adapterHost -> telemetryBackend with {
+    include runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend with {
       title 'Optional bounded OTLP'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Own sender / bounded flush / close'
     }
     global predicate withoutContextOnly
 
@@ -3201,7 +3342,7 @@ views {
 
   view podmanSandbox {
     title 'Runtime / Podman Ownership and Execution'
-    description 'V30 and V31-001–003 primitives are verified; V31-004 lifecycle is in progress and execution/probes/activation are planned. ADK/A2A/trusted tools stay in Python. Local direct workspace only; no overlay/memory fallback, network or skill scripts. Guardian primitives do not yet enable the profile.'
+    description 'V30 and V31-001–008 are implemented and release-verified. Podman remains opt-in and advertised only after complete startup probes. ADK/A2A/trusted tools stay in Python; local direct workspace only, without network or skill scripts.'
 
     include runtimeAgent.agentControl.slotManager with {
       title 'Exclusive Allocation Slot'
@@ -3210,10 +3351,10 @@ views {
       title 'Startup Capability Probes'
     }
     include runtimeAgent.allocationCapabilities.podmanLifecycle with {
-      title 'Planned Allocation Lifecycle'
+      title 'Allocation Lifecycle'
     }
     include runtimeAgent.allocationCapabilities.codeExecutionTools with {
-      title 'Planned exec_command'
+      title 'Selected exec_command'
     }
     include runtimeAgent.allocationCapabilities.workspaceProvider with {
       title 'Local Direct Disk + Shared Ownership'
@@ -3267,7 +3408,7 @@ views {
       title 'Structured argv / exact IDs / bounded output'
     }
     include localPodmanEngine -> podmanContainer with {
-      title 'Planned lifecycle; /workspace RW, /tmp tmpfs'
+      title 'Verified lifecycle; /workspace RW, /tmp tmpfs'
     }
     include podmanGuardian -> podmanContainer with {
       title 'Freeze/inventory; kill on EOF/expiry/uncertainty'
@@ -3278,13 +3419,13 @@ views {
 
   view serverPerformance {
     title 'Operations / Server and PostgreSQL Performance'
-    description 'V32-001–003 collection/history implemented; API integration V32-005 is in progress and UI V32-006 is planned. Metrics default on, startup opt-out creates no collector/pool. No external monitoring service required. Rates use observation intervals; stale/partial/disabled periods remain explicit.'
+    description 'V32-001–008 collection, history, API and UI are implemented and release-verified. Metrics default on, startup opt-out creates no collector/pool. No external monitoring service required. Rates use observation intervals; stale/partial/disabled periods remain explicit.'
 
     include browser with {
-      title 'Operations Performance UI (planned)'
+      title 'Operations Performance UI'
     }
     include server.performanceMonitoring.performanceApi with {
-      title 'Current / History Read API (planned)'
+      title 'Current / History Read API'
     }
     include server.performanceMonitoring.httpAccounting with {
       title 'Public + Private HTTP Counters / Histograms'
@@ -3351,10 +3492,10 @@ views {
 
   view allocationPerformance {
     title 'Operations / Allocation Resource Reports and History'
-    description 'V32-004 Runtime sampler implemented; Server request/policy/ingestion/history integration V32-005 is in progress, UI planned. CPU and observed RSS peak cover only the Runtime process during ownership, excluding idle/release, children and Podman. No live Runtime polling or per-allocation time series.'
+    description 'V32 Runtime sampling, Server policy/ingestion/history and UI are implemented and release-verified. CPU and observed RSS peak cover only the Runtime process during ownership, excluding idle/release, children and Podman. No live Runtime polling or per-allocation time series.'
 
     include browser with {
-      title 'Completed Allocations / Run Attempts (planned)'
+      title 'Completed Allocations / Run Attempts'
     }
     include server.runtimeOperations.controlPlane with {
       title 'Trusted Allocation Identity / Optional Policy'
@@ -3375,7 +3516,7 @@ views {
       title 'Cached Finalize / Abort Report'
     }
     include server.performanceMonitoring.allocationResources with {
-      title 'Resource Validation / Terminal History (planned)'
+      title 'Resource Validation / Terminal History'
     }
     include server.runtimeOperations.telemetry with {
       title 'Existing Report Ingestion / Retention'
@@ -3479,6 +3620,355 @@ views {
     include operator -> server.profilingListener with {
       title 'Local/SSH tunnel; CPU <= 60 s, trace <= 10 s'
     }
+
+    autoLayout LeftRight 100 70
+  }
+
+  view auditWorkerCompletion {
+    title 'Runtime / Trusted Audit Completion'
+    description 'V39-001–006 implemented; required importer/restart release gate V39-007 remains. Trusted Audit binding selects one passthrough Worker with audit-results@2 and no summarizer. Collection, ZIP publication and importer acceptance are distinct facts.'
+
+    include server.orchestration.runService with {
+      title 'Trusted Audit Run Snapshot'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'Completion-aware Preparation'
+    }
+    include runtimeAgent.agentControl.controlEndpoint with {
+      title 'Private Control Endpoint'
+    }
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Allocation Ownership'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'Main Worker Invocation'
+    }
+    include runtimeAgent.workerExecution.completionGate with {
+      title 'Continue / Complete / Fail'
+    }
+    include runtimeAgent.allocationCapabilities.auditResultCollector with {
+      title 'Validated Item Revisions'
+    }
+    include runtimeAgent.allocationCapabilities.auditResultPublisher with {
+      title 'Sealed Set / Deterministic ZIP'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Exact Artifact Writes'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'Run Artifact Bindings'
+    }
+    include server.auditCoordination.resultImporter with {
+      title 'Independent Audit Acceptance'
+    }
+    include runtimeAgent.workerExecution.workerInstrumentation with {
+      title 'Bounded Completion Diagnostics'
+    }
+
+    exclude * -> *
+    include runtimeAgent.agentControl.controlEndpoint -> runtimeAgent.agentControl.slotManager with {
+      title 'Prepare / retain slot ownership'
+    }
+    include server.orchestration.runService -> server.runtimeOperations.controlPlane with {
+      title 'Pinned contract / required capabilities'
+    }
+    include server.runtimeOperations.controlPlane -> runtimeAgent.agentControl.controlEndpoint with {
+      title 'Strict contractor/v1alpha1 control'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.workerExecution.completionGate with {
+      title 'One trusted owner / required tools'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.workerExecution.completionGate with {
+      title 'Before terminal State'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.auditResultCollector with {
+      title 'Selected per-item submissions'
+    }
+    include runtimeAgent.workerExecution.completionGate -> runtimeAgent.allocationCapabilities.auditResultCollector with {
+      title 'Check all items / bounded reminders / seal'
+    }
+    include runtimeAgent.workerExecution.completionGate -> runtimeAgent.allocationCapabilities.auditResultPublisher with {
+      title 'Complete set / no model serializer'
+    }
+    include runtimeAgent.allocationCapabilities.auditResultPublisher -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Create-only / verified exact receipt'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService with {
+      title 'Allocation-authorized Artifact API'
+    }
+    include server.auditCoordination.resultImporter -> server.artifactPlane.artifactService with {
+      title 'Independently validate and retain evidence'
+    }
+    include runtimeAgent.workerExecution.completionGate -> runtimeAgent.workerExecution.workerInstrumentation with {
+      title 'Phase / counts / stable failure'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view findingsCollections {
+    title 'Artifacts / Finding Collection Handoff'
+    description 'V43 implemented. A collection freezes existing receipts, reviews and exact evidence into an ordinary ZIP input. Independently selected list_findings reads only prepared current-Run artifacts; finding emission and authenticated Audit review retain separate authority.'
+
+    include apiClient with {
+      title 'Workflow / Collection API Client'
+    }
+    include server.productSurface.findingCollectionsApi with {
+      title 'POST Finding Collections'
+    }
+    include server.artifactPlane.findingCollectionPublisher with {
+      title 'Frozen Selection / ZIP Publisher'
+    }
+    include server.auditCoordination.auditStore with {
+      title 'Existing Receipts / Reviews'
+    }
+    include server.artifactPlane.artifactService with {
+      title 'Scoped Exact Artifacts'
+    }
+    include server.productSurface.publicApi with {
+      title 'Ordinary Run Creation'
+    }
+    include server.orchestration.runService with {
+      title 'Pin and Fork Exact Inputs'
+    }
+    include runtimeAgent.workerExecution.workerRuntime with {
+      title 'Consumer Worker'
+    }
+    include runtimeAgent.allocationCapabilities.findingReaderTools with {
+      title 'Selected list_findings'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Current-Run Artifact Client'
+    }
+
+    exclude * -> *
+    include apiClient -> server.productSurface.findingCollectionsApi with {
+      title 'Select authorized sources / revisions'
+    }
+    include server.productSurface.findingCollectionsApi -> server.artifactPlane.findingCollectionPublisher with {
+      title 'Capture one frozen collection'
+    }
+    include server.artifactPlane.findingCollectionPublisher -> server.auditCoordination.auditStore with {
+      title 'Read authorized snapshot'
+    }
+    include server.artifactPlane.findingCollectionPublisher -> server.artifactPlane.artifactService with {
+      title 'Retain bytes / publish exact ZIP'
+    }
+    include apiClient -> server.productSurface.publicApi with {
+      title 'Choose exact collection as input'
+    }
+    include server.productSurface.publicApi -> server.orchestration.runService with {
+      title 'Existing Run creation contract'
+    }
+    include server.orchestration.runService -> server.artifactPlane.artifactService with {
+      title 'Fork exact input artifacts'
+    }
+    include runtimeAgent.workerExecution.workerRuntime -> runtimeAgent.allocationCapabilities.findingReaderTools with {
+      title 'Explicit independent tool selection'
+    }
+    include runtimeAgent.allocationCapabilities.findingReaderTools -> runtimeAgent.allocationCapabilities.artifactClient with {
+      title 'Validate/materialize once; bounded reads'
+    }
+    include runtimeAgent.allocationCapabilities.artifactClient -> server.artifactPlane.artifactService with {
+      title 'Current allocation grants only'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view portableEvaluations {
+    title 'Evaluation / Portable Plans and Evidence'
+    description 'V41 implemented in external playground-v2 and offline-verified. Contractor and recorded execution share portable Results; private ground truth and connection secrets stay local. No new Server evaluator or Scheduler. V38 UI, live target adapters and V40 model-quality campaigns remain separate work.'
+
+    include apiClient with {
+      title 'Explicit Evaluator CLI'
+    }
+    include evaluationHarness.planner with {
+      title 'Freeze Definitions / Pins / Membership'
+    }
+    include evaluationHarness.runner with {
+      title 'Intent Recovery / Observation'
+    }
+    include evaluationHarness.executionAdapters with {
+      title 'Contractor or Recorded Adapter'
+    }
+    include evaluationHarness.bundle with {
+      title 'Private Plan / Receipts / Results'
+    }
+    include evaluationHarness.assessment with {
+      title 'Pinned Scorer / Oracle Assessment'
+    }
+    include evaluationHarness.comparison with {
+      title 'Complete Membership / Honest Costs'
+    }
+    include evaluationHarness.publisher with {
+      title 'Safe Projection Publisher'
+    }
+    include server.productSurface.publicApi with {
+      title 'Existing Run / Project API'
+    }
+    include server.productSurface.auditApi with {
+      title 'Existing Audit API'
+    }
+    include server.productSurface.userArtifactApi with {
+      title 'Existing Scoped Artifact API'
+    }
+
+    exclude * -> *
+    include apiClient -> evaluationHarness.planner with {
+      title 'Plan / run / resume / compare / publish'
+    }
+    include evaluationHarness.planner -> evaluationHarness.bundle with {
+      title 'Freeze immutable member set'
+    }
+    include evaluationHarness.planner -> evaluationHarness.executionAdapters with {
+      title 'Read-only required-pin preflight'
+    }
+    include evaluationHarness.runner -> evaluationHarness.bundle with {
+      title 'Intent before submit / exact recovery'
+    }
+    include evaluationHarness.runner -> evaluationHarness.executionAdapters with {
+      title 'Execute / observe / cancel'
+    }
+    include evaluationHarness.executionAdapters -> server.productSurface.publicApi with {
+      title 'Ordinary Workflow Runs'
+    }
+    include evaluationHarness.executionAdapters -> server.productSurface.auditApi with {
+      title 'Ordinary Audit execution'
+    }
+    include evaluationHarness.executionAdapters -> server.productSurface.userArtifactApi with {
+      title 'Exact outputs / evidence'
+    }
+    include evaluationHarness.assessment -> evaluationHarness.bundle with {
+      title 'Immutable Result-based judgments'
+    }
+    include evaluationHarness.comparison -> evaluationHarness.bundle with {
+      title 'Expected denominator / unknown usage'
+    }
+    include evaluationHarness.publisher -> evaluationHarness.bundle with {
+      title 'Select safe projections only'
+    }
+    include evaluationHarness.publisher -> server.productSurface.userArtifactApi with {
+      title 'Create-only replay / CAS index'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view operationalBudgets {
+    title 'Operations / Independent Timeout Ownership'
+    description 'V49 implemented. ServerConfig uses defaults < YAML < environment < CLI and restart-only validation. HTTP, operation and cleanup budgets are independent. Earlier enclosing deadlines win; saved finalize/abort IDs and deadlines survive retries/restart. Runtime workspace I/O is process-local.'
+
+    include serverConfigFile with {
+      title 'Typed Non-secret ServerConfig'
+    }
+    include server.identityConfiguration.processSettings with {
+      title 'Validated Process Settings'
+    }
+    include server.orchestration.workflowScheduler with {
+      title 'Scheduler / Stored Terminal Deadlines'
+    }
+    include server.runtimeOperations.controlPlane with {
+      title 'HTTP Requests / Batch Cleanup'
+    }
+    include server.auditCoordination.auditController with {
+      title 'Audit Poll / Claim / Operation'
+    }
+    include server.workspaceLifecycle.projectDeletionController with {
+      title 'Project Operation / Claim'
+    }
+    include artifactDatabase with {
+      title 'Working PostgreSQL Budgets'
+    }
+    include operator with {
+      title 'Runtime Deployment Operator'
+    }
+    include runtimeAgent.agentControl.processSettings with {
+      title 'Runtime Workspace I/O Budget'
+    }
+    include runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Physical I/O / Retained Cleanup'
+    }
+
+    exclude * -> *
+    include server.identityConfiguration.processSettings -> serverConfigFile with {
+      title 'Load strict restart-only settings'
+    }
+    include server.identityConfiguration.processSettings -> server.orchestration.workflowScheduler with {
+      title 'Operation / finalization / abort budgets'
+    }
+    include server.identityConfiguration.processSettings -> server.runtimeOperations.controlPlane with {
+      title 'HTTP timeout separate from cleanup'
+    }
+    include server.identityConfiguration.processSettings -> server.auditCoordination.auditController with {
+      title 'Poll / lease / operation / claim batch'
+    }
+    include server.identityConfiguration.processSettings -> server.workspaceLifecycle.projectDeletionController with {
+      title 'Operation timeout below claim lease'
+    }
+    include server.identityConfiguration.processSettings -> artifactDatabase with {
+      title 'Validated query / statement / lock budgets'
+    }
+    include operator -> runtimeAgent.agentControl.processSettings with {
+      title 'Finite local setting: CLI > environment'
+    }
+    include runtimeAgent.agentControl.processSettings -> runtimeAgent.allocationCapabilities.workspaceProvider with {
+      title 'Earlier deadline / retain timed-out work'
+    }
+    global predicate withoutContextOnly
+
+    autoLayout LeftRight 100 70
+  }
+
+  view workerTelemetry {
+    title 'Runtime / Bounded Asynchronous Telemetry'
+    description 'Worker defaults: 8 MiB whole-span batches, two total HTTP attempts, 2048 spans and 64 MiB pending, flush 10 s. One sequential sender retains in-flight queue accounting. Sub-threshold tail waits for enqueue or final flush. Export failures affect diagnostics, not durable execution truth.'
+
+    include server.identityConfiguration.runtimeConfigService with {
+      title 'Pinned Worker Telemetry Settings'
+    }
+    include runtimeAgent.agentControl.slotManager with {
+      title 'Allocation Lifecycle Deadline'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Prepare / Flush / Close'
+    }
+    include runtimeAgent.workerExecution.workerInstrumentation with {
+      title 'Worker Spans / Counters'
+    }
+    include runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Bounded Queue / One Async Sender'
+    }
+    include telemetryBackend with {
+      title 'Optional OTLP Backend'
+    }
+    include runtimeAgent.workerExecution.executionCollector with {
+      title 'Independent ExecutionReport'
+    }
+
+    exclude * -> *
+    include server.identityConfiguration.runtimeConfigService -> runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Pinned export limits in RuntimeSettings'
+    }
+    include runtimeAgent.agentControl.slotManager -> runtimeAgent.allocationCapabilities.adapterHost with {
+      title 'Lifecycle-owned drain / close'
+    }
+    include runtimeAgent.allocationCapabilities.adapterHost -> runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Join sender / flush tail / cancel at deadline'
+    }
+    include runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.allocationCapabilities.otlpExporter with {
+      title 'Enqueue without awaiting HTTP'
+    }
+    include runtimeAgent.allocationCapabilities.otlpExporter -> telemetryBackend with {
+      title 'Same payload / finite attempts / whole spans'
+    }
+    include runtimeAgent.workerExecution.workerInstrumentation -> runtimeAgent.workerExecution.executionCollector with {
+      title 'Durable report counters remain separate'
+    }
+    global predicate withoutContextOnly
 
     autoLayout LeftRight 100 70
   }
