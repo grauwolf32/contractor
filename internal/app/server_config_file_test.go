@@ -226,7 +226,7 @@ func TestServerConfigRejectsInvalidFileContainers(t *testing.T) {
 	}
 }
 
-func TestRepositoryLocalServerConfigTracksExecutableDefaults(t *testing.T) {
+func TestRepositoryLocalServerConfigKeepsDefaultsAndDemoWorkerTimeout(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join("..", "..", "configs", "server.local.yaml")
 	cfg, err := ParseConfig([]string{"--config", path}, func(string) string { return "" })
@@ -239,10 +239,14 @@ func TestRepositoryLocalServerConfigTracksExecutableDefaults(t *testing.T) {
 	}
 	if cfg.OperatorConfigRoot != root || cfg.ListenAddress != defaultListenAddress ||
 		cfg.PrivateListenAddress != defaultPrivateListenAddress ||
-		cfg.WorkerRequestTimeout != defaultWorkerRequestTimeout ||
 		cfg.PlannerTimeout != defaultPlannerTimeout || !cfg.InsecureLoopbackCookie ||
 		len(cfg.BrowserOrigins) != 1 || cfg.BrowserOrigins[0] != "http://127.0.0.1:4173" {
 		t.Fatalf("repository ServerConfig = %+v", cfg)
+	}
+	// The demo allows longer Worker requests than the executable's 180s default.
+	// Keep checking the explicit override so silently dropping it fails this test.
+	if cfg.WorkerRequestTimeout != 5*time.Minute {
+		t.Fatalf("demo Worker request timeout = %s, want 5m", cfg.WorkerRequestTimeout)
 	}
 }
 
