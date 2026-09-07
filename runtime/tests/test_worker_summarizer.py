@@ -189,116 +189,23 @@ def _tool_response_event(call_id: str) -> Event:
     )
 
 
-def _summary_policy(context: int = 118_000, output: int = 8192):
-    from contractor_runtime.contracts import ResolvedModelPolicy
-
-    return ResolvedModelPolicy.model_validate(
-        {
-            "ref": {"policyId": "test-summary", "version": "1", "digest": "sha256:" + "a" * 64},
-            "model": "worker-model",
-            "contextWindowTokens": context,
-            "maxOutputTokens": output,
-            "maxModelCalls": 1,
-        }
-    )
-
-
-def _summary_request(prompt: str, *, system: str = "System instructions"):
-    from google.adk.models.llm_request import LlmRequest
-
-    from contractor_runtime.contracts import WorkerModelResult
-
-    return LlmRequest(
-        contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
-        config=types.GenerateContentConfig(
-            system_instruction=system, response_schema=WorkerModelResult, max_output_tokens=8192
-        ),
-    )
-
-
-def test_summary_admission_counts_full_request_and_keeps_complete_newest_groups() -> None:
-    from contractor_runtime.openai_gateway_llm import completion_request_byte_bound
-    from contractor_runtime.summarizer import (
-        SUMMARIZER_FRAMING_TOKEN_RESERVE,
-        fit_summarizer_request,
-    )
-
-    groups = [
-        [
-            {"role": "model", "parts": [{"text": f"group-{n}:" + "界" * 8000}]},
-            {"role": "user", "parts": [{"text": f"response-{n}"}]},
-        ]
-        for n in range(12)
-    ]
-    prompt = build_summarizer_prompt(
-        _request(),
-        WorkerObservations(profile="lean@1", tools={}, workspace=None, truncated=False),
-        groups,
-        transcript_truncated=False,
-    )
-    request = _summary_request(prompt, system="Mandatory instructions " + "s" * 20_000)
-    original = json.loads(prompt.split("\n", 1)[1])
-    policy = _summary_policy()
-    capacity = (
-        policy.context_window_tokens - policy.max_output_tokens - SUMMARIZER_FRAMING_TOKEN_RESERVE
-    )
-    assert completion_request_byte_bound(policy.model, request) > capacity
-    fit_summarizer_request(request, policy)
-    assert completion_request_byte_bound(policy.model, request) <= capacity
-    retained = json.loads(request.contents[0].parts[0].text.split("\n", 1)[1])
-    assert retained["task"] == original["task"]
-    assert retained["observations"] == original["observations"]
-    assert retained["transcriptTruncated"] is True
-    assert retained["transcript"]
-    assert retained["transcript"] == groups[-len(retained["transcript"]) :]
-    assert all(len(group) == 2 for group in retained["transcript"])
-    assert request.config.system_instruction.endswith("s" * 20_000)
-    assert request.config.response_schema is not None
-
-
-def test_summary_exact_admission_boundary_does_not_truncate() -> None:
-    from contractor_runtime.openai_gateway_llm import completion_request_byte_bound
-    from contractor_runtime.summarizer import (
-        SUMMARIZER_FRAMING_TOKEN_RESERVE,
-        fit_summarizer_request,
-    )
-
-    prompt = build_summarizer_prompt(
-        _request(),
-        WorkerObservations(profile="lean@1", tools={}, workspace=None, truncated=False),
-        [],
-        transcript_truncated=False,
-    )
-    request = _summary_request(prompt)
-    size = completion_request_byte_bound("worker-model", request)
-    policy = _summary_policy(context=size + 8192 + SUMMARIZER_FRAMING_TOKEN_RESERVE)
-    fit_summarizer_request(request, policy)
-    assert request.contents[0].parts[0].text == prompt
-
-
-def test_summary_oversized_task_fails_before_calling_the_model() -> None:
+def test_summary_sends_large_projection_without_local_context_trimming() -> None:
     import asyncio
 
-    import pytest
-    from fakes.model import scripted_model
+    from fakes.model import json_result, scripted_model
+    from fakes.spec import allocation_spec
 
-    from contractor_runtime.summarizer import SummarizerFailure, TerminalSummarizer
+    from contractor_runtime.summarizer import TerminalSummarizer
 
     async def scenario() -> None:
-        model = scripted_model([])
-        summarizer = TerminalSummarizer(model=model, policy=_summary_policy(context=16_384))
-        prompt = build_summarizer_prompt(
-            _request(instructions="immutable " * 12_000),
-            WorkerObservations(profile="lean@1", tools={}, workspace=None, truncated=False),
-            [],
-            transcript_truncated=False,
-        )
-        with pytest.raises(SummarizerFailure) as captured:
-            await summarizer.run(prompt=prompt, invocation_id="test-invocation")
-        assert captured.value.code == "input_context_exceeded"
-        assert captured.value.retryable is False
-        assert "immutable" not in str(captured.value)
-        assert not model.requests
-        assert summarizer.usage.model_calls == 0
+        model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])
+        config = allocation_spec(summarizer=True).agent_template.summarizer
+        assert config is not None
+        # Below 512 KiB, but above the removed byte-based admission allowance.
+        prompt = "история " * 20_000
+        summarizer = TerminalSummarizer(model=model, policy=config.model_policy)
+        await summarizer.run(prompt=prompt, invocation_id="large-summary")
+        assert len(model.requests) == 1
+        assert model.requests[0]["contentText"] == prompt
 
     asyncio.run(scenario())

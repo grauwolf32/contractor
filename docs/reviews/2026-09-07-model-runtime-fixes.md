@@ -1,6 +1,6 @@
 # Model policy runtime fixes
 
-Implemented on 2026-09-07 after the configuration review. The three tasks are
+Implemented on 2026-09-07 after the configuration review. The original three tasks are
 registered in `tasks/index.yml`; each records its implementation commit.
 
 ## V47-001 — Planner temperature
@@ -28,36 +28,18 @@ are unchanged. The Go Planner gateway classifier is outside this Worker task.
 
 Implementation: `b76f1de4`.
 
-## V47-003 — Summarizer context admission
+## V47-003 — Summarizer context admission (reverted by V47-005)
 
-Before generation, the final ADK request is converted using the same
-OpenAI-compatible serializer as the model adapter. It includes system text,
-messages and the strict result schema. Admission reserves the policy output
-limit plus 4096 tokens for backend framing, and conservatively charges one token
-per UTF-8 byte of the complete serialized request.
+Implementation `4d81f18c` added a byte-based context estimate, a 4096-token
+framing reserve, oldest-history removal and a local `input_context_exceeded`
+failure. The user subsequently rejected that implicit behavior. V47-005 removes
+all four pieces; the gateway again decides whether the summary request fits.
+V47-002 permanent gateway error classification remains in place.
 
-If necessary, binary search removes the oldest complete transcript groups while
-preserving the newest suffix, required task identity, observations and schema.
-An irreducible oversized request fails with `input_context_exceeded`,
-`retryable=false`, and zero model calls. The pre-existing 512 KiB projection
-limit remains a separate memory bound.
-
-For the current 118000-token context and 8192-token output, the serialized
-request allowance is 105712 UTF-8 bytes. This is intentionally conservative,
-not an exact token count; it can discard more history than a model-aware count.
-The byte-level-tokenizer assumption and framing reserve do not establish a
-universal guarantee for arbitrary upstream normalization or custom templates.
-The provider remains authoritative.
-
-The current route does not declare an exact tokenizer/template identity.
-LiteLLM documents that its token counter can fall back to a different tokenizer
-when no model-specific tokenizer is available. [LiteLLM token counting](https://docs.litellm.ai/docs/completion/token_usage).
-LM Studio exposes exact model tokenization via its SDK and recommends counting
-after applying the chat template; that is a separate capability from the current
-OpenAI-compatible inference route. [LM Studio tokenization](https://lmstudio.ai/docs/python/tokenization).
-No tokenizer dependencies, new network routes or live-service changes were added.
-
-Implementation: `4d81f18c`.
+The pre-existing 512 KiB transcript/document projection still bounds data passed
+to the summary agent and can omit older groups. It is separate from the removed
+context admission. No history-compacting continuation strategy is implemented;
+future compactification should be an explicit strategy.
 
 ## Verification
 

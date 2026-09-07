@@ -32,6 +32,7 @@ acceptance_criteria:
     when: "Admission runs"
     then: "Charge one token per serialized UTF-8 byte, reserve maxOutputTokens plus 4096 framing tokens, and document the byte-level-tokenizer/custom-template limitation rather than claim exact counting."
 implementation_notes:
+  superseded_by: "V47-005 reverts this implementation at the user’s explicit request; retain this task as historical completion. Future compactification must be an explicit strategy."
   accounting: >-
     Count the same complete OpenAI-compatible payload the runtime adapter sends,
     including system text and strict schema; use binary search over newest complete

@@ -32,13 +32,9 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
 )
-from contractor_runtime.openai_gateway_llm import completion_request_byte_bound
 from contractor_runtime.token_usage import project_token_usage
 
 MAX_SUMMARIZER_INPUT_BYTES = 512 * 1024
-# Extra allowance for backend-specific chat-template framing. Payload bytes are
-# charged one-for-one in addition to this reserve; no bytes/4 approximation.
-SUMMARIZER_FRAMING_TOKEN_RESERVE = 4096
 _MAX_PROJECTED_TEXT_BYTES = 64 * 1024
 _MAX_PROJECTED_ITEMS = 128
 _MAX_PROJECTED_DEPTH = 6
@@ -219,7 +215,6 @@ class TerminalSummarizer:
 
         def before_model(callback_context: Any, llm_request: LlmRequest) -> None:
             nonlocal span
-            fit_summarizer_request(llm_request, self._policy)
             with contextlib.suppress(Exception):
                 if self._instrumentation is not None:
                     span = self._instrumentation.start_span(
@@ -386,66 +381,6 @@ def build_summarizer_prompt(
     if len(document.encode("utf-8")) > MAX_SUMMARIZER_INPUT_BYTES:
         raise SummarizerFailure("input_too_large")
     return document
-
-
-def fit_summarizer_request(request: LlmRequest, policy: ResolvedModelPolicy) -> None:
-    """Fit the final request, preserving task data and complete newest event groups.
-
-    Admission uses a conservative byte-token bound, including system instructions
-    and the exact strict response schema, rather than claiming exact tokenization.
-    The provider remains authoritative for non-byte-level/custom chat templates.
-    """
-    capacity = (
-        (policy.context_window_tokens or 0)
-        - (policy.max_output_tokens or 0)
-        - SUMMARIZER_FRAMING_TOKEN_RESERVE
-    )
-
-    def fits() -> bool:
-        return capacity > 0 and completion_request_byte_bound(policy.model, request) <= capacity
-
-    if fits():
-        return
-    # Only the owned transcript projection is removable. Never truncate the
-    # task, observations, JSON schema or arbitrary model input to force admission.
-    part = next(
-        (
-            part
-            for content in request.contents or []
-            if content.role == "user"
-            for part in content.parts or []
-            if part.text and part.text.startswith(_DOCUMENT_PREAMBLE)
-        ),
-        None,
-    )
-    if part is None:
-        raise SummarizerFailure("input_context_exceeded", retryable=False)
-    payload = json.loads(part.text[len(_DOCUMENT_PREAMBLE) :])
-    groups = payload.get("transcript")
-    if not isinstance(groups, list):
-        raise SummarizerFailure("input_context_exceeded", retryable=False)
-
-    def retain_suffix(start: int) -> None:
-        payload["transcript"] = groups[start:]
-        payload["transcriptTruncated"] = True
-        part.text = _DOCUMENT_PREAMBLE + json.dumps(
-            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-        )
-
-    retain_suffix(len(groups))
-    if not fits():
-        raise SummarizerFailure("input_context_exceeded", retryable=False)
-    # Serialized size grows monotonically when adding complete event groups.
-    # Binary search bounds repeated serialization work for long histories.
-    low, high = 0, len(groups)
-    while low < high:
-        middle = (low + high) // 2
-        retain_suffix(middle)
-        if fits():
-            high = middle
-        else:
-            low = middle + 1
-    retain_suffix(low)
 
 
 def _project_event(

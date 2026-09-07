@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: V47-005
+title: "Remove implicit summarizer context admission from V47-003"
+milestone: model-policy-runtime-correctness
+priority: P1
+status: in_progress
+depends_on: ["V47-003"]
+languages: ["python"]
+goal: >-
+  Revert the V47-003 byte-based admission, history trimming and local context
+  failure. The gateway remains responsible for context errors. A separate future
+  compactification strategy must be explicit.
+context:
+  authority: "User explicitly approved reverting V47-003 during the configurable-instructions change."
+scope:
+  in: ["Remove the V47-003 admission helper, callback and its tests; document the rollback."]
+  out: ["Earlier 512 KiB projection behavior, V47-002 error classification, new compactification strategy, configs/e2e."]
+acceptance_criteria:
+  - id: A1
+    given: "A terminal summary request exceeding the former byte-based estimate"
+    when: "Summarizer calls its model"
+    then: "No local byte-token context admission or associated history trimming runs."
+  - id: A2
+    given: "A gateway context failure"
+    when: "Runtime handles the error"
+    then: "V47-002 still preserves permanent failure classification."
+tests:
+  - command: "cd runtime && .venv/bin/python -m pytest tests/test_worker_summarizer.py tests/test_openai_gateway_llm.py tests/test_adk_runtime.py"
+    covers: ["A1", "A2"]
