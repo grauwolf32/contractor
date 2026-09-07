@@ -1034,7 +1034,7 @@ def test_adk_worker_missing_result_fails_without_an_extra_model_turn(tmp_path: P
 
 @pytest.mark.parametrize("thought_only", [False, True])
 def test_adk_worker_reports_output_limit_instead_of_accepting_partial_result(
-    tmp_path: Path, thought_only: bool
+    tmp_path: Path, thought_only: bool, caplog: pytest.LogCaptureFixture
 ) -> None:
     async def scenario() -> None:
         response = thought_result("unfinished") if thought_only else text_result("partial result")
@@ -1056,6 +1056,10 @@ def test_adk_worker_reports_output_limit_instead_of_accepting_partial_result(
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
+    assert not any(
+        record.name == "opentelemetry.context" and "Failed to detach context" in record.message
+        for record in caplog.records
+    )
 
 
 def test_adk_worker_reports_finalizer_output_limit(tmp_path: Path) -> None:

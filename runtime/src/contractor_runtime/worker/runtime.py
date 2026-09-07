@@ -590,30 +590,37 @@ class AdkWorkerRuntime:
                 while True:
                     candidate: str | None = None
                     try:
-                        async for event in runner.run_async(
-                            user_id=self._user_id,
-                            session_id=session_id,
-                            invocation_id=invocation_id,
-                            new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-                        ):
-                            transcript.record(event)
-                            if completion is not None:
-                                self._check_active()
-                            if completion is not None and getattr(event, "error_code", None):
-                                return _failure(
-                                    "worker_execution_failed",
-                                    "Worker model returned an error",
-                                    True,
-                                ), False
-                            if output_limit_reached(event):
-                                return _failure(
-                                    "worker_output_limit_exceeded",
-                                    "Worker model response reached its output token limit",
-                                    True,
-                                ), False
-                            text = _candidate_text(event)
-                            if text is not None:
-                                candidate = text
+                        # An early return must close ADK's generator in this task:
+                        # its tracing contexts cannot be detached by GC in another one.
+                        async with contextlib.aclosing(
+                            runner.run_async(
+                                user_id=self._user_id,
+                                session_id=session_id,
+                                invocation_id=invocation_id,
+                                new_message=types.Content(
+                                    role="user", parts=[types.Part(text=prompt)]
+                                ),
+                            )
+                        ) as events:
+                            async for event in events:
+                                transcript.record(event)
+                                if completion is not None:
+                                    self._check_active()
+                                if completion is not None and getattr(event, "error_code", None):
+                                    return _failure(
+                                        "worker_execution_failed",
+                                        "Worker model returned an error",
+                                        True,
+                                    ), False
+                                if output_limit_reached(event):
+                                    return _failure(
+                                        "worker_output_limit_exceeded",
+                                        "Worker model response reached its output token limit",
+                                        True,
+                                    ), False
+                                text = _candidate_text(event)
+                                if text is not None:
+                                    candidate = text
                     except Exception as error:
                         self._worker_state.execution.check()
                         if _worker_summarization_request(error) is not None:
