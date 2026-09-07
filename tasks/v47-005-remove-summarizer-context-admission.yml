@@ -3,7 +3,8 @@ id: V47-005
 title: "Remove implicit summarizer context admission from V47-003"
 milestone: model-policy-runtime-correctness
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: e146a33abef314b9856c539f9b7f23b683cc65f4
 depends_on: ["V47-003"]
 languages: ["python"]
 goal: >-
