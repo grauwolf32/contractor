@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V48-002
+title: "Keep Memory enumeration independent of ordinary Artifact count"
+milestone: shared-memory-production-correctness
+priority: P2
+status: pending
+implementation_commit: null
+depends_on: [V9-007]
+languages: [go, python, yaml]
+goal: >-
+  Keep list/search/tag discovery and new-note creation available when ordinary
+  artifacts in the same namespace exceed the private Artifact list byte limit.
+context:
+  review: docs/reviews/2026-09-07-memory-audit.md
+  specification:
+    - docs/spec/08-memory-tools.md
+    - docs/spec/03-artifact-plane.md
+  authority: "User requested tasks for uncovered Memory audit findings on 2026-09-07."
+  code_locations:
+    - "runtime/src/contractor_runtime/toolsets/memory.py: _MemorySession._load_all"
+    - "runtime/src/contractor_runtime/artifacts.py: ArtifactClient.list_artifacts"
+    - "internal/memory/namespace.go: Namespace.loadAll"
+    - "internal/artifacts/postgres_read.go: PostgresRepository.List"
+  reproduction: >-
+    With 7000 ordinary bindings whose valid names are 126 ASCII bytes, and zero
+    notes, the list JSON is 1120050 bytes against the client's 1048576-byte
+    limit. Both list_memories and write_memory(first_note, body) fail with
+    memory_unavailable before the client can filter memory. bindings.
+  overlap: "V47-001/002/003 do not change Artifact enumeration; V9's 128-note bound does not bound the surrounding namespace."
+scope:
+  in:
+    - "Add a generic bounded name-prefix query to the existing Artifact Store and allocation-bound listing contract, including wire documentation and client support."
+    - "Make both Memory adapters enumerate only memory. bindings before applying their existing quota and ordinal validation."
+    - "Bound results so corruption with more than 128 notes is detected, never silently truncated into a valid partial namespace."
+    - "Add mixed-namespace regressions using the production private handler, Python ArtifactClient and PostgreSQL query path."
+  out:
+    - "A Memory-only transport/store, larger global response limits as the fix, removal of note quotas, concurrent different-name creates or mandatory batched body retrieval."
+requirements:
+  - id: R1
+    text: >-
+      Ordinary artifact count must not increase Memory response size or cause
+      full unrelated binding materialization. Preserve existing unfiltered
+      Artifact clients and versionless list refs; filter/limit arguments are
+      trusted adapter state, not new model-visible Memory arguments.
+  - id: R2
+    text: >-
+      Preserve exact Run/namespace isolation, 128 active notes, valid ordinal
+      sets, complete deterministic preview ordering and the closed error table.
+      Targeted reads and existing-note updates must not acquire a full-list dependency.
+  - id: R3
+    text: "Use literal prefix semantics with validated bounded arguments; SQL wildcard input must not broaden the requested prefix."
+acceptance_criteria:
+  - id: A1
+    given: "At least 7000 ordinary long-name bindings and zero, one or 128 Memory notes."
+    when: "Worker and Planner list, search, list tags or create a note."
+    then: "Global reads succeed with bounded matching results; creation succeeds below 128 and reports memory_namespace_full exactly at 128."
+  - id: A2
+    given: "More than 128 notes, duplicate/gapped ordinals or a foreign Run/namespace."
+    when: "The bounded query feeds Memory validation."
+    then: "Corruption is rejected without truncation or repair, and foreign notes never enter the view."
+  - id: A3
+    given: "Existing generic list clients and the new filtered query with malformed or wildcard-like input."
+    when: "The Artifact API and PostgreSQL implementations execute."
+    then: "Legacy behavior remains compatible, query arguments are validated and matching is literal and bounded."
+tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 -timeout=4m ./internal/memory ./internal/artifacts ./internal/httpapi/privateartifacts ./internal/contracts'
+    covers: [A1, A2, A3]
+  - command: "cd runtime && uv run pytest -W error tests/test_memory_toolset.py tests/test_artifacts.py tests/test_run_artifacts_toolset.py tests/test_contracts.py"
+    covers: [A1, A2, A3]
+  - command: "make verify-wire-contracts"
+    covers: [A3]

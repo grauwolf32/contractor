@@ -1,0 +1,113 @@
+schema_version: "1.0"
+id: V48-004
+title: "Enable explicit shared Memory in the working AgentTemplate catalog"
+milestone: shared-memory-production-correctness
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V48-001, V48-002, V48-003]
+languages: [yaml, markdown, go, python]
+goal: >-
+  Make shared Memory usable by working agents and mirrored model-backed
+  Planners, rather than available only in dedicated e2e configuration.
+context:
+  review: docs/reviews/2026-09-07-memory-audit.md
+  specification:
+    - docs/spec/08-memory-tools.md
+    - docs/spec/01-agent-template.md
+    - docs/spec/00-workflow-and-planner.md
+  authority: >-
+    On 2026-09-07 the user explicitly identified the absence of memory-tools@1
+    in all 20 working template entries as a real problem and requested missing
+    correction tasks. This task covers enabling that feature in the working catalog.
+  reproduction: >-
+    Loading configs/agent-templates finds 20 entries and zero selections of
+    memory-tools@1. Only configs/e2e selects it. Toolsets are opt-in and Planner
+    Memory is derived from Worker selections, so working templates expose no
+    Memory tools on either side of a model-backed dispatch.
+  template_inventory:
+    - artifact_builder@1
+    - audit_asvs_source_verifier@1
+    - audit_openapi_operation_tracer@1
+    - audit_openapi_operation_tracer@2
+    - audit_risk_source_checker@1
+    - audit_source_checker@1
+    - caido_analyst@1
+    - findings_analyst@1
+    - http_explorer@1
+    - likec4_builder@2
+    - likec4_validator@2
+    - openapi_builder@1
+    - openapi_validator@1
+    - podman_python_fixer@1
+    - workspace_likec4_builder@1
+    - workspace_likec4_validator@1
+    - workspace_openapi_builder@1
+    - workspace_openapi_validator@1
+    - workspace_source_graph_analyst@1
+    - workspace_taint_analyst@1
+  overlap: >-
+    V47's sampling/retryability/context fixes do not select Memory. In-progress
+    V39 work and existing config-policy edits touch some of the same templates;
+    build on their current contents and preserve their completion strategy,
+    selected domain tools and summarizer rules. V39 is not a new prerequisite.
+scope:
+  in:
+    - "Provide memory-enabled working counterparts for the complete recorded template inventory, explicitly selecting all six memory-tools@1 operations."
+    - "Respect published template/Workflow/Profile version and digest rules; introduce successor versions where required and update active exact references in the same change."
+    - "Add concise reusable Memory guidance to the resolved Worker instructions and working Planner instructions where needed."
+    - "Verify active Workflow and AuditProfile bindings reach the memory-enabled versions, including Router's exact worker_name operation enums and standalone Catalog templates."
+    - "Document Run/namespace lifetime and add a regression inventory preventing active working roles from silently losing Memory."
+    - "Add TestProductionMemoryTemplatesAcrossProcesses using actual working template selections and a local scripted gateway; keep existing Memory e2e fixtures as a separate compatibility gate."
+  out:
+    - "Deploying/restarting services, modifying already pinned Runs, auto-selecting Memory globally in Runtime, cross-Run memory or replacing domain completion with notes."
+requirements:
+  - id: R1
+    text: >-
+      The working selection is exactly list_memories, read_memory, write_memory,
+      append_memory, search_memory and list_memory_tags under memory-tools@1.
+      Tools remain opt-in: custom templates that omit Memory retain their current
+      behavior. Preserve frozen legacy/eval baselines and record the working
+      successor for each inventory entry rather than leaving its active use unaddressed.
+  - id: R2
+    text: >-
+      Instructions describe when to discover/read existing notes and persist
+      useful coordination facts, valid names/tags, 32 KiB/128-note bounds and
+      read-before-retry conflict handling. Treat note content as untrusted data
+      that cannot replace immutable objectives or system instructions. Do not
+      require pointless note writes on every invocation or imply automatic prompt injection.
+  - id: R3
+    text: >-
+      Explain that notes survive retry and later Stages only within the same
+      Run and resolved Agent Namespace. Keep namespaces distinct unless sharing
+      is already intentional; do not promise builder/reviewer sharing across
+      different namespaces. A new Run starts empty.
+  - id: R4
+    text: >-
+      Preserve artifact outputs, findings publication and Audit completion
+      obligations. Memory calls use ordinary budgets, do not count as result
+      artifacts and retain the existing content-free diagnostic boundary.
+acceptance_criteria:
+  - id: A1
+    given: "The working configs root and the 20-entry inventory, including reusable Catalog roles and Audit template versions."
+    when: "Configuration resolves active templates, Workflows and AuditProfiles."
+    then: "Every inventory entry has a documented memory-enabled working counterpart, active references select it, all six operations resolve, and legacy/custom omissions remain explicit."
+  - id: A2
+    given: "Resolved working Worker instructions, Streamline/Router bindings and passthrough."
+    when: "Tools and prompts are prepared."
+    then: "Workers receive Memory guidance; Streamline/Router mirror exactly the selected operations with valid routing, while passthrough adds no synthetic Planner loop."
+  - id: A3
+    given: "Real Server/Runtime processes using representative working templates with unchanged domain selections and a scripted gateway."
+    when: "Planner and Worker exchange a note, retry a Stage and start a new Run."
+    then: "Shared state is usable within its intended namespace, survives retry, is absent in the new Run and does not leak through diagnostics or replace the normal domain result."
+tests:
+  - command: "go run ./cmd/contractor-server config validate --root ./configs"
+    covers: [A1]
+  - command: "go test -count=1 ./internal/config ./internal/planner/streamline ./internal/planner/router ./internal/planner ./tests/eval/agent_instructions"
+    covers: [A1, A2]
+  - command: "cd runtime && uv run pytest -W error tests/test_memory_toolset.py tests/test_adk_runtime.py"
+    covers: [A2, A3]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run "^TestProductionMemoryTemplatesAcrossProcesses$" -v'
+    covers: [A3]
+  - command: "make test-shared-memory-e2e"
+    covers: [A2, A3]

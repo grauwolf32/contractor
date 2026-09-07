@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V48-001
+title: "Reconcile Memory writes after ambiguous Artifact HTTP failures"
+milestone: shared-memory-production-correctness
+priority: P1
+status: pending
+implementation_commit: null
+depends_on: [V9-007]
+languages: [python, go]
+goal: >-
+  Prevent an Artifact HTTP 500 after a committed write from reporting a blindly
+  retryable append that duplicates the fragment on the next model call.
+context:
+  review: docs/reviews/2026-09-07-memory-audit.md
+  specification:
+    - docs/spec/08-memory-tools.md
+    - docs/spec/03-artifact-plane.md
+  authority: "User requested tasks for uncovered Memory audit findings on 2026-09-07."
+  code_locations:
+    - "runtime/src/contractor_runtime/toolsets/memory.py: _MemorySession._write_exact"
+    - "internal/httpapi/privateartifacts/errors.go: handleError"
+  reproduction: >-
+    Seed base, commit append(fragment), then return HTTP 500 internal_error.
+    The current Worker makes one PUT, reports memory_unavailable/retryable=true,
+    and a repeated append produces base\nfragment\nfragment. Reproduced with
+    the production ArtifactClient and a test transport injecting the HTTP error.
+  overlap: >-
+    V47-002 owns LLM Gateway inference/finalizer/summarizer retryability, not
+    Artifact mutation commit ambiguity. V9-006 is completed and its transport
+    exception matrix does not cover this HTTP response. This is a separate fix.
+scope:
+  in:
+    - "Classify ambiguous Artifact PUT server failures explicitly and route them through bounded exact replay and current-payload reconciliation."
+    - "Exercise HTTP failure before and after commit for create, replace and append through the production ArtifactClient."
+    - "Verify the private Artifact handler's response to a repository acknowledgement failure and retain PostgreSQL evidence of a committed write despite that failure."
+    - "Extend the existing Memory fault matrix and document the ambiguity classification in the owning contract."
+  out:
+    - "LLM Gateway retryability, new automatic model retries, replay tables, new Memory endpoints, semantic merging or cross-Run state."
+requirements:
+  - id: R1
+    text: >-
+      Reuse exactly the original canonical bytes and original absent/exact CAS
+      precondition. Never re-read and append again inside automatic recovery.
+      Keep the recovery attempt count finite.
+  - id: R2
+    text: >-
+      Preserve authoritative access/fence errors and initial explicit CAS
+      conflicts. A failed reconciliation read retains its forbidden/unavailable
+      classification; arbitrary error attributes cannot widen the memory_* table.
+  - id: R3
+    text: "Keep content, tags, descriptions and hidden revisions out of errors, reports and default telemetry; preserve cancellation and allocation release."
+acceptance_criteria:
+  - id: A1
+    given: "An HTTP server failure before or after a create, replace or append commit."
+    when: "The Worker recovers the same semantic mutation."
+    then: "Recovery uses identical bytes/preconditions; a matching committed value returns success and append occurs once."
+  - id: A2
+    given: "A differing newer binding, a fenced allocation, a failed reconciliation read or cancellation."
+    when: "Recovery executes at the relevant boundary."
+    then: "The winner is preserved, errors remain bounded and correctly classified, and no late write or unbounded retry occurs."
+  - id: A3
+    given: "A repository acknowledgement error after a successful Artifact write."
+    when: "The private handler maps the error and the stored binding is read."
+    then: "Tests demonstrate the HTTP ambiguity used by the Worker regression, without assuming every HTTP 500 means rollback."
+tests:
+  - command: "cd runtime && uv run pytest -W error tests/test_memory_toolset.py tests/test_artifacts.py"
+    covers: [A1, A2]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 -timeout=4m ./internal/memory ./internal/httpapi/privateartifacts ./internal/artifacts'
+    covers: [A2, A3]
+  - command: "make test-shared-memory-matrix"
+    covers: [A1, A2, A3]

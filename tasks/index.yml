@@ -388,6 +388,13 @@ milestones:
       logical Workers through explicitly selected bounded Run-scoped notes over
       the existing ArtifactStore, with hidden revisions, safe response-loss
       reconciliation, exact routing schemas and content-free telemetry.
+  - id: shared-memory-production-correctness
+    exit_task: V48-004
+    outcome: >-
+      Ambiguous Artifact HTTP writes reconcile without duplicate append,
+      ordinary artifact count cannot disable Memory, empty-tag projections
+      agree across languages, and working AgentTemplates explicitly enable
+      Memory with resolved instructions and active Workflow/Profile references.
   - id: agent-skills-mvp
     exit_task: V10-007
     outcome: >-
@@ -691,6 +698,29 @@ review_followups_planning:
     Each task records its reproduction, acceptance criteria and regression
     commands. These are pending bug fixes; recording them does not mark their
     implementation complete or reorder existing in-progress work.
+
+memory_audit_followups_planning:
+  planned_on: "2026-09-07"
+  review: docs/reviews/2026-09-07-memory-audit.md
+  authority: >-
+    User requested comparing the three latest V47 tasks with the Memory audit,
+    recording uncovered fixes, and treating absent working-template Memory
+    selection as a real configuration defect.
+  task_ids: [V48-001, V48-002, V48-003, V48-004]
+  comparison:
+    V47-001: "Planner sampling temperature does not cover Memory correctness or selection."
+    V47-002: "LLM Gateway retryability is related in theme but does not cover Artifact PUT commit ambiguity."
+    V47-003: "Terminal summarizer context admission does not cover Memory enumeration, projections or selection."
+  finding_ownership:
+    ambiguous_http_append: V48-001
+    ordinary_artifact_list_overflow: V48-002
+    empty_tags_projection: V48-003
+    absent_working_template_selection: V48-004
+  constraints: >-
+    These are pending implementation tasks; existing V9 completion evidence is
+    historical and does not close the new regressions. Deliver V48-001/002/003
+    before enabling working templates in V48-004. Preserve current V47 and V39
+    work, published configuration identities and frozen evaluation baselines.
 
 active_delivery_order:
   prioritized_on: "2026-09-06"
@@ -2586,3 +2616,7 @@ tasks:
   - {id: V47-001, file: v47-001-planner-policy-temperature.yml}
   - {id: V47-002, file: v47-002-gateway-failure-retryability.yml}
   - {id: V47-003, file: v47-003-summarizer-context-admission.yml}
+  - {id: V48-001, file: v48-001-memory-ambiguous-http-write.yml}
+  - {id: V48-002, file: v48-002-memory-bounded-artifact-listing.yml}
+  - {id: V48-003, file: v48-003-memory-empty-tags-parity.yml}
+  - {id: V48-004, file: v48-004-production-memory-selection.yml}
