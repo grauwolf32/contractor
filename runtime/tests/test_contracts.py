@@ -57,6 +57,7 @@ PRIVATE_V2_VALID_MODELS: dict[str, type[BaseModel]] = {
     "agent-registration-response.json": AgentRegistrationResponseV2,
     "runtime-settings-empty.json": RuntimeSettingsV2,
     "runtime-settings-telemetry.json": RuntimeSettingsV2,
+    "runtime-settings-telemetry-export.json": RuntimeSettingsV2,
     "runtime-settings-proxy.json": RuntimeSettingsV2,
     "runtime-settings-combined.json": RuntimeSettingsV2,
     "runtime-provenance.json": ResolvedRuntimeConfigProvenanceV2,

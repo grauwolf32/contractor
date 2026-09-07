@@ -16,7 +16,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.toolsets.text_artifacts import (
+from contractor_runtime.toolsets.text_artifacts.tools import (
     MAX_TEXT_WRITE_BYTES,
     TextArtifactsToolsetFactory,
 )

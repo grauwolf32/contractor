@@ -194,9 +194,16 @@ function safeRuntimeTelemetry(
   requireExactRuntimeKeys(
     value,
     ["adapter", "endpoint"],
-    ["credential", "captureContent", "flushTimeoutSeconds"],
+    ["credential", "captureContent", "flushTimeoutSeconds", "export"],
   );
   const endpoint = new URL(value.endpoint);
+  if (value.export !== undefined) {
+    requireExactRuntimeKeys(
+      value.export,
+      [],
+      ["batchSizeBytes", "maxAttempts", "maxPendingSpans", "maxPendingBytes"],
+    );
+  }
   if (
     !["http:", "https:"].includes(endpoint.protocol) ||
     endpoint.username !== "" ||
@@ -216,6 +223,7 @@ function safeRuntimeTelemetry(
     ...(value.flushTimeoutSeconds === undefined
       ? {}
       : { flushTimeoutSeconds: value.flushTimeoutSeconds }),
+    ...(value.export === undefined ? {} : { export: { ...value.export } }),
   };
 }
 

@@ -9,6 +9,10 @@ from typing import Literal
 import pytest
 import yaml
 
+import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
+import contractor_runtime.toolsets.likec4.tools as likec4
+import contractor_runtime.toolsets.openapi.tools as openapi
+import contractor_runtime.toolsets.taint_annotations.tools as taint_annotations
 from contractor_runtime.capabilities import (
     CapabilityDiscoveryError,
     CapabilitySnapshot,
@@ -21,8 +25,7 @@ from contractor_runtime.factories import (
 )
 from contractor_runtime.settings import Settings, WorkspaceLimits, WorkspaceSettings
 from contractor_runtime.state import RuntimeState
-from contractor_runtime.toolsets import code_analysis_languages, likec4, openapi, taint_annotations
-from contractor_runtime.toolsets.code_analysis import (
+from contractor_runtime.toolsets.code_analysis.tools import (
     CODE_ANALYSIS_REF,
     CORE_GRAPH_TOOLS,
     EXPORTED_TOOLS,
@@ -50,7 +53,7 @@ def test_builtin_toolset_infrastructure_channels_match_parity_fixture(
         for ref, factory in factories.items()
     }
     # Registered contracts are not installed execution factories before V31-006.
-    from contractor_runtime.sandbox_contracts import EXECUTION_CHANNELS, EXECUTION_TOOLSET
+    from contractor_runtime.sandbox.contracts import EXECUTION_CHANNELS, EXECUTION_TOOLSET
 
     assert EXECUTION_TOOLSET not in factories
     actual[EXECUTION_TOOLSET] = {

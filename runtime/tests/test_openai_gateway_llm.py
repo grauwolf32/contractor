@@ -12,8 +12,8 @@ from google.genai import types
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-from contractor_runtime.model_client import GatewayClientHandle, new_gateway_client
-from contractor_runtime.openai_gateway_llm import (
+from contractor_runtime.llm.client import GatewayClientHandle, new_gateway_client
+from contractor_runtime.llm.openai import (
     GatewayModelError,
     OpenAICompatibleGatewayLlm,
     _to_llm_response,

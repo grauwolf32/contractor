@@ -14,7 +14,7 @@ from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.toolsets.source_analysis import (
+from contractor_runtime.toolsets.source_analysis.tools import (
     MAX_ARCHIVE_ENTRIES,
     MAX_FILE_UNCOMPRESSED_BYTES,
     MAX_TOTAL_UNCOMPRESSED_BYTES,

@@ -10,8 +10,8 @@ import httpx
 import pytest
 from test_caido_read_tools import FakeArtifactClient, create_tools, representative_responses
 
-import contractor_runtime.toolsets.caido as caido
-from contractor_runtime.toolsets.caido import CaidoToolError
+import contractor_runtime.toolsets.caido.tools as caido
+from contractor_runtime.toolsets.caido.tools import CaidoToolError
 
 
 def test_invalid_inputs_fail_before_transport(

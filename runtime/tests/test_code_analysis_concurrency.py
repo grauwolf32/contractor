@@ -10,17 +10,18 @@ import pytest
 from test_projectfs_zip import archive, workspace_inputs
 from test_projectfs_zip import settings as workspace_settings
 
+import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
+import contractor_runtime.toolsets.code_analysis.tools as code_analysis
+import contractor_runtime.toolsets.code_analysis.trailmark_host as host_module
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
 from contractor_runtime.projectfs.storage import ManagedWorkspaceTree, WorkspaceSnapshot
-from contractor_runtime.toolsets import code_analysis, code_analysis_languages
-from contractor_runtime.toolsets import trailmark_host as host_module
-from contractor_runtime.toolsets.code_analysis import (
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.tools import (
     GRAPH_TOOLS,
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,

@@ -65,8 +65,8 @@ deliverables:
   - {path: internal/contracts, description: Closed mandatory AllocationSpec Worker session mode.}
   - {path: api/v1alpha1, description: Strict allocation schema and shared Go/Python fixtures.}
   - {path: api/openapi/contractor-public-v1.yaml, description: Explicit resolved Stage session mode in Workflow read models.}
-  - {path: runtime/src/contractor_runtime/session_lifecycle.py, description: Allocation-local lazy shared/isolated ADK session owner and bounded State carrier.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Explicit per-invocation session use and shielded lifecycle integration.}
+  - {path: runtime/src/contractor_runtime/worker/sessions.py, description: Allocation-local lazy shared/isolated ADK session owner and bounded State carrier.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Explicit per-invocation session use and shielded lifecycle integration.}
   - {path: docs/spec, description: Promoted Workflow, allocation, Runtime and cleanup contract.}
   - {path: docs/development.md, description: Drain-and-lockstep upgrade and focused verification commands.}
 

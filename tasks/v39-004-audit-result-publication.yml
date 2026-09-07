@@ -38,9 +38,9 @@ scope:
     - "Collector implementation, model prompts/reminders, increasing artifact privileges, automatic Stage retry or cross-invocation persistence."
 
 deliverables:
-  - path: runtime/src/contractor_runtime/audit_result_encoding.py
+  - path: runtime/src/contractor_runtime/toolsets/audit_results/encoding.py
     description: "Pure canonical encoding/size validation shared by the collector and publisher; no transport or collector state dependency."
-  - path: runtime/src/contractor_runtime/audit_result_publication.py
+  - path: runtime/src/contractor_runtime/toolsets/audit_results/publication.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/tests/test_audit_result_publication.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."

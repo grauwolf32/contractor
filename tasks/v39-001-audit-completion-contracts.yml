@@ -45,15 +45,15 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: api/private-v2
     description: "Update generated production allocation/registration schemas and shared private-v2 fixtures, not only the v1alpha1 schema."
-  - path: runtime/src/contractor_runtime/contracts.py
+  - path: runtime/src/contractor_runtime/contracts/__init__.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
-  - path: runtime/src/contractor_runtime/audit_completion_contracts.py
+  - path: runtime/src/contractor_runtime/toolsets/audit_results/contracts.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/tests/test_audit_completion_contracts.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/tests/test_audit_completion_continuation.py
     description: "Early real-Runner/scripted-model proof of the invocation ownership seam; no live provider."
-  - path: runtime/src/contractor_runtime/instrumentation.py
+  - path: runtime/src/contractor_runtime/worker/instrumentation.py
     description: "If needed, add the narrow continuation lifecycle seam without enabling the Audit gate."
 
 requirements:

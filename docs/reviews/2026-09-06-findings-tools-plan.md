@@ -83,7 +83,7 @@ V43-001 закрепляет отображение документов: namesp
 
 Уже есть [receipts и чтение proposals Run/Audit](../../internal/findingintake/postgres.go),
 [список и оценка Audit findings](../../internal/auditservice/finding_review.go),
-Runtime [`finding`](../../runtime/src/contractor_runtime/toolsets/security_findings.py)
+Runtime [`finding`](../../runtime/src/contractor_runtime/toolsets/security_findings/tools.py)
 и чтение artifacts. Новое хранилище findings не требуется.
 
 | Задача | Доработка | Критерий завершения |

@@ -59,7 +59,7 @@ archive_limits:
   search_scanned_text_bytes: 33554432
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/toolsets/source_analysis.py, description: Shared archive session, safe extraction, and four model tools.}
+  - {path: runtime/src/contractor_runtime/toolsets/source_analysis/tools.py, description: Shared archive session, safe extraction, and four model tools.}
   - {path: runtime/tests/test_source_analysis_toolset.py, description: Functional tools plus malicious ZIP and resource-limit cases.}
   - {path: internal/config/descriptors.go, description: Exact source-analysis@1 tool descriptor.}
   - {path: runtime/README.md, description: Source ZIP format, limits, exclusions, and lifecycle.}

@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from contractor_runtime import resource_metrics
-from contractor_runtime.resource_metrics import ProcessReading, ResourceCollector, read_process
+import contractor_runtime.telemetry.resources as resource_metrics
+from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector, read_process
 
 
 class FakeTime:

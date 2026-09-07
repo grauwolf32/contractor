@@ -57,7 +57,7 @@ grant_rules:
 deliverables:
   - {path: internal/httpapi/privateartifacts, description: Private routes, allocation authorization, streaming, and errors.}
   - {path: runtime/src/contractor_runtime/artifacts.py, description: Async scope-safe client.}
-  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts.py, description: Explicit Toolset descriptor/factory and selected tools.}
+  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py, description: Explicit Toolset descriptor/factory and selected tools.}
 
 requirements:
   - id: R1

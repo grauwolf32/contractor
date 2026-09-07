@@ -42,7 +42,7 @@ scope:
 
 deliverables:
   - {path: internal/contracts, description: Framework-neutral Go request/result/completion contracts and validation.}
-  - {path: runtime/src/contractor_runtime/contracts.py, description: Exact strict Pydantic parity.}
+  - {path: runtime/src/contractor_runtime/contracts/__init__.py, description: Exact strict Pydantic parity.}
   - {path: api/testdata/v1alpha1, description: Shared valid and hostile wire fixtures.}
 
 requirements:

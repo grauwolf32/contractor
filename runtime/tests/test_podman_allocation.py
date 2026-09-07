@@ -29,7 +29,7 @@ from contractor_runtime.factories import (
     StubWorkerRuntime,
 )
 from contractor_runtime.projectfs import LocalWorkspaceProvider
-from contractor_runtime.sandbox_contracts import SandboxContractError
+from contractor_runtime.sandbox.contracts import SandboxContractError
 from contractor_runtime.state import ProcessState, RuntimeState
 
 
@@ -355,8 +355,8 @@ def test_a2a_input_required_and_sequential_calls_keep_same_container(tmp_path, m
     from test_a2a_server import data_request, send
 
     from contractor_runtime.a2a_server import ContractorAgentExecutor
-    from contractor_runtime.adk_runtime import AdkWorkerRuntimeFactory
     from contractor_runtime.server import create_app
+    from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 
     execute = ContractorAgentExecutor.execute
 

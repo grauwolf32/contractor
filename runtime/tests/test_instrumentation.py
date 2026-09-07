@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 
 from contractor_runtime.adapters import RuntimeSpan, TelemetryAttribute
-from contractor_runtime.instrumentation import WorkerInstrumentationPlugin
-from contractor_runtime.worker_state import WorkerStateStore
+from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
+from contractor_runtime.worker.state import WorkerStateStore
 
 SECRET = "instrumentation-secret-canary"
 PROMPT = "prompt-body-that-must-not-survive"

@@ -6,9 +6,9 @@ import json
 import pytest
 
 from contractor_runtime.contracts import API_VERSION
-from contractor_runtime.instrumentation import InvocationMetricsReducer
-from contractor_runtime.metrics import MetricsState
-from contractor_runtime.worker_state import (
+from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.worker.state import (
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
     WorkerStateError,
     WorkerStateStore,

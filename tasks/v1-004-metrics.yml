@@ -48,7 +48,7 @@ bounded_policy:
 deliverables:
   - {path: internal/telemetry, description: Versioned reports, redaction, aggregation, persistence, and retention cleanup.}
   - {path: internal/persistence/migrations, description: Execution report and Stage aggregate schema.}
-  - {path: runtime/src/contractor_runtime/metrics.py, description: Final bounded ADK/model/tool collection implementation.}
+  - {path: runtime/src/contractor_runtime/telemetry/metrics.py, description: Final bounded ADK/model/tool collection implementation.}
   - {path: internal/httpapi/public, description: Safe summary projection on Run status.}
 
 requirements:

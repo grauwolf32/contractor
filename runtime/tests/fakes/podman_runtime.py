@@ -4,8 +4,8 @@ import asyncio
 import sys
 import time
 
-from contractor_runtime.podman_guardian import CgroupFence
-from contractor_runtime.podman_supervisor import GuardianClient
+from contractor_runtime.sandbox.podman.guardian import CgroupFence
+from contractor_runtime.sandbox.podman.supervisor import GuardianClient
 
 
 async def main():

@@ -26,7 +26,7 @@ func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
   "metadata":{"version":"1","name":"debug"},
   "spec":{"worker":{
     "httpProxy":{"targets":["llm-gateway","tool-http","tool-subprocess"],"proxyUrl":"http://proxy.example:8080","adapter":"http-proxy@1"},
-    "telemetry":{"flushTimeoutSeconds":3,"captureContent":false,"endpoint":"https://otel.example/v1/traces","adapter":"otlp-http@1"},
+    "telemetry":{"flushTimeoutSeconds":10,"captureContent":false,"endpoint":"https://otel.example/v1/traces","adapter":"otlp-http@1"},
     "llmGateway":{"credential":"worker-local","gateway":"local-litellm@1"}
   }}
 }`)
@@ -58,7 +58,7 @@ func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !decoded.Spec.Worker.LLMGateway.Gateway.Present || decoded.Spec.Worker.Telemetry.Value.FlushTimeoutSeconds != 3 {
+	if !decoded.Spec.Worker.LLMGateway.Gateway.Present || decoded.Spec.Worker.Telemetry.Value.FlushTimeoutSeconds != 10 {
 		t.Fatalf("decoded normalized spec = %+v", decoded.Spec)
 	}
 	if got := decoded.Spec.Worker.HTTPProxy.Value.Targets; strings.Join(got, ",") != "llm-gateway,tool-http,tool-subprocess" {

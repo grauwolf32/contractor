@@ -54,7 +54,7 @@ tool_contracts:
       max_utf8_bytes: 1048576
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/toolsets/text_artifacts.py, description: Toolset factory and two allocation-bound tools.}
+  - {path: runtime/src/contractor_runtime/toolsets/text_artifacts/tools.py, description: Toolset factory and two allocation-bound tools.}
   - {path: runtime/tests/test_text_artifacts_toolset.py, description: Paging, UTF-8, CAS, namespace, metrics, and ref-observation tests.}
   - {path: internal/config/descriptors.go, description: Exact text-artifacts@1 Server descriptor.}
 

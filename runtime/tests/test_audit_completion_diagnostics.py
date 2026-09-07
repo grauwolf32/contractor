@@ -19,7 +19,7 @@ from contractor_runtime.contracts import (
     WorkerAllocationMetricsState,
     WorkerCompletionDiagnostics,
 )
-from contractor_runtime.session_lifecycle import WorkerSessionLifecycleError
+from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 
 CASES = json.loads(
     (Path(__file__).parents[2] / "api/testdata/audit-completion/diagnostics.json").read_text()
@@ -97,7 +97,7 @@ def test_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_path, mo
 
             client.read_artifact = read_publication
         phases = []
-        original = runtime._audit_completion.phase_sink
+        original = runtime._completion.phase_sink
 
         async def observe(value):
             counters = dict(state.metrics.counters)
@@ -106,7 +106,7 @@ def test_real_runtime_reports_counts_phases_and_no_fictitious_calls(tmp_path, mo
             phases.append(value.phase)
             assert (await state.agent_state_snapshot()).state.metrics.completion == value
 
-        runtime._audit_completion.phase_sink = observe
+        runtime._completion.phase_sink = observe
         result = await runtime.invoke(stage_request())
         report = state.metrics.build_report(report_id="report-1", duration_ms=1)
         diagnostic = report.completion
@@ -186,7 +186,7 @@ def test_cancelled_collection_reports_partial_data_without_publication(tmp_path)
 
 def test_ordinary_reports_omit_completion_and_shared_reuse_resets_it(tmp_path):
     async def scenario():
-        from contractor_runtime.metrics import MetricsState
+        from contractor_runtime.telemetry.metrics import MetricsState
 
         old = MetricsState().build_report(report_id="old", duration_ms=0)
         assert "completion" not in old.model_dump(by_alias=True)

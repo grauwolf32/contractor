@@ -45,7 +45,7 @@ scope:
 
 deliverables:
   - {path: runtime/src/contractor_runtime/adapters, description: Factory registry, host, handles, metrics and redaction primitives.}
-  - {path: runtime/src/contractor_runtime/allocation.py, description: Adapter-aware prepare/termination/release lifecycle.}
+  - {path: runtime/src/contractor_runtime/allocation/service.py, description: Adapter-aware prepare/termination/release lifecycle.}
   - {path: runtime/src/contractor_runtime/factories.py, description: Explicit Worker/tool adapter handle contexts.}
   - {path: runtime/tests/test_adapter_host.py, description: Exhaustive lifecycle and failure regressions.}
   - {path: internal/contracts/telemetry.go, description: Strict Go decoding and validation for adapter metrics in active Runtime reports.}

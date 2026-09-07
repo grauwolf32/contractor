@@ -42,7 +42,7 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: internal/httpapi/public
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
-  - path: runtime/src/contractor_runtime/instrumentation.py
+  - path: runtime/src/contractor_runtime/worker/instrumentation.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/tests/test_audit_completion_diagnostics.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."

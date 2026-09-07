@@ -7,9 +7,9 @@ import time
 
 from test_podman_engine import ScriptedEngine
 
-from contractor_runtime.podman_command import CommandCapture
-from contractor_runtime.podman_io import CLIResult
-from contractor_runtime.sandbox_contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.podman.command import CommandCapture
+from contractor_runtime.sandbox.podman.io import CLIResult
 
 
 class ProbeCLI(ScriptedEngine):
@@ -123,7 +123,7 @@ class Commands:
 
 
 def install(monkeypatch, fixture, root, failure):
-    import contractor_runtime.podman_probe as module
+    import contractor_runtime.sandbox.podman.probe as module
 
     cli = ProbeCLI(failure)
     fixture.cli = cli

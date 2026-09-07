@@ -18,9 +18,9 @@ from contractor_runtime.adapters.content import (
     encode_content,
 )
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory, _accepted_response
-from contractor_runtime.instrumentation import WorkerInstrumentationPlugin
-from contractor_runtime.summarizer import TerminalSummarizer
-from contractor_runtime.worker_state import WorkerStateStore
+from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
+from contractor_runtime.worker.state import WorkerStateStore
+from contractor_runtime.worker.summarizer import TerminalSummarizer
 
 
 @pytest.mark.parametrize("enabled", [False, True])

@@ -10,18 +10,18 @@ from pathlib import Path
 
 import pytest
 
-from contractor_runtime.podman_guardian import CgroupFence, liveness_deadline, serve
-from contractor_runtime.podman_supervisor import (
+from contractor_runtime.sandbox.contracts import (
+    ExecutionResult,
+    ExecutionStatus,
+    SandboxContractError,
+)
+from contractor_runtime.sandbox.podman.guardian import CgroupFence, liveness_deadline, serve
+from contractor_runtime.sandbox.podman.supervisor import (
     _START_CLEANUPS,
     CompletionGate,
     GuardianClient,
     open_fence,
     open_pidfd,
-)
-from contractor_runtime.sandbox_contracts import (
-    ExecutionResult,
-    ExecutionStatus,
-    SandboxContractError,
 )
 
 

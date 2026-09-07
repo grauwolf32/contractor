@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-import contractor_runtime.toolsets.likec4 as likec4_module
+import contractor_runtime.toolsets.likec4.tools as likec4_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
@@ -20,7 +20,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
 )
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.toolsets.likec4 import (
+from contractor_runtime.toolsets.likec4.tools import (
     MAX_DOCUMENT_UTF8_BYTES,
     LikeC4ToolsetFactory,
     _run_likec4,

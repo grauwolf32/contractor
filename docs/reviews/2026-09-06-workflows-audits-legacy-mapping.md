@@ -158,7 +158,7 @@ outputs, ArtifactRef, finding intake и result contracts. Расширения �
 
 **Граница детерминированной сборки и анализа.** Отдельный toolset для находок
 уже реализован:
-[`security-findings@2`](../../runtime/src/contractor_runtime/toolsets/security_findings.py)
+[`security-findings@2`](../../runtime/src/contractor_runtime/toolsets/security_findings/tools.py)
 с независимо выбираемыми `finding` и `list_findings`. `finding` принимает
 кандидат и точные evidence refs,
 регистрирует предложение и возвращает `proposal_id` / `receipt_id`.
@@ -249,7 +249,7 @@ findings. Независимый verifier остаётся полезной оп
 Для source-сценариев полезен захват evidence с возвратом точной ссылки. Общий
 collector должен принимать результат такого инструмента через обычный
 artifact/evidence contract, без встроенного знания о source или аннотациях.
-Сейчас [`submit_check_result`](../../runtime/src/contractor_runtime/toolsets/audit_results.py)
+Сейчас [`submit_check_result`](../../runtime/src/contractor_runtime/toolsets/audit_results/v1.py)
 создаёт evidence members из переданных текстовых summaries. Нельзя считать
 такой summary автоматически извлечённым фрагментом исходников. При захвате после
 аннотирования ссылка должна учитывать snapshot overlay, поскольку строки могли

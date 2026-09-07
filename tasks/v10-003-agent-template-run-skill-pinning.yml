@@ -59,7 +59,7 @@ deliverables:
   - {path: internal/scheduler, description: Atomic pre-scheduling skill resolution fork and recovery.}
   - {path: internal/agentskills, description: SkillCatalog owner resolution validation and exact Run fork operation.}
   - {path: internal/artifacts, description: Reserved skills namespace read/write policy.}
-  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts.py, description: Model-visible reserved-Namespace filtering without blocking trusted exact loader reads.}
+  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py, description: Model-visible reserved-Namespace filtering without blocking trusted exact loader reads.}
 
 requirements:
   - id: R1

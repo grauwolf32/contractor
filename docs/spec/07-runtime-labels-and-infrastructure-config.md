@@ -176,7 +176,12 @@ spec:
       endpoint: https://telemetry.internal/v1/traces
       credential: langfuse-otel
       captureContent: false
-      flushTimeoutSeconds: 3
+      flushTimeoutSeconds: 10
+      export:
+        batchSizeBytes: 8388608
+        maxAttempts: 2
+        maxPendingSpans: 2048
+        maxPendingBytes: 67108864
     httpProxy:
       adapter: http-proxy@1
       proxyUrl: http://caido.internal:8080
@@ -192,7 +197,7 @@ spec:
       endpoint: https://telemetry.internal/v1/traces
       credential: langfuse-otel
       captureContent: false
-      flushTimeoutSeconds: 3
+      flushTimeoutSeconds: 10
 ```
 
 Every section is optional. A user-published RuntimeConfig must contain at least
@@ -211,7 +216,7 @@ The first schema fixes those bounds so publication is independently testable:
 - an endpoint/proxy URL is at most 2,048 UTF-8 bytes, has no query unless the
   adapter schema explicitly permits one, and is normalized without resolving
   DNS or contacting it;
-- `flushTimeoutSeconds` is an integer from 1 through 10 and defaults to 3;
+- `flushTimeoutSeconds` is an integer from 1 through 10 and defaults to 10;
   omitted `captureContent` is `false`; `true` explicitly opts into unredacted
   content export to a trusted telemetry sink;
 - proxy `targets` is a unique non-empty subset of the three values shown above;
@@ -223,7 +228,7 @@ The first schema fixes those bounds so publication is independently testable:
   against the credential kind required by its containing adapter block.
 
 Normalization materializes schema defaults such as `captureContent: false` and
-`flushTimeoutSeconds: 3`, sorts set-valued `targets`, rejects duplicate object
+`flushTimeoutSeconds: 10`, sorts set-valued `targets`, rejects duplicate object
 keys before decoding and otherwise preserves scalar bytes under RFC 8785. Thus
 omitting a default and spelling it explicitly produce the same digest, while a
 semantic endpoint, credential, target or trust change produces a new digest.
@@ -272,6 +277,40 @@ opt-in input/output content has a separate 256 KiB limit per field.
 There is no durable exporter spool or infinite retry; a process crash may lose
 unflushed external telemetry while Contractor's own durable lifecycle remains
 authoritative.
+
+Worker export scheduling is configured in `worker.telemetry.export`:
+
+| Setting | Default | Allowed values |
+| --- | --- | --- |
+| `batchSizeBytes` | 8 MiB (8388608) | 1–64 MiB |
+| `maxAttempts` | 2 | 1–10 total attempts per batch |
+| `maxPendingSpans` | 2048 | 1–2048 |
+| `maxPendingBytes` | 64 MiB (67108864) | At least `batchSizeBytes`, at most 64 MiB |
+
+The optional block is Worker-only. Omitted fields within a supplied block are
+materialized before calculating its digest. An absent block remains absent in
+stored documents and uses the defaults above, preserving existing immutable
+RuntimeConfig digests. Explicit timeouts in existing configurations are retained;
+the 10-second default applies when publishing without `flushTimeoutSeconds`.
+The Server pins these values and passes them to Python through RuntimeSettings.
+The Operations RuntimeConfig form exposes the same settings.
+
+Worker exporters start one asynchronous sender when the queue reaches
+`batchSizeBytes` of encoded pending data or `maxPendingSpans`. Requests contain
+whole spans and are bounded to `batchSizeBytes` including the protobuf envelope.
+An overflow also wakes the sender to drain accepted spans when another whole
+span cannot fit before the byte threshold is reached.
+The sender transmits ready batches sequentially while Worker callbacks continue
+appending; the in-flight batch remains charged to both queue limits. Only its
+prefix is removed after delivery, preserving spans added during the request.
+Each batch gets at most `maxAttempts` HTTP attempts; retries preserve the payload
+and span IDs. Each attempt has its own total timeout of
+`min(requestTimeoutSeconds, flushTimeoutSeconds)`. The final flush's overall
+deadline can cut an attempt short and is never extended for retries. Adapter
+operation/error counters account for each HTTP attempt. Once attempts are
+exhausted, the batch is dropped and subsequent batches can proceed. Cancellation
+is not retried. There is no periodic timer: a sub-threshold tail waits for more
+spans or the final flush. Planner export scheduling is unchanged.
 
 Export accepts bounded OTLP protobuf or JSON acknowledgements and the Langfuse
 v3 JSON ingestion-job acknowledgement (`name=otel-ingestion-job`, non-empty
@@ -781,8 +820,11 @@ new Runs resolved against the new RuntimeConfig version.
 An OTLP exporter delivery error, timeout or unavailable backend increments
 bounded adapter error metrics but does not change StageResult or
 StageTermination. Finalization/abort performs one best-effort flush bounded by
-the configured timeout and the remaining lifecycle deadline. It then returns
-the Contractor ExecutionReport and destroys the adapter regardless of export
+the configured timeout and the remaining lifecycle deadline. For Worker this
+joins the active sender and drains remaining spans in the same bounded batches;
+the deadline bounds the entire drain, not each batch independently. Closing
+cancels and joins any sender before erasing its queue and transport credentials.
+The Runtime then returns the Contractor ExecutionReport regardless of export
 success. Release erases all credential values, closes clients and removes
 temporary proxy trust material before the slot can become idle.
 

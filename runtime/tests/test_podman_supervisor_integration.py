@@ -14,15 +14,15 @@ from pathlib import Path
 
 import pytest
 
-from contractor_runtime.podman_engine import PodmanEngine
-from contractor_runtime.podman_io import LocalPodmanCLI, local_engine_environment
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.podman_supervisor import CompletionGate, GuardianClient, open_fence
-from contractor_runtime.sandbox_contracts import (
+from contractor_runtime.sandbox.contracts import (
     ExecutionResult,
     ExecutionStatus,
     SandboxContractError,
 )
+from contractor_runtime.sandbox.podman.engine import PodmanEngine
+from contractor_runtime.sandbox.podman.io import LocalPodmanCLI, local_engine_environment
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
+from contractor_runtime.sandbox.podman.supervisor import CompletionGate, GuardianClient, open_fence
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE") != "1",

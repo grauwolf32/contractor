@@ -11,7 +11,7 @@ from contractor_runtime.contracts import (
     StageContentRequest,
     WorkerObservations,
 )
-from contractor_runtime.summarizer import (
+from contractor_runtime.worker.summarizer import (
     MAX_SUMMARIZER_INPUT_BYTES,
     TranscriptRecorder,
     build_summarizer_prompt,
@@ -195,7 +195,7 @@ def test_summary_uses_literal_configured_instructions() -> None:
     from fakes.model import json_result, scripted_model
     from fakes.spec import allocation_spec
 
-    from contractor_runtime.summarizer import TerminalSummarizer
+    from contractor_runtime.worker.summarizer import TerminalSummarizer
 
     async def scenario() -> None:
         model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])
@@ -220,7 +220,7 @@ def test_summary_sends_large_projection_without_local_context_trimming() -> None
     from fakes.model import json_result, scripted_model
     from fakes.spec import allocation_spec
 
-    from contractor_runtime.summarizer import TerminalSummarizer
+    from contractor_runtime.worker.summarizer import TerminalSummarizer
 
     async def scenario() -> None:
         model = scripted_model([json_result({"subtaskId": "1", "result": "summary"})])

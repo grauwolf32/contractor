@@ -11,11 +11,11 @@ import pytest
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools, make_tools
 
 import contractor_runtime.adapters.caido_graphql as caido_graphql
-import contractor_runtime.toolsets.http_tools as http_tools
+import contractor_runtime.toolsets.http.tools as http_tools
 from contractor_runtime.adapters.caido_graphql import CaidoClientError, CaidoGraphQLClient
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.toolsets.http_tools import HTTPToolError
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 
 def test_session_header_and_cookie_limits_apply_to_atomic_merged_state(

@@ -51,6 +51,46 @@ Local/direct storage alone grants no command-execution authority. The opt-in
 Podman backend and `code-execution@1` now require complete positive startup
 probes; see [Podman policy](PODMAN.md).
 
+Sandbox implementation lives in `src/contractor_runtime/sandbox/`:
+`contracts.py` defines the execution interface, `lifecycle.py` defines allocation
+lifecycle hooks, and `podman/` contains the backend, startup probes, settings,
+ownership, and supervisor processes. The `owner` and `guardian` subprocesses run
+as `contractor_runtime.sandbox.podman.owner` and
+`contractor_runtime.sandbox.podman.guardian` modules.
+
+Built-in toolsets have individual packages under `src/contractor_runtime/toolsets/`.
+Factories and callable tools live in `tools.py` or explicitly versioned modules,
+with supporting modules alongside them: `memory/codec.py`, `openapi/models.py`,
+`security_findings/reader.py` and `collection.py`, and the code-analysis language,
+identifier, and Trailmark modules in `code_analysis/`. Shared artifact visibility
+rules live in `common/artifact_visibility.py`. Package initializers remain free
+of eager imports so the codec and isolated child processes load independently.
+
+Audit result handling lives in `src/contractor_runtime/toolsets/audit_results/`.
+`v1.py` and `v2.py` implement `audit-results@1` and `audit-results@2`; `contracts.py`,
+`packages.py`, `collector.py`, `encoding.py`, and `publication.py` hold their
+internal result handling. `completion.py` implements the trusted completion
+lifecycle invoked by the Runtime after model output, including completeness
+checks and publication of the final artifact. It implements the shared
+`worker/completion.py` boundary; the ADK runner binds a trusted completion
+implementation and its required tools without depending on Audit tool names.
+
+The rest of the Runtime source follows these boundaries:
+
+| Package | Responsibility |
+| --- | --- |
+| `llm/` | Gateway client, OpenAI request/response adaptation, model construction, and token usage. |
+| `telemetry/` | Allocation and invocation counters, process resource sampling, and execution content policy. |
+| `worker/` | ADK orchestration and instrumentation, worker construction, budgets, sessions, state, summarization, and finalization. |
+| `contracts/` | Strict wire models grouped into registration, allocation, workspace, worker, artifacts, settings, and reports, plus encoding/decoding. Existing imports are exported by `contracts/__init__.py`. |
+| `allocation/` | Slot lifecycle service, admission validation, resource context, final reports, and cleanup primitives. The service owns preparation, cancellation, and release ordering. |
+| `toolsets/common/` | Shared tool metrics interface, artifact client helpers, and artifact visibility rules. |
+
+Completion decisions and bounded failures belong to `worker/completion.py`.
+Concrete completion implementations own request validation, result publication,
+and error classification. A tool binding must cover all required tools under
+one prepared owner and match the allocation's trusted completion contract.
+
 ## Local Podman workflow
 
 The sample `podman-python-check@1` uses `podman_python_fixer@1`: read and fix a

@@ -10,7 +10,7 @@ from fakes.model import json_result, scripted_model
 from google.genai import types
 
 from contractor_runtime.contracts import ModelPolicyRef, ResolvedModelPolicy
-from contractor_runtime.result_finalizer import (
+from contractor_runtime.worker.finalizer import (
     MAX_RESULT_FINALIZER_INPUT_BYTES,
     ResultFinalizerFailure,
     WorkerResultFinalizer,

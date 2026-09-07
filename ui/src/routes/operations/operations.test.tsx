@@ -662,6 +662,14 @@ describe("Operations routes", () => {
       name: /Capture content/,
     });
     expect(captureContent).not.toBeChecked();
+    expect(
+      within(telemetryGroup).getByLabelText("Flush timeout seconds"),
+    ).toHaveValue(10);
+    const attempts = within(telemetryGroup).getByLabelText(
+      "Maximum attempts per batch",
+    );
+    await user.clear(attempts);
+    await user.type(attempts, "3");
     await user.click(captureContent);
     await user.type(
       within(telemetryGroup).getByLabelText("OTLP traces endpoint"),
@@ -678,7 +686,18 @@ describe("Operations routes", () => {
     );
     expect(await screen.findByText(/Published debug@1/)).toBeInTheDocument();
     expect(publishedResource!.document.spec).toMatchObject({
-      worker: { telemetry: { captureContent: true } },
+      worker: {
+        telemetry: {
+          captureContent: true,
+          flushTimeoutSeconds: 10,
+          export: {
+            batchSizeBytes: 8388608,
+            maxAttempts: 3,
+            maxPendingSpans: 2048,
+            maxPendingBytes: 67108864,
+          },
+        },
+      },
     });
 
     const labelForm = view.container.querySelector(

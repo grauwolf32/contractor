@@ -17,8 +17,8 @@ from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.log import configure_logging
 from contractor_runtime.mtls import runtime_agent_client_context, runtime_agent_server_context
-from contractor_runtime.podman_lifecycle import PodmanLifecycle
-from contractor_runtime.podman_workroots import check_root_policy
+from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
+from contractor_runtime.sandbox.podman.workroots import check_root_policy
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings, parse_settings
 from contractor_runtime.state import RuntimeState

@@ -18,7 +18,8 @@ from contractor_runtime.artifacts import (
     ArtifactResponseLimitError,
     ArtifactTransportError,
 )
-from contractor_runtime.audit_completion_contracts import (
+from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_PACKAGE_BYTES,
     AuditEvidence,
     AuditInvocationOwner,
@@ -28,10 +29,15 @@ from contractor_runtime.audit_completion_contracts import (
     RecordedAuditItem,
     SealedAuditSnapshot,
 )
-from contractor_runtime.audit_packages import _build_result_package, _decode_task_input
-from contractor_runtime.audit_result_encoding import AuditResultError, CanonicalAuditPackageEncoder
-from contractor_runtime.audit_result_publication import DeterministicAuditResultPublisher
-from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.audit_results.encoding import (
+    AuditResultError,
+    CanonicalAuditPackageEncoder,
+)
+from contractor_runtime.toolsets.audit_results.packages import (
+    _build_result_package,
+    _decode_task_input,
+)
+from contractor_runtime.toolsets.audit_results.publication import DeterministicAuditResultPublisher
 
 
 def assigned(*, batch=False, invocation="invocation-1", proposals=()):
@@ -176,7 +182,7 @@ def test_existing_importer_proposal_limit_is_distinct_from_coverage_list_limit()
 
 @pytest.mark.parametrize("limit", ["MAX_COLLECTED_BYTES", "MAX_MEMBER_BYTES", "MAX_PACKAGE_BYTES"])
 def test_encoder_enforces_actual_sizes_including_zip_overhead(monkeypatch, limit):
-    from contractor_runtime import audit_result_encoding as encoding
+    from contractor_runtime.toolsets.audit_results import encoding
 
     snapshot, inputs = assigned()
     encoded = CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)

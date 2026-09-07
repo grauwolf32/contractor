@@ -14,8 +14,8 @@ from contractor_runtime.contracts import (
     AgentStateSnapshot,
     FinalizeAllocationRequest,
 )
-from contractor_runtime.instrumentation import InvocationMetricsReducer
 from contractor_runtime.server import create_app
+from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
 
 STATE_PATH = "/private/v1/allocations/allocation-1/agent-state"
 SECRET = "recognizable-agent-state-secret"

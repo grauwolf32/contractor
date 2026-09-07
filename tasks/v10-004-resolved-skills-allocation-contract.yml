@@ -45,7 +45,7 @@ deliverables:
   - {path: api/testdata/v1alpha1, description: Shared valid and adversarial allocation manifests.}
   - {path: internal/contracts, description: Strict ResolvedSkill models validation and canonical fingerprint fields.}
   - {path: internal/controlplane, description: Allocation subset assembly and replay-safe delivery.}
-  - {path: runtime/src/contractor_runtime/contracts.py, description: Strict Python logical and exact Skill allocation model parity.}
+  - {path: runtime/src/contractor_runtime/contracts/__init__.py, description: Strict Python logical and exact Skill allocation model parity.}
   - {path: runtime/src/contractor_runtime/digests.py, description: Cross-language logical-skill AgentTemplate digest parity with empty compatibility.}
   - {path: docs/development.md, description: Required drain release and lockstep Server Runtime Agent upgrade procedure.}
 

@@ -51,7 +51,7 @@ lifecycle_rules:
   release: "only after terminal owner decision; remove workspace/secrets/state and remain fenced until a confirmed heartbeat release action permits idle; cleanup failure remains fenced"
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/allocation.py, description: Allocation context and idempotent lifecycle service.}
+  - {path: runtime/src/contractor_runtime/allocation/service.py, description: Allocation context and idempotent lifecycle service.}
   - {path: runtime/src/contractor_runtime/factories.py, description: Runtime/Toolset/Sandbox descriptor and factory protocols.}
   - {path: runtime/src/contractor_runtime/workspace.py, description: Safe local-workdir@1 lifecycle.}
   - {path: internal/controlplane/runtime_client.go, description: mTLS client and prepare/finalize/abort/release batch orchestration.}

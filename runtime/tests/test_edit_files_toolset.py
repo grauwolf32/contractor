@@ -15,8 +15,8 @@ from contractor_runtime.projectfs import (
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
-from contractor_runtime.toolsets.edit_files import EditFilesToolsetFactory
-from contractor_runtime.toolsets.filesystem import FilesystemToolError
+from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
+from contractor_runtime.toolsets.filesystem.tools import FilesystemToolError
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET_CONTENT = "recognizable-edit-content-secret"

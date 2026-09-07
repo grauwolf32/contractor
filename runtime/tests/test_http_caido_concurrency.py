@@ -15,7 +15,7 @@ from test_caido_read_tools import create_tools as create_caido_tools
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools
 
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.toolsets.http_tools import HTTPToolError
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 
 class BlockingArtifactClient(FakeArtifactClient):

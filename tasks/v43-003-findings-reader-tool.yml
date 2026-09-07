@@ -23,7 +23,7 @@ scope:
   out:
     - "Separate get/update/delete tools, model-assigned scope identities, hidden dedup or confirmation side effects."
 deliverables:
-  - {path: runtime/src/contractor_runtime/toolsets/security_findings.py, description: "Versioned independently selectable finding/list_findings operations."}
+  - {path: runtime/src/contractor_runtime/toolsets/security_findings/tools.py, description: "Versioned independently selectable finding/list_findings operations."}
   - {path: runtime/tests/test_findings_reader_toolset.py, description: "Offline reader, filtering, pagination and capability tests; create during implementation."}
   - {path: internal/config, description: "Tool authoring descriptors and role-selection checks."}
   - {path: internal/auditservice, description: "Compatibility checks that distinguish reading from emitting findings."}

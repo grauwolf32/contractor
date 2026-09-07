@@ -21,13 +21,6 @@ from contractor_runtime.adapters import (
     RuntimeSpan,
     TelemetryAttribute,
 )
-from contractor_runtime.adk_runtime import (
-    AdkWorkerRuntime,
-    AdkWorkerRuntimeFactory,
-    GatewayModelError,
-    OpenAICompatibleGatewayLlm,
-    gateway_model,
-)
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
@@ -49,10 +42,14 @@ from contractor_runtime.contracts import (
     WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import WorkerBuildContext
-from contractor_runtime.model_client import new_gateway_client
-from contractor_runtime.session_lifecycle import WorkerSessionLifecycleError
-from contractor_runtime.toolsets.memory import MemoryToolsetFactory
-from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
+from contractor_runtime.llm.client import new_gateway_client
+from contractor_runtime.llm.factory import gateway_model
+from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
+from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
+from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.runtime import AdkWorkerRuntime
+from contractor_runtime.worker.sessions import WorkerSessionLifecycleError
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-adk-gateway-token"
@@ -1739,7 +1736,7 @@ def test_partial_invocation_acquisition_releases_session_and_preserves_error(
 
         monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", record_finish)
         with monkeypatch.context() as patch:
-            patch.setattr("contractor_runtime.adk_runtime._summary_prompt_boundary", fail_budget)
+            patch.setattr("contractor_runtime.worker.runtime._summary_prompt_boundary", fail_budget)
             with pytest.raises(RuntimeError, match="original budget acquisition failure"):
                 await runtime.invoke(stage_request())
         assert len(released) == 1 and released[0] is not None
@@ -1871,7 +1868,7 @@ def test_session_cleanup_timeout_is_bounded_and_keeps_invocation_identity(
 
         monkeypatch.setattr(runtime._session_lifecycle, "finish_invocation", stuck_finish)
         monkeypatch.setattr(
-            "contractor_runtime.adk_runtime.INVOCATION_CLEANUP_TIMEOUT_SECONDS", 0.05
+            "contractor_runtime.worker.runtime.INVOCATION_CLEANUP_TIMEOUT_SECONDS", 0.05
         )
         completion = await asyncio.wait_for(runtime.invoke(stage_request()), timeout=1)
         assert completion.result is None

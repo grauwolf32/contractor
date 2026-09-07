@@ -911,6 +911,17 @@
           "minimum": 1,
           "title": "Flushtimeoutseconds",
           "type": "integer"
+        },
+        "export": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelemetryExportSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1103,6 +1114,43 @@
         "resultArtifact"
       ],
       "title": "WorkerCompletionContract",
+      "type": "object"
+    },
+    "TelemetryExportSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "batchSizeBytes": {
+          "maximum": 67108864,
+          "minimum": 1048576,
+          "title": "Batchsizebytes",
+          "type": "integer"
+        },
+        "maxAttempts": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Maxattempts",
+          "type": "integer"
+        },
+        "maxPendingSpans": {
+          "maximum": 2048,
+          "minimum": 1,
+          "title": "Maxpendingspans",
+          "type": "integer"
+        },
+        "maxPendingBytes": {
+          "maximum": 67108864,
+          "minimum": 1048576,
+          "title": "Maxpendingbytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "batchSizeBytes",
+        "maxAttempts",
+        "maxPendingSpans",
+        "maxPendingBytes"
+      ],
+      "title": "TelemetryExportSettings",
       "type": "object"
     }
   },

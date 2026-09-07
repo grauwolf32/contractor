@@ -45,7 +45,7 @@ contractor --timeout 20ms context check probe
 
 Увеличение `runtimeRequestTimeout` или `workerRequestTimeout` не увеличивает
 время остановки Worker, инструментов и адаптеров. В Runtime эти операции делят
-один deadline (`runtime/src/contractor_runtime/allocation.py:1050`). Для медленного
+один deadline (`runtime/src/contractor_runtime/allocation/service.py:1050`). Для медленного
 cleanup это означает неполные terminal reports или неподтверждённую остановку;
 Runtime может fence/завершить процесс. Успешный Stage candidate при неполном
 отчёте сам по себе не становится failed — Scheduler сохраняет его по контракту.

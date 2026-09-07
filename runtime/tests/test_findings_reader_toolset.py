@@ -21,21 +21,21 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.instrumentation import _safe_tool_response
-from contractor_runtime.toolsets.finding_collection import (
+from contractor_runtime.toolsets.run_artifacts.tools import ReadArtifactTool
+from contractor_runtime.toolsets.security_findings.collection import (
     COLLECTION_MEDIA_TYPE,
     MAX_ARCHIVE_BYTES,
     FindingsError,
     decode_collection,
 )
-from contractor_runtime.toolsets.findings_reader import ListFindingsTool
-from contractor_runtime.toolsets.run_artifacts import ReadArtifactTool
-from contractor_runtime.toolsets.security_findings import (
+from contractor_runtime.toolsets.security_findings.reader import ListFindingsTool
+from contractor_runtime.toolsets.security_findings.tools import (
     FindingTool,
     FindingV2Tool,
     SecurityFindingsToolsetFactory,
     SecurityFindingsV2ToolsetFactory,
 )
+from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
 FIXTURE = (
@@ -570,14 +570,16 @@ def test_byte_bounded_pagination_never_drops_items(monkeypatch):
         reader = tools["list_findings"]
         first = await reader(limit=1)
         monkeypatch.setattr(
-            "contractor_runtime.toolsets.findings_reader.MAX_PAGE_BYTES", len(_json(first))
+            "contractor_runtime.toolsets.security_findings.reader.MAX_PAGE_BYTES", len(_json(first))
         )
         page = await reader(limit=100)
         assert page == first
         second = await reader(cursor=page["next_cursor"])
         assert second["next_cursor"] is None
         assert second["items"][0]["receipt_id"] == "receipt-b"
-        monkeypatch.setattr("contractor_runtime.toolsets.findings_reader.MAX_PAGE_BYTES", 100)
+        monkeypatch.setattr(
+            "contractor_runtime.toolsets.security_findings.reader.MAX_PAGE_BYTES", 100
+        )
         with pytest.raises(FindingsError, match="limit_exceeded"):
             await reader()
 
@@ -658,7 +660,9 @@ def test_reader_errors_keep_distinct_codes_in_model_visible_envelope(monkeypatch
             envelope = _safe_tool_response("list_findings", raised.value)
             assert envelope["error"]["code"] == expected
             assert envelope["ok"] is False
-        monkeypatch.setattr("contractor_runtime.toolsets.findings_reader.MAX_PAGE_BYTES", 1)
+        monkeypatch.setattr(
+            "contractor_runtime.toolsets.security_findings.reader.MAX_PAGE_BYTES", 1
+        )
         with pytest.raises(FindingsError) as raised:
             await reader()
         assert _safe_tool_response("list_findings", raised.value)["error"]["code"] == (

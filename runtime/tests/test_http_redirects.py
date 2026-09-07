@@ -12,7 +12,7 @@ from test_http_toolset import FakeArtifactClient, close_tools, make_tools, proxy
 
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
-from contractor_runtime.toolsets.http_tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
 
 
 async def redirect_tools(

@@ -82,11 +82,19 @@ type llmGatewaySource struct {
 }
 
 type telemetrySource struct {
-	Adapter             string           `json:"adapter"`
-	Endpoint            string           `json:"endpoint"`
-	Credential          optional[string] `json:"credential"`
-	CaptureContent      optional[bool]   `json:"captureContent"`
-	FlushTimeoutSeconds optional[int]    `json:"flushTimeoutSeconds"`
+	Adapter             string                          `json:"adapter"`
+	Endpoint            string                          `json:"endpoint"`
+	Credential          optional[string]                `json:"credential"`
+	CaptureContent      optional[bool]                  `json:"captureContent"`
+	FlushTimeoutSeconds optional[int]                   `json:"flushTimeoutSeconds"`
+	Export              optional[telemetryExportSource] `json:"export"`
+}
+
+type telemetryExportSource struct {
+	BatchSizeBytes  optional[int] `json:"batchSizeBytes"`
+	MaxAttempts     optional[int] `json:"maxAttempts"`
+	MaxPendingSpans optional[int] `json:"maxPendingSpans"`
+	MaxPendingBytes optional[int] `json:"maxPendingBytes"`
 }
 
 type httpProxySource struct {
@@ -429,7 +437,7 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 		}
 		capture = value.CaptureContent.value
 	}
-	flush := 3
+	flush := 10
 	if value.FlushTimeoutSeconds.present {
 		if value.FlushTimeoutSeconds.null || value.FlushTimeoutSeconds.value < 1 || value.FlushTimeoutSeconds.value > 10 {
 			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.flushTimeoutSeconds must be from 1 through 10", path)
@@ -440,6 +448,35 @@ func materializeTelemetry(path string, source optional[telemetrySource]) (Atomic
 	canonical := map[string]any{"adapter": value.Adapter, "endpoint": endpoint, "captureContent": capture, "flushTimeoutSeconds": flush}
 	if value.Credential.present {
 		canonical["credential"] = value.Credential.value
+	}
+	if value.Export.present {
+		if path != "spec.worker.telemetry" || value.Export.null {
+			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export is only supported as a Worker telemetry object", path)
+		}
+		export := contracts.DefaultTelemetryExportSettings()
+		fields := []struct {
+			name   string
+			source optional[int]
+			target *int
+		}{
+			{"batchSizeBytes", value.Export.value.BatchSizeBytes, &export.BatchSizeBytes},
+			{"maxAttempts", value.Export.value.MaxAttempts, &export.MaxAttempts},
+			{"maxPendingSpans", value.Export.value.MaxPendingSpans, &export.MaxPendingSpans},
+			{"maxPendingBytes", value.Export.value.MaxPendingBytes, &export.MaxPendingBytes},
+		}
+		for _, field := range fields {
+			if field.source.present {
+				if field.source.null {
+					return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export.%s cannot be null", path, field.name)
+				}
+				*field.target = field.source.value
+			}
+		}
+		if err := export.Validate(); err != nil {
+			return AtomicPatch[TelemetryConfig]{}, nil, invalid("%s.export: %v", path, err)
+		}
+		patch.Value.Export = &export
+		canonical["export"] = export
 	}
 	return patch, canonical, nil
 }

@@ -406,11 +406,12 @@ func (r AgentRegistrationResponseV2) Validate() error {
 }
 
 type TelemetrySettingsV2 struct {
-	Adapter             RuntimeAdapterRef       `json:"adapter"`
-	Endpoint            string                  `json:"endpoint"`
-	Headers             map[string]SecretString `json:"headers"`
-	CaptureContent      bool                    `json:"captureContent"`
-	FlushTimeoutSeconds int                     `json:"flushTimeoutSeconds"`
+	Adapter             RuntimeAdapterRef        `json:"adapter"`
+	Endpoint            string                   `json:"endpoint"`
+	Headers             map[string]SecretString  `json:"headers"`
+	CaptureContent      bool                     `json:"captureContent"`
+	FlushTimeoutSeconds int                      `json:"flushTimeoutSeconds"`
+	Export              *TelemetryExportSettings `json:"export,omitempty"`
 }
 
 func (s TelemetrySettingsV2) Validate() error {
@@ -444,6 +445,9 @@ func (s TelemetrySettingsV2) Validate() error {
 	}
 	if s.FlushTimeoutSeconds < 1 || s.FlushTimeoutSeconds > 10 {
 		return invalidf("telemetry flushTimeoutSeconds must be from 1 through 10")
+	}
+	if s.Export != nil {
+		return s.Export.Validate()
 	}
 	return nil
 }

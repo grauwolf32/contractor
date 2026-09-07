@@ -16,8 +16,6 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 
 from contractor_runtime.adapters.host import RuntimeAdapterBuildContext
 from contractor_runtime.adapters.otlp_http import (
-    MAX_PENDING_BYTES,
-    MAX_PENDING_SPANS,
     MAX_SPAN_ATTRIBUTES,
     MAX_STRING_ATTRIBUTE_BYTES,
     OTLPDeliveryError,
@@ -31,6 +29,7 @@ from contractor_runtime.contracts import (
     AllocationSpecV2,
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
+    TelemetryExportSettings,
     TelemetrySettingsV2,
 )
 from contractor_runtime.factories import (
@@ -40,6 +39,9 @@ from contractor_runtime.factories import (
 )
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.workspace import LocalWorkdirFactory
+
+MAX_PENDING_BYTES = TelemetryExportSettings.defaults().max_pending_bytes
+MAX_PENDING_SPANS = TelemetryExportSettings.defaults().max_pending_spans
 
 HEADER_SECRET = "recognizable-otlp-header-secret"
 PROMPT_SECRET = "recognizable-prompt-content-canary"
@@ -193,8 +195,8 @@ def test_otlp_delivery_failure_is_safe_metrics_only(failure: str) -> None:
         assert PROVIDER_SECRET not in rendered
         assert HEADER_SECRET not in rendered
         assert ENDPOINT not in rendered
-        assert adapter.metrics.operations == 1
-        assert adapter.metrics.failed_operations == 1
+        assert adapter.metrics.operations == 2
+        assert adapter.metrics.failed_operations == 2
         assert adapter.metrics.last_error_code == "delivery_failed"
         await adapter.close()
 

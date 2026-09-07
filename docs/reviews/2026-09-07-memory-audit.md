@@ -16,7 +16,7 @@
 
 1. **P1 — HTTP 500 после состоявшейся записи допускает повторный append.**
 
-   В `runtime/src/contractor_runtime/toolsets/memory.py:274–279` точный повтор
+   В `runtime/src/contractor_runtime/toolsets/memory/tools.py:274–279` точный повтор
    с прежним CAS разрешён только для `ArtifactTransportError`.
    `ArtifactAPIError(500, internal_error)` немедленно превращается в
    `memory_unavailable`, `retryable=true`, без проверки текущего содержимого.
@@ -51,7 +51,7 @@
 
 2. **P2 — обычные артефакты могут заблокировать даже пустую memory.**
 
-   `runtime/src/contractor_runtime/toolsets/memory.py:214–220` сначала
+   `runtime/src/contractor_runtime/toolsets/memory/tools.py:214–220` сначала
    получает все bindings namespace и только потом фильтрует `memory.`.
    У списка ArtifactClient есть лимит JSON-ответа 1 MiB
    (`runtime/src/contractor_runtime/artifacts.py:28,216–226`), пагинации

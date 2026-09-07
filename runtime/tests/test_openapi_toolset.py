@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 import yaml
 
-import contractor_runtime.toolsets.openapi as openapi_module
+import contractor_runtime.toolsets.openapi.tools as openapi_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
@@ -22,7 +22,7 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.toolsets.openapi import (
+from contractor_runtime.toolsets.openapi.tools import (
     MAX_DOCUMENT_BYTES,
     MAX_DOCUMENT_DEPTH,
     OpenAPIToolsetFactory,

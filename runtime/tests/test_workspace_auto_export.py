@@ -9,7 +9,6 @@ from typing import Any
 import pytest
 from fakes.model import json_result, scripted_model, text_result
 
-from contractor_runtime.adk_runtime import AdkWorkerRuntime, AdkWorkerRuntimeFactory
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
@@ -46,6 +45,8 @@ from contractor_runtime.projectfs import (
     decode_workspace_state,
 )
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.workspace import AllocationWorkspace
 
 

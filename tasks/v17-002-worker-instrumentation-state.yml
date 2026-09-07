@@ -40,10 +40,10 @@ scope:
     - Workspace path observations, an HTTP endpoint, Planner tools, WorkerCompletion cutover or summarizer triggers.
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/instrumentation.py, description: ADK plugin, callback correlation and independent reducers.}
-  - {path: runtime/src/contractor_runtime/worker_state.py, description: Versioned bounded Contractor State store and immutable snapshots.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: App/plugin integration and removal of duplicate callback ownership.}
-  - {path: runtime/src/contractor_runtime/metrics.py, description: Preserved final-report projection from the new reducer.}
+  - {path: runtime/src/contractor_runtime/worker/instrumentation.py, description: ADK plugin, callback correlation and independent reducers.}
+  - {path: runtime/src/contractor_runtime/worker/state.py, description: Versioned bounded Contractor State store and immutable snapshots.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: App/plugin integration and removal of duplicate callback ownership.}
+  - {path: runtime/src/contractor_runtime/telemetry/metrics.py, description: Preserved final-report projection from the new reducer.}
 
 requirements:
   - {id: R1, text: One logical model/tool attempt changes aggregate counters once for every valid ADK callback ordering.}

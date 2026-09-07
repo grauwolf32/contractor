@@ -19,16 +19,19 @@ from test_openapi_toolset import make_tools as openapi_tools
 from test_projectfs_local_direct import workspace as local_workspace
 from test_taint_annotations import make_tools as annotation_tools
 
+import contractor_runtime.toolsets.openapi.tools as openapi_module
+import contractor_runtime.toolsets.taint_annotations.tools as annotations_module
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.instrumentation import WorkerInstrumentationPlugin
-from contractor_runtime.observations import lean_workspace_summary
 from contractor_runtime.settings import WorkspaceLimits
-from contractor_runtime.toolsets import openapi as openapi_module
-from contractor_runtime.toolsets import taint_annotations as annotations_module
-from contractor_runtime.toolsets.code_analysis import CodeAnalysisError
-from contractor_runtime.toolsets.filesystem import FilesystemToolError, FilesystemToolsetFactory
-from contractor_runtime.toolsets.taint_annotations import TaintAnnotationError
-from contractor_runtime.worker_state import WorkerStateStore
+from contractor_runtime.toolsets.code_analysis.tools import CodeAnalysisError
+from contractor_runtime.toolsets.filesystem.tools import (
+    FilesystemToolError,
+    FilesystemToolsetFactory,
+)
+from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationError
+from contractor_runtime.worker.instrumentation import WorkerInstrumentationPlugin
+from contractor_runtime.worker.observations import lean_workspace_summary
+from contractor_runtime.worker.state import WorkerStateStore
 
 
 def test_filesystem_and_edits_see_external_create_write_rename_delete(tmp_path: Path) -> None:

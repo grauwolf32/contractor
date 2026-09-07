@@ -8,9 +8,9 @@ from dataclasses import replace
 
 import pytest
 
-from contractor_runtime.podman_command import PodmanCommand
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.sandbox_contracts import SandboxErrorCode, SandboxIdentity
+from contractor_runtime.sandbox.contracts import SandboxErrorCode, SandboxIdentity
+from contractor_runtime.sandbox.podman.command import PodmanCommand
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 IDENTITY = SandboxIdentity("owner", "incarnation", "allocation", "creation", "a" * 64)
 

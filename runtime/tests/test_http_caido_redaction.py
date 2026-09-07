@@ -14,9 +14,9 @@ from test_caido_read_tools import close_tools as close_caido_tools
 from test_caido_read_tools import create_tools as create_caido_tools
 from test_http_toolset import FakeArtifactClient, close_tools, create_tools
 
-import contractor_runtime.metrics as runtime_metrics
-from contractor_runtime.toolsets.caido import CaidoToolError
-from contractor_runtime.toolsets.http_tools import HTTPToolError
+import contractor_runtime.telemetry.metrics as runtime_metrics
+from contractor_runtime.toolsets.caido.tools import CaidoToolError
+from contractor_runtime.toolsets.http.tools import HTTPToolError
 
 HTTP_AUTH_SECRET = "canary-http-auth-07e42"
 HTTP_COOKIE_SECRET = "canary-http-cookie-a8f13"

@@ -431,6 +431,12 @@ describe("Operations API", () => {
             endpoint: "https://otel.example/v1/traces",
             captureContent: false as const,
             flushTimeoutSeconds: 5,
+            export: {
+              batchSizeBytes: 1048576,
+              maxAttempts: 3,
+              maxPendingSpans: 16,
+              maxPendingBytes: 2097152,
+            },
           },
         },
       },

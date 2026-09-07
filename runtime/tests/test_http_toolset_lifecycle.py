@@ -16,7 +16,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     RuntimeSettingsV2,
 )
-from contractor_runtime.toolsets.http_tools import HTTPToolError, HTTPToolsetFactory
+from contractor_runtime.toolsets.http.tools import HTTPToolError, HTTPToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 

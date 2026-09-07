@@ -8,9 +8,9 @@ import pytest
 from fakes.podman_lifecycle import owner
 from test_podman_allocation import finalization, release, service_for
 
-from contractor_runtime.podman_command import CommandCapture
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
-from contractor_runtime.sandbox_contracts import ExecutionRequest, SandboxErrorCode
+from contractor_runtime.sandbox.contracts import ExecutionRequest, SandboxErrorCode
+from contractor_runtime.sandbox.podman.command import CommandCapture
 
 
 def deadline(seconds=5):
@@ -191,8 +191,8 @@ def test_selected_execution_changes_analysis_and_explicit_artifact_publication(t
     from contractor_runtime.capabilities import CapabilitySnapshot
     from contractor_runtime.contracts import ToolsetRef, ToolsetSelection
     from contractor_runtime.digests import _agent_template_digest
-    from contractor_runtime.toolsets.code_execution import CodeExecutionToolsetFactory
-    from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
+    from contractor_runtime.toolsets.code_execution.tools import CodeExecutionToolsetFactory
+    from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 
     async def scenario():
         async with owner(tmp_path) as fixture:

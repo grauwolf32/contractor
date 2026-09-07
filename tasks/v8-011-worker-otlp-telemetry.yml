@@ -42,7 +42,7 @@ scope:
 
 deliverables:
   - {path: runtime/src/contractor_runtime/adapters/otlp_http.py, description: otlp-http@1 factory/exporter and safe instrumentation.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Model/tool/A2A instrumentation hooks without content capture.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Model/tool/A2A instrumentation hooks without content capture.}
   - {path: runtime/tests/test_otlp_adapter.py, description: Protobuf, bounds, redaction and failure tests.}
   - {path: runtime/pyproject.toml, description: Locked minimal OTLP dependencies without LangChain.}
 

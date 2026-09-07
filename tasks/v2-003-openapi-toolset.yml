@@ -68,8 +68,8 @@ document_rules:
   vacuum_timeout_seconds: 30
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/toolsets/openapi.py, description: Namespace-bound document session, tools, YAML persistence, CAS, and linter adapter.}
-  - {path: runtime/src/contractor_runtime/toolsets/openapi_models.py, description: Reviewed Pydantic models for mutation boundaries.}
+  - {path: runtime/src/contractor_runtime/toolsets/openapi/tools.py, description: Namespace-bound document session, tools, YAML persistence, CAS, and linter adapter.}
+  - {path: runtime/src/contractor_runtime/toolsets/openapi/models.py, description: Reviewed Pydantic models for mutation boundaries.}
   - {path: runtime/tests/test_openapi_toolset.py, description: Seed/init, targeted mutation, provenance, refs, CAS, lint, metrics, and exact-ref tests.}
   - {path: internal/config/descriptors.go, description: Exact openapi@1 descriptor.}
 

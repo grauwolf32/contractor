@@ -62,7 +62,7 @@ notes:
     build checks also found the in-development ASVS AgentTemplate selecting
     skills/trace in TestMigratedAnalysisSkillsAreCompleteDeterministicAndClosed,
     plus existing Ruff formatting in runtime artifacts.py and
-    toolsets/security_findings.py and Prettier formatting in the Audit detail
+    toolsets/security_findings/tools.py and Prettier formatting in the Audit detail
     and list routes. These unrelated files were not modified for V28.
   - >-
     The full Runtime suite passed (835 passed, 3 skipped), the full UI suite

@@ -9,7 +9,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from contractor_runtime.contracts import WorkerSessionMode
-from contractor_runtime.session_lifecycle import (
+from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
 )

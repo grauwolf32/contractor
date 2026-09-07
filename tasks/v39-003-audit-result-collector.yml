@@ -40,11 +40,11 @@ scope:
     - "A2A integration, activation/registration before common finalization is wired, artifact publication, model retry loops and general persistent draft storage."
 
 deliverables:
-  - path: runtime/src/contractor_runtime/audit_result_collector.py
+  - path: runtime/src/contractor_runtime/toolsets/audit_results/collector.py
     description: "Invocation-owned collector with atomic revisions, lifecycle and shared encoder admission."
   - path: api/testdata/audit-completion/task-local-validation.json
     description: "Shared positive/negative task-local cases for the Python collector and the Go importer release checks."
-  - path: runtime/src/contractor_runtime/toolsets/audit_results_v2.py
+  - path: runtime/src/contractor_runtime/toolsets/audit_results/v2.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/tests/test_audit_result_collector.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."

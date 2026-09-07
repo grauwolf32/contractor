@@ -41,11 +41,10 @@ from contractor_runtime.contracts import (
     MAX_RUN_METADATA_LABELS,
     RUN_METADATA_LABEL_KEY_PATTERN,
     RuntimeAdapterRef,
+    TelemetryExportSettings,
     TelemetrySettingsV2,
 )
 
-MAX_PENDING_SPANS = 2048
-MAX_PENDING_BYTES = 64 * 1024 * 1024
 MAX_SPAN_ATTRIBUTES = 64
 MAX_STRING_ATTRIBUTE_BYTES = 256
 # One flattened RuntimeConfig chain may contain default + 32 Run + 32 Agent refs.
@@ -169,17 +168,24 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         run_metadata_labels: Mapping[str, str] | None = None,
         wall_time_ns: Callable[[], int] = time.time_ns,
         monotonic_ns: Callable[[], int] = time.perf_counter_ns,
-        max_pending_spans: int = MAX_PENDING_SPANS,
-        max_pending_bytes: int = MAX_PENDING_BYTES,
+        max_pending_spans: int | None = None,
+        max_pending_bytes: int | None = None,
         capture_content: bool = False,
+        on_enqueue: Callable[[], None] | None = None,
     ) -> None:
         self.capture_content = capture_content
         self._metrics = metrics
         self._secret_values = tuple(value for value in secret_values if value)
         self._wall_time_ns = wall_time_ns
         self.monotonic_ns = monotonic_ns
-        self._max_pending_spans = max_pending_spans
-        self._max_pending_bytes = max_pending_bytes
+        defaults = TelemetryExportSettings.defaults()
+        self._max_pending_spans = (
+            max_pending_spans if max_pending_spans is not None else defaults.max_pending_spans
+        )
+        self._max_pending_bytes = (
+            max_pending_bytes if max_pending_bytes is not None else defaults.max_pending_bytes
+        )
+        self._on_enqueue = on_enqueue
         self._trace_id = os.urandom(16)
         self._run_metadata_attributes = MappingProxyType(
             _run_metadata_attributes(run_metadata_labels or {}, self._secret_values)
@@ -194,6 +200,7 @@ class OTLPInstrumentation(RuntimeInstrumentation):
         self._resource_size = len(self._resource.SerializeToString())
         self._queue: list[_QueuedSpan] = []
         self._pending_bytes = self._resource_size
+        self.queue_full = False
         self._closed = False
 
     def start_span(
@@ -279,26 +286,50 @@ class OTLPInstrumentation(RuntimeInstrumentation):
             or self._pending_bytes + size > self._max_pending_bytes
         ):
             self._metrics.record_operation(succeeded=False, error_code="queue_overflow")
+            self.queue_full = True
+            if self._on_enqueue is not None:
+                self._on_enqueue()
             return
         self._queue.append(_QueuedSpan(encoded=encoded, size=size))
         self._pending_bytes += size
+        if self._on_enqueue is not None:
+            self._on_enqueue()
 
-    def export_request(self) -> bytes:
+    def export_request(self, *, span_count: int | None = None) -> bytes:
         resource_spans = ResourceSpans(resource=self._resource)
         scope_spans = ScopeSpans()
         scope_spans.scope.name = "contractor.runtime.worker"
         scope_spans.scope.version = __version__
-        for item in self._queue:
+        for item in self._queue[:span_count]:
             scope_spans.spans.add().ParseFromString(item.encoded)
         resource_spans.scope_spans.append(scope_spans)
         return ExportTraceServiceRequest(resource_spans=[resource_spans]).SerializeToString()
 
+    def batch_span_count(self, maximum_bytes: int) -> int:
+        size = self._resource_size
+        count = 0
+        for item in self._queue:
+            if count and size + item.size > maximum_bytes:
+                break
+            size += item.size
+            count += 1
+        return count
+
+    def discard_prefix(self, count: int) -> None:
+        # The sending prefix stays charged to both queue limits during I/O.
+        # Appends during delivery belong to the next batch and must survive.
+        self._pending_bytes -= sum(item.size for item in self._queue[:count])
+        del self._queue[:count]
+        self.queue_full = False
+
     def clear(self) -> None:
         self._queue.clear()
         self._pending_bytes = self._resource_size
+        self.queue_full = False
 
     def close(self) -> None:
         self.clear()
+        self._on_enqueue = None
         self._secret_values = ()
         self._trace_id = b""
         self._run_metadata_attributes = MappingProxyType({})
@@ -366,6 +397,9 @@ class OTLPHTTPAdapter:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.metrics = RuntimeAdapterMetricsState()
+        self._export_settings = (settings.export or TelemetryExportSettings.defaults()).model_copy(
+            deep=True
+        )
         secret_headers = {
             name: value.get_secret_value() for name, value in settings.headers.items()
         }
@@ -389,6 +423,9 @@ class OTLPHTTPAdapter:
             secret_values=secret_values,
             run_metadata_labels=context.run_metadata_labels,
             capture_content=settings.capture_content,
+            on_enqueue=self._schedule_export,
+            max_pending_spans=self._export_settings.max_pending_spans,
+            max_pending_bytes=self._export_settings.max_pending_bytes,
         )
         self.handles = AdapterHandles(instrumentation=self._instrumentation)
         self._endpoint = settings.endpoint
@@ -396,6 +433,7 @@ class OTLPHTTPAdapter:
         self._headers["Content-Type"] = "application/x-protobuf"
         self._headers["Accept"] = "application/x-protobuf"
         timeout = float(min(context.request_timeout_seconds, settings.flush_timeout_seconds))
+        self._delivery_timeout = timeout
         self._client: httpx.AsyncClient | None = httpx.AsyncClient(
             transport=transport,
             trust_env=False,
@@ -404,42 +442,125 @@ class OTLPHTTPAdapter:
             limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
         )
         self._closed = False
+        self._closing = False
+        self._draining = False
+        self._export_task: asyncio.Task[bool] | None = None
+
+    def _schedule_export(self) -> None:
+        if (
+            self._closed
+            or self._closing
+            or self._draining
+            or not self._instrumentation.pending_spans
+            or not self._batch_ready()
+        ):
+            return
+        if self._export_task is None or self._export_task.done():
+            self._start_export()
+
+    def _batch_ready(self) -> bool:
+        return (
+            self._instrumentation.pending_bytes >= self._export_settings.batch_size_bytes
+            or self._instrumentation.pending_spans >= self._export_settings.max_pending_spans
+            or self._instrumentation.queue_full
+        )
+
+    def _start_export(self) -> asyncio.Task[bool]:
+        task = asyncio.get_running_loop().create_task(
+            self._export_batches(), name="allocation-otlp-export"
+        )
+        self._export_task = task
+        return task
+
+    async def _export_batches(self) -> bool:
+        succeeded = True
+        while (
+            not self._closing
+            and self._instrumentation.pending_spans
+            and (self._draining or self._batch_ready())
+        ):
+            try:
+                await self._send_batch()
+            except OTLPDeliveryError:
+                # After all attempts fail, release this batch so subsequent
+                # spans can progress without an unbounded retry loop.
+                succeeded = False
+        return succeeded
 
     async def flush(self) -> None:
-        client = self._client
-        if self._closed or client is None or self._instrumentation.pending_spans == 0:
+        if self._closed or self._closing:
             return
+        # Join the existing sender and let it drain even a sub-threshold tail.
+        # Cancellation from the lifecycle deadline also cancels its active POST.
+        self._draining = True
+        task = self._export_task
+        if task is None or task.done():
+            if self._instrumentation.pending_spans == 0:
+                return
+            task = self._start_export()
+        if not await task:
+            raise OTLPDeliveryError
+
+    async def _send_batch(self) -> None:
+        client = self._client
+        if client is None:
+            return
+        batch_size = self._export_settings.batch_size_bytes
+        count = self._instrumentation.batch_span_count(batch_size)
         try:
-            payload = self._instrumentation.export_request()
+            payload = self._instrumentation.export_request(span_count=count)
+            # Include protobuf envelope overhead in the request limit. A span
+            # is never split; individual spans fit the minimum batch size.
+            while len(payload) > batch_size and count > 1:
+                count -= 1
+                payload = self._instrumentation.export_request(span_count=count)
         except Exception:
+            self._instrumentation.discard_prefix(count)
             self.metrics.record_operation(succeeded=False, error_code="request_failed")
             raise OTLPDeliveryError from None
-        failed = False
         try:
-            async with client.stream(
-                "POST",
-                self._endpoint,
-                headers=self._headers,
-                content=payload,
-            ) as response:
-                if not 200 <= response.status_code < 300 or not await _accepted_response(response):
+            for _ in range(self._export_settings.max_attempts):
+                failed = False
+                try:
+                    # Each attempt has a total timeout, including its response
+                    # body. The lifecycle deadline can cancel either attempt.
+                    async with asyncio.timeout(self._delivery_timeout):
+                        async with client.stream(
+                            "POST",
+                            self._endpoint,
+                            headers=self._headers,
+                            content=payload,
+                        ) as response:
+                            if (
+                                not 200 <= response.status_code < 300
+                                or not await _accepted_response(response)
+                            ):
+                                failed = True
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
                     failed = True
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            failed = True
-        if failed:
-            self.metrics.record_operation(succeeded=False, error_code="delivery_failed")
+                if failed:
+                    self.metrics.record_operation(succeeded=False, error_code="delivery_failed")
+                    continue
+                self.metrics.record_operation(succeeded=True)
+                return
             raise OTLPDeliveryError from None
-        self.metrics.record_operation(succeeded=True)
-        self._instrumentation.clear()
+        finally:
+            # Keep the exact payload, span IDs and queue reservation across the
+            # retry; arrivals during either attempt belong to the next batch.
+            self._instrumentation.discard_prefix(count)
 
     async def close(self) -> None:
         if self._closed:
             return
+        self._closing = True
         client = self._client
         failed = False
         try:
+            if self._export_task is not None:
+                self._export_task.cancel()
+                await asyncio.gather(self._export_task, return_exceptions=True)
             if client is not None:
                 await client.aclose()
         except asyncio.CancelledError:
@@ -447,6 +568,7 @@ class OTLPHTTPAdapter:
         except Exception:
             failed = True
         finally:
+            self._export_task = None
             self._client = None
             self._headers.clear()
             self._endpoint = ""

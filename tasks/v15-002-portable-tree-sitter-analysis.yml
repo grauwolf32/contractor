@@ -28,7 +28,7 @@ context:
     - /home/ruslan/src/contractor-old/contractor/tools/code/tools.py
     - /home/ruslan/src/contractor-old/tests/units/contractor_tests/tools/test_code.py
     - runtime/src/contractor_runtime/projectfs/storage.py
-    - runtime/src/contractor_runtime/toolsets/filesystem.py
+    - runtime/src/contractor_runtime/toolsets/filesystem/tools.py
 
 scope:
   in:

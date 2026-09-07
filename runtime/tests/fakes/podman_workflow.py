@@ -256,7 +256,7 @@ class Commands:
         self.fixture = fixture
 
     async def run(self, identity, command, cwd, *, deadline):
-        from contractor_runtime.podman_command import CommandCapture
+        from contractor_runtime.sandbox.podman.command import CommandCapture
 
         root = self.fixture.backend.entry.root
         assert command == COMMAND and cwd == "" and deadline > time.monotonic()

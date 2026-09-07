@@ -44,9 +44,9 @@ scope:
     - Continuing after compaction, summarizer tools/retries, reactive context-overflow recovery, guessed token counts or a different Gateway credential.
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/summarizer.py, description: Bounded input projection and one-shot tool-free consumer.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Safe trigger/coordinator/result integration.}
-  - {path: runtime/src/contractor_runtime/instrumentation.py, description: Soft-boundary signal and separate metrics reducer.}
+  - {path: runtime/src/contractor_runtime/worker/summarizer.py, description: Bounded input projection and one-shot tool-free consumer.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Safe trigger/coordinator/result integration.}
+  - {path: runtime/src/contractor_runtime/worker/instrumentation.py, description: Soft-boundary signal and separate metrics reducer.}
   - {path: internal/contracts, description: Summarizer metrics wire validation and trusted attribution.}
 
 requirements:

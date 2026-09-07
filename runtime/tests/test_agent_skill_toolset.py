@@ -13,7 +13,6 @@ import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from google.adk.tools.base_tool import BaseTool
 
-from contractor_runtime.adk_runtime import AdkWorkerRuntime, AdkWorkerRuntimeFactory
 from contractor_runtime.agent_skills import MEDIA_TYPE
 from contractor_runtime.agent_skills.runtime import (
     EXACT_SKILL_TOOL_NAMES,
@@ -41,6 +40,8 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.runtime import AdkWorkerRuntime
 from contractor_runtime.workspace import AllocationWorkspace
 
 

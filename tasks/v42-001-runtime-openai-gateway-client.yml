@@ -52,11 +52,11 @@ scope:
     - "Depending on the experimental google.adk.labs.openai package at runtime."
 
 deliverables:
-  - path: runtime/src/contractor_runtime/openai_gateway_llm.py
+  - path: runtime/src/contractor_runtime/llm/openai.py
     description: "Bounded ADK BaseLlm adapter for the configured OpenAI-compatible Gateway."
-  - path: runtime/src/contractor_runtime/model_client.py
+  - path: runtime/src/contractor_runtime/llm/client.py
     description: "Allocation-owned AsyncOpenAI construction and explicit secret/client cleanup."
-  - path: runtime/src/contractor_runtime/adk_runtime.py
+  - path: runtime/src/contractor_runtime/worker/runtime.py
     description: "Worker model factory using the new adapter without LiteLLM imports."
   - path: runtime/tests/test_openai_gateway_llm.py
     description: "Offline request/response, structured-output, tool, usage, error and cleanup contract tests."
@@ -120,9 +120,9 @@ tests:
     covers: ["A1", "A2", "A3", "A4"]
   - command: >-
       cd runtime && uv run ruff check src tests && uv run ruff format --check
-      src/contractor_runtime/adk_runtime.py
-      src/contractor_runtime/model_client.py
-      src/contractor_runtime/openai_gateway_llm.py
+      src/contractor_runtime/worker/runtime.py
+      src/contractor_runtime/llm/client.py
+      src/contractor_runtime/llm/openai.py
       tests/test_adk_runtime.py
       tests/test_dependency_smoke.py
       tests/test_http_proxy_adapter.py

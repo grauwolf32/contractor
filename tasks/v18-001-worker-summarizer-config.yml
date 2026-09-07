@@ -43,7 +43,7 @@ scope:
 deliverables:
   - {path: internal/config, description: Authoring, resolution, digest and consumer validation.}
   - {path: internal/contracts, description: Pinned private allocation summarizer projection.}
-  - {path: runtime/src/contractor_runtime/contracts.py, description: Strict allocation parity and digest verification.}
+  - {path: runtime/src/contractor_runtime/contracts/__init__.py, description: Strict allocation parity and digest verification.}
   - {path: configs/e2e, description: Explicit enabled fixture without changing current templates.}
 
 requirements:

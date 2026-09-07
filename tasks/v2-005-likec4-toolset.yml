@@ -54,7 +54,7 @@ document_rules:
   validate_command: [likec4, validate, --json, --no-layout, --file, <managed-file>, <managed-project>]
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/toolsets/likec4.py, description: Namespace-bound DSL session, CAS editing tools, and fixed validator adapter.}
+  - {path: runtime/src/contractor_runtime/toolsets/likec4/tools.py, description: Namespace-bound DSL session, CAS editing tools, and fixed validator adapter.}
   - {path: runtime/tests/test_likec4_toolset.py, description: Editing, CAS, command, timeout, JSON, cleanup, redaction, and exact-ref tests.}
   - {path: internal/config/descriptors.go, description: Exact likec4@1 descriptor.}
   - {path: runtime/README.md, description: Direct LikeC4 CLI prerequisite and supported single-document contract.}

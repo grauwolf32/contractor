@@ -17,7 +17,7 @@ AuditProfile, один passthrough Worker на пакет заданий, отд
 
 ## 1. Продолжение ADK требует отдельного управления жизненным циклом
 
-[before_run_callback](../../runtime/src/contractor_runtime/instrumentation.py)
+[before_run_callback](../../runtime/src/contractor_runtime/worker/instrumentation.py)
 потребляет одноразовый prepared token и инициализирует invocation/reducer.
 ADK Runner вызывает этот callback при запуске; второй run_async сам по себе
 не обеспечивает продолжение того же логического invocation. Повторная

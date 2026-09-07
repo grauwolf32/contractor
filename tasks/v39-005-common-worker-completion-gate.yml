@@ -38,13 +38,13 @@ scope:
     - "Global mandatory-tool callback, replacing ordinary LLM finalization, new budgets, durable partial checks and automatic demo deployment."
 
 deliverables:
-  - path: runtime/src/contractor_runtime/audit_worker_completion.py
+  - path: runtime/src/contractor_runtime/toolsets/audit_results/completion.py
     description: "Exact prepared input binding, invocation ownership, reminders and deterministic publication strategy."
   - path: docs/reviews/2026-09-07-audit-completion-runtime.md
     description: "Completion boundaries, compatibility and real-ADK verification evidence."
-  - path: runtime/src/contractor_runtime/adk_runtime.py
+  - path: runtime/src/contractor_runtime/worker/runtime.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
-  - path: runtime/src/contractor_runtime/instrumentation.py
+  - path: runtime/src/contractor_runtime/worker/instrumentation.py
     description: "Preserve one invocation's reducer, tool ordinals and observations across real Runner continuation turns."
   - path: runtime/src/contractor_runtime/factories.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."

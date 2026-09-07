@@ -17,7 +17,7 @@ context:
     - docs/spec/03-artifact-plane.md
   authority: "User requested tasks for uncovered Memory audit findings on 2026-09-07."
   code_locations:
-    - "runtime/src/contractor_runtime/toolsets/memory.py: _MemorySession._load_all"
+    - "runtime/src/contractor_runtime/toolsets/memory/tools.py: _MemorySession._load_all"
     - "runtime/src/contractor_runtime/artifacts.py: ArtifactClient.list_artifacts"
     - "internal/memory/namespace.go: Namespace.loadAll"
     - "internal/artifacts/postgres_read.go: PostgresRepository.List"

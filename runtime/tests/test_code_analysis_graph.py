@@ -9,18 +9,18 @@ from typing import Any
 import pytest
 
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs.storage import ManagedWorkspaceTree, WorkspaceSnapshot
-from contractor_runtime.toolsets.code_analysis import (
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.ids import (
+    decode_symbol_id,
+    encode_symbol_id,
+    symbol_id_matches_upstream,
+)
+from contractor_runtime.toolsets.code_analysis.tools import (
     CORE_GRAPH_TOOLS,
     GRAPH_TOOLS,
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
-)
-from contractor_runtime.toolsets.code_analysis_ids import (
-    decode_symbol_id,
-    encode_symbol_id,
-    symbol_id_matches_upstream,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 

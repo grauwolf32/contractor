@@ -11,13 +11,13 @@ import pytest
 from test_projectfs_zip import archive, settings, workspace_inputs
 from test_taint_annotations import MemoryWriter, make_tools
 
+import contractor_runtime.toolsets.taint_annotations.tools as taint_annotations
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.projectfs import MemoryWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceStorageError
-from contractor_runtime.toolsets import taint_annotations
-from contractor_runtime.toolsets.edit_files import EditFilesToolsetFactory
-from contractor_runtime.toolsets.taint_annotations import (
+from contractor_runtime.toolsets.edit_files.tools import EditFilesToolsetFactory
+from contractor_runtime.toolsets.taint_annotations.tools import (
     MAX_ANNOTATION_BYTES,
     MAX_DEFINITION_LINE,
     MAX_LIST_ENTRIES,

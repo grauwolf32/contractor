@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from contractor_runtime.token_usage import MAX_TOKEN_COUNT, project_token_usage
+from contractor_runtime.llm.usage import MAX_TOKEN_COUNT, project_token_usage
 
 
 @pytest.mark.parametrize("usage", [None, SimpleNamespace(total_token_count=0)])

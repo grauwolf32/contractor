@@ -6,8 +6,9 @@ model call, tool factory or deployed configuration is enabled by this change.
 
 ## Encoding and compatibility
 
-`audit_packages.py` contains the existing pure Audit package codecs, extracted
-from `toolsets/audit_results.py`. The @1 tool retains its arguments, reads,
+`toolsets/audit_results/packages.py` contains the existing pure Audit package codecs,
+extracted from the @1 tool, now in `toolsets/audit_results/v1.py`. The @1 tool
+retains its arguments, reads,
 publication and telemetry behavior. `CanonicalAuditPackageEncoder` uses those
 same package conventions over immutable V39-001 inputs and snapshots. It verifies
 input membership/order, requested coverage and encodable normalized values.

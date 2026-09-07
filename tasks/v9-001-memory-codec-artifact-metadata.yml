@@ -50,7 +50,7 @@ deliverables:
   - {path: internal/artifacts, description: Binding/revision timestamp projection on existing read/write operations.}
   - {path: internal/httpapi/privateartifacts, description: Timestamp metadata on existing private GET/PUT responses only.}
   - {path: internal/memory, description: Go canonical note codec and logical projections.}
-  - {path: runtime/src/contractor_runtime/memory.py, description: Python parity codec and projections independent of ADK.}
+  - {path: runtime/src/contractor_runtime/toolsets/memory/codec.py, description: Python parity codec and projections independent of ADK.}
   - {path: testdata/memory, description: Cross-language canonical and malformed fixtures.}
   - {path: Makefile, description: Cross-language memory-contract parity target.}
 

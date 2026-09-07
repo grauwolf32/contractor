@@ -47,9 +47,9 @@ scope:
 
 deliverables:
   - {path: runtime/src/contractor_runtime/agent_skills, description: Exact Artifact fetch validation extraction native ADK loader and lifecycle owner.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Worker factory SkillToolset composition and preparation failure mapping.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Worker factory SkillToolset composition and preparation failure mapping.}
   - {path: runtime/src/contractor_runtime/capabilities.py, description: adk@1 native Agent Skills startup probe without package-name capabilities.}
-  - {path: runtime/src/contractor_runtime/metrics.py, description: Content-free Skill function metric projection.}
+  - {path: runtime/src/contractor_runtime/telemetry/metrics.py, description: Content-free Skill function metric projection.}
   - {path: runtime/tests, description: Native function invocation extraction attack preparation and cleanup tests.}
 
 requirements:

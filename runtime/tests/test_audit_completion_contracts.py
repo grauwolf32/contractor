@@ -9,7 +9,15 @@ import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
-from contractor_runtime.audit_completion_contracts import (
+from contractor_runtime.contracts import (
+    AgentRegistrationV2,
+    AllocationSpec,
+    AllocationSpecV2,
+    RuntimeCompletionCapabilities,
+    WorkerCompletionContract,
+    decode_private_v2,
+)
+from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_COLLECTED_BYTES,
     MAX_PACKAGE_BYTES,
     AuditEncodedPackage,
@@ -19,19 +27,11 @@ from contractor_runtime.audit_completion_contracts import (
     AuditRecordReceipt,
     AuditSnapshot,
     AuditTrustedInputs,
-    ContinueCompletion,
     NormalizedAuditItem,
     RecordedAuditItem,
     SealedAuditSnapshot,
 )
-from contractor_runtime.contracts import (
-    AgentRegistrationV2,
-    AllocationSpec,
-    AllocationSpecV2,
-    RuntimeCompletionCapabilities,
-    WorkerCompletionContract,
-    decode_private_v2,
-)
+from contractor_runtime.worker.completion import ContinueCompletion
 
 ROOT = Path(__file__).parents[2]
 CASES = json.loads(

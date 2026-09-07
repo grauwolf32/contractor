@@ -16,11 +16,11 @@ import contractor_runtime.cli as runtime_cli
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.lease import LeaseWatchdog
-from contractor_runtime.podman_engine import PodmanEngine
-from contractor_runtime.podman_ownership import ContentPin, ServiceOwnerLock
-from contractor_runtime.podman_workroots import MARKER, check_root_policy
 from contractor_runtime.projectfs import LocalWorkspaceProvider
-from contractor_runtime.sandbox_contracts import SandboxContractError
+from contractor_runtime.sandbox.contracts import SandboxContractError
+from contractor_runtime.sandbox.podman.engine import PodmanEngine
+from contractor_runtime.sandbox.podman.ownership import ContentPin, ServiceOwnerLock
+from contractor_runtime.sandbox.podman.workroots import MARKER, check_root_policy
 
 
 def test_recovery_removes_only_verified_predecessors_before_provider_cleanup(tmp_path):

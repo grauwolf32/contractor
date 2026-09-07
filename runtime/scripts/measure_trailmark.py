@@ -14,7 +14,10 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceTextFile,
     workspace_digest,
 )
-from contractor_runtime.toolsets.trailmark_host import MAX_GRAPH_FILES, TrailmarkChildHost
+from contractor_runtime.toolsets.code_analysis.trailmark_host import (
+    MAX_GRAPH_FILES,
+    TrailmarkChildHost,
+)
 
 FIXTURE_FILE_COUNTS = {
     "small": 3,

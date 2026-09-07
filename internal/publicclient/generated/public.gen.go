@@ -3413,10 +3413,15 @@ type RuntimeTelemetryConfig struct {
 	Adapter RuntimeTelemetryConfigAdapter `json:"adapter"`
 
 	// CaptureContent Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default.
-	CaptureContent      *bool                `json:"captureContent,omitempty"`
-	Credential          *RuntimeCredentialId `json:"credential,omitempty"`
-	Endpoint            string               `json:"endpoint"`
-	FlushTimeoutSeconds *int                 `json:"flushTimeoutSeconds,omitempty"`
+	CaptureContent *bool                `json:"captureContent,omitempty"`
+	Credential     *RuntimeCredentialId `json:"credential,omitempty"`
+	Endpoint       string               `json:"endpoint"`
+
+	// Export Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.
+	Export *WorkerTelemetryExportConfig `json:"export,omitempty"`
+
+	// FlushTimeoutSeconds Defaults to 10 seconds.
+	FlushTimeoutSeconds *int `json:"flushTimeoutSeconds,omitempty"`
 }
 
 // RuntimeTelemetryConfigAdapter defines model for RuntimeTelemetryConfig.Adapter.
@@ -3617,6 +3622,21 @@ type WorkerSummarizerConfigBody struct {
 	ContextWindowRatio float32        `json:"contextWindowRatio"`
 	CumulativeBudget   *int           `json:"cumulativeBudget,omitempty"`
 	ModelPolicy        ModelPolicyRef `json:"modelPolicy"`
+}
+
+// WorkerTelemetryExportConfig Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.
+type WorkerTelemetryExportConfig struct {
+	// BatchSizeBytes Defaults to 8388608 bytes (8 MiB).
+	BatchSizeBytes *int `json:"batchSizeBytes,omitempty"`
+
+	// MaxAttempts Defaults to 2 total attempts per batch.
+	MaxAttempts *int `json:"maxAttempts,omitempty"`
+
+	// MaxPendingBytes Defaults to 67108864 bytes (64 MiB).
+	MaxPendingBytes *int `json:"maxPendingBytes,omitempty"`
+
+	// MaxPendingSpans Defaults to 2048 spans.
+	MaxPendingSpans *int `json:"maxPendingSpans,omitempty"`
 }
 
 // WorkflowAgentBinding defines model for WorkflowAgentBinding.

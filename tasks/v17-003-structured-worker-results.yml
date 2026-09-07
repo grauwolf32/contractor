@@ -40,7 +40,7 @@ scope:
     - Workspace path tracking, live-State endpoint/tools, terminal summarizer, Worker semantic fail signal or public API changes.
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Strict model output and Runtime completion projection.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Strict model output and Runtime completion projection.}
   - {path: runtime/src/contractor_runtime/a2a_server.py, description: WorkerCompletion A2A encoding and safe failure mapping.}
   - {path: internal/planner/a2a, description: Strict WorkerCompletion client decode and correlation.}
   - {path: internal/planner, description: WorkerInvoker and Passthrough/Streamline/Router result adapters.}

@@ -7,9 +7,9 @@ import sys
 import time
 from pathlib import Path
 
-from contractor_runtime.podman_engine import PodmanEngine
-from contractor_runtime.podman_io import LocalPodmanCLI
-from contractor_runtime.podman_settings import PodmanSettings
+from contractor_runtime.sandbox.podman.engine import PodmanEngine
+from contractor_runtime.sandbox.podman.io import LocalPodmanCLI
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 
 class LostReply(LocalPodmanCLI):

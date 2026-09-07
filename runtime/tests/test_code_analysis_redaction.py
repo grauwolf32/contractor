@@ -9,9 +9,9 @@ from urllib.parse import quote
 import pytest
 
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs.storage import ManagedWorkspaceTree, WorkspaceSnapshot
-from contractor_runtime.toolsets.code_analysis import (
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.tools import (
     GRAPH_TOOLS,
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,

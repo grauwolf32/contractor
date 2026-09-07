@@ -56,7 +56,7 @@ deliverables:
   - {path: runtime/src/contractor_runtime/factories.py, description: Factory probe protocols, immutable snapshot model, normalization, and bounded coordinator.}
   - {path: runtime/src/contractor_runtime/state.py, description: Registration built from one injected frozen capability snapshot rather than hard-coded lists.}
   - {path: runtime/src/contractor_runtime/cli.py, description: Startup ordering that completes probes before first registration.}
-  - {path: runtime/src/contractor_runtime/allocation.py, description: AllocationSpec capability validation against the advertised snapshot.}
+  - {path: runtime/src/contractor_runtime/allocation/service.py, description: AllocationSpec capability validation against the advertised snapshot.}
   - {path: runtime/src/contractor_runtime/toolsets, description: Built-in per-tool local prerequisite probes, including LikeC4 and Vacuum.}
   - {path: runtime/src/contractor_runtime/workspace.py, description: Safe local-workdir probe and cleanup behavior.}
   - {path: runtime/tests/test_capabilities.py, description: Partial availability, timeout, cleanup, immutability, and redaction tests.}

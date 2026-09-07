@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from contractor_runtime.metrics import (
+from contractor_runtime.telemetry.metrics import (
     MAX_ARGUMENT_SUMMARY_BYTES,
     MAX_METRIC_COUNTER,
     MAX_METRIC_ERRORS,

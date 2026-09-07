@@ -15,11 +15,11 @@ from pathlib import Path
 import pytest
 from test_podman_supervisor_integration import launch
 
-from contractor_runtime.podman_engine import PodmanEngine
-from contractor_runtime.podman_io import LocalPodmanCLI, local_engine_environment
-from contractor_runtime.podman_lifecycle import PodmanLifecycle
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.sandbox_contracts import SandboxContractError, SandboxIdentity
+from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxIdentity
+from contractor_runtime.sandbox.podman.engine import PodmanEngine
+from contractor_runtime.sandbox.podman.io import LocalPodmanCLI, local_engine_environment
+from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE") != "1",

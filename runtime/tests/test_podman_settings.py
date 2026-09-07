@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from test_settings import base_arguments
 
-from contractor_runtime.podman_settings import PODMAN_LIMIT_CEILINGS, PodmanSettings
+from contractor_runtime.sandbox.podman.settings import PODMAN_LIMIT_CEILINGS, PodmanSettings
 from contractor_runtime.settings import parse_settings
 
 IMAGE = "localhost/contractor-execution@sha256:" + "a" * 64

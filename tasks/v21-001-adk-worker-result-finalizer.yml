@@ -49,9 +49,9 @@ scope:
     - Provider-specific LM Studio grammar settings, model-capability negotiation, a Server/API schema change, a distinct finalizer ModelPolicy, semantic rewriting, or general ADK conversation compaction.
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/result_finalizer.py, description: One-shot isolated tool-free ADK structured serializer.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Mandatory normal Worker-to-finalizer pipeline and strict projection.}
-  - {path: runtime/src/contractor_runtime/instrumentation.py, description: Same-budget finalizer model accounting and cancellation-safe spans.}
+  - {path: runtime/src/contractor_runtime/worker/finalizer.py, description: One-shot isolated tool-free ADK structured serializer.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Mandatory normal Worker-to-finalizer pipeline and strict projection.}
+  - {path: runtime/src/contractor_runtime/worker/instrumentation.py, description: Same-budget finalizer model accounting and cancellation-safe spans.}
   - {path: runtime/tests, description: Request-shape, equality, budget, failure, cancellation, artifact and lifecycle regression coverage.}
   - {path: docs/spec, description: Normative ordinary-result finalizer and terminal-summarizer separation.}
 

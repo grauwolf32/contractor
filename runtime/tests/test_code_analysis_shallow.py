@@ -12,8 +12,9 @@ import pytest
 from test_projectfs_zip import archive, workspace_inputs
 from test_projectfs_zip import settings as workspace_settings
 
+import contractor_runtime.toolsets.code_analysis.languages as code_analysis_languages
+import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     ManagedWorkspaceTree,
@@ -22,19 +23,19 @@ from contractor_runtime.projectfs import (
     WorkspaceTextFile,
     hydrate_workspace,
 )
-from contractor_runtime.toolsets import code_analysis, code_analysis_languages
-from contractor_runtime.toolsets.code_analysis import (
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.code_analysis.languages import (
+    EXTENSION_LANGUAGES,
+    Language,
+    load_parser,
+    parse_symbols,
+)
+from contractor_runtime.toolsets.code_analysis.tools import (
     MAX_PREVIEW_BYTES,
     MAX_PREVIEW_LINES,
     MAX_RESULT_BYTES,
     CodeAnalysisError,
     CodeAnalysisToolsetFactory,
-)
-from contractor_runtime.toolsets.code_analysis_languages import (
-    EXTENSION_LANGUAGES,
-    Language,
-    load_parser,
-    parse_symbols,
 )
 from contractor_runtime.workspace import AllocationWorkspace
 

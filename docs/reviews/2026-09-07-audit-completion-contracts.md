@@ -42,7 +42,7 @@ The new types alone do not grant execution authority.
 
 ## Independent collector/encoder/publisher interfaces
 
-`runtime/src/contractor_runtime/audit_completion_contracts.py` defines immutable,
+`runtime/src/contractor_runtime/toolsets/audit_results/contracts.py` defines immutable,
 invocation-owned normalized items, positive revisions, trusted-order snapshots,
 sealed complete snapshots and separate recorded/publication receipts. Fields are
 bounded and sensitive bytes/summaries are excluded from representation. None of

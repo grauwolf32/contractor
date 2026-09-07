@@ -4794,7 +4794,18 @@ components:
         captureContent:
           type: boolean
           description: Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default.
-        flushTimeoutSeconds: {type: integer, minimum: 1, maximum: 10}
+        flushTimeoutSeconds: {type: integer, minimum: 1, maximum: 10, description: Defaults to 10 seconds.}
+        export:
+          $ref: '#/components/schemas/WorkerTelemetryExportConfig'
+    WorkerTelemetryExportConfig:
+      type: object
+      additionalProperties: false
+      description: Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.
+      properties:
+        batchSizeBytes: {type: integer, minimum: 1048576, maximum: 67108864, description: Defaults to 8388608 bytes (8 MiB).}
+        maxAttempts: {type: integer, minimum: 1, maximum: 10, description: Defaults to 2 total attempts per batch.}
+        maxPendingSpans: {type: integer, minimum: 1, maximum: 2048, description: Defaults to 2048 spans.}
+        maxPendingBytes: {type: integer, minimum: 1048576, maximum: 67108864, description: Defaults to 67108864 bytes (64 MiB).}
     RuntimeHTTPProxyConfig:
       type: object
       additionalProperties: false

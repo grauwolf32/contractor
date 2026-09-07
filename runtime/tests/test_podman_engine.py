@@ -13,11 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from contractor_runtime.podman_engine import LABEL_PREFIX, PodmanEngine
-from contractor_runtime.podman_io import CLIResult, LocalPodmanCLI, OwnedOperations
-from contractor_runtime.podman_ownership import ServiceOwnerLock
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.sandbox_contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.podman.engine import LABEL_PREFIX, PodmanEngine
+from contractor_runtime.sandbox.podman.io import CLIResult, LocalPodmanCLI, OwnedOperations
+from contractor_runtime.sandbox.podman.ownership import ServiceOwnerLock
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 IMAGE = "localhost/contractor@sha256:" + "a" * 64
 
@@ -426,8 +426,8 @@ def test_owner_lock_excludes_another_process(tmp_path: Path):
     program = """
 import sys
 from pathlib import Path
-from contractor_runtime.podman_ownership import ServiceOwnerLock
-from contractor_runtime.sandbox_contracts import SandboxContractError
+from contractor_runtime.sandbox.podman.ownership import ServiceOwnerLock
+from contractor_runtime.sandbox.contracts import SandboxContractError
 lock = ServiceOwnerLock(Path(sys.argv[1]), 'service')
 try:
     lock.acquire()

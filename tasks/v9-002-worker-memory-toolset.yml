@@ -47,8 +47,8 @@ scope:
 
 deliverables:
   - {path: internal/config, description: Exact Server Toolset descriptor and selection validation.}
-  - {path: runtime/src/contractor_runtime/toolsets/memory.py, description: Six ADK-compatible bound Worker tools.}
-  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts.py, description: Model-layer memory-prefix exclusion.}
+  - {path: runtime/src/contractor_runtime/toolsets/memory/tools.py, description: Six ADK-compatible bound Worker tools.}
+  - {path: runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py, description: Model-layer memory-prefix exclusion.}
   - {path: runtime/src/contractor_runtime/capabilities.py, description: Probe and immutable memory-tools@1 capability advertisement.}
   - {path: runtime/tests/test_memory_toolset.py, description: Tool schemas behavior CAS replay quota ordering and redaction tests.}
 

@@ -35,7 +35,7 @@ evidence. Ссылки на будущие ревизии недопустимы
 может проверять специализированный обработчик. Его схема не переносится
 полями в общий Audit result; универсальный registry обработчиков заранее не нужен.
 
-Текущий [taint-annotations@1](../../runtime/src/contractor_runtime/toolsets/taint_annotations.py)
+Текущий [taint-annotations@1](../../runtime/src/contractor_runtime/toolsets/taint_annotations/tools.py)
 возвращает path, symbol, kind, строки и changed. `annotate_trace` принимает
 заданный моделью `target`, по умолчанию `unknown`; это не доверенная
 идентичность задания. У `annotate_validate` и `annotate_sink` такой аргумент

@@ -12,10 +12,10 @@ from test_projectfs_storage import local_settings
 
 from contractor_runtime.capabilities import CapabilityDiscoveryError, discover_capabilities
 from contractor_runtime.factories import built_in_factories
-from contractor_runtime.podman_lifecycle import PodmanLifecycle
-from contractor_runtime.podman_probe import PROBE_FAILURES
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.sandbox_contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
+from contractor_runtime.sandbox.podman.probe import PROBE_FAILURES
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 
 @pytest.mark.parametrize(
@@ -83,7 +83,7 @@ def test_owner_retains_uncertain_probe_removal_for_recovery(tmp_path, monkeypatc
 def test_late_probe_create_is_owned_until_recovery_and_never_advertised(tmp_path, monkeypatch):
     from fakes.podman_probe import install
 
-    import contractor_runtime.podman_probe as module
+    import contractor_runtime.sandbox.podman.probe as module
 
     monkeypatch.setattr(module, "PROBE_CLEANUP_SECONDS", 0.02)
 
@@ -327,7 +327,7 @@ def test_real_complete_startup_probe_advertises_only_after_removal(tmp_path, ima
     from test_projectfs_zip import archive, workspace_inputs
 
     from contractor_runtime.projectfs import hydrate_workspace
-    from contractor_runtime.sandbox_contracts import ExecutionRequest
+    from contractor_runtime.sandbox.contracts import ExecutionRequest
     from contractor_runtime.state import RuntimeState
 
     async def scenario():

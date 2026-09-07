@@ -10,12 +10,12 @@ from pathlib import Path
 
 from test_podman_engine import IMAGE, ScriptedEngine
 
-from contractor_runtime.podman_engine import PodmanEngine
-from contractor_runtime.podman_lifecycle import OwnerClient, PodmanLifecycle
-from contractor_runtime.podman_lifecycle_backend import LifecycleBackend
-from contractor_runtime.podman_owner import serve_owner
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.sandbox_contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxErrorCode
+from contractor_runtime.sandbox.podman.engine import PodmanEngine
+from contractor_runtime.sandbox.podman.lifecycle import OwnerClient, PodmanLifecycle
+from contractor_runtime.sandbox.podman.lifecycle_backend import LifecycleBackend
+from contractor_runtime.sandbox.podman.owner import serve_owner
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 
 class Guardian:

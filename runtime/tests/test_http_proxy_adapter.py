@@ -29,13 +29,10 @@ from contractor_runtime.adapters.http_proxy import (
     ProxySubprocessError,
     ProxySubprocessLauncher,
 )
-from contractor_runtime.adk_runtime import (
-    GatewayModelError,
-    OpenAICompatibleGatewayLlm,
-    gateway_model,
-)
 from contractor_runtime.contracts import HTTPProxySettingsV2
 from contractor_runtime.factories import FactoryRegistry
+from contractor_runtime.llm.factory import gateway_model
+from contractor_runtime.llm.openai import GatewayModelError, OpenAICompatibleGatewayLlm
 
 PROXY_PASSWORD = "recognizable-proxy-password"
 PROXY_BEARER = "recognizable-proxy-bearer"

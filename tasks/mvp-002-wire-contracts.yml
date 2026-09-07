@@ -81,7 +81,7 @@ deliverables:
   - {path: api/v1alpha1, description: JSON Schema documents and format README expressed as YAML or Markdown outside the task directory.}
   - {path: api/testdata/v1alpha1, description: Valid and invalid golden JSON documents.}
   - {path: internal/contracts, description: Strict Go wire DTOs and validation helpers.}
-  - {path: runtime/src/contractor_runtime/contracts.py, description: Strict Pydantic v2 wire DTOs.}
+  - {path: runtime/src/contractor_runtime/contracts/__init__.py, description: Strict Pydantic v2 wire DTOs.}
 
 requirements:
   - id: R1

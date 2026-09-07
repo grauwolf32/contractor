@@ -5,16 +5,16 @@ import json
 
 import pytest
 
-import contractor_runtime.observations as observations_module
-from contractor_runtime.instrumentation import InvocationMetricsReducer
-from contractor_runtime.observations import (
+import contractor_runtime.worker.observations as observations_module
+from contractor_runtime.projectfs import WorkspaceObservationMetadata
+from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
+from contractor_runtime.worker.observations import (
     WorkspaceObservationReducer,
     WorkspaceToolObservation,
     lean_workspace_summary,
     validate_workspace_observation,
 )
-from contractor_runtime.projectfs import WorkspaceObservationMetadata
-from contractor_runtime.worker_state import MAX_AGENT_STATE_SNAPSHOT_BYTES, WorkerStateStore
+from contractor_runtime.worker.state import MAX_AGENT_STATE_SNAPSHOT_BYTES, WorkerStateStore
 
 
 def metadata(*paths: str, digest_character: str = "0") -> WorkspaceObservationMetadata:

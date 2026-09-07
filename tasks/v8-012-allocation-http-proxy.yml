@@ -44,7 +44,7 @@ deliverables:
   - {path: internal/config/descriptors.go, description: Server-side immutable Tool infrastructure-channel metadata.}
   - {path: runtime/src/contractor_runtime/adapters/http_proxy.py, description: Allocation proxy clients, auth and CA handling.}
   - {path: runtime/src/contractor_runtime/factories.py, description: Channel-aware Tool factory validation and injected handles.}
-  - {path: runtime/src/contractor_runtime/model_client.py, description: Allocation-owned proxy transport for llm-gateway target.}
+  - {path: runtime/src/contractor_runtime/llm/client.py, description: Allocation-owned proxy transport for llm-gateway target.}
   - {path: runtime/tests/test_http_proxy_adapter.py, description: Target, bypass, failure, redaction and teardown tests.}
 
 requirements:

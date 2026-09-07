@@ -15,8 +15,8 @@ from test_caido_read_tools import (
     request_detail,
 )
 
-import contractor_runtime.toolsets.caido as caido_module
-from contractor_runtime.toolsets.caido import (
+import contractor_runtime.toolsets.caido.tools as caido_module
+from contractor_runtime.toolsets.caido.tools import (
     CAIDO_OUTPUT_ARTIFACT_PREFIX,
     CAIDO_TOOL_NAMES,
     CaidoToolError,

@@ -45,7 +45,7 @@ scope:
 
 deliverables:
   - {path: runtime/src/contractor_runtime/server.py, description: Thin authenticated read-only State route.}
-  - {path: runtime/src/contractor_runtime/allocation.py, description: Allocation lifecycle/snapshot delegation.}
+  - {path: runtime/src/contractor_runtime/allocation/service.py, description: Allocation lifecycle/snapshot delegation.}
   - {path: internal/contracts, description: Strict private snapshot DTO.}
   - {path: internal/controlplane/runtime_client.go, description: Bounded conditional GET and WorkerStateReader adapter.}
 

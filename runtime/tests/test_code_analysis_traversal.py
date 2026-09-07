@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 
-from contractor_runtime.toolsets.trailmark_child import (
+from contractor_runtime.toolsets.code_analysis.trailmark_child import (
     MAX_MODEL_RESPONSE_BYTES,
     _bounded_simple_paths,
     _fit_path_rows,

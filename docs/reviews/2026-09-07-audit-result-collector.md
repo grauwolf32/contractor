@@ -47,7 +47,7 @@ Ruff for all changed Python files. Commands:
 ```sh
 cd runtime
 uv run --frozen pytest tests/test_audit_result_collector.py tests/test_audit_results_toolset.py tests/test_audit_result_publication.py tests/test_audit_completion_contracts.py
-uv run --frozen ruff check src/contractor_runtime/audit_result_collector.py src/contractor_runtime/toolsets/audit_results_v2.py tests/test_audit_result_collector.py tests/test_audit_results_toolset.py
+uv run --frozen ruff check src/contractor_runtime/toolsets/audit_results/collector.py src/contractor_runtime/toolsets/audit_results/v2.py tests/test_audit_result_collector.py tests/test_audit_results_toolset.py
 ```
 
 ```sh

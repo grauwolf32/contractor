@@ -12,7 +12,7 @@ from test_filesystem_toolset import create_tools as make_read_tools
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.projectfs import OverlayWorkspaceSession
-from contractor_runtime.toolsets.filesystem import FilesystemToolsetFactory
+from contractor_runtime.toolsets.filesystem.tools import FilesystemToolsetFactory
 
 
 @pytest.mark.parametrize("storage", ["local", "memory"])

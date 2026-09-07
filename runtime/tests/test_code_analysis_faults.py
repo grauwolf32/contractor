@@ -7,7 +7,10 @@ from pathlib import Path
 import pytest
 
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.toolsets.trailmark_host import TrailmarkChildHost, TrailmarkHostError
+from contractor_runtime.toolsets.code_analysis.trailmark_host import (
+    TrailmarkChildHost,
+    TrailmarkHostError,
+)
 
 FAULT_CHILD = Path(__file__).parent / "fixtures" / "trailmark_fault_child.py"
 

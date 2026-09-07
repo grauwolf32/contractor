@@ -66,9 +66,9 @@ worker_rules:
   - Model output is untrusted. Validate StageContentResult, selected artifact slot names, and exact refs before returning it.
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: ADK factory, session/state, model adapter, execution, and result validation.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: ADK factory, session/state, model adapter, execution, and result validation.}
   - {path: runtime/src/contractor_runtime/a2a_server.py, description: Dynamic allocation-scoped A2A card/routes/executor.}
-  - {path: runtime/src/contractor_runtime/metrics.py, description: Bounded in-memory execution collector.}
+  - {path: runtime/src/contractor_runtime/telemetry/metrics.py, description: Bounded in-memory execution collector.}
   - {path: runtime/tests/fakes, description: Deterministic model and A2A fixtures requiring no external LLM.}
 
 requirements:

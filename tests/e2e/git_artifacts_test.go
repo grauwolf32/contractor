@@ -233,7 +233,7 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 			if len(largeBytes) < 62<<20 || len(largeBytes) > 64<<20 {
 				t.Fatalf("near-cap ZIP=%d", len(largeBytes))
 			}
-			validation := exec.CommandContext(ctx, python, "-c", "import io,sys,zipfile; from contractor_runtime.toolsets.source_analysis import _validate_entries; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); _validate_entries(z.infolist()); assert len(z.infolist()) == 17")
+			validation := exec.CommandContext(ctx, python, "-c", "import io,sys,zipfile; from contractor_runtime.toolsets.source_analysis.tools import _validate_entries; z=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())); _validate_entries(z.infolist()); assert len(z.infolist()) == 17")
 			validation.Dir = filepath.Join(root, "runtime")
 			validation.Stdin = bytes.NewReader(largeBytes)
 			if output, err := validation.CombinedOutput(); err != nil {

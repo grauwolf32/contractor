@@ -15,7 +15,7 @@ from contractor_runtime.capabilities import CapabilitySnapshot, discover_capabil
 from contractor_runtime.contracts import SandboxProfileRef, ToolsetRef, ToolsetSelection
 from contractor_runtime.digests import _agent_template_digest
 from contractor_runtime.factories import FactoryRegistry, built_in_factories
-from contractor_runtime.sandbox_contracts import (
+from contractor_runtime.sandbox.contracts import (
     EXECUTION_CHANNELS,
     EXECUTION_TOOLS,
     EXECUTION_TOOLSET,

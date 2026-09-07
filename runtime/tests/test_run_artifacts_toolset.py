@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-import contractor_runtime.toolsets.run_artifacts as run_artifacts
+import contractor_runtime.toolsets.run_artifacts.tools as run_artifacts
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
 from contractor_runtime.contracts import (
@@ -16,9 +16,9 @@ from contractor_runtime.contracts import (
     ArtifactWriteResult,
     RuntimeSettings,
 )
-from contractor_runtime.metrics import MAX_METRIC_TOOL_CALLS
-from contractor_runtime.toolsets.artifact_visibility import is_reserved_memory_binding
-from contractor_runtime.toolsets.run_artifacts import RunArtifactsToolsetFactory
+from contractor_runtime.telemetry.metrics import MAX_METRIC_TOOL_CALLS
+from contractor_runtime.toolsets.common.artifact_visibility import is_reserved_memory_binding
+from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.workspace import AllocationWorkspace
 
 SECRET = "recognizable-tool-secret"

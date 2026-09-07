@@ -10,13 +10,13 @@ from google.adk.tools import FunctionTool
 from test_projectfs_zip import archive, settings, workspace_inputs
 
 from contractor_runtime.contracts import RuntimeSettings
-from contractor_runtime.metrics import MetricsState
 from contractor_runtime.projectfs import (
     LocalWorkspaceProvider,
     MemoryWorkspaceProvider,
     hydrate_workspace,
 )
-from contractor_runtime.toolsets.taint_annotations import (
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.taint_annotations.tools import (
     EXPORTED_TOOLS,
     MAX_SOURCE_FILE_BYTES,
     TaintAnnotationError,
@@ -401,7 +401,7 @@ def test_factory_requires_a_writer_and_successful_positive_probe(
 
         factory = TaintAnnotationsToolsetFactory()
         monkeypatch.setattr(
-            "contractor_runtime.toolsets.taint_annotations.language_support.probe_all_parsers",
+            "contractor_runtime.toolsets.taint_annotations.tools.language_support.probe_all_parsers",
             lambda: False,
         )
         assert await factory.probe() == frozenset()

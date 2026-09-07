@@ -2695,7 +2695,20 @@ export interface components {
             credential?: components["schemas"]["RuntimeCredentialId"];
             /** @description Explicitly trust the telemetry sink with unredacted model and tool inputs/outputs. Disabled by default. */
             captureContent?: boolean;
+            /** @description Defaults to 10 seconds. */
             flushTimeoutSeconds?: number;
+            export?: components["schemas"]["WorkerTelemetryExportConfig"];
+        };
+        /** @description Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size. */
+        WorkerTelemetryExportConfig: {
+            /** @description Defaults to 8388608 bytes (8 MiB). */
+            batchSizeBytes?: number;
+            /** @description Defaults to 2 total attempts per batch. */
+            maxAttempts?: number;
+            /** @description Defaults to 2048 spans. */
+            maxPendingSpans?: number;
+            /** @description Defaults to 67108864 bytes (64 MiB). */
+            maxPendingBytes?: number;
         };
         RuntimeHTTPProxyConfig: {
             /** @constant */

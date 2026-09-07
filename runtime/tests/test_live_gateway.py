@@ -11,11 +11,6 @@ import pytest
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
 
-from contractor_runtime.adk_runtime import (
-    AdkWorkerRuntime,
-    AdkWorkerRuntimeFactory,
-    OpenAICompatibleGatewayLlm,
-)
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import (
     API_VERSION,
@@ -27,9 +22,12 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
-from contractor_runtime.metrics import MetricsState
-from contractor_runtime.model_client import new_gateway_client
-from contractor_runtime.summarizer import TerminalSummarizer
+from contractor_runtime.llm.client import new_gateway_client
+from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
+from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+from contractor_runtime.worker.runtime import AdkWorkerRuntime
+from contractor_runtime.worker.summarizer import TerminalSummarizer
 from contractor_runtime.workspace import AllocationWorkspace
 
 GATEWAY_URL = os.getenv("CONTRACTOR_LIVE_LLM_GATEWAY_URL")

@@ -45,7 +45,7 @@ deliverables:
   - {path: internal/config, description: Reserved Memory StageContext declaration rejection without blocking purpose-reserved Namespace artifacts.}
   - {path: internal/planner, description: Reserved Memory StageResult rejection and Planner boundary regressions.}
   - {path: internal/scheduler, description: Defense-in-depth candidate rejection at the workflow transition owner.}
-  - {path: runtime/src/contractor_runtime/adk_runtime.py, description: Memory-aware raw-argument invocation without widening advertised schemas.}
+  - {path: runtime/src/contractor_runtime/worker/runtime.py, description: Memory-aware raw-argument invocation without widening advertised schemas.}
   - {path: runtime/src/contractor_runtime/toolsets, description: Shared memory-binding visibility policy across every Artifact-backed model Toolset.}
   - {path: runtime/tests, description: Cross-Toolset bypass malformed-argument ordering boundary and telemetry regressions.}
 

@@ -40,7 +40,7 @@ scope:
     - Byte/range coverage, content retention, public persistence, configurable observation profiles, state HTTP or Planner projection tools.
 
 deliverables:
-  - {path: runtime/src/contractor_runtime/observations.py, description: Typed reducer, extractors, bounds and lean projection.}
+  - {path: runtime/src/contractor_runtime/worker/observations.py, description: Typed reducer, extractors, bounds and lean projection.}
   - {path: runtime/src/contractor_runtime/toolsets, description: Safe per-tool observation adapters without raw payload retention.}
   - {path: runtime/src/contractor_runtime/projectfs, description: Narrow checkpoint path/digest metadata needed by the reducer.}
 

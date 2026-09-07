@@ -12,7 +12,12 @@ from test_audit_result_publication import assigned
 from test_audit_results_toolset import digest, package
 
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.audit_completion_contracts import (
+from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.audit_results.collector import (
+    AuditCollectionError,
+    InvocationAuditCollector,
+)
+from contractor_runtime.toolsets.audit_results.contracts import (
     MAX_SUMMARY_BYTES,
     AuditEvidence,
     AuditInvocationOwner,
@@ -20,10 +25,11 @@ from contractor_runtime.audit_completion_contracts import (
     AuditTrustedInputs,
     RecordedAuditItem,
 )
-from contractor_runtime.audit_result_collector import AuditCollectionError, InvocationAuditCollector
-from contractor_runtime.audit_result_encoding import AuditResultError, CanonicalAuditPackageEncoder
-from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.toolsets.audit_results_v2 import ReadAuditTaskTool, SubmitCheckResultTool
+from contractor_runtime.toolsets.audit_results.encoding import (
+    AuditResultError,
+    CanonicalAuditPackageEncoder,
+)
+from contractor_runtime.toolsets.audit_results.v2 import ReadAuditTaskTool, SubmitCheckResultTool
 
 FIXTURE = json.loads(
     (
@@ -355,13 +361,15 @@ def test_real_encoder_prospective_replacement_bound_is_atomic(monkeypatch, limit
             "MAX_MEMBER_BYTES": max(encoded.member_bytes),
             "MAX_PACKAGE_BYTES": len(encoded.data),
         }[limit]
-        monkeypatch.setattr(f"contractor_runtime.audit_result_encoding.{limit}", exact - 1)
+        monkeypatch.setattr(
+            f"contractor_runtime.toolsets.audit_results.encoding.{limit}", exact - 1
+        )
         with pytest.raises(AuditResultError):
             CanonicalAuditPackageEncoder().encode(prospective, inputs=inputs)
         with pytest.raises(AuditCollectionError):
             await collector.record(updated, expected_revision=1)
         assert (await collector.snapshot()).items == expected.items
-        monkeypatch.setattr(f"contractor_runtime.audit_result_encoding.{limit}", exact)
+        monkeypatch.setattr(f"contractor_runtime.toolsets.audit_results.encoding.{limit}", exact)
         await collector.record(updated, expected_revision=1)
         assert await collector.seal() == prospective
 

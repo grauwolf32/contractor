@@ -11,10 +11,10 @@ from pathlib import Path
 
 from contractor_runtime.contracts import RUNTIME_ADAPTER_REFS, ToolsetCapability
 from contractor_runtime.factories import FactoryRegistry
-from contractor_runtime.podman_probe import PROBE_CLEANUP_SECONDS, PROBE_TIMEOUT_SECONDS
 from contractor_runtime.projectfs import WorkspaceCapabilitySnapshot
-from contractor_runtime.resource_metrics import SUPPORTED_PERFORMANCE_METRICS_VERSIONS
-from contractor_runtime.sandbox_contracts import EXECUTION_TOOLSET, PODMAN_PROFILE
+from contractor_runtime.sandbox.contracts import EXECUTION_TOOLSET, PODMAN_PROFILE
+from contractor_runtime.sandbox.podman.probe import PROBE_CLEANUP_SECONDS, PROBE_TIMEOUT_SECONDS
+from contractor_runtime.telemetry.resources import SUPPORTED_PERFORMANCE_METRICS_VERSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,7 @@ async def discover_capabilities(
         completion_contracts=(
             ("audit-check-results@1",)
             if "adk@1" in runtimes
-            and getattr(factories.worker_runtimes.get("adk@1"), "supports_audit_completion", False)
+            and getattr(factories.worker_runtimes.get("adk@1"), "supports_worker_completion", False)
             and {"read_audit_task", "submit_check_result"}
             <= set(toolsets.get("audit-results@2", ()))
             else ()

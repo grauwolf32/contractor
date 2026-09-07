@@ -558,6 +558,9 @@ func validateAdapterSettings(
 }
 
 func validateTelemetryConfig(value TelemetryConfig, path string) error {
+	if value.Export != nil && (path != "worker.telemetry" || value.Export.Validate() != nil) {
+		return resolutionError(ResolutionInvalid, path+".export", ErrInvalid)
+	}
 	if value.Adapter != string(contracts.RuntimeAdapterOTLPHTTP) ||
 		value.FlushTimeoutSeconds < 1 || value.FlushTimeoutSeconds > 10 {
 		return resolutionError(ResolutionInvalid, path, ErrInvalid)
@@ -770,6 +773,10 @@ func cloneTelemetry(value *TelemetryConfig) *TelemetryConfig {
 		return nil
 	}
 	result := *value
+	if value.Export != nil {
+		export := *value.Export
+		result.Export = &export
+	}
 	return &result
 }
 

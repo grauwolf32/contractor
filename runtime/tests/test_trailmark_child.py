@@ -9,10 +9,10 @@ from typing import Any
 import pytest
 from test_projectfs_zip import archive, settings, workspace_inputs
 
+import contractor_runtime.toolsets.code_analysis.trailmark_host as host_module
 from contractor_runtime.projectfs import LocalWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
-from contractor_runtime.toolsets import trailmark_host as host_module
-from contractor_runtime.toolsets.trailmark_host import TrailmarkChildHost
+from contractor_runtime.toolsets.code_analysis.trailmark_host import TrailmarkChildHost
 
 
 @pytest.mark.parametrize("mode", ["direct", "overlay"])

@@ -14,7 +14,12 @@ spec:
       endpoint: https://langfuse.example/v1/traces
       credential: otel-debug
       captureContent: false
-      flushTimeoutSeconds: 3
+      flushTimeoutSeconds: 10
+      export:
+        batchSizeBytes: 8388608
+        maxAttempts: 2
+        maxPendingSpans: 2048
+        maxPendingBytes: 67108864
 ---
 apiVersion: contractor/v1alpha1
 kind: RuntimeConfig
@@ -28,7 +33,12 @@ spec:
       endpoint: https://langfuse-local.example/v1/traces
       credential: otel-agent-local
       captureContent: false
-      flushTimeoutSeconds: 3
+      flushTimeoutSeconds: 10
+      export:
+        batchSizeBytes: 8388608
+        maxAttempts: 2
+        maxPendingSpans: 2048
+        maxPendingBytes: 67108864
 ---
 apiVersion: contractor/v1alpha1
 kind: RuntimeConfig

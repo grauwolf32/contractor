@@ -41,7 +41,7 @@ scope:
 deliverables:
   - {path: internal/httpapi/public, description: Idempotent authenticated Run cancel endpoint.}
   - {path: internal/scheduler, description: Durable cancelling/aborting orchestration and bounded deadline handling.}
-  - {path: runtime/src/contractor_runtime/allocation.py, description: Idempotent abort and cached report behavior.}
+  - {path: runtime/src/contractor_runtime/allocation/service.py, description: Idempotent abort and cached report behavior.}
   - {path: internal/runstore, description: StageTermination and Run cancellation transition methods.}
 
 requirements:

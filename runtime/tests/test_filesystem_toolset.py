@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-import contractor_runtime.toolsets.filesystem as filesystem_module
+import contractor_runtime.toolsets.filesystem.tools as filesystem_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.factories import built_in_factories
@@ -16,7 +16,7 @@ from contractor_runtime.projectfs import (
     OverlayWorkspaceSession,
 )
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
-from contractor_runtime.toolsets.filesystem import (
+from contractor_runtime.toolsets.filesystem.tools import (
     FilesystemToolError,
     FilesystemToolsetFactory,
 )

@@ -12,9 +12,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from test_projectfs_local_direct import workspace
 
-from contractor_runtime.podman_lifecycle import PodmanLifecycle
-from contractor_runtime.podman_settings import PodmanSettings
-from contractor_runtime.sandbox_contracts import ExecutionRequest, SandboxErrorCode
+from contractor_runtime.sandbox.contracts import ExecutionRequest, SandboxErrorCode
+from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("CONTRACTOR_RUN_PODMAN_SUPERVISOR_GATE") != "1",

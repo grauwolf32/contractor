@@ -147,7 +147,7 @@ class LocalWorkspaceProvider:
                 await self._before_initialize()
             else:
                 # Disabling Podman cannot authorize deleting a previous bind.
-                from contractor_runtime.podman_workroots import check_root_policy
+                from contractor_runtime.sandbox.podman.workroots import check_root_policy
 
                 await asyncio.to_thread(check_root_policy, self._root, None)
             await asyncio.to_thread(_initialize_and_cleanup_local_root, self._root)

@@ -66,6 +66,10 @@ interface ConfigDraft {
   workerTelemetryCredential: string;
   workerTelemetryTimeout: string;
   workerTelemetryCaptureContent: boolean;
+  workerTelemetryBatchSize: string;
+  workerTelemetryMaxAttempts: string;
+  workerTelemetryMaxPendingSpans: string;
+  workerTelemetryMaxPendingSize: string;
   plannerTelemetry: boolean;
   plannerTelemetryEndpoint: string;
   plannerTelemetryCredential: string;
@@ -87,12 +91,16 @@ const emptyConfigDraft = (): ConfigDraft => ({
   workerTelemetry: false,
   workerTelemetryEndpoint: "",
   workerTelemetryCredential: "",
-  workerTelemetryTimeout: "5",
+  workerTelemetryTimeout: "10",
   workerTelemetryCaptureContent: false,
+  workerTelemetryBatchSize: "8",
+  workerTelemetryMaxAttempts: "2",
+  workerTelemetryMaxPendingSpans: "2048",
+  workerTelemetryMaxPendingSize: "64",
   plannerTelemetry: false,
   plannerTelemetryEndpoint: "",
   plannerTelemetryCredential: "",
-  plannerTelemetryTimeout: "5",
+  plannerTelemetryTimeout: "10",
   plannerTelemetryCaptureContent: false,
   httpProxy: false,
   proxyURL: "",
@@ -185,9 +193,35 @@ function buildDocument(
     if (
       enabled &&
       timeout !== "" &&
-      (!Number.isInteger(Number(timeout)) || Number(timeout) < 1)
+      (!Number.isInteger(Number(timeout)) ||
+        Number(timeout) < 1 ||
+        Number(timeout) > 10)
     ) {
-      errors.push(`${label} flush timeout must be a positive integer.`);
+      errors.push(
+        `${label} flush timeout must be an integer from 1 to 10 seconds.`,
+      );
+    }
+  }
+  if (draft.workerTelemetry) {
+    for (const [value, maximum, label] of [
+      [draft.workerTelemetryBatchSize, 64, "Batch size (MiB)"],
+      [draft.workerTelemetryMaxAttempts, 10, "Export attempts"],
+      [draft.workerTelemetryMaxPendingSpans, 2048, "Pending spans"],
+      [draft.workerTelemetryMaxPendingSize, 64, "Pending size (MiB)"],
+    ] as const) {
+      if (
+        !Number.isInteger(Number(value)) ||
+        Number(value) < 1 ||
+        Number(value) > maximum
+      ) {
+        errors.push(`${label} must be an integer from 1 to ${maximum}.`);
+      }
+    }
+    if (
+      Number(draft.workerTelemetryMaxPendingSize) <
+      Number(draft.workerTelemetryBatchSize)
+    ) {
+      errors.push("Pending size must be at least the batch size.");
     }
   }
   if (draft.httpProxy && !safeHTTPURL(draft.proxyURL)) {
@@ -218,12 +252,22 @@ function buildDocument(
       : {}),
     ...(draft.workerTelemetry
       ? {
-          telemetry: telemetry(
-            draft.workerTelemetryEndpoint,
-            draft.workerTelemetryCredential,
-            draft.workerTelemetryTimeout,
-            draft.workerTelemetryCaptureContent,
-          ),
+          telemetry: {
+            ...telemetry(
+              draft.workerTelemetryEndpoint,
+              draft.workerTelemetryCredential,
+              draft.workerTelemetryTimeout,
+              draft.workerTelemetryCaptureContent,
+            ),
+            export: {
+              batchSizeBytes:
+                Number(draft.workerTelemetryBatchSize) * 1024 * 1024,
+              maxAttempts: Number(draft.workerTelemetryMaxAttempts),
+              maxPendingSpans: Number(draft.workerTelemetryMaxPendingSpans),
+              maxPendingBytes:
+                Number(draft.workerTelemetryMaxPendingSize) * 1024 * 1024,
+            },
+          },
         }
       : {}),
     ...(draft.httpProxy
@@ -454,11 +498,46 @@ function RuntimeConfigPublishForm({
                   disabled={!draft[enabled]}
                   type="number"
                   min={1}
+                  max={10}
                   step={1}
                   value={draft[timeout]}
                   onChange={(event) => update(timeout, event.target.value)}
                 />
               </label>
+              {enabled === "workerTelemetry" &&
+                (
+                  [
+                    ["workerTelemetryBatchSize", "Batch size (MiB)", 64],
+                    [
+                      "workerTelemetryMaxAttempts",
+                      "Maximum attempts per batch",
+                      10,
+                    ],
+                    [
+                      "workerTelemetryMaxPendingSpans",
+                      "Maximum pending spans",
+                      2048,
+                    ],
+                    [
+                      "workerTelemetryMaxPendingSize",
+                      "Maximum pending size (MiB)",
+                      64,
+                    ],
+                  ] as const
+                ).map(([field, label, maximum]) => (
+                  <label key={field}>
+                    {label}
+                    <input
+                      disabled={!draft.workerTelemetry}
+                      type="number"
+                      min={1}
+                      max={maximum}
+                      step={1}
+                      value={draft[field]}
+                      onChange={(event) => update(field, event.target.value)}
+                    />
+                  </label>
+                ))}
             </div>
           </fieldset>
         ),

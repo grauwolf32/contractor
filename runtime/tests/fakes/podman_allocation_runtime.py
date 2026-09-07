@@ -10,10 +10,10 @@ from pathlib import Path
 
 from fsspec.implementations.local import LocalFileSystem
 
-from contractor_runtime.podman_lifecycle import PodmanLifecycle
-from contractor_runtime.podman_settings import PodmanSettings
 from contractor_runtime.projectfs import DirectWorkspaceSession
 from contractor_runtime.projectfs.provider import ProjectWorkspaceStorage
+from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
+from contractor_runtime.sandbox.podman.settings import PodmanSettings
 from contractor_runtime.settings import WorkspaceLimits
 
 

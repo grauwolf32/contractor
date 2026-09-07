@@ -15,11 +15,11 @@ from test_audit_completion_continuation import CountedState
 from test_audit_result_collector import arguments
 from test_audit_result_publication import assigned
 
-from contractor_runtime.adk_runtime import AdkWorkerRuntime
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactValue
-from contractor_runtime.audit_result_collector import AuditCollectionError
 from contractor_runtime.contracts import ArtifactRef, ArtifactWriteResult, WorkerCompletionContract
-from contractor_runtime.toolsets.audit_results_v2 import AuditResultsToolsetFactory
+from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
+from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
+from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
 class AuditClient:
@@ -169,7 +169,7 @@ def test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed
             results = json.loads(archive.read("check-results.json"))["results"]
         assert [result["item_key"] for result in results] == list(expected.owner.item_keys)
         with pytest.raises(AuditCollectionError):
-            runtime._audit_completion.current()
+            runtime._completion.current()
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())
@@ -255,7 +255,7 @@ def test_cancellation_discards_collection_and_finishes_state_once(tmp_path, phas
         await asyncio.wait_for(
             model.blocked.wait() if phase == "continuation" else client.write_started.wait(), 2
         )
-        collector = runtime._audit_completion.current()
+        collector = runtime._completion.current()
         running.cancel()
         with pytest.raises(asyncio.CancelledError):
             await running
@@ -386,7 +386,7 @@ def test_artifact_observations_survive_a_reminder_and_join_verified_publication(
 @pytest.mark.parametrize("failure", ["model-event", "sandbox", "timeout"])
 def test_fatal_model_event_sandbox_or_deadline_prevents_audit_success(tmp_path, failure):
     async def scenario():
-        from contractor_runtime.sandbox_contracts import SandboxErrorCode
+        from contractor_runtime.sandbox.contracts import SandboxErrorCode
 
         expected, _ = assigned()
         final = text_result("Done")
@@ -419,7 +419,7 @@ def test_fatal_model_event_sandbox_or_deadline_prevents_audit_success(tmp_path, 
         assert state.begins == state.completions == 1
         assert not client.writes or failure == "sandbox"
         with pytest.raises(AuditCollectionError):
-            runtime._audit_completion.current()
+            runtime._completion.current()
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
 
     asyncio.run(scenario())
@@ -504,7 +504,7 @@ def test_cancellation_during_normal_discard_keeps_ownership_until_cleanup_settle
         started, release = asyncio.Event(), asyncio.Event()
 
         async def delay_discard():
-            collector = runtime._audit_completion.current()
+            collector = runtime._completion.current()
             original = collector.discard
 
             async def discard():

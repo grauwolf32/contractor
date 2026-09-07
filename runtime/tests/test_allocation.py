@@ -43,8 +43,8 @@ from contractor_runtime.factories import (
     WorkerBuildContext,
     built_in_factories,
 )
-from contractor_runtime.resource_metrics import ProcessReading, ResourceCollector
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 NOW = datetime(2026, 8, 29, 10, 0, tzinfo=UTC)

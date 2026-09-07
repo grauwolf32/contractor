@@ -12,7 +12,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import WorkspaceStorageV2
-from contractor_runtime.podman_settings import PodmanSettings, add_podman_arguments, podman_settings
+from contractor_runtime.sandbox.podman.settings import (
+    PodmanSettings,
+    add_podman_arguments,
+    podman_settings,
+)
 
 DEFAULT_WORKSPACE_OPERATION_TIMEOUT_SECONDS = 30.0
 

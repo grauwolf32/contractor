@@ -18,7 +18,7 @@ from contractor_runtime.contracts import (
     CaidoSettingsV2,
     RuntimeSettingsV2,
 )
-from contractor_runtime.toolsets.caido import (
+from contractor_runtime.toolsets.caido.tools import (
     CAIDO_EXCHANGE_MEDIA_TYPE,
     CAIDO_TOOL_NAMES,
     CaidoToolsetFactory,

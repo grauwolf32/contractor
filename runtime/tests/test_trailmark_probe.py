@@ -7,18 +7,18 @@ from pathlib import Path
 import pytest
 import trailmark
 
+import contractor_runtime.toolsets.code_analysis.tools as code_analysis
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.settings import WorkspaceLimits, WorkspaceSettings
-from contractor_runtime.toolsets import code_analysis
-from contractor_runtime.toolsets.code_analysis import (
+from contractor_runtime.toolsets.code_analysis.languages import GRAPH_EXTENSION_LANGUAGES
+from contractor_runtime.toolsets.code_analysis.tools import (
     CODE_ANALYSIS_REF,
     GRAPH_TOOLS,
     SHALLOW_TOOLS,
     CodeAnalysisToolsetFactory,
 )
-from contractor_runtime.toolsets.code_analysis_languages import GRAPH_EXTENSION_LANGUAGES
-from contractor_runtime.toolsets.trailmark_host import probe_trailmark_child
+from contractor_runtime.toolsets.code_analysis.trailmark_host import probe_trailmark_child
 
 
 def test_offline_tiny_fixture_probe_succeeds_and_leaves_no_residue(tmp_path: Path) -> None:

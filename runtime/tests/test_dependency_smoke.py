@@ -10,9 +10,9 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 
 from contractor_runtime.a2a_server import build_agent_card, build_worker_a2a_application
-from contractor_runtime.adk_runtime import OpenAICompatibleGatewayLlm
 from contractor_runtime.contracts import StageContentRequest, WorkerCompletion, WorkerModelResult
-from contractor_runtime.model_client import new_gateway_client
+from contractor_runtime.llm.client import new_gateway_client
+from contractor_runtime.llm.openai import OpenAICompatibleGatewayLlm
 
 
 def test_pinned_adk_and_a2a_dependencies_construct_used_classes() -> None:

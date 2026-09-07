@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
-import contractor_runtime.toolsets.http_tools as http_tools
+import contractor_runtime.toolsets.http.tools as http_tools
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
@@ -21,7 +21,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     RuntimeSettingsV2,
 )
-from contractor_runtime.toolsets.http_tools import (
+from contractor_runtime.toolsets.http.tools import (
     HTTP_BODY_MEDIA_TYPE,
     HTTPToolError,
     HTTPToolsetFactory,

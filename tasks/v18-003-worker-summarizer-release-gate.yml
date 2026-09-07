@@ -36,7 +36,7 @@ scope:
 deliverables:
   - {path: tests/e2e/worker_summarizer_test.go, description: Production-boundary deterministic process scenario.}
   - {path: tests/e2e/worker_summarizer_matrix.yml, description: Strict invariant and fault ownership.}
-  - {path: runtime/src/contractor_runtime/token_usage.py, description: One validated provider-usage projection shared by budgets and metrics.}
+  - {path: runtime/src/contractor_runtime/llm/usage.py, description: One validated provider-usage projection shared by budgets and metrics.}
   - {path: Makefile, description: Focused/release verification targets.}
   - {path: docs/development.md, description: Optional live-model evaluation command and expected diagnostics.}
 

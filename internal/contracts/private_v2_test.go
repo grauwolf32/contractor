@@ -14,16 +14,17 @@ func TestPrivateV2ValidCanonicalFixtures(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]func([]byte) ([]byte, error){
-		"agent-registration.json":           privateRoundTrip[AgentRegistrationV2],
-		"agent-registration-response.json":  privateRoundTrip[AgentRegistrationResponseV2],
-		"runtime-settings-empty.json":       privateRoundTrip[RuntimeSettingsV2],
-		"runtime-settings-telemetry.json":   privateRoundTrip[RuntimeSettingsV2],
-		"runtime-settings-proxy.json":       privateRoundTrip[RuntimeSettingsV2],
-		"runtime-settings-combined.json":    privateRoundTrip[RuntimeSettingsV2],
-		"runtime-provenance.json":           privateRoundTrip[ResolvedRuntimeConfigProvenanceV2],
-		"runtime-report.json":               privateRoundTrip[RuntimeReportV2],
-		"workspace-capabilities.json":       privateRoundTrip[WorkspaceCapabilitiesV2],
-		"allocation-workspace-overlay.json": privateRoundTrip[AllocationWorkspaceSpecV2],
+		"agent-registration.json":                privateRoundTrip[AgentRegistrationV2],
+		"agent-registration-response.json":       privateRoundTrip[AgentRegistrationResponseV2],
+		"runtime-settings-empty.json":            privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-telemetry.json":        privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-telemetry-export.json": privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-proxy.json":            privateRoundTrip[RuntimeSettingsV2],
+		"runtime-settings-combined.json":         privateRoundTrip[RuntimeSettingsV2],
+		"runtime-provenance.json":                privateRoundTrip[ResolvedRuntimeConfigProvenanceV2],
+		"runtime-report.json":                    privateRoundTrip[RuntimeReportV2],
+		"workspace-capabilities.json":            privateRoundTrip[WorkspaceCapabilitiesV2],
+		"allocation-workspace-overlay.json":      privateRoundTrip[AllocationWorkspaceSpecV2],
 	}
 	for filename, roundTrip := range cases {
 		filename, roundTrip := filename, roundTrip

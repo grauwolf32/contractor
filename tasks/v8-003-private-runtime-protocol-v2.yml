@@ -44,7 +44,7 @@ scope:
 
 deliverables:
   - {path: internal/contracts, description: Strict protocol-v2 registration, allocation, provenance and metrics DTOs.}
-  - {path: runtime/src/contractor_runtime/contracts.py, description: Python parity models and secret-safe representation.}
+  - {path: runtime/src/contractor_runtime/contracts/__init__.py, description: Python parity models and secret-safe representation.}
   - {path: runtime/src/contractor_runtime/capabilities.py, description: Frozen RuntimeAdapter capability discovery.}
   - {path: testdata/contracts, description: Cross-language canonical success and failure fixtures.}
   - {path: Makefile, description: Focused private-v2 contract parity target.}
