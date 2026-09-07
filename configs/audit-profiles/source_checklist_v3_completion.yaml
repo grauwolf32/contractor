@@ -1,0 +1,49 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+
+metadata:
+  name: source-checklist
+  version: "3"
+
+spec:
+  mode: custom-checklist
+  standards: []
+  inputs:
+    source:
+      required: true
+      mediaTypes: [application/zip]
+    checklist:
+      required: true
+      mediaTypes: [application/json, application/yaml]
+  inventory:
+    implementation: checklist@1
+    sourceInput: checklist
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: audit-source-check@4
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+        source: {source: audit-input, name: source}
+      parameters: {}
+      outputs:
+        result: result
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 2
+    maxItemsPerRound: 128
+    maxItemsTotal: 128
+    maxSubmittedRuns: 384
+    maxItemRunAttempts: 3
+    deadlineSeconds: 86400
+    maxEvidenceBytes: 67108864
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: prohibited
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic

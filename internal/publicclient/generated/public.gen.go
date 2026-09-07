@@ -707,6 +707,48 @@ func (e StageContentResultApiVersion) Valid() bool {
 	}
 }
 
+// Defines values for WorkerCompletionDiagnosticsKind.
+const (
+	AuditCheckResults1 WorkerCompletionDiagnosticsKind = "audit-check-results@1"
+)
+
+// Valid indicates whether the value is a known member of the WorkerCompletionDiagnosticsKind enum.
+func (e WorkerCompletionDiagnosticsKind) Valid() bool {
+	switch e {
+	case AuditCheckResults1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkerCompletionDiagnosticsPhase.
+const (
+	Collecting WorkerCompletionDiagnosticsPhase = "collecting"
+	Failed     WorkerCompletionDiagnosticsPhase = "failed"
+	Published  WorkerCompletionDiagnosticsPhase = "published"
+	Publishing WorkerCompletionDiagnosticsPhase = "publishing"
+	Sealed     WorkerCompletionDiagnosticsPhase = "sealed"
+)
+
+// Valid indicates whether the value is a known member of the WorkerCompletionDiagnosticsPhase enum.
+func (e WorkerCompletionDiagnosticsPhase) Valid() bool {
+	switch e {
+	case Collecting:
+		return true
+	case Failed:
+		return true
+	case Published:
+		return true
+	case Publishing:
+		return true
+	case Sealed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WorkflowEscalateTransitionKind.
 const (
 	Escalate WorkflowEscalateTransitionKind = "escalate"
@@ -1070,11 +1112,14 @@ type ArtifactWriteResponse struct {
 
 // AttemptDiagnostic defines model for AttemptDiagnostic.
 type AttemptDiagnostic struct {
-	Code         ConfigId    `json:"code"`
-	LogicalAgent *ConfigId   `json:"logicalAgent,omitempty"`
-	Message      string      `json:"message"`
-	Participant  interface{} `json:"participant"`
-	Retryable    *bool       `json:"retryable,omitempty"`
+	Code ConfigId `json:"code"`
+
+	// Completion Latest Worker invocation facts. Published packages are not accepted Audit evidence.
+	Completion   *WorkerCompletionDiagnostics `json:"completion,omitempty"`
+	LogicalAgent *ConfigId                    `json:"logicalAgent,omitempty"`
+	Message      string                       `json:"message"`
+	Participant  interface{}                  `json:"participant"`
+	Retryable    *bool                        `json:"retryable,omitempty"`
 }
 
 // AttemptDiagnostics defines model for AttemptDiagnostics.
@@ -3550,6 +3595,22 @@ type UpdateProjectRequest struct {
 type UpdateSchedulerSettingsRequest struct {
 	MaxConcurrentRuns int `json:"maxConcurrentRuns"`
 }
+
+// WorkerCompletionDiagnostics Latest Worker invocation facts. Published packages are not accepted Audit evidence.
+type WorkerCompletionDiagnostics struct {
+	AcceptedCount int                              `json:"acceptedCount"`
+	FailureCode   *string                          `json:"failureCode,omitempty"`
+	Kind          WorkerCompletionDiagnosticsKind  `json:"kind"`
+	Phase         WorkerCompletionDiagnosticsPhase `json:"phase"`
+	ReminderCount int                              `json:"reminderCount"`
+	TotalCount    int                              `json:"totalCount"`
+}
+
+// WorkerCompletionDiagnosticsKind defines model for WorkerCompletionDiagnostics.Kind.
+type WorkerCompletionDiagnosticsKind string
+
+// WorkerCompletionDiagnosticsPhase defines model for WorkerCompletionDiagnostics.Phase.
+type WorkerCompletionDiagnosticsPhase string
 
 // WorkerSummarizerConfigBody defines model for WorkerSummarizerConfigBody.
 type WorkerSummarizerConfigBody struct {

@@ -354,6 +354,8 @@ class AdkWorkerRuntime:
             workspace_observation_source=context.project_workspace,
             summarizer_enabled=context.summarizer is not None,
         )
+        if self._audit_completion is not None:
+            self._audit_completion.phase_sink = self._plugin.record_completion
         self._result_finalizer: WorkerResultFinalizer | None = (
             None
             if self._audit_completion
@@ -487,16 +489,22 @@ class AdkWorkerRuntime:
             self._accepting = False
             if completion is not None:
                 # Cleanup failure replaces success, but retains the invocation
-                # identity and terminal State revision already published.
+                # identity. Publish the corrected Audit diagnostics as a new
+                # State revision without completing the invocation twice.
+                failure = completion.failure or _failure(
+                    "worker_session_lifecycle_failed",
+                    f"Worker session lifecycle failed ({error.code})",
+                    True,
+                )
+                revision = completion.state_revision
+                if self._audit_completion is not None:
+                    await self._audit_completion.record_phase("failed", failure.code)
+                    revision = (await self._worker_state.snapshot())["stateRevision"]
                 return completion.model_copy(
                     update={
                         "result": None,
-                        "failure": completion.failure
-                        or _failure(
-                            "worker_session_lifecycle_failed",
-                            f"Worker session lifecycle failed ({error.code})",
-                            True,
-                        ),
+                        "failure": failure,
+                        "state_revision": revision,
                     }
                 )
             return await self._untracked_failure_completion(
@@ -514,6 +522,13 @@ class AdkWorkerRuntime:
         await self._invoke_lock.acquire()
         session_acquired = False
         invocation_failed = False
+        audit = self._audit_completion
+        previous_diagnostics = audit.diagnostics if audit is not None else None
+
+        async def record_audit_cancellation():
+            if audit is not None and audit.diagnostics is not previous_diagnostics:
+                await audit.record_phase("failed", "worker_cancelled")
+
         try:
             self._active_task = asyncio.current_task()
             try:
@@ -546,6 +561,10 @@ class AdkWorkerRuntime:
             )
             self._active_budget = budget
             yield session_id, budget
+        except asyncio.CancelledError:
+            invocation_failed = True
+            await record_audit_cancellation()
+            raise
         except BaseException:
             invocation_failed = True
             raise
@@ -554,6 +573,9 @@ class AdkWorkerRuntime:
                 if session_acquired:
                     try:
                         await self._release_invocation_session()
+                    except asyncio.CancelledError:
+                        await record_audit_cancellation()
+                        raise
                     except Exception:
                         self._accepting = False
                         if not invocation_failed:
@@ -595,6 +617,8 @@ class AdkWorkerRuntime:
         state_snapshot: dict[str, Any] | None = None
         try:
             budget.start()
+            if self._audit_completion is not None:
+                self._audit_completion.reset_diagnostics()
             self._plugin.prepare_invocation(
                 invocation_id=invocation_id,
                 subtask_id=request.subtask_id,
@@ -654,6 +678,9 @@ class AdkWorkerRuntime:
             invocation_phase = "failed"
         finally:
             try:
+                if self._audit_completion is not None and invocation_phase != "succeeded":
+                    code = "worker_cancelled" if invocation_phase == "cancelled" else outcome.code
+                    await self._audit_completion.record_phase("failed", code)
                 state_snapshot = await self._finish_invocation_state(
                     invocation_id,
                     request.subtask_id,
@@ -682,6 +709,9 @@ class AdkWorkerRuntime:
             outcome = _failure(
                 self._worker_state.execution.failure.value, "Sandbox execution failed", False
             )
+        if isinstance(outcome, WorkerFailure) and self._audit_completion is not None:
+            await self._audit_completion.record_phase("failed", outcome.code)
+            state_snapshot = await self._worker_state.snapshot()
         if isinstance(outcome, WorkerResult):
             outcome = outcome.model_copy(
                 update={

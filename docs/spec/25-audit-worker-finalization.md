@@ -306,6 +306,42 @@ and ordinary LLM serialization failure. Missing item IDs belong in bounded
 diagnostics, not metric labels; no evidence/source/summary bodies are added to
 reports. Existing opt-in model-content telemetry policy remains unchanged.
 
+`ExecutionReport.completion` and the live allocation metrics' optional
+`completion` carry the latest invocation's facts, not a history of item data.
+The object has `kind`, `phase`, `acceptedCount` (0..64), `totalCount` (1..64),
+`reminderCount` (0..2), and a bounded `failureCode` for failed completion.
+Sealed/publishing/published phases require all assigned results. Ordinary
+Workers and historical reports omit the field. Consumers discard unknown
+optional kinds/phases; malformed known diagnostics are rejected. The optional
+object is bounded to 4 KiB at the wire boundary. Public attempt diagnostics
+retain these facts through the existing report projection and explicitly
+distinguish publication from Audit evidence acceptance.
+
+Phase publication only synchronizes facts; it charges no model/tool call or
+token usage. Invalid submit calls remain real failed tool calls. Reminders use
+the existing invocation budget. Cancellation and session cleanup failure after
+the ZIP was written change completion diagnostics to `failed`, preserving the
+recorded count and leaving the existing output intact. Publishing these late
+facts does not complete the invocation a second time.
+
+The opt-in repository example is `source-checklist@3` → `audit-source-check@4`
+→ `audit_source_checker@4`, with a separate bounded
+`audit_completion_worker@1` ModelPolicy. It selects `audit-results@2`, one
+`passthrough@1` Worker and no target summarizer. The completion-specific
+instruction explains scalar `item_key` submissions, `expected_revision`,
+local `recorded` receipts, truthful gaps, and Runtime-owned ZIP publication.
+Both failed and interrupted transitions end the child Run; Audit's existing
+attempt policy decides whether to create a fresh child Run. A same-Run retry
+cannot overwrite different bytes or different invocation-owned proposal IDs.
+
+Rollout is capability-first: install compatible Server/Runtime/report readers,
+verify the release gate, then explicitly select the new AuditProfile for a new
+Audit. Adding these files does not rebind a running Audit. Older profile,
+Workflow and template versions retain their completion protocol. There is no
+durable recovery of a partially collected invocation, target summarizer, or
+multi-Worker completion strategy in this version. These examples are not live
+deployment or certification evidence.
+
 Release tests must include ordinary/no-contract regression, spoofed activation,
 unsupported Runtime placement, per-item validation/correction/replay, parallel
 submissions, reversed submission order producing identical bytes, no-call and

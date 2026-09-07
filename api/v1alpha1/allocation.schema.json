@@ -90,6 +90,24 @@
         "error": {"$ref": "#/$defs/executionError"}
       }
     },
+    "workerCompletionDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "phase", "acceptedCount", "totalCount", "reminderCount"],
+      "properties": {
+        "kind": {"const": "audit-check-results@1"},
+        "phase": {"enum": ["collecting", "sealed", "publishing", "published", "failed"]},
+        "acceptedCount": {"type": "integer", "minimum": 0, "maximum": 64},
+        "totalCount": {"type": "integer", "minimum": 1, "maximum": 64},
+        "reminderCount": {"type": "integer", "minimum": 0, "maximum": 2},
+        "failureCode": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}
+      },
+      "allOf": [{
+        "if": {"properties": {"phase": {"const": "failed"}}},
+        "then": {"required": ["failureCode"]},
+        "else": {"not": {"required": ["failureCode"]}}
+      }]
+    },
     "executionReport": {
       "type": "object",
       "additionalProperties": false,
@@ -98,6 +116,7 @@
         "reportId": {"$ref": "common.schema.json#/$defs/opaqueId"},
         "complete": {"type": "boolean"},
         "metrics": {"$ref": "#/$defs/executionMetrics"},
+        "completion": {"$ref": "#/$defs/workerCompletionDiagnostics"},
         "toolCalls": {
           "type": "array",
           "maxItems": 1000,

@@ -20,6 +20,7 @@ from contractor_runtime.contracts import (
     ToolCallRecord,
     ToolMetrics,
     WorkerBudgetMetrics,
+    WorkerCompletionDiagnostics,
     WorkerSummarizerMetrics,
 )
 from contractor_runtime.token_usage import project_token_usage
@@ -94,7 +95,13 @@ class MetricsState:
     _next_call_number: int = 1
     _worker_budget: WorkerBudgetMetrics | None = None
     _summarizer: WorkerSummarizerMetrics | None = None
+    _completion: WorkerCompletionDiagnostics | None = None
     _tool_correlation_outcomes: dict[str, bool] = field(default_factory=dict, repr=False)
+
+    def record_completion(self, value: WorkerCompletionDiagnostics) -> None:
+        self._completion = WorkerCompletionDiagnostics.model_validate(
+            value.model_dump(by_alias=True)
+        )
 
     def start_worker_budget(
         self, *, max_model_calls: int, max_tool_calls: int, max_total_tokens: int
@@ -390,6 +397,8 @@ class MetricsState:
             result["workerBudget"] = self._worker_budget.model_dump(
                 mode="json", by_alias=True, exclude_none=True
             )
+        if self._completion is not None:
+            result["completion"] = self._completion.model_dump(by_alias=True, exclude_none=True)
         return result
 
     def build_report(
@@ -440,6 +449,7 @@ class MetricsState:
             toolCalls=tool_calls,
             errors=errors,
             truncated=truncated,
+            completion=self._completion.model_copy(deep=True) if self._completion else None,
         )
         maximum = MAX_REPORT_JSON_BYTES - _ALLOCATION_ENVELOPE_RESERVE_BYTES
         while (

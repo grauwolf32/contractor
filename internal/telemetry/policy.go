@@ -89,6 +89,10 @@ func (p Policy) NormalizeExecutionReport(
 	}
 	result := source
 	result.Metrics.Tools = cloneToolMetrics(source.Metrics.Tools)
+	if source.Completion != nil {
+		value := *source.Completion
+		result.Completion = &value
+	}
 	result.Metrics.WorkerBudget = cloneWorkerBudget(source.Metrics.WorkerBudget)
 	result.Metrics.Summarizer = cloneWorkerSummarizer(source.Metrics.Summarizer)
 	if result.Metrics.Tools == nil {

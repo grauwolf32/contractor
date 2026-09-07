@@ -97,7 +97,8 @@
           "pattern": "^[a-z][a-z0-9_-]*$"
         },
         "truncated": {"type": "boolean"},
-        "workerBudget": {"$ref": "#/$defs/workerBudget"}
+        "workerBudget": {"$ref": "#/$defs/workerBudget"},
+        "completion": {"$ref": "allocation.schema.json#/$defs/workerCompletionDiagnostics"}
       }
     },
     "invocationToolMetrics": {

@@ -1,0 +1,14 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: audit_completion_worker
+  version: "1"
+
+spec:
+  model: worker-model
+  maxOutputTokens: 4096
+  maxModelCalls: 16
+  maxToolCalls: 32
+  maxTotalTokens: 65536
+  temperature: 0.1

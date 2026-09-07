@@ -27,6 +27,7 @@ from contractor_runtime.contracts import (
     ArtifactRef,
     StageContentRequest,
     WorkerCompletionContract,
+    WorkerCompletionDiagnostics,
     WorkerFailure,
     WorkerObservations,
     WorkerResult,
@@ -47,6 +48,44 @@ class PreparedAuditCompletion:
         self._client = client
         self._collector: InvocationAuditCollector | None = None
         self._reminders = 0
+        self.diagnostics = None
+        self.diagnostics_sink = None
+        self.phase_sink = None
+
+    def reset_diagnostics(self):
+        self._reminders = 0
+        self.diagnostics = WorkerCompletionDiagnostics(
+            kind="audit-check-results@1",
+            phase="collecting",
+            acceptedCount=0,
+            totalCount=len(self._inputs.owner.item_keys),
+            reminderCount=0,
+        )
+        self._record_diagnostics()
+
+    def _record_diagnostics(self):
+        if self.diagnostics_sink is not None:
+            self.diagnostics_sink(self.diagnostics)
+
+    def record_progress(self, accepted_count):
+        self.diagnostics = self.diagnostics.model_copy(update={"accepted_count": accepted_count})
+        self._record_diagnostics()
+
+    async def record_phase(self, phase, failure_code=None):
+        value = WorkerCompletionDiagnostics.model_validate(
+            {
+                **self.diagnostics.model_dump(by_alias=True),
+                "phase": phase,
+                "failureCode": failure_code,
+                "reminderCount": self._reminders,
+            }
+        )
+        if value == self.diagnostics:
+            return
+        self.diagnostics = value
+        self._record_diagnostics()
+        if self.phase_sink is not None:
+            await self.phase_sink(self.diagnostics)
 
     @classmethod
     async def prepare(cls, *, contract, allocation_id, client, timeout):
@@ -93,6 +132,7 @@ class PreparedAuditCompletion:
         )
         self._collector = InvocationAuditCollector(inputs)
         self._reminders = 0
+        self.reset_diagnostics()
 
     async def end(self) -> None:
         collector, self._collector = self._collector, None
@@ -121,6 +161,7 @@ class PreparedAuditCompletion:
         collector = self.current()
         snapshot = await collector.snapshot()
         accepted = {item.value.item_key for item in snapshot.items}
+        self.record_progress(len(accepted))
         missing = [key for key in collector.owner.item_keys if key not in accepted]
         if missing:
             if self._reminders >= MAX_REMINDERS:
@@ -135,6 +176,7 @@ class PreparedAuditCompletion:
                     )
                 )
             self._reminders += 1
+            await self.record_phase("collecting")
             return ContinueCompletion(
                 "Runtime completion reminder: use read_audit_task and submit_check_result "
                 "to record "
@@ -148,10 +190,12 @@ class PreparedAuditCompletion:
             client=self._client,
             check_active=check_active,
         )
-        receipt = await publisher.publish(
-            await collector.seal(), inputs=collector.inputs, deadline=deadline
-        )
+        sealed = await collector.seal()
+        await self.record_phase("sealed")
+        await self.record_phase("publishing")
+        receipt = await publisher.publish(sealed, inputs=collector.inputs, deadline=deadline)
         check_active()
+        await self.record_phase("published")
         exact = ArtifactRef(
             namespace=receipt.namespace, name=receipt.name, revision=receipt.revision
         )

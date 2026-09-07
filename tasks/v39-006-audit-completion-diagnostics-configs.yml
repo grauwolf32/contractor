@@ -3,7 +3,7 @@ id: V39-006
 title: "Expose bounded completion diagnostics and versioned Audit examples"
 milestone: audit-worker-completion
 priority: P1
-status: pending
+status: in_progress
 implementation_commit: null
 depends_on: ["V39-005"]
 languages: ["go","python","yaml"]
@@ -56,6 +56,8 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: docs/spec/25-audit-worker-finalization.md
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
+  - path: docs/reviews/2026-09-07-audit-completion-diagnostics.md
+    description: "Record function review findings, regression fixes and verification limits."
 
 requirements:
   - {id: R1, text: "Old reports remain readable; ordinary Run diagnostics and legacy model/tool counters retain their meanings."}
@@ -82,7 +84,7 @@ acceptance_criteria:
     then: "Example retry ownership matches the Run-scoped create-only contract; programmatic failures add no LLM errors or fictitious tool calls."
 
 tests:
-  - command: "go test ./internal/contracts ./internal/config ./internal/httpapi/public"
+  - command: "go test ./internal/contracts ./internal/config ./internal/telemetry ./internal/httpapi/public"
     covers: ["A1","A2","A3","A4"]
   - command: "cd runtime && uv run --frozen pytest tests/test_audit_completion_diagnostics.py tests/test_audit_completion_runtime.py"
     covers: ["A1","A3","A4"]

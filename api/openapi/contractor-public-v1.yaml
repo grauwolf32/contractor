@@ -4713,12 +4713,25 @@ components:
         toolFailures: {type: integer, minimum: 0}
         errorCount: {type: integer, minimum: 0}
         truncated: {type: boolean}
+    WorkerCompletionDiagnostics:
+      type: object
+      additionalProperties: false
+      description: Latest Worker invocation facts. Published packages are not accepted Audit evidence.
+      required: [kind, phase, acceptedCount, totalCount, reminderCount]
+      properties:
+        kind: {type: string, enum: [audit-check-results@1]}
+        phase: {type: string, enum: [collecting, sealed, publishing, published, failed]}
+        acceptedCount: {type: integer, minimum: 0, maximum: 64}
+        totalCount: {type: integer, minimum: 1, maximum: 64}
+        reminderCount: {type: integer, minimum: 0, maximum: 2}
+        failureCode: {type: string, pattern: '^[a-z][a-z0-9_]{0,63}$'}
     AttemptDiagnostic:
       type: object
       additionalProperties: false
       required: [participant, code, message]
       properties:
         participant: {enum: [planner, worker]}
+        completion: {$ref: '#/components/schemas/WorkerCompletionDiagnostics'}
         logicalAgent: {$ref: '#/components/schemas/ConfigId'}
         code: {$ref: '#/components/schemas/ConfigId'}
         message: {type: string, minLength: 1, maxLength: 4096}

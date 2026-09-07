@@ -2644,9 +2644,21 @@ export interface components {
             errorCount: number;
             truncated: boolean;
         };
+        /** @description Latest Worker invocation facts. Published packages are not accepted Audit evidence. */
+        WorkerCompletionDiagnostics: {
+            /** @enum {string} */
+            kind: "audit-check-results@1";
+            /** @enum {string} */
+            phase: "collecting" | "sealed" | "publishing" | "published" | "failed";
+            acceptedCount: number;
+            totalCount: number;
+            reminderCount: number;
+            failureCode?: string;
+        };
         AttemptDiagnostic: {
             /** @enum {unknown} */
             participant: "planner" | "worker";
+            completion?: components["schemas"]["WorkerCompletionDiagnostics"];
             logicalAgent?: components["schemas"]["ConfigId"];
             code: components["schemas"]["ConfigId"];
             message: string;

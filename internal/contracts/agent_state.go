@@ -41,12 +41,13 @@ type ContractorWorkerState struct {
 }
 
 type WorkerAllocationState struct {
-	Counters     map[string]uint64     `json:"counters"`
-	ToolCalls    []WorkerStateToolCall `json:"toolCalls"`
-	Errors       []ExecutionError      `json:"errors"`
-	FinalOutcome *string               `json:"finalOutcome"`
-	Truncated    bool                  `json:"truncated"`
-	WorkerBudget *WorkerStateBudget    `json:"workerBudget,omitempty"`
+	Completion   *WorkerCompletionDiagnostics `json:"completion,omitempty"`
+	Counters     map[string]uint64            `json:"counters"`
+	ToolCalls    []WorkerStateToolCall        `json:"toolCalls"`
+	Errors       []ExecutionError             `json:"errors"`
+	FinalOutcome *string                      `json:"finalOutcome"`
+	Truncated    bool                         `json:"truncated"`
+	WorkerBudget *WorkerStateBudget           `json:"workerBudget,omitempty"`
 	finalPresent bool
 }
 
@@ -202,6 +203,11 @@ func (s WorkerStateSummarizer) validate() error {
 }
 
 func (s WorkerAllocationState) validate() error {
+	if s.Completion != nil {
+		if err := s.Completion.Validate(); err != nil {
+			return err
+		}
+	}
 	if s.Counters == nil || s.ToolCalls == nil || s.Errors == nil || !s.finalPresent {
 		return invalidf("Worker allocation State collections and finalOutcome are required")
 	}
@@ -466,6 +472,7 @@ func (s *ContractorWorkerState) UnmarshalJSON(data []byte) error {
 
 func (s *WorkerAllocationState) UnmarshalJSON(data []byte) error {
 	type wireState struct {
+		Completion   json.RawMessage       `json:"completion"`
 		Counters     map[string]uint64     `json:"counters"`
 		ToolCalls    []WorkerStateToolCall `json:"toolCalls"`
 		Errors       []ExecutionError      `json:"errors"`
@@ -486,6 +493,11 @@ func (s *WorkerAllocationState) UnmarshalJSON(data []byte) error {
 	s.Errors = wire.Errors
 	s.Truncated = *wire.Truncated
 	s.WorkerBudget = wire.WorkerBudget
+	completion, err := decodeWorkerCompletionDiagnostics(wire.Completion)
+	if err != nil {
+		return err
+	}
+	s.Completion = completion
 	s.finalPresent = true
 	if !bytes.Equal(wire.FinalOutcome, []byte("null")) {
 		var outcome string

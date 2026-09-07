@@ -21,6 +21,7 @@ func TestRepositoryDefaultCatalogContainsOnlyCurrentWorkflows(t *testing.T) {
 		"audit-openapi-operation-trace@1",
 		"audit-openapi-operation-trace@2",
 		"audit-source-check@1",
+		"audit-source-check@4",
 		"audit-top10-source-risk@1",
 		"findings-review@1",
 		"likec4-from-analysis@3",

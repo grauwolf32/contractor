@@ -233,6 +233,9 @@ class SubmitCheckResultTool:
                     _normalize(item_key, value),
                     expected_revision=expected_revision,
                 )
+            binding = getattr(self, "completion_binding", None)
+            if binding is not None:
+                binding.record_progress(receipt.accepted_count)
             result = {
                 "status": receipt.status,
                 "revisions": [
@@ -295,6 +298,7 @@ class AuditResultsToolsetFactory:
             client=self._client_factory(allocation_id, runtime_settings),
             timeout=runtime_settings.request_timeout_seconds,
         )
+        binding.diagnostics_sink = state.metrics.record_completion
         tools = {
             "read_audit_task": ReadAuditTaskTool(
                 binding.current, completion_contract.task, state.metrics

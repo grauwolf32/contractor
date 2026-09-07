@@ -70,7 +70,7 @@ func TestWorkflowQueriesRejectInvalidParameters(t *testing.T) {
 
 func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
-	resolved := repositoryWorkflowByName(t, "openapi-from-workspace")
+	resolved := repositoryWorkflow(t, "openapi-from-workspace@5")
 	detail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
@@ -98,7 +98,7 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 
 func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, "../../../configs")
-	resolved := repositoryWorkflowByName(t, "likec4-from-workspace")
+	resolved := repositoryWorkflow(t, "likec4-from-workspace@5")
 	skillDetail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
 	if skillDetail.Code != http.StatusOK {
 		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())
@@ -112,22 +112,17 @@ func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 	}
 }
 
-func repositoryWorkflowByName(t *testing.T, name string) config.ResolvedWorkflow {
+func repositoryWorkflow(t *testing.T, selector string) config.ResolvedWorkflow {
 	t.Helper()
 	snapshot, err := config.Load("../../../configs", config.MVPDescriptors())
 	if err != nil {
 		t.Fatal(err)
 	}
-	var matches []config.ResolvedWorkflow
-	for _, workflow := range snapshot.Workflows() {
-		if workflow.Ref.Name == name {
-			matches = append(matches, workflow)
-		}
+	workflow, err := snapshot.Workflow(selector)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(matches) != 1 {
-		t.Fatalf("repository Workflows named %q = %d, want exactly one current version", name, len(matches))
-	}
-	return matches[0]
+	return workflow
 }
 
 func workflowDetailTarget(workflow config.ResolvedWorkflow) string {

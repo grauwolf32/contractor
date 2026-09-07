@@ -599,6 +599,12 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._workspace_observations = None
             return snapshot
 
+    async def record_completion(self, value) -> None:
+        """Publish programmatic phase facts without model/tool accounting."""
+        async with self._lock:
+            self._metrics.record_completion(value)
+            await self._state.sync_metrics()
+
     async def close(self) -> None:
         async with self._lock:
             if self._closed:

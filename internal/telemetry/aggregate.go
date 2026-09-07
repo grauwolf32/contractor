@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,11 +19,12 @@ const (
 )
 
 type AttemptDiagnostic struct {
-	Participant  AttemptDiagnosticParticipant `json:"participant"`
-	LogicalAgent string                       `json:"logicalAgent,omitempty"`
-	Code         string                       `json:"code"`
-	Message      string                       `json:"message"`
-	Retryable    *bool                        `json:"retryable,omitempty"`
+	Completion   *contracts.WorkerCompletionDiagnostics `json:"completion,omitempty"`
+	Participant  AttemptDiagnosticParticipant           `json:"participant"`
+	LogicalAgent string                                 `json:"logicalAgent,omitempty"`
+	Code         string                                 `json:"code"`
+	Message      string                                 `json:"message"`
+	Retryable    *bool                                  `json:"retryable,omitempty"`
 }
 
 type AttemptDiagnostics struct {
@@ -96,7 +98,7 @@ func MergeSummaries(summaries ...Summary) Summary {
 }
 
 // ProjectAttemptDiagnostics returns only already normalized Planner and Worker
-// report errors. Reports are ordered Planner first and then by logical Agent;
+// report errors and bounded completion facts. Reports are ordered Planner first and then by logical Agent;
 // error order within each report is preserved. If the public cap is exceeded,
 // the tail of that deterministic sequence is retained because report policy
 // itself also retains newest records.
@@ -132,6 +134,32 @@ func appendAttemptDiagnostics(
 	report contracts.ExecutionReport,
 ) {
 	target.Truncated = target.Truncated || report.Truncated
+	if source := report.Completion; source != nil && source.Validate() == nil {
+		value := *source
+		code := "audit_result_" + value.Phase
+		message := fmt.Sprintf("Audit results: %d/%d recorded; reminders: %d. ", value.AcceptedCount, value.TotalCount, value.ReminderCount)
+		switch value.Phase {
+		case "published":
+			message += "Result package published; Audit evidence acceptance is separate."
+		case "failed":
+			code = value.FailureCode
+			switch code {
+			case "audit_result_incomplete":
+				message += "Required results remain missing."
+			case "audit_result_publication_conflict":
+				message += "The Run result binding contains different bytes; existing output was preserved."
+			case "audit_result_publication_failed":
+				message += "Result publication could not be verified."
+			default:
+				message += "Worker completion failed."
+			}
+		default:
+			message += "Result collection/publication is in progress."
+		}
+		target.Items = append(target.Items, AttemptDiagnostic{
+			Participant: participant, LogicalAgent: logicalAgent, Code: code, Message: message, Completion: &value,
+		})
+	}
 	for _, source := range report.Errors {
 		code := source.Code
 		if !diagnosticCodePattern.MatchString(code) {

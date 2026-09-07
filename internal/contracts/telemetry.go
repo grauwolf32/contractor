@@ -74,12 +74,13 @@ type ToolCallRecord struct {
 }
 
 type ExecutionReport struct {
-	ReportID  string           `json:"reportId"`
-	Complete  bool             `json:"complete"`
-	Metrics   ExecutionMetrics `json:"metrics"`
-	ToolCalls []ToolCallRecord `json:"toolCalls"`
-	Errors    []ExecutionError `json:"errors"`
-	Truncated bool             `json:"truncated"`
+	Completion *WorkerCompletionDiagnostics `json:"completion,omitempty"`
+	ReportID   string                       `json:"reportId"`
+	Complete   bool                         `json:"complete"`
+	Metrics    ExecutionMetrics             `json:"metrics"`
+	ToolCalls  []ToolCallRecord             `json:"toolCalls"`
+	Errors     []ExecutionError             `json:"errors"`
+	Truncated  bool                         `json:"truncated"`
 }
 
 type RuntimeReport struct {
@@ -203,6 +204,11 @@ func (r *AllocationFinalReport) UnmarshalJSON(data []byte) error {
 }
 
 func (r ExecutionReport) Validate() error {
+	if r.Completion != nil {
+		if err := r.Completion.Validate(); err != nil {
+			return err
+		}
+	}
 	if err := validateOpaqueID("reportId", r.ReportID); err != nil {
 		return err
 	}

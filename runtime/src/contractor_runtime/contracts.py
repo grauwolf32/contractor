@@ -863,6 +863,48 @@ class ToolCallRecord(WireModel):
         return self
 
 
+class WorkerCompletionDiagnostics(WireModel):
+    """Latest invocation facts; publication is not Audit evidence acceptance."""
+
+    kind: Literal["audit-check-results@1"]
+    phase: Literal["collecting", "sealed", "publishing", "published", "failed"]
+    accepted_count: int = Field(ge=0, le=64)
+    total_count: int = Field(ge=1, le=64)
+    reminder_count: int = Field(ge=0, le=2)
+    failure_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
+
+    @model_validator(mode="after")
+    def validate_completion(self) -> Self:
+        if self.accepted_count > self.total_count or (
+            self.phase in {"sealed", "publishing", "published"}
+            and self.accepted_count != self.total_count
+        ):
+            raise ValueError("inconsistent completion counts")
+        if (self.phase == "failed") != (self.failure_code is not None):
+            raise ValueError("inconsistent completion failure")
+        return self
+
+
+def _known_completion(value):
+    # Optional future diagnostics must not make historical reports unreadable.
+    if isinstance(value, dict) and len(json.dumps(value).encode()) > 4096:
+        raise ValueError("completion diagnostics exceed their bound")
+    if (
+        isinstance(value, dict)
+        and isinstance(value.get("kind"), str)
+        and isinstance(value.get("phase"), str)
+        and value["kind"] != ""
+        and value["phase"] != ""
+        and (
+            value.get("kind") != "audit-check-results@1"
+            or value.get("phase")
+            not in {"collecting", "sealed", "publishing", "published", "failed"}
+        )
+    ):
+        return None
+    return value
+
+
 class ExecutionReport(WireModel):
     report_id: str
     complete: bool
@@ -870,6 +912,14 @@ class ExecutionReport(WireModel):
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     errors: list[ExecutionError] = Field(default_factory=list)
     truncated: bool = False
+    completion: WorkerCompletionDiagnostics | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @field_validator("completion", mode="before")
+    @classmethod
+    def known_completion(cls, value):
+        return _known_completion(value)
 
     @field_validator("report_id")
     @classmethod
@@ -1506,6 +1556,15 @@ class WorkerAllocationMetricsState(WireModel):
     errors: list[WorkerStateExecutionError] = Field(max_length=100)
     final_outcome: str | None
     truncated: bool
+    completion: WorkerCompletionDiagnostics | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @field_validator("completion", mode="before")
+    @classmethod
+    def known_completion(cls, value):
+        return _known_completion(value)
+
     worker_budget: WorkerStateBudget | None = Field(
         default=None, exclude_if=lambda value: value is None
     )

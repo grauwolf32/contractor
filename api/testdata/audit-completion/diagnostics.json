@@ -1,0 +1,322 @@
+[
+  {
+    "name": "collecting",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "partial",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 1
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "sealed",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "sealed",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "publishing",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "publishing",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "published",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "published",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "incomplete",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 2,
+      "failureCode": "audit_result_incomplete"
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "conflict",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 2,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "audit_result_publication_conflict"
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "cancelled",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "worker_cancelled"
+    },
+    "valid": true,
+    "known": true
+  },
+  {
+    "name": "too-many",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 3,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "too-large",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 65,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "too-many-reminders",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 3
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "negative",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": -1,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "bool-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": true,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "null-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": null,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "missing-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "partial-published",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "published",
+      "acceptedCount": 1,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "failed-without-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "not-failed-with-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "worker_cancelled"
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "raw-payload",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "summary": "private-evidence-marker"
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "unbounded-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "failed",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "unknown-kind",
+    "value": {
+      "kind": "future@2",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "summary": "private-evidence-marker"
+    },
+    "valid": true,
+    "known": false
+  },
+  {
+    "name": "unknown-phase",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "accepted",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "summary": "private-evidence-marker"
+    },
+    "valid": true,
+    "known": false
+  },
+  {
+    "name": "empty-kind",
+    "value": {
+      "kind": "",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "empty-phase",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "empty-failure-code",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0,
+      "totalCount": 2,
+      "reminderCount": 0,
+      "failureCode": ""
+    },
+    "valid": false,
+    "known": true
+  },
+  {
+    "name": "fractional-count",
+    "value": {
+      "kind": "audit-check-results@1",
+      "phase": "collecting",
+      "acceptedCount": 0.5,
+      "totalCount": 2,
+      "reminderCount": 0
+    },
+    "valid": false,
+    "known": true
+  }
+]
