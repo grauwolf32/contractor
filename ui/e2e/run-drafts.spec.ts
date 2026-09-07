@@ -251,7 +251,10 @@ test("Project Run draft survives close and binds a local upload to its source sl
     name: `Run ${WORKFLOW_SELECTOR}`,
   });
   await launcher.click();
-  let runDialog = page.getByRole("dialog", { name: WORKFLOW_SELECTOR });
+  let runDialog = page.getByRole("dialog", { name: WORKFLOW_NAME });
+  await expect(runDialog.locator(".project-dialog-heading code")).toHaveText(
+    WORKFLOW_SELECTOR,
+  );
   await runDialog
     .locator('[name="parameter-objective"]')
     .fill("Keep Project setup");
@@ -268,7 +271,7 @@ test("Project Run draft survives close and binds a local upload to its source sl
     .click();
 
   await launcher.click();
-  runDialog = page.getByRole("dialog", { name: WORKFLOW_SELECTOR });
+  runDialog = page.getByRole("dialog", { name: WORKFLOW_NAME });
   await expect(runDialog.locator('[name="parameter-objective"]')).toHaveValue(
     "Keep Project setup",
   );
@@ -312,7 +315,7 @@ test("Project Run draft survives close and binds a local upload to its source sl
     .getByRole("button", { name: "Close Workflow Run dialog" })
     .click();
   await launcher.click();
-  runDialog = page.getByRole("dialog", { name: WORKFLOW_SELECTOR });
+  runDialog = page.getByRole("dialog", { name: WORKFLOW_NAME });
   await expect(runDialog.locator('[name="artifact-source"]')).toHaveValue(
     "artifacts/replacement@revision-uploaded",
   );

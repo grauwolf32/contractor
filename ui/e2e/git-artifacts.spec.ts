@@ -357,9 +357,12 @@ test("cancelling a pending Git import keeps the Project Workflow form open", asy
   ).toBe(true);
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole("dialog", { name: "git-review" })).toBeVisible();
   await expect(
-    page.getByRole("dialog", { name: "git-review@1" }),
-  ).toBeVisible();
+    page
+      .getByRole("dialog", { name: "git-review" })
+      .locator(".project-dialog-heading code"),
+  ).toHaveText("git-review@1");
   await expect(page.locator('[name="parameter-note"]')).toHaveValue(
     "preserved",
   );

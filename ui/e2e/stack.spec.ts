@@ -589,9 +589,8 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   await openDetails(streamlineAttempt);
   await expect(streamlineAttempt.getByText("Reports complete")).toBeVisible();
   const streamlineOutput = page
-    .locator("details.run-output-preview")
+    .locator(".run-result-card")
     .filter({ hasText: "outputs/result@" });
-  await streamlineOutput.locator("summary").click();
   await streamlineOutput
     .getByRole("link", { name: /^Open outputs\/result@/ })
     .click();
@@ -637,8 +636,17 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     .getByRole("button", { name: "Run openapi-from-workspace@5" })
     .click();
   const workflowDialog = page.getByRole("dialog", {
-    name: "openapi-from-workspace@5",
+    name: "openapi-from-workspace",
   });
+  await expect(
+    workflowDialog.locator(".project-dialog-heading code"),
+  ).toHaveText("openapi-from-workspace@5");
+  await workflowDialog
+    .getByRole("button", { name: "Confirm exact input for source" })
+    .click();
+  await workflowDialog
+    .getByRole("button", { name: "Confirm exact input for existing_openapi" })
+    .click();
   await workflowDialog.getByLabel("Include optional objective").check();
   await workflowDialog
     .locator('input[name="parameter-objective"]')
@@ -693,9 +701,8 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
     validationAttempt.getByText("openapi_validate", { exact: true }),
   ).toBeVisible();
   const openAPIOutput = page
-    .locator("details.run-output-preview")
+    .locator(".run-result-card")
     .filter({ hasText: "outputs/openapi@" });
-  await openAPIOutput.locator("summary").click();
   await openAPIOutput
     .getByRole("link", { name: /^Open outputs\/openapi@/ })
     .click();

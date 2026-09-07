@@ -163,9 +163,12 @@ test("nested Project and Git dialogs isolate focus, forms and Escape", async ({
   await launcher.click();
 
   const parent = page.getByRole("dialog", {
-    name: `${WORKFLOW_NAME}@${WORKFLOW_VERSION}`,
+    name: WORKFLOW_NAME,
   });
   await expect(parent).toBeVisible();
+  await expect(parent.locator(".project-dialog-heading code")).toHaveText(
+    `${WORKFLOW_NAME}@${WORKFLOW_VERSION}`,
+  );
   await expect(
     parent.getByRole("button", { name: "Close Workflow Run dialog" }),
   ).toBeFocused();
