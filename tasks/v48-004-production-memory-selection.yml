@@ -3,8 +3,8 @@ id: V48-004
 title: "Enable explicit shared Memory in the working AgentTemplate catalog"
 milestone: shared-memory-production-correctness
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a40a0a693709ec1a37d12718a13ff19759e971d7
 depends_on: [V48-001, V48-002, V48-003]
 languages: [yaml, markdown, go, python]
 goal: >-
