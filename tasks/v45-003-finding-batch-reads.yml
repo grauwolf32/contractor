@@ -3,7 +3,7 @@ id: V45-003
 title: Batch Audit finding related reads
 milestone: server-maintainability
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -18,6 +18,8 @@ scope:
   in:
   - Read and close the base page before loading related records.
   - Load receipts, decisions and assessments in bounded batches with exact owner and Audit checks.
+  - Batch receipt holds and exact artifact reads as well as the outer finding projection; preserve blob
+    backend integrity checks and transfer bounds.
   - Separate finding reads and hydration from review commands and provenance where it improves locality.
   out:
   - Public response changes, authorization changes, generic ORM and goroutines as a substitute for batching.
@@ -40,8 +42,8 @@ acceptance_criteria:
     behavior; a single-connection pool can serve the page.
 tests:
 - name: postgres-race
-  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/auditservice ./internal/findingintake
-    ./internal/httpapi/public
+  command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./internal/artifacts ./internal/auditservice
+    ./internal/findingintake ./internal/httpapi/public
   covers:
   - A1
   - A2

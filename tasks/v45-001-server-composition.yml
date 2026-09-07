@@ -3,7 +3,7 @@ id: V45-001
 title: Separate Server composition from process lifecycle
 milestone: server-maintainability
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -54,3 +54,12 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: 3b4e36828f88fc4b096b373b641e537272de9fc9
+verification:
+  verified_on: '2026-09-07'
+  results:
+  - App and Server command race suites passed, including PostgreSQL scenarios in an isolated temporary
+    PostgreSQL 16 container.
+  - Server build, go vet for app/Server command and git diff --check passed.
+  - Existing tests cover shutdown ordering, early profiling listener cleanup, command handling and credential
+    transaction recovery.

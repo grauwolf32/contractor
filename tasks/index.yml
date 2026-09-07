@@ -663,6 +663,18 @@ milestones:
       Offline integration verifies provenance, bounded reading and review semantics
       without mandatory annotations, OpenAPI subjects or hypothesis verification.
 
+server_maintainability_planning:
+  planned_on: "2026-09-07"
+  authority: User-requested Go Server readability and hardcoded-value refactoring.
+  task_ids: [V45-001, V45-002, V45-003, V45-004, V45-005, V45-006, V45-007, V45-008, V45-009, V45-010, V45-011, V45-012]
+  initial_order: [V45-001, V45-003, V45-004]
+  follow_up_order: [V45-012, V45-002, V45-005, V45-006, V45-007, V45-008, V45-009, V45-010, V45-011]
+  constraints: >-
+    Preserve existing behavior, pinned identities, resource ownership and atomic
+    transitions. Each task has its own implementation commit and verification.
+    Performance benefits must be measured with bounded-query regressions rather
+    than inferred solely from loop depth. Preserve unrelated in-progress work.
+
 active_delivery_order:
   prioritized_on: "2026-09-06"
   rationale: >-
