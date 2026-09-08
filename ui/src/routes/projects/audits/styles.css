@@ -1,6 +1,44 @@
 .audit-page {
   display: grid;
   gap: 1.25rem;
+  overflow-wrap: anywhere;
+}
+
+.audit-page > *,
+.audit-finding-list,
+.audit-finding-card,
+.audit-finding-provenance,
+.audit-review-card,
+.audit-markdown {
+  min-width: 0;
+}
+
+.audit-page .route-header-row {
+  margin-bottom: 0.5rem;
+}
+
+.audit-page h2,
+.audit-page h3,
+.audit-page h4,
+.audit-page code,
+.audit-page .eyebrow,
+.audit-provenance-list {
+  overflow-wrap: anywhere;
+}
+
+.audit-page .section-heading > div {
+  min-width: 0;
+}
+
+.audit-finding-card,
+.audit-check-card {
+  scroll-margin-top: 5rem;
+}
+
+.audit-identity {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .audit-create-form,
@@ -182,6 +220,19 @@
   padding-top: 0.8rem;
 }
 
+.audit-finding-review-actions {
+  justify-items: stretch;
+  width: 100%;
+}
+
+.audit-finding-review-actions > button {
+  justify-self: start;
+}
+
+.audit-finding-provenance > .text-button {
+  grid-column: auto;
+}
+
 .audit-finding-review-form {
   display: grid;
   gap: 0.8rem;
@@ -198,9 +249,52 @@
 }
 
 .audit-finding-review-form > label,
+.audit-finding-review-actions > label,
+.audit-findings-toolbar label,
 .audit-review-fields label {
   display: grid;
+  min-width: 0;
   gap: 0.35rem;
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.audit-finding-review-actions textarea,
+.audit-finding-review-form textarea,
+.audit-review-fields select,
+.audit-findings-toolbar input,
+.audit-findings-toolbar select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.5rem;
+  background: var(--surface-subtle);
+  color: var(--text);
+  padding: 0.7rem 0.8rem;
+  font-weight: 400;
+}
+
+.audit-finding-review-actions textarea,
+.audit-finding-review-form textarea {
+  min-height: 7rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.audit-finding-review-actions textarea:focus-visible,
+.audit-finding-review-form textarea:focus-visible,
+.audit-review-fields select:focus-visible,
+.audit-findings-toolbar input:focus-visible,
+.audit-findings-toolbar select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.audit-page .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
 }
 
 .audit-review-fields {
@@ -219,8 +313,8 @@
   list-style: none;
 }
 
-.audit-provenance-list li,
-.audit-review-history li {
+.audit-provenance-list > li,
+.audit-review-history > li {
   display: grid;
   gap: 0.3rem;
   border: 1px solid var(--line);
@@ -229,23 +323,117 @@
   padding: 0.75rem;
 }
 
-.audit-provenance-list li > div,
-.audit-review-history li > div {
+.audit-provenance-list > li > div:not(.audit-provenance-attempt) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem;
 }
 
-.audit-provenance-list span,
-.audit-review-history span {
+.audit-provenance-list > li > span,
+.audit-review-history > li > span {
   color: var(--muted-strong);
   font-size: 0.8rem;
 }
 
-.audit-review-history p {
+.audit-review-history > .audit-review-card {
+  gap: 0.85rem;
+  padding: clamp(1rem, 2vw, 1.35rem);
+}
+
+.audit-review-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.audit-review-heading > div {
+  min-width: 0;
+}
+
+.audit-review-heading h4 {
   margin: 0;
-  white-space: pre-wrap;
+  font-size: 1.1rem;
+}
+
+.audit-review-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.audit-record-details {
+  min-width: 0;
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+}
+
+.audit-record-details > summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.audit-record-details > dl {
+  margin: 0.85rem 0 0;
+}
+
+.audit-record-details dd {
+  overflow-wrap: anywhere;
+}
+
+.audit-finding-origin {
+  display: inline-block;
+  margin-bottom: 0.4rem;
+  color: var(--muted-strong);
+  font-size: 0.8rem;
+}
+
+.audit-finding-card > .metadata-grid {
+  margin-bottom: 0;
+}
+
+.audit-finding-card dd {
+  overflow-wrap: anywhere;
+}
+
+.audit-findings-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.65fr);
+  align-items: end;
+  gap: 1rem;
+}
+
+.audit-findings-count {
+  align-items: center;
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+}
+
+.audit-markdown .markdown-artifact-preview {
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  font-size: 0.925rem;
+  overflow-wrap: anywhere;
+}
+
+.audit-markdown .markdown-artifact-preview h1 {
+  font-size: 1.3rem;
+}
+
+.audit-markdown .markdown-artifact-preview h2 {
+  font-size: 1.2rem;
+}
+
+.audit-markdown .markdown-artifact-preview h3,
+.audit-markdown .markdown-artifact-preview h4 {
+  font-size: 1.05rem;
+}
+
+.audit-markdown pre,
+.audit-markdown table {
+  max-width: 100%;
 }
 
 .audit-artifact-list {
@@ -327,11 +515,16 @@
 @media (max-width: 800px) {
   .audit-card-grid,
   .audit-profile-summary,
+  .audit-findings-toolbar,
   .audit-review-fields {
     grid-template-columns: 1fr;
   }
 
   .audit-header-state {
     justify-items: start;
+  }
+
+  .audit-finding-review-actions .button-row > button {
+    flex: 1 1 10rem;
   }
 }

@@ -28,7 +28,7 @@ const CLIENT_ROUTE_PATTERNS = [
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/evals\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,
-  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits$/,
+  /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:audits|findings)$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/,
   /^\/projects\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/audits\/[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}\/(?:overview|coverage|findings|checks|reviews|runs|report)$/,
   /^\/artifacts\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/,

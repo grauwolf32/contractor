@@ -27,6 +27,7 @@ import {
   formatTimestamp,
 } from "../../artifacts/common";
 import { StateBadge } from "../../runs/components";
+import { ProjectAuditNavigation } from "./shared";
 
 import "./styles.css";
 
@@ -487,6 +488,7 @@ export function ProjectAuditListRoute() {
         </button>
       </header>
       {project.error === null ? null : <ErrorNotice error={project.error} />}
+      <ProjectAuditNavigation projectId={projectId} current="audits" />
       <AuditCreateForm projectId={projectId} />
       <section className="audit-collection">
         <div className="section-heading">

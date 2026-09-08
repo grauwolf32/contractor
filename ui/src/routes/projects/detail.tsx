@@ -27,9 +27,14 @@ function ProjectAuditsRegion({ projectId }: { projectId: string }) {
       title="Audits"
       id="project-audits"
       action={
-        <Link to={`/projects/${encodeURIComponent(projectId)}/audits`}>
-          Open Audits →
-        </Link>
+        <div className="project-header-actions">
+          <Link to={`/projects/${encodeURIComponent(projectId)}/findings`}>
+            Findings →
+          </Link>
+          <Link to={`/projects/${encodeURIComponent(projectId)}/audits`}>
+            Open Audits →
+          </Link>
+        </div>
       }
     >
       <p className="muted-copy">
@@ -197,7 +202,14 @@ function ProjectWorkspaceRoute({
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-workflows">Workflows</a>
             {expectedKind === "project" ? (
-              <a href="#project-audits">Audits</a>
+              <>
+                <a href="#project-audits">Audits</a>
+                <Link
+                  to={`/projects/${encodeURIComponent(projectId)}/findings`}
+                >
+                  Findings
+                </Link>
+              </>
             ) : null}
             <a href="#project-runs">Runs</a>
           </nav>

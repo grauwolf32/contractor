@@ -8,6 +8,7 @@ import { PublicAPI } from "../../../api/client";
 import type {
   Audit,
   AuditFinding,
+  AuditItem,
   AuditProfile,
   AuditReviewRequest,
 } from "../../../api/audits";
@@ -229,7 +230,8 @@ function findingAt(
         schema: "contractor.audit.finding-proposal.v1",
         client_key: "candidate-authz",
         title: "Missing object authorization",
-        description: "The order endpoint may read another owner's record.",
+        description:
+          "The **order endpoint** may read another owner's record.\n\n- Check `ownerId` before reading.",
         subject: { kind: "component", key: "orders" },
         preconditions: [],
         standard_refs: [],
@@ -457,7 +459,9 @@ describe("Project Audit routes", () => {
       ),
     );
     expect(
-      await screen.findByRole("heading", { name: "audit_example" }),
+      await screen.findByRole("heading", {
+        name: "OWASP Top 10 · Source risks",
+      }),
     ).toBeVisible();
     const create = requests.find(
       (request) =>
@@ -587,19 +591,31 @@ describe("Project Audit routes", () => {
     vi.useRealTimers();
   });
 
-  it("reviews a finding with exact revisions and renders immutable history", async () => {
-    const requests: Request[] = [];
-    let currentAudit = auditAt("completed", 2);
-    let currentFinding = findingAt("proposed", 1);
-    let reviews: AuditReviewRequest[] = [];
-    const pendingReview: AuditReviewRequest = {
-      requestId: "review_example",
-      auditId: currentAudit.auditId,
-      findingId: currentFinding.findingId,
+  it("combines every audit and finding page, filters results, and keeps duplicate reviews within their audit", async () => {
+    const firstAudit = auditAt("paused", 3);
+    const otherAudit = {
+      ...firstAudit,
+      auditId: "audit_trace",
+      profile: { ...profile.ref, name: "openapi-operation-trace" },
+    };
+    const first = findingAt("proposed", 1);
+    const sibling = {
+      ...findingAt("proposed", 1),
+      findingId: "finding_sibling",
+    };
+    sibling.firstProposal.document.title = "Missing rate limit";
+    sibling.firstProposal.document.severity_suggestion = "medium";
+    const other = { ...findingAt("proposed", 1), auditId: otherAudit.auditId };
+    other.firstProposal.document.title = "Trace information exposure";
+    other.firstProposal.document.severity_suggestion = "low";
+    const review: AuditReviewRequest = {
+      requestId: "review_duplicate",
+      auditId: firstAudit.auditId,
+      findingId: first.findingId,
+      subjectId: first.findingId,
       subjectKind: "finding",
-      subjectId: currentFinding.findingId,
       kind: "finding-triage",
-      subjectRevision: 1,
+      subjectRevision: first.revision,
       subjectDigest: `sha256:${"6".repeat(64)}`,
       requestedActions: [
         "true_positive",
@@ -610,231 +626,484 @@ describe("Project Audit routes", () => {
       ],
       state: "pending",
       revision: 1,
-      createdAt: currentAudit.createdAt,
-      updatedAt: currentAudit.updatedAt,
+      createdAt: firstAudit.createdAt,
+      updatedAt: firstAudit.updatedAt,
     };
+    const requested: string[] = [];
     const api = new PublicAPI(
       runtimeConfig,
       vi.fn(async (input) => {
         const request = input instanceof Request ? input : new Request(input);
-        requests.push(request.clone());
-        const path = new URL(request.url).pathname;
+        const url = new URL(request.url);
+        const path = url.pathname;
+        expect(request.method).toBe("GET");
+        requested.push(`${path}:${url.searchParams.get("cursor") ?? "first"}`);
         if (path === "/v1/auth/session") return jsonResponse(session);
-        if (path === "/v1/projects/project_example") {
+        if (path === "/v1/projects/project_example")
           return jsonResponse(project, { headers: { ETag: '"1"' } });
-        }
-        if (path === "/v1/audits/audit_example") {
-          return jsonResponse(currentAudit, {
-            headers: { ETag: `"${currentAudit.revision}"` },
-          });
-        }
-        if (path === "/v1/audits/audit_example/findings") {
-          return jsonResponse({
-            items: [currentFinding],
-            page: { hasMore: false },
-          });
-        }
-        if (path === "/v1/audits/audit_example/reviews") {
-          return jsonResponse({ items: reviews, page: { hasMore: false } });
-        }
-        if (
-          path ===
-          "/v1/audits/audit_example/findings/finding_example/provenance"
-        ) {
-          return jsonResponse({
-            auditRevision: currentAudit.revision,
-            findingRevision: currentFinding.revision,
-            items: [
-              {
-                recordId: "attempt:receipt_example:execution_item_example",
-                kind: "check-attempt",
-                receiptId: "receipt_example",
-                relation: "verification",
-                proposal: currentFinding.firstProposal.proposal,
-                origin: currentFinding.firstProposal.origin,
-                supportsCurrentAssessment: true,
-                createdAt: currentAudit.createdAt,
-                assessment: {
-                  assessmentId: "assessment_example",
-                  semanticAssessment: "supported",
-                  result: {
-                    ref: {
-                      namespace: "audit-results",
-                      name: "check-one",
-                      revision: "result-r2",
-                    },
-                    digest: `sha256:${"8".repeat(64)}`,
-                  },
-                  receiptId: "receipt_example",
-                  directVerification: false,
-                  acceptedAt: currentAudit.createdAt,
+        if (path === "/v1/projects/project_example/audits")
+          return jsonResponse(
+            url.searchParams.has("cursor")
+              ? { items: [otherAudit], page: { hasMore: false } }
+              : {
+                  items: [firstAudit],
+                  page: { hasMore: true, nextCursor: "other-audits" },
                 },
-                attempt: {
-                  executionItemId: "execution_item_example",
-                  executionId: "execution_example",
-                  itemId: "item_example",
-                  itemAttempt: 2,
-                  role: "check",
-                  workflowRole: "authorization-check",
-                  state: "settled",
-                  collectionDisposition: "accepted-result",
-                  terminalOutcome: "succeeded",
-                  runId: "run_verification",
-                  runDeleted: true,
-                  runProvenance: {
-                    schema: "contractor.audit.run-provenance.v1",
-                    runId: "run_verification",
-                    workflow: {
-                      name: "verify-authorization",
-                      version: "1",
-                      schemaVersion: "contractor/v1alpha1",
-                      configurationRef: {
-                        name: "verify-authorization",
-                        version: "1",
-                      },
-                      closureDigest: `sha256:${"9".repeat(64)}`,
-                    },
-                  },
-                  task: {
-                    ref: {
-                      namespace: "audit-task-packages",
-                      name: "check-one",
-                      revision: "task-r1",
-                    },
-                    digest: `sha256:${"a".repeat(64)}`,
-                  },
-                  itemOrigin: {
-                    schema: "contractor.audit.item-origin.v1",
-                    entryKey: "check-one",
-                    provenanceIncomplete: true,
-                  },
-                  result: {
-                    ref: {
-                      namespace: "audit-results",
-                      name: "check-one",
-                      revision: "result-r2",
-                    },
-                    digest: `sha256:${"8".repeat(64)}`,
-                  },
-                  createdAt: currentAudit.createdAt,
-                  collectedAt: currentAudit.updatedAt,
+          );
+        if (path === "/v1/audits/audit_example/findings")
+          return jsonResponse(
+            url.searchParams.has("cursor")
+              ? { items: [sibling], page: { hasMore: false } }
+              : {
+                  items: [first],
+                  page: { hasMore: true, nextCursor: "more-findings" },
                 },
-              },
-            ],
-            page: { hasMore: false },
-          });
-        }
-        if (
-          path ===
-            "/v1/audits/audit_example/findings/finding_example/reviews" &&
-          request.method === "POST"
-        ) {
-          expect(request.headers.get("If-Match")).toBe('"1"');
-          reviews = [pendingReview];
-          currentAudit = auditAt("completed", 3);
-          return jsonResponse(pendingReview, {
-            status: 201,
-            headers: { ETag: '"1"' },
-          });
-        }
-        if (
-          path ===
-            "/v1/audits/audit_example/reviews/review_example/decisions" &&
-          request.method === "POST"
-        ) {
-          expect(request.headers.get("If-Match")).toBe('"1"');
-          const body = (await request.json()) as Record<string, unknown>;
-          expect(body).toEqual({
-            verdict: "true_positive",
-            severity: "high",
-            rationale: "Confirmed from exact source evidence.",
-          });
-          const decision = {
-            decisionId: "decision_example",
-            requestId: pendingReview.requestId,
-            auditId: currentAudit.auditId,
-            findingId: currentFinding.findingId,
-            actorId: session.principal.userId,
-            verdict: "true_positive" as const,
-            severity: "high" as const,
-            rationale: "Confirmed from exact source evidence.",
-            subjectRevision: 1,
-            subjectDigest: pendingReview.subjectDigest,
-            createdAt: currentAudit.updatedAt,
-          };
-          currentFinding = {
-            ...currentFinding,
-            state: "confirmed",
-            revision: 2,
-            analystVerdict: "true_positive",
-            analystSeverity: "high",
-            analystDecision: decision,
-          };
-          reviews = [
-            { ...pendingReview, state: "decided", revision: 2, decision },
-          ];
-          currentAudit = auditAt("completed", 4);
-          return jsonResponse({
-            finding: currentFinding,
-            request: reviews[0],
-            decision,
-            replayed: false,
-          });
-        }
-        throw new Error(`unexpected ${request.method} ${path}`);
+          );
+        if (path === "/v1/audits/audit_trace/findings")
+          return jsonResponse({ items: [other], page: { hasMore: false } });
+        if (path === "/v1/audits/audit_example/reviews")
+          return jsonResponse(
+            url.searchParams.has("cursor")
+              ? { items: [review], page: { hasMore: false } }
+              : {
+                  items: [],
+                  page: { hasMore: true, nextCursor: "more-reviews" },
+                },
+          );
+        if (path === "/v1/audits/audit_trace/reviews")
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${path}`);
       }),
     );
-    renderApplication(
+    const { container, router } = renderApplication(
       api,
-      "/projects/project_example/audits/audit_example/findings",
+      "/projects/project_example/findings",
     );
     const user = userEvent.setup();
+    expect(await screen.findByText("3 of 3 findings · 2 audits")).toBeVisible();
+    const filters = within(
+      screen.getByRole("region", { name: "Finding filters" }),
+    );
+    expect(requested).toEqual(
+      expect.arrayContaining([
+        "/v1/projects/project_example/audits:other-audits",
+        "/v1/audits/audit_example/findings:more-findings",
+        "/v1/audits/audit_example/reviews:more-reviews",
+      ]),
+    );
+    const cards = container.querySelectorAll(".audit-finding-card");
+    expect(cards).toHaveLength(3);
+    expect(new Set([...cards].map((card) => card.id)).size).toBe(3);
+    const firstCard = within(
+      screen
+        .getByRole("heading", { name: first.firstProposal.document.title })
+        .closest(".audit-finding-card") as HTMLElement,
+    );
+    await user.selectOptions(
+      await firstCard.findByLabelText("Decision"),
+      "duplicate",
+    );
+    expect(
+      within(firstCard.getByLabelText("Canonical finding"))
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["Missing rate limit · finding_sibling"]);
+    expect(
+      screen.getByRole("link", {
+        name: "OpenAPI · Operation trace · it_trace",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_example/audits/audit_trace/findings",
+    );
 
+    await user.selectOptions(filters.getByLabelText("Audit"), "audit_trace");
+    expect(screen.getByText("1 of 3 findings · 2 audits")).toBeVisible();
+    expect(
+      screen.queryByRole("heading", {
+        name: first.firstProposal.document.title,
+      }),
+    ).not.toBeInTheDocument();
+    expect(router.state.location.search).toBe("?audit=audit_trace");
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.selectOptions(filters.getByLabelText("Severity"), "medium");
+    expect(
+      screen.getByRole("heading", { name: "Missing rate limit" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Trace information exposure" }),
+    ).not.toBeInTheDocument();
+    await user.selectOptions(filters.getByLabelText("Severity"), "");
+    await user.type(
+      screen.getByLabelText("Search findings"),
+      "TRACE INFORMATION",
+    );
+    expect(screen.getByText("1 of 3 findings · 2 audits")).toBeVisible();
+    await user.type(screen.getByLabelText("Search findings"), " missing");
+    expect(
+      screen.getByRole("heading", { name: "No matching findings" }),
+    ).toBeVisible();
+  });
+
+  it("keeps available findings visible when another audit fails and retries the missing audit", async () => {
+    const firstAudit = auditAt("paused", 3);
+    const otherAudit = {
+      ...firstAudit,
+      auditId: "audit_trace",
+      profile: { ...profile.ref, name: "openapi-operation-trace" },
+    };
+    let failed = true;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/projects/project_example/audits")
+          return jsonResponse({
+            items: [firstAudit, otherAudit],
+            page: { hasMore: false },
+          });
+        if (path === "/v1/audits/audit_example/findings")
+          return jsonResponse({
+            items: [findingAt("proposed", 1)],
+            page: { hasMore: false },
+          });
+        if (path === "/v1/audits/audit_trace/findings" && failed)
+          return jsonResponse(
+            {
+              code: "unavailable",
+              message: "Findings unavailable",
+              retryable: true,
+              requestId: "request_failed",
+            },
+            { status: 503 },
+          );
+        if (
+          path.endsWith("/reviews") ||
+          path === "/v1/audits/audit_trace/findings"
+        )
+          return jsonResponse({ items: [], page: { hasMore: false } });
+        throw new Error(`unexpected ${path}`);
+      }),
+    );
+    renderApplication(api, "/projects/project_example/findings");
+    const user = userEvent.setup();
     expect(
       await screen.findByRole("heading", {
         name: "Missing object authorization",
       }),
     ).toBeVisible();
-    expect(screen.getByText("Unreviewed")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Show provenance" }));
-    expect(
-      await screen.findByText(
-        "attempt 2 · check/authorization-check · settled",
-      ),
-    ).toBeVisible();
-    expect(screen.getByText("verify-authorization@1")).toBeVisible();
-    expect(screen.getByText("inventory entry check-one")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Review finding" }));
-    await user.selectOptions(await screen.findByLabelText("Severity"), "high");
-    await user.type(
-      screen.getByLabelText("Analyst rationale"),
-      "Confirmed from exact source evidence.",
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Findings unavailable: OpenAPI · Operation trace",
     );
-    await user.click(screen.getByRole("button", { name: "Record decision" }));
-
-    expect(await screen.findByText("true_positive · high")).toBeVisible();
-    const mutationRequests = requests.filter(
-      (request) => request.method === "POST",
-    );
-    expect(mutationRequests).toHaveLength(2);
-    expect(mutationRequests[0]?.headers.get("Idempotency-Key")).toMatch(
-      /^audit-finding-review-ui-/u,
-    );
-    expect(mutationRequests[1]?.headers.get("Idempotency-Key")).toMatch(
-      /^audit-finding-review-ui-/u,
-    );
-
-    await user.click(screen.getByRole("link", { name: "Reviews" }));
-    expect(
-      await screen.findByRole("heading", { name: "Human reviews" }),
-    ).toBeVisible();
-    expect(
-      screen.getByText("Confirmed from exact source evidence."),
-    ).toBeVisible();
+    expect(screen.getByText("1 of 1 findings loaded · 2 audits")).toBeVisible();
+    expect(screen.queryByText("No findings yet")).not.toBeInTheDocument();
+    failed = false;
+    await user.click(screen.getByRole("button", { name: "Retry findings" }));
+    expect(await screen.findByText("1 of 1 findings · 2 audits")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it.each(["audit", "project"] as const)(
+    "reviews a finding with exact revisions from the %s view and renders immutable history",
+    async (scope) => {
+      const requests: Request[] = [];
+      let currentAudit = auditAt("completed", 2);
+      let currentFinding = findingAt("proposed", 1);
+      let reviews: AuditReviewRequest[] = [];
+      const pendingReview: AuditReviewRequest = {
+        requestId: "review_example",
+        auditId: currentAudit.auditId,
+        findingId: currentFinding.findingId,
+        subjectKind: "finding",
+        subjectId: currentFinding.findingId,
+        kind: "finding-triage",
+        subjectRevision: 1,
+        subjectDigest: `sha256:${"6".repeat(64)}`,
+        requestedActions: [
+          "true_positive",
+          "false_positive",
+          "duplicate",
+          "reopen",
+          "needs_evidence",
+        ],
+        state: "pending",
+        revision: 1,
+        createdAt: currentAudit.createdAt,
+        updatedAt: currentAudit.updatedAt,
+      };
+      const api = new PublicAPI(
+        runtimeConfig,
+        vi.fn(async (input) => {
+          const request = input instanceof Request ? input : new Request(input);
+          requests.push(request.clone());
+          const path = new URL(request.url).pathname;
+          if (path === "/v1/auth/session") return jsonResponse(session);
+          if (path === "/v1/projects/project_example") {
+            return jsonResponse(project, { headers: { ETag: '"1"' } });
+          }
+          if (path === "/v1/projects/project_example/audits") {
+            return jsonResponse({
+              items: [currentAudit],
+              page: { hasMore: false },
+            });
+          }
+          if (path === "/v1/audits/audit_example") {
+            return jsonResponse(currentAudit, {
+              headers: { ETag: `"${currentAudit.revision}"` },
+            });
+          }
+          if (path === "/v1/audits/audit_example/findings") {
+            return jsonResponse({
+              items: [currentFinding],
+              page: { hasMore: false },
+            });
+          }
+          if (path === "/v1/audits/audit_example/reviews") {
+            return jsonResponse({ items: reviews, page: { hasMore: false } });
+          }
+          if (
+            path ===
+            "/v1/audits/audit_example/findings/finding_example/provenance"
+          ) {
+            return jsonResponse({
+              auditRevision: currentAudit.revision,
+              findingRevision: currentFinding.revision,
+              items: [
+                {
+                  recordId: "attempt:receipt_example:execution_item_example",
+                  kind: "check-attempt",
+                  receiptId: "receipt_example",
+                  relation: "verification",
+                  proposal: currentFinding.firstProposal.proposal,
+                  origin: currentFinding.firstProposal.origin,
+                  supportsCurrentAssessment: true,
+                  createdAt: currentAudit.createdAt,
+                  assessment: {
+                    assessmentId: "assessment_example",
+                    semanticAssessment: "supported",
+                    result: {
+                      ref: {
+                        namespace: "audit-results",
+                        name: "check-one",
+                        revision: "result-r2",
+                      },
+                      digest: `sha256:${"8".repeat(64)}`,
+                    },
+                    receiptId: "receipt_example",
+                    directVerification: false,
+                    acceptedAt: currentAudit.createdAt,
+                  },
+                  attempt: {
+                    executionItemId: "execution_item_example",
+                    executionId: "execution_example",
+                    itemId: "item_example",
+                    itemAttempt: 2,
+                    role: "check",
+                    workflowRole: "authorization-check",
+                    state: "settled",
+                    collectionDisposition: "accepted-result",
+                    terminalOutcome: "succeeded",
+                    runId: "run_verification",
+                    runDeleted: true,
+                    runProvenance: {
+                      schema: "contractor.audit.run-provenance.v1",
+                      runId: "run_verification",
+                      workflow: {
+                        name: "verify-authorization",
+                        version: "1",
+                        schemaVersion: "contractor/v1alpha1",
+                        configurationRef: {
+                          name: "verify-authorization",
+                          version: "1",
+                        },
+                        closureDigest: `sha256:${"9".repeat(64)}`,
+                      },
+                    },
+                    task: {
+                      ref: {
+                        namespace: "audit-task-packages",
+                        name: "check-one",
+                        revision: "task-r1",
+                      },
+                      digest: `sha256:${"a".repeat(64)}`,
+                    },
+                    itemOrigin: {
+                      schema: "contractor.audit.item-origin.v1",
+                      entryKey: "check-one",
+                      provenanceIncomplete: true,
+                    },
+                    result: {
+                      ref: {
+                        namespace: "audit-results",
+                        name: "check-one",
+                        revision: "result-r2",
+                      },
+                      digest: `sha256:${"8".repeat(64)}`,
+                    },
+                    createdAt: currentAudit.createdAt,
+                    collectedAt: currentAudit.updatedAt,
+                  },
+                },
+              ],
+              page: { hasMore: false },
+            });
+          }
+          if (
+            path ===
+              "/v1/audits/audit_example/findings/finding_example/reviews" &&
+            request.method === "POST"
+          ) {
+            expect(request.headers.get("If-Match")).toBe('"1"');
+            reviews = [pendingReview];
+            currentAudit = auditAt("completed", 3);
+            return jsonResponse(pendingReview, {
+              status: 201,
+              headers: { ETag: '"1"' },
+            });
+          }
+          if (
+            path ===
+              "/v1/audits/audit_example/reviews/review_example/decisions" &&
+            request.method === "POST"
+          ) {
+            expect(request.headers.get("If-Match")).toBe('"1"');
+            const body = (await request.json()) as Record<string, unknown>;
+            expect(body).toEqual({
+              verdict: "true_positive",
+              severity: "high",
+              rationale: "Confirmed from exact source evidence.",
+            });
+            const decision = {
+              decisionId: "decision_example",
+              requestId: pendingReview.requestId,
+              auditId: currentAudit.auditId,
+              findingId: currentFinding.findingId,
+              actorId: session.principal.userId,
+              verdict: "true_positive" as const,
+              severity: "high" as const,
+              rationale: "Confirmed from exact source evidence.",
+              subjectRevision: 1,
+              subjectDigest: pendingReview.subjectDigest,
+              createdAt: currentAudit.updatedAt,
+            };
+            currentFinding = {
+              ...currentFinding,
+              state: "confirmed",
+              revision: 2,
+              analystVerdict: "true_positive",
+              analystSeverity: "high",
+              analystDecision: decision,
+            };
+            reviews = [
+              { ...pendingReview, state: "decided", revision: 2, decision },
+            ];
+            currentAudit = auditAt("completed", 4);
+            return jsonResponse({
+              finding: currentFinding,
+              request: reviews[0],
+              decision,
+              replayed: false,
+            });
+          }
+          throw new Error(`unexpected ${request.method} ${path}`);
+        }),
+      );
+      renderApplication(
+        api,
+        scope === "audit"
+          ? "/projects/project_example/audits/audit_example/findings"
+          : "/projects/project_example/findings",
+      );
+      const user = userEvent.setup();
+
+      expect(
+        await screen.findByRole("heading", {
+          name: "Missing object authorization",
+        }),
+      ).toBeVisible();
+      expect(screen.getByText("Unreviewed")).toBeVisible();
+      expect(
+        await screen.findByText("order endpoint", { selector: "strong" }),
+      ).toBeVisible();
+      expect(screen.getByText("ownerId", { selector: "code" })).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Show provenance" }));
+      expect(
+        await screen.findByText(
+          "attempt 2 · check/authorization-check · settled",
+        ),
+      ).toBeVisible();
+      expect(screen.getByText("verify-authorization@1")).toBeVisible();
+      expect(screen.getByText("inventory entry check-one")).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Review finding" }));
+      const findingCard = within(
+        screen
+          .getByRole("heading", { name: "Missing object authorization" })
+          .closest(".audit-finding-card") as HTMLElement,
+      );
+      await user.selectOptions(
+        await findingCard.findByLabelText("Severity"),
+        "high",
+      );
+      await user.type(
+        screen.getByLabelText("Analyst rationale"),
+        "Confirmed from exact source evidence.",
+      );
+      await user.click(screen.getByRole("button", { name: "Record decision" }));
+
+      expect(await screen.findByText("true_positive · high")).toBeVisible();
+      const mutationRequests = requests.filter(
+        (request) => request.method === "POST",
+      );
+      expect(mutationRequests).toHaveLength(2);
+      expect(mutationRequests[0]?.headers.get("Idempotency-Key")).toMatch(
+        /^audit-finding-review-ui-/u,
+      );
+      expect(mutationRequests[1]?.headers.get("Idempotency-Key")).toMatch(
+        /^audit-finding-review-ui-/u,
+      );
+
+      if (scope === "project") {
+        await user.click(
+          screen.getByRole("link", {
+            name: "OWASP Top 10 · Source risks · _example",
+          }),
+        );
+      }
+      await user.click(await screen.findByRole("link", { name: "Reviews" }));
+      expect(
+        await screen.findByRole("heading", { name: "Human reviews" }),
+      ).toBeVisible();
+      expect(
+        screen.getByText("Confirmed from exact source evidence."),
+      ).toBeVisible();
+    },
+  );
 
   it("approves an exact non-finding review without treating model text as authority", async () => {
     let currentAudit = auditAt("waiting_review", 3);
+    const item: AuditItem = {
+      itemId: "item_active_check",
+      roundId: "round_example",
+      itemKey: "request-authorization",
+      ordinal: 50,
+      kind: "check",
+      subjectKey: "POST /orders/{id} · Authorization check",
+      task: currentAudit.inputs.source!,
+      origin: {
+        schema: "contractor.audit.item-origin.v1",
+        entryKey: "request-authorization",
+      },
+      workflowRole: "check",
+      state: "awaiting_review",
+      approvalKind: "active-check-approval",
+      attempts: [],
+      createdAt: currentAudit.createdAt,
+      updatedAt: currentAudit.updatedAt,
+    };
     let review: AuditReviewRequest = {
       requestId: "review_active_check",
       auditId: currentAudit.auditId,
@@ -863,6 +1132,16 @@ describe("Project Audit routes", () => {
             headers: { ETag: `"${currentAudit.revision}"` },
           });
         }
+        if (path === "/v1/audits/audit_example/items") {
+          return jsonResponse(
+            new URL(request.url).searchParams.has("cursor")
+              ? { items: [item], page: { hasMore: false } }
+              : {
+                  items: [],
+                  page: { hasMore: true, nextCursor: "later-checks" },
+                },
+          );
+        }
         if (
           path === "/v1/audits/audit_example/reviews" &&
           request.method === "GET"
@@ -880,7 +1159,7 @@ describe("Project Audit routes", () => {
           );
           expect(await request.json()).toEqual({
             action: "approve",
-            rationale: "The target and exact active request are approved.",
+            rationale: "The target and exact active request are **approved**.",
           });
           const decision = {
             decisionId: "decision_active_check",
@@ -888,7 +1167,7 @@ describe("Project Audit routes", () => {
             auditId: review.auditId,
             action: "approve" as const,
             actorId: session.principal.userId,
-            rationale: "The target and exact active request are approved.",
+            rationale: "The target and exact active request are **approved**.",
             subjectRevision: review.subjectRevision,
             subjectDigest: review.subjectDigest,
             createdAt: currentAudit.updatedAt,
@@ -905,12 +1184,17 @@ describe("Project Audit routes", () => {
       "/projects/project_example/audits/audit_example/reviews",
     );
     const user = userEvent.setup();
+    expect(await screen.findByText("Active check approval")).toBeVisible();
     expect(
-      await screen.findByText("active-check-approval", { exact: false }),
+      await screen.findByRole("heading", { name: item.subjectKey }),
     ).toBeVisible();
+    expect(screen.getByRole("link", { name: "View check →" })).toHaveAttribute(
+      "href",
+      "/projects/project_example/audits/audit_example/checks#check-item_active_check",
+    );
     await user.type(
       screen.getByLabelText("Rationale"),
-      "The target and exact active request are approved.",
+      "The target and exact active request are **approved**.",
     );
     await user.click(
       screen.getByRole("button", { name: "Approve exact subject" }),
@@ -919,7 +1203,7 @@ describe("Project Audit routes", () => {
       await screen.findByText("approve", { exact: false, selector: "span" }),
     ).toBeVisible();
     expect(
-      screen.getByText("The target and exact active request are approved."),
+      await screen.findByText("approved", { selector: "strong" }),
     ).toBeVisible();
   });
 

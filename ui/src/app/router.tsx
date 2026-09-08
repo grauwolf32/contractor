@@ -16,6 +16,7 @@ import {
 import { EvaluationListRoute, ProjectListRoute } from "../routes/projects/list";
 import { ProjectAuditDetailRoute } from "../routes/projects/audits/detail";
 import { ProjectAuditListRoute } from "../routes/projects/audits/list";
+import { ProjectFindingsRoute } from "../routes/projects/audits/findings";
 import { ProjectWorkflowRunRoute } from "../routes/projects/workflow-run";
 import { RunArtifactDetailRoute } from "../routes/runs/artifacts";
 import { RunDetailRoute } from "../routes/runs/detail";
@@ -87,6 +88,10 @@ export function applicationRoutes(): RouteObject[] {
             {
               path: "/projects/:projectId/audits",
               element: <ProjectAuditListRoute />,
+            },
+            {
+              path: "/projects/:projectId/findings",
+              element: <ProjectFindingsRoute />,
             },
             {
               path: "/projects/:projectId/audits/:auditId",

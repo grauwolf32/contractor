@@ -37,6 +37,7 @@ import {
   type DecideAuditFindingRequest,
 } from "../../../api/audits";
 import { usePublicAPI } from "../../../api/context";
+import { collectAuditPages } from "../../../api/audit-collections";
 import { PublicAPIError } from "../../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
@@ -48,6 +49,8 @@ import {
   formatTimestamp,
 } from "../../artifacts/common";
 import { StateBadge } from "../../runs/components";
+import { AuditAnchor, AuditMarkdown } from "./shared";
+import { auditProfileLabel } from "./labels";
 
 import "./styles.css";
 
@@ -680,8 +683,15 @@ function useAuditItems(
   enabled: boolean,
 ) {
   return useQuery({
-    queryKey: queryKeys.audits.items(audit.auditId),
-    queryFn: () => listAuditItems(api, audit.auditId),
+    queryKey: queryKeys.audits.allItems(audit.auditId),
+    queryFn: () =>
+      collectAuditPages((cursor) =>
+        listAuditItems(
+          api,
+          audit.auditId,
+          cursor === undefined ? {} : { cursor },
+        ),
+      ),
     enabled,
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
     refetchOnReconnect: true,
@@ -698,7 +708,7 @@ function AuditChecks({
   const items = useAuditItems(audit, api, true);
   if (items.isPending) return <p className="loading-copy">Loading checks…</p>;
   if (items.error !== null) return <ErrorNotice error={items.error} />;
-  if (items.data.items.length === 0) {
+  if (items.data.length === 0) {
     return (
       <div className="empty-state panel">
         <h3>No checks materialized</h3>
@@ -708,8 +718,13 @@ function AuditChecks({
   }
   return (
     <div className="audit-check-list">
-      {items.data.items.map((item) => (
-        <article className="panel audit-check-card" key={item.itemId}>
+      <AuditAnchor />
+      {items.data.map((item) => (
+        <article
+          className="panel audit-check-card"
+          key={item.itemId}
+          id={`check-${item.itemId}`}
+        >
           <div className="section-heading">
             <div>
               <p className="eyebrow">
@@ -947,6 +962,9 @@ function FindingReviewControls({
         queryKey: queryKeys.audits.findings(audit.auditId),
       }),
       queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.audits.all(audit.projectId),
+      }),
+      queryClient.invalidateQueries({
         queryKey: queryKeys.audits.reviews(audit.auditId),
       }),
     ]);
@@ -1039,8 +1057,7 @@ function FindingReviewControls({
       }}
     >
       <p className="eyebrow">
-        Exact review {pendingReview.requestId} · finding revision{" "}
-        {pendingReview.subjectRevision}
+        Finding review · revision {pendingReview.subjectRevision}
       </p>
       <div className="audit-review-fields">
         <label>
@@ -1102,7 +1119,7 @@ function FindingReviewControls({
           rows={3}
           value={rationale}
           onChange={(event) => setRationale(event.target.value)}
-          placeholder="Record the evidence-based reason for this decision."
+          placeholder="Explain the evidence for this decision. Markdown is supported."
         />
       </label>
       <button
@@ -1241,14 +1258,28 @@ function FindingProvenanceView({
 function AuditFindings({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const findings = useQuery({
-    queryKey: queryKeys.audits.findings(audit.auditId),
-    queryFn: () => listAuditFindings(api, audit.auditId),
+    queryKey: queryKeys.audits.allFindings(audit.auditId),
+    queryFn: () =>
+      collectAuditPages((cursor) =>
+        listAuditFindings(
+          api,
+          audit.auditId,
+          cursor === undefined ? {} : { cursor },
+        ),
+      ),
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
     refetchOnReconnect: true,
   });
   const reviews = useQuery({
-    queryKey: queryKeys.audits.reviews(audit.auditId),
-    queryFn: () => listAuditReviews(api, audit.auditId),
+    queryKey: queryKeys.audits.allReviews(audit.auditId),
+    queryFn: () =>
+      collectAuditPages((cursor) =>
+        listAuditReviews(
+          api,
+          audit.auditId,
+          cursor === undefined ? {} : { cursor },
+        ),
+      ),
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
     refetchOnReconnect: true,
   });
@@ -1257,82 +1288,170 @@ function AuditFindings({ audit }: { audit: Audit }) {
   }
   if (findings.error !== null) return <ErrorNotice error={findings.error} />;
   if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
-  if (findings.data.items.length === 0) {
+  if (findings.data.length === 0) {
     return (
       <div className="empty-state panel">
         <h3>No finding candidates</h3>
         <p>A successful Run alone does not create or confirm a finding.</p>
+        <Link to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}>
+          View all project findings →
+        </Link>
       </div>
     );
   }
   const pending = new Map(
-    reviews.data.items
+    reviews.data
       .filter((request) => request.state === "pending")
       .map((request) => [request.findingId, request]),
   );
   return (
     <div className="audit-finding-list">
-      {findings.data.items.map((finding) => (
-        <article className="panel audit-finding-card" key={finding.findingId}>
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">{finding.findingId}</p>
-              <h3>{finding.firstProposal.document.title}</h3>
-            </div>
-            <StateBadge state={finding.state} />
-          </div>
-          <p>{finding.firstProposal.document.description}</p>
-          <dl className="metadata-grid">
-            <div>
-              <dt>Model suggestion</dt>
-              <dd>
-                {finding.firstProposal.document.severity_suggestion || "none"}
-              </dd>
-            </div>
-            <div>
-              <dt>Analyst rating</dt>
-              <dd>
-                {finding.analystVerdict === undefined
-                  ? "Unreviewed"
-                  : `${finding.analystVerdict}${
-                      finding.analystSeverity === undefined
-                        ? ""
-                        : ` · ${finding.analystSeverity}`
-                    }`}
-              </dd>
-            </div>
-            <div>
-              <dt>Source Workflow</dt>
-              <dd>
-                {finding.firstProposal.origin.workflow.name}@
-                {finding.firstProposal.origin.workflow.version}
-              </dd>
-            </div>
-            <div>
-              <dt>Current verification</dt>
-              <dd>
-                {finding.currentAssessment?.semanticAssessment ??
-                  "not accepted"}
-              </dd>
-            </div>
-          </dl>
-          {finding.duplicateTargetId === undefined ? null : (
-            <p className="muted-copy">
-              Duplicate of <code>{finding.duplicateTargetId}</code>
-            </p>
-          )}
-          <FindingProvenanceView audit={audit} finding={finding} />
-          <FindingReviewControls
-            audit={audit}
-            finding={finding}
-            findings={findings.data.items}
-            {...(pending.has(finding.findingId)
-              ? { pendingReview: pending.get(finding.findingId)! }
-              : {})}
-          />
-        </article>
+      <AuditAnchor />
+      <div className="section-heading">
+        <h3>Findings in this audit</h3>
+        <Link to={`/projects/${encodeURIComponent(audit.projectId)}/findings`}>
+          View all project findings →
+        </Link>
+      </div>
+      {findings.data.map((finding) => (
+        <AuditFindingCard
+          key={finding.findingId}
+          audit={audit}
+          finding={finding}
+          findings={findings.data}
+          {...(pending.has(finding.findingId)
+            ? { pendingReview: pending.get(finding.findingId)! }
+            : {})}
+        />
       ))}
     </div>
+  );
+}
+
+export function AuditFindingCard({
+  audit,
+  finding,
+  findings,
+  pendingReview,
+  showAudit = false,
+  reviewLoading = false,
+  reviewError = null,
+  onRetryReview,
+}: {
+  audit: Audit;
+  finding: AuditFinding;
+  findings: AuditFinding[];
+  pendingReview?: AuditReviewRequest;
+  showAudit?: boolean;
+  reviewLoading?: boolean;
+  reviewError?: unknown;
+  onRetryReview?: () => void;
+}) {
+  return (
+    <article
+      className="panel audit-finding-card"
+      id={`finding-${audit.auditId}-${finding.findingId}`}
+    >
+      <div className="section-heading">
+        <div>
+          {showAudit ? (
+            <Link
+              className="audit-finding-origin"
+              to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/findings`}
+            >
+              {auditProfileLabel(audit)}{" "}
+              <span>· {audit.auditId.slice(-8)}</span>
+            </Link>
+          ) : null}
+          <h3>{finding.firstProposal.document.title}</h3>
+        </div>
+        <StateBadge state={finding.state} />
+      </div>
+      <AuditMarkdown source={finding.firstProposal.document.description} />
+      <dl className="metadata-grid">
+        <div>
+          <dt>Model suggestion</dt>
+          <dd>
+            {finding.firstProposal.document.severity_suggestion || "none"}
+          </dd>
+        </div>
+        <div>
+          <dt>Analyst rating</dt>
+          <dd>
+            {finding.analystVerdict === undefined
+              ? "Unreviewed"
+              : `${finding.analystVerdict}${
+                  finding.analystSeverity === undefined
+                    ? ""
+                    : ` · ${finding.analystSeverity}`
+                }`}
+          </dd>
+        </div>
+        <div>
+          <dt>Source Workflow</dt>
+          <dd>
+            {finding.firstProposal.origin.workflow.name}@
+            {finding.firstProposal.origin.workflow.version}
+          </dd>
+        </div>
+        <div>
+          <dt>Current verification</dt>
+          <dd>
+            {finding.currentAssessment?.semanticAssessment ?? "not accepted"}
+          </dd>
+        </div>
+      </dl>
+      {finding.duplicateTargetId === undefined ? null : (
+        <p className="muted-copy">
+          Duplicate of <code>{finding.duplicateTargetId}</code>
+        </p>
+      )}
+      <details className="audit-record-details">
+        <summary>Finding details</summary>
+        <dl className="metadata-grid">
+          <div>
+            <dt>Finding ID</dt>
+            <dd>
+              <code>{finding.findingId}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Subject</dt>
+            <dd>{finding.firstProposal.document.subject.key}</dd>
+          </div>
+          {pendingReview === undefined ? null : (
+            <div>
+              <dt>Review ID</dt>
+              <dd>
+                <code>{pendingReview.requestId}</code>
+              </dd>
+            </div>
+          )}
+        </dl>
+      </details>
+      <FindingProvenanceView audit={audit} finding={finding} />
+      {reviewLoading ? (
+        <p className="loading-copy">Loading review status…</p>
+      ) : reviewError !== null ? (
+        <div className="audit-finding-review-actions">
+          <ErrorNotice error={reviewError} />
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onRetryReview}
+          >
+            Retry review status
+          </button>
+        </div>
+      ) : (
+        <FindingReviewControls
+          audit={audit}
+          finding={finding}
+          findings={findings}
+          {...(pendingReview === undefined ? {} : { pendingReview })}
+        />
+      )}
+    </article>
   );
 }
 
@@ -1403,7 +1522,7 @@ function ActionReviewControls({
           maxLength={65_536}
           rows={3}
           onChange={(event) => setRationale(event.target.value)}
-          placeholder="Explain why this exact action applies, is rejected, or is not applicable."
+          placeholder="Explain your decision. Markdown is supported."
         />
       </label>
       <div className="button-row">
@@ -1447,11 +1566,43 @@ function ActionReviewControls({
 function AuditReviews({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const reviews = useQuery({
-    queryKey: queryKeys.audits.reviews(audit.auditId),
-    queryFn: () => listAuditReviews(api, audit.auditId),
+    queryKey: queryKeys.audits.allReviews(audit.auditId),
+    queryFn: () =>
+      collectAuditPages((cursor) =>
+        listAuditReviews(
+          api,
+          audit.auditId,
+          cursor === undefined ? {} : { cursor },
+        ),
+      ),
     refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
     refetchOnReconnect: true,
   });
+  const items = useQuery({
+    queryKey: queryKeys.audits.allItems(audit.auditId),
+    queryFn: () =>
+      collectAuditPages((cursor) =>
+        listAuditItems(
+          api,
+          audit.auditId,
+          cursor === undefined ? {} : { cursor },
+        ),
+      ),
+    enabled:
+      reviews.data?.some(
+        (review) => review.subjectKind === "audit-item-action",
+      ) ?? false,
+    refetchOnReconnect: true,
+  });
+  const subjects = new Map(
+    items.data?.map((item) => [item.itemId, item.subjectKey]),
+  );
+  const reviewLabels: Record<string, string> = {
+    "requirement-applicability": "Requirement applicability",
+    "active-check-approval": "Active check approval",
+    "finding-triage": "Finding review",
+    "report-acceptance": "Report acceptance",
+  };
   if (reviews.isPending)
     return <p className="loading-copy">Loading reviews…</p>;
   if (reviews.error !== null) return <ErrorNotice error={reviews.error} />;
@@ -1459,28 +1610,98 @@ function AuditReviews({ audit }: { audit: Audit }) {
     <section className="panel audit-section-panel">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Exact human authority and immutable history</p>
+          <p className="eyebrow">Decisions and review history</p>
           <h3>Human reviews</h3>
         </div>
-        <span>{reviews.data.items.length} recorded</span>
+        <span>
+          {reviews.data.filter((review) => review.state === "pending").length}{" "}
+          pending · {reviews.data.length} total
+        </span>
       </div>
-      {reviews.data.items.length === 0 ? (
+      {items.error === null ? null : (
+        <div className="notice">
+          <p>
+            Check names could not be loaded. Review identifiers are shown below.
+          </p>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => void items.refetch()}
+          >
+            Retry check details
+          </button>
+        </div>
+      )}
+      {reviews.data.length === 0 ? (
         <p className="muted-copy">No human review has been opened.</p>
       ) : (
         <ol className="audit-review-history">
-          {reviews.data.items.map((review) => (
-            <li key={review.requestId}>
-              <div>
-                <strong>{review.findingId ?? review.subjectId}</strong>
+          {reviews.data.map((review) => (
+            <li className="audit-review-card" key={review.requestId}>
+              <div className="audit-review-heading">
+                <div>
+                  <p className="eyebrow">
+                    {reviewLabels[review.kind] ??
+                      review.kind.replaceAll("-", " ")}
+                  </p>
+                  <h4>
+                    {subjects.get(review.subjectId) ??
+                      (review.subjectKind === "finding"
+                        ? "Finding assessment"
+                        : review.subjectKind === "audit-report"
+                          ? "Audit report"
+                          : "Review requested")}
+                  </h4>
+                </div>
                 <StateBadge state={review.state} />
               </div>
-              <span>
-                {review.kind} · subject revision {review.subjectRevision} ·
-                requested {formatTimestamp(review.createdAt)}
-              </span>
+              <p className="audit-review-meta">
+                Requested {formatTimestamp(review.createdAt)}
+              </p>
+              {subjects.has(review.subjectId) ? (
+                <Link
+                  to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/checks#check-${encodeURIComponent(review.subjectId)}`}
+                >
+                  View check →
+                </Link>
+              ) : null}
+              {review.subjectKind === "finding" ? (
+                <Link
+                  to={`/projects/${encodeURIComponent(audit.projectId)}/findings?audit=${encodeURIComponent(audit.auditId)}#finding-${encodeURIComponent(audit.auditId)}-${encodeURIComponent(review.findingId ?? review.subjectId)}`}
+                >
+                  Review finding →
+                </Link>
+              ) : null}
+              <details className="audit-record-details">
+                <summary>Review details</summary>
+                <dl className="metadata-grid">
+                  <div>
+                    <dt>Type</dt>
+                    <dd>{review.kind}</dd>
+                  </div>
+                  <div>
+                    <dt>Subject revision</dt>
+                    <dd>{review.subjectRevision}</dd>
+                  </div>
+                  <div>
+                    <dt>Review ID</dt>
+                    <dd>
+                      <code>{review.requestId}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Subject ID</dt>
+                    <dd>
+                      <code>{review.findingId ?? review.subjectId}</code>
+                    </dd>
+                  </div>
+                </dl>
+              </details>
               {review.decision === undefined ? (
                 <>
-                  <span>No decision recorded.</span>
+                  {review.state === "pending" ? null : (
+                    <p className="muted-copy">No decision recorded.</p>
+                  )}
                   {review.state === "pending" &&
                   review.subjectKind !== "finding" ? (
                     <ActionReviewControls audit={audit} review={review} />
@@ -1496,7 +1717,7 @@ function AuditReviews({ audit }: { audit: Audit }) {
                     {" · "}
                     {review.decision.actorId}
                   </span>
-                  <p>{review.decision.rationale}</p>
+                  <AuditMarkdown source={review.decision.rationale} />
                 </>
               )}
             </li>
@@ -1517,7 +1738,7 @@ function AuditRuns({
   const items = useAuditItems(audit, api, true);
   const attempts = useMemo(
     () =>
-      items.data?.items.flatMap((item) =>
+      items.data?.flatMap((item) =>
         item.attempts.map((attempt) => ({ item, attempt })),
       ) ?? [],
     [items.data],
@@ -1804,11 +2025,12 @@ export function ProjectAuditDetailRoute() {
           >
             ← {project.data?.name ?? "Project"} Audits
           </Link>
-          <p className="eyebrow">Authoritative Audit execution</p>
-          <h2>{audit.data?.auditId ?? auditId}</h2>
-          <p className="lede">
-            Run outcome, collected result and security assessment remain
-            separate throughout this view.
+          <p className="eyebrow">{project.data?.name ?? "Audit"}</p>
+          <h2>
+            {audit.data === undefined ? "Audit" : auditProfileLabel(audit.data)}
+          </h2>
+          <p className="audit-identity">
+            <code>{audit.data?.auditId ?? auditId}</code>
           </p>
         </div>
         {audit.data === undefined ? null : (
@@ -1825,9 +2047,11 @@ export function ProjectAuditDetailRoute() {
       <nav className="audit-section-navigation" aria-label="Audit sections">
         {SECTIONS.map((candidate) => {
           const target =
-            candidate.id === "overview"
-              ? `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`
-              : `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/${candidate.id}`;
+            candidate.id === "findings"
+              ? `/projects/${encodeURIComponent(projectId)}/findings`
+              : candidate.id === "overview"
+                ? `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`
+                : `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/${candidate.id}`;
           return (
             <Link
               key={candidate.id}
