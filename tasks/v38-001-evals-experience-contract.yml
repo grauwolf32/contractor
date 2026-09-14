@@ -13,7 +13,7 @@ goal: >-
 context:
   user_stories: ["US-10"]
   review_findings: ["UX-11"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   design_document: "docs/evals-experience-design.md"
   portable_format: >-
     docs/spec/26-portable-evaluation-format.md owns identity, documents, local

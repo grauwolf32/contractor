@@ -9,7 +9,6 @@ depends_on: ["V43-003"]
 languages: ["yaml", "markdown", "go"]
 goal: "Let OpenAPI trace publish direct findings and let a separate generic analyst consume a supplied collection."
 context:
-  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
   completion: "Use existing exact evidence, finding receipts and submit_check_result proposal_keys; V39 is not a prerequisite."
   shared_assets: >-
     V40 measures instruction-only changes with equal tool/Skill pins. Keep the

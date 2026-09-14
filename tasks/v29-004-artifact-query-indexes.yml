@@ -16,7 +16,6 @@ context:
     50000 synthetic versions, a 51-row history page changes from 74.739 to 0.349 ms after an ordering index.
     Encoded digest lookup scans 657 buffers; binary digest lookup uses the existing PK and 4 buffers. These
     samples are not latency targets.'
-  report: docs/reviews/2026-09-05-postgres-review.md
 scope:
   in:
   - Compare sha256 using binary bytea parameters instead of encoding the indexed column.

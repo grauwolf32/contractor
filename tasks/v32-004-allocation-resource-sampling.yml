@@ -78,7 +78,6 @@ tests:
 
 verification:
   verified_on: "2026-09-06"
-  review_notes: docs/reviews/2026-09-06-performance-v32-004.md
   results:
     - Both required commands passed on an isolated worktree at the implementation commit (72 resource/contract and 50 lifecycle/capability/metrics tests).
     - Additional state, control-client, adapter-host, lease-watchdog and app tests passed on the same isolated commit (35 tests).

@@ -11,7 +11,7 @@ goal: "Give users an explicit chance to cancel destructive Audit actions and und
 context:
   user_stories: ["US-07"]
   review_findings: ["UX-04"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     Browser fixtures confirmed Cancel sends POST and Delete sends DELETE immediately, with no
     confirmation. Existing Project and Run confirmation flows establish the UI precedent.

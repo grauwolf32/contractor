@@ -9,7 +9,6 @@ depends_on: ["V43-004"]
 languages: ["go", "python", "markdown"]
 goal: "Prove creation, transfer, reading and analysis independently of annotation or operation-specific data."
 context:
-  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
   eval_boundary: "This task runs offline contract checks and prepares scenario descriptions. Model evaluations require V41-008 and a separately frozen portable plan; no quality claim follows from conformance."
   required_gate: >-
     Add make test-findings-e2e over production processes and scripted model
@@ -29,7 +28,6 @@ deliverables:
   - {path: Makefile, description: "Dedicated test-findings-e2e target with required-test execution and no-skip checks."}
   - {path: tests/e2e, description: "Deterministic producer/collection/reader integration and failure coverage."}
   - {path: runtime/tests/test_findings_reader_toolset.py, description: "Reader protocol and bounds regression tests."}
-  - {path: docs/reviews/2026-09-06-findings-tools-validation.md, description: "Implementation evidence, limitations and portable eval scenario descriptions; create during implementation."}
 requirements:
   - {id: R1, text: "Conformance succeeds with no annotation output and no hypothesis while preserving provenance and review semantics."}
   - {id: R2, text: "Process integration requiring PostgreSQL must actually run in a configured test environment; compilation alone is not its passing evidence."}

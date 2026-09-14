@@ -13,7 +13,7 @@ goal: >-
 context:
   user_stories: ["US-07"]
   review_findings: ["UX-09"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   postgres_verification: >-
     Set CONTRACTOR_TEST_DATABASE_URL to a disposable PostgreSQL database. New
     filter/count/revision queries must run against PostgreSQL; skipped database

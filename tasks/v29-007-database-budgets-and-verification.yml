@@ -21,7 +21,6 @@ context:
     on the demo and on connections opened by production OpenPool. ConnectTimeout does not bound query/pool
     waits. Blocking probes finish only because their caller supplies a deadline. Existing HTTP configuration
     sets only ReadHeaderTimeout.'
-  report: docs/reviews/2026-09-05-postgres-review.md
 scope:
   in:
   - Define finite database/lock-wait budgets for ordinary requests and separate policy for migrations, cleanup
@@ -81,7 +80,6 @@ notes:
   This separate ASVS assertion was not changed. Remaining aggregate targets
   passed independently: Runtime 835 passed/3 skipped, UI 227 tests plus 6
   server tests, Go/UI builds. Keep in_progress until make verify passes.
-- 'Evidence: docs/reviews/2026-09-06-postgres-v29-budgets.md'
 - >-
   2026-09-06 follow-up: With explicit user approval, commit
   57a4b9037cd3f1eecbcd4f11afc4f7dcc8e11c78 registers only the ASVS verifier's

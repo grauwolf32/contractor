@@ -717,7 +717,6 @@ review_followups_planning:
 
 memory_audit_followups_planning:
   planned_on: "2026-09-07"
-  review: docs/reviews/2026-09-07-memory-audit.md
   authority: >-
     User requested comparing the three latest V47 tasks with the Memory audit,
     recording uncovered fixes, and treating absent working-template Memory
@@ -792,7 +791,6 @@ audit_worker_completion_planning:
   in_progress: []
   pending: [V39-007]
   specification: docs/spec/25-audit-worker-finalization.md
-  plan_review: docs/reviews/2026-09-06-audit-worker-completion-plan.md
   tasks: [V39-001, V39-002, V39-003, V39-004, V39-005, V39-006, V39-007]
   delivery_order:
     - {wave: 1, tasks: [V39-001], outcome: Inert contracts and real-ADK continuation proof before freezing interfaces.}
@@ -815,8 +813,7 @@ audit_worker_completion_planning:
 ui_usability_planning:
   planned_on: "2026-09-06"
   status: planned
-  user_stories: docs/ui-user-stories.md
-  evidence: docs/reviews/2026-09-06-ui-use-cases-and-usability.md
+  user_stories: docs/spec/ui-user-stories.md
   delivery_order:
     - {wave: 1, tasks: [V37-001, V37-002, V37-003, V37-004, V37-005]}
     - {wave: 2, tasks: [V37-006, V37-007, V37-008, V37-009]}
@@ -974,7 +971,6 @@ v8_v12_spec_review:
     - LikeC4 1.56.0 validates the one source model under docs/spec.
     - make verify passes with 495 Python tests, 1 skipped, all Go packages, 108 UI tests, Node server tests and production builds.
     - make release-verify passes against PostgreSQL with every Runtime/configuration, browser, Memory, Skill and HTTP/Caido process gate.
-  decision_log: docs/implementation-decisions-v8-v11.md
 
 current_checkpoint:
   completed_through: V18-003

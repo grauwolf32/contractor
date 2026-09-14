@@ -84,7 +84,6 @@ tests:
 
 verification:
   verified_on: "2026-09-06"
-  review_notes: docs/reviews/2026-09-06-performance-v32-002.md
   results:
     - Required race tests passed for performance, app, public handlers and WebSocket events.
     - Required collection, minute aggregation and HTTP microbenchmarks passed with five repetitions.

@@ -40,7 +40,6 @@ tests:
     covers: [A1, A2, A3]
 
 verification:
-  - "Review: docs/reviews/2026-09-08-unified-private-contracts.md."
   - "An isolated task snapshot passed go test ./... and 1775 Python tests; 30 Python tests skipped. PostgreSQL tests use their environment gate."
   - "Cross-language mTLS prepare/finalize/abort/release integration passed with real Go/Python processes."
   - "Wire/public API gates, audit completion schema tests, lint and whitespace checks passed."

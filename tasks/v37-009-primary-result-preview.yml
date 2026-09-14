@@ -13,7 +13,7 @@ goal: >-
 context:
   user_stories: ["US-05", "US-09"]
   review_findings: ["UX-08"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     Run output disclosure loads metadata and then asks for Load preview a second time. Workflow
     outputs already carry optional primary; it is presentation intent and never proof of

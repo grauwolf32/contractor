@@ -239,19 +239,8 @@ contract.
 
 ## Tool descriptions
 
-Tool descriptions are part of the model-facing API. Callable tools in
-`src/contractor_runtime/toolsets/` keep a single description in `description`,
-which their constructors expose as `__doc__` for ADK `FunctionTool`. Keep it in
-English using a short action summary, relevant usage constraints, `Args:` for
-every model-supplied argument, and `Returns:` for the actual response fields.
-Omit `Args:` for tools without model-supplied arguments and omit injected
-`tool_context`. Document defaults, units, allowed values, path scope, revision
-requirements and pagination where relevant. Avoid internal implementation terms
-and claims about behavior that the current code does not provide.
-
-In the pinned ADK 2.8.0, the full docstring becomes the function description;
-`Args:` text is not extracted into individual parameter descriptions. Keep
-argument documentation in the full description. Agent Skill tools use explicit
-ADK declarations and follow the same wording conventions. The
-[migration inventory](../docs/reviews/2026-09-06-tool-docstrings.md) records which
-guidance was adapted from `contractor-old` and which contracts have changed.
+The [tool-description contract](../docs/spec/01-agent-template.md#model-visible-tool-descriptions)
+owns wording, argument/return documentation and ADK declaration behavior.
+Callable implementations in `src/contractor_runtime/toolsets/` expose their
+single `description` value as `__doc__`; native Skill tools construct explicit
+declarations.

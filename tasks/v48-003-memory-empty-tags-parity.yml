@@ -9,7 +9,6 @@ depends_on: [V9-005]
 languages: [go, python]
 goal: "Make untagged full notes and previews serialize tags as [] consistently in both Memory adapters."
 context:
-  review: docs/reviews/2026-09-07-memory-audit.md
   specification: docs/spec/08-memory-tools.md
   authority: "User requested tasks for uncovered Memory audit findings on 2026-09-07."
   code_locations:

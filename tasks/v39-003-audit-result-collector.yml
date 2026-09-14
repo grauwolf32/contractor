@@ -50,8 +50,6 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: internal/auditimport/audit_completion_test.go
     description: "Go importer acceptance of the same task-local JSON cases used by Python."
-  - path: docs/reviews/2026-09-07-audit-result-collector.md
-    description: "Implementation boundaries, lifecycle ownership and validation evidence."
   - path: runtime/tests/test_audit_results_toolset.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
 

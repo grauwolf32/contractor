@@ -5,12 +5,6 @@ V39-001–006 implement contracts, Server pinning and capability-aware placement
 incremental collection, deterministic ZIP publication, common Runtime completion,
 bounded diagnostics and versioned examples. The required PostgreSQL/restart and
 real Runtime-to-importer release gate remains V39-007.
-See [contract validation](../reviews/2026-09-07-audit-completion-contracts.md),
-[Server pinning](../reviews/2026-09-07-audit-completion-pinning.md),
-[collector](../reviews/2026-09-07-audit-result-collector.md),
-[publication](../reviews/2026-09-07-audit-result-publication.md),
-[Runtime integration](../reviews/2026-09-07-audit-completion-runtime.md) and
-[diagnostics](../reviews/2026-09-07-audit-completion-diagnostics.md) evidence.
 Existing deployed Runs and immutable snapshots keep their current behavior until
 an explicitly versioned configuration selects this contract.
 

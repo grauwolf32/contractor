@@ -2,6 +2,8 @@
 
 Status: **Working agreement**
 
+[Documentation index](../README.md) · [Development guides](../development.md)
+
 This directory is the canonical working specification for Contractor v2. It
 captures the deliberately small execution model from the current design
 discussion; removed historical documents do not supply implicit requirements.
@@ -61,6 +63,7 @@ through the Artifact API. [09](09-agent-skills.md) owns that lifecycle.
 | [26](26-portable-evaluation-format.md) | Implemented in playground-v2 and offline-gated: portable documents, execution bindings, v1 compatibility, recovery and comparison; model quality evals remain |
 | [27](27-findings-tools-and-collections.md) | Implemented: findings collection codec, Server publication, Runtime materialization, independent finding/list_findings tools and producer/analyst Workflows |
 | [LikeC4](artitecture.likec4) | Component map and focused architecture views |
+| [UI user stories](ui-user-stories.md) | User goals and acceptance scenarios; individual stories retain their implementation status |
 
 [`core-execution-model.md`](core-execution-model.md) is a short navigation entry
 point for links that previously targeted the monolithic working agreement.

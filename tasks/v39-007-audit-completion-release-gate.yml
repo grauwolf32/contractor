@@ -46,8 +46,6 @@ deliverables:
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: internal/auditimport/completion_integration_test.go
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
-  - path: docs/reviews/audit-completion-release-gate.md
-    description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
 
 requirements:
   - {id: R1, text: "At least one test feeds actual new Runtime ZIP bytes through the real Go importer, not two independent mocks."}

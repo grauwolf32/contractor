@@ -11,7 +11,6 @@ goal: >-
   Prevent an Artifact HTTP 500 after a committed write from reporting a blindly
   retryable append that duplicates the fragment on the next model call.
 context:
-  review: docs/reviews/2026-09-07-memory-audit.md
   specification:
     - docs/spec/08-memory-tools.md
     - docs/spec/03-artifact-plane.md

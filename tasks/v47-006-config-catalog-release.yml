@@ -43,5 +43,5 @@ tests:
     covers: ["A1", "A2"]
   - command: "go run ./cmd/contractor-server config validate --root ./configs/e2e"
     covers: ["A1"]
-  - command: "Ephemeral live probe recorded in docs/reviews/2026-09-07-config-policy-review.md"
+  - command: "Ephemeral live probe of the production configuration catalog"
     covers: ["A3"]

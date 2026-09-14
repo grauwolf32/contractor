@@ -42,7 +42,6 @@ deliverables:
   - {path: configs/skills/trace, description: Migrated trace package and seven references.}
   - {path: configs/skills/vuln-scan, description: Renamed vulnerability-scan package and eight references.}
   - {path: configs/skills/vulns, description: Migrated authorized-testing playbook package and four references.}
-  - {path: docs/migrations/contractor-old-agent-skills-analysis.md, description: Source revision inventory renames and intentional platform-integration edits.}
   - {path: internal/agentskills, description: Whole-group migration inventory and validation regressions.}
 
 requirements:

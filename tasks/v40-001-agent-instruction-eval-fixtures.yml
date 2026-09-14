@@ -19,7 +19,6 @@ context:
     publication. Start only after its pre-live readiness gate. This task maps
     instruction-specific coverage and missing fixtures onto that implemented format;
     it does not create another format or runner and does not execute model evals.
-  integration_proposal: docs/agent-evals-proposal.md
   implementation_repository: >-
     Dataset/scorer changes belong in sibling playground-v2. Reuse its projects,
     pinned corpora, suite/case/result schemas and existing semantic scorers.

@@ -16,8 +16,7 @@ As of 2026-09-06, the [task catalog](../../tasks/index.yml) records:
 - V32-007 completed: independent opt-in Go profiling.
 - V32-005 and V32-006 completed: allocation policy/report integration,
   Operations APIs, performance charts and completed-allocation history.
-- V32-008 completed: the branch release gate and measured overhead; see
-  [verification evidence](../reviews/2026-09-06-performance-v32-release.md).
+- V32-008 completed: the branch release gate and measured overhead.
 
 The implementation originated in the v32-performance-ui branch. Integration
 with main preserves the existing Run-resumption migration 000052 and applies
@@ -398,7 +397,7 @@ execution reports or served through Operations. Document local use and SSH
 tunnelling, including a bounded example:
 
 ```sh
-contractor-server serve --performance-metrics=false --pprof=true
+contractor server run --performance-metrics=false --pprof=true
 go tool pprof 'http://127.0.0.1:6060/debug/pprof/profile?seconds=30'
 ```
 
@@ -439,15 +438,11 @@ Required acceptance:
    workload/repetitions. Measure idle pprof and active profiling separately.
    Establish before/after evidence, not an unmeasured universal overhead percentage.
 
-The V32-008 release gate passed on 2026-09-06. Its exact executable acceptance
-matrix, five-repetition raw measurements, environment and interpretation are
-recorded in the [V32 release review](../reviews/2026-09-06-performance-v32-release.md).
+The V32-008 release gate passed on 2026-09-06.
 The focused gate includes race-enabled Go and PostgreSQL checks, Python Runtime
 checks, real cross-language mTLS finalize/abort resource reports and the built
 Node UI against the production browser stack. The recorded aggregate verification
-belongs to that branch snapshot; current-main integration and its follow-up
-checks are recorded separately in the
-[integration review](../reviews/2026-09-07-main-uncommitted-review.md).
+belongs to that branch snapshot and does not establish current-main readiness.
 
 ## Reference behavior
 

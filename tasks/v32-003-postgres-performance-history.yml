@@ -92,7 +92,6 @@ tests:
 
 verification:
   verified_on: "2026-09-06"
-  review_notes: docs/performance-postgres-history.md
   results:
     - Both required commands passed in a clean detached worktree at the implementation commit.
     - PostgreSQL tests ran against a disposable PostgreSQL 17.11 container with the database URL explicitly set; real integration checks were not skipped.

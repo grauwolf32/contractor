@@ -11,7 +11,6 @@ goal: >-
   Keep list/search/tag discovery and new-note creation available when ordinary
   artifacts in the same namespace exceed the private Artifact list byte limit.
 context:
-  review: docs/reviews/2026-09-07-memory-audit.md
   specification:
     - docs/spec/08-memory-tools.md
     - docs/spec/03-artifact-plane.md

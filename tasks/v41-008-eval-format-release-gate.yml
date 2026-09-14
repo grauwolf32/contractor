@@ -27,7 +27,6 @@ scope:
   out:
     - "Model quality eval runs, real benchmark campaigns, new execution engines, automatic deployment and in-place changes to existing v1 data."
 deliverables:
-  - {path: "docs/reviews/portable-eval-format-readiness.md", description: "Contractor: retain the dated readiness evidence and exact implementation pins."}
   - {path: "../playground-v2/docs/portable-evals.md", description: "Playground usage, compatibility and CLI guide linking to the canonical contract."}
   - {path: "tests/eval/agent_instructions/README.md", description: "Implement the scoped contract above; create planned paths if absent."}
 requirements:

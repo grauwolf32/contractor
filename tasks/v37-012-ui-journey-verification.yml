@@ -48,7 +48,7 @@ context:
       "UX-09",
       "UX-10",
     ]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     The 2026-09-06 report is an expert review with read-only demo routes and separate mutation
     fixtures, not a measured study with real users. Verify the final implementation snapshot and
@@ -79,7 +79,7 @@ scope:
       Keep fixture UI and real Server evidence separate; cover new read contracts/owner
       boundaries in integration tests and reuse existing workflow fixtures.
     - >-
-      Update docs/ui-user-stories.md and add a dated before/after verification note with
+      Update docs/spec/ui-user-stories.md and add a dated before/after verification note with
       commands, environment, observed outcomes and remaining limitations.
   out:
     - >-

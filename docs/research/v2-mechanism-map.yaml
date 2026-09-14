@@ -164,7 +164,7 @@ mechanisms:
 
   stateflow_planner:
     status: research_only
-    owned_by: docs/stateflow-1-research-draft.md
+    owned_by: docs/research/stateflow-1.md
     intended_arm: Bounded explicit Planner state and latest observation versus accumulated Planner conversation.
 
   typed_security_findings:

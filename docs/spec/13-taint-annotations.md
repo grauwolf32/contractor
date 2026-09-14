@@ -35,6 +35,28 @@ new workspace digest and rebuilds its derived state under [12]. No Server-side
 annotation service, database table, Artifact endpoint or infrastructure
 channel is introduced.
 
+## Annotation artifacts and evidence
+
+A Workflow chooses whether annotated source and its state/diff are outputs.
+Generic Audit results and findings do not require annotations, `trace_id`, a
+function or a sink. An annotation artifact may exist without a finding; it
+becomes evidence only through an explicit reference to an existing exact
+artifact revision. A finding cannot refer to a future workspace export.
+Artifact availability alone does not prove a vulnerability or trace coverage.
+
+Annotation identity and participation in an investigation are different facts.
+An existing comment or a repeated call returning `changed=false` does not prove
+that the current Worker checked that path. A shared function can be reached
+with different inputs and controls; matching a function or `file + CWE` does not
+justify merging findings. [27](27-findings-tools-and-collections.md) owns the
+generic collection and evidence-reference boundary.
+
+The tools do not maintain an annotation participation registry. `target` is
+model-authored text, not a trusted Audit item identity. A structured index,
+snapshot reconciliation and cross-Worker attribution remain a separate
+[research proposal](../research/annotation-index-proposal.md), not a
+requirement for existing annotation or finding tools.
+
 ## Exact Toolset and capability
 
 The exact ref is `taint-annotations@1`; it exports exactly:

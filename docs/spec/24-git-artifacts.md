@@ -272,7 +272,7 @@ Artifact publication with filesystem storage. Measure memory and verify that
 key/canary material appears nowhere in responses, artifacts or captured logs.
 
 The reproducible gate, deployment instructions, failure matrix and measured
-memory are documented in [Git artifacts](../git-artifacts.md).
+memory are documented in [Git artifacts](../guides/git-artifacts.md).
 
 Git provenance is stored in `artifact_git_sources`, keyed by `artifact_versions.version_id`;
 metadata queries join it without reading blobs. The ordinary exact input fork

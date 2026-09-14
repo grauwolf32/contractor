@@ -11,7 +11,7 @@ goal: "Prevent MIME-only suggestions from being presented as verified semantic i
 context:
   user_stories: ["US-03", "US-09"]
   review_findings: ["UX-03"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     Project recommendations intentionally match media type and preselect a unique candidate. One
     Markdown validation report was consequently suggested for both dependency_report and

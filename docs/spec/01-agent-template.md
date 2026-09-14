@@ -518,6 +518,25 @@ Python module, callable, executable or shell command. Internal helpers used by
 a selected tool are not themselves model-visible tools and do not need to
 appear in the allowlist.
 
+### Model-visible tool descriptions
+
+Tool descriptions are part of the model-facing API. Each selected callable
+has one English description with a short action summary, relevant preconditions
+and side effects, `Args:` for every model-supplied argument, and `Returns:` for
+the actual response fields and incomplete-result indicators. Document defaults,
+units, allowed values, path scope, revision preconditions and pagination where
+they affect use. Omit injected `tool_context` and omit `Args:` when there are no
+model-supplied arguments. Descriptions must match the selected implementation;
+they cannot promise tools, permissions or behavior from another version.
+
+Callable Runtime tools keep that text in `description` and expose it as
+`__doc__` to ADK `FunctionTool`. In the pinned ADK 2.8.0 integration the complete
+docstring becomes the function description; `Args:` is not extracted into
+per-parameter descriptions. Native Skill tools use explicit declarations with
+the same wording rules. Changing descriptions changes model-visible guidance;
+evaluation comparisons pin the actual declarations, including docstrings, under
+[26](26-portable-evaluation-format.md#5-experiment-frozen-plan-and-identity).
+
 ### SandboxProfile
 
 `spec.sandboxProfile` is a mandatory exact selector using the shared

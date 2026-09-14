@@ -9,7 +9,6 @@ depends_on: []
 languages: ["markdown", "go", "json"]
 goal: "Define finding/list_findings independently of OpenAPI, annotations and mandatory verification."
 context:
-  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
   specification: docs/spec/27-findings-tools-and-collections.md
   existing: "Reuse FindingProposal, exact ArtifactRef, receipts and optional hypothesis/proposed_checks; keep current creation semantics."
   artifact_scope: >-

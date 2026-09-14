@@ -100,9 +100,8 @@ controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).
 
 ## Delivered usability and remaining work
 
-[UI user stories and roadmap](../ui-user-stories.md) records the target journeys
-and their acceptance criteria, based on the
-[2026-09-06 usability review](../reviews/2026-09-06-ui-use-cases-and-usability.md).
+[UI user stories and roadmap](ui-user-stories.md) records the target journeys
+and their acceptance criteria.
 V37-001 through V37-009 deliver draft continuity, accessible dialogs, primary
 actions, reviewed input suggestions, Catalog discovery, repeat Run drafts and
 primary result preview. Contextual Audit review, the Operations layout and the
@@ -126,6 +125,25 @@ does not imply that UI is delivered. Existing evaluation Projects and generic
 Run-label behavior remain valid.
 
 ## Deployment boundary
+
+### Host and service placement
+
+Server and ordinary Runtime target Linux and macOS; the allocation-scoped
+Podman backend requires the Linux host capabilities in
+[21](21-podman-sandbox.md). Cross-compilation or a working remote browser does
+not establish a tested native Runtime, filesystem or sandbox on another OS.
+Platform-dependent resource observations may return `unsupported_platform`.
+
+One active Server/Control Plane, PostgreSQL and one or more single-slot Runtime
+Agents may share a host. UI is a separate static service. Public UI/API origins
+use the browser-session rules below; Server-to-Runtime control and A2A traffic
+use the private mTLS contract in [02](02-runtime-and-a2a.md). PostgreSQL remains
+the authority for execution and artifact metadata with either payload backend
+in [23](23-artifact-blob-backends.md). Managed configuration storage must support
+the durable hard-link publication described below.
+
+Operator installation, network setup, startup and upgrade steps belong to the
+[deployment guide](../deployment.md).
 
 ### Process settings and operational budgets
 
@@ -1011,7 +1029,7 @@ string with version 19, 64 MiB memory, three iterations, parallelism one, a
 parameter set rather than silently weakening or unexpectedly amplifying login
 cost.
 
-`contractor-server auth hash-password` reads the password twice from an
+`contractor server auth hash-password` reads the password twice from an
 interactive terminal without echo and emits the bootstrap YAML; it accepts no
 password command-line argument or environment variable. Passwords are 12
 through 1,024 UTF-8 bytes, are never trimmed and are never logged. Login uses a

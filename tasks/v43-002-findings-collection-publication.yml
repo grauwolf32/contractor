@@ -9,7 +9,6 @@ depends_on: ["V43-001"]
 languages: ["go", "typescript"]
 goal: "Supply analytical Workflows with exact findings inputs assembled from existing Run/Audit records."
 context:
-  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
   specification: docs/spec/27-findings-tools-and-collections.md
   reuse: "findingintake ListRun/ListAuditInbox and auditservice ListFindings already exist. New collection publication reuses their records and Artifact plane."
   handoff: >-

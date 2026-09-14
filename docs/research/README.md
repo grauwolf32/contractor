@@ -6,6 +6,21 @@ It is documentation and an evaluation control-plane input, not production
 configuration. Production packages must not import hypothesis IDs or make
 Scheduler decisions from these records.
 
+## Drafts and evaluation design
+
+- [Annotation participation index](annotation-index-proposal.md) — proposed
+  attribution and snapshot reconciliation. The accepted evidence boundary is
+  in [specification 13](../spec/13-taint-annotations.md#annotation-artifacts-and-evidence).
+- [`stateflow@1` Planner draft](stateflow-1.md) — proposed
+  explicit Planner state and deterministic Worker context; not a registered
+  production Planner.
+- [Portable evaluation specification](../spec/26-portable-evaluation-format.md)
+  owns the accepted format.
+- [Instruction-evaluation fixtures and workflow](../../tests/eval/agent_instructions/README.md)
+- [Live-model evaluation commands](../testing/live-models.md)
+
+Return to the [documentation index](../README.md) for implementation guides.
+
 ## Files
 
 - `hypotheses/legacy.yaml` is a normalized transcription of all 228 hypotheses

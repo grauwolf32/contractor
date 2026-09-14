@@ -10,7 +10,7 @@ user-facing Workflow set is:
 [`server.local.yaml`](server.local.yaml) is a separate, non-secret
 `ServerConfig` for the loopback demo process. It is not a published catalog
 resource and the Workflow configuration loader ignores root-level YAML files.
-Start the process with `contractor-server serve --config
+Start the process with `contractor server run --config
 ./configs/server.local.yaml`; relative paths in that document resolve from the
 document's directory. Database URLs, public bearer tokens, development LLM
 tokens and all key bytes remain environment/file secrets and are deliberately
@@ -184,7 +184,7 @@ Stage into ordered subtasks for its one fixed logical Worker. Validate the
 complete set from the repository root with:
 
 ```sh
-go run ./cmd/contractor-server config validate --root ./configs
+contractor server config validate --root ./configs
 ```
 
 Manifest identity comes from `kind`, `metadata.name`, and `metadata.version`;

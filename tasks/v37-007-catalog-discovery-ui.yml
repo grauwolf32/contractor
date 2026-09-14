@@ -13,7 +13,7 @@ goal: >-
 context:
   user_stories: ["US-02", "US-08"]
   review_findings: ["UX-06"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     V33-001 owns Catalog routes, prompt Preview/Source/Copy, linked Skills/tools and legacy
     redirects. V37-006 supplies authored summaries and bounded query contracts.

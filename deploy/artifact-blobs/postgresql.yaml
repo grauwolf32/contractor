@@ -1,5 +1,5 @@
 # Example only: supply your image/bootstrap configs, database and owner-only
-# authentication/PKI secrets before applying. See docs/artifact-blob-storage.md.
+# authentication/PKI secrets before applying. See docs/operations/artifact-blob-storage.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

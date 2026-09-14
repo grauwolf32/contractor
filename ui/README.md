@@ -25,7 +25,7 @@ CONTRACTOR_UI_API_BASE_URL=http://127.0.0.1:8080 \
 ```
 
 `CONTRACTOR_UI_API_BASE_URL` is required. It must be an origin-only HTTPS URL;
-HTTP is accepted only for an IP-literal loopback address. Contractor Server
+HTTP is accepted for IP-literal loopback and RFC 1918 development addresses. Contractor Server
 must list the UI origin (for example `http://127.0.0.1:4173`) in its exact
 browser-origin allowlist. Production UI and API origins must also be HTTPS and
 same-site so the Server's `SameSite=Lax` session cookie is eligible for direct

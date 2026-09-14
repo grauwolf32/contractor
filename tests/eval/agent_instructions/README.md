@@ -4,11 +4,9 @@ Status: **candidate authored; compatibility checked; LLM comparison planned**.
 No quality or token-efficiency improvement has been measured yet.
 
 Normative contract: [portable evaluation format](../../../docs/spec/26-portable-evaluation-format.md).
-V41-001–V41-008 passed the offline format gate on 2026-09-07; see the
-[readiness report and exact pins](../../../docs/reviews/portable-eval-format-readiness.md).
+V41-001–V41-008 passed the offline format gate on 2026-09-07.
 V40 may now map fixture gaps and prepare explicitly pinned experiments. Live model
 execution remains a separate task with an explicit frozen budget.
-The [original proposal](../../../docs/agent-evals-proposal.md) is background.
 Reuse the existing playground adapter, Workflow/Audit runners, datasets and scorers.
 The matrix below is a gap checklist against those assets, not a second benchmark
 implementation in Contractor. Contractor retains execution/API compatibility tests;
@@ -18,7 +16,6 @@ The candidate ports evidence, coverage, and stopping rules from `contractor-old`
 to the current tools. It adds 20 instruction variants, 15 AgentTemplate versions,
 and 10 Workflow versions in `candidate/configs`. Existing `configs/` files are
 unchanged. This is an opt-in evaluation overlay, not a published default catalog.
-See [migration review](../../../docs/reviews/2026-09-06-agent-instructions.md).
 
 ## Reproducible variants
 

@@ -17,7 +17,6 @@ context:
   verified_evidence: 'PG-03: two terminal Runs own different versions of identical bytes. Real DeleteReleasedTerminalRun
     calls in separate transactions both complete before either commits. After both commits zero versions and
     revisions remain, but one unreferenced blob survives.'
-  report: docs/reviews/2026-09-05-postgres-review.md
 scope:
   in:
   - Coordinate shared version/blob reference checks and deletion across purgers and concurrent writes/forks.

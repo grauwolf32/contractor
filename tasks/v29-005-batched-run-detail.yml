@@ -15,7 +15,6 @@ context:
   verified_evidence: 'PG-05: the real GET Run handler with pgx tracing on the read-only demo executes 23-25
     queries for four Stages and 28 for five. Metrics, Planner sessions and allocations each add one query per
     Stage. Current demo response times are 7-19 ms; confirmed query growth is not a measured latency incident.'
-  report: docs/reviews/2026-09-05-postgres-review.md
 scope:
   in:
   - Load metrics, Planner session read data and allocations for StageExecution IDs in bounded batches.

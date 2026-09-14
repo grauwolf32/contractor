@@ -17,7 +17,6 @@ context:
     READ returns 40001; Repository.LockBindings returns a generic error with empty SQLSTATE. Code inspection
     also finds idempotency-winner lookup without full retry of an unrelated serialization conflict. V28-004
     owns log presentation; this task owns error identity and retry.'
-  report: docs/reviews/2026-09-05-postgres-review.md
 scope:
   in:
   - Preserve wrapped causes or equivalent typed SQLSTATE/context data across repository/provider boundaries

@@ -51,7 +51,6 @@ deliverables:
   - {path: configs/skills/caido, description: Migrated conditional Caido workflow package.}
   - {path: configs/skills/code-exec, description: Migrated conditional code-execution usage package with no false sandbox promise.}
   - {path: configs/skills/exploit, description: Migrated exploitability package and fifteen references with retained safety boundary.}
-  - {path: docs/migrations/contractor-old-agent-skills-live.md, description: Tool compatibility matrix and source accounting for the live-testing group.}
   - {path: internal/agentskills, description: Whole-group package and compatibility regression tests.}
 
 requirements:

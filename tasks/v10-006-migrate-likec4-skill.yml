@@ -55,7 +55,6 @@ deliverables:
   - {path: configs/workflows/likec4_from_source_streamline_v2.yaml, description: Additive Streamline Workflow version selecting the v2 templates.}
   - {path: configs/workflows/likec4_from_analysis_v2.yaml, description: Additive analysis-input Workflow version selecting the v2 templates.}
   - {path: configs/README.md, description: Version map distinguishing legacy empty-skill and additive Skill-enabled LikeC4 selectors.}
-  - {path: docs/migrations/contractor-old-agent-skills-likec4.md, description: Pinned source inventory mapping and intentional content/config-version changes.}
   - {path: internal/agentskills, description: Migrated package inventory reference-link and deterministic-digest regression tests.}
 
 requirements:

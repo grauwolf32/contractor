@@ -1,116 +1,45 @@
-# Contractor v2
+# Contractor
 
-Contractor is a runtime for complex AI-assisted tasks that benefit from explicit
-Workflows and non-trivial planning. Code understanding and application security
-are the initial use cases, but the execution model is domain-neutral.
+Contractor runs AI-assisted Workflows for code understanding and application
+security: generating OpenAPI and LikeC4 documents, analyzing source code, and
+coordinating Audits with findings and evidence.
 
-Contractor v2 is a specification-first rewrite focused on narrow component
-boundaries and a deployment that remains practical on one VM.
+A Workflow defines Stages and their inputs, outputs and transitions. The Go
+Server schedules each Stage; its Planner coordinates Workers running inside
+single-slot Python Runtime Agents. Versioned configuration and pinned artifact
+revisions make each Run's inputs and execution settings explicit.
 
-The current design track models a Workflow as product-specific Stages. Workflow
-Scheduler selects and executes each ready Stage; one Planner works with a fixed
-set of Workers prepared before Planner starts. The deterministic
-`passthrough@1` Planner invokes one Worker, while the model-backed
-`streamline@1` Planner uses Google ADK Go and a bounded typed subtask plan to
-execute one prepared logical Worker. The model-backed `router@1` uses the same
-plan but selects an exact `worker_name` from a fixed, Server-validated logical
-binding map for each current subtask. A
-model-backed Planner reports either success or semantic failure through one
-validated `finish` candidate; Workflow Scheduler alone chooses retry,
-escalation, or another Workflow transition. A
-versioned `AgentTemplate` describes reusable Worker behavior without becoming a
-deployment or physical Agent. A Worker is an allocation-scoped in-process role
-of a single-slot Runtime Agent, not a child service or process.
-
-One `ArtifactStore` serves authenticated user artifacts and per-Run working data
-through separate `UserScope` and `RunScope` views. Run inputs are version-pinned
-forks, not mutable aliases to user data.
-
-The target deployment is deliberately small:
-
-- one Contractor Server process;
-- an optional independently released Node/React UI that calls Server directly;
-- one PostgreSQL database;
-- one or more lightweight single-slot Runtime Agent processes, potentially on
-  the same VM;
-- one shared external LLM Gateway, initially LiteLLM or another compatible
-  backend;
-- PostgreSQL or S3-backed artifact payload storage;
-- optionally, an external telemetry backend.
+The application can run on one host: Server, PostgreSQL, one or more Runtime
+Agents, and an optional independently built React UI served by Node. Model
+calls go through an external OpenAI-compatible Gateway. Artifact payloads use
+PostgreSQL by default or a configured filesystem backend.
 
 [![Contractor architecture: control plane, Runtime Agents, allocations, and infrastructure adapters](docs/assets/architecture-overview.png)](docs/assets/architecture-overview.png)
 
+## Get started
+
+Follow [deployment](docs/deployment.md) to install and run Contractor, or the
+[CLI guide](docs/guides/cli.md) to connect to an existing Server. To build from
+source, start with [development setup](docs/development.md).
+
 ## Documentation
 
-- [Documentation overview](docs/README.md)
-- [Command-line client](docs/cli.md)
-- [Local development and end-to-end MVP](docs/development.md)
-- [Working specifications](docs/spec/README.md)
-- [LikeC4 architecture model](docs/spec/artitecture.likec4)
+[Guides and references](docs/README.md) · [Specification](docs/spec/README.md) ·
+[Configuration catalog](configs/README.md)
 
-## Validate the architecture
+## Repository map
 
-```shell
-likec4 validate docs/spec
-```
+| Path | Contents |
+| --- | --- |
+| [`cmd/`](cmd/) and [`internal/`](internal/) | Go CLI, Server and execution services |
+| [`runtime/`](runtime/README.md) | Python Runtime Agent and toolsets |
+| [`ui/`](ui/README.md) | React UI and Node static service |
+| [`api/`](api/README.md) | Public OpenAPI, private schemas and shared fixtures |
+| [`configs/`](configs/README.md) | Versioned Workflows, policies, instructions and Skills |
+| [`deploy/`](deploy/) | Deployment examples |
+| [`docs/`](docs/README.md) | Guides, specifications and research |
+| [`tests/`](tests/) and [`testdata/`](testdata/) | Integration tests, evaluations and fixtures |
+| [`tasks/`](tasks/index.yml) | Implementation status and verification evidence |
 
-## Implementation commands
-
-The implementation is being built incrementally in the order recorded under
-`tasks/`. The aggregate check covers the Go Server, Python Runtime Agent and
-independently built browser UI:
-
-```shell
-make verify
-go run ./cmd/contractor-server config validate --root ./configs
-```
-
-The UI pins Node 24.20, Corepack 0.36 and pnpm 11.24. It can also be checked or
-built without rebuilding Server:
-
-```shell
-npm install --global corepack@0.36.0
-make ui-verify
-```
-
-Server and migration commands share `CONTRACTOR_DATABASE_URL` (or the
-`--database-url` flag). Migrations are forward-only and safe to invoke again:
-
-```shell
-CONTRACTOR_DATABASE_URL='postgres://...' \
-  go run ./cmd/contractor-server migrate
-```
-
-PostgreSQL integration tests create and remove isolated schemas inside the
-caller-provided test database:
-
-```shell
-CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-postgres
-CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-e2e
-```
-
-Built-in Operations performance collection defaults on; independent loopback
-Go profiling defaults off. Deployment settings, retention and truthful
-missing-data semantics are documented in
-[Operations performance](docs/operations-performance.md). The focused release
-gate and local measurement harness are:
-
-```shell
-CONTRACTOR_TEST_DATABASE_URL='postgres://...' make test-performance-metrics
-make benchmark-performance
-```
-
-For a local private mTLS deployment, generate the CA and both node identities
-without OpenSSL-specific shell scripts:
-
-```shell
-go run ./cmd/contractor pki init-ca
-go run ./cmd/contractor pki issue-control-plane
-go run ./cmd/contractor pki issue-runtime --name runtime-local
-make test-mtls
-```
-
-Generated certificates and 0600 private keys live under `.local/pki/` and are
-ignored by Git. `init-ca` refuses to replace an existing CA unless `--force` is
-explicitly supplied. The standalone `contractor-pki` commands remain available
-for existing automation.
+The v2 [working specifications](docs/spec/README.md) define accepted contracts;
+individual task files record their implementation and verification status.

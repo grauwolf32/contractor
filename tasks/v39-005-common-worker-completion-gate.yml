@@ -40,8 +40,6 @@ scope:
 deliverables:
   - path: runtime/src/contractor_runtime/toolsets/audit_results/completion.py
     description: "Exact prepared input binding, invocation ownership, reminders and deterministic publication strategy."
-  - path: docs/reviews/2026-09-07-audit-completion-runtime.md
-    description: "Completion boundaries, compatibility and real-ADK verification evidence."
   - path: runtime/src/contractor_runtime/worker/runtime.py
     description: "Implement or extend the scoped contract and regression coverage described above; create planned paths when absent."
   - path: runtime/src/contractor_runtime/worker/instrumentation.py

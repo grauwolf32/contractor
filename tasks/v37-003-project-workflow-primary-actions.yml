@@ -11,7 +11,7 @@ goal: "Expose the next useful Project and Workflow actions before long execution
 context:
   user_stories: ["US-01", "US-02"]
   review_findings: ["UX-01"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     The reviewed Workflow form starts around 1922 px down a 1000 px viewport; the first Project
     Configure Run is around 2210 px while Delete Project is prominent. These are observed

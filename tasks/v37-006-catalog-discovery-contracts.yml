@@ -13,7 +13,7 @@ goal: >-
 context:
   user_stories: ["US-02", "US-08"]
   review_findings: ["UX-06"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     Workflow summaries currently expose exact ref, entry stage and slot contracts; Agent
     descriptions exist. Lists paginate exact name@version values, and Agent search currently

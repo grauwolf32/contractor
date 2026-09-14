@@ -15,7 +15,6 @@ context:
   verified_evidence: 'PG-02: a second PinRunSnapshot waits on transactionid until its 700 ms deadline because
     both readers take FOR UPDATE on default. FOR SHARE controls allow a second reader immediately while an
     updater still waits.'
-  report: docs/reviews/2026-09-05-postgres-review.md
 scope:
   in:
   - Select a shared lock compatible with independent snapshot readers and retain exclusion of binding writers

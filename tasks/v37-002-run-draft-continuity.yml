@@ -13,7 +13,7 @@ goal: >-
 context:
   user_stories: ["US-01", "US-03", "US-06", "US-09"]
   review_findings: ["UX-02"]
-  planning_document: "docs/ui-user-stories.md"
+  planning_document: "docs/spec/ui-user-stories.md"
   baseline: >-
     The form uses component state; leaving for Artifacts and returning after navigation settles
     clears parameters. V35-004 already supplies contextual Git import and exact ref selection.

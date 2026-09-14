@@ -2,15 +2,13 @@
 
 Status: **Implemented in playground-v2 and offline-verified through V41-008.**
 The format, compatibility layer, execution bindings, recovery, assessment,
-comparison and safe publication are delivered. The
-[readiness report](../reviews/portable-eval-format-readiness.md) retains exact
-implementation/schema pins and offline evidence. V38 Evals UX and V40 model
+comparison and safe publication are delivered. V38 Evals UX and V40 model
 quality evaluations remain separate pending work; this delivery does not prove
 instruction quality or a successful live target campaign.
 
 This document owns the portable evaluation contract shared with `playground-v2`.
-It supersedes the format choices in [the proposal](../agent-evals-proposal.md)
-and the earlier V40 runner outline. [16](16-run-metadata-labels.md),
+It supersedes the original format proposal and the earlier V40 runner outline.
+[16](16-run-metadata-labels.md),
 [17](17-projects-and-queue.md) and [19](19-audits.md) continue to own Contractor
 execution, storage, identity and authorization. [V38](../../tasks/v38-001-evals-experience-contract.yml)
 owns the eventual user-facing experiment/comparison journey; it consumes this
@@ -569,7 +567,21 @@ Assessment is available through the Python API; a generic assessment CLI is not
 part of this delivery. Contractor and recorded execution adapters and local/
 Contractor publication are implemented. Live target/oracle integrations, complete
 live environment pins and measured instruction adoption remain outside the
-offline evidence; the readiness report records those limits.
+offline evidence.
+
+An offline conformance report identifies the tested implementation, schemas,
+fixtures and assertions. It does not establish the running model/sampling,
+Runtime/container/ADK dependency set, complete tool declarations, Skill package
+bytes or target reset/session state needed for a live comparison. Preflight must
+resolve the required pins under section 5; authored variant names cannot replace
+those observations. A validator entrypoint hash alone does not pin its external
+dependencies. Recorded oracle receipts prove association with the selected
+result/session, not success of a real target campaign. Missing required pins
+block strict comparisons rather than turning into assumed equality.
+
+Conformance evidence must retain the hashes of the implementation and inputs
+actually tested. A later source change requires new evidence rather than
+updating an old report to appear current.
 
 `validate` continues checking existing catalogs and gains v2 format support.
 Invalid plans, missing required live settings and incompatible schemas fail

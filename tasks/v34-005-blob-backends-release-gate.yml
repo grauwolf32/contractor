@@ -14,7 +14,7 @@ verification:
   final_process_peak_rss_kib:
     postgresql: 1065884
     filesystem: 560860
-  evidence: docs/artifact-blob-storage.md
+  evidence: docs/operations/artifact-blob-storage.md
 depends_on:
 - V34-004
 - V34-006

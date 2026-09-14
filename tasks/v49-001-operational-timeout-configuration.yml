@@ -11,7 +11,6 @@ goal: >-
   Give each operational timeout one explicit owner and ensure configured budgets
   reach their consumers without extending enclosing deadlines.
 context:
-  review: docs/reviews/2026-09-07-hardcoded-operational-parameters.md
   authority: >-
     User requested planning and implementing the separation of overloaded
     runtimeRequestTimeout, then explicitly included all seven proposed fixes.

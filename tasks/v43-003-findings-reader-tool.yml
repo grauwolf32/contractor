@@ -9,7 +9,6 @@ depends_on: ["V43-002"]
 languages: ["python", "go"]
 goal: "Expose finding and list_findings according to the agent's role through a versioned toolset."
 context:
-  proposal: docs/reviews/2026-09-06-findings-tools-plan.md
   specification: docs/spec/27-findings-tools-and-collections.md
   compatibility: "Preserve security-findings@1 and its idempotent finding call. Add the reader in an explicit new version."
   input: "Read the V43-002 self-contained ZIP input. Selected reader-toolset preparation validates and materializes every document through the current-Run ArtifactClient, retaining actual exact write receipts. Original source refs are provenance."
