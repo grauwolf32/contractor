@@ -1,8 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -38,6 +40,10 @@ func TestManagerPublishesDurableModelPolicyAndRecoversOnRestart(t *testing.T) {
 	}
 	if !info.Mode().IsRegular() || info.Mode().Perm()&0o022 != 0 {
 		t.Fatalf("published mode = %v", info.Mode())
+	}
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil || len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+		t.Fatalf("publication left unexpected files: %v, error %v", entries, err)
 	}
 
 	restarted := newTestManager(t, operator, managed, ManagerOptions{})
@@ -123,7 +129,7 @@ func TestManagerPublicationIdempotencyAndConflicts(t *testing.T) {
 	}
 }
 
-func TestManagerCrashAfterRenameIsRecovered(t *testing.T) {
+func TestManagerCrashAfterPublicationIsRecovered(t *testing.T) {
 	operator := copyConfigTree(t)
 	managed := filepath.Join(t.TempDir(), "managed")
 	crash := errors.New("simulated crash")
@@ -138,9 +144,124 @@ func TestManagerCrashAfterRenameIsRecovered(t *testing.T) {
 		t.Fatalf("old in-memory snapshot changed: %v", err)
 	}
 
+	// Reproduce the directory state of a crash between publishing the final name
+	// and removing the temporary name. Startup must load the manifest only once.
+	directory := filepath.Join(managed, "model-policies")
+	if err := os.Link(filepath.Join(directory, "ui-worker@2.yaml"), filepath.Join(directory, ".contractor-publish-interrupted.tmp")); err != nil {
+		t.Fatal(err)
+	}
 	restarted := newTestManager(t, operator, managed, ManagerOptions{})
 	if _, err := restarted.Configuration(ConfigurationModelPolicies, "ui-worker@2"); err != nil {
 		t.Fatalf("restart did not recover durable version: %v", err)
+	}
+}
+
+func TestManagerDurablePublicationPreservesExistingEntries(t *testing.T) {
+	for _, kind := range []string{"file", "directory", "symlink", "dangling-symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			managed := filepath.Join(t.TempDir(), "managed")
+			manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+			candidate, err := preparePublication(validPolicyPublication("existing-entry"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			destination := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
+			target := filepath.Join(t.TempDir(), "target")
+			original := []byte("original content\n")
+			switch kind {
+			case "file":
+				writeFile(t, destination, original)
+			case "directory":
+				if err := os.Mkdir(destination, 0o750); err != nil {
+					t.Fatal(err)
+				}
+			case "symlink", "dangling-symlink":
+				if kind == "symlink" {
+					writeFile(t, target, original)
+				}
+				if err := os.Symlink(target, destination); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, err := os.Lstat(destination)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Bypass Publish's snapshot precheck to exercise a destination created
+			// by another writer just before the filesystem publication.
+			if err := manager.writeDurableManifest(candidate); !errors.Is(err, ErrPublicationConflict) {
+				t.Fatalf("existing %s: expected publication conflict, got %v", kind, err)
+			}
+			after, err := os.Lstat(destination)
+			if err != nil || !os.SameFile(before, after) || before.Mode() != after.Mode() {
+				t.Fatalf("existing %s was replaced: %v", kind, err)
+			}
+			if kind == "file" || kind == "symlink" {
+				if got := readFile(t, destination); !bytes.Equal(got, original) {
+					t.Fatalf("existing content changed: %q", got)
+				}
+			}
+			if kind == "dangling-symlink" {
+				if _, err := os.Lstat(target); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("dangling symlink target was created: %v", err)
+				}
+			}
+			entries, err := os.ReadDir(filepath.Dir(destination))
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("conflict left unexpected files: %v, error %v", entries, err)
+			}
+		})
+	}
+}
+
+func TestManagerConcurrentDurablePublicationsHaveOneWinner(t *testing.T) {
+	managed := filepath.Join(t.TempDir(), "managed")
+	manager := newTestManager(t, copyConfigTree(t), managed, ManagerOptions{})
+	const writers = 8
+	candidates := make([]publicationCandidate, writers)
+	for index := range candidates {
+		request := validPolicyPublication(fmt.Sprintf("writer-%d", index))
+		request.ModelPolicy.Model = fmt.Sprintf("model-%d", index)
+		candidate, err := preparePublication(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		candidates[index] = candidate
+	}
+	type publicationOutcome struct {
+		manifest []byte
+		err      error
+	}
+	start := make(chan struct{})
+	outcomes := make(chan publicationOutcome, writers)
+	for _, candidate := range candidates {
+		go func() {
+			<-start
+			outcomes <- publicationOutcome{candidate.canonicalYAML, manager.writeDurableManifest(candidate)}
+		}()
+	}
+	close(start)
+	var winner []byte
+	successes := 0
+	for range writers {
+		outcome := <-outcomes
+		if outcome.err == nil {
+			successes++
+			winner = outcome.manifest
+		} else if !errors.Is(outcome.err, ErrPublicationConflict) {
+			t.Errorf("unexpected publication error: %v", outcome.err)
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful publications = %d, want 1", successes)
+	}
+	destination := filepath.Join(managed, "model-policies", "ui-worker@2.yaml")
+	if got := readFile(t, destination); !bytes.Equal(got, winner) {
+		t.Fatal("published manifest differs from the successful writer's complete content")
+	}
+	entries, err := os.ReadDir(filepath.Dir(destination))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("concurrent publications left unexpected files: %v, error %v", entries, err)
 	}
 }
 

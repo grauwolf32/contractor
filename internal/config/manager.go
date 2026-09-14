@@ -101,7 +101,7 @@ type ManagerOptions struct {
 	Logger       *slog.Logger
 	Now          func() time.Time
 
-	// AfterDurablePublish is a test seam for the rename-before-snapshot-swap
+	// AfterDurablePublish is a test seam for the publication-before-snapshot-swap
 	// crash window. Production callers leave it nil.
 	AfterDurablePublish func(ConfigurationResource) error
 }
@@ -246,7 +246,7 @@ func (m *Manager) Publish(
 		if !snapshotsEqual(loaded, expected) {
 			return PublicationResult{}, fmt.Errorf("configuration roots changed outside the publication manager")
 		}
-		// This includes recovery from a crash after durable rename and before
+		// This includes recovery from a crash after durable publication and before
 		// the previous process could swap its in-memory snapshot.
 		m.current.Store(loaded)
 		m.rememberPublication(request.IdempotencyKey, candidate.requestDigest)
@@ -497,11 +497,17 @@ func (m *Manager) writeDurableManifest(candidate publicationCandidate) error {
 		return fmt.Errorf("close publication temporary file: %w", err)
 	}
 	temporary = nil
-	if err := unix.Renameat2(directoryFD, temporaryName, directoryFD, finalName, unix.RENAME_NOREPLACE); err != nil {
+	// Link the complete, flushed inode into place without replacing any existing
+	// entry. Both names use the same directory descriptor, and Linkat is available
+	// on Linux and macOS. A crash before unlink leaves a .tmp name ignored by LoadUnion.
+	if err := unix.Linkat(directoryFD, temporaryName, directoryFD, finalName, 0); err != nil {
 		if errors.Is(err, unix.EEXIST) {
 			return fmt.Errorf("%w: %s already exists", ErrPublicationConflict, candidate.selector)
 		}
 		return fmt.Errorf("atomically publish managed manifest: %w", err)
+	}
+	if err := unix.Unlinkat(directoryFD, temporaryName, 0); err != nil {
+		return fmt.Errorf("remove publication temporary file: %w", err)
 	}
 	cleanup = false
 	if err := unix.Fsync(directoryFD); err != nil {

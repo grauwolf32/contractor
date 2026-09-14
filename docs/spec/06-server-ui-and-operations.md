@@ -508,17 +508,20 @@ For one publication Server:
    managed and candidate manifests, including refs, consumer compatibility and
    digests;
 3. writes canonical YAML to a new same-directory temporary file in the managed
-   kind subtree, flushes it, atomically renames it to its stable path and
-   flushes the parent directory;
+   kind subtree, flushes it, atomically creates its stable name with a hard link
+   that never replaces an existing entry, removes the temporary name and flushes
+   the parent directory; descriptor-relative `linkat`/`unlinkat` support Linux
+   and macOS, and the managed filesystem must support hard links;
 4. atomically swaps the in-memory configuration snapshot;
 5. records non-authoritative audit metadata.
 
 No successful response is returned before the file and in-memory snapshot are
-both published. A crash after rename but before snapshot swap is recovered by
-the ordinary startup load. Publication requires an Idempotency-Key: retrying an
-identical identity/body returns that published version, while the same identity
-with different normalized content conflicts. PostgreSQL audit loss cannot
-remove or reinterpret the YAML version.
+both published. A crash after file publication but before snapshot swap is
+recovered by the ordinary startup load. A temporary `.tmp` name left by a crash
+between link and unlink is ignored by that loader. Publication requires an
+Idempotency-Key: retrying an identical identity/body returns that published
+version, while the same identity with different normalized content conflicts.
+PostgreSQL audit loss cannot remove or reinterpret the YAML version.
 
 The client never supplies a filesystem path. Server derives a stable relative
 path from validated kind/name/version, creates parent directories inside the
