@@ -1,13 +1,25 @@
 # Contractor
 
-Contractor runs AI-assisted Workflows for code understanding and application
-security: generating OpenAPI and LikeC4 documents, analyzing source code, and
-coordinating Audits with findings and evidence.
+Contractor is an **Application Security orchestration platform** for defining,
+running and coordinating AI-assisted security checks.
 
-A Workflow defines Stages and their inputs, outputs and transitions. The Go
-Server schedules each Stage; its Planner coordinates Workers running inside
-single-slot Python Runtime Agents. Versioned configuration and pinned artifact
-revisions make each Run's inputs and execution settings explicit.
+**Workflows** define individual checks and supporting analyses: source security
+review, HTTP/Caido-assisted analysis, taint tracing, OpenAPI operation analysis
+and findings review. OpenAPI and LikeC4 generation provide supporting artifacts.
+The catalog is extensible through versioned Workflows, agent definitions, tools
+and Skills. Each Workflow declares its Stages, inputs, outputs and transitions;
+a **Run** is one execution of that definition.
+
+An **Audit** is a higher-level abstraction over Workflows. Within a Project, it
+coordinates WorkflowRuns against a shared baseline and scope, tracks coverage,
+collects evidence and findings, and supports review and reporting. A versioned
+AuditProfile selects the Workflows and assessment rules for a checklist, a
+standards-based review or another supported assessment program. Workflows can
+also run independently of an Audit.
+
+The Go Server schedules Stages, and each Stage's Planner coordinates Workers
+inside Python Runtime Agents. Versioned configuration and pinned artifact
+revisions keep each Run's inputs and execution settings explicit.
 
 The application can run on one host: Server, PostgreSQL, one or more Runtime
 Agents, and an optional independently built React UI served by Node. Model

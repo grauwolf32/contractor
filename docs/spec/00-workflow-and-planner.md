@@ -6,8 +6,10 @@ Depends on: none
 
 ## Goal
 
-Workflow defines the product-specific sequence or graph. Workflow Scheduler
-executes that graph and owns Stage lifecycle. Planner owns decisions inside one
+A Workflow defines a reusable application security check or supporting analysis
+as a sequence or graph of Stages. Workflows can run independently or be selected
+by an [Audit](19-audits.md) as part of a broader assessment. Workflow Scheduler
+executes the graph and owns Stage lifecycle. Planner owns decisions inside one
 prepared Stage. Worker runtimes and their heavy dependencies remain outside
 Server, Scheduler and Planner packages.
 

@@ -4,19 +4,23 @@ Status: **Working agreement**
 
 [Documentation index](../README.md) · [Development guides](../development.md)
 
-This directory is the canonical working specification for Contractor v2. It
-captures the deliberately small execution model from the current design
-discussion; removed historical documents do not supply implicit requirements.
+This directory is the canonical working specification for Contractor v2, an
+Application Security orchestration platform. Workflows define reusable security
+checks and supporting analyses. Audit is the higher-level abstraction that
+coordinates WorkflowRuns into a Project-bound assessment with shared scope,
+evidence, findings, coverage and review.
 
 The target deployment is one VM or one physical host. Server, PostgreSQL and
 one or more lightweight Runtime Agent processes may all run on that host.
 Nothing in this model requires Kubernetes, a controller or a separate control-
 plane service.
 
-The execution core is domain-neutral. Code understanding and application
-security are initial Workflow examples, not a closed product-capability enum or
-a restriction on future Workflows. Domain semantics live in YAML Workflow,
-Planner and AgentTemplate definitions rather than in Scheduler branching.
+The catalog of checks is extensible. Check-specific behavior belongs in
+versioned Workflow, Planner and AgentTemplate definitions, instructions, Skills
+and toolsets. The execution core remains generic: Scheduler manages Run and
+Stage lifecycles without branching on security-check types. AuditProfile defines
+how selected Workflows participate in an assessment; [19](19-audits.md) owns
+that coordination contract.
 
 The configuration/UI target loads YAML/text definitions from `configs/` with
 seven fixed subtrees: `workflows`, `agent-templates`, `model-policies`,
@@ -70,6 +74,10 @@ point for links that previously targeted the monolithic working agreement.
 
 ## Smallest useful mental model
 
+An Audit coordinates ordinary WorkflowRuns. Each Run executes a selected
+Workflow through the lifecycle below; a Workflow can also run independently
+of an Audit.
+
 ```text
 Workflow
   -> Workflow Scheduler validates immutable parameters and forks exact UserScope or ProjectScope inputs and selected owner skills into RunArtifactSpace
@@ -101,7 +109,7 @@ The boundaries are deliberately narrow:
 
 | Concept | Responsibility |
 |---|---|
-| Workflow | Product-specific Stage graph and transition/acceptance policy |
+| Workflow | Reusable check or supporting analysis, with a Stage graph and transition/acceptance policy |
 | Workflow Scheduler | WorkflowRun progression and durable StageExecution lifecycle |
 | Planner | Stage-local decomposition and routing among prepared Workers |
 | AgentTemplate | Immutable, reusable Worker behavior/configuration |
@@ -127,7 +135,7 @@ The boundaries are deliberately narrow:
 | RunArtifactSpace | RunScope view with mutable inputs, intermediates and declared outputs |
 | Queue | Owner-scoped read projection over nonterminal WorkflowRuns; never a second Scheduler |
 | Queue control | Durable owner-scoped admission gate; never a WorkflowRun state or process-local switch |
-| Audit | Project-bound durable coordinator of ordinary Runs, evidence, findings and review; never another Scheduler |
+| Audit | Assessment abstraction over Workflows; coordinates ordinary Runs, scope, evidence, findings, coverage and review within a Project |
 
 ## Specification rule
 

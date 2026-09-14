@@ -1,5 +1,8 @@
 # Documentation
 
+Contractor is an Application Security orchestration platform. Workflows define
+extensible checks and supporting analyses; Audits coordinate them into assessments.
+
 | Start here | Contents |
 | --- | --- |
 | [Deployment](deployment.md) | Install, configure and run Server, Runtime, UI and their dependencies |

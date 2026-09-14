@@ -8,10 +8,12 @@ Last implementation review: **2026-09-06**
 
 ## 1. Purpose
 
-An `Audit` is a long-lived, Project-bound assessment performed against an
-immutable baseline, a selected scope, and a versioned program. It coordinates
-ordinary WorkflowRuns, deterministic inventory items, evidence, finding
-proposals, rounds, and authenticated human decisions.
+An `Audit` is the assessment abstraction above Workflows in Contractor's
+Application Security orchestration model. It defines a long-lived, Project-bound
+assessment against an immutable baseline, a selected scope, and a versioned
+program. An AuditProfile selects Workflows for check, discovery or assessment
+roles. Audit coordinates their ordinary WorkflowRuns, deterministic inventory
+items, evidence, finding proposals, rounds, and authenticated human decisions.
 
 One ordinary Project may contain multiple independent Audits: an OWASP Top 10
 risk assessment, an ASVS verification, a custom checklist, OpenAPI operation

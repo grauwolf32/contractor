@@ -10,9 +10,9 @@ Depends on: [00](00-workflow-and-planner.md),
 ## Purpose
 
 Contractor deployment includes one separately deployable Node.js Web UI for
-ordinary Workflow use and single-VM operational visibility. The UI uses the
-Server's public API; it does not become a second Scheduler, configuration
-resolver or source of lifecycle truth.
+security Workflows, Project-bound Audits and single-VM operational visibility.
+The UI uses Server's public API; it does not become a second Scheduler,
+configuration resolver or source of lifecycle truth.
 
 The target navigation contains:
 
@@ -91,9 +91,10 @@ instructions, prompt text or invocation content. A missing exact template is
 `404`; an existing template with no consumers returns an empty successful
 page.
 
-The UI remains domain-neutral. Project artifact tiles may provide familiar
-OpenAPI, LikeC4, source, documentation and diff icons, but they are shortcuts
-over arbitrary ArtifactRefs rather than hard-coded Server modes. Project,
+The UI supports an extensible catalog of security checks and supporting analyses.
+Project artifact tiles may provide familiar OpenAPI, LikeC4, source, documentation
+and diff icons, but they are shortcuts over arbitrary ArtifactRefs rather than
+hard-coded Server modes. Project,
 Workflow recommendation, global Queue, Evals and global Skills behavior is
 owned by [17](17-projects-and-queue.md). Runs consolidation and lifecycle
 controls are owned by [18](18-run-and-workspace-lifecycle-controls.md).

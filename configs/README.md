@@ -4,8 +4,12 @@ For new Runs and Audits, use the versioned [working Memory catalog](MEMORY.md).
 It maps all 20 roles and their Workflow/AuditProfile references to explicit
 Memory selections; older exact selectors remain available for compatibility.
 
-This directory contains the executable default configuration. Its current
-user-facing Workflow set is:
+This directory contains the executable default configuration for Contractor's
+Application Security orchestration platform. Versioned Workflows define checks
+and supporting analyses; AuditProfiles define how Audits coordinate selected
+Workflows into assessment programs. Extend the catalog with new Workflow and
+AgentTemplate definitions, instructions and Skills, using the available toolsets and the
+[configuration contract](../docs/spec/00-workflow-and-planner.md).
 
 [`server.local.yaml`](server.local.yaml) is a separate, non-secret
 `ServerConfig` for the loopback demo process. It is not a published catalog
@@ -15,6 +19,8 @@ Start the process with `contractor server run --config
 document's directory. Database URLs, public bearer tokens, development LLM
 tokens and all key bytes remain environment/file secrets and are deliberately
 not valid `ServerConfig` fields.
+
+The current user-facing Workflow set is:
 
 - `openapi-from-workspace@7` and `likec4-from-workspace@7` for four-Stage local
   graph-backed analysis and document generation;
