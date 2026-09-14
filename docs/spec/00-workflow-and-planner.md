@@ -4,6 +4,8 @@ Status: **Working agreement**
 
 Depends on: none
 
+[![Planner overview: Passthrough, Streamline, Router, the Scheduler–Planner lifecycle, and component responsibilities](../assets/contractor-planner.png)](../assets/contractor-planner.png)
+
 ## Goal
 
 A Workflow defines a reusable application security check or supporting analysis
