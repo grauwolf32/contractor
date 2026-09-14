@@ -38,6 +38,8 @@ The target deployment is deliberately small:
 - PostgreSQL or S3-backed artifact payload storage;
 - optionally, an external telemetry backend.
 
+[![Contractor architecture: control plane, Runtime Agents, allocations, and infrastructure adapters](docs/assets/architecture-overview.png)](docs/assets/architecture-overview.png)
+
 ## Documentation
 
 - [Documentation overview](docs/README.md)
