@@ -4,6 +4,8 @@ Status: **Working agreement**
 
 Last implementation review: **2026-09-06**
 
+[![Audit architecture: Project-bound coordination, ordinary WorkflowRuns, result collection, and persistent state](../assets/contractor-audits.png)](../assets/contractor-audits.png)
+
 ## 1. Purpose
 
 An `Audit` is a long-lived, Project-bound assessment performed against an
