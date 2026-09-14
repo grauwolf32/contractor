@@ -17,6 +17,17 @@ AuditProfile selects the Workflows and assessment rules for a checklist, a
 standards-based review or another supported assessment program. Workflows can
 also run independently of an Audit.
 
+For an API implementation review, a source snapshot and an OpenAPI document
+become the pinned baseline. The review also defines its authorization context:
+credentials, access scope and execution constraints.
+The Audit builds a worklist from API operations,
+dispatches the Workflows selected by its profile, and gathers results into a
+coverage map and evidence set. Finding proposals and unresolved gaps remain
+available for human review and the final Audit report. See the
+[Audit walkthrough](docs/guides/audits.md) for a runnable example.
+
+[![Audit orchestration: project inputs and authorization, coordinated WorkflowRuns, evidence, coverage, and human review](docs/assets/audit-workflows.png)](docs/assets/audit-workflows.png)
+
 The Go Server schedules Stages, and each Stage's Planner coordinates Workers
 inside Python Runtime Agents. Versioned configuration and pinned artifact
 revisions keep each Run's inputs and execution settings explicit.
