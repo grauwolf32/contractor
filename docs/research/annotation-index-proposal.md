@@ -1,83 +1,86 @@
-# Аннотации как необязательный артефакт Workflow
+# Annotations as an optional Workflow artifact
 
-Статус: предложение. Автоматический индекс аннотаций не реализован и не является
-условием доработки общих tools [создания и чтения findings](../spec/27-findings-tools-and-collections.md).
+Status: proposal. The automatic annotation index is not implemented and is not a
+prerequisite for extending the general [finding creation and reading tools](../spec/27-findings-tools-and-collections.md).
 
-Аннотации — один из возможных результатов исследования наряду с отчётом,
-графом, diff или логом проверки. Workflow выбирает нужные outputs. Общие Audit,
-Finding, гипотеза и механизм завершения работают со ссылками на артефакты и
-не требуют наличия `annotations.json`, `trace_id`, функции или sink.
+Annotations are one possible investigation output, alongside a report, graph,
+diff or validation log. Each Workflow chooses its outputs. The general Audit,
+Finding, hypothesis and completion mechanisms use artifact references and do
+not require `annotations.json`, `trace_id`, a function or a sink.
 
-## Первая версия
+## First version
 
-Для варианта с аннотированием достаточно экспортировать предусмотренные им
-артефакты через обычные Workflow outputs. У
+For an analysis variant that uses annotations, exporting its artifacts through
+ordinary Workflow outputs is sufficient. The
 [taint-trace Workflow](../../configs/workflows/taint_trace_from_workspace.yaml)
-уже экспортируются workspace state/diff. У текущего
+already exports workspace state/diff. The current
 [OpenAPI graph Worker](../../configs/workflows/audit_openapi_operation_trace.yaml)
-annotation tools и этот экспорт не подключены. Они добавляются выбранному
-варианту анализа, а не всем сценариям с findings.
+does not enable annotation tools or this export. These are added to the selected
+analysis variant, rather than to every scenario that produces findings.
 
-Артефакт может существовать без находок и гипотез. Он становится evidence
-конкретного вывода через явную ссылку и требования evidence contract.
-Наличие аннотированного source само по себе не подтверждает уязвимость,
-корректность потока или полноту исследования.
+An artifact can exist without findings or hypotheses. It becomes evidence for
+a specific conclusion through an explicit reference and the requirements of
+the evidence contract. Annotated source alone does not establish a vulnerability,
+the correctness of a flow or the completeness of an investigation.
 
-Для публикации находки все её evidence refs уже должны существовать. До
-финального экспорта можно ссылаться на ранее опубликованный отчёт или source
-evidence. Ссылки на будущие ревизии недопустимы.
+All evidence references for a finding must already exist when it is published.
+Before the final export, a finding can reference a previously published report
+or source evidence. References to future revisions are invalid.
 
-## Когда потребуется структурированный индекс
+## When a structured index is needed
 
-Индекс имеет смысл, если потребитель должен различать созданные и повторно
-использованные аннотации, сопоставлять их заданиям или собирать общий результат
-параллельных Workers. Это отдельный формат артефакта annotation tools, который
-может проверять специализированный обработчик. Его схема не переносится
-полями в общий Audit result; универсальный registry обработчиков заранее не нужен.
+An index is useful when a consumer needs to distinguish newly created annotations
+from reused ones, associate them with assignments, or aggregate results from
+parallel Workers. It is a separate artifact format owned by the annotation tools
+and can be validated by a specialized handler. Its schema does not become fields
+in the general Audit result; a generic handler registry is not needed in advance.
 
-Текущий [taint-annotations@1](../../runtime/src/contractor_runtime/toolsets/taint_annotations/tools.py)
-возвращает path, symbol, kind, строки и changed. `annotate_trace` принимает
-заданный моделью `target`, по умолчанию `unknown`; это не доверенная
-идентичность задания. У `annotate_validate` и `annotate_sink` такой аргумент
-отсутствует. Эти инструменты сами по себе не ведут реестр участия операций.
+The current [taint-annotations@1](../../runtime/src/contractor_runtime/toolsets/taint_annotations/tools.py)
+returns path, symbol, kind, line numbers and changed. `annotate_trace` accepts a
+model-supplied `target`, defaulting to `unknown`; this is not a trusted assignment
+identity. `annotate_validate` and `annotate_sink` have no such argument. These
+tools do not themselves track operation participation.
 
-Если индекс будет выбран, для его реализации полезны следующие правила:
+If an index is adopted, the following rules should guide its implementation:
 
-- Происхождение исполнения берётся из существующего доверенного контекста.
-  Audit-адаптер может добавить принадлежность назначенному item, обычный
-  Workflow — закреплённую цель. Annotation tool не обращается к Audit DB;
-  конкретный OpenAPI operation ID не становится обязательным аргументом.
-- Аннотация к коду и её участие в исследовании — разные записи. Общий sink
-  можно связать с несколькими заданиями; сведения о данных и controls
-  сохраняются для конкретного пути/места вызова. Даже одна операция может
-  вызвать функцию дважды с разными аргументами.
-- Устойчивый ID аннотации учитывает baseline, однозначное место кода и
-  нормализованное содержание. Одного номера строки или временного graph
-  symbol ID недостаточно. Стабильность через произвольный refactoring
-  первой версии не требуется.
-- Перед экспортом принятые tool records сверяются с тем же snapshot, что
-  и workspace exporter. Rollback/удаление не оставляют аннотацию активной;
-  записи не восстанавливаются из текста модели или диагностических metrics.
-- Изолированные overlays сохраняются. Одинаковые записи можно объединять,
-  а контексты и смысловые конфликты — оставлять различимыми. Склейка
-  текстовых diff не заменяет это правило; единый source при необходимости
-  строится из baseline и принятых записей.
+- Execution provenance comes from the existing trusted context. An Audit adapter
+  can associate a record with the assigned item; an ordinary Workflow can attach
+  its pinned target. The annotation tool does not access the Audit database, and
+  a specific OpenAPI operation ID does not become a required argument.
+- A code annotation and its participation in an investigation are separate
+  records. A shared sink can be associated with several assignments; data and
+  control information remains specific to each path/call site. Even a single
+  operation can call the same function twice with different arguments.
+- A stable annotation ID accounts for the baseline, an unambiguous code location
+  and normalized content. A line number or temporary graph symbol ID alone is
+  insufficient. Stability across arbitrary refactoring is not required in the
+  first version.
+- Before export, accepted tool records are reconciled with the same snapshot
+  used by the workspace exporter. Rollback or deletion must not leave an
+  annotation active; records are not reconstructed from model text or diagnostic
+  metrics.
+- Isolated overlays are preserved. Identical records can be merged, while
+  contexts and semantic conflicts remain distinguishable. Concatenating textual
+  diffs does not replace this rule; when needed, a combined source tree is built
+  from the baseline and accepted records.
 
-## Границы diff и общих функций
+## Limits of diffs and shared functions
 
-В [workspace overlay](../../runtime/src/contractor_runtime/projectfs/overlay.py)
-state описывает накопленное состояние относительно source, diff — изменение
-после checkpoint. Это достаточно для представления изменений. Для атрибуции
-исследования diff недостаточен: повторный annotation call может вернуть
-`changed=false`, а входной комментарий не доказывает, что текущий Worker его
-проверил. Если атрибуция нужна, она фиксируется явно в выбранном формате.
+In the [workspace overlay](../../runtime/src/contractor_runtime/projectfs/overlay.py),
+state describes the accumulated changes relative to the source, while diff
+describes changes since the checkpoint. This is sufficient to represent changes.
+A diff is insufficient for investigation attribution: a repeated annotation call
+can return `changed=false`, and an existing comment does not prove that the
+current Worker checked it. If attribution is needed, it must be recorded
+explicitly in the selected format.
 
-Например, GET вызывает общую функцию после проверки входа, а POST — напрямую.
-Описание функции/sink можно переиспользовать, но выводы о controls различаются.
-Совпадение функции или `file + CWE` не даёт основания автоматически объединять
-findings. Эта граница сохраняется независимо от наличия аннотаций.
+For example, GET calls a shared function after validating its input, while POST
+calls it directly. The function/sink description can be reused, but conclusions
+about controls differ. A matching function or `file + CWE` is not sufficient to
+merge findings automatically. This distinction applies regardless of whether
+annotations exist.
 
-Возможное расширение экспорта согласуется с
-[общим completion contract / V39](../spec/25-audit-worker-finalization.md),
-если потребуется включать его refs в детерминированный результат. Новый
-независимый finalizer или обязательная стадия аннотирования для этого не нужны.
+A possible export extension should align with the
+[common completion contract / V39](../spec/25-audit-worker-finalization.md)
+if its references need to be included in the deterministic result. This requires
+neither a new independent finalizer nor a mandatory annotation stage.

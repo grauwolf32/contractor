@@ -1,235 +1,242 @@
-# Contractor UI: user stories и план доработок
+# Contractor UI: user stories and improvement plan
 
-Статус: **запланировано, реализация по задачам**. Обновлено: 2026-09-06.
+Status: **planned; implementation tracked by task**. Updated: 2026-09-06.
 
-Этот документ фиксирует пользовательские цели и критерии удобства. Текущее
-поведение и протоколы описывает [спецификация UI](06-server-ui-and-operations.md).
-Наличие story здесь не означает, что она уже полностью реализована.
-Статус выполнения хранится в [задачах](../../tasks/index.yml).
+This document records user goals and usability criteria. The
+[UI specification](06-server-ui-and-operations.md) describes current behavior
+and protocols. A story's presence here does not mean it is fully implemented.
+Implementation status is tracked in the [tasks](../../tasks/index.yml).
 
-## Пользователи и границы
+## Users and scope
 
-- **Аналитик / исследователь** готовит материалы, запускает анализ, читает
-  результаты и принимает решения по Audit.
-- **Автор Workflow / агента** выбирает и проверяет опубликованные определения,
-  читает промпты и сравнивает варианты поведения.
-- **Оператор** следит за исполнением и ресурсами, меняет настройки и устраняет
-  инфраструктурные причины ожидания или ошибки.
+- **Analyst / researcher** prepares materials, starts analyses, reads results
+  and makes Audit decisions.
+- **Workflow / agent author** selects and checks published definitions, reads
+  prompts and compares behavior variants.
+- **Operator** monitors execution and resources, changes settings and resolves
+  infrastructure issues that cause waits or failures.
 
-Это роли в сценариях, а не новые роли авторизации. Один человек может выполнять
-все три функции; доступ продолжает определять Server.
+These are roles in user scenarios, not new authorization roles. One person can
+perform all three functions; Server continues to determine access.
 
-Основной путь: **Project → материалы → Workflow → настройка Run → выполнение →
-результат → следующий запуск или Audit review**. Запуск без Project остаётся
-самостоятельным поддерживаемым сценарием. Catalog объединяет Workflows, Agents
-и Skills; процессы Runtime Agent находятся в Operations. Дополнительные пункты
-главного меню не нужны; Evals остаётся после Artifacts.
+The primary journey is **Project → materials → Workflow → Run setup → execution →
+result → next Run or Audit review**. Starting a Run without a Project remains a
+supported standalone scenario. Catalog groups Workflows, Agents and Skills;
+Runtime Agent processes belong in Operations. No additional main navigation
+items are needed; Evals remains after Artifacts.
 
 ## User stories
 
-Идентификаторы US-01…US-11 соответствуют UC-01…UC-11 из исследования. Они
-сохраняются при изменениях интерфейса и используются в задачах и приёмке.
+Identifiers US-01…US-11 correspond to UC-01…UC-11 from the usability study. They
+remain stable as the interface changes and are used in tasks and acceptance checks.
 
-### US-01 — Подготовить проект
+### US-01 — Prepare a Project
 
-Как аналитик, хочу собрать исходники, цель и результаты в одном проекте,
-чтобы продолжать и повторять работу с тем же объектом.
+As an analyst, I want to collect source code, the target and results in one Project
+so that I can continue and repeat work on the same subject.
 
-Готово, когда из шапки проекта доступны добавление материалов и выбор анализа;
-после загрузки или Git-импорта понятны область хранения, точная версия и следующий
-шаг. Удаление доступно через дополнительные действия с существующим подтверждением.
+Done when the Project header provides actions to add materials and choose an
+analysis; after an upload or Git import, the storage scope, exact revision and
+next step are clear. Deletion is available through secondary actions with the
+existing confirmation.
 
-Доработки: V37-002, V37-003. Git-импорт: существующая V35-004.
+Implementation tasks: V37-002, V37-003. Git import: existing V35-004.
 
-### US-02 — Выбрать анализ по результату
+### US-02 — Choose an analysis by its intended result
 
-Как пользователь, хочу найти Workflow по назначению и ожидаемому результату,
-чтобы выбрать анализ без предварительного изучения Stage и внутренних имён.
+As a user, I want to find a Workflow by its purpose and expected result so that
+I can choose an analysis without first learning about Stages and internal names.
 
-Готово, когда каталог показывает описание, необходимые материалы и выходы,
-поиск охватывает все опубликованные записи, а перед запуском видна точная
-выбранная версия. Подробности исполнения доступны отдельно. Отсутствующее
-описание не заменяется догадкой по имени; версия не объявляется «последней»
-по предположению о числовом или SemVer-порядке.
+Done when the catalog shows descriptions, required materials and outputs, search
+covers all published entries, and the exact selected version is visible before
+launch. Execution details are available separately. A missing description is not
+replaced by a guess based on the name; a version is not declared "latest" based
+on an assumed numeric or SemVer ordering.
 
-Доработки: V37-003, V37-006, V37-007.
+Implementation tasks: V37-003, V37-006, V37-007.
 
-### US-03 — Настроить и запустить Run без потери ввода
+### US-03 — Configure and start a Run without losing input
 
-Как аналитик, хочу выбрать подходящие входы, при необходимости добавить файл
-и вернуться к незавершённой настройке, чтобы не собирать запрос заново.
+As an analyst, I want to select suitable inputs, add a file if necessary and
+return to unfinished setup so that I do not have to assemble the request again.
 
-Готово, когда локальная загрузка, библиотека и существующий Git-импорт доступны
-из нужного input slot; переход по приложению и закрытие формы сохраняют черновик
-в текущей вкладке. Возврат восстанавливает его для того же пользователя,
-Workflow/version и Project. Явный сброс требует подтверждения при наличии ввода;
-успешный запуск завершает черновик. Перезагрузка вкладки не входит в гарантию
-сохранения: чувствительный ввод автоматически не пишется в browser storage.
+Done when local upload, the library and existing Git import are available from
+the relevant input slot; navigating through the application and closing the form
+preserve the draft in the current tab. Returning restores it for the same user,
+Workflow/version and Project. Explicit reset requires confirmation when input is
+present; successful launch completes the draft. Persistence across a tab reload
+is not guaranteed: sensitive input is not automatically written to browser storage.
 
-Подстановка по MIME обозначается как предложение по формату и требует проверки
-пользователем. Нельзя объявлять содержательную пригодность документа доказанной.
-Формой и вложенными диалогами можно полностью пользоваться с клавиатуры.
+MIME-based suggestions are labeled as format matches and require user review.
+The interface must not claim that a document's semantic suitability is proven.
+The form and nested dialogs are fully usable with the keyboard.
 
-Доработки: V37-001, V37-002, V37-004.
+Implementation tasks: V37-001, V37-002, V37-004.
 
-### US-04 — Понять ход выполнения и ожидание
+### US-04 — Understand execution progress and waits
 
-Как пользователь, хочу видеть текущую работу и причину ожидания,
-чтобы понимать, нужно ли вмешаться или дождаться продолжения.
+As a user, I want to see the current work and the reason for a wait so that I can
+decide whether to intervene or wait for execution to continue.
 
-Готово, когда Run и Queue показывают известную Server причину, следующий
-доступный шаг и ссылку на соответствующее место диагностики. Уже назначенный
-Scheduler retry, ожидание Runtime и возможность создать другой Run различимы.
-Неизвестная причина остаётся неизвестной; свободный Runtime не выдаётся за
-гарантию совместимой ёмкости.
+Done when Run and Queue show the reason known to Server, the next available step
+and a link to the relevant diagnostics. An already scheduled Scheduler retry,
+a wait for Runtime capacity and the option to create another Run are distinct.
+An unknown reason remains unknown; an idle Runtime is not presented as a
+guarantee of compatible capacity.
 
-Доработки: V37-008, V37-011. Существующие Home, Queue и Run triage сохраняются.
+Implementation tasks: V37-008, V37-011. Existing Home, Queue and Run triage remain.
 
-### US-05 — Получить и использовать результат
+### US-05 — Retrieve and use a result
 
-Как аналитик, хочу сразу найти основной результат и открыть конкретный документ,
-чтобы оценить его и продолжить работу с ним.
+As an analyst, I want to find the primary result immediately and open a specific
+document so that I can assess it and continue working with it.
 
-Готово, когда основные выходы выделены по опубликованному признаку `primary`,
-а поддерживаемый небольшой файл открывается одним явным действием над ним.
-Для неподдерживаемого preview есть объяснение и Download; все выходы и точные
-версии остаются доступны. Отсутствие основного выхода не маскируется выбором
-первого попавшегося файла. Загрузка всех выходов при открытии Run не требуется.
+Done when primary outputs are highlighted using the published `primary` flag,
+and a supported small file opens through one explicit action on that file.
+Unsupported previews offer an explanation and Download; all outputs and exact
+revisions remain available. A missing primary output is not hidden by selecting
+an arbitrary file. Opening a Run does not require downloading every output.
 
-Доработка: V37-009.
+Implementation task: V37-009.
 
-### US-06 — Исправить причину и повторить анализ
+### US-06 — Fix the cause and repeat an analysis
 
-Как пользователь, хочу открыть новый черновик из прошлого Run с прежними
-входами и параметрами, чтобы повторить работу после исправления ошибки.
+As a user, I want to open a new draft from a previous Run with the same inputs
+and parameters so that I can repeat the work after fixing an error.
 
-Готово, когда действие предзаполняет доступные исходные настройки, сохраняет
-контекст Project и предлагает проверить их до запуска. Недоступные версии,
-credentials или входы отмечены явно. Старый Run и его история неизменны;
-повтор создаёт новый Run только после явной отправки. Для Audit-managed Run
-новое выполнение оформляется через управляющий Audit, без копирования его
-служебных labels в обычный пользовательский запрос.
+Done when the action prefills the available original settings, preserves the
+Project context and prompts the user to review them before launch. Unavailable
+versions, credentials or inputs are clearly marked. The old Run and its history
+remain unchanged; repeating creates a new Run only after explicit submission.
+For an Audit-managed Run, new execution goes through the controlling Audit,
+without copying its internal labels into an ordinary user request.
 
-Доработки: V37-002, V37-008.
+Implementation tasks: V37-002, V37-008.
 
-### US-07 — Провести Audit и принять решения
+### US-07 — Conduct an Audit and make decisions
 
-Как исследователь, хочу видеть прогресс проверок, пробелы и ожидающие решения,
-чтобы оценить findings по доказательствам и принять отчёт.
+As a researcher, I want to see check progress, gaps and pending decisions so that
+I can assess findings against their evidence and accept the report.
 
-Готово, когда сводка ведёт к соответствующим полным отфильтрованным спискам,
-а из pending review за одно действие открывается конкретный finding или отчёт
-с точным evidence. Возврат сохраняет фильтры. Технический успех, полнота покрытия
-и решение исследователя отображаются отдельно. Отмена и удаление Audit требуют
-подтверждения с описанием последствий; закрытие подтверждения ничего не меняет.
+Done when the summary links to the corresponding complete filtered lists, and
+pending review opens a specific finding or report with exact evidence in one
+action. Returning preserves filters. Technical success, coverage completeness
+and the researcher's decision are shown separately. Audit cancellation and
+deletion require confirmation that explains the consequences; dismissing the
+confirmation changes nothing.
 
-Доработки: V37-001, V37-005, V37-010.
+Implementation tasks: V37-001, V37-005, V37-010.
 
-### US-08 — Проверить агента и его промпт
+### US-08 — Inspect an agent and its prompt
 
-Как автор Workflow, хочу открыть точную версию агента, прочитать базовый промпт,
-Skills и tools и увидеть использующие его Workflow, чтобы понимать поведение.
+As a Workflow author, I want to open an exact agent version, read its base prompt,
+Skills and tools, and see the Workflows that use it so that I can understand its
+behavior.
 
-Готово, когда версии выбираются из опубликованных, поиск не ограничен текущей
-страницей, а обратные ссылки ведут к точным версиям Workflow. Существующие
-Preview / Source / Copy сохраняются. Базовый промпт явно отличим от фактического
-контекста отдельного invocation. Сравнение промптов между версиями — следующий
-этап, вне V37.
+Done when versions are selected from published definitions, search is not limited
+to the current page, and usage links lead to exact Workflow versions. Existing
+Preview / Source / Copy actions remain. The base prompt is clearly distinguished
+from the actual context of an individual invocation. Comparing prompts across
+versions is a later phase, outside V37.
 
-Доработки: V37-006, V37-007. Базовая функция реализована в V33-001.
+Implementation tasks: V37-006, V37-007. Basic functionality is implemented in V33-001.
 
-### US-09 — Найти и проверить нужный файл
+### US-09 — Find and inspect the right file
 
-Как аналитик, хочу добавить файл, увидеть его назначение, версию и происхождение,
-чтобы выбрать правильный материал и воспроизвести результат.
+As an analyst, I want to add a file and see its purpose, revision and provenance
+so that I can select the right material and reproduce the result.
 
-Готово, когда файл можно добавить непосредственно в сценарии запуска, проверить
-перед привязкой к slot и открыть без лишних раскрытий. Точная версия и Git commit,
-если он есть, доступны; полная история, lineage и диагностика не заслоняют
-основные действия. Конфликт обновления предлагает проверить актуальное состояние
-или выбрать новое имя и никогда не приводит к молчаливой перезаписи.
+Done when a file can be added directly during Run setup, inspected before binding
+to a slot, and opened without unnecessary expansion steps. The exact revision
+and Git commit, when present, are available; full history, lineage and diagnostics
+do not obscure the primary actions. An update conflict offers a way to inspect
+the current state or choose a new name and never results in a silent overwrite.
 
-Доработки: V37-002, V37-004, V37-009; существующие V34 и V35 сохраняют контракт хранения.
+Implementation tasks: V37-002, V37-004, V37-009; existing V34 and V35 preserve the
+storage contract.
 
-### US-10 — Сравнить варианты через Evals
+### US-10 — Compare variants through Evals
 
-Как автор агента, хочу задать варианты, одинаковые cases и число повторов,
-чтобы сравнить результаты, длительность и расход токенов на сопоставимых данных.
+As an agent author, I want to define variants, shared cases and a repeat count so
+that I can compare results, duration and token usage using comparable data.
 
-Целевой результат: настройка эксперимента и сравнение по case/sample с явно
-показанными отсутствующими, повторными и неуспешными запусками. Отсутствующие
-метрики не равны нулю; успешный Run сам по себе не означает высокое качество.
-Оценка качества требует явно выбранного evaluator или человеческого решения.
+Target outcome: experiment setup and comparison by case/sample, with missing,
+repeated and failed Runs shown explicitly. Missing metrics are not zero; a
+successful Run alone does not imply high quality. Quality assessment requires
+an explicitly selected evaluator or a human decision.
 
-**Отдельный этап:** V38-001 сначала определяет продуктовый и API-контракт и
-декомпозирует реализацию. Текущая группировка обычных Runs по `eval.*` labels
-остаётся поддерживаемой; готовность V37 не означает готовность этой story.
+**Separate phase:** V38-001 first defines the product and API contract and breaks
+down the implementation. Existing grouping of ordinary Runs by `eval.*` labels
+remains supported; completing V37 does not mean this story is complete.
 
-### US-11 — Наблюдать и настраивать исполнение
+### US-11 — Monitor and configure execution
 
-Как оператор, хочу видеть готовность Runtime, нагрузку Server и состояние БД,
-а перед изменением настроек понимать их влияние, чтобы устранять препятствия
-выполнению и контролировать ресурсы.
+As an operator, I want to see Runtime readiness, Server load and database state,
+and understand the impact of settings before changing them, so that I can resolve
+execution blockers and manage resources.
 
-Готово, когда обзор отвечает на вопросы состояния и доступности, формы открываются
-по действию Create/Edit, а перед сохранением видны изменения и область применения.
-Публикация RuntimeConfig не представляется изменением уже выполняющегося allocation.
-Сведения о revision/snapshot доступны в диагностике. Разрешения и состояние
-отключённых метрик отражают Server.
+Done when the overview explains state and availability, forms open through
+Create/Edit actions, and changes and their scope are visible before saving.
+Publishing a RuntimeConfig is not presented as changing an allocation already
+in progress. Revision/snapshot details are available in diagnostics. Permissions
+and the disabled state of metrics reflect Server's state.
 
-Доработка компоновки: V37-011. Графики Server/PostgreSQL и итоговые метрики
-allocation уже запланированы в V32-006; частоты 15 секунд / 60 секунд / 5 минут,
-выключение метрик и независимый Go profiling определяет
-[отдельная спецификация](22-performance-metrics-and-profiling.md).
-Нового переключателя pprof в UI этот план не добавляет.
+Layout task: V37-011. Server/PostgreSQL charts and final allocation metrics are
+already planned in V32-006; the 15-second / 60-second / 5-minute intervals,
+disabling metrics and independent Go profiling are defined by the
+[separate specification](22-performance-metrics-and-profiling.md).
+This plan does not add a new pprof toggle to the UI.
 
-## Порядок реализации
+## Implementation order
 
-Все новые задачи имеют `status: pending`. Их `priority: P2` соответствует
-политике репозитория «после первого releasable slice». Срочность из исследования
-UX-01…UX-11 выражена очередями ниже, а не переопределением этой политики.
-Точные зависимости, границы, критерии и команды проверки — в каждом YAML.
+All new tasks start with `status: pending`. Their `priority: P2` follows the
+repository policy of "after the first releasable slice". The urgency identified
+in the UX-01…UX-11 study is expressed by the waves below, without overriding
+that policy. Each YAML file contains the exact dependencies, scope, criteria
+and verification commands.
 
-| Очередь | Задача | Результат | Основание |
-|---|---|---|---|
-| 1 | [V37-001](../../tasks/v37-001-accessible-dialogs.yml) | Общий Dialog, управление фокусом, вложенные формы | UX-05 |
-| 1 | [V37-002](../../tasks/v37-002-run-draft-continuity.yml) | Черновик в рамках вкладки, локальная загрузка в input slot, интеграция Git | UX-02 |
-| 1 | [V37-003](../../tasks/v37-003-project-workflow-primary-actions.yml) | Добавление материалов и запуск видны в начале страницы | UX-01 |
-| 1 | [V37-004](../../tasks/v37-004-input-suggestion-review.yml) | Явная проверка предложенных по формату входов | UX-03 |
-| 1 | [V37-005](../../tasks/v37-005-audit-action-confirmations.yml) | Подтверждение Cancel/Delete Audit | UX-04 |
-| 2 | [V37-006](../../tasks/v37-006-catalog-discovery-contracts.yml) | Метаданные и ограниченные API поиска, версий и обратных ссылок | UX-06 |
-| 2 | [V37-007](../../tasks/v37-007-catalog-discovery-ui.yml) | Выбор Workflow по назначению, выбор версии агента, Where used | UX-06 |
-| 2 | [V37-008](../../tasks/v37-008-run-repeat-and-next-actions.yml) | Предзаполненный повтор и следующий шаг при ошибке/ожидании | UX-07 |
-| 2 | [V37-009](../../tasks/v37-009-primary-result-preview.yml) | Основные результаты и просмотр одним действием | UX-08 |
-| 3 | [V37-010](../../tasks/v37-010-audit-review-workspace.yml) | Сводка Audit и рабочая очередь решений | UX-09 |
-| 3 | [V37-011](../../tasks/v37-011-operations-progressive-forms.yml) | Обзор Operations, формы по действию, влияние изменений | UX-10 |
-| Приёмка V37 | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Проверка связанных сценариев, клавиатуры и мобильной ширины | US-01…09, US-11 в границах V37 |
-| Отдельный этап | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Контракт эксперимента и задачи реализации Evals | UX-11 / US-10 |
+| Wave | Task | Outcome | Rationale |
+| --- | --- | --- | --- |
+| 1 | [V37-001](../../tasks/v37-001-accessible-dialogs.yml) | Shared Dialog, focus management and nested forms | UX-05 |
+| 1 | [V37-002](../../tasks/v37-002-run-draft-continuity.yml) | Drafts within the current tab, local upload to an input slot and Git integration | UX-02 |
+| 1 | [V37-003](../../tasks/v37-003-project-workflow-primary-actions.yml) | Add-materials and launch actions visible at the top of the page | UX-01 |
+| 1 | [V37-004](../../tasks/v37-004-input-suggestion-review.yml) | Explicit review of inputs suggested by format | UX-03 |
+| 1 | [V37-005](../../tasks/v37-005-audit-action-confirmations.yml) | Cancel/Delete Audit confirmations | UX-04 |
+| 2 | [V37-006](../../tasks/v37-006-catalog-discovery-contracts.yml) | Metadata and bounded search, version and usage-link APIs | UX-06 |
+| 2 | [V37-007](../../tasks/v37-007-catalog-discovery-ui.yml) | Workflow selection by purpose, agent version selection and Where used | UX-06 |
+| 2 | [V37-008](../../tasks/v37-008-run-repeat-and-next-actions.yml) | Prefilled repeat and next steps for errors/waits | UX-07 |
+| 2 | [V37-009](../../tasks/v37-009-primary-result-preview.yml) | Primary results and preview in one action | UX-08 |
+| 3 | [V37-010](../../tasks/v37-010-audit-review-workspace.yml) | Audit summary and decision work queue | UX-09 |
+| 3 | [V37-011](../../tasks/v37-011-operations-progressive-forms.yml) | Operations overview, forms opened by action and the impact of changes | UX-10 |
+| V37 acceptance | [V37-012](../../tasks/v37-012-ui-journey-verification.yml) | Verification of connected journeys, keyboard access and mobile viewport | US-01…09, US-11 within V37 |
+| Separate phase | [V38-001](../../tasks/v38-001-evals-experience-contract.yml) | Experiment contract and Evals implementation tasks | UX-11 / US-10 |
 
-Начать можно с V37-001 и V37-003: они не зависят от новых API. После Dialog —
-V37-002 и V37-005; затем V37-004 на базе сохраняемого черновика. Контракт каталога
-V37-006 можно готовить независимо. Задачи V37-008 и V37-010 включают необходимые
-ограниченные read projections Server, если нынешних данных недостаточно;
-это не обещание выполнить весь план одними изменениями JSX/CSS.
+Work can start with V37-001 and V37-003 because they do not depend on new APIs.
+After Dialog, proceed with V37-002 and V37-005, then V37-004 using the preserved
+draft. The V37-006 catalog contract can be prepared independently. V37-008 and
+V37-010 include the necessary bounded Server read projections if current data
+is insufficient; the plan is not a promise to deliver everything through
+JSX/CSS changes alone.
 
-V35-004 уже добавляет Git Settings/import; V37 использует эту реализацию.
-V32-006 остаётся владельцем Performance UI. V37-011 не зависит от появления
-графиков и не дублирует их. Оценки сроков пока не фиксируются: основные
-неопределённости — полнота данных для повтора Run и API поиска/review.
+V35-004 already adds Git Settings/import; V37 uses that implementation. V32-006
+continues to own the Performance UI. V37-011 neither depends on charts being
+available nor duplicates them. Timing estimates are not fixed yet: the main
+uncertainties are the completeness of data for repeating Runs and the
+search/review APIs.
 
-## Проверка результата
+## Verification
 
-Для каждой очереди проверяем связанный сценарий, а не только отдельный экран:
-выбор Workflow → отсутствующий файл → заполнение → переход и возврат → запуск;
-ошибка → новый черновик; готовый Run → основной результат; waiting_review →
-evidence → решение; закрытие подтверждения Audit без мутации.
+For each wave, verify a connected journey rather than only an individual screen:
+choose a Workflow → missing file → fill in the form → navigate away and return →
+launch; error → new draft; completed Run → primary result; waiting_review →
+evidence → decision; dismiss Audit confirmation without mutation.
 
-Приёмка включает клавиатуру, 1440×1000 и 390×844, реальные ограничения данных,
-ошибки, пустые состояния и восстановление после неоднозначного ответа.
-Синтетические browser fixtures проверяют воспроизводимые взаимодействия,
-интеграционные проверки — границы API, ownership и точных revisions.
+Acceptance covers keyboard access, 1440×1000 and 390×844 viewports, real data
+constraints, errors, empty states and recovery after an ambiguous response.
+Synthetic browser fixtures verify reproducible interactions; integration checks
+verify API, ownership and exact-revision boundaries.
 
-Для оценки удобства провести одинаковые задания с новым и опытным пользователем
-до и после изменений: успешность без подсказок, время, возвраты, неверный выбор
-входов и потеря ввода. Числовые цели устанавливаются после исходного замера;
-экспертное исследование не подменяет пользовательское тестирование.
+To assess usability, have a new user and an experienced user perform the same
+tasks before and after the changes. Measure success without hints, time spent,
+backtracking, incorrect input choices and lost input. Set numerical targets
+after the baseline measurement; expert review does not replace user testing.
