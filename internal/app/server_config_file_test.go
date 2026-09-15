@@ -245,8 +245,8 @@ func TestRepositoryLocalServerConfigKeepsDefaultsAndDemoWorkerTimeout(t *testing
 	}
 	// The demo allows longer Worker requests than the executable's 180s default.
 	// Keep checking the explicit override so silently dropping it fails this test.
-	if cfg.WorkerRequestTimeout != 5*time.Minute {
-		t.Fatalf("demo Worker request timeout = %s, want 5m", cfg.WorkerRequestTimeout)
+	if cfg.WorkerRequestTimeout != 15*time.Minute {
+		t.Fatalf("demo Worker request timeout = %s, want 15m", cfg.WorkerRequestTimeout)
 	}
 }
 

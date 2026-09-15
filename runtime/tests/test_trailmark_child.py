@@ -9,10 +9,35 @@ from typing import Any
 import pytest
 from test_projectfs_zip import archive, settings, workspace_inputs
 
+import contractor_runtime.toolsets.code_analysis.trailmark_child as child_module
 import contractor_runtime.toolsets.code_analysis.trailmark_host as host_module
 from contractor_runtime.projectfs import LocalWorkspaceProvider, hydrate_workspace
 from contractor_runtime.projectfs.storage import WorkspaceSnapshot, WorkspaceTextFile
 from contractor_runtime.toolsets.code_analysis.trailmark_host import TrailmarkChildHost
+
+
+@pytest.mark.parametrize(
+    "platform,hard_limit,expected",
+    [
+        ("linux", -1, 1024**3),
+        ("linux", 512 * 1024**2, 512 * 1024**2),
+        ("darwin", -1, 5 * 1024**3),
+        ("darwin", 6 * 1024**3, 5 * 1024**3),
+        ("darwin", 3 * 1024**3, 3 * 1024**3),
+    ],
+)
+def test_address_space_budget_accounts_for_darwin_mappings_and_hard_limit(
+    monkeypatch, platform, hard_limit, expected
+):
+    monkeypatch.setattr(child_module.sys, "platform", platform)
+    monkeypatch.setattr(child_module.resource, "getrlimit", lambda _: (hard_limit, hard_limit))
+
+    def virtual_size():
+        assert platform == "darwin"
+        return 4 * 1024**3
+
+    monkeypatch.setattr(child_module, "_darwin_virtual_size_bytes", virtual_size)
+    assert child_module._maximum_address_space_bytes() == expected
 
 
 @pytest.mark.parametrize("mode", ["direct", "overlay"])

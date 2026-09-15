@@ -1102,7 +1102,7 @@ def _method(value: object) -> str:
 
 
 def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
-    if not isinstance(url, str) or not 1 <= len(url.encode("utf-8")) <= MAX_URL_BYTES:
+    if not isinstance(url, str) or not 1 <= _request_utf8_size(url) <= MAX_URL_BYTES:
         raise HTTPToolError("http_request_invalid")
     try:
         parsed = urlsplit(url)
@@ -1112,7 +1112,10 @@ def _url_with_query(url: object, query: Mapping[str, Any] | None) -> str:
     additions = _query_pairs(query)
     if len(existing) + len(additions) > MAX_QUERY_KEYS:
         raise HTTPToolError("http_request_invalid")
-    encoded = urlencode(existing + additions, doseq=True)
+    try:
+        encoded = urlencode(existing + additions, doseq=True)
+    except UnicodeError:
+        raise HTTPToolError("http_request_invalid") from None
     if len(encoded.encode("utf-8")) > MAX_QUERY_BYTES:
         raise HTTPToolError("http_request_invalid")
     result = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, encoded, parsed.fragment))
@@ -1142,7 +1145,7 @@ def _query_pairs(query: Mapping[str, Any] | None) -> list[tuple[str, str]]:
                 rendered = str(item).lower() if type(item) is bool else str(item)
             else:
                 raise HTTPToolError("http_request_invalid")
-            if len(rendered.encode("utf-8")) > MAX_HEADER_VALUE_BYTES:
+            if _request_utf8_size(rendered) > MAX_HEADER_VALUE_BYTES:
                 raise HTTPToolError("http_request_invalid")
             result.append((key, rendered))
     if len(result) > MAX_QUERY_KEYS:
@@ -1170,7 +1173,7 @@ def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
             raise HTTPToolError("http_request_invalid")
         if not isinstance(raw_value, str) or any(char in raw_value for char in "\r\n\x00"):
             raise HTTPToolError("http_request_invalid")
-        size = len(raw_value.encode("utf-8"))
+        size = _request_utf8_size(raw_value)
         if size > MAX_HEADER_VALUE_BYTES:
             raise HTTPToolError("http_request_invalid")
         total += len(name) + size
@@ -1235,7 +1238,10 @@ def _timeout(value: object, cap: int) -> float:
     if value is None:
         selected = min(float(cap), 120.0)
     elif type(value) in {int, float}:
-        selected = float(value)
+        try:
+            selected = float(value)
+        except OverflowError:
+            raise HTTPToolError("http_request_invalid") from None
     else:
         raise HTTPToolError("http_request_invalid")
     if not math.isfinite(selected) or selected < 1 or selected > 120:
@@ -1395,10 +1401,10 @@ def _cookie_values(cookies: Mapping[str, Any]) -> dict[str, str]:
         if (
             not isinstance(name, str)
             or not name
-            or len(name.encode("utf-8")) > 256
+            or _request_utf8_size(name) > 256
             or any(char in name for char in "\r\n\x00;,")
             or not isinstance(value, str)
-            or len(value.encode("utf-8")) > MAX_HEADER_VALUE_BYTES
+            or _request_utf8_size(value) > MAX_HEADER_VALUE_BYTES
             or any(char in value for char in "\r\n\x00")
         ):
             raise HTTPToolError("http_request_invalid")
@@ -1425,8 +1431,8 @@ def _auth(
             set(auth) != {"kind", "username", "password"}
             or not isinstance(username, str)
             or not isinstance(password, str)
-            or not 1 <= len(username.encode("utf-8")) <= 256
-            or not 1 <= len(password.encode("utf-8")) <= MAX_HEADER_VALUE_BYTES
+            or not 1 <= _request_utf8_size(username) <= 256
+            or not 1 <= _request_utf8_size(password) <= MAX_HEADER_VALUE_BYTES
             or any(char in username + password for char in "\r\n\x00")
         ):
             raise HTTPToolError("http_request_invalid")
@@ -1436,12 +1442,19 @@ def _auth(
         if (
             set(auth) != {"kind", "token"}
             or not isinstance(bearer_token, str)
-            or not 1 <= len(bearer_token.encode("utf-8")) <= MAX_HEADER_VALUE_BYTES
+            or not 1 <= _request_utf8_size(bearer_token) <= MAX_HEADER_VALUE_BYTES
             or any(char in bearer_token for char in "\r\n\x00")
         ):
             raise HTTPToolError("http_request_invalid")
         return "bearer", None, bearer_token
     raise HTTPToolError("http_request_invalid")
+
+
+def _request_utf8_size(value: str) -> int:
+    try:
+        return len(value.encode("utf-8"))
+    except UnicodeError:
+        raise HTTPToolError("http_request_invalid") from None
 
 
 def _elapsed_ms(started_ns: int) -> int:

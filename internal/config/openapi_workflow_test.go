@@ -141,7 +141,7 @@ func TestRepositoryOpenAPIAgentToolAllowlists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve domain Worker policy: %v", err)
 	}
-	if policy.Model != "worker-model" || policy.MaxOutputTokens != 16384 || policy.Temperature == nil || *policy.Temperature != 0.1 {
+	if policy.Model != "worker-model" || policy.MaxOutputTokens != 32768 || policy.Temperature == nil || *policy.Temperature != 0.1 {
 		t.Fatalf("domain Worker policy = %+v", policy)
 	}
 

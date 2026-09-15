@@ -21,6 +21,7 @@ from contractor_runtime.telemetry.metrics import (
     bind_tool_metric_correlation,
     reset_tool_metric_correlation,
 )
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.worker.observations import (
     WorkspaceObservationReducer,
     WorkspaceObservationSource,
@@ -680,11 +681,18 @@ def _install_session_snapshot(context: Any | None, snapshot: dict[str, Any]) -> 
 
 
 def _safe_tool_response(tool_name: str, error: Exception) -> dict[str, Any]:
+    message = (
+        error.diagnostic_message
+        if isinstance(error, ToolInputError)
+        else f"{tool_name} failed ({type(error).__name__})"
+    )
     return {
         "ok": False,
         "error": {
             "code": _safe_error_code(error),
-            "message": f"{tool_name} failed ({type(error).__name__})",
+            "message": message.encode("utf-8", errors="replace")[:512].decode(
+                "utf-8", errors="ignore"
+            ),
             "retryable": bool(getattr(error, "retryable", False)),
         },
     }

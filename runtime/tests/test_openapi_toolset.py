@@ -612,15 +612,38 @@ def test_schema_mutations_replace_refs_atomically_and_reject_vacuum_shape_errors
                 },
                 ["src/app.py"],
             )
-        with pytest.raises(ValueError, match="at least two schemas"):
+        with pytest.raises(ValueError, match="at least one schema"):
             await tools["upsert_openapi_component"](
                 "schemas",
                 "Envelope",
-                {"properties": {"value": {"anyOf": [{"type": "string"}]}}},
+                {"properties": {"value": {"anyOf": []}}},
                 ["src/app.py"],
             )
         assert client.write_count == writes
         assert client.bindings[("openapi", "openapi")].revision == revision
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("keyword", ["allOf", "anyOf", "oneOf"])
+def test_single_schema_combinations_are_preserved_and_empty_ones_rejected(tmp_path, keyword):
+    async def scenario():
+        source = tmp_path / "source" / "src"
+        source.mkdir(parents=True)
+        (source / "app.py").write_text("def handler(): pass\n")
+        client, state = MemoryArtifactClient(), WorkerState()
+        tools = await make_tools(tmp_path, client, state, namespace="openapi")
+        await tools["initialize_openapi"](title="Service")
+        schema = {keyword: [{"type": "string"}]}
+        await tools["upsert_openapi_component"]("schemas", "Value", schema, ["src/app.py"])
+        component = await tools["get_openapi_component"]("schemas", "Value")
+        assert component["component"][keyword] == [{"type": "string"}]
+        writes = client.write_count
+        with pytest.raises(ValueError, match="at least one schema"):
+            await tools["upsert_openapi_component"](
+                "schemas", "Value", {keyword: []}, ["src/app.py"]
+            )
+        assert client.write_count == writes
 
     asyncio.run(scenario())
 

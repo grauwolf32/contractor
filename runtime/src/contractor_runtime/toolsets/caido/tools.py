@@ -327,7 +327,7 @@ class _CaidoSession:
         else:
             if not isinstance(raw_request, str) or not raw_request or not host:
                 raise CaidoToolError("caido_request_invalid")
-            if len(raw_request.encode()) > MAX_RAW_REQUEST_BYTES:
+            if _request_utf8_size(raw_request) > MAX_RAW_REQUEST_BYTES:
                 raise CaidoToolError("caido_request_invalid")
             _connection_host(host)
             _integer(port, minimum=1, maximum=65535, request=True)
@@ -652,7 +652,11 @@ class _CaidoSession:
         if selected_request:
             if input_text:
                 raise CaidoToolError("caido_request_invalid")
-        elif not isinstance(input_text, str) or not input_text:
+        elif (
+            not isinstance(input_text, str)
+            or not input_text
+            or _request_utf8_size(input_text) > MAX_RAW_REQUEST_BYTES
+        ):
             raise CaidoToolError("caido_request_invalid")
 
         async with self._lock:
@@ -1066,7 +1070,9 @@ class CaidoReplayTool(_CaidoTool):
     ) -> dict[str, Any]:
         arguments = {
             "source": "id" if isinstance(request_id, str) and request_id else "raw",
-            "rawBytes": len(raw_request.encode()) if isinstance(raw_request, str) else -1,
+            "rawBytes": len(raw_request.encode(errors="replace"))
+            if isinstance(raw_request, str)
+            else -1,
             "port": port if type(port) is int else -1,
             "isTLS": is_tls if type(is_tls) is bool else False,
             "wait": wait if type(wait) is bool else False,
@@ -1269,7 +1275,7 @@ class CaidoWorkflowRunTool(_CaidoTool):
     ) -> dict[str, Any]:
         arguments = {
             "mode": "active" if isinstance(request_id, str) and request_id else "convert",
-            "inputBytes": len(input.encode()) if isinstance(input, str) else -1,
+            "inputBytes": len(input.encode(errors="replace")) if isinstance(input, str) else -1,
             "hasWorkflowId": bool(workflow_id) if isinstance(workflow_id, str) else False,
         }
         return await self._call(
@@ -1860,7 +1866,7 @@ def _request_text(value: object, *, maximum: int) -> str:
     if (
         not isinstance(value, str)
         or not value
-        or len(value.encode()) > maximum
+        or _request_utf8_size(value) > maximum
         or any(ord(character) < 32 for character in value)
     ):
         raise CaidoToolError("caido_request_invalid")
@@ -1885,12 +1891,19 @@ def _request_string_list(
         if (
             not isinstance(item, str)
             or (not allow_empty and not item)
-            or len(item.encode()) > item_bytes
+            or _request_utf8_size(item) > item_bytes
             or (not allow_controls and any(ord(character) < 32 for character in item))
         ):
             raise CaidoToolError("caido_request_invalid")
         selected.append(item)
     return selected
+
+
+def _request_utf8_size(value: str) -> int:
+    try:
+        return len(value.encode("utf-8"))
+    except UnicodeError:
+        raise CaidoToolError("caido_request_invalid") from None
 
 
 def _request_number(value: object, *, minimum: float, maximum: float) -> float:
@@ -1926,7 +1939,7 @@ def _safe_enum(value: object) -> str:
 
 
 def _filter(value: object) -> str:
-    if not isinstance(value, str) or len(value.encode()) > MAX_SHORT_TEXT_BYTES:
+    if not isinstance(value, str) or _request_utf8_size(value) > MAX_SHORT_TEXT_BYTES:
         raise CaidoToolError("caido_request_invalid")
     if any(ord(character) < 32 for character in value):
         raise CaidoToolError("caido_request_invalid")
@@ -1936,7 +1949,7 @@ def _filter(value: object) -> str:
 def _request_identifier(value: object) -> str:
     try:
         return _identifier(value)
-    except CaidoToolError:
+    except (CaidoToolError, UnicodeError):
         raise CaidoToolError("caido_request_invalid") from None
 
 

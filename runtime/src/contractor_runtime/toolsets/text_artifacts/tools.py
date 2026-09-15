@@ -19,6 +19,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -248,31 +249,23 @@ class WriteTextArtifactTool(_BaseTextTool):
         expected_revision: str | None = None,
     ) -> dict[str, Any]:
         started_ns = time.perf_counter_ns()
-        if not isinstance(text, str):
-            error = TypeError("text must be a string")
-            self._failure(
-                {
-                    "name": name,
-                    "media_type": media_type,
-                    "expected_revision": expected_revision,
-                    "content": text,
-                },
-                error,
-                started_ns,
-            )
-            raise error
-        data = text.encode("utf-8")
         arguments = {
             "name": name,
             "media_type": media_type,
             "expected_revision": expected_revision,
             "content": text,
-            "utf8_size": len(data),
         }
         try:
+            if not isinstance(text, str):
+                raise ToolInputError("text must be a string")
+            try:
+                data = text.encode("utf-8")
+            except UnicodeError:
+                raise ToolInputError("text must be valid UTF-8") from None
+            arguments["utf8_size"] = len(data)
             require_model_visible_binding(self._namespace, name)
             if len(data) > MAX_TEXT_WRITE_BYTES:
-                raise ValueError("UTF-8 artifact text exceeds the 1 MiB tool limit")
+                raise ToolInputError("UTF-8 artifact text exceeds the 1 MiB tool limit")
             result = await self._client.write_artifact(
                 ArtifactRef(namespace=self._namespace, name=name),
                 data=data,
@@ -297,14 +290,14 @@ class WriteTextArtifactTool(_BaseTextTool):
 
 def _validate_line_window(start_line: int, max_lines: int) -> None:
     if isinstance(start_line, bool) or not isinstance(start_line, int) or start_line < 1:
-        raise ValueError("start_line must be a positive integer")
+        raise ToolInputError("start_line must be a positive integer")
     if (
         isinstance(max_lines, bool)
         or not isinstance(max_lines, int)
         or max_lines < 1
         or max_lines > MAX_TEXT_READ_LINES
     ):
-        raise ValueError(f"max_lines must be between 1 and {MAX_TEXT_READ_LINES}")
+        raise ToolInputError(f"max_lines must be between 1 and {MAX_TEXT_READ_LINES}")
 
 
 def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:

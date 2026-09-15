@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import pytest
+
 from contractor_runtime.telemetry.metrics import (
     MAX_ARGUMENT_SUMMARY_BYTES,
     MAX_METRIC_COUNTER,
@@ -11,6 +13,8 @@ from contractor_runtime.telemetry.metrics import (
     MAX_REPORT_JSON_BYTES,
     MetricsState,
 )
+from contractor_runtime.toolsets.audit_results.arguments import AuditArgumentError
+from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 
 SECRET = "metrics-secret-that-must-not-survive"
 
@@ -23,6 +27,22 @@ class ToolFailure(RuntimeError):
 class SkillDisclosureFailure(RuntimeError):
     code = "SKILL_DISCLOSURE_LIMIT"
     retryable = False
+
+
+@pytest.mark.parametrize("error_type", [AuditArgumentError, AuditCollectionError])
+def test_input_error_diagnostics_keep_repair_reason_and_redact_secrets(error_type):
+    state = MetricsState()
+    error = error_type("completed", f"Use the requested coverage. {SECRET}")
+    error.details["invalidValue"] = "untrusted-input-must-not-be-logged"
+    state.record_tool_call("submit_check_result", arguments={}, error=error, secrets=(SECRET,))
+    report = state.build_report(report_id="worker-input-error", duration_ms=1)
+    message = report.tool_calls[0].error.message
+    assert message == "completed: Use the requested coverage. [REDACTED]"
+    assert state.errors[0].message == message
+    assert not report.tool_calls[0].error.retryable
+    encoded = report.model_dump_json()
+    assert SECRET not in encoded
+    assert "untrusted-input-must-not-be-logged" not in encoded
 
 
 def test_report_keeps_exact_aggregates_while_dropping_oldest_bounded_detail() -> None:

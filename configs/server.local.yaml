@@ -14,7 +14,7 @@ spec:
   shutdownTimeout: 5s
   # Individual private Runtime/A2A HTTP requests only. See docs/operations/timeout-configuration.md.
   runtimeRequestTimeout: 30s
-  workerRequestTimeout: 300s
+  workerRequestTimeout: 15m
   plannerTimeout: 30m
 
   scheduler:

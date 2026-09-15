@@ -8,6 +8,11 @@ from typing import Any
 from google.adk.tools.tool_context import ToolContext
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.toolsets.audit_results.arguments import (
+    AuditArgumentError,
+    array_argument,
+    identifier_list,
+)
 from contractor_runtime.toolsets.audit_results.collector import (
     AuditCollectionError,
     InvocationAuditCollector,
@@ -22,6 +27,7 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditEvidence,
     NormalizedAuditItem,
 )
+from contractor_runtime.toolsets.audit_results.packages import MAX_BATCH_ITEMS
 from contractor_runtime.toolsets.audit_results.v1 import BatchResultArgument, EvidenceArgument
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 
@@ -41,18 +47,11 @@ def _text(value, field, key):
 
 
 def _values(value, field, key, maximum=MAX_VALUES):
-    if (
-        not isinstance(value, list)
-        or len(value) > maximum
-        or any(not isinstance(entry, str) or not IDENTIFIER.fullmatch(entry) for entry in value)
-        or len(set(value)) != len(value)
-    ):
-        raise AuditCollectionError(
-            field,
-            f"Provide a list of at most {maximum} unique bounded identifiers.",
-            item_key=key,
-        )
-    return tuple(sorted(value))
+    try:
+        return tuple(identifier_list(field, value, maximum=maximum))
+    except AuditArgumentError as error:
+        error.details["itemKey"] = key
+        raise
 
 
 def _normalize(key, value):
@@ -66,11 +65,7 @@ def _normalize(key, value):
             "Use satisfied, violated, supported, refuted, blocked, inconclusive or not-tested.",
             item_key=key,
         )
-    evidence = value.get("evidence", [])
-    if not isinstance(evidence, list) or len(evidence) > MAX_EVIDENCE:
-        raise AuditCollectionError(
-            "evidence", "Provide at most 256 evidence records.", item_key=key
-        )
+    evidence = array_argument("evidence", value.get("evidence", []), MAX_EVIDENCE)
     normalized_evidence = []
     for entry in evidence:
         if not isinstance(entry, dict) or set(entry) != {"kind", "summary"}:
@@ -111,7 +106,13 @@ class ReadAuditTaskTool:
         self._task_ref = task_ref.model_copy(deep=True)
         self._metrics = metrics
         self.__name__ = self.name
-        self.__doc__ = "Read the pinned Audit tasks, requested coverage and evidence contracts."
+        self.__doc__ = """Read the pinned Audit tasks, requested coverage and evidence contracts.
+
+        Returns batchSize and parallel, task-ordered arrays: tasks, taskPackageIds
+        and requestedCoverage. Each submitted completed array must be a verified
+        subset of its matching requestedCoverage array. For one task also returns
+        task and taskPackageId. Read evidence contracts from each task.
+        """
 
     @property
     def _collector(self):
@@ -156,14 +157,41 @@ class SubmitCheckResultTool:
         self.__name__ = self.name
         self.__doc__ = """Record Audit results locally; success does not publish or accept an Audit.
 
-        Read the task first. For one item provide assessment, summary, completed and
-        gaps, plus evidence and proposal_keys as needed. Supply item_key for multiple
-        tasks. Corrections require expected_revision from the recorded receipt.
-        Identical retries preserve revisions. Alternatively supply only results,
-        a complete array in task order. Every conclusive checklist result needs
-        the requested evidence kinds; completed coverage alone is insufficient.
-        Errors preserve previously recorded results. Receipts give all revisions,
-        acceptedCount, totalCount, missingItemKeys and complete.
+        Read the task first. Use either individual fields or results, never both.
+        Send actual JSON arrays (including []), not strings containing JSON.
+        Identifier lists are sorted and deduplicated by this tool, not by you.
+        Every conclusive checklist result needs the requested evidence kinds;
+        completed coverage alone is insufficient. An operation with assessment
+        not-tested must have empty completed coverage. Identical retries preserve
+        revisions; corrections require the revision from the previous receipt.
+
+        Args:
+            item_key: Exact key from read_audit_task. May be omitted for a single
+                assigned task; required when submitting one item from multiple tasks.
+            assessment: satisfied, violated, supported, refuted, blocked,
+                inconclusive or not-tested, subject to the task's evidence contract.
+            summary: Non-empty explanation of the outcome, at most 16 KiB of UTF-8.
+            completed: Array of coverage identifiers actually verified. Use only
+                the matching requestedCoverage from read_audit_task, not work steps.
+                Required for individual submission; [] is allowed.
+            gaps: Array of short identifiers for unresolved limitations; [] is
+                allowed. These need not appear in requestedCoverage. Use letters,
+                digits, '.', '_', ':', '-' only; start with a letter or digit;
+                at most 160 characters each. Required for individual submission.
+            evidence: Optional array of objects with kind and summary only.
+                Follow the assigned task's requested evidence kinds and bounds.
+            proposal_keys: Optional array of client keys of finding proposals.
+            expected_revision: Revision from the receipt when correcting a recorded
+                item. Omit for its first submission. Not used in batch mode.
+            results: Alternative batch mode: one object per task in task order,
+                each with assessment, summary, completed, gaps and optional evidence
+                and proposal_keys. Omit all individual fields in this mode.
+
+        Returns:
+            A receipt with revisions, acceptedCount, totalCount, missingItemKeys
+            and complete, or an error identifying the invalid field and repair.
+            Errors preserve recorded results. Correct the indicated arguments
+            before resubmitting; do not repeat the same invalid call unchanged.
         """
 
     @property
@@ -210,7 +238,8 @@ class SubmitCheckResultTool:
                     )
                 ):
                     raise AuditCollectionError("results", "Do not mix batch and scalar arguments.")
-                if not isinstance(results, list) or len(results) != len(keys):
+                results = array_argument("results", results, MAX_BATCH_ITEMS)
+                if len(results) != len(keys):
                     raise AuditCollectionError(
                         "results", "Provide the complete batch in task order."
                     )
@@ -249,7 +278,7 @@ class SubmitCheckResultTool:
                 "missingItemKeys": list(receipt.missing_item_keys),
                 "complete": receipt.complete,
             }
-        except AuditCollectionError as error:
+        except (AuditCollectionError, AuditArgumentError) as error:
             failure = error
             result = {"status": "error", "error": error.as_dict()}
         # Neither submitted text nor raw invalid arguments enter diagnostics.

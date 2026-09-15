@@ -34,11 +34,11 @@ IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 def _validate_values(field: str, values: list[str]) -> None:
     if not isinstance(values, list) or len(values) > MAX_VALUES:
         raise ValueError(f"{field} exceeds its bound")
-    if values != sorted(set(values)):
-        raise ValueError(f"{field} must be sorted and unique")
     for value in values:
         if not isinstance(value, str) or IDENTIFIER.fullmatch(value) is None:
             raise ValueError(f"{field} contains an invalid value")
+    if values != sorted(set(values)):
+        raise ValueError(f"{field} must be sorted and unique")
 
 
 def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any], str]:

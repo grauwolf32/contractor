@@ -26,6 +26,7 @@ from contractor_runtime.toolsets.common.artifacts import (
     _unconfigured_client,
     gateway_secrets,
 )
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -245,12 +246,16 @@ class WriteArtifactTool(_BaseTool):
         }
         try:
             require_model_visible_binding(namespace, name)
+            if not isinstance(data_base64, str):
+                raise ToolInputError("data_base64 must be a canonical base64 string")
             if len(data_base64) > MAX_BASE64_PAYLOAD_LENGTH:
-                raise ValueError("base64 artifact payload exceeds the 64 MiB limit")
+                raise ToolInputError("base64 artifact payload exceeds the 64 MiB limit")
             try:
                 data = base64.b64decode(data_base64, validate=True)
             except (binascii.Error, ValueError) as error:
-                raise ValueError("data_base64 is not valid canonical base64") from error
+                raise ToolInputError("data_base64 is not valid canonical base64") from error
+            if base64.b64encode(data).decode("ascii") != data_base64:
+                raise ToolInputError("data_base64 is not valid canonical base64")
             result = await self._client.write_artifact(
                 ArtifactRef(namespace=namespace, name=name),
                 data=data,

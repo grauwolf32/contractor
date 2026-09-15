@@ -111,7 +111,7 @@ func TestRepositoryPassthroughWorkspaceWorkflowsUseExpandedWorkerBudget(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if policy.MaxOutputTokens != 16384 || policy.MaxModelCalls != 200 ||
+	if policy.MaxOutputTokens != 32768 || policy.MaxModelCalls != 200 ||
 		policy.MaxToolCalls != 200 || policy.MaxTotalTokens != 2500000 {
 		t.Fatalf("expanded domain Worker policy = %+v", policy)
 	}

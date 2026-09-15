@@ -11,8 +11,14 @@ from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
+from contractor_runtime.toolsets.audit_results.arguments import (
+    AuditArgumentError,
+    array_argument,
+    identifier_list,
+)
 from contractor_runtime.toolsets.audit_results.packages import (
     IDENTIFIER,
+    MAX_BATCH_ITEMS,
     MAX_EVIDENCE,
     MAX_SUMMARY_BYTES,
     PACKAGE_MEDIA_TYPE,
@@ -21,7 +27,7 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _decode_task_input,
     _digest,
     _match_trusted_inputs,
-    _validate_values,
+    _requested_coverage,
 )
 from contractor_runtime.toolsets.common.artifact_visibility import (
     artifact_observation_cursor,
@@ -112,8 +118,9 @@ class ReadAuditTaskTool:
     Use the returned task order and requested coverage when submitting results.
 
     Returns:
-        batchSize, ordered tasks and taskPackageIds, the exact taskArtifact and
-        executionManifestDigest. A single-task result also includes task and
+        batchSize, ordered tasks, taskPackageIds and requestedCoverage arrays,
+        the exact taskArtifact and executionManifestDigest.
+        A single-task result also includes task and
         taskPackageId. Raw package bytes are not returned.
     """
 
@@ -163,6 +170,7 @@ class ReadAuditTaskTool:
                 "batchSize": len(tasks),
                 "tasks": tasks,
                 "taskPackageIds": [record[1] for record in task_records],
+                "requestedCoverage": [_requested_coverage(task) for task in tasks],
                 "taskArtifact": task_value.artifact.model_dump(by_alias=True),
                 "executionManifestDigest": _digest(execution_value.data),
             }
@@ -199,24 +207,33 @@ class SubmitCheckResultTool:
     Call read_audit_task first. For one task, provide assessment, summary, completed
     and gaps. For a batch, provide results in task order and omit all individual result fields.
     Task identity and requested coverage come from the validated assignment.
+    Send actual JSON arrays (including []), not strings containing JSON.
+    completed is a subset of the matching requestedCoverage array returned by
+    read_audit_task, not a list of work steps. Include only coverage you verified.
+    Identifier lists are sorted and deduplicated by this tool, not by you.
 
     Args:
         assessment: satisfied, violated, supported, refuted, blocked, inconclusive
             or not-tested; required in single-task mode.
         summary: Non-empty explanation of the outcome; required in single-task mode.
-        completed: Sorted unique requested coverage identifiers completed for the
-            task; required in single-task mode, and may be empty.
-        gaps: Sorted unique gap identifiers; required in single-task mode, and may
-            be empty.
+        completed: Array of requested coverage identifiers actually completed for
+            the task; required in single-task mode, and may be empty. The tool
+            sorts and deduplicates identifiers. Never invent coverage identifiers.
+        gaps: Array of short identifiers for unresolved limitations; required in
+            single-task mode, and may be empty. Gap identifiers need not appear
+            in requestedCoverage. Use letters, digits, '.', '_', ':', '-' only,
+            start with a letter or digit, and keep each identifier at most 160 characters.
         evidence: Optional evidence objects containing only kind and summary.
-        proposal_keys: Optional sorted unique client keys of finding proposals.
+        proposal_keys: Optional array of client keys of finding proposals;
+            the tool sorts and deduplicates these keys.
         results: One object per assigned task, in order, with assessment, summary,
             completed and gaps, plus optional evidence and proposal_keys. Use this
             for batch mode without the individual result arguments.
 
     Returns:
         Saved result package metadata with its exact artifact revision, mediaType
-        and size.
+        and size, or an audit_result_invalid error identifying the field and
+        how to correct it. Fix the arguments before resubmitting.
     """
 
     def __init__(
@@ -318,6 +335,8 @@ class SubmitCheckResultTool:
                 secrets=self._secrets,
                 duration_ms=_elapsed_ms(started_ns),
             )
+            if isinstance(error, AuditArgumentError):
+                return {"ok": False, "error": error.as_dict()}
             raise
 
 
@@ -340,7 +359,9 @@ def _result_metric_arguments(
             if not isinstance(item, dict):
                 continue
             value = item.get("summary")
-            content_bytes += len(value.encode("utf-8")) if isinstance(value, str) else 0
+            content_bytes += (
+                len(value.encode("utf-8", errors="replace")) if isinstance(value, str) else 0
+            )
             for field, target in (
                 ("completed", "completed"),
                 ("gaps", "gaps"),
@@ -367,8 +388,12 @@ def _result_metric_arguments(
             "proposal_count": proposal_count,
         }
     return {
-        "assessment": assessment,
-        "content_bytes": len(summary.encode("utf-8")) if isinstance(summary, str) else 0,
+        "assessment": assessment
+        if isinstance(assessment, str) and assessment in ASSESSMENTS
+        else "invalid",
+        "content_bytes": len(summary.encode("utf-8", errors="replace"))
+        if isinstance(summary, str)
+        else 0,
         "completed_count": len(completed) if isinstance(completed, list) else 0,
         "gap_count": len(gaps) if isinstance(gaps, list) else 0,
         "evidence_count": len(evidence) if isinstance(evidence, list) else 0,
@@ -390,9 +415,23 @@ def _normalize_results(
 ) -> list[dict[str, Any]]:
     if results is None:
         if len(tasks) != 1:
-            raise ValueError("a batch requires one complete ordered results array")
+            raise AuditArgumentError(
+                "results", "A batch requires one complete ordered results array."
+            )
         if assessment is None or summary is None or completed is None or gaps is None:
-            raise ValueError("single-result fields are incomplete")
+            missing = [
+                key
+                for key, value in (
+                    ("assessment", assessment),
+                    ("summary", summary),
+                    ("completed", completed),
+                    ("gaps", gaps),
+                )
+                if value is None
+            ]
+            raise AuditArgumentError(
+                "result", "Provide all required single-result fields.", missingFields=missing
+            )
         source: list[dict[str, Any]] = [
             {
                 "assessment": assessment,
@@ -408,35 +447,50 @@ def _normalize_results(
             value is not None
             for value in (assessment, summary, completed, gaps, evidence, proposal_keys)
         ):
-            raise ValueError("batch results cannot be combined with single-result fields")
-        if not isinstance(results, list) or len(results) != len(tasks):
-            raise ValueError("batch results must exactly match the trusted task order")
-        source = [dict(item) for item in results]
+            raise AuditArgumentError("results", "Do not combine batch and single-result fields.")
+        results = array_argument("results", results, MAX_BATCH_ITEMS)
+        if len(results) != len(tasks):
+            raise AuditArgumentError(
+                "results",
+                "Batch results must exactly match the trusted task order.",
+                expectedCount=len(tasks),
+                actualCount=len(results),
+            )
+        source = results
 
     normalized: list[dict[str, Any]] = []
     required = {"assessment", "summary", "completed", "gaps"}
     allowed = required | {"evidence", "proposal_keys"}
     for index, candidate in enumerate(source):
-        if (
-            not isinstance(candidate, dict)
-            or not required.issubset(candidate)
-            or not set(candidate).issubset(allowed)
-        ):
-            raise ValueError(f"result {index} has invalid fields")
-        candidate_evidence = _validate_arguments(
-            candidate["assessment"],
-            candidate["summary"],
-            candidate["completed"],
-            candidate["gaps"],
-            candidate.get("evidence"),
-        )
-        candidate_proposals = _validate_proposal_keys(candidate.get("proposal_keys"))
+        try:
+            if not isinstance(candidate, dict):
+                raise AuditArgumentError("results", "Each result must be an object.", index=index)
+            if not required.issubset(candidate) or not set(candidate).issubset(allowed):
+                raise AuditArgumentError(
+                    "result",
+                    "Use only the documented result fields.",
+                    missingFields=sorted(required - set(candidate)),
+                    allowedFields=sorted(allowed),
+                )
+            candidate_completed = identifier_list(
+                "completed", candidate["completed"], allowed=_requested_coverage(tasks[index])
+            )
+            candidate_gaps = identifier_list("gaps", candidate["gaps"])
+            candidate_evidence = _validate_arguments(
+                candidate["assessment"],
+                candidate["summary"],
+                candidate.get("evidence"),
+            )
+            candidate_proposals = _validate_proposal_keys(candidate.get("proposal_keys"))
+        except AuditArgumentError as error:
+            error.details.update(resultIndex=index, itemKey=tasks[index]["item_key"])
+            raise
         normalized.append(
             {
                 "assessment": candidate["assessment"],
                 "summary": candidate["summary"],
-                "completed": candidate["completed"],
-                "gaps": candidate["gaps"],
+                "completed": candidate_completed,
+                "gaps": candidate_gaps,
                 "evidence": candidate_evidence,
                 "proposals": [
                     {"invocation_id": invocation_id, "client_key": key}
@@ -445,53 +499,56 @@ def _normalize_results(
             }
         )
     if sum(len(item["evidence"]) for item in normalized) > MAX_EVIDENCE:
-        raise ValueError("batch evidence exceeds its aggregate bound")
+        raise AuditArgumentError(
+            "evidence", "Batch evidence exceeds its aggregate bound.", limit=MAX_EVIDENCE
+        )
     return normalized
 
 
 def _validate_arguments(
     assessment: str,
     summary: str,
-    completed: list[str],
-    gaps: list[str],
     evidence: list[EvidenceArgument] | None,
 ) -> list[dict[str, str]]:
-    if assessment not in ASSESSMENTS:
-        raise ValueError("assessment is not supported")
-    if (
-        not isinstance(summary, str)
-        or not summary.strip()
-        or len(summary.encode("utf-8")) > MAX_SUMMARY_BYTES
-    ):
-        raise ValueError("summary must be bounded non-empty UTF-8 text")
-    _validate_values("completed", completed)
-    _validate_values("gaps", gaps)
-    normalized = [] if evidence is None else evidence
-    if not isinstance(normalized, list) or len(normalized) > MAX_EVIDENCE:
-        raise ValueError("evidence exceeds its bound")
+    if not isinstance(assessment, str) or assessment not in ASSESSMENTS:
+        raise AuditArgumentError(
+            "assessment", "Choose a supported assessment.", allowedValues=sorted(ASSESSMENTS)
+        )
+    _validate_text("summary", summary)
+    normalized = array_argument("evidence", [] if evidence is None else evidence, MAX_EVIDENCE)
     result: list[dict[str, str]] = []
-    for item in normalized:
+    for index, item in enumerate(normalized):
         if not isinstance(item, dict) or set(item) != {"kind", "summary"}:
-            raise ValueError("each evidence item requires only kind and summary")
+            raise AuditArgumentError(
+                "evidence", "Each evidence item requires only kind and summary.", index=index
+            )
         kind, item_summary = item.get("kind"), item.get("summary")
         if not isinstance(kind, str) or IDENTIFIER.fullmatch(kind) is None:
-            raise ValueError("evidence kind is invalid")
-        if (
-            not isinstance(item_summary, str)
-            or not item_summary.strip()
-            or len(item_summary.encode("utf-8")) > MAX_SUMMARY_BYTES
-        ):
-            raise ValueError("evidence summary is invalid")
+            raise AuditArgumentError("evidence.kind", "Use a bounded identifier.", index=index)
+        try:
+            _validate_text("evidence.summary", item_summary)
+        except AuditArgumentError as error:
+            error.details["index"] = index
+            raise
         result.append({"kind": kind, "summary": item_summary})
     return result
 
 
 def _validate_proposal_keys(value: list[str] | None) -> list[str]:
-    result = [] if value is None else value
-    _validate_values("proposal_keys", result)
-    if len(result) > 128:
-        raise ValueError("proposal_keys exceeds its bound")
-    return result
+    return identifier_list("proposal_keys", [] if value is None else value, maximum=128)
+
+
+def _validate_text(field: str, value: Any) -> None:
+    try:
+        valid = (
+            isinstance(value, str)
+            and value.strip()
+            and len(value.encode("utf-8")) <= MAX_SUMMARY_BYTES
+        )
+    except UnicodeError:
+        valid = False
+    if not valid:
+        raise AuditArgumentError(field, "Provide non-empty UTF-8 text of at most 16 KiB.")
 
 
 def _unconfigured_client(allocation_id: str, runtime_settings: RuntimeSettings) -> ArtifactClient:

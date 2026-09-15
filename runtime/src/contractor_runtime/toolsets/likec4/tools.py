@@ -28,6 +28,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -829,10 +830,13 @@ def _decode_document(data: bytes) -> str:
 
 def _validate_document(content: Any) -> bytes:
     if not isinstance(content, str):
-        raise TypeError("LikeC4 content must be a string")
-    data = content.encode("utf-8")
+        raise ToolInputError("LikeC4 content must be a string")
+    try:
+        data = content.encode("utf-8")
+    except UnicodeError:
+        raise ToolInputError("LikeC4 content must be valid UTF-8") from None
     if len(data) > MAX_DOCUMENT_UTF8_BYTES:
-        raise ValueError("LikeC4 document exceeds the 1 MiB tool limit")
+        raise ToolInputError("LikeC4 document exceeds the 1 MiB tool limit")
     return data
 
 
@@ -842,9 +846,9 @@ def _validate_target_name(value: str) -> None:
 
 def _validate_line_window(start_line: int, max_lines: int) -> None:
     if type(start_line) is not int or start_line < 1:
-        raise ValueError("start_line must be a positive integer")
+        raise ToolInputError("start_line must be a positive integer")
     if type(max_lines) is not int or not 1 <= max_lines <= MAX_READ_LINES:
-        raise ValueError("max_lines must be an integer from 1 through 400")
+        raise ToolInputError("max_lines must be an integer from 1 through 400")
 
 
 def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:

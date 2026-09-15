@@ -102,6 +102,7 @@ def test_read_audit_task_returns_validated_json_without_raw_package_bytes() -> N
             "Authorization is checked before object access."
         )
         assert result["taskPackageId"] == "task-check-authz"
+        assert result["requestedCoverage"] == [["source-trace"]]
         assert result["taskArtifact"] == {
             "namespace": "inputs",
             "name": "task",
@@ -317,18 +318,21 @@ def test_submit_check_result_rejects_incomplete_batch_without_write() -> None:
             state=state,
         )
 
-        with pytest.raises(ValueError, match="exactly match"):
-            await tools["submit_check_result"](
-                tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
-                results=[
-                    {
-                        "assessment": "inconclusive",
-                        "summary": "Only one item was returned.",
-                        "completed": [],
-                        "gaps": ["incomplete-batch"],
-                    }
-                ],
-            )
+        result = await tools["submit_check_result"](
+            tool_context=FakeToolContext("worker-invocation-1"),  # type: ignore[arg-type]
+            results=[
+                {
+                    "assessment": "inconclusive",
+                    "summary": "Only one item was returned.",
+                    "completed": [],
+                    "gaps": ["incomplete-batch"],
+                }
+            ],
+        )
+        assert result["ok"] is False
+        assert result["error"]["field"] == "results"
+        assert result["error"]["expectedCount"] == 2
+        assert result["error"]["actualCount"] == 1
         assert client.written_payload == b""
 
     asyncio.run(scenario())

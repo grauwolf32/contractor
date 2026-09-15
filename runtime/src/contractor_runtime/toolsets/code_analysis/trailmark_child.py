@@ -20,6 +20,7 @@ SCHEMA_VERSION = "1.0"
 MAX_REQUEST_BYTES = 16 * 1024
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_ADDRESS_SPACE_BYTES = 1024 * 1024 * 1024
+DARWIN_PROC_PIDTASKINFO = 4
 MAX_REQUEST_ID_CHARS = 64
 MAX_SYMBOLS_RESPONSE = 200
 MAX_PATHS_RESPONSE = 50
@@ -395,17 +396,69 @@ class _TrailmarkAdapter:
         return self._graph
 
 
+def _maximum_address_space_bytes() -> int:
+    _, hard_limit = resource.getrlimit(resource.RLIMIT_AS)
+    requested_limit = MAX_ADDRESS_SPACE_BYTES
+    if sys.platform == "darwin":
+        # Darwin maps a large shared region into every process. Preserve the
+        # one-GiB growth budget above those baseline mappings instead of asking
+        # the kernel for an absolute ceiling that is already below the process.
+        requested_limit += _darwin_virtual_size_bytes()
+    return (
+        requested_limit
+        if hard_limit == resource.RLIM_INFINITY
+        else min(requested_limit, hard_limit)
+    )
+
+
+def _darwin_virtual_size_bytes() -> int:
+    import ctypes
+
+    class ProcTaskInfo(ctypes.Structure):
+        _fields_ = [
+            ("virtual_size", ctypes.c_uint64),
+            ("resident_size", ctypes.c_uint64),
+            ("total_user", ctypes.c_uint64),
+            ("total_system", ctypes.c_uint64),
+            ("threads_user", ctypes.c_uint64),
+            ("threads_system", ctypes.c_uint64),
+            ("policy", ctypes.c_int32),
+            ("faults", ctypes.c_int32),
+            ("pageins", ctypes.c_int32),
+            ("cow_faults", ctypes.c_int32),
+            ("messages_sent", ctypes.c_uint32),
+            ("messages_received", ctypes.c_uint32),
+            ("syscalls_mach", ctypes.c_uint32),
+            ("syscalls_unix", ctypes.c_uint32),
+            ("csw", ctypes.c_int32),
+            ("threadnum", ctypes.c_int32),
+            ("numrunning", ctypes.c_int32),
+            ("priority", ctypes.c_int32),
+        ]
+
+    libproc = ctypes.CDLL("/usr/lib/libproc.dylib", use_errno=True)
+    libproc.proc_pidinfo.argtypes = [
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_uint64,
+        ctypes.c_void_p,
+        ctypes.c_int,
+    ]
+    libproc.proc_pidinfo.restype = ctypes.c_int
+    info = ProcTaskInfo()
+    size = ctypes.sizeof(info)
+    read = libproc.proc_pidinfo(os.getpid(), DARWIN_PROC_PIDTASKINFO, 0, ctypes.byref(info), size)
+    if read != size:
+        raise OSError(ctypes.get_errno(), "proc_pidinfo failed")
+    return int(info.virtual_size)
+
+
 def main() -> int:
     protocol_fd = os.dup(sys.stdout.fileno())
     protocol = os.fdopen(protocol_fd, "wb", buffering=0)
     _silence_process_output()
     try:
-        _, hard_limit = resource.getrlimit(resource.RLIMIT_AS)
-        address_limit = (
-            MAX_ADDRESS_SPACE_BYTES
-            if hard_limit == resource.RLIM_INFINITY
-            else min(MAX_ADDRESS_SPACE_BYTES, hard_limit)
-        )
+        address_limit = _maximum_address_space_bytes()
         resource.setrlimit(
             resource.RLIMIT_AS,
             (address_limit, address_limit),

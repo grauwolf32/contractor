@@ -22,11 +22,12 @@ from contractor_runtime.toolsets.audit_results.packages import (
     _decode_task_input,
     _requested_coverage,
 )
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.worker.completion import WorkerCompletionError
 
 
-class AuditCollectionError(WorkerCompletionError):
-    """Only Runtime-authored reasons and trusted identifiers may enter diagnostics."""
+class AuditCollectionError(WorkerCompletionError, ToolInputError):
+    """Runtime-authored reasons and bounded invalid identifiers may enter diagnostics."""
 
     code = "audit_result_invalid"
 
@@ -37,15 +38,17 @@ class AuditCollectionError(WorkerCompletionError):
         *,
         item_key: str | None = None,
         current_revision: int | None = None,
+        details: dict | None = None,
     ):
         super().__init__(f"{field}: {reason}")
         self.field = field
         self.reason = reason
         self.item_key = item_key
         self.current_revision = current_revision
+        self.details = details or {}
 
     def as_dict(self):
-        result = {"code": self.code, "field": self.field, "message": self.reason}
+        result = {"code": self.code, "field": self.field, "message": self.reason, **self.details}
         if self.item_key is not None:
             result["itemKey"] = self.item_key
         if self.current_revision is not None:
@@ -99,6 +102,7 @@ class InvocationAuditCollector:
                 "batchSize": len(tasks),
                 "tasks": tasks,
                 "taskPackageIds": list(self._package_ids),
+                "requestedCoverage": [_requested_coverage(task) for task in tasks],
                 "executionManifestDigest": self.inputs.execution_manifest_sha256,
             }
             if len(tasks) == 1:
@@ -123,12 +127,19 @@ class InvocationAuditCollector:
             proposal_keys=tuple(sorted(item.proposal_keys)),
         )
         requested = _requested_coverage(task)
-        if not set(item.completed) <= set(requested):
-            raise AuditCollectionError(
-                "completed",
-                "Use only requested coverage from read_audit_task.",
-                item_key=key,
-            )
+        for index, value in enumerate(item.completed):
+            if value not in requested:
+                raise AuditCollectionError(
+                    "completed",
+                    "Value is not requested by the assigned task. Use only allowedValues; "
+                    "do not mark unverified coverage completed.",
+                    item_key=key,
+                    details={
+                        "index": index,
+                        "invalidValue": value[:160],
+                        "allowedValues": requested,
+                    },
+                )
         if task.get("operation") is not None:
             if item.assessment == "not-tested" and item.completed:
                 raise AuditCollectionError(

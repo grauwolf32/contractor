@@ -24,6 +24,7 @@ from contractor_runtime.contracts import (
     WorkerSummarizerMetrics,
 )
 from contractor_runtime.llm.usage import project_token_usage
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 
 MAX_METRIC_TOOL_CALLS = 1000
 MAX_METRIC_ERRORS = 100
@@ -250,15 +251,20 @@ class MetricsState:
             self._increment("tool_errors")
             code = _bounded_text(str(getattr(error, "code", "tool_call_failed")), secrets)
             retryable = bool(getattr(error, "retryable", False))
+            message = (
+                error.diagnostic_message
+                if isinstance(error, ToolInputError)
+                else f"Tool {name} failed ({type(error).__name__})"
+            )
             call_error = ExecutionError(
                 code=code,
-                message=_bounded_error(f"Tool {name} failed ({type(error).__name__})", secrets),
+                message=_bounded_error(message, secrets),
                 retryable=retryable,
             )
             self._append_error(
                 ExecutionError(
                     code=f"tool_{identifier}_failed",
-                    message=_bounded_error(f"Tool {name} failed ({type(error).__name__})", secrets),
+                    message=_bounded_error(message, secrets),
                     retryable=retryable,
                 )
             )
@@ -579,9 +585,9 @@ def _bounded_error(value: str, secrets: tuple[str, ...]) -> str:
 
 
 def _truncate_utf8(value: str, limit: int) -> str:
-    encoded = value.encode("utf-8")
+    encoded = value.encode("utf-8", errors="replace")
     if len(encoded) <= limit:
-        return value
+        return encoded.decode("utf-8")
     suffix = "…".encode()
     return encoded[: limit - len(suffix)].decode("utf-8", errors="ignore") + "…"
 

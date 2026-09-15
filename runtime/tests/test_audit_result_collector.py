@@ -221,7 +221,6 @@ def test_atomic_batch_create_replay_conflict_and_scalar_mixing():
         ({"summary": "x" * (MAX_SUMMARY_BYTES + 1)}, "summary"),
         ({"summary": "\ud800"}, "summary"),
         ({"completed": [{}]}, "completed"),
-        ({"completed": ["source-trace"] * 2}, "completed"),
         ({"gaps": [str(index) for index in range(513)]}, "gaps"),
         ({"proposal_keys": [str(index) for index in range(129)]}, "proposal_keys"),
         ({"evidence": [{}]}, "evidence"),

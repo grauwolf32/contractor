@@ -31,6 +31,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -553,8 +554,10 @@ class SearchSourceTool(_BaseSourceTool):
         max_results: int = MAX_SEARCH_RESULTS,
     ) -> dict[str, Any]:
         arguments = {
-            "query_sha256": hashlib.sha256(query.encode("utf-8")).hexdigest(),
-            "query_chars": len(query),
+            "query_sha256": hashlib.sha256(query.encode("utf-8", errors="replace")).hexdigest()
+            if isinstance(query, str)
+            else "invalid",
+            "query_chars": len(query) if isinstance(query, str) else 0,
             "path_pattern": path_pattern,
             "regex": regex,
             "case_sensitive": case_sensitive,
@@ -737,7 +740,7 @@ def _validate_pattern(pattern: str) -> None:
         or pattern.startswith("/")
         or ".." in PurePosixPath(pattern).parts
     ):
-        raise ValueError("path pattern is invalid")
+        raise ToolInputError("path_pattern must be a relative glob of at most 256 characters")
 
 
 def _path_matches(path: str, pattern: str) -> bool:
@@ -748,14 +751,14 @@ def _path_matches(path: str, pattern: str) -> bool:
 
 def _validate_page(offset: int, limit: int) -> None:
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
-        raise ValueError("offset must be a non-negative integer")
+        raise ToolInputError("offset must be a non-negative integer")
     if (
         isinstance(limit, bool)
         or not isinstance(limit, int)
         or limit < 1
         or limit > MAX_LIST_RESULTS
     ):
-        raise ValueError(f"limit must be between 1 and {MAX_LIST_RESULTS}")
+        raise ToolInputError(f"limit must be between 1 and {MAX_LIST_RESULTS}")
 
 
 def _validate_search(
@@ -766,17 +769,23 @@ def _validate_search(
     max_results: int,
 ) -> None:
     if not isinstance(query, str) or not query or len(query) > MAX_SEARCH_QUERY_CHARS:
-        raise ValueError(f"query must contain between 1 and {MAX_SEARCH_QUERY_CHARS} characters")
+        raise ToolInputError(
+            f"query must contain between 1 and {MAX_SEARCH_QUERY_CHARS} characters"
+        )
+    try:
+        query.encode("utf-8")
+    except UnicodeError:
+        raise ToolInputError("query must be valid UTF-8") from None
     _validate_pattern(path_pattern)
     if not isinstance(regex, bool) or not isinstance(case_sensitive, bool):
-        raise ValueError("regex and case_sensitive must be booleans")
+        raise ToolInputError("regex and case_sensitive must be booleans")
     if (
         isinstance(max_results, bool)
         or not isinstance(max_results, int)
         or max_results < 1
         or max_results > MAX_SEARCH_RESULTS
     ):
-        raise ValueError(f"max_results must be between 1 and {MAX_SEARCH_RESULTS}")
+        raise ToolInputError(f"max_results must be between 1 and {MAX_SEARCH_RESULTS}")
 
 
 def _validate_requested_path(raw: str) -> str:
@@ -790,14 +799,14 @@ def _validate_requested_path(raw: str) -> str:
 
 def _validate_read_window(start_line: int, max_lines: int) -> None:
     if isinstance(start_line, bool) or not isinstance(start_line, int) or start_line < 1:
-        raise ValueError("start_line must be a positive integer")
+        raise ToolInputError("start_line must be a positive integer")
     if (
         isinstance(max_lines, bool)
         or not isinstance(max_lines, int)
         or max_lines < 1
         or max_lines > MAX_READ_LINES
     ):
-        raise ValueError(f"max_lines must be between 1 and {MAX_READ_LINES}")
+        raise ToolInputError(f"max_lines must be between 1 and {MAX_READ_LINES}")
 
 
 def _bounded_lines(lines: list[str], *, start_line: int, max_lines: int) -> tuple[str, int, bool]:

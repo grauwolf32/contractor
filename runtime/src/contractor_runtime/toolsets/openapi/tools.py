@@ -36,6 +36,7 @@ from contractor_runtime.toolsets.common.artifact_visibility import (
     require_model_visible_binding,
 )
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, gateway_secrets
+from contractor_runtime.toolsets.common.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.metrics import ToolMetrics
 from contractor_runtime.toolsets.openapi.models import (
     PathItem,
@@ -552,7 +553,7 @@ class _OpenAPISession:
 
     def _require_document(self) -> tuple[dict[str, Any], ArtifactRef]:
         if self._document is None or self._target_name is None or self._revision is None:
-            raise ValueError("load_openapi or initialize_openapi must be called first")
+            raise ToolInputError("load_openapi or initialize_openapi must be called first")
         return self._document, ArtifactRef(
             namespace=self._namespace,
             name=self._target_name,
@@ -580,9 +581,9 @@ class _OpenAPISession:
         project_evidence_paths: frozenset[str] | None,
     ) -> list[str]:
         if not isinstance(evidence_files, list) or not evidence_files:
-            raise ValueError("at least one source evidence file is required")
+            raise ToolInputError("evidence_files must be a JSON array of at least one source path")
         if len(evidence_files) > 100:
-            raise ValueError("source evidence exceeds the 100-file limit")
+            raise ToolInputError("source evidence exceeds the 100-file limit")
         root = None
         if project_evidence_paths is None:
             root = self._source_root.resolve()
@@ -1396,7 +1397,7 @@ def _validate_schema_shapes(document: dict[str, Any], version: str) -> None:
 
 def _validate_schema_shape(value: Any, version: str) -> None:
     if not isinstance(value, dict):
-        raise ValueError("OpenAPI schema must be an object")
+        raise ToolInputError("OpenAPI schema must be an object")
     schema_type = value.get("type")
     if "type" in value:
         valid_type = isinstance(schema_type, str) and bool(schema_type)
@@ -1405,25 +1406,25 @@ def _validate_schema_shape(value: Any, version: str) -> None:
                 isinstance(item, str) and bool(item) for item in schema_type
             )
         if not valid_type:
-            raise ValueError("OpenAPI schema type must not be null or empty")
+            raise ToolInputError("OpenAPI schema type must not be null or empty")
     properties = value.get("properties")
     if "properties" in value and not isinstance(properties, dict):
-        raise ValueError("OpenAPI schema properties must be an object")
+        raise ToolInputError("OpenAPI schema properties must be an object")
     required = value.get("required")
     if "required" in value and (
         not isinstance(required, list)
         or not required
         or any(not isinstance(item, str) or not item for item in required)
     ):
-        raise ValueError("OpenAPI schema required must be a non-empty string list")
+        raise ToolInputError("OpenAPI schema required must be a non-empty string list")
     for keyword in ("allOf", "anyOf", "oneOf"):
         members = value.get(keyword)
         if keyword in value and (
             not isinstance(members, list)
-            or len(members) < 2
+            or not members
             or any(not isinstance(item, dict) for item in members)
         ):
-            raise ValueError(f"OpenAPI schema {keyword} must contain at least two schemas")
+            raise ToolInputError(f"OpenAPI schema {keyword} must contain at least one schema")
         if isinstance(members, list):
             for member in members:
                 _validate_schema_shape(member, version)
@@ -1434,7 +1435,7 @@ def _validate_schema_shape(value: Any, version: str) -> None:
         _validate_schema_shape(value["items"], version)
     additional = value.get("additionalProperties")
     if "additionalProperties" in value and not isinstance(additional, bool | dict):
-        raise ValueError("OpenAPI schema additionalProperties must be a boolean or schema")
+        raise ToolInputError("OpenAPI schema additionalProperties must be a boolean or schema")
     if isinstance(additional, dict):
         _validate_schema_shape(additional, version)
 
@@ -1576,21 +1577,26 @@ def _deep_merge(base: Any, update: Any) -> Any:
 
 def _validate_api_path(value: Any) -> str:
     if not isinstance(value, str) or value != value.strip() or not value.startswith("/"):
-        raise ValueError("OpenAPI path must be a normalized string beginning with /")
+        raise ToolInputError("OpenAPI path must be a normalized string beginning with /")
     if not value or len(value) > 2048 or "\x00" in value:
-        raise ValueError("OpenAPI path is invalid or oversized")
+        raise ToolInputError("OpenAPI path must be at most 2048 characters without NUL characters")
     return value
 
 
 def _validate_component_section(value: Any) -> str:
     if not isinstance(value, str) or value not in ALLOWED_COMPONENT_SECTIONS:
-        raise ValueError("unsupported OpenAPI component section")
+        raise ToolInputError(
+            "unsupported OpenAPI component section; use "
+            + ", ".join(sorted(ALLOWED_COMPONENT_SECTIONS))
+        )
     return value
 
 
 def _validate_component_name(value: Any) -> None:
     if not isinstance(value, str) or not value.strip() or len(value) > 256 or "\x00" in value:
-        raise ValueError("OpenAPI component name is invalid or oversized")
+        raise ToolInputError(
+            "OpenAPI component name must be non-empty, at most 256 characters, without NUL"
+        )
 
 
 def _validate_target_name(value: str) -> None:
@@ -1599,19 +1605,19 @@ def _validate_target_name(value: str) -> None:
 
 def _validate_relative_source_path(raw: Any) -> str:
     if not isinstance(raw, str) or not raw or "\\" in raw or "\x00" in raw:
-        raise ValueError("source evidence path is invalid")
+        raise ToolInputError("source evidence path must be a non-empty relative string using /")
     parts = raw.split("/")
     if any(part in {"", ".", ".."} for part in parts):
-        raise ValueError("source evidence path must be normalized and relative")
+        raise ToolInputError("source evidence path must be normalized and relative")
     path = PurePosixPath(raw)
     if path.is_absolute() or path.as_posix() != raw:
-        raise ValueError("source evidence path must be normalized and relative")
+        raise ToolInputError("source evidence path must be normalized and relative")
     return raw
 
 
 def _require_nonempty(field: str, value: Any) -> None:
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{field} must be a non-empty string")
+        raise ToolInputError(f"{field} must be a non-empty string")
 
 
 def _bound_targeted_result(value: Any) -> None:
