@@ -228,6 +228,75 @@ def test_prepare_failure_rolls_back_workspace_tools_and_slot(
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("failure_kind", ["exception", "cancelled", "wrong_set", "wrong_name"])
+def test_partial_tool_preparation_retains_cleanup_ownership(
+    tmp_path: Path, failure_kind: str
+) -> None:
+    async def scenario() -> None:
+        first = TrackingTool()
+        second = TrackingTool()
+
+        class SecondToolsetFactory(RunArtifactsToolsetFactory):
+            ref = "second@1"
+            exported_tools = frozenset({"write_artifact"})
+
+            async def create_selected(self, **_: object) -> dict[str, TrackingTool]:
+                if failure_kind == "exception":
+                    raise RuntimeError("second Toolset preparation failed")
+                if failure_kind == "cancelled":
+                    raise asyncio.CancelledError
+                if failure_kind == "wrong_set":
+                    # Even a malformed return must retain both owners when
+                    # the invalid name collides with an earlier Toolset.
+                    return {"read_artifact": second}
+                return {"write_artifact": second}
+
+        state = RuntimeState(instance_id="runtime-partial-tools")
+        await state.mark_registered()
+        factories = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            toolsets={
+                "run-artifacts@1": TrackingToolsetFactory(first),
+                "second@1": SecondToolsetFactory(),
+            },
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+        )
+        capabilities = CapabilitySnapshot.create(
+            runtimes=factories.worker_runtimes,
+            toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
+            sandbox_profiles=factories.sandbox_profiles,
+        )
+        exit_codes: list[int] = []
+        service = AllocationService(
+            state,
+            factories,
+            capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+            force_exit=exit_codes.append,
+        )
+        spec = make_spec(tools=["read_artifact"])
+        spec.agent_template.toolsets.append(
+            ToolsetSelection(
+                ref=ToolsetRef(toolsetId="second", version="1"), tools=["write_artifact"]
+            )
+        )
+        resign_template(spec.agent_template)
+
+        expected = asyncio.CancelledError if failure_kind == "cancelled" else AllocationError
+        with pytest.raises(expected):
+            await service.prepare(spec)
+
+        assert first.close_calls == 1
+        assert second.close_calls == (1 if failure_kind in {"wrong_set", "wrong_name"} else 0)
+        assert exit_codes == []
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        assert await service.snapshot() is None
+        assert list(tmp_path.iterdir()) == []
+
+    asyncio.run(scenario())
+
+
 def test_finalize_report_and_release_erase_context_and_workspace(
     tmp_path: Path, runtime_capabilities: CapabilitySnapshot
 ) -> None:

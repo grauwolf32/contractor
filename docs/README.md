@@ -19,3 +19,6 @@ the deployment guide.
 Accepted contracts belong in the specification; implementation status belongs in
 [tasks/index.yml](../tasks/index.yml). A historical test report does not establish
 current readiness.
+
+[Architecture review — 2026-09-15](reviews/architecture-review-2026-09-15.md)
+records the per-view scenario checks, fixes and verification limits.

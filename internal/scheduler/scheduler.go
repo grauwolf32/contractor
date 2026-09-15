@@ -306,7 +306,13 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	executionContext, cancelExecution := context.WithCancelCause(ctx)
+	// Cancelling Planner work does not release ownership of the Run. Keep its
+	// claim renewable through cancellation/lease-loss cleanup, which can exceed
+	// the original lease when remote teardown or report persistence is slow.
+	ownershipContext, cancelOwnership := context.WithCancelCause(ctx)
+	defer cancelOwnership(nil)
+	ownershipContext = context.WithValue(ownershipContext, runOwnershipContextKey{}, ownershipContext)
+	executionContext, cancelExecution := context.WithCancelCause(ownershipContext)
 	s.activeMu.Lock()
 	s.active[run.RunID] = cancelExecution
 	s.activeMu.Unlock()
@@ -318,34 +324,42 @@ func (s *Scheduler) progressOneClaim(ctx context.Context) (bool, error) {
 		s.activeMu.Unlock()
 	}()
 	stopRenewal := make(chan struct{})
+	renewalContext, cancelRenewal := context.WithCancel(ownershipContext)
+	defer cancelRenewal()
 	var renewal sync.WaitGroup
 	renewal.Add(1)
 	go func() {
 		defer renewal.Done()
-		s.renewClaim(executionContext, cancelExecution, stopRenewal, run.RunID, claimID)
+		s.renewClaim(renewalContext, cancelOwnership, cancelExecution, stopRenewal, run.RunID, claimID)
 	}()
 
 	err = s.executeRun(executionContext, run)
 	if errors.Is(err, runstore.ErrQueuePaused) {
 		err = ErrDeferred
 	}
-	if cause := context.Cause(executionContext); ctx.Err() == nil &&
+	if cause := context.Cause(executionContext); ownershipContext.Err() == nil &&
 		(errors.Is(cause, ErrRunCancellationRequested) || errors.Is(cause, ErrAllocationLeaseLost)) {
 		// The interrupted context intentionally cannot be reused for cleanup.
 		// Retain the same durable claim while entering the authoritative bounded path.
-		current, loadErr := s.store.GetRun(ctx, run.RunID)
+		loadContext, cancelLoad := context.WithTimeout(ownershipContext, s.options.OperationTimeout)
+		current, loadErr := s.store.GetRun(loadContext, run.RunID)
+		cancelLoad()
 		if loadErr != nil {
 			err = loadErr
 		} else if current.State == runstore.RunCancelling ||
 			(errors.Is(cause, ErrAllocationLeaseLost) && current.State == runstore.RunRunning) {
-			err = s.executeRun(ctx, current)
+			err = s.executeRun(ownershipContext, current)
 		} else {
 			err = nil
 		}
 	}
 	close(stopRenewal)
+	cancelRenewal()
 	cancelExecution(nil)
 	renewal.Wait()
+	if cause := context.Cause(ownershipContext); errors.Is(cause, ErrClaimLost) {
+		err = errors.Join(cause, err)
+	}
 
 	releaseContext, cancelRelease := context.WithTimeout(context.Background(), s.options.OperationTimeout)
 	releaseErr := s.store.ReleaseRunClaim(releaseContext, run.RunID, claimID)
@@ -474,7 +488,8 @@ func (s *Scheduler) pollAllocationLosses() {
 
 func (s *Scheduler) renewClaim(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
+	cancelOwnership context.CancelCauseFunc,
+	cancelExecution context.CancelCauseFunc,
 	stop <-chan struct{},
 	runID string,
 	claimID string,
@@ -497,21 +512,47 @@ func (s *Scheduler) renewClaim(
 		renewContext, renewCancel := context.WithTimeout(ctx, s.options.OperationTimeout)
 		err := s.store.RenewRunClaim(renewContext, runID, claimID, s.options.ClaimDuration)
 		if err != nil {
+			if ctx.Err() != nil {
+				renewCancel()
+				return
+			}
+			if errors.Is(err, runstore.ErrConflict) {
+				// A terminal transition atomically clears its own claim. Renewal
+				// racing that commit is normal completion, not stolen ownership.
+				current, loadErr := s.store.GetRun(renewContext, runID)
+				if loadErr == nil && terminalRunReleasedClaim(current) {
+					renewCancel()
+					return
+				}
+			}
 			renewCancel()
-			cancel(errors.Join(ErrClaimLost, err))
+			if ctx.Err() != nil {
+				return
+			}
+			cancelOwnership(errors.Join(ErrClaimLost, err))
 			return
 		}
 		current, err := s.store.GetRun(renewContext, runID)
 		renewCancel()
 		if err != nil {
-			cancel(errors.Join(ErrClaimLost, err))
+			if ctx.Err() != nil {
+				return
+			}
+			cancelOwnership(errors.Join(ErrClaimLost, err))
+			return
+		}
+		if terminalRunReleasedClaim(current) {
 			return
 		}
 		if current.State == runstore.RunCancelling {
-			cancel(ErrRunCancellationRequested)
-			return
+			cancelExecution(ErrRunCancellationRequested)
 		}
 	}
+}
+
+func terminalRunReleasedClaim(run runstore.WorkflowRun) bool {
+	return run.SchedulerClaim == nil &&
+		(run.State == runstore.RunSucceeded || run.State == runstore.RunFailed || run.State == runstore.RunCancelled)
 }
 
 func (s *Scheduler) executeRun(ctx context.Context, run runstore.WorkflowRun) error {
@@ -654,7 +695,7 @@ func (s *Scheduler) executeCancelling(ctx context.Context, run runstore.Workflow
 }
 
 func (s *Scheduler) finishCancelledRun(ctx context.Context, runID string) error {
-	operationContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	operationContext, cancel := s.terminalOperationContext(ctx)
 	defer cancel()
 	_, err := s.store.TransitionRun(
 		operationContext,
@@ -838,7 +879,9 @@ func (s *Scheduler) prepareAndPlan(
 		})
 	}
 	if errors.Is(err, errControlPlaneAllocationLost) {
-		return s.beginAbort(context.WithoutCancel(ctx), run, workflow, execution, reservations, planner.Failure{
+		cleanupContext, cancelCleanup := claimCleanupContext(ctx)
+		defer cancelCleanup()
+		return s.beginAbort(cleanupContext, run, workflow, execution, reservations, planner.Failure{
 			Code: "control_lease_expired", Message: "Runtime Agent allocation control lease was lost", Retryable: true,
 		})
 	}
@@ -946,7 +989,7 @@ func (s *Scheduler) prepareAndPlan(
 		return errors.Join(err, loadErr)
 	}
 	execution = currentExecution
-	s.persistPlannerReport(execution, instance, exportResult)
+	s.persistPlannerReport(ctx, execution, instance, exportResult)
 	if err != nil {
 		return s.beginAbort(ctx, run, workflow, execution, reservations, planner.FailureFrom(err))
 	}
@@ -1424,7 +1467,9 @@ func (s *Scheduler) resumeAborting(
 	if reservations == nil && len(workflow.stage.Agents) > 0 {
 		reservations = s.existingLiveReservations(ctx, run, workflow, execution)
 	}
-	_ = s.fenceRecordedAllocations(context.WithoutCancel(ctx), execution.StageExecutionID, reservations)
+	fenceContext, cancelFence := s.terminalOperationContext(ctx)
+	_ = s.fenceRecordedAllocations(fenceContext, execution.StageExecutionID, reservations)
+	cancelFence()
 	var reports map[string]contracts.AllocationFinalReport
 	if len(reservations) > 0 && execution.AbortDeadline.After(s.now()) {
 		abortContext, cancelAbort := context.WithDeadline(ctx, *execution.AbortDeadline)
@@ -1445,8 +1490,8 @@ func (s *Scheduler) resumeAborting(
 			s.options.Logger.Warn("bounded allocation abort was incomplete", "stage_execution_id", execution.StageExecutionID)
 		}
 	}
-	s.persistReports(execution, reservations, reports)
-	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	s.persistReports(ctx, execution, reservations, reports)
+	commitContext, cancelCommit := s.terminalOperationContext(ctx)
 	current, err := s.store.GetRun(commitContext, run.RunID)
 	if err != nil {
 		cancelCommit()
@@ -1485,7 +1530,7 @@ func (s *Scheduler) resumeAborting(
 	}
 	cancelCommit()
 	if errors.Is(err, runstore.ErrConflict) {
-		stateContext, cancelState := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+		stateContext, cancelState := s.terminalOperationContext(ctx)
 		latest, loadErr := s.store.GetRun(stateContext, run.RunID)
 		cancelState()
 		if loadErr == nil && latest.State == runstore.RunCancelling {
@@ -1531,9 +1576,9 @@ func (s *Scheduler) resumeFinalizing(
 			s.options.Logger.Warn("bounded allocation finalization was incomplete", "stage_execution_id", execution.StageExecutionID)
 		}
 	}
-	s.persistReports(execution, reservations, reports)
+	s.persistReports(ctx, execution, reservations, reports)
 
-	stateContext, cancelState := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	stateContext, cancelState := s.terminalOperationContext(ctx)
 	current, err := s.store.GetRun(stateContext, run.RunID)
 	cancelState()
 	if err != nil {
@@ -1555,7 +1600,7 @@ func (s *Scheduler) resumeFinalizing(
 			reasonCode = execution.CandidateResult.Error.Code
 		}
 	}
-	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	commitContext, cancelCommit := s.terminalOperationContext(ctx)
 	progression, err := s.buildProgression(
 		commitContext, run, workflow, execution, action, retryable, reasonCode, escalationVariant,
 	)
@@ -1570,7 +1615,7 @@ func (s *Scheduler) resumeFinalizing(
 	}
 	cancelCommit()
 	if errors.Is(err, runstore.ErrConflict) {
-		stateContext, cancelState := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+		stateContext, cancelState := s.terminalOperationContext(ctx)
 		current, loadErr := s.store.GetRun(stateContext, run.RunID)
 		cancelState()
 		if loadErr == nil && current.State == runstore.RunCancelling {
@@ -1756,7 +1801,7 @@ func (s *Scheduler) acceptFinalizingDuringCancellation(
 	execution runstore.StageExecution,
 	reservations []controlplane.Reservation,
 ) error {
-	commitContext, cancelCommit := context.WithTimeout(context.WithoutCancel(ctx), s.options.OperationTimeout)
+	commitContext, cancelCommit := s.terminalOperationContext(ctx)
 	err := s.persistence.AcceptResultDuringCancellation(
 		commitContext,
 		run.RunID,
@@ -1772,6 +1817,7 @@ func (s *Scheduler) acceptFinalizingDuringCancellation(
 }
 
 func (s *Scheduler) persistReports(
+	ctx context.Context,
 	execution runstore.StageExecution,
 	reservations []controlplane.Reservation,
 	reports map[string]contracts.AllocationFinalReport,
@@ -1779,8 +1825,8 @@ func (s *Scheduler) persistReports(
 	// A crash can resume directly in finalizing/aborting without recreating the
 	// Planner instance. Ensure its durable session still has a report record;
 	// an already persisted complete report wins over this placeholder.
-	s.persistPlannerReport(execution, nil, nil)
-	listContext, cancelList := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	s.persistPlannerReport(ctx, execution, nil, nil)
+	listContext, cancelList := s.terminalOperationContext(ctx)
 	allocations, err := s.store.ListStageAllocations(listContext, execution.StageExecutionID)
 	cancelList()
 	if err != nil {
@@ -1827,8 +1873,8 @@ func (s *Scheduler) persistReports(
 				Runtime: contracts.RuntimeReport{Complete: false},
 			}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-		err := s.store.RecordStageExecutionReport(ctx, runstore.RecordStageExecutionReportParams{
+		operationContext, cancel := s.terminalOperationContext(ctx)
+		err := s.store.RecordStageExecutionReport(operationContext, runstore.RecordStageExecutionReportParams{
 			StageExecutionID: execution.StageExecutionID, AllocationID: allocation.AllocationID,
 			LogicalAgentName: allocation.LogicalAgentName, ReportSchemaVersion: contracts.APIVersion,
 			Report: report, PerformanceCollectionPolicy: allocation.PerformanceCollectionPolicy,
@@ -1843,10 +1889,11 @@ func (s *Scheduler) persistReports(
 			)
 		}
 	}
-	s.rebuildStageMetrics(execution.StageExecutionID)
+	s.rebuildStageMetrics(ctx, execution.StageExecutionID)
 }
 
 func (s *Scheduler) persistPlannerReport(
+	ctx context.Context,
 	execution runstore.StageExecution,
 	instance planner.Planner,
 	exportResult *telemetry.PlannerExportResult,
@@ -1867,7 +1914,7 @@ func (s *Scheduler) persistPlannerReport(
 		}
 	}
 	applyPlannerTelemetryResult(&report, exportResult)
-	ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
+	operationContext, cancel := s.terminalOperationContext(ctx)
 	startedAt := execution.CreatedAt.UTC().Round(0)
 	if execution.PlannerStartedAt != nil {
 		startedAt = execution.PlannerStartedAt.UTC().Round(0)
@@ -1879,7 +1926,7 @@ func (s *Scheduler) persistPlannerReport(
 	if report.Metrics.DurationMS != nil {
 		finishedAt = startedAt.Add(time.Duration(*report.Metrics.DurationMS) * time.Millisecond)
 	}
-	err := s.store.RecordPlannerExecutionReport(ctx, runstore.RecordPlannerExecutionReportParams{
+	err := s.store.RecordPlannerExecutionReport(operationContext, runstore.RecordPlannerExecutionReportParams{
 		StageExecutionID: execution.StageExecutionID,
 		SessionID:        *execution.PlannerSessionID, InvocationID: *execution.PlannerInvocationID,
 		StartedAt: startedAt, FinishedAt: finishedAt,
@@ -1894,7 +1941,7 @@ func (s *Scheduler) persistPlannerReport(
 		)
 		return
 	}
-	s.rebuildStageMetrics(execution.StageExecutionID)
+	s.rebuildStageMetrics(ctx, execution.StageExecutionID)
 }
 
 func applyPlannerTelemetryResult(
@@ -1932,9 +1979,9 @@ func applyPlannerTelemetryResult(
 	})
 }
 
-func (s *Scheduler) rebuildStageMetrics(stageExecutionID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), s.options.OperationTimeout)
-	err := s.store.RebuildStageMetrics(ctx, stageExecutionID, contracts.APIVersion)
+func (s *Scheduler) rebuildStageMetrics(ctx context.Context, stageExecutionID string) {
+	operationContext, cancel := s.terminalOperationContext(ctx)
+	err := s.store.RebuildStageMetrics(operationContext, stageExecutionID, contracts.APIVersion)
 	cancel()
 	if err != nil {
 		s.options.Logger.Warn(

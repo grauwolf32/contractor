@@ -516,4 +516,82 @@ describe("RunEventsManager", () => {
     });
     expect(socket?.closed).toEqual([1000, "client closed"]);
   });
+
+  it.each(["subscribed", "resync_required", "error", "not_found", "none"])(
+    "cancels an in-flight subscription without resyncing another stream (late frame: %s)",
+    (lateFrame) => {
+      FakeWebSocket.instances = [];
+      const removed = callbacks();
+      const retained = callbacks();
+      const manager = new RunEventsManager("http://127.0.0.1:8080", {
+        WebSocketImplementation: FakeWebSocket as unknown as typeof WebSocket,
+      });
+      const subscription = manager.subscribeRun(
+        "run-1",
+        cursor("0"),
+        removed.value,
+      );
+      manager.subscribeRun("run-2", cursor("2"), retained.value);
+      const socket = FakeWebSocket.instances[0]!;
+      socket.open();
+      socket.message(subscribed("run-ui-2", "run-2", "2"));
+
+      subscription.unsubscribe();
+      expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+        type: "unsubscribe",
+        subscriptionId: "run-ui-1",
+      });
+      if (lateFrame === "subscribed") {
+        socket.message(subscribed("run-ui-1", "run-1", "0"));
+        socket.message(lifecycleEvent("run-ui-1", "run-1", "1"));
+      } else if (lateFrame === "resync_required") {
+        socket.message({
+          version: "contractor.events.v1",
+          type: "resync_required",
+          subscriptionId: "run-ui-1",
+          stream: { kind: "run", id: "run-1" },
+          reason: "cursor_unavailable",
+        });
+      } else if (lateFrame === "error") {
+        socket.message({
+          version: "contractor.events.v1",
+          type: "error",
+          subscriptionId: "run-ui-1",
+          code: "overloaded",
+          message: "Run stream is temporarily unavailable",
+          retryable: true,
+        });
+      }
+      if (lateFrame === "not_found") {
+        // The subscribe can fail before the server processes unsubscribe;
+        // both operations then independently return not_found.
+        for (let reply = 0; reply < 2; reply += 1) {
+          socket.message({
+            version: "contractor.events.v1",
+            type: "error",
+            subscriptionId: "run-ui-1",
+            code: "not_found",
+            message: "Subscription was not found",
+            retryable: false,
+          });
+        }
+      } else {
+        socket.message({
+          version: "contractor.events.v1",
+          type: "unsubscribed",
+          subscriptionId: "run-ui-1",
+        });
+      }
+      socket.message(lifecycleEvent("run-ui-2", "run-2", "3"));
+
+      expect(removed.states).not.toContain("live");
+      expect(removed.lifecycle).not.toHaveBeenCalled();
+      expect(removed.resyncs).toEqual([]);
+      expect(removed.errors).toEqual([]);
+      expect(retained.lifecycle).toHaveBeenCalledOnce();
+      expect(retained.resyncs).toEqual([]);
+      expect(socket.closed).toBeUndefined();
+      manager.close();
+    },
+  );
 });

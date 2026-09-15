@@ -300,6 +300,111 @@ WHERE scope_kind = 'project' AND scope_id = 'project-delete'
 	}
 }
 
+func TestProjectDeletionWaitsForLockedAuditBeforeDraining(t *testing.T) {
+	for _, phase := range []projectstore.DeletionPhase{projectstore.DeletionCancelling, projectstore.DeletionDraining} {
+		t.Run(string(phase), func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			pool := isolatedPool(t, ctx)
+			projects := projectstore.NewPostgresStore(pool)
+			project, _, err := projects.Create(ctx, projectstore.CreateParams{
+				ProjectID: "project-locked-audit", OwnerID: "user-1", Kind: projectstore.KindProject,
+				Name: "Locked Audit", IdempotencyKey: "create-project",
+				RequestDigest: "sha256:" + strings.Repeat("a", 64),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			audits := auditstore.NewPostgresStore(pool)
+			audit, _, err := audits.CreateDraft(ctx, auditstore.CreateDraftParams{
+				AuditID: "locked-audit", OwnerID: project.OwnerID, ProjectID: project.ProjectID,
+				Profile: auditstore.ProfileIdentity{
+					Name: "checklist", Version: "1", Digest: "sha256:" + strings.Repeat("b", 64),
+				},
+				ProfileSnapshot: json.RawMessage(`{"ref":{"name":"checklist","version":"1"}}`),
+				InputSelection:  json.RawMessage(`{}`),
+				Limits: auditstore.Limits{
+					MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 1, MaxItemsTotal: 1,
+					MaxSubmittedRuns: 1, MaxItemRunAttempts: 1, MaxEvidenceBytes: 1024,
+				},
+				IdempotencyKey: "create-audit", RequestDigest: "sha256:" + strings.Repeat("c", 64),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+				ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			runs := runstore.NewPostgresStore(pool)
+			controller := newTestController(t, pool, runs, &recordingNotifier{}, "locked")
+			if phase == projectstore.DeletionDraining {
+				// Reproduce the durable state left by an older controller that
+				// advanced while the last Audit row was locked.
+				claim, err := controller.claim(ctx, "old-controller-claim")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := controller.advancePhase(ctx, claim, phase); err != nil {
+					t.Fatal(err)
+				}
+				if err := controller.releaseClaim(ctx, claim); err != nil {
+					t.Fatal(err)
+				}
+			}
+			locked, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer locked.Rollback(context.Background())
+			if _, err := locked.Exec(ctx, `SELECT audit_id FROM audits WHERE audit_id = $1 FOR UPDATE`, audit.AuditID); err != nil {
+				t.Fatal(err)
+			}
+			if worked, err := controller.RunOnce(ctx); err != nil || worked {
+				t.Fatalf("locked Audit deletion = (%t, %v), want wait without phase advance", worked, err)
+			}
+			current, err := projects.Get(ctx, project.OwnerID, project.ProjectID)
+			if err != nil || current.Deletion == nil || current.Deletion.Phase != phase {
+				t.Fatalf("Project advanced past unrequested locked Audit: (%+v, %v)", current, err)
+			}
+			if err := locked.Rollback(ctx); err != nil {
+				t.Fatal(err)
+			}
+			expireDeletionClaim(t, ctx, pool, project.ProjectID)
+			controller = newTestController(t, pool, runs, &recordingNotifier{}, "restarted")
+			if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+				t.Fatalf("resume Audit deletion = (%t, %v)", worked, err)
+			}
+			deleting, err := audits.Get(ctx, audit.OwnerID, audit.AuditID)
+			if err != nil || deleting.DeletionRequestedAt == nil || deleting.State != auditstore.AuditDeleting {
+				t.Fatalf("unlocked Audit was not requested for deletion: (%+v, %v)", deleting, err)
+			}
+			claims, err := audits.Claim(ctx, auditstore.ClaimParams{
+				HolderID: "audit-controller", Lease: time.Minute, Limit: 1,
+			})
+			if err != nil || len(claims) != 1 {
+				t.Fatalf("claim deleting Audit = (%+v, %v)", claims, err)
+			}
+			if err := audits.PurgeClaimed(ctx, claims[0], auditdomain.ArtifactNamespace(audit.AuditID)); err != nil {
+				t.Fatal(err)
+			}
+			iterations := 4
+			if phase == projectstore.DeletionDraining {
+				iterations = 3
+			}
+			for iteration := 0; iteration < iterations; iteration++ {
+				if worked, err := controller.RunOnce(ctx); err != nil || !worked {
+					t.Fatalf("Project cleanup %d = (%t, %v)", iteration, worked, err)
+				}
+			}
+			if _, err := projects.Get(ctx, project.OwnerID, project.ProjectID); !errors.Is(err, projectstore.ErrNotFound) {
+				t.Fatalf("Project did not finish deletion: %v", err)
+			}
+		})
+	}
+}
+
 func createProjectRun(
 	t *testing.T,
 	ctx context.Context,

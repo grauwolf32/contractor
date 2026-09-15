@@ -1110,7 +1110,7 @@ export class RunEventsManager {
     const record = this.#subscriptions.get(frame.subscriptionId);
     if (
       record === undefined ||
-      record.phase !== "pending" ||
+      (record.phase !== "pending" && record.phase !== "closing") ||
       record.requestedCursor === undefined ||
       !subscriptionMatchesStream(record, frame.stream) ||
       !sameCursor(frame.cursor, record.requestedCursor)
@@ -1120,6 +1120,11 @@ export class RunEventsManager {
     }
     record.cursor = copyCursor(frame.cursor);
     delete record.requestedCursor;
+    // The server may acknowledge subscribe after cancellation was sent.
+    // Keep the record until unsubscribed so queued events remain harmless.
+    if (record.phase === "closing") {
+      return;
+    }
     record.phase = "subscribed";
     this.#reconnectAttempt = 0;
     record.callbacks.onStateChange("live");
@@ -1215,15 +1220,26 @@ export class RunEventsManager {
       this.#resyncAll("protocol_error");
       return;
     }
+    if (record.phase === "closing") {
+      return;
+    }
     this.#resyncAll(frame.reason);
   }
 
   #errorFrame(frame: ErrorFrame): void {
     if (frame.subscriptionId !== undefined) {
       const record = this.#subscriptions.get(frame.subscriptionId);
+      // A failed subscribe and its racing unsubscribe can each report
+      // not_found. The second reply has no remaining subscription to affect.
+      if (record === undefined && frame.code === "not_found") {
+        return;
+      }
       if (record?.phase === "closing" && frame.code === "not_found") {
         this.#subscriptions.delete(record.id);
         this.#closeIfIdle();
+        return;
+      }
+      if (record?.phase === "closing") {
         return;
       }
       if (record !== undefined) {
@@ -1319,7 +1335,8 @@ export class RunEventsManager {
     }
     if (
       this.#connection?.socket.readyState === 1 &&
-      record.phase === "subscribed"
+      (record.phase === "subscribed" ||
+        (record.phase === "pending" && record.requestedCursor !== undefined))
     ) {
       record.phase = "closing";
       try {

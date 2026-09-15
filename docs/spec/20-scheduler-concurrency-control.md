@@ -147,6 +147,11 @@ lanes. Each lane repeatedly:
 4. executes one bounded Run/Stage lifecycle attempt;
 5. releases the claim before selecting more work.
 
+Cancelling Planner execution does not cancel claim renewal: the same lane owns
+the Run throughout cancellation and allocation-loss cleanup. Losing the claim
+interrupts both ordinary work and cleanup. A terminal Run transition clears its
+claim atomically; renewal racing that transition treats it as completion.
+
 The existing `FOR UPDATE SKIP LOCKED` claim boundary remains authoritative:
 different lanes cannot claim the same Run, and a claim cannot be silently
 stolen before expiry. The claim ordering continues to prioritize cancellation

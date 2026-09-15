@@ -46,10 +46,11 @@ func (i *Importer) Collect(
 	if !errors.Is(err, ErrPermanent) {
 		return changed, err
 	}
-	// A terminal Run must always become disposable. If exact pinned data is
-	// corrupt, retain a truthful technical receipt rather than retrying an
-	// impossible successful import forever. The ordinary Collect transaction
-	// revalidates authority and the terminal observation.
+	// A permanent contract failure must not strand a terminal Run. If the
+	// readable pinned data violates its contract, retain a truthful technical
+	// receipt rather than retrying an impossible successful import forever.
+	// Storage failures above remain retryable without a receipt. The ordinary
+	// Collect transaction revalidates authority and the terminal observation.
 	if execution.AuditID != snapshot.Audit.AuditID || execution.AuditID != claim.AuditID ||
 		execution.State != auditstore.ExecutionCollecting || execution.TerminalOutcome == nil {
 		return false, err

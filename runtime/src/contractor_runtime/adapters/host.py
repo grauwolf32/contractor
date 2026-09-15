@@ -354,14 +354,16 @@ class AllocationAdapterHost:
             retryable = error.retryable
         except Exception:
             retryable = False
+        else:
+            return cls(hosted, handles=handles)
 
-        if len(hosted) != len(selected):
-            cleanup_confirmed = await _close_hosted(hosted, deadline=deadline, now=now)
-            raise AdapterPreparationError(
-                retryable=retryable,
-                cleanup_confirmed=cleanup_confirmed and not construction_unconfirmed,
-            ) from None
-        return cls(hosted, handles=handles)
+        # Ownership is recorded before validation. A failed final adapter can
+        # therefore fill the map without producing a valid prepared host.
+        cleanup_confirmed = await _close_hosted(hosted, deadline=deadline, now=now)
+        raise AdapterPreparationError(
+            retryable=retryable,
+            cleanup_confirmed=cleanup_confirmed and not construction_unconfirmed,
+        ) from None
 
     @property
     def handles(self) -> AdapterHandles:

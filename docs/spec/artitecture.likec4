@@ -653,7 +653,7 @@ model {
     auditCoordination.auditController -> artifactPlane.artifactService 'After cancel/drain/collection: release Audit evidence holds and purge only Audit-managed Project bindings'
 
     workspaceLifecycle.projectDeletionController -> workspaceLifecycle.projectStore 'Claim and durably advance one monotonic deletion phase'
-    workspaceLifecycle.projectDeletionController -> auditCoordination.auditService 'Close Audit dispatch, cancel/drain/collect and release Audit holds before Run/Project purge'
+    workspaceLifecycle.projectDeletionController -> auditCoordination.auditService 'Persist Audit deletion intent in SQL; Audit Controller drains and purges before Run/Project purge'
     workspaceLifecycle.projectDeletionController -> orchestration.workflowScheduler 'Request ordinary cancellation and wait for terminal allocation release'
     workspaceLifecycle.projectDeletionController -> workspaceLifecycle.runStore 'Delete every released terminal Project Run idempotently'
     workspaceLifecycle.projectDeletionController -> artifactPlane.artifactPurger 'Purge complete ProjectScope after all Project Runs are gone'
@@ -1610,7 +1610,7 @@ views {
       title 'Claim deletion phase'
     }
     include server.workspaceLifecycle.projectDeletionController -> server.auditCoordination.auditService with {
-      title 'Close dispatch / drain / release holds'
+      title 'Persist SQL deletion intent / await drain'
     }
     include server.workspaceLifecycle.runStore -> server.auditCoordination.auditStore with {
       title 'Require receipt / retain provenance'
@@ -2924,7 +2924,7 @@ views {
       title 'Require collection receipt / retain tombstone'
     }
     include server.workspaceLifecycle.projectDeletionController -> server.auditCoordination.auditService with {
-      title 'Drain Audits before Project purge'
+      title 'Persist deletion intent / await Audit purge'
     }
     include server.auditCoordination.auditService -> server.auditCoordination.auditStore with {
       title 'Close dispatch / lifecycle fence'

@@ -260,13 +260,14 @@ class AllocationService:
                 worker_state = WorkerStateStore()
                 if execution is not None:
                     execution.bind_failure(worker_state.execution.fail)
-                tools = await self._create_tools(
+                await self._create_tools(
                     spec,
                     workspace,
                     project_workspace,
                     worker_state,
                     adapter_host.handles,
                     execution,
+                    tools,
                 )
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
@@ -648,9 +649,9 @@ class AllocationService:
         project_workspace: DirectWorkspaceSession | None,
         worker_state: WorkerStateStore,
         adapter_handles: AdapterHandles,
-        execution: PreparedExecution | None = None,
-    ) -> dict[str, ToolInstance]:
-        result: dict[str, ToolInstance] = {}
+        execution: PreparedExecution | None,
+        result: dict[str, ToolInstance],
+    ) -> None:
         for selection in spec.agent_template.toolsets:
             ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
             factory = self._factories.toolsets.get(ref)
@@ -694,6 +695,15 @@ class AllocationService:
                 adapter_handles=adapter_handles.for_tool_channels(channels),
                 project_workspace=self._workspace_tool_view(factory, project_workspace),
             )
+            collision = set(result) & set(created)
+            # Transfer every returned resource to prepare's rollback owner
+            # before validation or the next await. Invalid duplicate names
+            # retain separate cleanup entries and never reach a Worker.
+            for name, tool in created.items():
+                cleanup_name = name
+                while cleanup_name in result:
+                    cleanup_name = f"invalid:{cleanup_name}"
+                result[cleanup_name] = tool
             if set(created) != set(selection.tools):
                 raise AllocationError(
                     "invalid_toolset_factory",
@@ -708,7 +718,6 @@ class AllocationService:
                     retryable=False,
                     status_code=500,
                 )
-            collision = set(result) & set(created)
             if collision:
                 raise AllocationError(
                     "duplicate_visible_tool",
@@ -716,8 +725,6 @@ class AllocationService:
                     retryable=False,
                     status_code=422,
                 )
-            result.update(created)
-        return result
 
     @staticmethod
     def _workspace_tool_view(factory: Any, workspace: DirectWorkspaceSession | None) -> Any | None:

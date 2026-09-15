@@ -207,11 +207,15 @@ func (c *Controller) advance(
 	ctx context.Context,
 	claim deletionClaim,
 ) (worked bool, completed bool, err error) {
-	switch claim.Phase {
-	case projectstore.DeletionCancelling:
+	if claim.Phase == projectstore.DeletionCancelling || claim.Phase == projectstore.DeletionDraining {
+		// Recheck while draining so deletions already stranded by a skipped
+		// Audit lock can recover after a controller restart or upgrade.
 		if changed, err := c.requestOneAuditDeletion(ctx, claim); changed || err != nil {
 			return changed, false, err
 		}
+	}
+	switch claim.Phase {
+	case projectstore.DeletionCancelling:
 		return c.cancelOneRun(ctx, claim)
 	case projectstore.DeletionDraining:
 		return c.waitForDrain(ctx, claim)
@@ -239,7 +243,7 @@ WITH live_project AS MATERIALIZED (
     SELECT project_id
       FROM projects
      WHERE project_id = $1 AND owner_id = $2
-       AND lifecycle_state = 'deleting' AND deletion_phase = 'cancelling'
+       AND lifecycle_state = 'deleting' AND deletion_phase = $4
        AND deletion_claim_id = $3
      FOR UPDATE
 ), candidate AS MATERIALIZED (
@@ -269,7 +273,7 @@ WITH live_project AS MATERIALIZED (
            jsonb_build_object('state', state, 'source', 'project-deletion')
       FROM changed
 )
-SELECT audit_id FROM changed`, claim.ProjectID, claim.OwnerID, claim.ClaimID).Scan(&auditID)
+SELECT audit_id FROM changed`, claim.ProjectID, claim.OwnerID, claim.ClaimID, claim.Phase).Scan(&auditID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -292,6 +296,20 @@ WHERE project_id = $1 AND owner_id = $2
 ORDER BY created_at, run_id
 LIMIT 1`, claim.ProjectID, claim.OwnerID).Scan(&runID)
 	if errors.Is(err, pgx.ErrNoRows) {
+		// SKIP LOCKED in requestOneAuditDeletion may have skipped the last
+		// Audit. Do not leave cancelling until every Audit has received the
+		// fence, even when ordinary Run cancellation is already complete.
+		var auditsPending bool
+		if err := c.pool.QueryRow(ctx, `
+SELECT EXISTS (
+    SELECT 1 FROM audits
+    WHERE project_id = $1 AND deletion_requested_at IS NULL
+)`, claim.ProjectID).Scan(&auditsPending); err != nil {
+			return false, false, fmt.Errorf("inspect Project Audit deletion requests: %w", err)
+		}
+		if auditsPending {
+			return false, false, nil
+		}
 		return c.advancePhase(ctx, claim, projectstore.DeletionDraining)
 	}
 	if err != nil {

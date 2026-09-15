@@ -124,7 +124,15 @@ func (i *Importer) prepareCheckResults(
 		if value.Artifact != nil {
 			descriptor, _, readErr := i.artifacts.ReadRunExact(ctx, *execution.RunID, *value.Artifact)
 			if readErr != nil {
-				return preparedCheckResults{}, &invalidCheckResults{code: "evidence-reference-invalid"}
+				if errors.Is(readErr, artifacts.ErrArtifactNotFound) ||
+					errors.Is(readErr, artifacts.ErrExactRevisionRequired) ||
+					errors.Is(readErr, artifacts.ErrInvalidName) {
+					return preparedCheckResults{}, &invalidCheckResults{code: "evidence-reference-invalid"}
+				}
+				// Storage failures do not prove that the worker's reference is
+				// invalid. Leave this execution collecting so the same terminal
+				// result can be retried without consuming an item attempt.
+				return preparedCheckResults{}, fmt.Errorf("read exact Audit evidence: %w", readErr)
 			}
 			validated.descriptor = &descriptor
 		}

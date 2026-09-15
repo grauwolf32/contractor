@@ -42,6 +42,42 @@ PROXY_SECRET = "recognizable-proxy-password-secret"
 CAIDO_SECRET = "recognizable-caido-bearer-secret"
 
 
+@pytest.mark.parametrize("with_proxy", [False, True])
+def test_invalid_last_adapter_is_rejected_and_closed_before_sandbox(
+    tmp_path: Path, with_proxy: bool
+) -> None:
+    events: list[str] = []
+    adapters = {"otlp-http@1": FakeAdapterFactory("otlp-http@1", events, handles=AdapterHandles())}
+    if with_proxy:
+        adapters["http-proxy@1"] = FakeAdapterFactory(
+            "http-proxy@1", events, handles=AdapterHandles(model_http=object())
+        )
+
+    async def scenario() -> None:
+        state, service = await make_service(
+            tmp_path,
+            runtime_adapters=adapters,
+            sandbox=RecordingSandbox(tmp_path, events),
+        )
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(
+                configured_spec(
+                    telemetry=True, proxy_targets=["llm-gateway"] if with_proxy else None
+                )
+            )
+
+        assert failure.value.code == "runtime_adapter_prepare_failed"
+        assert not failure.value.retryable
+        expected = ["create:otlp-http@1", "close:otlp-http@1"]
+        if with_proxy:
+            expected = ["create:http-proxy@1", *expected, "close:http-proxy@1"]
+        assert events == expected
+        assert await service.snapshot() is None
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
 def test_second_adapter_prepare_failure_rolls_back_first_before_sandbox(
     tmp_path: Path,
 ) -> None:

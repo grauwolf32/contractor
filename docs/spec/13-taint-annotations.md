@@ -222,8 +222,9 @@ mutation follows this sequence:
 
 Any Edit tool or other writer that wins between steps 1 and 3 causes the
 retryable `taint_annotation_workspace_changed` error. The annotation call never
-overwrites that change. There is no lock shared between Toolsets and no
-non-atomic read-then-write fallback.
+overwrites that change. Toolsets keep their own session locks; local-direct
+workspace mutations, commands and snapshots also share the workspace operation
+guard. There is no non-atomic read-then-write fallback.
 
 An exact canonical annotation already in the target's adjacent annotation
 block is successful idempotent replay (`changed=false`). This covers a lost
