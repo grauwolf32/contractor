@@ -149,6 +149,10 @@ async function installProjectAPI(
       await fulfillJSON(route, { items: [project], page: { hasMore: false } });
       return;
     }
+    if (url.pathname === `/v1/projects/${PROJECT_ID}/audits`) {
+      await fulfillJSON(route, { items: [], page: { hasMore: false } });
+      return;
+    }
     if (url.pathname === "/v1/workflows") {
       await fulfillJSON(route, {
         items: options.exposeWorkflow ? [workflow] : [],

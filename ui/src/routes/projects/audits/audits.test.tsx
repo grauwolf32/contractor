@@ -7,6 +7,7 @@ import type { RuntimeConfig } from "../../../config/runtime-config";
 import { PublicAPI } from "../../../api/client";
 import type {
   Audit,
+  AuditCoverageRow,
   AuditFinding,
   AuditItem,
   AuditProfile,
@@ -427,6 +428,7 @@ describe("Project Audit routes", () => {
     );
     const user = userEvent.setup();
 
+    await user.click(await screen.findByRole("button", { name: "New Audit" }));
     await screen.findByRole("heading", { name: "New Audit" });
     const createButton = screen.getByRole("button", {
       name: "Create Audit draft",
@@ -579,16 +581,175 @@ describe("Project Audit routes", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "Coverage matrix" }),
+      await screen.findByRole("heading", { name: "Checks & results" }),
     ).toBeVisible();
-    const rows = screen.getAllByRole("row");
-    expect(within(rows[1]!).getByText("violated")).toBeVisible();
-    expect(within(rows[2]!).getByText("inconclusive")).toBeVisible();
+    const rows = screen.getAllByRole("article");
+    expect(within(rows[0]!).getByText("Issue found")).toBeVisible();
+    expect(within(rows[1]!).getByText("Inconclusive")).toBeVisible();
+    expect(
+      await screen.findByText("Missing authorization check"),
+    ).toBeVisible();
     expect(screen.getByText("tests unavailable")).toBeVisible();
     const readsBeforePoll = auditReads;
     await vi.advanceTimersByTimeAsync(1_100);
     await vi.waitFor(() => expect(auditReads).toBeGreaterThan(readsBeforePoll));
     vi.useRealTimers();
+  });
+
+  it("loads every coverage page and searches the actual task, conclusion and evidence", async () => {
+    const completed = auditAt("completed", 4);
+    completed.currentRoundId = "round_example";
+    const cursors: Array<string | null> = [];
+    const row = (
+      itemId: string,
+      status: AuditCoverageRow["coverage"]["status"],
+    ): AuditCoverageRow => ({
+      roundId: "round_example",
+      itemId,
+      ordinal: 0,
+      itemKey: itemId,
+      subjectKey: itemId,
+      coverage: {
+        status,
+        requested: ["observation"],
+        completed: ["observation"],
+        gaps: [],
+      },
+      updatedAt: completed.updatedAt,
+      details: {
+        objective: "Verify that expired invitations cannot be reused.",
+        methods: ["custom-method"],
+        taskDocument: {
+          schema: "contractor.audit.item-task.v1",
+          checklist: {
+            statement: "Verify that expired invitations cannot be reused.",
+          },
+        },
+        resultSummary: "An expired invitation can still be accepted.",
+        evidence: [
+          {
+            id: "proof",
+            kind: "observation",
+            summary: "The invitation endpoint accepts an expired token.",
+          },
+        ],
+      },
+    });
+    const first = row("custom-check", "violated");
+    const second = {
+      ...row("trace-check", "traced-complete"),
+      details: undefined,
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/auth/session") return jsonResponse(session);
+        if (url.pathname === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (url.pathname === "/v1/audits/audit_example")
+          return jsonResponse(completed, { headers: { ETag: '"4"' } });
+        if (url.pathname.endsWith("/coverage")) {
+          expect(url.searchParams.get("round")).toBe("round_example");
+          const cursor = url.searchParams.get("cursor");
+          cursors.push(cursor);
+          return jsonResponse(
+            cursor === null
+              ? {
+                  items: [first],
+                  page: { hasMore: true, nextCursor: "next-check" },
+                }
+              : { items: [second], page: { hasMore: false } },
+          );
+        }
+        throw new Error(`unexpected ${url.pathname}`);
+      }),
+    );
+    const { router } = renderApplication(
+      api,
+      "/projects/project_example/audits/audit_example/coverage",
+    );
+    const user = userEvent.setup();
+    expect(
+      await screen.findByText(
+        "Verify that expired invitations cannot be reused.",
+      ),
+    ).toBeVisible();
+    expect(
+      await screen.findByText("An expired invitation can still be accepted."),
+    ).toBeVisible();
+    expect(screen.getByText("Showing 2 of 2 checks")).toBeVisible();
+    expect(cursors).toEqual([null, "next-check"]);
+    await user.click(screen.getByRole("button", { name: /Issues found/u }));
+    expect(screen.getByText("Showing 1 of 2 checks")).toBeVisible();
+    expect(screen.queryByRole("article", { name: "trace-check" })).toBeNull();
+    expect(router.state.location.search).toContain("result=issues");
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search checks" }),
+      "endpoint",
+    );
+    expect(screen.getByRole("article", { name: "custom-check" })).toBeVisible();
+    expect(screen.queryByRole("article", { name: "trace-check" })).toBeNull();
+    await user.click(screen.getByText("Full task & evidence (1)"));
+    expect(
+      await screen.findByText(
+        "The invitation endpoint accepts an expired token.",
+      ),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByText("Fully traced")).toBeVisible();
+    expect(
+      screen.getByText(
+        "All requested parts of this operation were traced. This is not a security verdict.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Audit sections" }),
+      ).getByRole("link", { name: "Findings" }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_example/audits/audit_example/findings",
+    );
+  });
+
+  it("shows audit cards and deletion directly in the project workspace", async () => {
+    const completed = auditAt("completed", 4);
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        const path = new URL(request.url).pathname;
+        if (path === "/v1/auth/session") return jsonResponse(session);
+        if (path === "/v1/projects/project_example")
+          return jsonResponse(project, { headers: { ETag: '"1"' } });
+        if (path === "/v1/projects/project_example/audits")
+          return jsonResponse({ items: [completed], page: { hasMore: false } });
+        return jsonResponse({ items: [], page: { hasMore: false } });
+      }),
+    );
+    renderApplication(api, "/projects/project_example");
+    const user = userEvent.setup();
+    expect(
+      await screen.findByRole("link", { name: "View checks & results →" }),
+    ).toHaveAttribute(
+      "href",
+      "/projects/project_example/audits/audit_example/coverage",
+    );
+    expect(
+      screen.getByRole("heading", { name: "OWASP Top 10 · Source risks" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "New Audit" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Delete Audit" }));
+    expect(
+      screen.getByRole("alertdialog", { name: "Delete this Audit?" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Keep Audit unchanged" }),
+    );
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("combines every audit and finding page, filters results, and keeps duplicate reviews within their audit", async () => {
@@ -1461,11 +1622,13 @@ describe("Project Audit routes", () => {
       expect(screen.getByText("cancelled", { exact: true })).toBeVisible(),
     );
 
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete Audit" }));
     dialog = screen.getByRole("alertdialog", {
       name: "Delete this Audit?",
     });
-    expect(within(dialog).getByText(/Deletion is asynchronous/u)).toBeVisible();
+    expect(
+      within(dialog).getByText(/Permanently delete this audit/u),
+    ).toBeVisible();
     await user.click(
       within(dialog).getByRole("button", { name: "Begin Audit deletion" }),
     );

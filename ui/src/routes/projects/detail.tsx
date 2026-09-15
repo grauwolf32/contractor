@@ -18,33 +18,10 @@ import { DeleteProjectDialog, ProjectDeletionProgress } from "./deletion";
 import { useProjectDeletion } from "./use-project-deletion";
 import { ProjectWorkflowRecommendations } from "./workflow-recommendations";
 
-import "../primary-actions.css";
+import { ProjectAuditWorkspace } from "./audits/list";
+import { AuditAnchor } from "./audits/shared";
 
-function ProjectAuditsRegion({ projectId }: { projectId: string }) {
-  return (
-    <ProjectRegion
-      eyebrow="Profile-driven verification"
-      title="Audits"
-      id="project-audits"
-      action={
-        <div className="project-header-actions">
-          <Link to={`/projects/${encodeURIComponent(projectId)}/findings`}>
-            Findings →
-          </Link>
-          <Link to={`/projects/${encodeURIComponent(projectId)}/audits`}>
-            Open Audits →
-          </Link>
-        </div>
-      }
-    >
-      <p className="muted-copy">
-        Build a fixed checklist or OpenAPI operation inventory from exact
-        Project Artifacts, then follow coverage and ordinary child Runs without
-        treating a successful process as a passing assessment.
-      </p>
-    </ProjectRegion>
-  );
-}
+import "../primary-actions.css";
 
 function ProjectWorkspaceRoute({
   expectedKind,
@@ -119,6 +96,11 @@ function ProjectWorkspaceRoute({
         <div className="project-header-actions primary-action-cluster">
           {activeProject === undefined ? null : (
             <>
+              {expectedKind === "project" ? (
+                <a className="audit-open-link" href="#project-audits">
+                  Audits
+                </a>
+              ) : null}
               <button
                 className="secondary-button"
                 type="button"
@@ -199,11 +181,13 @@ function ProjectWorkspaceRoute({
             aria-label="Project sections"
           >
             <a href="#project-overview">Overview</a>
+            {expectedKind === "project" ? (
+              <a href="#project-audits">Audits</a>
+            ) : null}
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-workflows">Workflows</a>
             {expectedKind === "project" ? (
               <>
-                <a href="#project-audits">Audits</a>
                 <Link
                   to={`/projects/${encodeURIComponent(projectId)}/findings`}
                 >
@@ -213,6 +197,27 @@ function ProjectWorkspaceRoute({
             ) : null}
             <a href="#project-runs">Runs</a>
           </nav>
+          <AuditAnchor />
+          {expectedKind === "project" ? (
+            <ProjectRegion
+              eyebrow="Project security"
+              title="Audits"
+              id="project-audits"
+              action={
+                <Link
+                  to={`/projects/${encodeURIComponent(projectId)}/findings`}
+                >
+                  All project findings →
+                </Link>
+              }
+            >
+              <ProjectAuditWorkspace
+                key={project.data.projectId}
+                projectId={project.data.projectId}
+                projectName={project.data.name}
+              />
+            </ProjectRegion>
+          ) : null}
           <ProjectRegion
             eyebrow={
               expectedKind === "evaluation"
@@ -240,9 +245,6 @@ function ProjectWorkspaceRoute({
             projectId={project.data.projectId}
             focusRequest={analysisFocusRequest}
           />
-          {expectedKind === "project" ? (
-            <ProjectAuditsRegion projectId={project.data.projectId} />
-          ) : null}
           <ProjectRunsRegion
             projectId={project.data.projectId}
             evaluation={expectedKind === "evaluation"}

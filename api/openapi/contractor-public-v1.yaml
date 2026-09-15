@@ -4035,6 +4035,28 @@ components:
         completed: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
         gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
         rationale: {type: string, maxLength: 4096}
+    AuditCoverageDetails:
+      type: object
+      additionalProperties: false
+      required: [objective, methods, taskDocument, evidence]
+      properties:
+        objective: {type: string}
+        methods: {type: array, items: {type: string}}
+        taskDocument:
+          type: object
+          additionalProperties: true
+          description: Exact retained item-task document given to the worker, independent of the selected checklist or profile.
+        resultSummary: {type: string}
+        evidence:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, kind, summary]
+            properties:
+              id: {type: string}
+              kind: {type: string}
+              summary: {type: string}
     AuditCoverageRow:
       type: object
       additionalProperties: false
@@ -4046,6 +4068,7 @@ components:
         itemKey: {type: string, minLength: 1, maxLength: 256}
         subjectKey: {type: string, minLength: 1, maxLength: 512}
         coverage: {$ref: '#/components/schemas/AuditCoverage'}
+        details: {$ref: '#/components/schemas/AuditCoverageDetails'}
         result: {$ref: '#/components/schemas/AuditExactArtifact'}
         updatedAt: {type: string, format: date-time}
     AuditCoveragePage:

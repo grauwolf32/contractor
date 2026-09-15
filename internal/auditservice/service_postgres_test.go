@@ -143,6 +143,9 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	if err != nil || len(coverage) != 1 || coverage[0].Ordinal != 0 || coverage[0].Coverage.Status != auditstore.CoverageNotTested {
 		t.Fatalf("initial coverage = (%+v, %v)", coverage, err)
 	}
+	if coverage[0].Details == nil || coverage[0].Details.Objective == "" || !json.Valid(coverage[0].Details.TaskDocument) {
+		t.Fatalf("coverage omitted the retained task: %+v", coverage[0].Details)
+	}
 	credentials.setAvailable(false)
 	guardCalls := guard.callsCount()
 	replayedStart, err := service.Start(ctx, StartParams{

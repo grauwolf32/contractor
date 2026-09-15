@@ -256,6 +256,28 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
             ordinal: 0,
             itemKey: "check-authz",
             subjectKey: "Authorization controls",
+            details: {
+              objective:
+                "Verify that a user can only read and update orders belonging to their own account. Check both the API handler and the service layer.",
+              methods: ["source-analysis"],
+              taskDocument: {
+                schema: "contractor.audit.item-task.v1",
+                checklist: {
+                  statement:
+                    "Verify ownership checks for every order operation.",
+                },
+              },
+              resultSummary:
+                "The service checks ownership before returning an order. Automated tests for cross-account access were not available, so this check remains inconclusive.",
+              evidence: [
+                {
+                  id: "order-service",
+                  kind: "observation",
+                  summary:
+                    "`OrderService.getOrder` compares the order owner with the authenticated account before reading the record.",
+                },
+              ],
+            },
             coverage: {
               status: "inconclusive",
               requested: ["implementation", "tests"],
@@ -282,6 +304,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   });
 
   await page.goto(`/projects/${PROJECT_ID}/audits`);
+  await page.getByRole("button", { name: "New Audit" }).click();
   await expect(page.getByRole("heading", { name: "New Audit" })).toBeVisible();
   const input = page.getByLabel("Input sources");
   const artifactOption = input
@@ -297,8 +320,30 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
   await page.getByRole("button", { name: "Start Audit" }).click();
   await expect(page.getByText("revision 2")).toBeVisible();
   await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.getByText("inconclusive")).toBeVisible();
+  await expect(page.getByText("Inconclusive")).toBeVisible();
   await expect(page.getByText("test evidence missing")).toBeVisible();
+  await expect(
+    page.getByText(/Verify that a user can only read/u),
+  ).toBeVisible();
+  await expect(page.getByText(/The service checks ownership/u)).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("audit-coverage-desktop.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("searchbox", { name: "Search checks" })
+    .fill("cross-account");
+  await expect(page.getByText("Showing 1 of 1 checks")).toBeVisible();
+  await page.getByText("Full task & evidence (1)").click();
+  await expect(page.getByText(/compares the order owner/u)).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: testInfo.outputPath("audit-coverage-mobile.png"),
+    fullPage: true,
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
 
   expect(createRequests).toHaveLength(1);
   expect(createRequests[0]!.headers["idempotency-key"]).toMatch(
@@ -315,7 +360,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     search: location.search,
   }));
   expect(JSON.stringify(storage)).not.toContain("PROFILE_PACKAGE");
-  expect(storage.search).toBe("");
+  expect(storage.search).toBe("?q=cross-account");
 });
 
 test("audit program library renders exact Top 10 and ASVS evidence boundaries", async ({
@@ -647,12 +692,12 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
   await expect(top10Standards).toContainText("owasp-web-top10@2025");
   await expect(top10Standards).toContainText("CC-BY-SA-4.0");
   await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.locator("tbody tr")).toHaveCount(10);
+  await expect(page.locator(".audit-result-card")).toHaveCount(10);
   await expect(
-    page.getByText("inconclusive", { exact: true }).first(),
+    page.getByText("Inconclusive", { exact: true }).first(),
   ).toBeVisible();
   await expect(
-    page.getByText("not-tested", { exact: true }).first(),
+    page.getByText("Not checked yet", { exact: true }).first(),
   ).toBeVisible();
   await page.getByRole("link", { name: "Report" }).click();
   await expect(
@@ -668,8 +713,8 @@ test("audit program library renders exact Top 10 and ASVS evidence boundaries", 
   await expect(selected).toContainText("5 exact requirements");
   await expect(selected).toContainText("v5.0.0-2.1.1");
   await page.getByRole("link", { name: "Coverage" }).click();
-  await expect(page.locator("tbody tr")).toHaveCount(5);
-  await expect(page.getByText("not-applicable", { exact: true })).toBeVisible();
+  await expect(page.locator(".audit-result-card")).toHaveCount(5);
+  await expect(page.getByText("Not applicable", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Report" }).click();
   await expect(page.getByText("Exact selected requirements: 5.")).toBeVisible();
   await expect(
@@ -1051,11 +1096,11 @@ test("Audit UI reviews exact evidence and completes destructive lifecycle contro
     .getByRole("button", { name: "Confirm cancellation" })
     .click();
   await expect(page.getByText("cancelled", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete Audit" }).click();
   confirmation = page.getByRole("alertdialog", {
     name: "Delete this Audit?",
   });
-  await expect(confirmation).toContainText("Deletion is asynchronous");
+  await expect(confirmation).toContainText("Permanently delete this audit");
   await confirmation
     .getByRole("button", { name: "Begin Audit deletion" })
     .click();

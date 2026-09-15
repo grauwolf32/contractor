@@ -3,9 +3,7 @@ import {
   lazy,
   Suspense,
   useEffect,
-  useId,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -13,25 +11,20 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import {
   AUDIT_ID_PATTERN,
-  auditMutationAudit,
   auditNeedsPolling,
   createAuditFindingReview,
   decideAuditAction,
   decideAuditFinding,
   getAudit,
   getAuditReport,
-  listAuditCoverage,
   listAuditFindingProvenance,
   listAuditFindings,
   listAuditItems,
   listAuditReviews,
-  mutateAudit,
   type Audit,
   type AuditAnalystVerdict,
-  type AuditCoverageRow,
   type AuditFinding,
   type AuditFindingSeverity,
-  type AuditMutationAction,
   type AuditReviewAction,
   type AuditReviewRequest,
   type DecideAuditFindingRequest,
@@ -41,7 +34,6 @@ import { collectAuditPages } from "../../../api/audit-collections";
 import { PublicAPIError } from "../../../api/error";
 import { getProject, PROJECT_ID_PATTERN } from "../../../api/projects";
 import { queryKeys } from "../../../api/query-keys";
-import { Dialog } from "../../../app/dialog";
 import { MutationDraftKeyring } from "../../../mutations/idempotency";
 import {
   ErrorNotice,
@@ -51,6 +43,9 @@ import {
 import { StateBadge } from "../../runs/components";
 import { AuditAnchor, AuditMarkdown } from "./shared";
 import { auditProfileLabel } from "./labels";
+
+import { AuditControls, AuditMutationNotice } from "./controls";
+import { AuditCoverage } from "./coverage";
 
 import "./styles.css";
 
@@ -139,313 +134,6 @@ function StringList({
   );
 }
 
-function AuditMutationNotice({ error }: { error: unknown }) {
-  return (
-    <>
-      <ErrorNotice error={error} reconcileWrite />
-      {error instanceof PublicAPIError && error.status === 412 ? (
-        <p className="muted-copy" role="status">
-          The Audit revision changed. The page has refreshed authoritative
-          state; review it before retrying the action.
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-type DestructiveAuditAction = Extract<AuditMutationAction, "cancel" | "delete">;
-
-function auditActionAllowed(
-  audit: Audit,
-  action: DestructiveAuditAction,
-): boolean {
-  if (action === "cancel") {
-    return (
-      audit.state === "active" ||
-      audit.state === "waiting_review" ||
-      audit.state === "paused" ||
-      audit.state === "finalizing"
-    );
-  }
-  return (
-    audit.state === "draft" ||
-    audit.state === "completed" ||
-    audit.state === "cancelled" ||
-    audit.state === "failed"
-  );
-}
-
-function AuditMutationDialog({
-  action,
-  audit,
-  projectName,
-  error,
-  pending,
-  onClose,
-  onConfirm,
-}: {
-  action: DestructiveAuditAction;
-  audit: Audit;
-  projectName: string | undefined;
-  error: unknown;
-  pending: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const heading = useId();
-  const description = useId();
-  const safeAction = useRef<HTMLButtonElement>(null);
-  const allowed = auditActionAllowed(audit, action);
-  const cancelling = action === "cancel";
-  return (
-    <Dialog
-      className="project-dialog panel audit-mutation-dialog"
-      labelledBy={heading}
-      describedBy={description}
-      initialFocusRef={safeAction}
-      onRequestClose={onClose}
-      role="alertdialog"
-    >
-      <div className="project-dialog-heading">
-        <div>
-          <p className="eyebrow">Destructive Audit action</p>
-          <h2 id={heading}>
-            {cancelling ? "Cancel this Audit?" : "Delete this Audit?"}
-          </h2>
-        </div>
-        <button
-          className="project-dialog-close"
-          type="button"
-          aria-label="Close Audit confirmation"
-          disabled={pending}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-      <p id={description}>
-        {cancelling
-          ? "Cancellation closes dispatch and begins bounded cancellation, collection and release of child Runs. The Audit may remain cancelling while that cleanup finishes; retained evidence is not deleted."
-          : "Deletion is asynchronous. The Server closes dispatch, drains and collects owned Runs, releases retained evidence, and then purges Audit-managed artifacts and records."}
-      </p>
-      <dl className="metadata-grid audit-mutation-identity">
-        <div>
-          <dt>Project</dt>
-          <dd>
-            {projectName ?? audit.projectId} <code>{audit.projectId}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Audit</dt>
-          <dd>
-            <code>{audit.auditId}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Profile</dt>
-          <dd>
-            <code>
-              {audit.profile.name}@{audit.profile.version}
-            </code>
-          </dd>
-        </div>
-        <div>
-          <dt>Current state</dt>
-          <dd>
-            {audit.state} · revision {audit.revision}
-          </dd>
-        </div>
-      </dl>
-      {!allowed ? (
-        <div className="notice notice-warning" role="status">
-          <strong>This action is no longer available.</strong>
-          <p>
-            Authoritative state is now <code>{audit.state}</code>. Close this
-            confirmation and review the refreshed Audit.
-          </p>
-        </div>
-      ) : null}
-      {error === null ? null : <AuditMutationNotice error={error} />}
-      <div className="inline-actions audit-mutation-actions">
-        <button
-          ref={safeAction}
-          type="button"
-          className="secondary-button"
-          disabled={pending}
-          onClick={onClose}
-        >
-          Keep Audit unchanged
-        </button>
-        <button
-          type="button"
-          className="danger-button"
-          disabled={pending || !allowed}
-          onClick={onConfirm}
-        >
-          {pending
-            ? cancelling
-              ? "Cancelling…"
-              : "Starting deletion…"
-            : cancelling
-              ? "Confirm cancellation"
-              : "Begin Audit deletion"}
-        </button>
-      </div>
-    </Dialog>
-  );
-}
-
-function AuditControls({
-  audit,
-  projectName,
-}: {
-  audit: Audit;
-  projectName: string | undefined;
-}) {
-  const api = usePublicAPI();
-  const queryClient = useQueryClient();
-  const [confirmation, setConfirmation] = useState<DestructiveAuditAction>();
-  const destructiveRequestInFlight = useRef(false);
-  const [keyring] = useState(
-    () =>
-      new MutationDraftKeyring<{
-        action: AuditMutationAction;
-        auditId: string;
-        revision: number;
-      }>("mutate-audit"),
-  );
-  const mutation = useMutation({
-    mutationFn: (action: AuditMutationAction) => {
-      const draft = {
-        action,
-        auditId: audit.auditId,
-        revision: audit.revision,
-      };
-      return mutateAudit(api, action, {
-        auditId: audit.auditId,
-        expectedRevision: audit.revision,
-        idempotencyKey: keyring.keyFor(draft),
-      });
-    },
-    onSuccess: async (result) => {
-      setConfirmation(undefined);
-      const updated = auditMutationAudit(result);
-      queryClient.setQueryData(
-        queryKeys.audits.detail(updated.auditId),
-        updated,
-      );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.projects.audits.all(updated.projectId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.audits.items(updated.auditId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.audits.coverage(updated.auditId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.audits.report(updated.auditId),
-        }),
-      ]);
-    },
-    onError: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.audits.detail(audit.auditId),
-      });
-    },
-    onSettled: () => {
-      destructiveRequestInFlight.current = false;
-    },
-  });
-  function closeConfirmation(): void {
-    if (mutation.isPending) return;
-    mutation.reset();
-    setConfirmation(undefined);
-  }
-  function confirmDestructiveAction(): void {
-    if (
-      confirmation === undefined ||
-      mutation.isPending ||
-      destructiveRequestInFlight.current ||
-      !auditActionAllowed(audit, confirmation)
-    ) {
-      return;
-    }
-    destructiveRequestInFlight.current = true;
-    mutation.reset();
-    mutation.mutate(confirmation);
-  }
-  const buttons: Array<{
-    action: AuditMutationAction;
-    label: string;
-    dangerous?: boolean;
-  }> = [];
-  if (audit.state === "draft")
-    buttons.push({ action: "start", label: "Start Audit" });
-  if (audit.state === "active" || audit.state === "waiting_review") {
-    buttons.push({ action: "pause", label: "Pause new Runs" });
-  }
-  if (audit.state === "paused")
-    buttons.push({ action: "resume", label: "Resume" });
-  if (
-    audit.state === "active" ||
-    audit.state === "waiting_review" ||
-    audit.state === "paused" ||
-    audit.state === "finalizing"
-  ) {
-    buttons.push({ action: "cancel", label: "Cancel", dangerous: true });
-  }
-  if (
-    audit.state === "draft" ||
-    audit.state === "completed" ||
-    audit.state === "cancelled" ||
-    audit.state === "failed"
-  ) {
-    buttons.push({ action: "delete", label: "Delete", dangerous: true });
-  }
-  return (
-    <div className="audit-controls">
-      {buttons.map((button) => (
-        <button
-          key={button.action}
-          className={button.dangerous ? "danger-button" : "secondary-button"}
-          type="button"
-          disabled={mutation.isPending}
-          onClick={() => {
-            if (button.dangerous) {
-              mutation.reset();
-              setConfirmation(button.action as DestructiveAuditAction);
-            } else {
-              mutation.mutate(button.action);
-            }
-          }}
-        >
-          {mutation.isPending && mutation.variables === button.action
-            ? `${button.label}…`
-            : button.label}
-        </button>
-      ))}
-      {confirmation === undefined && mutation.error !== null ? (
-        <div className="audit-control-error">
-          <AuditMutationNotice error={mutation.error} />
-        </div>
-      ) : null}
-      {confirmation === undefined ? null : (
-        <AuditMutationDialog
-          action={confirmation}
-          audit={audit}
-          projectName={projectName}
-          error={mutation.error}
-          pending={mutation.isPending}
-          onClose={closeConfirmation}
-          onConfirm={confirmDestructiveAction}
-        />
-      )}
-    </div>
-  );
-}
-
 function AuditOverview({ audit }: { audit: Audit }) {
   const baseline = audit.baseline;
   return (
@@ -453,12 +141,15 @@ function AuditOverview({ audit }: { audit: Audit }) {
       <section className="panel audit-section-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Pinned contract</p>
+            <p className="eyebrow">Audit setup</p>
             <h3>Profile and scope</h3>
           </div>
-          <code title={audit.profile.digest}>
-            {audit.profile.name}@{audit.profile.version}
-          </code>
+          <Link
+            className="audit-open-link"
+            to={`/projects/${encodeURIComponent(audit.projectId)}/audits/${encodeURIComponent(audit.auditId)}/coverage`}
+          >
+            View checks & results →
+          </Link>
         </div>
         <dl className="metadata-grid">
           <div>
@@ -814,92 +505,6 @@ function AuditChecks({
         </article>
       ))}
     </div>
-  );
-}
-
-function CoverageRow({ audit, row }: { audit: Audit; row: AuditCoverageRow }) {
-  return (
-    <tr>
-      <td data-label="Check">
-        <strong>{row.subjectKey}</strong>
-        <small>{row.itemKey}</small>
-      </td>
-      <td data-label="Assessment">
-        <StateBadge state={row.coverage.status} />
-      </td>
-      <td data-label="Requested">
-        <StringList values={row.coverage.requested} />
-      </td>
-      <td data-label="Completed">
-        <StringList values={row.coverage.completed} />
-      </td>
-      <td data-label="Gaps">
-        <StringList values={row.coverage.gaps} empty="none" />
-      </td>
-      <td data-label="Result">
-        {row.result === undefined ? (
-          "—"
-        ) : (
-          <ExactArtifactLink
-            projectId={audit.projectId}
-            artifact={row.result}
-          />
-        )}
-      </td>
-    </tr>
-  );
-}
-
-function AuditCoverage({
-  audit,
-  api,
-}: {
-  audit: Audit;
-  api: ReturnType<typeof usePublicAPI>;
-}) {
-  const coverage = useQuery({
-    queryKey: queryKeys.audits.coverage(audit.auditId),
-    queryFn: () => listAuditCoverage(api, audit.auditId),
-    refetchInterval: auditNeedsPolling(audit.state) ? 1_000 : false,
-    refetchOnReconnect: true,
-  });
-  if (coverage.isPending)
-    return <p className="loading-copy">Loading coverage…</p>;
-  if (coverage.error !== null) return <ErrorNotice error={coverage.error} />;
-  if (coverage.data.items.length === 0) {
-    return (
-      <div className="empty-state panel">
-        <h3>No coverage yet</h3>
-        <p>
-          This is not a passing result. Checks have not produced an assessment.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <section className="panel audit-section-panel">
-      <p className="eyebrow">Assessment, not Run status</p>
-      <h3>Coverage matrix</h3>
-      <div className="table-scroll">
-        <table className="responsive-table audit-coverage-table">
-          <thead>
-            <tr>
-              <th>Check</th>
-              <th>Assessment</th>
-              <th>Requested</th>
-              <th>Completed</th>
-              <th>Gaps</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            {coverage.data.items.map((row) => (
-              <CoverageRow audit={audit} row={row} key={row.itemId} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
 
@@ -1944,7 +1549,7 @@ function AuditSectionContent({
     case "overview":
       return <AuditOverview audit={audit} />;
     case "coverage":
-      return <AuditCoverage audit={audit} api={api} />;
+      return <AuditCoverage audit={audit} />;
     case "findings":
       return <AuditFindings audit={audit} />;
     case "checks":
@@ -2021,7 +1626,7 @@ export function ProjectAuditDetailRoute() {
         <div>
           <Link
             className="back-link"
-            to={`/projects/${encodeURIComponent(projectId)}/audits`}
+            to={`/projects/${encodeURIComponent(projectId)}#project-audits`}
           >
             ← {project.data?.name ?? "Project"} Audits
           </Link>
@@ -2047,11 +1652,9 @@ export function ProjectAuditDetailRoute() {
       <nav className="audit-section-navigation" aria-label="Audit sections">
         {SECTIONS.map((candidate) => {
           const target =
-            candidate.id === "findings"
-              ? `/projects/${encodeURIComponent(projectId)}/findings`
-              : candidate.id === "overview"
-                ? `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`
-                : `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/${candidate.id}`;
+            candidate.id === "overview"
+              ? `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}`
+              : `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(auditId)}/${candidate.id}`;
           return (
             <Link
               key={candidate.id}

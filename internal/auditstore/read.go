@@ -416,7 +416,7 @@ SELECT coverage.audit_id, coverage.round_id, coverage.item_id, item.ordinal,
        coverage.item_key, coverage.subject_key, coverage.status,
        coverage.requested, coverage.completed, coverage.gaps,
        coverage.rationale, coverage.result_ref, coverage.result_digest,
-       coverage.updated_at
+       coverage.updated_at, item.task_ref, item.task_digest
   FROM audit_coverage_rows AS coverage
   JOIN audit_items AS item USING (item_id, audit_id, round_id)
  WHERE coverage.audit_id = $1 AND coverage.round_id = $2
@@ -430,16 +430,21 @@ SELECT coverage.audit_id, coverage.round_id, coverage.item_id, item.ordinal,
 	for rows.Next() {
 		var row CoverageRow
 		var status string
-		var requested, completed, gaps, resultRef []byte
+		var requested, completed, gaps, resultRef, taskRef []byte
 		var resultDigest *string
 		if err := rows.Scan(
 			&row.AuditID, &row.RoundID, &row.ItemID, &row.Ordinal, &row.ItemKey,
 			&row.SubjectKey, &status, &requested, &completed, &gaps,
 			&row.Coverage.Rationale, &resultRef, &resultDigest, &row.UpdatedAt,
+			&taskRef, &row.Task.Digest,
 		); err != nil {
 			return nil, fmt.Errorf("scan Audit coverage: %w", err)
 		}
 		row.Coverage.Status = CoverageStatus(status)
+		if json.Unmarshal(taskRef, &row.Task.Ref) != nil || row.Task.Ref.ValidateExact() != nil ||
+			validateDigest("stored coverage task digest", row.Task.Digest) != nil {
+			return nil, errors.New("stored Audit coverage task is invalid")
+		}
 		if !row.Coverage.Status.Valid() ||
 			json.Unmarshal(requested, &row.Coverage.Requested) != nil ||
 			json.Unmarshal(completed, &row.Coverage.Completed) != nil ||

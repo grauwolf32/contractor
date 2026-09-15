@@ -512,12 +512,335 @@
   gap: 0.35rem;
 }
 
+.audit-coverage-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.audit-coverage-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.audit-summary-stat {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--surface);
+  color: var(--muted-strong);
+  text-align: left;
+}
+
+.audit-summary-stat:not(:disabled):hover,
+.audit-summary-stat[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.audit-summary-stat strong {
+  color: var(--text);
+  font-size: 1.8rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-summary-stat span {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.audit-summary-issues strong,
+.audit-assessment-issues {
+  color: #ef939c;
+}
+
+.audit-summary-uncertain strong,
+.audit-assessment-uncertain {
+  color: #e4bd73;
+}
+
+.audit-summary-complete strong,
+.audit-assessment-complete {
+  color: #83cfac;
+}
+
+.audit-coverage-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.audit-coverage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+}
+
+.audit-coverage-toolbar label {
+  display: grid;
+  gap: 0.45rem;
+  flex: 1 1 18rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+}
+
+.audit-coverage-toolbar input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.audit-coverage-toolbar input:focus-visible,
+.audit-check-details > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.audit-coverage-toolbar p {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.audit-result-card {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  border-left: 3px solid var(--line-strong);
+}
+
+.audit-result-card.audit-result-issues {
+  border-left-color: #bd6472;
+}
+
+.audit-result-card.audit-result-uncertain {
+  border-left-color: #b49659;
+}
+
+.audit-result-card.audit-result-complete {
+  border-left-color: #5a9c7d;
+}
+
+.audit-result-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.audit-result-heading > div {
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.audit-result-heading h4 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.audit-assessment {
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  background: var(--surface-raised);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.audit-result-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 1.5rem;
+}
+
+.audit-result-columns > section,
+.audit-check-details,
+.audit-check-details-body > section {
+  min-width: 0;
+}
+
+.audit-result-columns > section + section {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--line);
+}
+
+.audit-result-card h5 {
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+}
+
+.audit-assessment-description,
+.audit-check-method {
+  margin: 0 0 0.7rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.audit-check-method {
+  margin: 0.75rem 0 0;
+}
+
+.audit-evidence-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.8rem;
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+}
+
+.audit-evidence-complete > span {
+  color: #83cfac;
+}
+
+.audit-evidence-missing {
+  color: #e4bd73;
+}
+
+.audit-evidence-gaps {
+  margin-top: 0.8rem;
+  padding: 0.85rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #e4bd73 7%, var(--surface));
+  color: var(--muted-strong);
+  font-size: 0.85rem;
+}
+
+.audit-evidence-gaps ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.audit-check-details > summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.audit-check-details-body {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.audit-task-document {
+  max-height: 28rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface-raised);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
+.audit-evidence-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-evidence-list > li {
+  border-left: 2px solid var(--line-strong);
+  padding-left: 1rem;
+}
+
+.audit-card-objective,
+.audit-card-inputs {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.audit-card-inputs {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.audit-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: start;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.audit-open-link {
+  display: inline-block;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  padding: 0.65rem 0.8rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.audit-delete-hint {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+  max-width: 17rem;
+}
+
+.audit-delete-hint small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1200px) {
+  .audit-coverage-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 800px) {
   .audit-card-grid,
   .audit-profile-summary,
   .audit-findings-toolbar,
   .audit-review-fields {
     grid-template-columns: 1fr;
+  }
+
+  .audit-result-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-result-columns > section + section {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    padding: 1rem 0 0;
+  }
+
+  .audit-coverage-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .audit-header-state {

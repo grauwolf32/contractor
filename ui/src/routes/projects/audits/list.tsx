@@ -9,6 +9,7 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import type { ArtifactMetadata } from "../../../api/artifacts";
 import {
+  auditNeedsPolling,
   createAudit,
   getAuditProfile,
   listAuditProfiles,
@@ -26,6 +27,8 @@ import {
   ErrorNotice,
   formatTimestamp,
 } from "../../artifacts/common";
+import { AuditControls } from "./controls";
+import { auditProfileLabel } from "./labels";
 import { StateBadge } from "../../runs/components";
 import { ProjectAuditNavigation } from "./shared";
 
@@ -219,7 +222,7 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
           <p className="eyebrow">Pinned program and inputs</p>
           <h3>New Audit</h3>
         </div>
-        <span className="audit-policy-mark">batch size 1</span>
+        <span className="audit-policy-mark">New draft</span>
       </div>
       {profiles.isPending ? (
         <p className="loading-copy">Loading Audit profiles…</p>
@@ -428,19 +431,19 @@ function AuditCreateForm({ projectId }: { projectId: string }) {
   );
 }
 
-export function ProjectAuditListRoute() {
+export function ProjectAuditWorkspace({
+  projectId,
+  projectName,
+}: {
+  projectId: string;
+  projectName?: string;
+}) {
   const api = usePublicAPI();
-  const { projectId = "" } = useParams();
-  const validProject = PROJECT_ID_PATTERN.test(projectId);
+  const [showCreate, setShowCreate] = useState(false);
   const [cursors, setCursors] = useState<Array<string | undefined>>([
     undefined,
   ]);
   const cursor = cursors.at(-1);
-  const project = useQuery({
-    queryKey: queryKeys.projects.detail(projectId),
-    queryFn: () => getProject(api, projectId),
-    enabled: validProject,
-  });
   const audits = useQuery({
     queryKey: queryKeys.projects.audits.list(projectId, cursor),
     queryFn: () =>
@@ -448,92 +451,96 @@ export function ProjectAuditListRoute() {
         projectId,
         ...(cursor === undefined ? {} : { cursor }),
       }),
-    enabled: validProject,
     refetchOnReconnect: true,
+    refetchInterval: (query) =>
+      query.state.data?.items.some((audit) => auditNeedsPolling(audit.state))
+        ? 5_000
+        : false,
   });
-
-  if (!validProject) {
-    return (
-      <section className="route-page">
-        <ErrorNotice error={new Error("Project Audit route is invalid")} />
-        <Link to="/projects">Return to Projects</Link>
-      </section>
-    );
-  }
-
   return (
-    <section className="route-page audit-page">
-      <header className="route-header-row">
+    <div className="audit-page audit-collection">
+      <div className="section-heading">
         <div>
-          <Link
-            className="back-link"
-            to={`/projects/${encodeURIComponent(projectId)}`}
-          >
-            ← {project.data?.name ?? "Project"}
-          </Link>
-          <p className="eyebrow">Project security programs</p>
-          <h2>Audits</h2>
-          <p className="lede">
-            Profiles pin a deterministic worklist. Every check still executes as
-            an ordinary Workflow Run in the global queue.
+          <p className="muted-copy">
+            Review tasks, evidence and results from your security audits.
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={audits.isFetching}
-          onClick={() => void audits.refetch()}
-        >
-          {audits.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
-      {project.error === null ? null : <ErrorNotice error={project.error} />}
-      <ProjectAuditNavigation projectId={projectId} current="audits" />
-      <AuditCreateForm projectId={projectId} />
-      <section className="audit-collection">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Durable project history</p>
-            <h3>Audit executions</h3>
-          </div>
+        <div className="button-row">
+          <button
+            className="secondary-button"
+            disabled={audits.isFetching}
+            onClick={() => void audits.refetch()}
+          >
+            {audits.isFetching ? "Refreshing…" : "Refresh audits"}
+          </button>
+          <button
+            type="button"
+            aria-expanded={showCreate}
+            aria-controls="audit-create-form"
+            onClick={() => setShowCreate((value) => !value)}
+          >
+            {showCreate ? "Close new audit" : "New Audit"}
+          </button>
         </div>
-        {audits.isPending ? (
-          <p className="loading-copy">Loading Audits…</p>
-        ) : audits.error !== null ? (
-          <ErrorNotice error={audits.error} />
-        ) : audits.data.items.length === 0 ? (
-          <div className="empty-state panel">
-            <h3>No Audits yet</h3>
-            <p>Create a draft from one exact profile and exact inputs.</p>
-          </div>
-        ) : (
-          <div className="audit-card-grid">
-            {audits.data.items.map((audit) => (
-              <article className="panel audit-card" key={audit.auditId}>
+      </div>
+      {showCreate ? (
+        <div id="audit-create-form">
+          <AuditCreateForm projectId={projectId} />
+        </div>
+      ) : null}
+      {audits.isPending ? (
+        <p className="loading-copy">Loading Audits…</p>
+      ) : audits.error !== null ? (
+        <ErrorNotice error={audits.error} />
+      ) : audits.data.items.length === 0 ? (
+        <div className="empty-state panel">
+          <h3>No Audits yet</h3>
+          <p>
+            Create an audit to run a set of checks against your project sources.
+          </p>
+        </div>
+      ) : (
+        <div className="audit-card-grid">
+          {audits.data.items.map((audit) => {
+            const root = `/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(audit.auditId)}`;
+            return (
+              <article
+                className="panel audit-card"
+                key={audit.auditId}
+                aria-label={`${auditProfileLabel(audit)} ${audit.auditId}`}
+              >
                 <div className="section-heading">
                   <div>
                     <p className="eyebrow">
-                      {audit.profile.name}@{audit.profile.version}
+                      {formatTimestamp(audit.createdAt)}
                     </p>
                     <h3>
                       <Link
-                        to={`/projects/${encodeURIComponent(projectId)}/audits/${encodeURIComponent(audit.auditId)}`}
+                        to={audit.state === "draft" ? root : `${root}/coverage`}
                       >
-                        {audit.auditId}
+                        {auditProfileLabel(audit)}
                       </Link>
                     </h3>
                   </div>
                   <StateBadge state={audit.state} />
                 </div>
+                {audit.scope.objective ? (
+                  <p className="audit-card-objective">
+                    {audit.scope.objective}
+                  </p>
+                ) : null}
+                <p className="audit-card-inputs">
+                  {Object.values(audit.inputs)
+                    .map((input) => input.ref.name)
+                    .join(" · ") || "No inputs selected"}
+                </p>
                 <dl className="metadata-grid audit-card-stats">
                   <div>
-                    <dt>Runs</dt>
-                    <dd>
-                      {audit.submittedRunCount}/{audit.limits.maxSubmittedRuns}
-                    </dd>
+                    <dt>Runs submitted</dt>
+                    <dd>{audit.submittedRunCount}</dd>
                   </div>
                   <div>
-                    <dt>Outstanding</dt>
+                    <dt>Runs in progress</dt>
                     <dd>{audit.outstandingRunCount}</dd>
                   </div>
                   <div>
@@ -541,30 +548,96 @@ export function ProjectAuditListRoute() {
                     <dd>{formatTimestamp(audit.updatedAt)}</dd>
                   </div>
                 </dl>
-                {audit.stopReason === undefined ? null : (
-                  <p className="form-error">
-                    {audit.stopReason.code}: {audit.stopReason.message}
+                {audit.stopReason ? (
+                  <p className="form-error">{audit.stopReason.message}</p>
+                ) : null}
+                <div className="audit-card-footer">
+                  <div className="button-row">
+                    <Link
+                      className="audit-open-link"
+                      to={audit.state === "draft" ? root : `${root}/coverage`}
+                    >
+                      {audit.state === "draft"
+                        ? "Open draft →"
+                        : "View checks & results →"}
+                    </Link>
+                    {audit.state === "waiting_review" ? (
+                      <Link to={`${root}/reviews`}>Review decisions</Link>
+                    ) : null}
+                  </div>
+                  <AuditControls
+                    audit={audit}
+                    projectName={projectName}
+                    deleteOnly
+                  />
+                </div>
+                <details className="audit-record-details">
+                  <summary>Audit identity</summary>
+                  <p>
+                    <code>{audit.auditId}</code> · {audit.profile.name}@
+                    {audit.profile.version}
                   </p>
-                )}
+                </details>
               </article>
-            ))}
-          </div>
-        )}
-        <CursorControls
-          label="Project Audit pages"
-          canGoBack={cursors.length > 1}
-          {...(audits.data?.page.hasMore === true &&
-          audits.data.page.nextCursor !== undefined
-            ? { nextCursor: audits.data.page.nextCursor }
-            : {})}
-          onBack={() =>
-            setCursors((current) =>
-              current.slice(0, Math.max(1, current.length - 1)),
-            )
-          }
-          onNext={(next) => setCursors((current) => [...current, next])}
-        />
+            );
+          })}
+        </div>
+      )}
+      <CursorControls
+        label="Project Audit pages"
+        canGoBack={cursors.length > 1}
+        {...(audits.data?.page.hasMore === true &&
+        audits.data.page.nextCursor !== undefined
+          ? { nextCursor: audits.data.page.nextCursor }
+          : {})}
+        onBack={() =>
+          setCursors((current) =>
+            current.slice(0, Math.max(1, current.length - 1)),
+          )
+        }
+        onNext={(next) => setCursors((current) => [...current, next])}
+      />
+    </div>
+  );
+}
+
+export function ProjectAuditListRoute() {
+  const api = usePublicAPI();
+  const { projectId = "" } = useParams();
+  const validProject = PROJECT_ID_PATTERN.test(projectId);
+  const project = useQuery({
+    queryKey: queryKeys.projects.detail(projectId),
+    queryFn: () => getProject(api, projectId),
+    enabled: validProject,
+  });
+  if (!validProject)
+    return (
+      <section className="route-page">
+        <ErrorNotice error={new Error("Project Audit route is invalid")} />
+        <Link to="/projects">Return to Projects</Link>
       </section>
+    );
+  return (
+    <section className="route-page audit-page">
+      <header className="route-header-row">
+        <div>
+          <Link
+            className="back-link"
+            to={`/projects/${encodeURIComponent(projectId)}#project-audits`}
+          >
+            ← {project.data?.name ?? "Project"}
+          </Link>
+          <p className="eyebrow">{project.data?.name ?? "Project"}</p>
+          <h2>Audits</h2>
+        </div>
+      </header>
+      {project.error === null ? null : <ErrorNotice error={project.error} />}
+      <ProjectAuditNavigation projectId={projectId} current="audits" />
+      <ProjectAuditWorkspace
+        key={projectId}
+        projectId={projectId}
+        {...(project.data ? { projectName: project.data.name } : {})}
+      />
     </section>
   );
 }

@@ -114,6 +114,8 @@ export const queryKeys = {
       ["audits", "detail", auditId, "items", cursor ?? null] as const,
     coverage: (auditId: string, cursor?: string) =>
       ["audits", "detail", auditId, "coverage", cursor ?? null] as const,
+    allCoverage: (auditId: string) =>
+      ["audits", "detail", auditId, "coverage", "all"] as const,
     report: (auditId: string) =>
       ["audits", "detail", auditId, "report"] as const,
     findings: (auditId: string, cursor?: string) =>

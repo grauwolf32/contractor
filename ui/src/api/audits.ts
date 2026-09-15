@@ -414,15 +414,17 @@ export async function listAuditItems(
 export async function listAuditCoverage(
   api: PublicAPI,
   auditId: string,
-  request: PageRequest = {},
+  request: PageRequest & { round?: string } = {},
 ): Promise<AuditCoveragePage> {
   requireAuditID(auditId);
+  if (request.round !== undefined) requireAuditID(request.round);
   const result = await api.request((client) =>
     client.GET("/v1/audits/{auditId}/coverage", {
       params: {
         path: { auditId },
         query: {
           limit: AUDIT_PAGE_SIZE,
+          ...(request.round === undefined ? {} : { round: request.round }),
           ...(request.cursor === undefined ? {} : { cursor: request.cursor }),
         },
       },

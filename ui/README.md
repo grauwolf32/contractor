@@ -64,6 +64,16 @@ metrics, exact RunScope Artifacts, and frozen outputs. Cancellation always
 refetches the authoritative aggregate, including when it races a terminal
 transition; the browser never predicts a lifecycle state.
 
+Project workspaces include their Audit history and draft creation directly.
+Coverage shows every page of the current round, with result filters and search
+across task text, conclusions, gaps and evidence. The API reads the exact retained
+task and accepted result packages, so this works with custom checklists and
+existing Audits without a profile-specific title catalog or a new model call.
+Task documents are available on demand; package evidence is limited to the
+selected check. Findings navigation stays within the selected Audit, with a
+separate link to all Project findings. Audit deletion is visible on cards and
+detail pages, with confirmation and server-authoritative reconciliation.
+
 One `contractor.events.v1` WebSocket is multiplexed across open Run views and
 the Operations workspace.
 Lifecycle frames only invalidate REST queries. Closed, typed Planner frames may

@@ -138,6 +138,9 @@ func TestAuditPostgresPublicCreateStartAndQuery(t *testing.T) {
 		len(page.Items) != 1 || page.Items[0].Coverage.Status != auditstore.CoverageNotTested {
 		t.Fatalf("coverage = %d body=%s", coverageResponse.Code, coverageResponse.Body.String())
 	}
+	if page.Items[0].Details == nil || page.Items[0].Details.Objective == "" || !json.Valid(page.Items[0].Details.TaskDocument) {
+		t.Fatalf("coverage omitted the worker task: %s", coverageResponse.Body.String())
+	}
 }
 
 func loadPublicAuditConfiguration(t *testing.T) *config.Snapshot {

@@ -171,14 +171,15 @@ type auditItemPageResponse struct {
 }
 
 type auditCoverageResponse struct {
-	RoundID    string                    `json:"roundId"`
-	ItemID     string                    `json:"itemId"`
-	Ordinal    int                       `json:"ordinal"`
-	ItemKey    string                    `json:"itemKey"`
-	SubjectKey string                    `json:"subjectKey"`
-	Coverage   auditstore.Coverage       `json:"coverage"`
-	Result     *auditstore.ExactArtifact `json:"result,omitempty"`
-	UpdatedAt  time.Time                 `json:"updatedAt"`
+	RoundID    string                      `json:"roundId"`
+	ItemID     string                      `json:"itemId"`
+	Ordinal    int                         `json:"ordinal"`
+	ItemKey    string                      `json:"itemKey"`
+	SubjectKey string                      `json:"subjectKey"`
+	Coverage   auditstore.Coverage         `json:"coverage"`
+	Result     *auditstore.ExactArtifact   `json:"result,omitempty"`
+	UpdatedAt  time.Time                   `json:"updatedAt"`
+	Details    *auditstore.CoverageDetails `json:"details,omitempty"`
 }
 
 type auditCoveragePageResponse struct {
@@ -740,7 +741,7 @@ func (h *handler) listAuditCoverage(w http.ResponseWriter, r *http.Request) {
 		items[index] = auditCoverageResponse{
 			RoundID: row.RoundID, ItemID: row.ItemID, Ordinal: row.Ordinal,
 			ItemKey: row.ItemKey, SubjectKey: row.SubjectKey, Coverage: row.Coverage,
-			Result: row.Result, UpdatedAt: row.UpdatedAt,
+			Result: row.Result, UpdatedAt: row.UpdatedAt, Details: row.Details,
 		}
 	}
 	writeJSON(w, http.StatusOK, auditCoveragePageResponse{Items: items, Page: page})

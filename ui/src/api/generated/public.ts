@@ -2175,6 +2175,20 @@ export interface components {
             gaps: string[];
             rationale?: string;
         };
+        AuditCoverageDetails: {
+            objective: string;
+            methods: string[];
+            /** @description Exact retained item-task document given to the worker, independent of the selected checklist or profile. */
+            taskDocument: {
+                [key: string]: unknown;
+            };
+            resultSummary?: string;
+            evidence: {
+                id: string;
+                kind: string;
+                summary: string;
+            }[];
+        };
         AuditCoverageRow: {
             roundId: components["schemas"]["ResourceId"];
             itemId: components["schemas"]["ResourceId"];
@@ -2182,6 +2196,7 @@ export interface components {
             itemKey: string;
             subjectKey: string;
             coverage: components["schemas"]["AuditCoverage"];
+            details?: components["schemas"]["AuditCoverageDetails"];
             result?: components["schemas"]["AuditExactArtifact"];
             /** Format: date-time */
             updatedAt: string;

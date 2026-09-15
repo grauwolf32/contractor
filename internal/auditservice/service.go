@@ -179,10 +179,15 @@ func (s *Service) ListCoverage(
 	afterOrdinal, limit int,
 ) ([]auditstore.CoverageRow, error) {
 	store := auditstore.NewPostgresStore(s.pool)
-	if _, err := store.Get(ctx, ownerID, auditID); err != nil {
+	audit, err := store.Get(ctx, ownerID, auditID)
+	if err != nil {
 		return nil, err
 	}
-	return store.ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
+	rows, err := store.ListCoverage(ctx, auditID, roundID, afterOrdinal, limit)
+	if err != nil || audit.State == auditstore.AuditDeleting {
+		return rows, err
+	}
+	return s.describeCoverage(ctx, audit.ProjectID, rows)
 }
 
 func (s *Service) GetReport(
