@@ -87,6 +87,9 @@ function OperationsLiveSubscription({
         onResync(reason);
         void invalidateSnapshot();
         void invalidateSchedulerSettings();
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
+        });
       },
       onStateChange: (state) => {
         onConnection(state);
@@ -103,6 +106,7 @@ function OperationsLiveSubscription({
 
 export function OperationsLayoutRoute() {
   const api = usePublicAPI();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const { session } = useSession();
   const authorized =
@@ -135,6 +139,12 @@ export function OperationsLayoutRoute() {
     queryFn: () => getOperationsSnapshot(api),
     enabled: authorized && !independentRead,
   });
+  const refresh = () => {
+    void query.refetch();
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.operations.runtimeAgentPrincipals.all,
+    });
+  };
 
   if (!authorized && !personalSettings) {
     return (
@@ -169,7 +179,7 @@ export function OperationsLayoutRoute() {
             className="secondary-button"
             type="button"
             disabled={query.isFetching}
-            onClick={() => void query.refetch()}
+            onClick={refresh}
           >
             {query.isFetching ? "Refreshing…" : "Refresh snapshot"}
           </button>
@@ -227,7 +237,7 @@ export function OperationsLayoutRoute() {
             context={
               {
                 snapshot: query.data,
-                refresh: () => void query.refetch(),
+                refresh,
                 refreshing: query.isFetching,
               } satisfies OperationsOutletContext
             }

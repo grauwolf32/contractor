@@ -1,0 +1,406 @@
+.runtime-agent-library .runtime-principal-grid {
+  align-items: start;
+}
+
+.runtime-agent-library .runtime-principal-card {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0.9rem;
+  background: #131a23;
+}
+
+.runtime-agent-summary {
+  padding: 1.3rem;
+}
+
+.runtime-agent-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.runtime-agent-avatar {
+  display: grid;
+  width: 2.7rem;
+  height: 2.7rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid #354152;
+  border-radius: 0.7rem;
+  background: #1b2430;
+  color: #bccad8;
+}
+
+.runtime-agent-identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.runtime-agent-name {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.runtime-agent-library .runtime-agent-name h4 {
+  font-family: inherit;
+  font-size: 1.05rem;
+  letter-spacing: -0.025em;
+}
+
+.runtime-agent-copy {
+  display: grid;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.runtime-agent-copy .app-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.runtime-agent-copy:hover {
+  background: #243040;
+  color: var(--text);
+}
+
+.runtime-agent-connection {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.runtime-agent-dot {
+  flex: none;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: #b2d480;
+}
+
+.runtime-agent-dot.is-offline {
+  background: #8995a4;
+}
+
+.runtime-agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  border: 1px solid transparent;
+  border-radius: 2rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.runtime-agent-status.status-available {
+  background: #26351e;
+  color: #cfeba9;
+}
+
+.runtime-agent-status.status-busy {
+  background: #203247;
+  color: #afd3ff;
+}
+
+.runtime-agent-status.status-offline {
+  background: #29313b;
+  color: #c2cad5;
+}
+
+.runtime-agent-status.status-slot-unavailable,
+.runtime-agent-status.status-adapter-capability-mismatch {
+  background: #3c2d18;
+  color: #f3c781;
+}
+
+.runtime-agent-metrics {
+  display: grid;
+  grid-template-columns: 0.85fr 1fr 1.2fr;
+  gap: 0.75rem;
+  margin: 1.15rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.runtime-agent-metrics > div {
+  min-width: 0;
+}
+
+.runtime-agent-metrics dt,
+.runtime-agent-label-heading {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.runtime-agent-metrics dd {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.runtime-agent-metrics small {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.runtime-agent-storage {
+  text-transform: capitalize;
+}
+
+.runtime-agent-label-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 1.15rem 0 0.55rem;
+}
+
+.runtime-agent-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  border: 0;
+  padding: 0.25rem 0.1rem;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.75rem;
+}
+
+.runtime-agent-edit .app-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.runtime-agent-edit:not(:disabled):hover {
+  background: transparent;
+  color: #e3f6bd;
+  text-decoration: underline;
+}
+
+.runtime-agent-label-chips,
+.runtime-agent-capabilities,
+.runtime-agent-exact-refs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.runtime-agent-label-chip {
+  border: 1px solid #3f4d30;
+  border-radius: 0.4rem;
+  background: #222d1c;
+  padding: 0.2rem 0.65rem;
+  color: #cee3b0;
+}
+
+.runtime-agent-capabilities {
+  margin-top: 1.1rem;
+}
+
+.runtime-agent-capabilities > span {
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  color: #b5c1d0;
+}
+
+.runtime-agent-diagnostics {
+  padding: 0.9rem 1.3rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+}
+
+.runtime-agent-diagnostics > summary,
+.runtime-process-inventory > summary {
+  min-height: 1.5rem;
+  cursor: pointer;
+  color: #b6c2d0;
+}
+
+.runtime-agent-diagnostics > summary:hover,
+.runtime-process-inventory > summary:hover {
+  color: var(--text);
+}
+
+.runtime-agent-diagnostics .key-value-list {
+  margin-top: 1rem;
+}
+
+.runtime-agent-diagnostics code {
+  user-select: all;
+}
+
+.runtime-agent-toolsets {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.runtime-agent-toolsets .runtime-agent-exact-refs {
+  margin-top: 0.4rem;
+}
+
+.runtime-agent-offline-note,
+.runtime-agent-copy-status,
+.runtime-agent-availability-note {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.runtime-agent-offline-note,
+.runtime-agent-copy-status,
+.runtime-agent-availability-note {
+  margin: 0.9rem 0 0;
+}
+
+.runtime-agent-warning,
+.runtime-agent-allocation {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.runtime-agent-warning p {
+  margin: 0.35rem 0 0;
+  line-height: 1.5;
+}
+
+.runtime-agent-warning .reason-record {
+  margin-top: 0.4rem;
+}
+
+.runtime-agent-allocation {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid #354e6b;
+  background: #1b2a3b;
+  color: #c0dcff;
+}
+
+.runtime-agent-allocation > div {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.runtime-agent-allocation a {
+  color: inherit;
+}
+
+.runtime-agent-remove {
+  margin-top: 1rem;
+}
+
+.runtime-agent-label-dialog {
+  width: min(100%, 34rem);
+}
+
+.runtime-agent-label-dialog .checkbox-label > span {
+  display: grid;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.runtime-agent-label-dialog .checkbox-label small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.runtime-agent-label-dialog .notice {
+  margin-top: 1rem;
+}
+
+.runtime-agent-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.2rem;
+}
+
+.runtime-process-inventory > summary {
+  font-size: 0.85rem;
+}
+
+.runtime-process-inventory > summary span {
+  margin-left: 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.runtime-process-inventory[open] > summary {
+  margin-bottom: 1.2rem;
+}
+
+@media (max-width: 1250px) {
+  .runtime-agent-library .runtime-principal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .runtime-agent-summary {
+    padding: 1rem;
+  }
+
+  .runtime-agent-diagnostics {
+    padding: 0.9rem 1rem;
+  }
+
+  .runtime-agent-heading {
+    display: grid;
+    grid-template-columns: 2.7rem minmax(0, 1fr);
+    gap: 0.45rem 0.6rem;
+  }
+
+  .runtime-agent-library .runtime-agent-name h4 {
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  .runtime-agent-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .runtime-agent-metrics {
+    gap: 0.6rem;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .runtime-agent-metrics > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .runtime-agent-metrics > div:last-child small {
+    display: inline;
+    margin-left: 0.5rem;
+  }
+}

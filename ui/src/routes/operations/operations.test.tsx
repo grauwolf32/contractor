@@ -4,6 +4,7 @@ import { createMemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PublicAPI } from "../../api/client";
+import type { RuntimeAgentPrincipal } from "../../api/operations";
 import { Application } from "../../app/application";
 import { applicationRoutes } from "../../app/router";
 import type { RuntimeConfig } from "../../config/runtime-config";
@@ -823,13 +824,259 @@ describe("Operations routes", () => {
     );
     renderOperations(api, "/operations/runtime-agents");
     expect(
-      await screen.findByText("offline · durable labels retained"),
+      await screen.findByText(
+        "Offline · saved labels are retained for the next registration.",
+      ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Missing otlp-http@1")).toBeInTheDocument();
+    expect(screen.getByText("runtime-incompatible")).toBeInTheDocument();
+    const incompatible = screen.getByRole("article", {
+      name: "Agent · bbbbbb…bbbb",
+    });
+    expect(within(incompatible).getByText("Missing adapter")).toBeVisible();
+    expect(within(incompatible).getByText(/Online/)).toBeVisible();
+    expect(within(incompatible).queryByText("Available")).toBeNull();
+    expect(within(incompatible).queryByRole("checkbox")).toBeNull();
+  });
+});
+
+describe("Runtime Agent cards", () => {
+  const principalBase: RuntimeAgentPrincipal = {
+    runtimeAgentId: "a".repeat(64),
+    labels: ["debug"],
+    revision: "1",
+    availability: "available",
+    requiredRuntimeAdapters: ["otlp-http@1"],
+    missingRuntimeAdapters: [],
+    createdBy: "system",
+    createdAt: "2026-08-31T12:00:00Z",
+    updatedBy: "user_local",
+    updatedAt: "2026-08-31T12:01:00Z",
+    live: {
+      instanceId: "runtime-card",
+      softwareVersion: "0.1.0",
+      supportedRuntimes: ["adk@1"],
+      supportedToolsets: [],
+      supportedSandboxProfiles: ["local-workdir@1"],
+      supportedRuntimeAdapters: ["otlp-http@1", "caido-graphql@1"],
+      observedState: "idle",
+      slotState: "idle",
+    },
+  };
+  const bindings = ["default", "caido", "debug"].map((label) => ({
+    label,
+    config: { name: label, version: "1", digest },
+    revision: "1",
+    createdBy: "user_local",
+    createdAt: "2026-08-31T12:00:00Z",
+    updatedBy: "user_local",
+    updatedAt: "2026-08-31T12:00:00Z",
+  }));
+
+  function readResponse(
+    request: Request,
+    principal: RuntimeAgentPrincipal,
+  ): Response | undefined {
+    const auth = sessionResponse(request);
+    if (auth !== undefined) return auth;
+    const path = new URL(request.url).pathname;
+    if (request.method !== "GET") return undefined;
+    if (path === "/v1/operations/snapshot") return apiResponse(snapshot());
+    if (path === "/v1/operations/runtime-labels")
+      return apiResponse({ items: bindings, page: { hasMore: false } });
+    if (path === "/v1/operations/runtime-agent-principals")
+      return apiResponse({ items: [principal], page: { hasMore: false } });
+    if (
+      path ===
+      `/v1/operations/runtime-agent-principals/${principal.runtimeAgentId}`
+    )
+      return apiResponse(principal, 200, { ETag: `"${principal.revision}"` });
+    return undefined;
+  }
+
+  it("copies the stable ID and edits labels on demand without saving a dismissed draft", async () => {
+    const user = userEvent.setup();
+    const copy = vi.spyOn(navigator.clipboard, "writeText");
+    const mutations: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        if (request.method !== "GET") mutations.push(request.clone());
+        return readResponse(request, principalBase) ?? apiResponse({}, 500);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    const card = await screen.findByRole("article", {
+      name: "Agent · aaaaaa…aaaa",
+    });
+    expect(within(card).queryByRole("checkbox")).toBeNull();
+    expect(card.querySelector("details")).not.toHaveAttribute("open");
+    expect(within(card).getAllByText("Not observed")).toHaveLength(4);
+    await user.click(
+      within(card).getByRole("button", { name: "Copy Agent ID" }),
+    );
+    expect(copy).toHaveBeenCalledWith(principalBase.runtimeAgentId);
+    const trigger = within(card).getByRole("button", { name: "Edit labels" });
+    await user.click(trigger);
+    let dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
     expect(
-      screen.getByText(/cannot receive matching work/),
-    ).toBeInTheDocument();
+      within(dialog).getByRole("checkbox", { name: /caido/ }),
+    ).toHaveFocus();
     expect(
-      screen.getByText("live as runtime-incompatible"),
-    ).toBeInTheDocument();
+      within(dialog).queryByRole("checkbox", { name: /default/ }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    ).toBeDisabled();
+    await user.click(within(dialog).getByRole("checkbox", { name: /debug/ }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(mutations).toHaveLength(0);
+    await user.click(trigger);
+    dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    expect(
+      within(dialog).getByRole("checkbox", { name: /debug/ }),
+    ).toBeChecked();
+  });
+
+  it("requires an explicit reload after a label revision conflict and pins the reviewed revision", async () => {
+    let principal = principalBase;
+    const requests: Request[] = [];
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        if (request.method === "PUT") {
+          requests.push(request.clone());
+          if (requests.length === 1) {
+            principal = {
+              ...principal,
+              revision: "2",
+              labels: ["caido", "debug"],
+            };
+            return apiResponse(
+              {
+                code: "precondition_failed",
+                message: "Agent labels changed",
+                retryable: false,
+              },
+              412,
+            );
+          }
+          const body = (await request.json()) as { labels: string[] };
+          principal = { ...principal, revision: "3", labels: body.labels };
+          return apiResponse(principal, 200, { ETag: '"3"' });
+        }
+        return readResponse(request, principal) ?? apiResponse({}, 500);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Edit labels" }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "Edit Agent labels" });
+    await user.click(within(dialog).getByRole("checkbox", { name: /debug/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    );
+    expect(
+      await within(dialog).findByText("Agent labels changed in another view."),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /debug/ }),
+    ).not.toBeChecked();
+    expect(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    ).toBeDisabled();
+    expect(requests[0]?.headers.get("If-Match")).toBe('"1"');
+    expect(await requests[0]?.json()).toEqual({ labels: [] });
+    await user.click(
+      within(dialog).getByRole("button", { name: "Reload labels" }),
+    );
+    await waitFor(() => expect(within(dialog).queryByRole("alert")).toBeNull());
+    expect(
+      within(dialog).getByRole("checkbox", { name: /debug/ }),
+    ).toBeChecked();
+    expect(
+      within(dialog).getByRole("checkbox", { name: /caido/ }),
+    ).toBeChecked();
+    await user.click(within(dialog).getByRole("checkbox", { name: /caido/ }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Save labels" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(requests).toHaveLength(2);
+    expect(requests[1]?.headers.get("If-Match")).toBe('"2"');
+    expect(requests[1]?.headers.get("X-CSRF-Token")).toBe(session.csrfToken);
+    expect(requests[1]?.headers.get("Idempotency-Key")).not.toBe(
+      requests[0]?.headers.get("Idempotency-Key"),
+    );
+    expect(await requests[1]?.json()).toEqual({ labels: ["debug"] });
+  });
+
+  it("refreshes card availability manually when live events are disconnected", async () => {
+    let principal = principalBase;
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        return readResponse(request, principal) ?? apiResponse({}, 500);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    const card = await screen.findByRole("article", {
+      name: "Agent · aaaaaa…aaaa",
+    });
+    expect(within(card).getByText("Available")).toBeVisible();
+    principal = {
+      ...principalBase,
+      availability: "busy",
+      live: { ...principalBase.live!, slotState: "reserved" },
+    };
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Refresh snapshot" }));
+    expect(await within(card).findByText("Busy")).toBeVisible();
+    expect(
+      within(card).getByText("reserved", { selector: "small" }),
+    ).toBeVisible();
+    expect(within(card).queryByText("Available")).toBeNull();
+  });
+
+  it("shows allocation ownership and a reconciliation warning without treating an idle observation as availability", async () => {
+    const principal: RuntimeAgentPrincipal = {
+      ...principalBase,
+      availability: "slot_unavailable",
+      live: {
+        ...principalBase.live!,
+        slotState: "fenced",
+        authoritativeAllocationId: "allocation-current",
+        reconciliationReason: { code: "release_pending", retryable: true },
+      },
+    };
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async (input) => {
+        const request = input instanceof Request ? input : new Request(input);
+        return readResponse(request, principal) ?? apiResponse({}, 500);
+      }),
+    );
+    renderOperations(api, "/operations/runtime-agents");
+    const card = await screen.findByRole("article", {
+      name: "Agent · aaaaaa…aaaa",
+    });
+    expect(within(card).getByText("Slot unavailable")).toBeVisible();
+    expect(
+      within(card).getByText("State reconciliation pending"),
+    ).toBeVisible();
+    expect(
+      within(card).getByText("Process: idle. Server slot: fenced."),
+    ).toBeVisible();
+    expect(within(card).queryByText("Available")).toBeNull();
+    expect(
+      within(card).getByRole("link", { name: /View allocation/ }),
+    ).toHaveAttribute("href", "/operations/allocations#allocation-current");
   });
 });

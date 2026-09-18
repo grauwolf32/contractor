@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { useOperationsSnapshot } from "../context";
 import {
@@ -12,6 +12,7 @@ import { AllocationViewTabs } from "./tabs";
 
 export function AllocationListRoute() {
   const { snapshot } = useOperationsSnapshot();
+  const { hash } = useLocation();
   return (
     <div className="operations-library">
       <AllocationViewTabs />
@@ -40,6 +41,11 @@ export function AllocationListRoute() {
               <details
                 className="allocation-card"
                 key={allocation.allocationId}
+                id={allocation.allocationId}
+                open={
+                  hash === `#${encodeURIComponent(allocation.allocationId)}` ||
+                  undefined
+                }
               >
                 <summary>
                   <span>

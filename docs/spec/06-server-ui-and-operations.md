@@ -888,6 +888,23 @@ one set to explain rather than separate declared/managed/effective views. A
 busy agent retains its active allocation snapshot; the page makes clear that
 the changed labels apply to a future allocation.
 
+Runtime Agent cards combine the durable identity with its current process
+observation: a shortened copyable Agent ID, Server-reported availability,
+process liveness, slot occupancy, heartbeat age, workspace modes and saved label
+chips. Missing observations stay explicit. Supported adapter chips describe
+startup capabilities, not remote endpoint health or compatibility with every
+Workflow. Missing adapters and allocation reconciliation appear as visible
+warnings; an idle process observation never overrides the authoritative slot.
+Current allocation links open its exact entry, with a Run link when the current
+snapshot supplies the matching allocation identity.
+
+Full identities, label revision, lease timestamps and exact capabilities live
+under each card's diagnostics disclosure. The process inventory remains a
+separate collapsed diagnostic view. Edit labels opens the shared accessible
+Dialog with an isolated draft and expected revision. Dismissing it performs no
+mutation; a changed revision requires explicit reload and review before retry.
+Offline identity removal remains available only without assigned labels.
+
 ## WorkflowRun metadata labels
 
 Run-create, list and detail expose the separate immutable `labels` map owned by

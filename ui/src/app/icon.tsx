@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
 
 const shapes = {
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="13" rx="2" />
+      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+    </>
+  ),
   play: <path d="m7 4 14 8-14 8V4Z" />,
   pause: <path d="M8 4v16M16 4v16" />,
   stop: <rect x="5" y="5" width="14" height="14" rx="2" />,
